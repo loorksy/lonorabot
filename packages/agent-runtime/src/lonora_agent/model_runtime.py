@@ -240,6 +240,13 @@ async def model_turn(
     ):
         # Never after a card or a generated interface.
         suggested_reply = None
+    if suggested_reply and (
+        redact_private_reply(suggested_reply, public_ids=public_ids) != suggested_reply
+    ):
+        # The suggestion is the owner's next message: it passes the same privacy boundary as
+        # the answer, and a suggestion that needed redaction is dropped, never shown cut.
+        suggested_reply = None
+        privacy_redacted = True
     reply.provider_metadata = {
         **reply.provider_metadata,
         "suggested_reply": suggested_reply if reply.text.strip() else None,

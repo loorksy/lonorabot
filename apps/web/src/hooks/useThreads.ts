@@ -1,5 +1,10 @@
 import type { InputAnswer } from "@lonora/contracts";
-import { isPlainOutgoing, type MentionAddress, projectRunEvents } from "@lonora/core";
+import {
+  isPlainOutgoing,
+  type MentionAddress,
+  mergeLiveMessage,
+  projectRunEvents,
+} from "@lonora/core";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
@@ -138,7 +143,7 @@ export function useThreads(
         !["user", "assistant", "system", "tool"].includes(String(payload.role))
       )
         continue;
-      visible.set(payload.id, payload as unknown as Message);
+      visible.set(payload.id, mergeLiveMessage(visible.get(payload.id), event.kind, payload));
     }
     return [...visible.values()].sort((a, b) => a.seq - b.seq);
   }, [messages, events, threadId, messageKey, outgoing, hiddenBefore]);

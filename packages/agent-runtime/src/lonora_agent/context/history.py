@@ -100,6 +100,18 @@ async def history_context(
             .limit(HISTORY_WINDOW)
         )
     ).all()
+    # Edit-and-resend (Q21): an owner message replaced by a newer one is no longer the
+    # owner's instruction. Every later run reads only the replacement, never the original.
+    replaced = set(
+        await session.scalars(
+            select(MessageRow.edited_from).where(
+                MessageRow.thread_id == thread_id,
+                MessageRow.seq <= input_seq,
+                MessageRow.edited_from.in_([row.id for row in rows if row.role == "user"]),
+            )
+        )
+    )
+    rows = [row for row in rows if row.id not in replaced]
     # Published messages store question text; the existing Run stores its exact
     # choices. Recover a bounded projection so a new turn can understand the
     # original alternatives without manufacturing them or reading future replies.

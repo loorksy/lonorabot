@@ -17,6 +17,7 @@ import {
   headsUpAllowed,
   inQuietHours,
   isPlainOutgoing,
+  mergeLiveMessage,
   pinsAfter,
   rowMarkedOnly,
   selectionSummary,
@@ -241,4 +242,28 @@ test("M2(d): a retried reply's error card settles; it never offers a second Retr
     { model_metadata: null },
   ]);
   assert.deepEqual([...ids], ["failed-1"]);
+});
+
+test("M7: a late message.created never overwrites what the refetch already knows", () => {
+  const read = {
+    id: "m",
+    thread_id: "t",
+    seq: 3,
+    role: "user",
+    content: "اشترِ",
+    attachment_ids: [],
+    created_at: "2026-11-10T08:00:00Z",
+    superseded_by: "m2",
+    consumed: true,
+    reactions: [{ emoji: "👍", by: "owner" }],
+  } as unknown as Parameters<typeof mergeLiveMessage>[0];
+  const created = { ...read, superseded_by: null, reactions: [] } as Record<string, unknown>;
+  delete created.consumed;
+  const merged = mergeLiveMessage(read, "message.created", created);
+  assert.equal(merged.superseded_by, "m2");
+  assert.equal((merged as { consumed?: boolean }).consumed, true);
+  assert.equal((merged as { reactions?: unknown[] }).reactions?.length, 1);
+  // A message.updated is the newer projection.
+  const updated = mergeLiveMessage(read, "message.updated", { ...created, superseded_by: "m3" });
+  assert.equal(updated.superseded_by, "m3");
 });

@@ -65,6 +65,7 @@ export {
   type ListFilter,
   listIdOf,
   listMemberRows,
+  mergeLiveMessage,
   type OutboxLatest,
   PIN_LIMIT,
   pinsAfter,

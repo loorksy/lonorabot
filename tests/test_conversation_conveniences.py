@@ -182,6 +182,22 @@ async def test_no_suggestion_with_tool_calls_or_a_generated_interface(
     assert reply.provider_metadata["suggested_reply"] is None
 
 
+@pytest.mark.asyncio
+async def test_a_suggestion_needing_redaction_is_dropped(monkeypatch: pytest.MonkeyPatch):
+    """M9: the suggested reply passes the same privacy boundary as the answer."""
+    private = "3f2b8c1e-9a4d-4e7b-8c21-5d6f7a8b9c0d"
+    text = f"Gold is steady. <suggested_reply>Open {private}</suggested_reply>"
+    reply, streamed = await scripted_turn(monkeypatch, [text])
+    assert private not in streamed and private not in reply.text
+    assert reply.provider_metadata["suggested_reply"] is None
+    assert reply.provider_metadata["privacy_redacted"] is True
+    # A clean suggestion is untouched.
+    reply, _ = await scripted_turn(
+        monkeypatch, ["Gold is steady. <suggested_reply>Show the chart</suggested_reply>"]
+    )
+    assert reply.provider_metadata["suggested_reply"] == "Show the chart"
+
+
 def test_message_react_is_registered_with_its_policy():
     registry = load_tools()
     tool = registry.tools["message_react"]
@@ -402,6 +418,80 @@ async def test_edit_and_resend_cancels_the_original_run_and_links_both_messages(
         refused = await send(
             fixture, thread["id"], {"content": "x", "edited_from": with_file["message"]["id"]}
         )
+        assert refused.status_code == 409 and refused.json()["code"] == "message_not_editable"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_edited_message_leaves_history_steering_and_clients_marked_replaced():
+    """M7: every later run reads only the replacement; a running reply never consumes the
+    replaced instruction; clients learn the original is superseded; voice notes are not
+    editable."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.history import history_context
+    from lonora_db.schema import EventRow, MessageRow, RunRow, SteeringRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Editor")
+        thread = await fixture.conversation(agent)
+        first = (await send(fixture, thread["id"], {"content": "حلّل اليورو"})).json()
+        running = first["run_ids"][0]
+        await fixture.lease({"id": running, **await fixture.request("GET", f"/runs/{running}")})
+        # Sent while the reply runs: it steers that run.
+        steered = (await send(fixture, thread["id"], {"content": "اشترِ 1 لوت"})).json()
+        steered_id = steered["message"]["id"]
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.scalar(
+                select(SteeringRow.id).where(SteeringRow.message_id == steered_id)
+            )
+        edited = await send(
+            fixture, thread["id"], {"content": "حلّل فقط", "edited_from": steered_id}
+        )
+        assert edited.status_code == 202, edited.text
+        new_id = edited.json()["message"]["id"]
+        async with fixture.runtime.db.sessions() as session:
+            # Withdrawn from the running reply's queue.
+            assert (
+                await session.scalar(
+                    select(SteeringRow.id).where(SteeringRow.message_id == steered_id)
+                )
+                is None
+            )
+            # Clients see the original replaced, live.
+            update = await session.scalar(
+                select(EventRow)
+                .where(EventRow.kind == "message.updated", EventRow.thread_id == thread["id"])
+                .order_by(EventRow.cursor.desc())
+            )
+            assert update is not None
+            assert update.payload["id"] == steered_id
+            assert update.payload["superseded_by"] == new_id
+            # Every later run reads only the replacement.
+            new_seq = await session.scalar(select(MessageRow.seq).where(MessageRow.id == new_id))
+            assert new_seq is not None
+            history = await history_context(session, thread["id"], new_seq)
+            texts = [message.content for message in history]
+            assert any("حلّل فقط" in text for text in texts)
+            assert not any("اشترِ 1 لوت" in text for text in texts)
+            # A voice note has no text to edit.
+            voice = MessageRow(
+                thread_id=thread["id"],
+                seq=new_seq + 100,
+                role="user",
+                content="",
+                rich_content={"version": 1, "parts": [{"type": "voice", "artifact_id": "a"}]},
+            )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(voice)
+            await session.flush()
+            voice_id = voice.id
+            run = await session.get(RunRow, running)
+            assert run is not None
+        refused = await send(fixture, thread["id"], {"content": "x", "edited_from": voice_id})
         assert refused.status_code == 409 and refused.json()["code"] == "message_not_editable"
     finally:
         await fixture.close()

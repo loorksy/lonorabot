@@ -649,8 +649,11 @@ export function Composer({
               }
               if (event.key === "Escape" && replyTarget) {
                 event.preventDefault();
-                if (editing) onClearEdit();
-                else onClearReply();
+                // Like ✕: cancelling an edit also clears the text it loaded.
+                if (editing) {
+                  onClearEdit();
+                  setText("");
+                } else onClearReply();
                 return;
               }
               const end =

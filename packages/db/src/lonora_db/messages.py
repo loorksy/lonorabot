@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.domain import MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import TERMINAL, is_conversational
 from lonora_core.user_error import LonoraError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cancellation import cancel_run
@@ -383,6 +383,12 @@ async def send_message(
         receipt_result["input_answer"] = request.input_answer.model_dump()
     session.add(EffectReceiptRow(key="message:" + message.id, result=receipt_result))
     emit(session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message))
+    if request.edited_from:
+        # Every client marks the original as replaced («مُعدّلة») without a refetch.
+        original = await session.get(MessageRow, request.edited_from)
+        if original is not None:
+            (updated,) = await messages_data(session, [original])
+            emit(session, owner_id, "message.updated", thread_id=thread_id, payload=updated)
     return {
         "message": message_data(message),
         "run_ids": run_ids,
@@ -569,6 +575,12 @@ async def supersede(
         original.role != "user"
         or original.attachment_ids
         or (original.client_nonce or "").startswith("voice:")
+        # A voice note's words are the recording's; there is no text to edit.
+        or any(
+            cast(dict[str, Any], part).get("type") == "voice"
+            for part in cast(list[Any], (original.rich_content or {}).get("parts", []))
+            if isinstance(part, dict)
+        )
         or (receipt is not None and receipt.result.get("input_answer"))
     ):
         raise LonoraError("message_not_editable", 409)
@@ -586,4 +598,11 @@ async def supersede(
     )
     for run_id in active:
         await cancel_run(session, owner_id, run_id)
+    # Sent while another reply was running, the original may wait in that run's steering
+    # queue: it is withdrawn, so the running reply never reads the replaced instruction.
+    await session.execute(
+        delete(SteeringRow).where(
+            SteeringRow.message_id == original.id, SteeringRow.consumed.is_(False)
+        )
+    )
     return original
