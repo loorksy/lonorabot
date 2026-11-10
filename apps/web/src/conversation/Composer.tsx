@@ -731,6 +731,7 @@ export function Composer({
             <Icon name="plus" />
           </button>
           <PermissionChip
+            threadId={threadId}
             agent={agent}
             isGroup={isGroup}
             trading={trading}

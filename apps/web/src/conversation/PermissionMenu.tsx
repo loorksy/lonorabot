@@ -44,7 +44,9 @@ export function PermissionChip({
   trading,
   permission,
   onChanged,
+  threadId,
 }: {
+  threadId?: string;
   agent?: Agent;
   isGroup: boolean;
   trading: boolean;
@@ -160,7 +162,9 @@ function PermissionMenu({
   permission,
   onChanged,
   go,
+  threadId,
 }: {
+  threadId?: string;
   agent: Agent;
   permission: PermissionState | null;
   onChanged: (state: PermissionState) => void;
@@ -209,7 +213,7 @@ function PermissionMenu({
     if (next === level) return popover.close();
     if (next === "autonomous") {
       popover.close();
-      mandate(agent, permission);
+      mandate(agent, permission, false, threadId);
       return;
     }
     if (level === "autonomous") return setPage({ kind: "down", level: next });

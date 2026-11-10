@@ -34,7 +34,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:98
+#: src/conversation/PermissionMenu.tsx:100
 msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
 msgstr "لا يرتبط {0} بحساب تداول، لذلك يعمل دون تنفيذ: يحلّل ويتابع فقط."
 
@@ -55,7 +55,7 @@ msgid "{0} of {1}"
 msgstr "{0} من {1}"
 
 #. placeholder {0}: summary.usage.requests
-#: src/conversation/PermissionMenu.tsx:454
+#: src/conversation/PermissionMenu.tsx:463
 msgid "{0} requests · no cap for this agent"
 msgstr "{0} طلبًا · دون سقف لهذا الوكيل"
 
@@ -119,6 +119,18 @@ msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظ
 #: src/shell/ChatHeader.tsx:73
 msgid "{typingName} is typing…"
 msgstr "{typingName} يكتب…"
+
+#: src/conversation/sheets/MandateSheet.tsx:42
+msgid "12 hours"
+msgstr "12 ساعة"
+
+#: src/conversation/sheets/MandateSheet.tsx:43
+msgid "24 hours"
+msgstr "24 ساعة"
+
+#: src/conversation/sheets/MandateSheet.tsx:44
+msgid "7 days"
+msgstr "7 أيام"
 
 #: src/components/ai/AttentionInbox.tsx:31
 msgid "A background item was paused after repeated errors; everything else keeps running"
@@ -317,7 +329,7 @@ msgstr "إضافة إلى قائمة"
 msgid "Add to favourites"
 msgstr "إضافة إلى المفضلة"
 
-#: src/conversation/ToolsSheet.tsx:209
+#: src/conversation/ToolsSheet.tsx:213
 msgid "Add to the conversation"
 msgstr "إضافة إلى المحادثة"
 
@@ -429,6 +441,14 @@ msgstr "الكل"
 msgid "All already in «{0}»"
 msgstr "كلها موجودة في «{0}»"
 
+#: src/conversation/sheets/MandateSheet.tsx:107
+msgid "All pairs and all actions until cancelled; the account's limits still apply"
+msgstr "جميع الأزواج وجميع الإجراءات حتى الإلغاء؛ حدود الحساب تبقى سارية"
+
+#: src/conversation/sheets/MandateSheet.tsx:142
+msgid "All pairs on the account"
+msgstr "جميع أزواج الحساب"
+
 #: src/pages/ActivityList.tsx:106
 msgid "All statuses"
 msgstr "كل الحالات"
@@ -452,6 +472,10 @@ msgstr "اسمح بالوصول إلى الميكروفون لبدء محادث�
 #: src/conversation/sheets/AgentSheet.tsx:310
 msgid "Allowed"
 msgstr "مسموحة"
+
+#: src/conversation/sheets/MandateSheet.tsx:148
+msgid "Allowed actions"
+msgstr "الإجراءات المسموحة"
 
 #: src/components/integrations/IntegrationSetup.tsx:148
 msgid "Allowed destinations · comma separated"
@@ -584,8 +608,8 @@ msgstr "المرفقات"
 msgid "Attachments and tools"
 msgstr "مرفقات وأدوات"
 
-#: src/conversation/PermissionMenu.tsx:214
-#: src/conversation/PermissionMenu.tsx:415
+#: src/conversation/PermissionMenu.tsx:223
+#: src/conversation/PermissionMenu.tsx:424
 msgid "Automatic"
 msgstr "تلقائي"
 
@@ -621,7 +645,7 @@ msgstr "استوديو الأفاتار"
 #~ msgid "Awaiting reconciliation. This operation will not be sent again."
 #~ msgstr "بانتظار مطابقة التنفيذ. لن تُرسل هذه العملية مرة أخرى."
 
-#: src/conversation/PermissionMenu.tsx:285
+#: src/conversation/PermissionMenu.tsx:294
 #: src/pages/shell/bot-panel.tsx:166
 #: src/shell/ChatHeader.tsx:87
 #: src/shell/sheets/SheetHost.tsx:580
@@ -643,7 +667,7 @@ msgstr "العودة إلى المحادثات"
 #~ msgid "Back to conversations"
 #~ msgstr "العودة إلى المحادثات"
 
-#: src/conversation/PermissionMenu.tsx:397
+#: src/conversation/PermissionMenu.tsx:406
 msgid "Back to the permissions"
 msgstr "رجوع إلى الصلاحيات"
 
@@ -857,7 +881,7 @@ msgstr "انتهت المكالمة"
 msgid "Call with {name}"
 msgstr "مكالمة مع {name}"
 
-#: src/conversation/ToolsSheet.tsx:85
+#: src/conversation/ToolsSheet.tsx:89
 msgid "Camera"
 msgstr "كاميرا"
 
@@ -928,7 +952,7 @@ msgstr "عدّل قيمة لحفظها."
 msgid "Change the model"
 msgstr "تغيير النموذج"
 
-#: src/conversation/PermissionMenu.tsx:291
+#: src/conversation/PermissionMenu.tsx:300
 msgid "Change the permission level"
 msgstr "تغيير مستوى الصلاحية"
 
@@ -944,7 +968,7 @@ msgstr "تغيير الوضع يوقف أهداف التداول النشطة م
 msgid "Channel"
 msgstr "قناة"
 
-#: src/conversation/ToolsSheet.tsx:153
+#: src/conversation/ToolsSheet.tsx:157
 #: src/shell/ChatMenu.tsx:62
 #: src/shell/ChatMenu.tsx:112
 msgid "Chart"
@@ -1084,6 +1108,10 @@ msgstr "اختر أداة مالية"
 msgid "Choose an option or write your reply"
 msgstr "اختر إجابة أو اكتب ردك"
 
+#: src/conversation/sheets/MandateSheet.tsx:62
+msgid "Choose at least one action"
+msgstr "اختر إجراءً واحدًا على الأقل"
+
 #: src/components/trading/BrokerPairPicker.tsx:88
 msgid "Choose broker account"
 msgstr "اختر حساب الوسيط"
@@ -1096,7 +1124,7 @@ msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت الع�
 msgid "Choose supported global speech models in Settings."
 msgstr "اختر نماذج صوت مدعومة من الإعدادات العالمية."
 
-#: src/conversation/PermissionMenu.tsx:111
+#: src/conversation/PermissionMenu.tsx:113
 msgid "Choose the trading account"
 msgstr "اختيار حساب التداول"
 
@@ -1166,6 +1194,10 @@ msgstr "إغلاق الصفقة"
 msgid "Close search"
 msgstr "إغلاق البحث"
 
+#: src/conversation/sheets/MandateSheet.tsx:38
+msgid "Close trades"
+msgstr "إغلاق الصفقات"
+
 #: src/components/market/MarketWatch.tsx:252
 msgid "Closes"
 msgstr "يُغلق"
@@ -1179,7 +1211,7 @@ msgstr "الإغلاق مسموح"
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
 
-#: src/conversation/PermissionMenu.tsx:271
+#: src/conversation/PermissionMenu.tsx:280
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا."
 
@@ -1244,7 +1276,7 @@ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-L
 #~ msgstr "تأكيد كلمة مرور الحساب"
 
 #. placeholder {0}: levelName(page.level)
-#: src/conversation/PermissionMenu.tsx:318
+#: src/conversation/PermissionMenu.tsx:327
 msgid "Confirm: {0}"
 msgstr "تأكيد: {0}"
 
@@ -1256,7 +1288,7 @@ msgstr "تأكيد: {0}"
 msgid "Connect a broker account before creating a trading agent."
 msgstr "اربط حساب الوسيط قبل إنشاء بوت التداول."
 
-#: src/conversation/PermissionMenu.tsx:470
+#: src/conversation/PermissionMenu.tsx:479
 msgid "Connect a model provider"
 msgstr "ربط مزوّد نماذج"
 
@@ -1319,7 +1351,7 @@ msgstr "المحتوى"
 #~ msgid "Context panel"
 #~ msgstr "لوحة السياق"
 
-#: src/conversation/Composer.tsx:1113
+#: src/conversation/Composer.tsx:1114
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
@@ -1487,12 +1519,18 @@ msgstr "العمل الحالي"
 msgid "Custom color"
 msgstr "لون مخصص"
 
+#: src/conversation/sheets/MandateSheet.tsx:103
+msgid "Custom mandate"
+msgstr "تفويض مخصّص"
+
 #: src/components/ai/AvatarStudio.tsx:94
 msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
 #: src/conversation/sheets/AgentSheet.tsx:158
 #: src/conversation/sheets/LimitsSheet.tsx:42
+#: src/conversation/sheets/MandateSheet.tsx:198
+#: src/conversation/sheets/MandateSheet.tsx:204
 msgid "Daily loss limit"
 msgstr "حد الخسارة اليومي"
 
@@ -1505,6 +1543,7 @@ msgid "Decision evidence"
 msgstr "أدلة القرار"
 
 #: src/conversation/sheets/LimitsSheet.tsx:185
+#: src/conversation/sheets/MandateSheet.tsx:207
 msgid "Decrease"
 msgstr "إنقاص"
 
@@ -1517,7 +1556,7 @@ msgid "Default market"
 msgstr "سوق افتراضي"
 
 #: src/conversation/PermissionMenu.tsx:30
-#: src/conversation/sheets/MandateSheet.tsx:15
+#: src/conversation/sheets/MandateSheet.tsx:278
 msgid "Delegated execution"
 msgstr "تنفيذ مفوَّض"
 
@@ -1563,7 +1602,7 @@ msgstr "حذف المحادثات؟"
 msgid "Delete the list"
 msgstr "حذف القائمة"
 
-#: src/conversation/Composer.tsx:1086
+#: src/conversation/Composer.tsx:1087
 msgid "Delete the recording"
 msgstr "حذف التسجيل"
 
@@ -1594,7 +1633,7 @@ msgstr "اعتمادية غير متاحة"
 msgid "Description"
 msgstr "الوصف"
 
-#: src/pages/LocalSettings.tsx:51
+#: src/pages/LocalSettings.tsx:50
 msgid "Detailed agent status"
 msgstr "حالة الوكيل التفصيلية"
 
@@ -1635,7 +1674,7 @@ msgstr "الإملاء غير متاح في هذا المتصفح؛ اضغط م�
 msgid "Dictation needs an internet connection"
 msgstr "الإملاء يحتاج اتصالًا بالإنترنت"
 
-#: src/conversation/Composer.tsx:758
+#: src/conversation/Composer.tsx:759
 msgid "Dictation, or hold to record a voice message"
 msgstr "إملاء صوتي، أو اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -1664,8 +1703,8 @@ msgstr "النماذج المكتشفة"
 msgid "Dismiss error"
 msgstr "إخفاء الخطأ"
 
-#: src/conversation/PermissionMenu.tsx:75
-#: src/conversation/PermissionMenu.tsx:78
+#: src/conversation/PermissionMenu.tsx:77
+#: src/conversation/PermissionMenu.tsx:80
 msgid "Does not trade"
 msgstr "لا يتداول"
 
@@ -1688,7 +1727,7 @@ msgstr "نزّل هذا الملف لعرضه"
 msgid "Dreamy"
 msgstr "حالم"
 
-#: src/conversation/Composer.tsx:818
+#: src/conversation/Composer.tsx:819
 msgid "Drop here to attach"
 msgstr "أفلت هنا للإرفاق"
 
@@ -1696,7 +1735,11 @@ msgstr "أفلت هنا للإرفاق"
 msgid "Durable trading journal"
 msgstr "سجل التداول الدائم"
 
-#: src/conversation/ToolsSheet.tsx:131
+#: src/conversation/sheets/MandateSheet.tsx:177
+msgid "Duration"
+msgstr "المدة"
+
+#: src/conversation/ToolsSheet.tsx:135
 msgid "Each agent has its own permissions"
 msgstr "لكل وكيل صلاحياته الخاصة"
 
@@ -1831,7 +1874,7 @@ msgstr "يقرأ كل وكيل هذا الموجز. تابع محللي X عبر
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "أي قائمة تنشئها تصير فلترًا أعلى قائمة المحادثات."
 
-#: src/conversation/PermissionMenu.tsx:323
+#: src/conversation/PermissionMenu.tsx:332
 msgid "Every order is shown to you for approval before it is sent"
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله"
 
@@ -1942,7 +1985,7 @@ msgstr "ملف"
 msgid "Files"
 msgstr "الملفات"
 
-#: src/conversation/ToolsSheet.tsx:83
+#: src/conversation/ToolsSheet.tsx:85
 msgctxt "add to the conversation"
 msgid "Files"
 msgstr "ملفات"
@@ -2026,6 +2069,10 @@ msgstr "من"
 msgid "From the conversation"
 msgstr "من المحادثة"
 
+#: src/conversation/sheets/MandateSheet.tsx:103
+msgid "Full mandate"
+msgstr "تفويض كامل"
+
 #: src/shell/sheets/SheetHost.tsx:569
 msgid "Full screen"
 msgstr "ملء الشاشة"
@@ -2034,7 +2081,7 @@ msgstr "ملء الشاشة"
 msgid "Gathers information and summarises it without trading"
 msgstr "يجمع المعلومات ويلخّصها دون تنفيذ"
 
-#: src/conversation/ToolsSheet.tsx:166
+#: src/conversation/ToolsSheet.tsx:170
 msgid "Gathers sources before replying"
 msgstr "يجمع المصادر قبل الرد"
 
@@ -2171,6 +2218,7 @@ msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
 #: src/conversation/sheets/LimitsSheet.tsx:195
+#: src/conversation/sheets/MandateSheet.tsx:215
 msgid "Increase"
 msgstr "زيادة"
 
@@ -2215,7 +2263,7 @@ msgid "Insufficient data for performance conclusions"
 msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
 #: src/components/integrations/IntegrationSetup.tsx:70
-#: src/conversation/ToolsSheet.tsx:178
+#: src/conversation/ToolsSheet.tsx:182
 #: src/pages/settings-sidebar.tsx:24
 msgid "Integrations"
 msgstr "التكاملات"
@@ -2253,7 +2301,7 @@ msgstr "يبدأ بمستوى «تنفيذ بموافقة»: يُعرض عليك
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته."
 
-#: src/conversation/PermissionMenu.tsx:322
+#: src/conversation/PermissionMenu.tsx:331
 msgid "It stops executing and only analyses and follows"
 msgstr "يتوقف عن التنفيذ ويكتفي بالتحليل والمتابعة"
 
@@ -2274,7 +2322,7 @@ msgid "Jump to latest"
 msgstr "الانتقال إلى الأحدث"
 
 #. placeholder {0}: levelName("autonomous")
-#: src/conversation/PermissionMenu.tsx:335
+#: src/conversation/PermissionMenu.tsx:344
 msgid "Keep «{0}»"
 msgstr "الإبقاء على «{0}»"
 
@@ -2304,7 +2352,11 @@ msgstr "لوحة المفاتيح"
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
 
-#: src/conversation/ToolsSheet.tsx:190
+#: src/conversation/sheets/MandateSheet.tsx:91
+msgid "Kind of mandate"
+msgstr "نوع التفويض"
+
+#: src/conversation/ToolsSheet.tsx:194
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:98
 #: src/shell/ChatMenu.tsx:115
@@ -2406,7 +2458,7 @@ msgstr "يستمع"
 msgid "Listening… speak now"
 msgstr "أستمع إليك… تكلّم الآن"
 
-#: src/pages/LocalSettings.tsx:76
+#: src/pages/LocalSettings.tsx:74
 msgid "Live connection active"
 msgstr "الاتصال المباشر فعّال"
 
@@ -2503,8 +2555,13 @@ msgstr "ما زالت الصيانة جارية. حاول بعد قليل"
 msgid "Manage agents"
 msgstr "إدارة الوكلاء"
 
-#: src/conversation/PermissionMenu.tsx:265
-#: src/conversation/sheets/MandateSheet.tsx:15
+#: src/conversation/sheets/MandateSheet.tsx:224
+#: src/conversation/sheets/MandateSheet.tsx:231
+msgid "Manage manual trades"
+msgstr "إدارة الصفقات اليدوية"
+
+#: src/conversation/PermissionMenu.tsx:274
+#: src/conversation/sheets/MandateSheet.tsx:278
 msgid "Mandate details"
 msgstr "تفاصيل التفويض"
 
@@ -2569,6 +2626,10 @@ msgstr "بيع بسعر السوق"
 msgid "Market watches"
 msgstr "مراقبة السوق"
 
+#: src/conversation/sheets/MandateSheet.tsx:118
+msgid "Markets"
+msgstr "الأسواق"
+
 #: src/shell/lists/UnifiedSearch.tsx:305
 msgid "Matching messages"
 msgstr "الرسائل المطابقة"
@@ -2588,12 +2649,12 @@ msgstr "أقصى حجم"
 msgid "MCP servers"
 msgstr "خوادم MCP"
 
-#: src/conversation/PermissionMenu.tsx:67
+#: src/conversation/PermissionMenu.tsx:69
 #: src/pages/GroupPanel.tsx:63
 msgid "Members"
 msgstr "الأعضاء"
 
-#: src/conversation/ToolsSheet.tsx:130
+#: src/conversation/ToolsSheet.tsx:134
 msgid "Members' permissions"
 msgstr "صلاحيات الأعضاء"
 
@@ -2701,8 +2762,8 @@ msgstr "مكالمة صوتية فائتة"
 msgid "Mode"
 msgstr "الوضع"
 
-#: src/conversation/PermissionMenu.tsx:249
-#: src/conversation/PermissionMenu.tsx:403
+#: src/conversation/PermissionMenu.tsx:258
+#: src/conversation/PermissionMenu.tsx:412
 msgid "Model"
 msgstr "النموذج"
 
@@ -2713,6 +2774,10 @@ msgstr "مزود النموذج غير متاح — إعادة المحاولة 
 #: src/pages/shell/bot-settings.tsx:96
 #~ msgid "Models, voice and trading connections are shared workspace settings."
 #~ msgstr "النماذج والصوت واتصالات التداول إعدادات مشتركة لمساحة العمل."
+
+#: src/conversation/sheets/MandateSheet.tsx:37
+msgid "Modify the stop and target"
+msgstr "تعديل الوقف والهدف"
 
 #: src/lib/goal-status.ts:32
 msgid "Monitoring"
@@ -2797,7 +2862,7 @@ msgstr "تستخدم المهارات الخاصة الجديدة التفعيل
 msgid "New request"
 msgstr "طلب جديد"
 
-#: src/conversation/ToolsSheet.tsx:107
+#: src/conversation/ToolsSheet.tsx:111
 #: src/shell/ChatMenu.tsx:134
 #: src/shell/Welcome.tsx:57
 msgid "New task"
@@ -2876,7 +2941,7 @@ msgstr "لم يتم العثور على شموع تاريخية لهذا الر�
 msgid "No candles available for this instrument and timeframe."
 msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمنية."
 
-#: src/conversation/PermissionMenu.tsx:338
+#: src/conversation/PermissionMenu.tsx:347
 msgid "No change"
 msgstr "دون أي تغيير"
 
@@ -2894,11 +2959,11 @@ msgid "No chats."
 msgstr "لا توجد محادثات."
 
 #: src/conversation/PermissionMenu.tsx:28
-#: src/conversation/PermissionMenu.tsx:91
+#: src/conversation/PermissionMenu.tsx:93
 msgid "No execution"
 msgstr "دون تنفيذ"
 
-#: src/conversation/PermissionMenu.tsx:87
+#: src/conversation/PermissionMenu.tsx:89
 msgid "No execution: no trading account is chosen"
 msgstr "دون تنفيذ: لم يُختر حساب تداول"
 
@@ -3033,6 +3098,10 @@ msgstr "لم تُرسل · اضغط لإعادة المحاولة"
 msgid "Note"
 msgstr "ملاحظة"
 
+#: src/conversation/sheets/MandateSheet.tsx:265
+msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
+msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور؛ تعرض الخطوة التالية ما ستوقّعه بالضبط."
+
 #: src/components/ai/AttentionInbox.tsx:69
 #: src/components/ai/AttentionInbox.tsx:71
 msgid "Notifications"
@@ -3074,7 +3143,7 @@ msgstr "نموذج واحد للمهام النصية"
 msgid "One step"
 msgstr "خطوة واحدة"
 
-#: src/conversation/ToolsSheet.tsx:114
+#: src/conversation/ToolsSheet.tsx:118
 msgid "One time or repeating"
 msgstr "موعد واحد أو متكرر"
 
@@ -3113,6 +3182,10 @@ msgstr "فتح المحادثة مع {name}"
 #: src/pages/Shell.tsx:738
 #~ msgid "Open navigation"
 #~ msgstr "فتح قائمة التنقل"
+
+#: src/conversation/sheets/MandateSheet.tsx:36
+msgid "Open new trades"
+msgstr "فتح صفقات جديدة"
 
 #: src/components/trading/Positions.tsx:41
 msgid "Open price"
@@ -3239,7 +3312,7 @@ msgstr "إيقاف مؤقت"
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/conversation/Composer.tsx:1113
+#: src/conversation/Composer.tsx:1114
 msgid "Pause recording"
 msgstr "إيقاف التسجيل مؤقتًا"
 
@@ -3284,21 +3357,21 @@ msgstr "الفترة"
 #~ msgid "Permanently delete {0}? This cannot be undone."
 #~ msgstr "هل تريد حذف {0} نهائيًا؟ لا يمكن التراجع عن هذا الإجراء."
 
-#: src/conversation/ToolsSheet.tsx:140
+#: src/conversation/ToolsSheet.tsx:144
 msgid "Permission"
 msgstr "الصلاحية"
 
-#: src/conversation/PermissionMenu.tsx:141
+#: src/conversation/PermissionMenu.tsx:148
 msgid "Permission level"
 msgstr "مستوى الصلاحية"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:220
+#: src/conversation/PermissionMenu.tsx:229
 msgid "Permission level · {0}"
 msgstr "مستوى الصلاحية · {0}"
 
 #. placeholder {0}: levelName(next)
-#: src/conversation/PermissionMenu.tsx:196
+#: src/conversation/PermissionMenu.tsx:205
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
@@ -3307,7 +3380,7 @@ msgid "Permissions are independent for each agent"
 msgstr "الصلاحيات مستقلة لكل وكيل"
 
 #. placeholder {0}: levelName(level)
-#: src/conversation/PermissionMenu.tsx:135
+#: src/conversation/PermissionMenu.tsx:137
 msgid "Permissions: {0}"
 msgstr "الصلاحيات: {0}"
 
@@ -3328,11 +3401,11 @@ msgstr "صورة"
 msgid "Photo, tap to view"
 msgstr "صورة، اضغط لعرضها"
 
-#: src/conversation/ToolsSheet.tsx:84
+#: src/conversation/ToolsSheet.tsx:88
 msgid "Photos"
 msgstr "صور"
 
-#: src/conversation/Composer.tsx:821
+#: src/conversation/Composer.tsx:822
 msgid "Photos and files up to 8 MB"
 msgstr "صور وملفات حتى 8 ميغابايت"
 
@@ -3581,7 +3654,7 @@ msgstr "جارٍ التحقق من التنفيذ لدى الوسيط"
 msgid "Reconnecting"
 msgstr "جارٍ إعادة الاتصال"
 
-#: src/pages/LocalSettings.tsx:78
+#: src/pages/LocalSettings.tsx:76
 msgid "Reconnecting to live updates"
 msgstr "جارٍ إعادة الاتصال بالتحديثات المباشرة"
 
@@ -3597,7 +3670,7 @@ msgstr "سجّل قرار سوق حديثًا قبل الدخول الافترا
 msgid "Record resolution"
 msgstr "تسجيل التسوية"
 
-#: src/conversation/Composer.tsx:1092
+#: src/conversation/Composer.tsx:1093
 msgid "Recording length"
 msgstr "مدة التسجيل"
 
@@ -3821,6 +3894,10 @@ msgstr "إعادة المحاولة مجدولة"
 #~ msgid "Review a new Super Bot request and authorize it with your device."
 #~ msgstr "راجع طلب سوبر بوت جديدًا وفوّضه بمصادقة جهازك."
 
+#: src/conversation/sheets/MandateSheet.tsx:260
+msgid "Review and sign with the passkey"
+msgstr "المراجعة والتوقيع بمفتاح المرور"
+
 #: src/components/goals/TradingGoals.tsx:269
 msgid "Review now"
 msgstr "مراجعة الآن"
@@ -3866,7 +3943,7 @@ msgid "Running"
 msgstr "جارٍ التنفيذ"
 
 #. placeholder {0}: current.name
-#: src/conversation/PermissionMenu.tsx:419
+#: src/conversation/PermissionMenu.tsx:428
 msgid "Running on «{0}» now · the routing picks the best fit for each task"
 msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنسب لكل مهمة"
 
@@ -3942,7 +4019,7 @@ msgstr "سيناريو"
 msgid "Schedule"
 msgstr "الجدولة"
 
-#: src/conversation/ToolsSheet.tsx:113
+#: src/conversation/ToolsSheet.tsx:117
 msgctxt "add to the conversation"
 msgid "Schedule"
 msgstr "جدولة"
@@ -4084,7 +4161,7 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/conversation/Composer.tsx:792
+#: src/conversation/Composer.tsx:793
 #: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
 msgid "Send"
@@ -4103,15 +4180,15 @@ msgstr "إرسال توجيه"
 msgid "Send the answer"
 msgstr "إرسال الإجابة"
 
-#: src/conversation/Composer.tsx:791
+#: src/conversation/Composer.tsx:792
 msgid "Send the message"
 msgstr "إرسال الرسالة"
 
-#: src/conversation/Composer.tsx:1134
+#: src/conversation/Composer.tsx:1135
 msgid "Send the voice message"
 msgstr "إرسال الرسالة الصوتية"
 
-#: src/pages/LocalSettings.tsx:68
+#: src/pages/LocalSettings.tsx:66
 msgid "Send with Enter"
 msgstr "الإرسال بزر Enter"
 
@@ -4275,7 +4352,7 @@ msgstr "معرّف المهارة"
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
-#: src/conversation/ToolsSheet.tsx:185
+#: src/conversation/ToolsSheet.tsx:189
 #: src/pages/Knowledge.tsx:44
 msgid "Skills"
 msgstr "المهارات"
@@ -4296,7 +4373,7 @@ msgstr "درجة لون {tone}"
 msgid "Sleepy"
 msgstr "نعسان"
 
-#: src/conversation/Composer.tsx:1107
+#: src/conversation/Composer.tsx:1108
 msgid "Slide to cancel"
 msgstr "اسحب للإلغاء"
 
@@ -4384,7 +4461,7 @@ msgstr "الحالة: {text}"
 msgid "Still unknown"
 msgstr "لا تزال غير معروفة"
 
-#: src/conversation/Composer.tsx:800
+#: src/conversation/Composer.tsx:801
 #: src/pages/ActivityList.tsx:259
 #: src/pages/shell/chat-context.tsx:896
 #: src/pages/shell/chat-context.tsx:897
@@ -4409,7 +4486,7 @@ msgstr "وقف الخسارة · اختياري"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/conversation/Composer.tsx:799
+#: src/conversation/Composer.tsx:800
 msgid "Stop the reply"
 msgstr "إيقاف الرد"
 
@@ -4428,6 +4505,10 @@ msgstr "توقف عند حد العمل"
 #: src/components/trading/TradeApprovals.tsx:214
 #~ msgid "Submitted"
 #~ msgstr "أُرسل"
+
+#: src/conversation/sheets/MandateSheet.tsx:200
+msgid "Suggested value 3%"
+msgstr "القيمة المقترحة 3%"
 
 #: src/components/ai/AgentLiveStatus.tsx:87
 #: src/components/trading/SuperBotCards.tsx:212
@@ -4504,7 +4585,7 @@ msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 msgid "Tap to call back"
 msgstr "اضغط لمعاودة الاتصال"
 
-#: src/conversation/Composer.tsx:759
+#: src/conversation/Composer.tsx:760
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
@@ -4570,11 +4651,15 @@ msgstr "المهام المفوّضة المؤقتة"
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
+#: src/conversation/sheets/MandateSheet.tsx:241
+msgid "The account's current limits stay in force."
+msgstr "حدود الحساب الحالية تبقى سارية."
+
 #: src/conversation/Cards.tsx:64
 msgid "The agent could not reply"
 msgstr "تعذّر على الوكيل الرد"
 
-#: src/conversation/ToolsSheet.tsx:108
+#: src/conversation/ToolsSheet.tsx:112
 msgid "The agent follows it until it is done"
 msgstr "يتابعها الوكيل حتى تكتمل"
 
@@ -4684,7 +4769,7 @@ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
 
-#: src/conversation/ToolsSheet.tsx:154
+#: src/conversation/ToolsSheet.tsx:158
 msgid "The market"
 msgstr "السوق"
 
@@ -4797,7 +4882,7 @@ msgstr "رُفع القيد"
 msgid "The result is no longer available."
 msgstr "لم تعد النتيجة متاحة."
 
-#: src/conversation/PermissionMenu.tsx:420
+#: src/conversation/PermissionMenu.tsx:429
 msgid "The routing picks the best fit for each task"
 msgstr "يختار التوجيه الأنسب لكل مهمة"
 
@@ -4817,7 +4902,7 @@ msgstr "النموذج المحدد غير متاح لدى هذا المزود. 
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/conversation/PermissionMenu.tsx:299
+#: src/conversation/PermissionMenu.tsx:308
 msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "يُلغى التفويض الموقَّع، ويتطلّب الرجوع إليه توقيعًا جديدًا."
 
@@ -4846,7 +4931,7 @@ msgstr "أُلغيت المراقبة"
 msgid "Theme"
 msgstr "المظهر"
 
-#: src/conversation/PermissionMenu.tsx:114
+#: src/conversation/PermissionMenu.tsx:116
 msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
 msgstr "بعدها تظهر مستويات الصلاحية بجانب حقل الكتابة: دون تنفيذ · تنفيذ بموافقة · تنفيذ مفوَّض."
 
@@ -5239,7 +5324,7 @@ msgstr "غير مؤكَّد"
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 
-#: src/pages/LocalSettings.tsx:53
+#: src/pages/LocalSettings.tsx:52
 msgid "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation."
 msgstr "تحت اسم الوكيل: يحلّل، يبحث، يراقب، بانتظار تأكيد الوسيط، بانتظار قرارك، متوقف مؤقتًا، عملية غير مؤكَّدة. عند الإيقاف يظهر «نشط» فقط."
 
@@ -5283,6 +5368,10 @@ msgstr "تعليمات غير آمنة"
 msgid "Unsaved changes"
 msgstr "تعديلات غير محفوظة"
 
+#: src/conversation/sheets/MandateSheet.tsx:45
+msgid "Until cancelled"
+msgstr "حتى الإلغاء"
+
 #: src/lib/broker-identity.ts:10
 #: src/lib/broker-identity.ts:18
 msgid "Unverified broker account"
@@ -5319,7 +5408,7 @@ msgstr "جارٍ الرفع…"
 
 #. placeholder {0}: agent.name
 #. placeholder {1}: summary.usage.days
-#: src/conversation/PermissionMenu.tsx:449
+#: src/conversation/PermissionMenu.tsx:458
 msgid "Usage of {0} · last {1} days"
 msgstr "استهلاك {0} · آخر {1} يومًا"
 
@@ -5374,8 +5463,8 @@ msgstr "الصوت"
 msgid "Voice call"
 msgstr "اتصال صوتي"
 
-#: src/conversation/Composer.tsx:767
 #: src/conversation/Composer.tsx:768
+#: src/conversation/Composer.tsx:769
 msgid "Voice conversation"
 msgstr "محادثة صوتية"
 
@@ -5383,7 +5472,7 @@ msgstr "محادثة صوتية"
 #~ msgid "Voice disconnected"
 #~ msgstr "الصوت غير متصل"
 
-#: src/conversation/ToolsSheet.tsx:119
+#: src/conversation/ToolsSheet.tsx:123
 msgid "Voice message"
 msgstr "رسالة صوتية"
 
@@ -5495,16 +5584,16 @@ msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر
 msgid "We heard nothing. Try again."
 msgstr "لم نسمع شيئًا. حاول مرة أخرى."
 
-#: src/conversation/Composer.tsx:745
-#: src/conversation/ToolsSheet.tsx:165
+#: src/conversation/Composer.tsx:746
+#: src/conversation/ToolsSheet.tsx:169
 msgid "Web search"
 msgstr "البحث في الويب"
 
-#: src/conversation/Composer.tsx:744
+#: src/conversation/Composer.tsx:745
 msgid "Web search is on, tap to turn it off"
 msgstr "البحث في الويب مفعّل، اضغط لإيقافه"
 
-#: src/conversation/Composer.tsx:748
+#: src/conversation/Composer.tsx:749
 msgid "Web search turned off"
 msgstr "أُوقف البحث في الويب"
 
@@ -5603,6 +5692,10 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #: src/conversation/Cards.tsx:60
 msgid "You reached the usage limit"
 msgstr "وصلت إلى حد الاستهلاك"
+
+#: src/conversation/sheets/MandateSheet.tsx:106
+msgid "You set the markets, actions, duration and money limit"
+msgstr "تحدّد الأسواق والإجراءات والمدة والحد المالي"
 
 #: src/conversation/Message.tsx:377
 msgid "You stopped the reply"
