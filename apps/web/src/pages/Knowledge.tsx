@@ -3,8 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { Agent } from "@lonora/contracts";
 import { ownerProfileLabel } from "@lonora/core";
 import { useState } from "react";
-import { useNavigation } from "../shell/navigation";
-import { useSheets } from "../shell/sheets/SheetHost";
+import { useNavigate } from "react-router-dom";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ScratchpadSection } from "./ScratchpadSection";
 import { SkillsSection } from "./SkillsSection";
@@ -74,12 +73,9 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
 
 /** The owner profile, its change log and how agents reach the owner are settings pages. */
 function OwnerProfileLink() {
-  const nav = useNavigation();
-  const sheets = useSheets();
-  const go = (path: string) => {
-    sheets.close(true);
-    nav.go(path);
-  };
+  // Plain router navigation: this panel also opens outside the shell's navigation provider.
+  const navigate = useNavigate();
+  const go = (path: string) => navigate(path);
   return (
     <section className="card">
       <p>
