@@ -138,7 +138,9 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
               <small>
                 {value === "custom"
                   ? t`You set the markets, actions, duration and money limit`
-                  : t`All pairs and all actions until cancelled; the account's limits still apply`}
+                  : fixed && symbol
+                    ? t`${symbol} only: all actions and your own positions until cancelled; the account's limits still apply`
+                    : t`All pairs and all actions until cancelled; the account's limits still apply`}
               </small>
             </span>
             {mode === value && <Icon name="check" />}
@@ -380,8 +382,8 @@ function MandateEntry({
   }, [agent.id, threadId]);
   if (error != null) return <p className="form-error">{userError(error)}</p>;
   if (!state) return <p className="note">…</p>;
-  if (card && !details)
-    return <OwnerActionCard row={card} onChanged={(row) => setCard(row)} inSheet />;
+  // «تفاصيل التفويض» and a pending grant both open the grant card itself.
+  if (card) return <OwnerActionCard row={card} onChanged={(row) => setCard(row)} inSheet />;
   return details || state.pending_authority || state.active_authorities.length ? (
     <div className="legacy-surface">
       <AgentPermissions

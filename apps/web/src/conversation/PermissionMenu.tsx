@@ -284,7 +284,7 @@ function PermissionMenu({
             role="menuitem"
             onClick={() => {
               popover.close();
-              mandate(agent, permission, true);
+              mandate(agent, permission, true, threadId);
             }}
           >
             <span>

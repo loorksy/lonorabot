@@ -430,7 +430,11 @@ test("S10: the mandate sheet follows D1: until stopped, the agent's own pair, th
     "true",
   );
   // A fixed-pair agent: its own pair only, never «all pairs».
-  await expect(sheet.getByRole("radio", { name: agent.trading_symbol, exact: true })).toBeVisible();
+  await expect(sheet.getByRole("radio", { name: agent.trading_symbol, exact: true })).toBeVisible(); // Q17: its «Full» is full delegation on its own pair, and the subtitle says so.
+  const full = sheet.getByRole("radio", { name: /Full mandate/ });
+  await expect(full).toContainText(`${agent.trading_symbol} only`);
+  await expect(full).not.toContainText("All pairs");
+
   await expect(sheet.getByText("All pairs on the account")).toHaveCount(0);
   await expect(sheet.locator("[data-daily-loss='suggested']")).toContainText("Suggested value 3%");
   await sheet.getByRole("button", { name: "Review and sign with the passkey" }).click();

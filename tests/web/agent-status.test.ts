@@ -315,3 +315,11 @@ test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocke
   assert.match(sheet, /line\.steps\.map/);
   assert.doesNotMatch(sheet.slice(0, sheet.indexOf("Technical details")), /userError\(/);
 });
+
+test("item 21: «Mandate details» opens the signed grant card of this chat", async () => {
+  const { readFileSync } = await import("node:fs");
+  const menu = readFileSync("apps/web/src/conversation/PermissionMenu.tsx", "utf8");
+  assert.match(menu, /mandate\(agent, permission, true, threadId\)/);
+  const sheet = readFileSync("apps/web/src/conversation/sheets/MandateSheet.tsx", "utf8");
+  assert.match(sheet, /if \(card\) return <OwnerActionCard row=\{card\}/);
+});
