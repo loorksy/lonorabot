@@ -74,13 +74,83 @@ export type Routine = {
   id: string;
   agent_id: string;
   thread_id: string;
+  /** The owner's name for the schedule; null on older routines (show the prompt). */
+  title: string | null;
   prompt: string;
+  goal_id: string | null;
+  step_id: string | null;
   interval_seconds: number | null;
   cron: string | null;
+  /** A one-shot routine («مرة واحدة») fires once at this time, then switches off. */
+  run_at: string | null;
   timezone: string;
   enabled: boolean;
   next_run_at: string;
+  /** When it last fired; a one-shot that fired («نُفّذت») is rescheduled with a new run_at. */
+  last_run_at: string | null;
 };
+/** What a routine save sends: exactly one of interval_seconds, cron or run_at. */
+export type RoutineInput = {
+  title?: string | null;
+  prompt: string;
+  interval_seconds?: number | null;
+  cron?: string | null;
+  run_at?: string | null;
+  timezone?: string;
+  enabled?: boolean;
+};
+/** A light goal of a non-trading agent (Q41): a note, never a schedule or an authority. */
+export type AgentGoal = { title: string; description: string; done: boolean };
+/** A «رابط» knowledge entry (Q40). */
+export type KnowledgeLink = { title: string; url: string; note: string };
+/** One row of «المعرفة»: a semantic note or a link. */
+export type KnowledgeItem = {
+  id: string;
+  type: "note" | "link";
+  title: string;
+  content: string;
+  url: string | null;
+  version: number | null;
+  updated_at: string;
+};
+/** One saved version of a skill («سجل الإصدارات»). */
+export type SkillVersionEntry = {
+  version: number;
+  created_at: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  current: boolean;
+};
+export type ActivityCode =
+  | "agent_created"
+  | "authority_changed"
+  | "limits_changed"
+  | "restriction_set"
+  | "restriction_lifted"
+  | "operation_resolved"
+  | "approval_approved"
+  | "approval_rejected"
+  | "task_created"
+  | "task_completed"
+  | "task_cancelled"
+  | "skill_created"
+  | "skill_updated"
+  | "supervision_granted"
+  | "supervision_revoked"
+  | "watch_triggered"
+  | "goal_created"
+  | "knowledge_added";
+/** One «سجل الإجراءات» row, projected by the server from a durable event (Q45). */
+export type ActivityEntry = {
+  id: string;
+  code: ActivityCode;
+  agent_id: string | null;
+  thread_id: string | null;
+  subject: string;
+  created_at: string;
+};
+export type ActivityPage = { items: ActivityEntry[]; next_before: number | null };
 
 export type GroupPayload = {
   name: string;

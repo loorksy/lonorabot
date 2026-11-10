@@ -9,6 +9,18 @@ export const PAGES = [
   "trading",
   "routines",
   "knowledge",
+  "knowledge-edit",
+  "memory",
+  "goals",
+  "new-goal",
+  "new-schedule",
+  "task",
+  "new-task",
+  "skills",
+  "skill",
+  "new-skill",
+  "file-edit",
+  "activity",
   "new-agent",
   "new-group",
   "owner",
@@ -42,14 +54,13 @@ export const DEV_ROUTES: ReadonlySet<Page> = new Set<Page>(["lab"]);
 /** Old names that still reach their merged page (the reference's ROUTE_ALIAS, plus ours). */
 const ALIASES: Readonly<Record<string, string>> = {
   board: "/app/tasks",
-  activity: "/app/updates",
   notifications: "/app/updates",
   account: "/app/settings",
   capabilities: "/app/integrations",
   // Search lives in the chats header (phones) and the list pane (desktop).
   search: "/app",
 };
-/** Pages that take one item (`/app/<page>/<id>`). */
+/** Pages that take one item (`/app/<page>/<id>`); the rest take `?agent=` / `?item=`. */
 const ITEM_PAGES = new Set<string>([
   "artifacts",
   "communication",
@@ -87,9 +98,14 @@ export function parseRoute(pathname: string): ShellRoute {
   const [, head, item, extra] = segments;
   if (head === "g" && item && !extra) return { kind: "group", groupId: item };
   if (Object.hasOwn(ALIASES, head) && !item) return { kind: "alias", to: ALIASES[head] };
+  // «تفاصيل المهمة» lives under its tab: /app/tasks/:taskId.
+  if (head === "tasks" && item && !extra) return { kind: "page", page: "task", item };
+  // «تعديل المهارة»: /app/skills/:skillId.
+  if (head === "skills" && item && !extra) return { kind: "page", page: "skill", item };
   if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
   if (pageNames.has(head)) {
-    if (extra || (item && !ITEM_PAGES.has(head))) return { kind: "not-found" };
+    if (extra || (item && !ITEM_PAGES.has(head)) || head === "task" || head === "skill")
+      return { kind: "not-found" };
     return item ? { kind: "page", page: head as Page, item } : { kind: "page", page: head as Page };
   }
   if (!item) return { kind: "chat", agentId: head };
@@ -99,6 +115,8 @@ export function parseRoute(pathname: string): ShellRoute {
 export function sectionOf(route: ShellRoute): Root {
   if (route.kind === "root") return route.root;
   if (route.kind === "page" && SETTINGS_PAGES.has(route.page)) return "settings";
+  if (route.kind === "page" && (route.page === "task" || route.page === "new-task")) return "tasks";
+  if (route.kind === "page" && route.page === "activity") return "updates";
   return "chats";
 }
 /** A route the pager can slide between: only the four roots on phones. */

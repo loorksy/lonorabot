@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0050_genui_state_and_origin"
-down_revision = "0045_chat_lists"
+down_revision = "0058_skill_versions"
 branch_labels = None
 depends_on = None
 
