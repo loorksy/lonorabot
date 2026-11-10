@@ -13,7 +13,7 @@ msgid "«{name}» saved"
 msgstr "«{name}» saved"
 
 #. placeholder {0}: state.watch_count
-#: src/conversation/sheets/AgentSheet.tsx:261
+#: src/conversation/sheets/AgentSheet.tsx:303
 msgid "{0} active"
 msgstr "{0} active"
 
@@ -76,7 +76,7 @@ msgstr "{count, plural, one {one agent} two {two agents} few {# agents} many {# 
 msgid "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 msgstr "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 
-#: src/conversation/sheets/AgentSheet.tsx:118
+#: src/conversation/sheets/AgentSheet.tsx:121
 msgid "{count} unconfirmed"
 msgstr "{count} unconfirmed"
 
@@ -204,7 +204,7 @@ msgstr "Account changes"
 msgid "Account ID"
 msgstr "Account ID"
 
-#: src/conversation/sheets/AgentSheet.tsx:418
+#: src/conversation/sheets/AgentSheet.tsx:464
 #: src/conversation/sheets/LimitsSheet.tsx:260
 msgid "Account limits"
 msgstr "Account limits"
@@ -230,7 +230,7 @@ msgstr "Action"
 #~ msgid "Activate with device authentication"
 #~ msgstr "Activate with device authentication"
 
-#: src/conversation/sheets/AgentSheet.tsx:68
+#: src/conversation/sheets/AgentSheet.tsx:71
 #: src/lib/goal-status.ts:6
 #: src/shell/ChatHeader.tsx:82
 msgid "Active"
@@ -296,8 +296,8 @@ msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "Add chats to your favourites: press and hold a chat, then ⋮."
 
 #: src/pages/shell/chat-context.tsx:825
-msgid "Add direction while the agent works…"
-msgstr "Add direction while the agent works…"
+#~ msgid "Add direction while the agent works…"
+#~ msgstr "Add direction while the agent works…"
 
 #: src/components/charts/ChartIndicators.tsx:53
 msgid "Add indicator"
@@ -351,19 +351,10 @@ msgstr "Advanced"
 #: src/pages/Board.tsx:416
 #: src/pages/Board.tsx:418
 #: src/pages/shell/bot-picker.tsx:16
-#: src/pages/shell/chat-context.tsx:284
-#: src/pages/shell/message-cards.tsx:40
-#: src/pages/shell/message-cards.tsx:104
-#: src/pages/shell/message-cards.tsx:256
-#: src/pages/shell/message-cards.tsx:259
-#: src/pages/shell/message-cards.tsx:264
-#: src/pages/shell/message-cards.tsx:267
-#: src/pages/shell/message-cards.tsx:334
 msgid "Agent"
 msgstr "Agent"
 
 #: src/components/ai/CollaborationMarker.tsx:11
-#: src/pages/shell/message-cards.tsx:248
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
@@ -391,7 +382,7 @@ msgstr "Agent name"
 #~ msgid "Agent settings"
 #~ msgstr "Agent settings"
 
-#: src/conversation/sheets/AgentSheet.tsx:471
+#: src/conversation/sheets/AgentSheet.tsx:517
 msgid "Agent status"
 msgstr "Agent status"
 
@@ -469,7 +460,7 @@ msgstr "All time"
 msgid "Allow microphone access to start a voice conversation."
 msgstr "Allow microphone access to start a voice conversation."
 
-#: src/conversation/sheets/AgentSheet.tsx:324
+#: src/conversation/sheets/AgentSheet.tsx:366
 msgid "Allowed"
 msgstr "Allowed"
 
@@ -587,17 +578,16 @@ msgstr "At market price"
 
 #: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
-msgid "Attach file"
-msgstr "Attach file"
+#~ msgid "Attach file"
+#~ msgstr "Attach file"
 
 #: src/conversation/Composer.tsx:278
-#: src/pages/shell/chat-context.tsx:625
 msgid "Attached files"
 msgstr "Attached files"
 
 #: src/pages/shell/message-cards.tsx:161
-msgid "Attachment"
-msgstr "Attachment"
+#~ msgid "Attachment"
+#~ msgstr "Attachment"
 
 #: src/conversation/Composer.tsx:562
 msgid "Attachments"
@@ -928,7 +918,6 @@ msgstr "Cancel the selection"
 #: src/conversation/Cards.tsx:256
 #: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:27
-#: src/pages/shell/message-cards.tsx:277
 msgid "Cancelled"
 msgstr "Cancelled"
 
@@ -1202,12 +1191,12 @@ msgstr "Close trades"
 msgid "Closes"
 msgstr "Closes"
 
-#: src/conversation/sheets/AgentSheet.tsx:214
-#: src/conversation/sheets/AgentSheet.tsx:371
+#: src/conversation/sheets/AgentSheet.tsx:256
+#: src/conversation/sheets/AgentSheet.tsx:416
 msgid "closing allowed"
 msgstr "closing allowed"
 
-#: src/conversation/sheets/AgentSheet.tsx:446
+#: src/conversation/sheets/AgentSheet.tsx:492
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 
@@ -1251,7 +1240,6 @@ msgstr "Commands at the start of the message"
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
 #: src/pages/Board.tsx:21
-#: src/pages/shell/message-cards.tsx:281
 msgid "Completed"
 msgstr "Completed"
 
@@ -1357,7 +1345,6 @@ msgstr "Continue recording"
 
 #: src/conversation/Conversation.tsx:933
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:1079
 msgid "Conversation"
 msgstr "Conversation"
 
@@ -1510,7 +1497,7 @@ msgstr "Crosses above"
 msgid "Crosses below"
 msgstr "Crosses below"
 
-#: src/conversation/sheets/AgentSheet.tsx:233
+#: src/conversation/sheets/AgentSheet.tsx:275
 msgid "Current work"
 msgstr "Current work"
 
@@ -1527,7 +1514,7 @@ msgstr "Custom mandate"
 msgid "Customize avatar"
 msgstr "Customize avatar"
 
-#: src/conversation/sheets/AgentSheet.tsx:169
+#: src/conversation/sheets/AgentSheet.tsx:205
 #: src/conversation/sheets/LimitsSheet.tsx:42
 #: src/conversation/sheets/MandateSheet.tsx:198
 #: src/conversation/sheets/MandateSheet.tsx:204
@@ -1700,8 +1687,8 @@ msgid "Discovered models"
 msgstr "Discovered models"
 
 #: src/pages/shell/chat-context.tsx:698
-msgid "Dismiss error"
-msgstr "Dismiss error"
+#~ msgid "Dismiss error"
+#~ msgstr "Dismiss error"
 
 #: src/conversation/PermissionMenu.tsx:77
 #: src/conversation/PermissionMenu.tsx:80
@@ -1770,7 +1757,7 @@ msgstr "Edit routine"
 msgid "Edit the limit"
 msgstr "Edit the limit"
 
-#: src/conversation/sheets/AgentSheet.tsx:440
+#: src/conversation/sheets/AgentSheet.tsx:486
 msgid "Edit the limits"
 msgstr "Edit the limits"
 
@@ -1850,8 +1837,8 @@ msgid "Ending call"
 msgstr "Ending call"
 
 #: src/pages/shell/chat-context.tsx:905
-msgid "Enter to send · Shift+Enter for a new line"
-msgstr "Enter to send · Shift+Enter for a new line"
+#~ msgid "Enter to send · Shift+Enter for a new line"
+#~ msgstr "Enter to send · Shift+Enter for a new line"
 
 #: src/components/market/MarketWatch.tsx:191
 #: src/components/trading/AccountSummary.tsx:48
@@ -1957,7 +1944,6 @@ msgstr "Face"
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/lib/goal-status.ts:38
 #: src/pages/Board.tsx:31
-#: src/pages/shell/message-cards.tsx:279
 msgid "Failed"
 msgstr "Failed"
 
@@ -2318,8 +2304,8 @@ msgid "Its own role, model and permissions"
 msgstr "Its own role, model and permissions"
 
 #: src/pages/shell/chat-context.tsx:1215
-msgid "Jump to latest"
-msgstr "Jump to latest"
+#~ msgid "Jump to latest"
+#~ msgstr "Jump to latest"
 
 #. placeholder {0}: levelName("autonomous")
 #: src/conversation/PermissionMenu.tsx:346
@@ -2417,7 +2403,7 @@ msgstr "Leave the edits?"
 msgid "Legacy instructions"
 msgstr "Legacy instructions"
 
-#: src/conversation/sheets/AgentSheet.tsx:383
+#: src/conversation/sheets/AgentSheet.tsx:428
 msgid "Lift"
 msgstr "Lift"
 
@@ -2467,8 +2453,8 @@ msgid "Live observations"
 msgstr "Live observations"
 
 #: src/pages/shell/chat-context.tsx:1116
-msgid "Load earlier messages"
-msgstr "Load earlier messages"
+#~ msgid "Load earlier messages"
+#~ msgstr "Load earlier messages"
 
 #: ../../packages/ui-web/src/components/ui/spinner.tsx:11
 #: src/shell/Skeleton.tsx:8
@@ -2519,7 +2505,6 @@ msgstr "Loading preview…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:1113
 #: src/pages/SkillsSection.tsx:101
 #: src/shell/pages.tsx:49
 msgid "Loading…"
@@ -2672,11 +2657,10 @@ msgid "Mention an agent"
 msgstr "Mention an agent"
 
 #: src/pages/shell/chat-context.tsx:751
-msgid "Mentions"
-msgstr "Mentions"
+#~ msgid "Mentions"
+#~ msgstr "Mentions"
 
 #: src/conversation/Message.tsx:117
-#: src/pages/shell/chat-context.tsx:815
 msgid "Message"
 msgstr "Message"
 
@@ -2685,11 +2669,10 @@ msgid "Message {name}"
 msgstr "Message {name}"
 
 #: src/pages/shell/chat-context.tsx:827
-msgid "Message {recipientName}"
-msgstr "Message {recipientName}"
+#~ msgid "Message {recipientName}"
+#~ msgstr "Message {recipientName}"
 
 #: src/conversation/Composer.tsx:421
-#: src/pages/shell/chat-context.tsx:664
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -2704,8 +2687,8 @@ msgid "Message to {name}"
 msgstr "Message to {name}"
 
 #: src/pages/shell/chat-context.tsx:828
-msgid "Message your agent…"
-msgstr "Message your agent…"
+#~ msgid "Message your agent…"
+#~ msgstr "Message your agent…"
 
 #: src/shell/lists/UnifiedSearch.tsx:270
 msgid "Messages"
@@ -2744,7 +2727,7 @@ msgstr "Minimize"
 msgid "Minimize call"
 msgstr "Minimize call"
 
-#: src/conversation/sheets/AgentSheet.tsx:172
+#: src/conversation/sheets/AgentSheet.tsx:208
 #: src/conversation/sheets/LimitsSheet.tsx:66
 msgid "Minimum free margin"
 msgstr "Minimum free margin"
@@ -2873,23 +2856,23 @@ msgstr "New task"
 msgid "New ticket"
 msgstr "New ticket"
 
-#: src/conversation/sheets/AgentSheet.tsx:322
+#: src/conversation/sheets/AgentSheet.tsx:364
 msgid "New trades"
 msgstr "New trades"
 
-#: src/conversation/sheets/AgentSheet.tsx:108
+#: src/conversation/sheets/AgentSheet.tsx:111
 msgid "New trades are paused"
 msgstr "New trades are paused"
 
-#: src/conversation/sheets/AgentSheet.tsx:108
+#: src/conversation/sheets/AgentSheet.tsx:111
 msgid "New trades are paused until {until}"
 msgstr "New trades are paused until {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:355
+#: src/conversation/sheets/AgentSheet.tsx:397
 msgid "New trades paused until 23:59"
 msgstr "New trades paused until 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:332
+#: src/conversation/sheets/AgentSheet.tsx:374
 msgid "New trades resumed"
 msgstr "New trades resumed"
 
@@ -2987,7 +2970,7 @@ msgstr "No groups yet."
 msgid "No internet connection"
 msgstr "No internet connection"
 
-#: src/conversation/sheets/AgentSheet.tsx:427
+#: src/conversation/sheets/AgentSheet.tsx:473
 #: src/conversation/sheets/LimitsSheet.tsx:113
 #: src/conversation/sheets/LimitsSheet.tsx:171
 #: src/conversation/sheets/LimitsSheet.tsx:207
@@ -3131,11 +3114,11 @@ msgstr "Objects"
 msgid "OK"
 msgstr "OK"
 
-#: src/conversation/sheets/AgentSheet.tsx:300
+#: src/conversation/sheets/AgentSheet.tsx:342
 msgid "On"
 msgstr "On"
 
-#: src/conversation/sheets/AgentSheet.tsx:299
+#: src/conversation/sheets/AgentSheet.tsx:341
 msgid "On · closing is always allowed"
 msgstr "On · closing is always allowed"
 
@@ -3195,7 +3178,7 @@ msgstr "Open new trades"
 msgid "Open price"
 msgstr "Open price"
 
-#: src/conversation/sheets/AgentSheet.tsx:171
+#: src/conversation/sheets/AgentSheet.tsx:207
 #: src/conversation/sheets/LimitsSheet.tsx:58
 msgid "Open risk limit"
 msgstr "Open risk limit"
@@ -3304,7 +3287,7 @@ msgstr "Password · at least 12 characters"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:261
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:359
+#: src/conversation/sheets/AgentSheet.tsx:401
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
@@ -3566,7 +3549,6 @@ msgstr "Question from the agent"
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
-#: src/pages/shell/message-cards.tsx:285
 msgid "Queued"
 msgstr "Queued"
 
@@ -3730,16 +3712,16 @@ msgid "Remove {label}"
 msgstr "Remove {label}"
 
 #: src/pages/shell/chat-context.tsx:737
-msgid "Remove {name}"
-msgstr "Remove {name}"
+#~ msgid "Remove {name}"
+#~ msgstr "Remove {name}"
 
 #: src/shell/lists/Selection.tsx:222
 msgid "Remove from favourites"
 msgstr "Remove from favourites"
 
 #: src/pages/shell/chat-context.tsx:720
-msgid "Remove reply"
-msgstr "Remove reply"
+#~ msgid "Remove reply"
+#~ msgstr "Remove reply"
 
 #: src/components/trading/TradeApprovals.tsx:240
 msgid "Remove stop loss"
@@ -3754,8 +3736,6 @@ msgid "Removed from favourites"
 msgstr "Removed from favourites"
 
 #: src/conversation/Conversation.tsx:506
-#: src/pages/shell/message-cards.tsx:201
-#: src/pages/shell/message-cards.tsx:202
 #: src/shell/lists/HeadsUp.tsx:191
 msgid "Reply"
 msgstr "Reply"
@@ -3767,8 +3747,8 @@ msgstr "Reply to {0}"
 
 #: src/pages/shell/chat-context.tsx:709
 #: src/pages/shell/message-cards.tsx:113
-msgid "Reply to an earlier message"
-msgstr "Reply to an earlier message"
+#~ msgid "Reply to an earlier message"
+#~ msgstr "Reply to an earlier message"
 
 #: src/conversation/Composer.tsx:537
 msgid "Reply to your message"
@@ -3820,7 +3800,7 @@ msgstr "Reset all"
 #~ msgid "Resize panel"
 #~ msgstr "Resize panel"
 
-#: src/conversation/sheets/AgentSheet.tsx:409
+#: src/conversation/sheets/AgentSheet.tsx:455
 msgid "Resolve"
 msgstr "Resolve"
 
@@ -3859,12 +3839,11 @@ msgstr "Restore"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:259
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:335
+#: src/conversation/sheets/AgentSheet.tsx:377
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:291
 msgid "Resume"
 msgstr "Resume"
 
@@ -3877,7 +3856,6 @@ msgstr "Resume"
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
 #: src/pages/Routines.tsx:169
-#: src/pages/shell/message-cards.tsx:185
 #: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:305
 #: src/shell/pages.tsx:316
@@ -4166,8 +4144,6 @@ msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
 #: src/conversation/Composer.tsx:794
-#: src/pages/shell/chat-context.tsx:880
-#: src/pages/shell/chat-context.tsx:881
 msgid "Send"
 msgstr "Send"
 
@@ -4177,8 +4153,8 @@ msgstr "Send (Shift+Enter for a new line)"
 
 #: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
-msgid "Send direction"
-msgstr "Send direction"
+#~ msgid "Send direction"
+#~ msgstr "Send direction"
 
 #: src/conversation/Cards.tsx:193
 msgid "Send the answer"
@@ -4198,7 +4174,6 @@ msgstr "Send with Enter"
 
 #: src/components/ai/primitives.tsx:74
 #: src/components/ai/TurnActivity.tsx:25
-#: src/pages/shell/message-cards.tsx:193
 msgid "Sending…"
 msgstr "Sending…"
 
@@ -4215,15 +4190,15 @@ msgstr "Server URL"
 #~ msgid "Service needs attention"
 #~ msgstr "Service needs attention"
 
-#: src/conversation/sheets/AgentSheet.tsx:370
+#: src/conversation/sheets/AgentSheet.tsx:232
+#: src/conversation/sheets/AgentSheet.tsx:232
 msgid "Set by the agent"
 msgstr "Set by the agent"
 
-#: src/conversation/sheets/AgentSheet.tsx:370
+#: src/conversation/sheets/AgentSheet.tsx:414
 msgid "Set by you"
 msgstr "Set by you"
 
-#: src/pages/shell/chat-context.tsx:776
 #: src/shell/FloatingTabBar.tsx:25
 msgid "Settings"
 msgstr "Settings"
@@ -4282,7 +4257,7 @@ msgstr "Show all results ({0})"
 msgid "Show more"
 msgstr "Show more"
 
-#: src/conversation/sheets/AgentSheet.tsx:278
+#: src/conversation/sheets/AgentSheet.tsx:320
 msgid "Show the request"
 msgstr "Show the request"
 
@@ -4453,12 +4428,12 @@ msgstr "Start a chat or add a task for it to appear here."
 msgid "Status"
 msgstr "Status"
 
-#: src/conversation/sheets/AgentSheet.tsx:469
+#: src/conversation/sheets/AgentSheet.tsx:515
 #: src/shell/ChatMenu.tsx:125
 msgid "Status and safety"
 msgstr "Status and safety"
 
-#: src/conversation/sheets/AgentSheet.tsx:75
+#: src/conversation/sheets/AgentSheet.tsx:78
 msgid "Status: {text}"
 msgstr "Status: {text}"
 
@@ -4468,8 +4443,6 @@ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:802
 #: src/pages/ActivityList.tsx:259
-#: src/pages/shell/chat-context.tsx:896
-#: src/pages/shell/chat-context.tsx:897
 msgid "Stop"
 msgstr "Stop"
 
@@ -4499,13 +4472,13 @@ msgstr "Stop the reply"
 #~ msgid "Stopped"
 #~ msgstr "Stopped"
 
-#: src/conversation/sheets/AgentSheet.tsx:297
+#: src/conversation/sheets/AgentSheet.tsx:339
 msgid "Stopped · no new orders are sent"
 msgstr "Stopped · no new orders are sent"
 
 #: src/pages/shell/message-cards.tsx:283
-msgid "Stopped at its work limit"
-msgstr "Stopped at its work limit"
+#~ msgid "Stopped at its work limit"
+#~ msgstr "Stopped at its work limit"
 
 #: src/components/trading/TradeApprovals.tsx:214
 #~ msgid "Submitted"
@@ -4767,8 +4740,8 @@ msgid "The file preview could not be displayed"
 msgstr "The file preview could not be displayed"
 
 #: src/pages/shell/message-cards.tsx:364
-msgid "The full response will appear when complete."
-msgstr "The full response will appear when complete."
+#~ msgid "The full response will appear when complete."
+#~ msgstr "The full response will appear when complete."
 
 #: src/components/ai/AgentLiveStatus.tsx:86
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
@@ -4780,8 +4753,6 @@ msgstr "The market"
 
 #: src/conversation/Conversation.tsx:217
 #: src/conversation/Conversation.tsx:220
-#: src/pages/shell/chat-context.tsx:114
-#: src/pages/shell/chat-context.tsx:117
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
@@ -4879,7 +4850,7 @@ msgstr "The resident voice worker is unavailable. Check server readiness and ret
 msgid "The resident worker is preparing this chart."
 msgstr "The resident worker is preparing this chart."
 
-#: src/conversation/sheets/AgentSheet.tsx:380
+#: src/conversation/sheets/AgentSheet.tsx:425
 msgid "The restriction was lifted"
 msgstr "The restriction was lifted"
 
@@ -4912,8 +4883,8 @@ msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "The signed mandate is revoked; going back to it needs a new signature."
 
 #: src/pages/shell/message-cards.tsx:296
-msgid "The task resumed from its saved state after reconnection."
-msgstr "The task resumed from its saved state after reconnection."
+#~ msgid "The task resumed from its saved state after reconnection."
+#~ msgstr "The task resumed from its saved state after reconnection."
 
 #: src/lib/user_error.ts:138
 msgid "The voice connection failed. Retry the call."
@@ -5155,7 +5126,6 @@ msgstr "To do"
 
 #: src/conversation/Conversation.tsx:83
 #: src/pages/Artifacts.tsx:235
-#: src/pages/shell/chat-context.tsx:1167
 msgid "Today"
 msgstr "Today"
 
@@ -5184,7 +5154,7 @@ msgstr "Trade action"
 msgid "Trade order"
 msgstr "Trade order"
 
-#: src/conversation/sheets/AgentSheet.tsx:170
+#: src/conversation/sheets/AgentSheet.tsx:206
 #: src/conversation/sheets/LimitsSheet.tsx:50
 msgid "Trade risk limit"
 msgstr "Trade risk limit"
@@ -5199,9 +5169,9 @@ msgstr "Trades"
 msgid "Trades on its own"
 msgstr "Trades on its own"
 
-#: src/conversation/sheets/AgentSheet.tsx:286
-#: src/conversation/sheets/AgentSheet.tsx:293
-#: src/conversation/sheets/AgentSheet.tsx:308
+#: src/conversation/sheets/AgentSheet.tsx:328
+#: src/conversation/sheets/AgentSheet.tsx:335
+#: src/conversation/sheets/AgentSheet.tsx:350
 #: src/pages/settings-sidebar.tsx:23
 #: src/pages/Trading.tsx:25
 msgid "Trading"
@@ -5215,7 +5185,7 @@ msgstr "Trading agent"
 #~ msgid "Trading and operation journal"
 #~ msgstr "Trading and operation journal"
 
-#: src/conversation/sheets/AgentSheet.tsx:470
+#: src/conversation/sheets/AgentSheet.tsx:516
 msgid "Trading and safety"
 msgstr "Trading and safety"
 
@@ -5235,7 +5205,7 @@ msgstr "Trading goals"
 #~ msgid "Trading is off."
 #~ msgstr "Trading is off."
 
-#: src/conversation/sheets/AgentSheet.tsx:132
+#: src/conversation/sheets/AgentSheet.tsx:135
 msgid "Trading is stopped"
 msgstr "Trading is stopped"
 
@@ -5255,11 +5225,11 @@ msgstr "Trading pair"
 #~ msgid "Trading request"
 #~ msgstr "Trading request"
 
-#: src/conversation/sheets/AgentSheet.tsx:313
+#: src/conversation/sheets/AgentSheet.tsx:355
 msgid "Trading resumed"
 msgstr "Trading resumed"
 
-#: src/conversation/sheets/AgentSheet.tsx:313
+#: src/conversation/sheets/AgentSheet.tsx:355
 msgid "Trading stopped · closing is still allowed"
 msgstr "Trading stopped · closing is still allowed"
 
@@ -5325,7 +5295,7 @@ msgstr "Unavailable"
 msgid "Unconfirmed"
 msgstr "Unconfirmed"
 
-#: src/conversation/sheets/AgentSheet.tsx:397
+#: src/conversation/sheets/AgentSheet.tsx:443
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "Unconfirmed operation · not confirmed by the broker"
 
@@ -5540,7 +5510,6 @@ msgstr "Waiting for the broker to report the entry position. The accepted order 
 msgid "Waiting for the broker's answer…"
 msgstr "Waiting for the broker's answer…"
 
-#: src/pages/shell/message-cards.tsx:188
 #: src/shell/ChatHeader.tsx:68
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
@@ -5568,7 +5537,7 @@ msgstr "Watch confirmed — review current evidence"
 msgid "Watch source"
 msgstr "Watch source"
 
-#: src/conversation/sheets/AgentSheet.tsx:259
+#: src/conversation/sheets/AgentSheet.tsx:301
 #: src/shell/ChatMenu.tsx:132
 msgid "Watches"
 msgstr "Watches"
@@ -5666,7 +5635,6 @@ msgid "Writing"
 msgstr "Writing"
 
 #: src/conversation/Conversation.tsx:84
-#: src/pages/shell/chat-context.tsx:1168
 msgid "Yesterday"
 msgstr "Yesterday"
 

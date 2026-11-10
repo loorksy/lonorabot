@@ -13,7 +13,7 @@ msgid "«{name}» saved"
 msgstr "حُفظت «{name}»"
 
 #. placeholder {0}: state.watch_count
-#: src/conversation/sheets/AgentSheet.tsx:261
+#: src/conversation/sheets/AgentSheet.tsx:303
 msgid "{0} active"
 msgstr "{0} نشطة"
 
@@ -76,7 +76,7 @@ msgstr "{count, plural, one {وكيل واحد} two {وكيلان} few {# وكل
 msgid "{count, plural, one {one chat} two {two chats} few {# chats} many {# chats} other {# chats}}"
 msgstr "{count, plural, one {محادثة واحدة} two {محادثتان} few {# محادثات} many {# محادثة} other {# محادثة}}"
 
-#: src/conversation/sheets/AgentSheet.tsx:118
+#: src/conversation/sheets/AgentSheet.tsx:121
 msgid "{count} unconfirmed"
 msgstr "{count} غير مؤكَّدة"
 
@@ -204,7 +204,7 @@ msgstr "تغيرات الحساب"
 msgid "Account ID"
 msgstr "معرّف الحساب"
 
-#: src/conversation/sheets/AgentSheet.tsx:418
+#: src/conversation/sheets/AgentSheet.tsx:464
 #: src/conversation/sheets/LimitsSheet.tsx:260
 msgid "Account limits"
 msgstr "حدود الحساب"
@@ -230,7 +230,7 @@ msgstr "الإجراء"
 #~ msgid "Activate with device authentication"
 #~ msgstr "التفعيل بمصادقة الجهاز"
 
-#: src/conversation/sheets/AgentSheet.tsx:68
+#: src/conversation/sheets/AgentSheet.tsx:71
 #: src/lib/goal-status.ts:6
 #: src/shell/ChatHeader.tsx:82
 msgid "Active"
@@ -296,8 +296,8 @@ msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "أضف محادثات إلى المفضلة: اضغط مطولًا على محادثة ثم ⋮."
 
 #: src/pages/shell/chat-context.tsx:825
-msgid "Add direction while the agent works…"
-msgstr "أضف توجيهًا أثناء عمل الوكيل…"
+#~ msgid "Add direction while the agent works…"
+#~ msgstr "أضف توجيهًا أثناء عمل الوكيل…"
 
 #: src/components/charts/ChartIndicators.tsx:53
 msgid "Add indicator"
@@ -351,19 +351,10 @@ msgstr "إعدادات متقدمة"
 #: src/pages/Board.tsx:416
 #: src/pages/Board.tsx:418
 #: src/pages/shell/bot-picker.tsx:16
-#: src/pages/shell/chat-context.tsx:284
-#: src/pages/shell/message-cards.tsx:40
-#: src/pages/shell/message-cards.tsx:104
-#: src/pages/shell/message-cards.tsx:256
-#: src/pages/shell/message-cards.tsx:259
-#: src/pages/shell/message-cards.tsx:264
-#: src/pages/shell/message-cards.tsx:267
-#: src/pages/shell/message-cards.tsx:334
 msgid "Agent"
 msgstr "الوكيل"
 
 #: src/components/ai/CollaborationMarker.tsx:11
-#: src/pages/shell/message-cards.tsx:248
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
@@ -391,7 +382,7 @@ msgstr "اسم الوكيل"
 #~ msgid "Agent settings"
 #~ msgstr "إعدادات الوكيل"
 
-#: src/conversation/sheets/AgentSheet.tsx:471
+#: src/conversation/sheets/AgentSheet.tsx:517
 msgid "Agent status"
 msgstr "حالة الوكيل"
 
@@ -469,7 +460,7 @@ msgstr "كل الأوقات"
 msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
-#: src/conversation/sheets/AgentSheet.tsx:324
+#: src/conversation/sheets/AgentSheet.tsx:366
 msgid "Allowed"
 msgstr "مسموحة"
 
@@ -587,17 +578,16 @@ msgstr "بسعر السوق"
 
 #: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
-msgid "Attach file"
-msgstr "إرفاق ملف"
+#~ msgid "Attach file"
+#~ msgstr "إرفاق ملف"
 
 #: src/conversation/Composer.tsx:278
-#: src/pages/shell/chat-context.tsx:625
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
 #: src/pages/shell/message-cards.tsx:161
-msgid "Attachment"
-msgstr "مرفق"
+#~ msgid "Attachment"
+#~ msgstr "مرفق"
 
 #: src/conversation/Composer.tsx:562
 msgid "Attachments"
@@ -928,7 +918,6 @@ msgstr "إلغاء التحديد"
 #: src/conversation/Cards.tsx:256
 #: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:27
-#: src/pages/shell/message-cards.tsx:277
 msgid "Cancelled"
 msgstr "ملغى"
 
@@ -1202,12 +1191,12 @@ msgstr "إغلاق الصفقات"
 msgid "Closes"
 msgstr "يُغلق"
 
-#: src/conversation/sheets/AgentSheet.tsx:214
-#: src/conversation/sheets/AgentSheet.tsx:371
+#: src/conversation/sheets/AgentSheet.tsx:256
+#: src/conversation/sheets/AgentSheet.tsx:416
 msgid "closing allowed"
 msgstr "الإغلاق مسموح"
 
-#: src/conversation/sheets/AgentSheet.tsx:446
+#: src/conversation/sheets/AgentSheet.tsx:492
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
 
@@ -1251,7 +1240,6 @@ msgstr "الأوامر في بداية الرسالة"
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
 #: src/pages/Board.tsx:21
-#: src/pages/shell/message-cards.tsx:281
 msgid "Completed"
 msgstr "مكتمل"
 
@@ -1357,7 +1345,6 @@ msgstr "متابعة التسجيل"
 
 #: src/conversation/Conversation.tsx:933
 #: src/pages/ModelRoutingSettings.tsx:10
-#: src/pages/shell/chat-context.tsx:1079
 msgid "Conversation"
 msgstr "المحادثة"
 
@@ -1510,7 +1497,7 @@ msgstr "يتجاوز إلى الأعلى"
 msgid "Crosses below"
 msgstr "يتجاوز إلى الأسفل"
 
-#: src/conversation/sheets/AgentSheet.tsx:233
+#: src/conversation/sheets/AgentSheet.tsx:275
 msgid "Current work"
 msgstr "العمل الحالي"
 
@@ -1527,7 +1514,7 @@ msgstr "تفويض مخصّص"
 msgid "Customize avatar"
 msgstr "تخصيص الأفاتار"
 
-#: src/conversation/sheets/AgentSheet.tsx:169
+#: src/conversation/sheets/AgentSheet.tsx:205
 #: src/conversation/sheets/LimitsSheet.tsx:42
 #: src/conversation/sheets/MandateSheet.tsx:198
 #: src/conversation/sheets/MandateSheet.tsx:204
@@ -1700,8 +1687,8 @@ msgid "Discovered models"
 msgstr "النماذج المكتشفة"
 
 #: src/pages/shell/chat-context.tsx:698
-msgid "Dismiss error"
-msgstr "إخفاء الخطأ"
+#~ msgid "Dismiss error"
+#~ msgstr "إخفاء الخطأ"
 
 #: src/conversation/PermissionMenu.tsx:77
 #: src/conversation/PermissionMenu.tsx:80
@@ -1770,7 +1757,7 @@ msgstr "تعديل المهمة المجدولة"
 msgid "Edit the limit"
 msgstr "تعديل الحد"
 
-#: src/conversation/sheets/AgentSheet.tsx:440
+#: src/conversation/sheets/AgentSheet.tsx:486
 msgid "Edit the limits"
 msgstr "تعديل الحدود"
 
@@ -1850,8 +1837,8 @@ msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
 #: src/pages/shell/chat-context.tsx:905
-msgid "Enter to send · Shift+Enter for a new line"
-msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
+#~ msgid "Enter to send · Shift+Enter for a new line"
+#~ msgstr "Enter للإرسال · Shift+Enter لسطر جديد"
 
 #: src/components/market/MarketWatch.tsx:191
 #: src/components/trading/AccountSummary.tsx:48
@@ -1957,7 +1944,6 @@ msgstr "الوجه"
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/lib/goal-status.ts:38
 #: src/pages/Board.tsx:31
-#: src/pages/shell/message-cards.tsx:279
 msgid "Failed"
 msgstr "فشل"
 
@@ -2318,8 +2304,8 @@ msgid "Its own role, model and permissions"
 msgstr "دور ونموذج وصلاحيات خاصة به"
 
 #: src/pages/shell/chat-context.tsx:1215
-msgid "Jump to latest"
-msgstr "الانتقال إلى الأحدث"
+#~ msgid "Jump to latest"
+#~ msgstr "الانتقال إلى الأحدث"
 
 #. placeholder {0}: levelName("autonomous")
 #: src/conversation/PermissionMenu.tsx:346
@@ -2417,7 +2403,7 @@ msgstr "مغادرة التعديلات؟"
 msgid "Legacy instructions"
 msgstr "تعليمات قديمة"
 
-#: src/conversation/sheets/AgentSheet.tsx:383
+#: src/conversation/sheets/AgentSheet.tsx:428
 msgid "Lift"
 msgstr "رفع"
 
@@ -2467,8 +2453,8 @@ msgid "Live observations"
 msgstr "ملاحظات التداول الحقيقي"
 
 #: src/pages/shell/chat-context.tsx:1116
-msgid "Load earlier messages"
-msgstr "تحميل الرسائل السابقة"
+#~ msgid "Load earlier messages"
+#~ msgstr "تحميل الرسائل السابقة"
 
 #: ../../packages/ui-web/src/components/ui/spinner.tsx:11
 #: src/shell/Skeleton.tsx:8
@@ -2519,7 +2505,6 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/RoutineRunHistory.tsx:43
 #: src/pages/Routines.tsx:176
 #: src/pages/ScratchpadSection.tsx:94
-#: src/pages/shell/chat-context.tsx:1113
 #: src/pages/SkillsSection.tsx:101
 #: src/shell/pages.tsx:49
 msgid "Loading…"
@@ -2672,11 +2657,10 @@ msgid "Mention an agent"
 msgstr "الإشارة إلى وكيل"
 
 #: src/pages/shell/chat-context.tsx:751
-msgid "Mentions"
-msgstr "الإشارات"
+#~ msgid "Mentions"
+#~ msgstr "الإشارات"
 
 #: src/conversation/Message.tsx:117
-#: src/pages/shell/chat-context.tsx:815
 msgid "Message"
 msgstr "الرسالة"
 
@@ -2685,11 +2669,10 @@ msgid "Message {name}"
 msgstr "راسل {name}"
 
 #: src/pages/shell/chat-context.tsx:827
-msgid "Message {recipientName}"
-msgstr "راسل {recipientName}"
+#~ msgid "Message {recipientName}"
+#~ msgstr "راسل {recipientName}"
 
 #: src/conversation/Composer.tsx:421
-#: src/pages/shell/chat-context.tsx:664
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
@@ -2704,8 +2687,8 @@ msgid "Message to {name}"
 msgstr "رسالة إلى {name}"
 
 #: src/pages/shell/chat-context.tsx:828
-msgid "Message your agent…"
-msgstr "اكتب رسالة لوكيلك…"
+#~ msgid "Message your agent…"
+#~ msgstr "اكتب رسالة لوكيلك…"
 
 #: src/shell/lists/UnifiedSearch.tsx:270
 msgid "Messages"
@@ -2744,7 +2727,7 @@ msgstr "تصغير"
 msgid "Minimize call"
 msgstr "تصغير المكالمة"
 
-#: src/conversation/sheets/AgentSheet.tsx:172
+#: src/conversation/sheets/AgentSheet.tsx:208
 #: src/conversation/sheets/LimitsSheet.tsx:66
 msgid "Minimum free margin"
 msgstr "الحد الأدنى للهامش الحر"
@@ -2873,23 +2856,23 @@ msgstr "مهمة جديدة"
 msgid "New ticket"
 msgstr "مهمة جديدة"
 
-#: src/conversation/sheets/AgentSheet.tsx:322
+#: src/conversation/sheets/AgentSheet.tsx:364
 msgid "New trades"
 msgstr "الصفقات الجديدة"
 
-#: src/conversation/sheets/AgentSheet.tsx:108
+#: src/conversation/sheets/AgentSheet.tsx:111
 msgid "New trades are paused"
 msgstr "الصفقات الجديدة معلّقة"
 
-#: src/conversation/sheets/AgentSheet.tsx:108
+#: src/conversation/sheets/AgentSheet.tsx:111
 msgid "New trades are paused until {until}"
 msgstr "الصفقات الجديدة معلّقة حتى {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:355
+#: src/conversation/sheets/AgentSheet.tsx:397
 msgid "New trades paused until 23:59"
 msgstr "عُلّقت الصفقات الجديدة حتى 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:332
+#: src/conversation/sheets/AgentSheet.tsx:374
 msgid "New trades resumed"
 msgstr "استُؤنفت الصفقات الجديدة"
 
@@ -2987,7 +2970,7 @@ msgstr "لا توجد مجموعات."
 msgid "No internet connection"
 msgstr "لا يوجد اتصال بالإنترنت"
 
-#: src/conversation/sheets/AgentSheet.tsx:427
+#: src/conversation/sheets/AgentSheet.tsx:473
 #: src/conversation/sheets/LimitsSheet.tsx:113
 #: src/conversation/sheets/LimitsSheet.tsx:171
 #: src/conversation/sheets/LimitsSheet.tsx:207
@@ -3131,11 +3114,11 @@ msgstr "أشياء"
 msgid "OK"
 msgstr "حسنًا"
 
-#: src/conversation/sheets/AgentSheet.tsx:300
+#: src/conversation/sheets/AgentSheet.tsx:342
 msgid "On"
 msgstr "مفعَّل"
 
-#: src/conversation/sheets/AgentSheet.tsx:299
+#: src/conversation/sheets/AgentSheet.tsx:341
 msgid "On · closing is always allowed"
 msgstr "مفعَّل · الإغلاق مسموح دائمًا"
 
@@ -3195,7 +3178,7 @@ msgstr "فتح صفقات جديدة"
 msgid "Open price"
 msgstr "سعر الفتح"
 
-#: src/conversation/sheets/AgentSheet.tsx:171
+#: src/conversation/sheets/AgentSheet.tsx:207
 #: src/conversation/sheets/LimitsSheet.tsx:58
 msgid "Open risk limit"
 msgstr "حد المخاطرة المفتوحة"
@@ -3304,7 +3287,7 @@ msgstr "كلمة المرور · 12 حرفًا على الأقل"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:261
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:359
+#: src/conversation/sheets/AgentSheet.tsx:401
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
@@ -3566,7 +3549,6 @@ msgstr "سؤال من الوكيل"
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
-#: src/pages/shell/message-cards.tsx:285
 msgid "Queued"
 msgstr "في الانتظار"
 
@@ -3730,16 +3712,16 @@ msgid "Remove {label}"
 msgstr "إزالة {label}"
 
 #: src/pages/shell/chat-context.tsx:737
-msgid "Remove {name}"
-msgstr "إزالة {name}"
+#~ msgid "Remove {name}"
+#~ msgstr "إزالة {name}"
 
 #: src/shell/lists/Selection.tsx:222
 msgid "Remove from favourites"
 msgstr "إزالة من المفضلة"
 
 #: src/pages/shell/chat-context.tsx:720
-msgid "Remove reply"
-msgstr "إزالة الرد"
+#~ msgid "Remove reply"
+#~ msgstr "إزالة الرد"
 
 #: src/components/trading/TradeApprovals.tsx:240
 msgid "Remove stop loss"
@@ -3754,8 +3736,6 @@ msgid "Removed from favourites"
 msgstr "أُزيلت من المفضلة"
 
 #: src/conversation/Conversation.tsx:506
-#: src/pages/shell/message-cards.tsx:201
-#: src/pages/shell/message-cards.tsx:202
 #: src/shell/lists/HeadsUp.tsx:191
 msgid "Reply"
 msgstr "رد"
@@ -3767,8 +3747,8 @@ msgstr "ردّ على {0}"
 
 #: src/pages/shell/chat-context.tsx:709
 #: src/pages/shell/message-cards.tsx:113
-msgid "Reply to an earlier message"
-msgstr "رد على رسالة سابقة"
+#~ msgid "Reply to an earlier message"
+#~ msgstr "رد على رسالة سابقة"
 
 #: src/conversation/Composer.tsx:537
 msgid "Reply to your message"
@@ -3820,7 +3800,7 @@ msgstr "إعادة ضبط الكل"
 #~ msgid "Resize panel"
 #~ msgstr "تغيير عرض اللوحة"
 
-#: src/conversation/sheets/AgentSheet.tsx:409
+#: src/conversation/sheets/AgentSheet.tsx:455
 msgid "Resolve"
 msgstr "حسم"
 
@@ -3859,12 +3839,11 @@ msgstr "استعادة"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:259
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:335
+#: src/conversation/sheets/AgentSheet.tsx:377
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
 #: src/pages/Routines.tsx:100
-#: src/pages/shell/chat-context.tsx:291
 msgid "Resume"
 msgstr "استئناف"
 
@@ -3877,7 +3856,6 @@ msgstr "استئناف"
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
 #: src/pages/Routines.tsx:169
-#: src/pages/shell/message-cards.tsx:185
 #: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:305
 #: src/shell/pages.tsx:316
@@ -4166,8 +4144,6 @@ msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
 #: src/conversation/Composer.tsx:794
-#: src/pages/shell/chat-context.tsx:880
-#: src/pages/shell/chat-context.tsx:881
 msgid "Send"
 msgstr "إرسال"
 
@@ -4177,8 +4153,8 @@ msgstr "إرسال (Shift+Enter لسطر جديد)"
 
 #: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
-msgid "Send direction"
-msgstr "إرسال توجيه"
+#~ msgid "Send direction"
+#~ msgstr "إرسال توجيه"
 
 #: src/conversation/Cards.tsx:193
 msgid "Send the answer"
@@ -4198,7 +4174,6 @@ msgstr "الإرسال بزر Enter"
 
 #: src/components/ai/primitives.tsx:74
 #: src/components/ai/TurnActivity.tsx:25
-#: src/pages/shell/message-cards.tsx:193
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
@@ -4215,15 +4190,15 @@ msgstr "رابط الخادم"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/conversation/sheets/AgentSheet.tsx:370
+#: src/conversation/sheets/AgentSheet.tsx:232
+#: src/conversation/sheets/AgentSheet.tsx:232
 msgid "Set by the agent"
 msgstr "تعليق احترازي من الوكيل"
 
-#: src/conversation/sheets/AgentSheet.tsx:370
+#: src/conversation/sheets/AgentSheet.tsx:414
 msgid "Set by you"
 msgstr "تعليق من المالك"
 
-#: src/pages/shell/chat-context.tsx:776
 #: src/shell/FloatingTabBar.tsx:25
 msgid "Settings"
 msgstr "الإعدادات"
@@ -4282,7 +4257,7 @@ msgstr "عرض جميع النتائج ({0})"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/conversation/sheets/AgentSheet.tsx:278
+#: src/conversation/sheets/AgentSheet.tsx:320
 msgid "Show the request"
 msgstr "عرض الطلب"
 
@@ -4453,12 +4428,12 @@ msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 msgid "Status"
 msgstr "الحالة"
 
-#: src/conversation/sheets/AgentSheet.tsx:469
+#: src/conversation/sheets/AgentSheet.tsx:515
 #: src/shell/ChatMenu.tsx:125
 msgid "Status and safety"
 msgstr "الحالة والأمان"
 
-#: src/conversation/sheets/AgentSheet.tsx:75
+#: src/conversation/sheets/AgentSheet.tsx:78
 msgid "Status: {text}"
 msgstr "الحالة: {text}"
 
@@ -4468,8 +4443,6 @@ msgstr "لا تزال غير معروفة"
 
 #: src/conversation/Composer.tsx:802
 #: src/pages/ActivityList.tsx:259
-#: src/pages/shell/chat-context.tsx:896
-#: src/pages/shell/chat-context.tsx:897
 msgid "Stop"
 msgstr "إيقاف"
 
@@ -4499,13 +4472,13 @@ msgstr "إيقاف الرد"
 #~ msgid "Stopped"
 #~ msgstr "متوقف"
 
-#: src/conversation/sheets/AgentSheet.tsx:297
+#: src/conversation/sheets/AgentSheet.tsx:339
 msgid "Stopped · no new orders are sent"
 msgstr "متوقف · لا تُرسَل أوامر جديدة"
 
 #: src/pages/shell/message-cards.tsx:283
-msgid "Stopped at its work limit"
-msgstr "توقف عند حد العمل"
+#~ msgid "Stopped at its work limit"
+#~ msgstr "توقف عند حد العمل"
 
 #: src/components/trading/TradeApprovals.tsx:214
 #~ msgid "Submitted"
@@ -4767,8 +4740,8 @@ msgid "The file preview could not be displayed"
 msgstr "تعذّر عرض معاينة الملف"
 
 #: src/pages/shell/message-cards.tsx:364
-msgid "The full response will appear when complete."
-msgstr "ستظهر الإجابة كاملة عند الانتهاء."
+#~ msgid "The full response will appear when complete."
+#~ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 
 #: src/components/ai/AgentLiveStatus.tsx:86
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
@@ -4780,8 +4753,6 @@ msgstr "السوق"
 
 #: src/conversation/Conversation.tsx:217
 #: src/conversation/Conversation.tsx:220
-#: src/pages/shell/chat-context.tsx:114
-#: src/pages/shell/chat-context.tsx:117
 msgid "The message is no longer available."
 msgstr "لم تعد الرسالة متاحة."
 
@@ -4879,7 +4850,7 @@ msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جا
 msgid "The resident worker is preparing this chart."
 msgstr "العامل المقيم يجهّز هذا الشارت."
 
-#: src/conversation/sheets/AgentSheet.tsx:380
+#: src/conversation/sheets/AgentSheet.tsx:425
 msgid "The restriction was lifted"
 msgstr "رُفع القيد"
 
@@ -4912,8 +4883,8 @@ msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "يُلغى التفويض الموقَّع، ويتطلّب الرجوع إليه توقيعًا جديدًا."
 
 #: src/pages/shell/message-cards.tsx:296
-msgid "The task resumed from its saved state after reconnection."
-msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
+#~ msgid "The task resumed from its saved state after reconnection."
+#~ msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
 #: src/lib/user_error.ts:138
 msgid "The voice connection failed. Retry the call."
@@ -5155,7 +5126,6 @@ msgstr "قيد الانتظار"
 
 #: src/conversation/Conversation.tsx:83
 #: src/pages/Artifacts.tsx:235
-#: src/pages/shell/chat-context.tsx:1167
 msgid "Today"
 msgstr "اليوم"
 
@@ -5184,7 +5154,7 @@ msgstr "عملية تداول"
 msgid "Trade order"
 msgstr "أمر تداول"
 
-#: src/conversation/sheets/AgentSheet.tsx:170
+#: src/conversation/sheets/AgentSheet.tsx:206
 #: src/conversation/sheets/LimitsSheet.tsx:50
 msgid "Trade risk limit"
 msgstr "حد مخاطرة الصفقة"
@@ -5199,9 +5169,9 @@ msgstr "الصفقات"
 msgid "Trades on its own"
 msgstr "يتداول بنفسه"
 
-#: src/conversation/sheets/AgentSheet.tsx:286
-#: src/conversation/sheets/AgentSheet.tsx:293
-#: src/conversation/sheets/AgentSheet.tsx:308
+#: src/conversation/sheets/AgentSheet.tsx:328
+#: src/conversation/sheets/AgentSheet.tsx:335
+#: src/conversation/sheets/AgentSheet.tsx:350
 #: src/pages/settings-sidebar.tsx:23
 #: src/pages/Trading.tsx:25
 msgid "Trading"
@@ -5215,7 +5185,7 @@ msgstr "وكيل تداول"
 #~ msgid "Trading and operation journal"
 #~ msgstr "التداول وسجل العمليات"
 
-#: src/conversation/sheets/AgentSheet.tsx:470
+#: src/conversation/sheets/AgentSheet.tsx:516
 msgid "Trading and safety"
 msgstr "التداول والأمان"
 
@@ -5235,7 +5205,7 @@ msgstr "أهداف التداول"
 #~ msgid "Trading is off."
 #~ msgstr "التداول متوقف."
 
-#: src/conversation/sheets/AgentSheet.tsx:132
+#: src/conversation/sheets/AgentSheet.tsx:135
 msgid "Trading is stopped"
 msgstr "التداول متوقف"
 
@@ -5255,11 +5225,11 @@ msgstr "زوج التداول"
 #~ msgid "Trading request"
 #~ msgstr "طلب تداول"
 
-#: src/conversation/sheets/AgentSheet.tsx:313
+#: src/conversation/sheets/AgentSheet.tsx:355
 msgid "Trading resumed"
 msgstr "فُعِّل التداول"
 
-#: src/conversation/sheets/AgentSheet.tsx:313
+#: src/conversation/sheets/AgentSheet.tsx:355
 msgid "Trading stopped · closing is still allowed"
 msgstr "أُوقف التداول · الإغلاق ما زال مسموحًا"
 
@@ -5325,7 +5295,7 @@ msgstr "غير متاحة"
 msgid "Unconfirmed"
 msgstr "غير مؤكَّد"
 
-#: src/conversation/sheets/AgentSheet.tsx:397
+#: src/conversation/sheets/AgentSheet.tsx:443
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 
@@ -5540,7 +5510,6 @@ msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. ل
 msgid "Waiting for the broker's answer…"
 msgstr "بانتظار رد الوسيط…"
 
-#: src/pages/shell/message-cards.tsx:188
 #: src/shell/ChatHeader.tsx:68
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
@@ -5568,7 +5537,7 @@ msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 msgid "Watch source"
 msgstr "مصدر المراقبة"
 
-#: src/conversation/sheets/AgentSheet.tsx:259
+#: src/conversation/sheets/AgentSheet.tsx:301
 #: src/shell/ChatMenu.tsx:132
 msgid "Watches"
 msgstr "المراقبات"
@@ -5666,7 +5635,6 @@ msgid "Writing"
 msgstr "يكتب"
 
 #: src/conversation/Conversation.tsx:84
-#: src/pages/shell/chat-context.tsx:1168
 msgid "Yesterday"
 msgstr "أمس"
 

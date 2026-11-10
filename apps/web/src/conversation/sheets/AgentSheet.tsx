@@ -4,20 +4,23 @@ import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState, MoneyLimitName, TradingReadiness } from "@lonora/contracts";
 import {
   agentStatusLine,
+  isolate,
   readinessTime,
   tradingReadinessLine,
   tradingSafetyText,
   uncertainLine,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { useAgentLiveState } from "../../lib/agent-live-state";
-import type { Agent } from "../../lib/api";
+import type { Agent, Resource } from "../../lib/api";
 import { api } from "../../lib/api";
-import { liftRestriction, resumeTrading, stopNewTrading } from "../../lib/trading";
+import { brokerIdentityLabel } from "../../lib/broker-identity";
+import { liftRestriction, readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
+import { useShellData } from "../../shell/data";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
 import { useChatPrefs } from "../prefs";
@@ -165,6 +168,39 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
   );
 }
 
+/** With more than one account every item names its account (as the old safety pill did). */
+function useAccountName(readiness: TradingReadiness | null) {
+  const [accounts, setAccounts] = useState<Resource[]>([]);
+  const ids = new Set(
+    readiness
+      ? [
+          ...readiness.money_limits.map((item) => item.account_id),
+          ...readiness.grants.map((item) => item.account_id),
+          ...readiness.restrictions.map((item) => item.account_id),
+          ...readiness.unresolved_operations.map((item) => item.account_id),
+        ]
+      : [],
+  );
+  const several = ids.size > 1;
+  useEffect(() => {
+    if (!several) return;
+    let live = true;
+    void readConnections()
+      .then((rows) => {
+        if (live) setAccounts(rows);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [several]);
+  return (id: string) => {
+    if (!several) return null;
+    const index = accounts.findIndex((row) => row.id === id);
+    return index < 0 ? null : brokerIdentityLabel(accounts[index], index);
+  };
+}
+
 const LIMIT_ROWS: Array<[MoneyLimitName, () => string]> = [
   ["max_daily_loss", () => t`Daily loss limit`],
   ["max_trade_risk_equity_percent", () => t`Trade risk limit`],
@@ -189,6 +225,12 @@ function AgentSheetBody({
   const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
+  const { agents } = useShellData();
+  const accountName = useAccountName(readiness);
+  const agentName = (id: string | null) => {
+    const name = agents.find((row) => row.id === id)?.name;
+    return name ? `${t`Set by the agent`} · ${isolate(name)}` : t`Set by the agent`;
+  };
   const kind = statusKind(state);
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -220,7 +262,7 @@ function AgentSheetBody({
           <strong>{agent.name}</strong>
           <small data-testid="agent-mode-line">
             {readiness
-              ? tradingReadinessLine(readiness, i18n.locale)
+              ? tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)
               : state
                 ? agentStatusLine(state, i18n.locale)
                 : ""}
@@ -366,9 +408,12 @@ function AgentSheetBody({
                 <Icon name="lock" />
                 <span className="body">
                   <strong>{restrictionText(r)}</strong>
-                  <small>
-                    {r.source === "agent" ? t`Set by the agent` : t`Set by you`} ·{" "}
-                    {t`closing allowed`}
+                  <small dir="auto">
+                    {accountName(r.account_id) && <>{accountName(r.account_id)} · </>}
+                    {r.source === "owner_ui" || r.source === "owner_message"
+                      ? t`Set by you`
+                      : agentName(r.created_by_agent_id)}{" "}
+                    · {t`closing allowed`}
                   </small>
                 </span>
                 <button
@@ -393,7 +438,8 @@ function AgentSheetBody({
                       {op.action} {op.symbol}
                     </bdi>
                   </strong>
-                  <small>
+                  <small dir="auto">
+                    {accountName(op.account_id) && <>{accountName(op.account_id)} · </>}
                     <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
                   </small>
                 </span>

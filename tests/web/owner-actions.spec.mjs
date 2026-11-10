@@ -457,7 +457,14 @@ for (const locale of ["en", "ar"])
       expect(policy.risk.max_daily_loss).toBeNull();
       expect(Number(policy.risk.max_open_risk)).toBe(400);
       await page.reload();
-      await expect(page.getByTestId("safety-pill")).toContainText(text.full);
+      // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
+      await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
+      await page
+        .getByRole("button", {
+          name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
+        })
+        .click();
+      await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
     } finally {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
