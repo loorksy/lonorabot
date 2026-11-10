@@ -57,10 +57,7 @@ export function flexibleAgentUi(mobile) {
         const surface = mobile ? page : page.locator("main");
         // Owner decision Q9: the general template is chosen first, then named (Web and native).
         if (mobile)
-          await expect(page.getByTestId("template-general")).toHaveAttribute(
-            "aria-checked",
-            "true",
-          );
+          await expect(page.getByTestId("template-general")).toBeChecked();
         else
           await expect(
             surface.getByRole("radio", { name: locale === "ar" ? /^وكيل عام/ : /^General agent/ }),

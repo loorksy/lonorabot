@@ -209,6 +209,7 @@ export function Row({
       accessibilityRole={role ?? "button"}
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={checked === undefined ? undefined : { checked }}
+      aria-checked={checked}
       testID={testID}
       onPress={onPress}
       style={({ pressed }) => ({ ...layout, backgroundColor: pressed ? c.hover : "transparent" })}
