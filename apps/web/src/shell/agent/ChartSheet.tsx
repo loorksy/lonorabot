@@ -112,7 +112,7 @@ export function CandleChart({
               />
               {shape.label && (
                 <text
-                  x={f(shape.x + 4)}
+                  x={f(shape.lx)}
                   y={f(shape.y + fs)}
                   style={{ fill: TONE[shape.tone] }}
                   fontSize={fs}
@@ -209,9 +209,9 @@ export function CandleChart({
                 />
                 {shape.text && (
                   <text
-                    x={f(shape.x - 6)}
+                    x={f(shape.anchor === "end" ? shape.x - 6 : shape.x + 6)}
                     y={f(shape.y - fs * 0.6)}
-                    textAnchor="end"
+                    textAnchor={shape.anchor}
                     style={{ fill: TONE[shape.tone] }}
                     fontSize={fs}
                   >
@@ -227,7 +227,7 @@ export function CandleChart({
         <g key={pane.label} data-overlay="pane">
           <path d={`M15 ${f(pane.top - fs * 0.8)}H${right}`} style={{ stroke: "var(--line)" }} />
           <text x={18} y={f(pane.top + fs * 0.2)} style={{ fill: "var(--muted)" }} fontSize={fs}>
-            {pane.label}
+            {pane.more ? `${pane.label} · +${pane.more}` : pane.label}
           </text>
           {pane.guides.map((guide) => (
             <g key={guide.label}>
@@ -297,10 +297,20 @@ export function ChartSheetBody({
   const [scene, setScene] = useState<ChartScene | null>(null);
   const [chosen, setChosen] = useState<string | null | undefined>(chartId);
   const [error, setError] = useState<unknown>();
-  // The chart named stays; otherwise the newest of the agent's charts on this pair, re-listed
-  // on every chart event (chart_open always makes a new chart, even on the same pair).
+  // The chart named stays; otherwise the newest of the agent's charts on this pair
+  // (chart_open always makes a new chart, even on the same pair). Re-listed only when a chart
+  // is created or deleted, or a scene arrives for a chart this sheet has not listed: never on
+  // every streamed scene update.
+  const [known, setKnown] = useState<ReadonlySet<string>>(new Set());
   const chartEvents = events
-    .filter((event) => event.kind.startsWith("cloud_charts."))
+    .filter(
+      (event) =>
+        event.kind === "cloud_charts.created" ||
+        event.kind === "cloud_charts.deleted" ||
+        (event.kind === "cloud_charts.scene_updated" &&
+          typeof event.payload?.id === "string" &&
+          !known.has(event.payload.id)),
+    )
     .at(-1)?.cursor;
   useEffect(() => {
     void chartEvents;
@@ -309,6 +319,7 @@ export function ChartSheetBody({
     charts
       .list(agentId)
       .then((rows: Resource<ChartState>[]) => {
+        if (live) setKnown(new Set(rows.map((row) => row.id)));
         const mine = rows
           .filter((row) => row.payload.account_id === accountId && row.payload.symbol === symbol)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];

@@ -507,3 +507,112 @@ test("the avatar pencil on the agent and identity pages saves a Lonora shape", a
     await expect(studio).toHaveCount(0);
   }
 });
+
+test("after a reload the card reports the newer operation, not an older pending one", async ({
+  page,
+}) => {
+  // The older modify is still pending and its row time keeps moving; the newer one is done.
+  fixture({ action: "seed_modifies", account: data.account });
+  await page.goto(`/app/trades/${data.trader.id}`);
+  const card = page.locator("main [data-position-id]").first();
+  await expect(card.locator("[data-operation-status]")).toHaveAttribute(
+    "data-operation-status",
+    "confirmed",
+  );
+  await page.reload();
+  await expect(card.locator("[data-operation-status]")).toHaveAttribute(
+    "data-operation-status",
+    "confirmed",
+  );
+});
+
+test("the card shows the last action: a refused close, then a modify that went through", async ({
+  page,
+}) => {
+  let refuse = true;
+  await page.route("**/api/trading/execute", (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action === "close_position" && refuse) {
+      refuse = false;
+      return route.fulfill({ status: 409, json: { code: "emergency_stop" } });
+    }
+    return route.continue();
+  });
+  await page.goto(`/app/trades/${data.trader.id}`);
+  const card = page.locator("main [data-position-id]").first();
+  const sheet = page.locator("#dialog");
+  await card.getByRole("button", { name: "Close the trade", exact: true }).click();
+  await sheet.getByRole("button", { name: "Close the trade", exact: true }).click();
+  await expect(card.getByRole("alert")).toBeVisible();
+  await card.getByRole("button", { name: "Edit stop and target", exact: true }).click();
+  await sheet.getByLabel("Stop loss", { exact: true }).fill("205");
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(card.locator("[data-operation-status]")).toHaveAttribute(
+    "data-operation-status",
+    "confirmed",
+  );
+  await expect(card.getByRole("alert")).toHaveCount(0);
+});
+
+test("the chart sheet follows a new chart on its pair without reopening", async ({ page }) => {
+  await page.goto(`/app/${data.trader.id}`);
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  const body = page.locator("#dialog .chart-body");
+  await expect(body).toBeVisible();
+  await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
+  const csrf = data.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
+  const created = await page.request.post("/api/charts", {
+    headers: { "X-CSRF-Token": csrf },
+    data: {
+      agent_id: data.trader.id,
+      thread_id: null,
+      payload: {
+        account_id: data.account,
+        symbol: data.symbol,
+        timeframe: "15m",
+        indicators: [],
+        annotations: [],
+      },
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const chart = await created.json();
+  await expect(body).toHaveAttribute("data-chart-id", chart.id);
+  await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
+});
+
+test("a broker outage: the heads-up and the updates list open the recovery page", async ({
+  page,
+}) => {
+  await page.goto("/app");
+  await expect(page.locator(".desktop-list")).toBeVisible();
+  fixture({ action: "degrade", account: data.account });
+  const headsUp = page.locator("#headsup");
+  const open = headsUp.getByRole("button", { name: "Outage and recovery", exact: true });
+  await expect(open).toBeVisible({ timeout: 15000 });
+  await open.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/app/recovery\\?account=${encodeURIComponent(data.account)}$`),
+  );
+  await expect(page.locator("main .hero h2")).toHaveText("The broker connection dropped");
+  await page.goto("/app/updates");
+  const link = page.getByRole("link", { name: "Outage and recovery", exact: true }).first();
+  await expect(link).toHaveAttribute(
+    "href",
+    `/app/recovery?account=${encodeURIComponent(data.account)}`,
+  );
+});
+
+test("desktop: the agent page sits in the 720px column, centred", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/app/agent/${data.trader.id}`);
+  const column = page.locator("main > .ag-scope");
+  await expect(column.locator(".hero h2")).toHaveText(data.trader.name);
+  const box = await column.boundingBox();
+  const main = await page.locator("main").boundingBox();
+  expect(box.width).toBeLessThanOrEqual(720);
+  const left = box.x - main.x;
+  const right = main.x + main.width - (box.x + box.width);
+  expect(Math.abs(left - right)).toBeLessThanOrEqual(2);
+});

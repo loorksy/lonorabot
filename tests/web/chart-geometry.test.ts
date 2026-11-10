@@ -161,11 +161,82 @@ test("each oscillator has its own lower pane; RSI is never drawn on the price sc
   assert.ok(g.panes[0].top > g.bottom && g.panes[1].top > g.panes[0].bottom);
   for (const pane of g.panes) {
     const ys = pane.lines[0].points.split(" ").map((p) => Number(p.split(",")[1]));
-    for (const y of ys) assert.ok(y >= pane.top && y <= pane.bottom, `y ${y} in ${pane.label}`);
+    // Points are written to 0.1 units.
+    for (const y of ys)
+      assert.ok(y >= pane.top - 0.05 && y <= pane.bottom + 0.05, `y ${y} in ${pane.label}`);
   }
   assert.deepEqual(
     g.priceLines.map((line) => line.name),
     ["sma:value"],
   );
   assert.equal(g.plot.y + g.plot.h, g.bottom, "the price clip ends above the panes");
+});
+
+test("a scenario at the latest bar ending 8 bars ahead stays 72 wide inside the plot", () => {
+  const ahead = new Date(bars[39].t + 8 * 15 * 60_000).toISOString();
+  const g = layout({
+    ...base,
+    annotations: [
+      {
+        type: "scenario",
+        start: { time: at(39), price: 140 },
+        end: { time: ahead, price: 145 },
+        stop: 138,
+      },
+    ],
+  });
+  assert.equal(g.shapes.length, 3);
+  for (const shape of g.shapes) {
+    assert.ok(shape.kind === "hline");
+    assert.ok(shape.x2 <= g.right, "the visible end");
+    assert.ok(shape.x2 - shape.x1 >= 72, `width ${shape.x2 - shape.x1}`);
+    assert.ok(shape.x1 >= g.plot.x, "the label starts inside the plot");
+  }
+});
+
+test("labels of drawings older than the window stay inside the plot", () => {
+  const before = (k: number) => new Date(bars[0].t - k * 15 * 60_000).toISOString();
+  const g = layout({
+    ...base,
+    annotations: [
+      {
+        type: "price_zone",
+        start: { time: before(20), price: 120 },
+        end: { time: at(10), price: 125 },
+        label: "Supply",
+      },
+      { type: "note", time: before(30), price: 128, text: "An early note that is long" },
+      { type: "note", text: "No price" },
+    ],
+  });
+  const box = g.shapes.find((shape) => shape.kind === "box");
+  assert.ok(box?.kind === "box" && box.x < g.plot.x && box.lx >= g.plot.x);
+  const [early, unpriced] = g.shapes.filter((shape) => shape.kind === "note");
+  assert.ok(early.kind === "note" && early.anchor === "start" && early.x >= g.plot.x);
+  assert.ok(unpriced.kind === "note" && unpriced.y - g.fs >= g.plot.y, "glyph tops in the clip");
+});
+
+test("four oscillators on a phone: each pane keeps its height, never inverted, the rest counted", () => {
+  const series = (k: number) => ({ value: bars.map((_, i) => (i < 5 ? null : k + i)) });
+  const g = layout({
+    ...base,
+    width: 330,
+    height: 170,
+    annotations: [],
+    indicators: [
+      { name: "rsi", period: 14, series: series(30) },
+      { name: "atr", period: 14, series: series(1) },
+      { name: "macd", period: 12, series: { macd: series(0).value, signal: series(1).value } },
+      { name: "rsi", period: 7, series: series(40) },
+    ],
+    indicatorTimes: bars.map((b) => b.t),
+  });
+  assert.ok(g.panes.length >= 1);
+  for (const pane of g.panes) assert.ok(pane.bottom - pane.top >= g.fs * 2, `${pane.label} height`);
+  assert.equal(
+    g.panes.length + g.panes.reduce((sum, pane) => sum + pane.more, 0),
+    4,
+    "every oscillator is drawn or counted",
+  );
+  assert.ok(g.bottom - g.top >= (g.VH - g.top) * 0.35, "the candles keep their share");
 });

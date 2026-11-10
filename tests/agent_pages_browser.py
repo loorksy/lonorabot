@@ -14,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
+from lonora_db.events import emit
 from lonora_db.schema import BrokerSessionRow, TradingJournalRow
 from lonora_gateway.attention import attention_tick
 from sqlalchemy import delete
@@ -212,6 +213,52 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             }
         finally:
             await fixture.close(cleanup=False)
+    if data["action"] == "seed_modifies":
+        # Two owner modifies on the open position: the older one still pending (its row time
+        # bumped by verification rechecks), the newer one confirmed.
+        fixture = await Fixture().open()
+        try:
+            account = await fixture.request("GET", f"/trading/accounts/{data['account']}")
+            position = account["positions"][0]["id"]
+            now = datetime.now(UTC)
+            request = {
+                "account_id": data["account"],
+                "symbol": SYMBOL,
+                "action": "modify_position",
+                "position_id": position,
+                "clear_stop_loss": False,
+                "clear_take_profit": False,
+            }
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                session.add_all(
+                    [
+                        TradingJournalRow(
+                            operation_id=f"agent-pages-{uuid4()}",
+                            owner_id=fixture.owner,
+                            account_id=data["account"],
+                            request_hash="0" * 64,
+                            request={**request, "stop_loss": "204"},
+                            status="submitted",
+                            result={"details": {}},
+                            submitted_at=now - timedelta(minutes=10),
+                            updated_at=now,
+                        ),
+                        TradingJournalRow(
+                            operation_id=f"agent-pages-{uuid4()}",
+                            owner_id=fixture.owner,
+                            account_id=data["account"],
+                            request_hash="0" * 64,
+                            request={**request, "stop_loss": "206"},
+                            status="confirmed",
+                            result={"details": {"verification": {"status": "verified"}}},
+                            submitted_at=now - timedelta(minutes=2),
+                            updated_at=now - timedelta(minutes=2),
+                        ),
+                    ]
+                )
+            return {"position": position}
+        finally:
+            await fixture.close(cleanup=False)
     if data["action"] == "degrade":
         # The broker session as broker_recovery writes it when the account stops answering.
         fixture = await Fixture().open()
@@ -229,8 +276,35 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                         "observed_at": now,
                         "last_success_at": None,
                         "unresolved_operations": [],
+                        # The owner's open position: an outage with exposure is critical.
+                        "positions": [
+                            {
+                                "id": "fixture-position",
+                                "symbol": SYMBOL,
+                                "side": "buy",
+                                "volume": "0.1",
+                                "open_price": "211",
+                                "profit": "0",
+                            }
+                        ],
                     },
                 }
+                # The transition broker_recovery emits; the attention gateway raises it.
+                emit(
+                    session,
+                    fixture.owner,
+                    "broker.degraded",
+                    payload={
+                        "account_id": data["account"],
+                        "status": "disconnected",
+                        "reason_code": "broker_unreachable",
+                        "previous_status": "connected",
+                        "transition_id": "disconnected:" + now,
+                    },
+                )
+            await attention_tick(
+                fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
+            )
         finally:
             await fixture.close(cleanup=False)
         return {"degraded": True}

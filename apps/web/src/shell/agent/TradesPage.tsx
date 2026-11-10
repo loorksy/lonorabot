@@ -246,6 +246,9 @@ function Value({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+/** When an operation was sent; a reserved one (never sent) falls back to its row time. */
+const sentAt = (entry: Journal) => entry.submitted_at ?? entry.updated_at;
+
 function PositionCard({
   accountId,
   accountName,
@@ -273,7 +276,9 @@ function PositionCard({
         String(entry.request.position_id ?? "") === position.id &&
         ["modify_position", "close_position"].includes(String(entry.request.action)),
     )
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+    // When the owner acted (submitted_at), never updated_at: verification rechecks bump an
+    // older pending row's updated_at every 30 s.
+    .sort((a, b) => sentAt(b).localeCompare(sentAt(a)))[0];
   const restored: TicketOutcome | null = latest
     ? {
         status: latest.status,

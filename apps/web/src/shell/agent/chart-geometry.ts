@@ -29,10 +29,30 @@ export type Shape =
       dash?: boolean;
     }
   | { kind: "segment"; x1: number; y1: number; x2: number; y2: number; tone: Tone; arrow?: boolean }
-  | { kind: "box"; x: number; y: number; w: number; h: number; tone: Tone; label?: string }
-  | { kind: "note"; x: number; y: number; text: string; tone: Tone };
+  | {
+      kind: "box";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      tone: Tone;
+      label?: string;
+      /** Where the label starts: inside the visible part of the zone. */
+      lx: number;
+    }
+  | {
+      kind: "note";
+      x: number;
+      y: number;
+      text: string;
+      tone: Tone;
+      /** The text runs left of the dot, or right of it near the left edge. */
+      anchor: "start" | "end";
+    };
 export type Pane = {
   label: string;
+  /** Oscillators not drawn for lack of room («+n»). */
+  more: number;
   top: number;
   bottom: number;
   lines: { name: string; points: string }[];
@@ -106,9 +126,22 @@ export function layout(input: {
   const X = (i: number) => xLast - (bars.length - 1 - i) * 17;
   const oscillators = input.indicators.filter((item) => OSCILLATORS.has(item.name));
   const overlays = input.indicators.filter((item) => !OSCILLATORS.has(item.name));
-  // Each oscillator pane takes a slice under the candles; the candles keep at least half.
-  const paneShare = Math.min(0.5, oscillators.length * 0.22);
-  const paneHeight = oscillators.length ? Math.round((axis - top) * paneShare) : 0;
+  // Each oscillator pane has a minimum height; the candles keep at least 45% of the plot,
+  // and oscillators beyond what fits are counted in the last pane's label («+n»).
+  const minPane = fs * 4;
+  const room = (axis - top) * 0.55;
+  const shown = Math.min(oscillators.length, Math.max(1, Math.floor(room / minPane)));
+  const panesShown = oscillators.slice(0, shown);
+  const hidden = oscillators.length - panesShown.length;
+  const paneHeight = panesShown.length
+    ? Math.min(
+        room,
+        Math.max(
+          panesShown.length * minPane,
+          (axis - top) * Math.min(0.5, panesShown.length * 0.22),
+        ),
+      )
+    : 0;
   const bottom = axis - paneHeight;
   let lo = Math.min(...bars.map((b) => b.l));
   let hi = Math.max(...bars.map((b) => b.h));
@@ -169,8 +202,9 @@ export function layout(input: {
       case "note": {
         const text = (typeof item.text === "string" && item.text) || label || "";
         const x = item.time != null ? (timeX(item.time) ?? right - 4) : right - 4;
-        const y = item.price != null ? Y(num(item.price)) : top + fs;
-        shapes.push({ kind: "note", x, y, text, tone: "agent" });
+        // Without a price the note sits a line below the top, its glyphs inside the clip.
+        const y = item.price != null ? Y(num(item.price)) : top + fs * 2;
+        shapes.push({ kind: "note", x, y, text, tone: "agent", anchor: "end" });
         break;
       }
       case "price_zone": {
@@ -185,6 +219,7 @@ export function layout(input: {
           h: Math.max(2, Math.abs(b.y - a.y)),
           tone: "agent",
           label,
+          lx: Math.max(Math.min(a.x, b.x), left) + 4,
         });
         break;
       }
@@ -214,12 +249,10 @@ export function layout(input: {
         const a = point(item.start);
         const b = point(item.end);
         if (!a || !b || item.stop == null) break;
+        // Measured on the visible span: an end in the future stops at the right edge.
         let x1 = Math.min(a.x, b.x);
-        let x2 = Math.max(a.x, b.x);
-        if (x2 - x1 < MIN_SCENARIO_WIDTH) {
-          x2 = Math.min(right, Math.max(x2, x1 + MIN_SCENARIO_WIDTH));
-          x1 = Math.max(left, x2 - MIN_SCENARIO_WIDTH);
-        }
+        const x2 = Math.min(Math.max(a.x, b.x), right);
+        if (x2 - x1 < MIN_SCENARIO_WIDTH) x1 = Math.max(left, x2 - MIN_SCENARIO_WIDTH);
         const stop = num(item.stop);
         for (const [y, price, text, tone] of [
           [a.y, a.price, input.labels.entry, "agent"],
@@ -285,7 +318,12 @@ export function layout(input: {
   }
   for (const shape of shapes) {
     if (shape.kind === "hline" && shape.label) shape.x1 = Math.max(shape.x1, left);
-    if (shape.kind === "note") shape.x = inside(shape.x);
+    if (shape.kind === "note") {
+      shape.x = inside(shape.x);
+      // Near the left edge the text runs right of the dot, so it is never cut.
+      shape.anchor = shape.x - left < shape.text.length * fs * 0.6 + 8 ? "start" : "end";
+      shape.y = Math.max(shape.y, top + fs * 1.2);
+    }
   }
   // Indicator values align to the scene's candles by time.
   const at = (values: (number | null)[], bar: Bar) => {
@@ -308,8 +346,8 @@ export function layout(input: {
       if (points) priceLines.push({ name: `${indicator.name}:${key}`, points });
     }
   const panes: Pane[] = [];
-  const each = oscillators.length ? paneHeight / oscillators.length : 0;
-  oscillators.forEach((indicator, index) => {
+  const each = panesShown.length ? paneHeight / panesShown.length : 0;
+  panesShown.forEach((indicator, index) => {
     const paneTop = bottom + index * each + fs * 1.6;
     const paneBottom = bottom + (index + 1) * each - fs * 0.4;
     const visible = Object.values(indicator.series)
@@ -330,6 +368,7 @@ export function layout(input: {
     }
     panes.push({
       label: `${indicator.name.toUpperCase()} ${indicator.period}`,
+      more: index === panesShown.length - 1 ? hidden : 0,
       top: paneTop,
       bottom: paneBottom,
       lines,

@@ -133,7 +133,7 @@ export function AttentionInbox({
             }}
           >
             {item.code === "broker_degraded" ? (
-              <Trans>State details</Trans>
+              <Trans>Outage and recovery</Trans>
             ) : (
               <Trans>Open conversation</Trans>
             )}

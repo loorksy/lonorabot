@@ -1108,7 +1108,7 @@ msgstr "Camera not allowed"
 #: src/pages/Board.tsx:576
 #: src/shell/agent/AgentPage.tsx:404
 #: src/shell/agent/AvatarSheet.tsx:111
-#: src/shell/agent/TradesPage.tsx:334
+#: src/shell/agent/TradesPage.tsx:339
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:265
 #: src/shell/settings/ConnectionPages.tsx:280
@@ -1180,10 +1180,10 @@ msgstr "Changing the market makes this agent's account and pair a flexible defau
 msgid "Channel"
 msgstr "Channel"
 
-#: src/shell/agent/ChartSheet.tsx:465
-#: src/shell/agent/ChartSheet.tsx:468
-#: src/shell/agent/ChartSheet.tsx:474
-#: src/shell/agent/ChartSheet.tsx:474
+#: src/shell/agent/ChartSheet.tsx:476
+#: src/shell/agent/ChartSheet.tsx:479
+#: src/shell/agent/ChartSheet.tsx:485
+#: src/shell/agent/ChartSheet.tsx:485
 #: src/shell/ChatMenu.tsx:99
 msgid "Chart"
 msgstr "Chart"
@@ -1254,7 +1254,7 @@ msgid "Check cancel result"
 msgstr "Check cancel result"
 
 #: src/components/trading/Positions.tsx:77
-#: src/shell/agent/TradesPage.tsx:374
+#: src/shell/agent/TradesPage.tsx:379
 msgid "Check close result"
 msgstr "Check close result"
 
@@ -1450,9 +1450,9 @@ msgid "Close search"
 msgstr "Close search"
 
 #: src/shell/agent/TradesPage.tsx:75
-#: src/shell/agent/TradesPage.tsx:323
-#: src/shell/agent/TradesPage.tsx:349
-#: src/shell/agent/TradesPage.tsx:376
+#: src/shell/agent/TradesPage.tsx:328
+#: src/shell/agent/TradesPage.tsx:354
+#: src/shell/agent/TradesPage.tsx:381
 msgid "Close the trade"
 msgstr "Close the trade"
 
@@ -2044,8 +2044,8 @@ msgid "Edit routine"
 msgstr "Edit routine"
 
 #: src/shell/agent/TradesPage.tsx:77
-#: src/shell/agent/TradesPage.tsx:294
-#: src/shell/agent/TradesPage.tsx:370
+#: src/shell/agent/TradesPage.tsx:299
+#: src/shell/agent/TradesPage.tsx:375
 msgid "Edit stop and target"
 msgstr "Edit stop and target"
 
@@ -2178,7 +2178,7 @@ msgctxt "chart"
 msgid "Entry"
 msgstr "Entry"
 
-#: src/shell/agent/TradesPage.tsx:365
+#: src/shell/agent/TradesPage.tsx:370
 msgid "Entry price"
 msgstr "Entry price"
 
@@ -3376,7 +3376,7 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/shell/agent/ChartSheet.tsx:387
+#: src/shell/agent/ChartSheet.tsx:398
 msgid "No candles for this timeframe yet."
 msgstr "No candles for this timeframe yet."
 
@@ -3812,6 +3812,8 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
+#: src/components/ai/AttentionInbox.tsx:136
+#: src/shell/lists/HeadsUp.tsx:253
 #: src/shell/pages.tsx:88
 msgid "Outage and recovery"
 msgstr "Outage and recovery"
@@ -4352,7 +4354,7 @@ msgstr "Removed from favourites"
 
 #: src/pages/shell/message-cards.tsx:201
 #: src/pages/shell/message-cards.tsx:202
-#: src/shell/lists/HeadsUp.tsx:248
+#: src/shell/lists/HeadsUp.tsx:253
 msgid "Reply"
 msgstr "Reply"
 
@@ -4565,7 +4567,7 @@ msgstr "Running"
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:167
 #: src/shell/agent/IdentityPage.tsx:339
-#: src/shell/agent/TradesPage.tsx:435
+#: src/shell/agent/TradesPage.tsx:440
 #: src/shell/settings/IntegrationsPage.tsx:442
 #: src/shell/settings/NotifyPages.tsx:382
 #: src/shell/settings/OwnerPage.tsx:238
@@ -5110,10 +5112,8 @@ msgstr "Start now"
 #~ msgid "Start voice conversation"
 #~ msgstr "Start voice conversation"
 
-#: src/components/ai/AttentionInbox.tsx:136
 #: src/shell/agent/RecoveryPage.tsx:87
 #: src/shell/agent/RecoveryPage.tsx:159
-#: src/shell/lists/HeadsUp.tsx:248
 msgid "State details"
 msgstr "State details"
 
@@ -5141,8 +5141,8 @@ msgstr "Stop"
 
 #: src/components/goals/TradingGoals.tsx:225
 #: src/components/trading/TradeApprovals.tsx:153
-#: src/shell/agent/TradesPage.tsx:366
-#: src/shell/agent/TradesPage.tsx:413
+#: src/shell/agent/TradesPage.tsx:371
+#: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
 msgstr "Stop loss"
 
@@ -5271,8 +5271,8 @@ msgstr "Symbols"
 
 #: src/components/goals/TradingGoals.tsx:226
 #: src/components/trading/TradeApprovals.tsx:173
-#: src/shell/agent/TradesPage.tsx:367
-#: src/shell/agent/TradesPage.tsx:424
+#: src/shell/agent/TradesPage.tsx:372
+#: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"
 msgstr "Take profit"
 
@@ -5677,7 +5677,7 @@ msgid "The test did not get an answer in time. Nothing was saved."
 msgstr "The test did not get an answer in time. Nothing was saved."
 
 #. placeholder {0}: position.symbol
-#: src/shell/agent/TradesPage.tsx:327
+#: src/shell/agent/TradesPage.tsx:332
 msgid "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 msgstr "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 
@@ -5744,7 +5744,7 @@ msgstr "This broker account is already connected. Use the existing connection."
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
-#: src/shell/agent/ChartSheet.tsx:435
+#: src/shell/agent/ChartSheet.tsx:446
 msgid "This chart is no longer available."
 msgstr "This chart is no longer available."
 
@@ -5752,7 +5752,7 @@ msgstr "This chart is no longer available."
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "This conversation could not be resumed. Start a new conversation."
 
-#: src/shell/agent/ChartSheet.tsx:437
+#: src/shell/agent/ChartSheet.tsx:448
 msgid "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 msgstr "This conversation has no pair to chart. Ask the agent for a chart, or open the market."
 
@@ -6311,7 +6311,7 @@ msgstr "Voice settings"
 #: src/components/trading/Positions.tsx:38
 #: src/components/trading/TradeActionCard.tsx:110
 #: src/components/trading/TradeApprovals.tsx:133
-#: src/shell/agent/TradesPage.tsx:364
+#: src/shell/agent/TradesPage.tsx:369
 msgid "Volume"
 msgstr "Volume"
 

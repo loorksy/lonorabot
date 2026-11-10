@@ -185,7 +185,12 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       const key = item.parameters.group_id
         ? rowKey("group", item.parameters.group_id)
         : rowKey("agent", item.agent_id);
-      const row = rows.find((candidate) => candidate.key === key);
+      // An account-level outage has no chat of its own: Lonora's row carries it.
+      const row =
+        rows.find((candidate) => candidate.key === key) ??
+        (item.code === "broker_degraded"
+          ? rows.find((candidate) => candidate.agent?.role === "personal")
+          : undefined);
       if (row)
         show(
           row,
@@ -245,7 +250,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>
         {/* A broker outage opens the recovery page under its own words, not «رد». */}
-        {banner.path ? <Trans>State details</Trans> : <Trans>Reply</Trans>}
+        {banner.path ? <Trans>Outage and recovery</Trans> : <Trans>Reply</Trans>}
       </button>
     </div>
   );
