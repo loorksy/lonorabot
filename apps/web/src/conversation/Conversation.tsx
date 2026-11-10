@@ -702,6 +702,9 @@ export function Conversation({
   const [hasOlder, setHasOlder] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
+  // After a failed read the sentinel must leave the view and come back before the next
+  // try: re-observing never fires a tight loop of failing reads.
+  const olderFailed = useRef(false);
   const canPage = hasOlder && thread.messages.length >= CHAT_PAGE;
   useEffect(() => {
     const node = sentinel.current;
@@ -709,17 +712,23 @@ export function Conversation({
     if (!node || !root || !canPage) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting) || loadingOlder) return;
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          olderFailed.current = false;
+          return;
+        }
+        if (loadingOlder || olderFailed.current) return;
         setLoadingOlder(true);
         following.current = false;
         // The page's own count says whether older history remains; a failed read leaves
-        // paging on, so the sentinel tries again when it comes back into view.
+        // paging on, so the sentinel tries again once it leaves and comes back into view.
         void thread
           .older()
           .then((read) => {
             if (read === 0) setHasOlder(false);
           })
-          .catch(() => undefined)
+          .catch(() => {
+            olderFailed.current = true;
+          })
           .finally(() => setLoadingOlder(false));
       },
       { root, rootMargin: "200px 0px 0px 0px" },

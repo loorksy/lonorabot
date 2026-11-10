@@ -292,10 +292,15 @@ test("M10: older history keeps paging page after page, and a failed read does no
   await page.goto(`/app/${conversation.agent.id}`);
   const transcript = page.getByTestId("transcript");
   await expect(page.locator("[data-message-id='ux-message-180']")).toBeVisible();
-  // Scrolling to the top keeps loading: the failed read, then two pages, down to the first.
+  // Scrolling to the top keeps loading: the failed read, then (after scrolling away and back,
+  // as an owner would) two pages, down to the first.
   await expect
     .poll(
       async () => {
+        await transcript.evaluate((element) => {
+          element.scrollTop = element.scrollHeight;
+        });
+        await page.waitForTimeout(100);
         await transcript.evaluate((element) => {
           element.scrollTop = 0;
         });
@@ -581,4 +586,42 @@ test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the ca
   await expect(page).toHaveURL(new RegExp(`/app/${conversation.agent.id}\\?.*card=${card}`));
   await expect(page).toHaveURL(new RegExp(`thread=${conversation.thread.id}`));
   await expect(page.locator(`[data-message-id="${card}"]`)).toBeVisible();
+});
+
+test("paging: a failing older read is not retried in a loop while the sentinel stays in view", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const all = Array.from({ length: 80 }, (_, index) =>
+    message(conversation, index + 1, index % 2 ? "assistant" : "user", `Row ${index + 1}`),
+  );
+  let reads = 0;
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    if (!new URL(route.request().url()).searchParams.get("before"))
+      return route.fulfill({ json: all.slice(-60) });
+    reads += 1;
+    return route.fulfill({ status: 503, json: { code: "service_unavailable" } });
+  });
+  await page.goto(`/app/${conversation.agent.id}`);
+  const transcript = page.getByTestId("transcript");
+  await expect(page.locator("[data-message-id='ux-message-80']")).toBeVisible();
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect.poll(() => reads).toBeGreaterThanOrEqual(1);
+  // The sentinel stays in view: no tight loop of failing reads.
+  await page.waitForTimeout(2500);
+  expect(reads).toBeLessThanOrEqual(2);
+  // Leaving and coming back tries again.
+  const before = reads;
+  await transcript.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await page.waitForTimeout(300);
+  await transcript.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect.poll(() => reads).toBeGreaterThan(before);
 });
