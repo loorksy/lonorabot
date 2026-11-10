@@ -213,7 +213,56 @@ test("labels of drawings older than the window stay inside the plot", () => {
   assert.ok(box?.kind === "box" && box.x < g.plot.x && box.lx >= g.plot.x);
   const [early, unpriced] = g.shapes.filter((shape) => shape.kind === "note");
   assert.ok(early.kind === "note" && early.anchor === "start" && early.x >= g.plot.x);
-  assert.ok(unpriced.kind === "note" && unpriced.y - g.fs >= g.plot.y, "glyph tops in the clip");
+  // The text's baseline sits 0.6 fs above the dot; its glyphs rise about 0.8 fs above that.
+  assert.ok(unpriced.kind === "note");
+  assert.ok(unpriced.y - g.fs * 0.6 - g.fs * 0.8 >= g.plot.y, "glyph tops in the clip");
+});
+
+/** Where a note's text starts, on the same width estimate as the layout. */
+const textStart = (
+  g: ReturnType<typeof layout>,
+  note: { anchor: string; tx: number; text: string },
+) => (note.anchor === "start" ? note.tx : note.tx - (note.text.length * g.fs * 0.6 + 8));
+
+test("a long note at the right edge on a phone starts inside the plot", () => {
+  const text = "A long note the agent wrote at the latest bar";
+  assert.ok(text.length >= 43);
+  const g = layout({
+    ...base,
+    width: 330,
+    height: 170,
+    annotations: [
+      { type: "note", time: at(39), price: 130, text },
+      { type: "note", text },
+    ],
+  });
+  const notes = g.shapes.filter((shape) => shape.kind === "note");
+  assert.equal(notes.length, 2);
+  for (const note of notes) {
+    assert.ok(note.kind === "note");
+    const start = textStart(g, note);
+    assert.ok(start >= g.plot.x && start <= g.right - g.fs, `text start ${start}`);
+  }
+});
+
+test("a zone wholly older than the window shows no label; a note above the range is not pinned", () => {
+  const before = (k: number) => new Date(bars[0].t - k * 15 * 60_000).toISOString();
+  const g = layout({
+    ...base,
+    annotations: [
+      {
+        type: "price_zone",
+        start: { time: before(20), price: 120 },
+        end: { time: before(10), price: 125 },
+        label: "Old supply",
+      },
+      { type: "note", time: at(20), price: 900, text: "Far above" },
+    ],
+  });
+  const box = g.shapes.find((shape) => shape.kind === "box");
+  assert.ok(box?.kind === "box" && box.label === undefined);
+  const note = g.shapes.find((shape) => shape.kind === "note");
+  assert.ok(note?.kind === "note" && note.y < g.plot.y, "cut by the clip like other drawings");
 });
 
 test("four oscillators on a phone: each pane keeps its height, never inverted, the rest counted", () => {

@@ -582,6 +582,62 @@ test("the chart sheet follows a new chart on its pair without reopening", async 
   await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
 });
 
+test("a streamed scene update re-reads only that scene; a chart moved off the pair is dropped", async ({
+  page,
+}) => {
+  const csrf = data.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
+  const created = await page.request.post("/api/charts", {
+    headers: { "X-CSRF-Token": csrf },
+    data: {
+      agent_id: data.trader.id,
+      thread_id: null,
+      payload: {
+        account_id: data.account,
+        symbol: data.symbol,
+        timeframe: "15m",
+        indicators: [],
+        annotations: [],
+      },
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const chart = await created.json();
+  await page.goto(`/app/${data.trader.id}`);
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  const body = page.locator("#dialog .chart-body");
+  await expect(body).toHaveAttribute("data-chart-id", chart.id);
+  await body.getByRole("tab", { name: "15m" }).click();
+  await expect(body.locator("svg.chart")).toBeVisible();
+  const lists = [];
+  const candles = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "GET" && path === "/api/charts") lists.push(path);
+    if (path === "/api/market/candles") candles.push(path);
+  });
+  const scene = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === `/api/charts/${chart.id}/scene`,
+  );
+  fixture({
+    action: "chart_events",
+    events: [
+      { id: chart.id, agent_id: data.trader.id },
+      // Another agent's chart this sheet never listed.
+      { id: crypto.randomUUID(), agent_id: data.research.id },
+      { id: chart.id, agent_id: data.trader.id },
+    ],
+  });
+  await scene;
+  await page.waitForTimeout(1500);
+  expect(lists).toEqual([]);
+  expect(candles).toEqual([]);
+  fixture({ action: "move_chart", chart: chart.id, to: "EURUSD" });
+  await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
+  expect(lists.length).toBe(1);
+  await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
+});
+
 test("a broker outage: the heads-up and the updates list open the recovery page", async ({
   page,
 }) => {

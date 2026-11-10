@@ -209,7 +209,7 @@ export function CandleChart({
                 />
                 {shape.text && (
                   <text
-                    x={f(shape.anchor === "end" ? shape.x - 6 : shape.x + 6)}
+                    x={f(shape.tx)}
                     y={f(shape.y - fs * 0.6)}
                     textAnchor={shape.anchor}
                     style={{ fill: TONE[shape.tone] }}
@@ -298,32 +298,44 @@ export function ChartSheetBody({
   const [chosen, setChosen] = useState<string | null | undefined>(chartId);
   const [error, setError] = useState<unknown>();
   // The chart named stays; otherwise the newest of the agent's charts on this pair
-  // (chart_open always makes a new chart, even on the same pair). Re-listed only when a chart
-  // is created or deleted, or a scene arrives for a chart this sheet has not listed: never on
-  // every streamed scene update.
-  const [known, setKnown] = useState<ReadonlySet<string>>(new Set());
+  // (chart_open always makes a new chart, even on the same pair). Re-listed only on the agent's
+  // own chart events: a chart created or deleted, a listed chart updated (chart_set_symbol can
+  // move it off this pair), or a scene for a chart this sheet has not listed, counted only for
+  // events after the list was sent; never on every streamed scene update.
+  const [listed, setListed] = useState<{ ids: ReadonlySet<string>; at: number } | null>(null);
+  const latest = useRef(0);
+  latest.current = events.at(-1)?.cursor ?? 0;
   const chartEvents = events
-    .filter(
-      (event) =>
-        event.kind === "cloud_charts.created" ||
-        event.kind === "cloud_charts.deleted" ||
-        (event.kind === "cloud_charts.scene_updated" &&
-          typeof event.payload?.id === "string" &&
-          !known.has(event.payload.id)),
-    )
+    .filter((event) => {
+      if (agentId && event.agent_id !== agentId) return false;
+      const id = typeof event.payload?.id === "string" ? event.payload.id : null;
+      if (event.kind === "cloud_charts.created" || event.kind === "cloud_charts.deleted")
+        return true;
+      if (event.kind === "cloud_charts.updated") return id != null && !!listed?.ids.has(id);
+      return (
+        event.kind === "cloud_charts.scene_updated" &&
+        id != null &&
+        listed != null &&
+        event.cursor > listed.at &&
+        !listed.ids.has(id)
+      );
+    })
     .at(-1)?.cursor;
   useEffect(() => {
     void chartEvents;
     if (chartId) return;
     let live = true;
+    const at = latest.current;
     charts
       .list(agentId)
       .then((rows: Resource<ChartState>[]) => {
-        if (live) setKnown(new Set(rows.map((row) => row.id)));
+        if (!live) return;
+        setListed({ ids: new Set(rows.map((row) => row.id)), at });
         const mine = rows
           .filter((row) => row.payload.account_id === accountId && row.payload.symbol === symbol)
           .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-        if (live) setChosen(mine?.id ?? null);
+        setChosen(mine?.id ?? null);
+        if (!mine) setScene(null);
       })
       .catch(() => live && setChosen(null));
     return () => {
@@ -345,7 +357,6 @@ export function ChartSheetBody({
     };
   }, [chosen, updated]);
   useEffect(() => {
-    void updated;
     let live = true;
     const read = () =>
       readCandles(accountId, symbol, frame)
@@ -363,7 +374,7 @@ export function ChartSheetBody({
       live = false;
       window.clearInterval(timer);
     };
-  }, [accountId, symbol, frame, updated]);
+  }, [accountId, symbol, frame]);
   // A new timeframe starts from its skeleton, not the previous frame's bars.
   useEffect(() => {
     void frame;

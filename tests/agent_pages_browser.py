@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_db.events import emit
-from lonora_db.schema import BrokerSessionRow, TradingJournalRow
+from lonora_db.schema import BrokerSessionRow, CloudChartRow, TradingJournalRow
 from lonora_gateway.attention import attention_tick
 from sqlalchemy import delete
 
@@ -259,6 +259,43 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             return {"position": position}
         finally:
             await fixture.close(cleanup=False)
+    if data["action"] == "chart_events":
+        # Scene updates as the chart runtime streams them, for any agent's chart.
+        fixture = await Fixture().open()
+        try:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                for event in data["events"]:
+                    emit(
+                        session,
+                        fixture.owner,
+                        "cloud_charts.scene_updated",
+                        agent_id=event["agent_id"],
+                        payload={"id": event["id"], "version": 1, "status": "ready", "code": None},
+                    )
+        finally:
+            await fixture.close(cleanup=False)
+        return {"emitted": len(data["events"])}
+    if data["action"] == "move_chart":
+        # chart_set_symbol: the chart moves to another pair (the repository's update event).
+        fixture = await Fixture().open()
+        try:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(CloudChartRow, data["chart"], with_for_update=True)
+                assert row is not None
+                row.payload = {**row.payload, "symbol": data["to"]}
+                row.version += 1
+                row.updated_at = datetime.now(UTC)
+                emit(
+                    session,
+                    fixture.owner,
+                    "cloud_charts.updated",
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
+                    payload={"id": row.id, "version": row.version},
+                )
+        finally:
+            await fixture.close(cleanup=False)
+        return {"moved": True}
     if data["action"] == "degrade":
         # The broker session as broker_recovery writes it when the account stops answering.
         fixture = await Fixture().open()

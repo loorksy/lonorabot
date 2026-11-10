@@ -246,7 +246,7 @@ function Value({ label, value }: { label: string; value: string | null }) {
   );
 }
 
-/** When an operation was sent; a reserved one (never sent) falls back to its row time. */
+/** When the owner acted: set at reservation and again at the send, never by a recheck. */
 const sentAt = (entry: Journal) => entry.submitted_at ?? entry.updated_at;
 
 function PositionCard({

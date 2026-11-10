@@ -48,6 +48,8 @@ export type Shape =
       tone: Tone;
       /** The text runs left of the dot, or right of it near the left edge. */
       anchor: "start" | "end";
+      /** The text's anchor x: its start always inside the plot. */
+      tx: number;
     };
 export type Pane = {
   label: string;
@@ -204,7 +206,7 @@ export function layout(input: {
         const x = item.time != null ? (timeX(item.time) ?? right - 4) : right - 4;
         // Without a price the note sits a line below the top, its glyphs inside the clip.
         const y = item.price != null ? Y(num(item.price)) : top + fs * 2;
-        shapes.push({ kind: "note", x, y, text, tone: "agent", anchor: "end" });
+        shapes.push({ kind: "note", x, y, text, tone: "agent", anchor: "end", tx: x });
         break;
       }
       case "price_zone": {
@@ -218,7 +220,8 @@ export function layout(input: {
           w: Math.max(2, Math.abs(b.x - a.x)),
           h: Math.max(2, Math.abs(b.y - a.y)),
           tone: "agent",
-          label,
+          // A zone wholly outside the window shows no label.
+          label: Math.max(a.x, b.x) > left && Math.min(a.x, b.x) < right ? label : undefined,
           lx: Math.max(Math.min(a.x, b.x), left) + 4,
         });
         break;
@@ -320,9 +323,20 @@ export function layout(input: {
     if (shape.kind === "hline" && shape.label) shape.x1 = Math.max(shape.x1, left);
     if (shape.kind === "note") {
       shape.x = inside(shape.x);
-      // Near the left edge the text runs right of the dot, so it is never cut.
-      shape.anchor = shape.x - left < shape.text.length * fs * 0.6 + 8 ? "start" : "end";
-      shape.y = Math.max(shape.y, top + fs * 1.2);
+      // The text runs left of the dot; right of it only when the left is too short and the
+      // right has more room; otherwise it is clamped so it starts inside the plot. A priced
+      // note off the price range is cut by the clip like every other drawing.
+      const width = shape.text.length * fs * 0.6 + 8;
+      if (shape.x - 6 - width >= left + 3) {
+        shape.anchor = "end";
+        shape.tx = shape.x - 6;
+      } else if (right - shape.x > shape.x - left) {
+        shape.anchor = "start";
+        shape.tx = Math.max(left + 3, Math.min(shape.x + 6, right - 3 - width));
+      } else {
+        shape.anchor = "end";
+        shape.tx = left + 3 + width;
+      }
     }
   }
   // Indicator values align to the scene's candles by time.
