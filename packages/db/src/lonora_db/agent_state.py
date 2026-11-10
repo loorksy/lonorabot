@@ -83,19 +83,6 @@ WORK_KINDS = {
     "intelligence": "analysing",
     "account": "analysing",
 }
-# The reference's order words (odSide): what an operation does, in the owner's language.
-ACTION_WORDS = {
-    "buy": "شراء",
-    "sell": "بيع",
-    "buy_limit": "شراء",
-    "sell_limit": "بيع",
-    "buy_stop": "شراء",
-    "sell_stop": "بيع",
-    "close_position": "إغلاق",
-    "modify_position": "تعديل",
-    "cancel_order": "إلغاء",
-    "modify_order": "تعديل",
-}
 WORK_TEXT_LENGTH = 120
 
 
@@ -104,24 +91,25 @@ def clip(text: str) -> str:
     return line if len(line) <= WORK_TEXT_LENGTH else line[: WORK_TEXT_LENGTH - 1] + "…"
 
 
-def operation_title(request: dict[str, Any]) -> str:
-    """«شراء 0.10 XAUUSD»: the action, the volume when it has one, the market."""
+def operation_facts(request: dict[str, Any]) -> dict[str, str]:
+    """The operation as codes and numbers (action, volume, market); the clients word it."""
     action = str(request.get("action") or "")
     volume = request.get("volume")
     try:
         amount = f"{Decimal(str(volume)):.2f}" if volume is not None else ""
     except InvalidOperation:
         amount = ""
-    words = (ACTION_WORDS.get(action, action), amount, str(request.get("symbol") or ""))
-    return clip(" ".join(part for part in words if part))
+    facts = {"action": action[:24], "symbol": str(request.get("symbol") or "")[:80]}
+    return {**facts, "volume": amount} if amount else facts
 
 
 async def newest_pending_card(
     session: AsyncSession, owner_id: str, agent_id: str
-) -> tuple[str, str, str | None, str | None] | None:
+) -> tuple[str, dict[str, Any], str | None, str | None] | None:
     """The newest card waiting for the owner's decision: an owner action or a trade approval.
 
-    Returns its id, a short text, its expiry and its Run.
+    Returns its id, what it is (codes and the operation's facts, no prose), its expiry and
+    its Run.
     """
     card = await session.scalar(
         select(OwnerActionRow)
@@ -150,9 +138,10 @@ async def newest_pending_card(
     if approval is not None and (card is None or approval.created_at >= card.created_at):
         first = approval.requests[0] if approval.requests else {}
         expiry = approval.expires_at.isoformat() if approval.expires_at else None
-        return approval.id, clip("طلب موافقة · " + operation_title(first)), expiry, approval.run_id
+        what = {"card": "trade_approval", "operation": operation_facts(first)}
+        return approval.id, what, expiry, approval.run_id
     if card is not None:
-        return card.id, "قرار مطلوب", card.expires_at.isoformat(), card.run_id
+        return card.id, {"card": "owner_action"}, card.expires_at.isoformat(), card.run_id
     return None
 
 
@@ -184,7 +173,7 @@ async def current_work(
         origin = cast(dict[str, Any], sent.result.get("details", {}).get("execution") or {})
         return {
             "kind": "broker",
-            "text": operation_title(sent.request),
+            "operation": operation_facts(sent.request),
             "until": None,
             "run_id": origin.get("run_id"),
         }
@@ -625,7 +614,7 @@ async def agent_live_state(
     work = (
         {
             "kind": "waiting_owner",
-            "text": pending_card[1],
+            **pending_card[1],
             "until": pending_card[2],
             "run_id": pending_card[3],
         }

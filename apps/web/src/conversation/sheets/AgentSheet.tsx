@@ -11,6 +11,7 @@ import {
   agentStatusLine,
   isolate,
   moneyLimitLabel,
+  orderLineAction,
   pauseClassLabel,
   readinessTime,
   tradingReadinessLine,
@@ -58,6 +59,17 @@ const STATUS_ICON: Record<StatusKind, IconName> = {
   uncertain: "alert",
   idle: "check",
 };
+/** The current work's detail: the owner's own words, or the operation worded here. */
+function workDetail(work: AgentLiveState["current_work"]) {
+  if (!work) return "";
+  if (work.operation) {
+    const action = orderLineAction(work.operation, i18n.locale);
+    const what = `${action.label}${work.operation.volume ? ` ${work.operation.volume}` : ""} ${work.operation.symbol}`;
+    return work.card === "trade_approval" ? t`Approval request · ${what}` : what;
+  }
+  if (work.card === "owner_action") return t`A decision is needed`;
+  return work.text;
+}
 export function statusKind(state: AgentLiveState | null | undefined): StatusKind {
   if (!state) return "idle";
   const work = state.current_work ?? null;
@@ -332,7 +344,7 @@ function AgentSheetBody({
               </span>
               <span className="body">
                 <strong>{agentStatusLine(state, i18n.locale)}</strong>
-                {work?.text && <small dir="auto">{work.text}</small>}
+                {workDetail(work) && <small dir="auto">{workDetail(work)}</small>}
               </span>
             </div>
             {(state.watches ?? []).length > 0 && (

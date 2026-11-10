@@ -7,7 +7,9 @@ and never a Run that touched the executor; journal operations carry their conver
 anchor (Q30); the live state names the current work and the pending card.
 """
 
+import json
 import os
+import re
 from datetime import timedelta
 from typing import Any, cast
 from uuid import uuid4
@@ -15,7 +17,7 @@ from uuid import uuid4
 import pytest
 from lonora_contracts.domain import utcnow
 from lonora_core.runtime_failure import failure_family, retry_after_seconds
-from lonora_db.agent_state import operation_title
+from lonora_db.agent_state import operation_facts
 
 # --- Pure ---------------------------------------------------------------------------
 
@@ -35,11 +37,17 @@ def test_failure_family_follows_the_provider_reason_then_the_code():
     assert retry_after_seconds(None) is None and retry_after_seconds(0) is None
 
 
-def test_operation_title_uses_the_reference_order_words():
-    assert operation_title({"action": "buy", "volume": "0.1", "symbol": "XAUUSD"}) == (
-        "شراء 0.10 XAUUSD"
-    )
-    assert operation_title({"action": "close_position", "symbol": "EURUSD"}) == "إغلاق EURUSD"
+def test_operation_facts_are_codes_and_numbers_never_server_prose():
+    """M8: the operation is data (action code, volume, market); the clients word it."""
+    assert operation_facts({"action": "buy", "volume": "0.1", "symbol": "XAUUSD"}) == {
+        "action": "buy",
+        "volume": "0.10",
+        "symbol": "XAUUSD",
+    }
+    assert operation_facts({"action": "close_position", "symbol": "EURUSD"}) == {
+        "action": "close_position",
+        "symbol": "EURUSD",
+    }
 
 
 # --- PostgreSQL ------------------------------------------------------------------------
@@ -478,11 +486,14 @@ async def test_live_state_names_the_current_work_and_the_pending_card():
                 "activity": {"kind": "tool.started", "name": "web_search", "toolset": "research"},
             }
         state = await fixture.request("GET", f"/agents/{agent_id}/state")
+        # The owner's own words are owner content and stay as data.
         assert state["current_work"] == {
             "kind": "searching",
             "text": "ابحث عن أخبار الفائدة",
             "until": None,
             "run_id": run_id,
+            "operation": None,
+            "card": None,
         }
         assert state["pending_card_id"] is None
         approval_id = str(uuid4())
@@ -503,7 +514,21 @@ async def test_live_state_names_the_current_work_and_the_pending_card():
         state = await fixture.request("GET", f"/agents/{agent_id}/state")
         assert state["pending_card_id"] == approval_id
         assert state["current_work"]["kind"] == "waiting_owner"
-        assert state["current_work"]["text"] == "طلب موافقة · بيع 0.20 XAUUSD"
+        # M8: no server-written prose (in any language): codes and the operation's facts.
+        assert state["current_work"]["text"] == ""
+        assert state["current_work"]["card"] == "trade_approval"
+        assert state["current_work"]["operation"] == {
+            "action": "sell",
+            "volume": "0.20",
+            "symbol": "XAUUSD",
+        }
+        arabic = re.compile("[\u0600-\u06ff]")
+        async with fixture.runtime.db.sessions() as session:
+            from lonora_db.agent_state import agent_live_state
+
+            live = await agent_live_state(session, fixture.owner, agent_id)
+            frame = live.model_dump(mode="json", include={"current_work", "pending_card_id"})
+            assert not arabic.search(json.dumps(frame, ensure_ascii=False)), frame
         async with fixture.runtime.db.sessions() as session, session.begin():
             approval = await session.get(TradeApprovalRow, approval_id)
             assert approval is not None

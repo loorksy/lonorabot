@@ -27,11 +27,16 @@ export type AgentWatchSummary = {
 /** What the agent does now, most urgent first, from durable records only. */
 export type AgentCurrentWork = {
   kind: "analysing" | "searching" | "watching" | "broker" | "waiting_owner" | "other";
-  /** Task title, the owner's message being answered, the operation or the watched market (≤120). */
+  /** Owner content only: the Task title, the owner's message being answered or the watched
+      market (≤120); "" when the work is an operation or a card (no server prose). */
   text: string;
   /** ISO: the watch's expiry or the card's; null otherwise. */
   until: string | null;
   run_id: string | null;
+  /** broker / waiting_owner: the operation as codes and numbers; the client words it. */
+  operation?: { action: string; volume?: string; symbol: string } | null;
+  /** waiting_owner: what waits for the owner. */
+  card?: "trade_approval" | "owner_action" | null;
 };
 
 export type AgentLiveState = {

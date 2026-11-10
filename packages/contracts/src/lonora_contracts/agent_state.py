@@ -15,11 +15,17 @@ class CurrentWork(Contract):
     broker, a running Run, an active watch), derived from durable records only."""
 
     kind: CurrentWorkKind
-    # The Task's title, the owner's message a running reply answers, the operation
-    # («شراء 0.10 XAUUSD») or the watched market; never a prompt or tool body.
-    text: str = Field(max_length=120)
+    # Owner content only: the Task's title, the owner's message a running reply answers or
+    # the watched market; never a prompt, a tool body or server-written prose. An order at
+    # the broker or a trade approval is described by ``operation`` (codes and numbers);
+    # the clients word it in the owner's language.
+    text: str = Field(default="", max_length=120)
     until: datetime | None = None
     run_id: str | None = None
+    # broker / waiting_owner: the operation's action code, volume and market.
+    operation: dict[str, str] | None = None
+    # waiting_owner: what waits, "trade_approval" or "owner_action".
+    card: Literal["trade_approval", "owner_action"] | None = None
 
 
 class AgentLiveState(Contract):

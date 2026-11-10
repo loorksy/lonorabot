@@ -65,7 +65,13 @@ test("the status line uses the reference's own words", () => {
     ...idle,
     state: "action_required" as const,
     phase: "awaiting_broker",
-    current_work: { kind: "broker" as const, text: "شراء 0.10 XAUUSD", until: null, run_id: "r" },
+    current_work: {
+      kind: "broker" as const,
+      text: "",
+      operation: { action: "buy", volume: "0.10", symbol: "XAUUSD" },
+      until: null,
+      run_id: "r",
+    },
   };
   assert.equal(agentStatusLine(broker, "ar"), "بانتظار تأكيد الوسيط");
   const analysing = {
@@ -98,7 +104,13 @@ test("the status line follows the reference priority, most urgent first", () => 
     phase: "uncertain",
     pending_card_id: "card",
     pending_approval_count: 1,
-    current_work: { kind: "waiting_owner", text: "قرار مطلوب", until: null, run_id: null },
+    current_work: {
+      kind: "waiting_owner",
+      text: "",
+      card: "owner_action",
+      until: null,
+      run_id: null,
+    },
   };
   // paused → uncertain operation → pending decision → order at the broker → work → watch.
   assert.equal(agentStatusLine({ ...all, state: "paused" }, "ar"), "متوقف مؤقتًا");
