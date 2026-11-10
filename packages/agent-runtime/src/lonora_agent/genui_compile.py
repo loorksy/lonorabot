@@ -229,8 +229,20 @@ PRICE_KEYS = frozenset(
         "free_margin",
         "profit",
         "value",
+        "stop_loss",
+        "take_profit",
+        "sl",
+        "tp",
+        "level",
+        "atr",
+        "support",
+        "resistance",
+        "pivot",
     }
 )
+# Any other price-like field a market or account tool returns (review round 4): reference,
+# entry, target and average prices, swing highs and lows, levels.
+PRICE_KEY = re.compile(r"(?:^|_)(?:price|swing_high|swing_low|level|stop|target|entry)(?:$|_)")
 
 
 def _numbers(value: Any) -> set[Decimal]:
@@ -260,7 +272,7 @@ def _read_values(value: Any) -> set[Decimal]:
     found: set[Decimal] = set()
     if isinstance(value, dict):
         for key, item in cast(dict[str, Any], value).items():
-            if key in PRICE_KEYS and not isinstance(item, dict | list):
+            if (key in PRICE_KEYS or PRICE_KEY.search(key)) and not isinstance(item, dict | list):
                 found |= _numbers(item)
             else:
                 found |= _read_values(item)

@@ -617,3 +617,45 @@ async def test_the_privacy_guard_reads_what_the_client_shows_and_every_branch(ed
     assert any(d["code"] == "card_fallback_private" for d in projector.diagnostics), [
         d["code"] for d in projector.diagnostics
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field",
+    [
+        "stop_loss",
+        "take_profit",
+        "level",
+        "reference_price",
+        "last_swing_high",
+        "previous_swing_low",
+        "atr",
+    ],
+)
+async def test_typed_market_fields_beyond_quotes_are_caught(field: str) -> None:
+    """Review round 4: a stop, target, watch level, swing or ATR read this turn is a market
+    value too; typing it instead of citing it makes the card fall back."""
+    history = messages()
+    history.insert(
+        1,
+        ModelMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                ToolCall(id="p1", name="market_positions", arguments={"account_id": "acc-1"})
+            ],
+        ),
+    )
+    history.insert(
+        2,
+        ModelMessage(
+            role="tool", tool_call_id="p1", content=json.dumps({"items": [{field: "2351.75"}]})
+        ),
+    )
+    body = A01.replace(
+        '{"type":"Text","tone":"muted"',
+        '{"type":"Note","text":"المستوى 2,351.75"}\n{"type":"Text","tone":"muted"',
+    )
+    projection, projector = await project(reply(body), history=history)
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
