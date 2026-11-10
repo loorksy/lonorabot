@@ -247,6 +247,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       error,
       patchInbox,
       setChatLists,
+      setThreadSettings,
       clearAttention,
     ],
   );

@@ -203,7 +203,7 @@ export function ListsProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         reading.current = "";
       });
-  }, [data.inbox, data.groups, openThread, patchInbox]);
+  }, [data.inbox, openThread, patchInbox]);
   const failed = useCallback(
     (error: unknown) => {
       if (error instanceof ApiError && error.code === "thread_pin_limit") toast(t("sh_pin3"));
