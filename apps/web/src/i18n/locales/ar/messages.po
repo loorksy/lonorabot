@@ -144,7 +144,7 @@ msgstr "قبل {minutes} دقيقة"
 msgid "{month} so far"
 msgstr "{month} حتى الآن"
 
-#: src/conversation/Cards.tsx:507
+#: src/conversation/Cards.tsx:517
 msgid "{n} steps"
 msgstr "{n} خطوات"
 
@@ -164,7 +164,7 @@ msgstr "{queued, plural, one {رسالة واحدة تنتظر} two {رسالت�
 msgid "{reads} read"
 msgstr "{reads} قراءة"
 
-#: src/conversation/Cards.tsx:508
+#: src/conversation/Cards.tsx:518
 msgid "{seconds} s"
 msgstr "{seconds} ث"
 
@@ -290,7 +290,7 @@ msgstr "نحو {perRequest} توكن للطلب"
 msgid "Above"
 msgstr "أعلى من"
 
-#: src/conversation/Cards.tsx:247
+#: src/conversation/Cards.tsx:227
 msgid "Accepted by the broker"
 msgstr "مقبول لدى الوسيط"
 
@@ -308,7 +308,7 @@ msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مر
 msgid "Accessibility"
 msgstr "سهولة الاستخدام"
 
-#: src/conversation/Cards.tsx:452
+#: src/conversation/Cards.tsx:462
 msgid "Account"
 msgstr "الحساب"
 
@@ -525,7 +525,7 @@ msgstr "بعد الربط تُجلب رموز التداول المتاحة من
 
 #: src/components/ai/primitives.tsx:70
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Cards.tsx:571
+#: src/conversation/Cards.tsx:581
 #: src/pages/Board.tsx:416
 #: src/pages/Board.tsx:418
 #: src/pages/shell/bot-picker.tsx:16
@@ -537,7 +537,7 @@ msgid "Agent calls"
 msgstr "مكالمات الوكيل"
 
 #: src/components/ai/CollaborationMarker.tsx:11
-#: src/conversation/Cards.tsx:600
+#: src/conversation/Cards.tsx:610
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
@@ -705,7 +705,7 @@ msgstr "غاضب"
 msgid "Animals & nature"
 msgstr "حيوانات وطبيعة"
 
-#: src/conversation/Cards.tsx:180
+#: src/conversation/Cards.tsx:187
 msgid "Another answer"
 msgstr "إجابة أخرى"
 
@@ -713,7 +713,7 @@ msgstr "إجابة أخرى"
 msgid "Answered"
 msgstr "تمت الإجابة"
 
-#: src/conversation/Cards.tsx:142
+#: src/conversation/Cards.tsx:149
 msgid "Answers"
 msgstr "الإجابات"
 
@@ -814,7 +814,7 @@ msgstr "اطلب من هذا الوكيل إنشاء هدف تداول. تبقى
 msgid "Assign work to your agents and follow each task."
 msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 
-#: src/conversation/Cards.tsx:301
+#: src/conversation/Cards.tsx:293
 msgid "At market price"
 msgstr "بسعر السوق"
 
@@ -1069,7 +1069,7 @@ msgstr "مرجع لدى الوسيط (اختياري)"
 msgid "Broker result"
 msgstr "نتيجة الوسيط"
 
-#: src/conversation/Cards.tsx:459
+#: src/conversation/Cards.tsx:469
 msgid "Broker return code"
 msgstr "رمز رد الوسيط"
 
@@ -1082,7 +1082,7 @@ msgid "Broker symbol"
 msgstr "رمز الوسيط"
 
 #: src/components/trading/TradeApprovals.tsx:273
-#: src/conversation/Cards.tsx:446
+#: src/conversation/Cards.tsx:456
 msgid "Broker ticket"
 msgstr "رقم العملية لدى الوسيط"
 
@@ -1116,7 +1116,6 @@ msgid "Built-in override rejected"
 msgstr "رُفض استبدال المهارة المدمجة"
 
 #: src/components/trading/Positions.tsx:60
-#: src/conversation/Cards.tsx:274
 msgid "Buy"
 msgstr "شراء"
 
@@ -1205,8 +1204,8 @@ msgstr "إلغاء التحديد"
 #: src/components/ai/TurnActivity.tsx:38
 #: src/components/ai/TurnActivity.tsx:99
 #: src/components/ToolActivityDisclosure.tsx:23
-#: src/conversation/Cards.tsx:251
-#: src/conversation/Cards.tsx:582
+#: src/conversation/Cards.tsx:231
+#: src/conversation/Cards.tsx:592
 #: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:27
 msgid "Cancelled"
@@ -1236,7 +1235,7 @@ msgstr "سجل التغييرات"
 msgid "Change the code"
 msgstr "تغيير الرمز"
 
-#: src/conversation/Cards.tsx:76
+#: src/conversation/Cards.tsx:83
 msgid "Change the model"
 msgstr "تغيير النموذج"
 
@@ -1587,7 +1586,7 @@ msgstr "مقارنة ب{compare} · <0>{0}</0>"
 #: src/components/ai/TurnActivity.tsx:36
 #: src/components/ai/TurnActivity.tsx:95
 #: src/components/ToolActivityDisclosure.tsx:27
-#: src/conversation/Cards.tsx:586
+#: src/conversation/Cards.tsx:596
 #: src/lib/goal-status.ts:36
 #: src/pages/Board.tsx:21
 msgid "Completed"
@@ -2191,7 +2190,7 @@ msgstr "تعديل وإعادة الإرسال"
 msgid "Edit routine"
 msgstr "تعديل المهمة المجدولة"
 
-#: src/conversation/Cards.tsx:76
+#: src/conversation/Cards.tsx:83
 msgid "Edit the limit"
 msgstr "تعديل الحد"
 
@@ -2425,7 +2424,7 @@ msgstr "الوجه"
 #: src/components/ai/TurnActivity.tsx:37
 #: src/components/ai/TurnActivity.tsx:97
 #: src/components/ToolActivityDisclosure.tsx:25
-#: src/conversation/Cards.tsx:584
+#: src/conversation/Cards.tsx:594
 #: src/lib/goal-status.ts:38
 #: src/pages/Board.tsx:31
 msgid "Failed"
@@ -2481,11 +2480,11 @@ msgstr "ملفات"
 msgid "Files and outputs from your agents will appear here."
 msgstr "ستظهر ملفات وكلائك ومخرجاتهم هنا."
 
-#: src/conversation/Cards.tsx:384
+#: src/conversation/Cards.tsx:379
 msgid "Fill evidence: ticket"
 msgstr "دليل التنفيذ: تذكرة"
 
-#: src/conversation/Cards.tsx:249
+#: src/conversation/Cards.tsx:229
 msgid "Filled"
 msgstr "منفَّذ"
 
@@ -3037,7 +3036,7 @@ msgstr "رفع"
 #~ msgid "Light"
 #~ msgstr "فاتح"
 
-#: src/conversation/Cards.tsx:298
+#: src/conversation/Cards.tsx:290
 msgid "Limit at"
 msgstr "محدد عند"
 
@@ -3234,7 +3233,7 @@ msgstr "تفاصيل التفويض"
 #~ msgid "Manual position management excluded"
 #~ msgstr "إدارة الصفقات اليدوية غير مشمولة"
 
-#: src/conversation/Cards.tsx:70
+#: src/conversation/Cards.tsx:77
 msgid "Many requests were sent within a minute. Wait a little, then try again."
 msgstr "أُرسلت طلبات كثيرة خلال دقيقة. انتظر قليلًا ثم أعد المحاولة."
 
@@ -3628,7 +3627,7 @@ msgstr "دون وكلاء"
 #~ msgid "No agents match"
 #~ msgstr "لا يوجد وكلاء مطابقون"
 
-#: src/conversation/Cards.tsx:367
+#: src/conversation/Cards.tsx:358
 msgid "No answer from the broker"
 msgstr "لا رد من الوسيط"
 
@@ -3859,6 +3858,10 @@ msgstr "لم يُرسل"
 msgid "Not sent · tap to retry"
 msgstr "لم تُرسل · اضغط لإعادة المحاولة"
 
+#: src/conversation/Cards.tsx:419
+msgid "Not sent to the broker"
+msgstr "لم يُرسَل إلى الوسيط"
+
 #: src/components/charts/ChartAnnotations.tsx:70
 msgid "Note"
 msgstr "ملاحظة"
@@ -3963,7 +3966,7 @@ msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
-#: src/conversation/Cards.tsx:507
+#: src/conversation/Cards.tsx:517
 msgid "One step"
 msgstr "خطوة واحدة"
 
@@ -4068,7 +4071,7 @@ msgstr "العملية"
 #~ msgid "Operation failed"
 #~ msgstr "فشلت العملية"
 
-#: src/conversation/Cards.tsx:440
+#: src/conversation/Cards.tsx:450
 msgid "Operation id"
 msgstr "رقم العملية"
 
@@ -4076,7 +4079,7 @@ msgstr "رقم العملية"
 msgid "Or open the browser menu and choose «Install Lonora»."
 msgstr "أو افتح قائمة المتصفح واختر «تثبيت Lonora»."
 
-#: src/conversation/Cards.tsx:179
+#: src/conversation/Cards.tsx:186
 msgid "Or write another answer"
 msgstr "أو اكتب إجابة أخرى"
 
@@ -4090,8 +4093,13 @@ msgstr "أو اكتب إجابة أخرى"
 #. placeholder {2}: String(row.request.symbol ?? "")
 #. placeholder {3}: orderLabel(state)
 #: src/conversation/Cards.tsx:284
-msgid "Order {0} {1} {2}: {3}. Show details"
-msgstr "أمر {0} {1} {2}: {3}. عرض التفاصيل"
+#~ msgid "Order {0} {1} {2}: {3}. Show details"
+#~ msgstr "أمر {0} {1} {2}: {3}. عرض التفاصيل"
+
+#. placeholder {0}: orderLabel(state)
+#: src/conversation/Cards.tsx:266
+msgid "Order {summary}: {0}. Show details"
+msgstr "أمر {summary}: {0}. اعرض التفاصيل"
 
 #: src/components/trading/TradeActionCard.tsx:124
 msgid "Order price"
@@ -4137,7 +4145,7 @@ msgstr "الصفحة غير موجودة"
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
 
-#: src/conversation/Cards.tsx:248
+#: src/conversation/Cards.tsx:228
 msgid "Partially filled"
 msgstr "منفَّذ جزئيًا"
 
@@ -4454,14 +4462,14 @@ msgstr "الغرض"
 msgid "Question closed"
 msgstr "أُغلق السؤال"
 
-#: src/conversation/Cards.tsx:138
+#: src/conversation/Cards.tsx:145
 msgid "Question from the agent"
 msgstr "سؤال من الوكيل"
 
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
-#: src/conversation/Cards.tsx:591
+#: src/conversation/Cards.tsx:601
 msgid "Queued"
 msgstr "في الانتظار"
 
@@ -4588,6 +4596,10 @@ msgstr "جارٍ إعادة الاتصال…"
 msgid "Record resolution"
 msgstr "تسجيل التسوية"
 
+#: src/conversation/Cards.tsx:376
+msgid "Recorded from your statement, not broker confirmation"
+msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط"
+
 #: src/shell/settings/NotifyPages.tsx:20
 msgid "Recorded in Updates without any alert"
 msgstr "يُسجَّل في المستجدات دون أي تنبيه"
@@ -4636,7 +4648,7 @@ msgstr "تراجع في الأداء"
 msgid "Reject"
 msgstr "رفض"
 
-#: src/conversation/Cards.tsx:250
+#: src/conversation/Cards.tsx:230
 msgid "Rejected"
 msgstr "مرفوض"
 
@@ -4726,7 +4738,7 @@ msgstr "ردّ على رسالتك"
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
-#: src/conversation/Cards.tsx:245
+#: src/conversation/Cards.tsx:225
 msgid "Requested"
 msgstr "مطلوب"
 
@@ -4778,7 +4790,7 @@ msgstr "إعادة ضبط الكل"
 msgid "Resolve"
 msgstr "حسم"
 
-#: src/conversation/Cards.tsx:426
+#: src/conversation/Cards.tsx:436
 msgid "Resolve the operation"
 msgstr "حسم العملية"
 
@@ -4830,7 +4842,7 @@ msgstr "استئناف"
 #: src/App.tsx:55
 #: src/components/call/CallCard.tsx:149
 #: src/components/call/CallCard.tsx:149
-#: src/conversation/Cards.tsx:108
+#: src/conversation/Cards.tsx:115
 #: src/conversation/Conversation.tsx:499
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
@@ -4842,7 +4854,7 @@ msgstr "استئناف"
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
-#: src/conversation/Cards.tsx:108
+#: src/conversation/Cards.tsx:115
 msgid "Retry in {left} s"
 msgstr "إعادة المحاولة بعد {left} ث"
 
@@ -5143,7 +5155,6 @@ msgid "Selected chats"
 msgstr "المحادثات المحددة"
 
 #: src/components/trading/Positions.tsx:60
-#: src/conversation/Cards.tsx:274
 msgid "Sell"
 msgstr "بيع"
 
@@ -5172,7 +5183,7 @@ msgstr "إرسال (Shift+Enter لسطر جديد)"
 #~ msgid "Send direction"
 #~ msgstr "إرسال توجيه"
 
-#: src/conversation/Cards.tsx:188
+#: src/conversation/Cards.tsx:195
 msgid "Send the answer"
 msgstr "إرسال الإجابة"
 
@@ -5193,7 +5204,7 @@ msgstr "الإرسال بزر Enter"
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
-#: src/conversation/Cards.tsx:246
+#: src/conversation/Cards.tsx:226
 #: src/conversation/Message.tsx:82
 msgid "Sent"
 msgstr "أُرسلت"
@@ -5565,7 +5576,7 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 msgid "Stopped · no new orders are sent"
 msgstr "متوقف · لا تُرسَل أوامر جديدة"
 
-#: src/conversation/Cards.tsx:588
+#: src/conversation/Cards.tsx:598
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
@@ -5733,7 +5744,7 @@ msgstr "المهام"
 
 #: src/components/goals/TradingGoals.tsx:69
 #: src/components/trading/TradingJournal.tsx:122
-#: src/conversation/Cards.tsx:434
+#: src/conversation/Cards.tsx:444
 msgid "Technical details"
 msgstr "التفاصيل التقنية"
 
@@ -5784,7 +5795,7 @@ msgstr "حدود الحساب الحالية تبقى سارية."
 msgid "The accounts and sources your agents can reach. Any source outside this list needs your approval first."
 msgstr "الحسابات والمصادر التي يصل إليها وكلاؤك. أي مصدر خارج هذه القائمة يتطلّب موافقتك أولًا."
 
-#: src/conversation/Cards.tsx:66
+#: src/conversation/Cards.tsx:73
 msgid "The agent could not reply"
 msgstr "تعذّر على الوكيل الرد"
 
@@ -5796,7 +5807,7 @@ msgstr "يتابعها الوكيل حتى تكتمل"
 #~ msgid "The agent reached the step limit for this run. Send another message to continue."
 #~ msgstr "بلغ الوكيل الحد الأقصى لخطوات هذا التشغيل. أرسل رسالة أخرى للمتابعة."
 
-#: src/conversation/Cards.tsx:69
+#: src/conversation/Cards.tsx:76
 msgid "The agent stopped replying because the provider refused for quota. Raise the limit or wait for it to reset."
 msgstr "توقف الوكيل عن الرد لأن المزوّد رفض الطلب بسبب الحصة. ارفع الحد أو انتظر تجدّده."
 
@@ -5844,7 +5855,7 @@ msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبق�
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 
-#: src/conversation/Cards.tsx:406
+#: src/conversation/Cards.tsx:411
 msgid "The broker rejected the order"
 msgstr "رفض الوسيط الأمر"
 
@@ -5856,7 +5867,7 @@ msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
-#: src/conversation/Cards.tsx:397
+#: src/conversation/Cards.tsx:402
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "لم يصل تأكيد الوسيط، ولا تُعرض حالة «منفَّذ» قبل وصول الدليل."
 
@@ -5988,11 +5999,11 @@ msgstr "الميكروفون غير متاح في هذه الصفحة."
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
-#: src/conversation/Cards.tsx:65
+#: src/conversation/Cards.tsx:72
 msgid "The model is not available right now"
 msgstr "النموذج غير متاح حاليًا"
 
-#: src/conversation/Cards.tsx:72
+#: src/conversation/Cards.tsx:79
 msgid "The model provider could not be reached. Try another model or retry shortly."
 msgstr "تعذّر الوصول إلى مزوّد النموذج. جرّب نموذجًا آخر أو أعد المحاولة بعد قليل."
 
@@ -6057,11 +6068,11 @@ msgstr "رفض المزود مفتاح API هذا."
 msgid "The readiness check after you signed did not finish; that check sent nothing."
 msgstr "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا."
 
-#: src/conversation/Cards.tsx:71
+#: src/conversation/Cards.tsx:78
 msgid "The reply did not arrive in time; the connection may be weak."
 msgstr "لم يصل الرد في الوقت المحدد، وقد يكون الاتصال ضعيفًا."
 
-#: src/conversation/Cards.tsx:64
+#: src/conversation/Cards.tsx:71
 msgid "The reply timed out"
 msgstr "انتهت مهلة الرد"
 
@@ -6426,7 +6437,7 @@ msgstr "التوكن"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/conversation/Cards.tsx:63
+#: src/conversation/Cards.tsx:70
 msgid "Too many requests in a short time"
 msgstr "طلبات كثيرة في وقت قصير"
 
@@ -6577,7 +6588,7 @@ msgstr "تحويل إلى مهمة"
 #~ msgid "Turn trading ON"
 #~ msgstr "تفعيل التداول"
 
-#: src/conversation/Cards.tsx:507
+#: src/conversation/Cards.tsx:517
 msgid "Two steps"
 msgstr "خطوتان"
 
@@ -6605,7 +6616,7 @@ msgstr "إلغاء الأرشفة"
 msgid "Unavailable"
 msgstr "غير متاحة"
 
-#: src/conversation/Cards.tsx:252
+#: src/conversation/Cards.tsx:232
 msgid "Unconfirmed"
 msgstr "غير مؤكَّد"
 
@@ -6887,7 +6898,7 @@ msgstr "بانتظار التحقق من النتيجة"
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. لن يُرسل الأمر المقبول مرة أخرى."
 
-#: src/conversation/Cards.tsx:419
+#: src/conversation/Cards.tsx:429
 msgid "Waiting for the broker's answer…"
 msgstr "بانتظار رد الوسيط…"
 
@@ -7003,7 +7014,7 @@ msgstr "توقف عمل بعد انقطاعات متكررة"
 msgid "Working"
 msgstr "جارٍ العمل"
 
-#: src/conversation/Cards.tsx:590
+#: src/conversation/Cards.tsx:600
 msgid "Working…"
 msgstr "يعمل…"
 
@@ -7088,7 +7099,7 @@ msgstr "لم تضف مزودًا بعد."
 msgid "You reached the name's maximum length"
 msgstr "وصلت إلى الحد الأقصى للاسم"
 
-#: src/conversation/Cards.tsx:62
+#: src/conversation/Cards.tsx:69
 msgid "You reached the usage limit"
 msgstr "وصلت إلى حد الاستهلاك"
 

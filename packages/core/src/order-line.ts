@@ -9,6 +9,7 @@
  * quantity is the broker-reported volume of the result, never an estimate.
  */
 import type { Journal } from "@lonora/contracts";
+import { accountAuthorityLabels } from "./account-authority-labels";
 
 export type OrderLineState =
   | "requested"
@@ -29,6 +30,12 @@ export type OrderLine = {
   filled_volume: string | null;
   /** Who established a fill: the broker's result or the owner's attestation. */
   evidence: "broker" | "owner" | null;
+  /** The fill price the broker reported; only with fill evidence, never the requested price. */
+  fill_price: string | null;
+  /** The broker's own reference for the operation (ticket, order or position id), if any. */
+  ticket: string | null;
+  /** Never sent to the broker (a brake, a limit or a released reservation stopped it). */
+  not_sent: boolean;
 };
 
 export const orderLineLabels = {
@@ -71,18 +78,29 @@ function decimal(value: unknown): string | null {
   return null;
 }
 
-/** The order line of one journal operation, from its durable status and result only. */
+/** The order line of one journal operation, from its durable status and result only
+    (the executor's TradeResult: status, broker_id, code, details{order_id, position_id,
+    price, volume, partial_execution, verification, resolution}). */
 export function orderLineState(
-  journal: Pick<Journal, "status" | "request" | "result"> & { send_state?: string },
+  journal: Pick<Journal, "status" | "request" | "result"> & {
+    send_state?: string;
+    verification_status?: string | null;
+  },
 ): OrderLine {
   const request = record(journal.request);
   const result = record(journal.result);
   const details = record(result.details);
-  const verification = record(details.verification).status;
+  const verification = journal.verification_status ?? record(details.verification).status;
   const resolution = record(details.resolution);
   const requested = decimal(request.volume);
   const reported = decimal(details.volume);
   const sendState = journal.send_state ?? details.send_state;
+  const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : null);
+  const ticket =
+    text(result.broker_id) ??
+    text(details.order_id) ??
+    text(details.position_id) ??
+    text(details.deal_id);
   const line = (
     state: OrderLineState,
     reached: OrderLineState[],
@@ -94,6 +112,12 @@ export function orderLineState(
     requested_volume: requested,
     filled_volume: filled,
     evidence,
+    fill_price:
+      evidence === "broker" && (state === "filled" || state === "partial")
+        ? (decimal(details.price) ?? decimal(details.execution_price))
+        : null,
+    ticket,
+    not_sent: journal.status === "failed" && sendState === "not_sent",
   });
   switch (journal.status) {
     case "reserved":
@@ -106,15 +130,16 @@ export function orderLineState(
       if (verification === "unverified") return line("uncertain", ["requested", "sent"]);
       if (PENDING_ENTRIES.has(String(request.action)))
         return line("accepted", ["requested", "sent"]);
-      const ticket = typeof result.broker_id === "string" && result.broker_id !== "";
       if (!ticket && verification !== "verified") return line("uncertain", ["requested", "sent"]);
+      // The broker's own word on a partial fill; otherwise a reported volume short of the request.
       const partial =
-        requested !== null && reported !== null && Number(reported) < Number(requested);
+        Boolean(details.partial_execution) ||
+        (requested !== null && reported !== null && Number(reported) < Number(requested));
       return line(
         partial ? "partial" : "filled",
         ["requested", "sent", "accepted"],
         "broker",
-        reported ?? requested,
+        partial ? reported : (reported ?? requested),
       );
     }
     case "failed":
@@ -133,4 +158,40 @@ export function orderLineState(
     default:
       return line("uncertain", ["requested"]);
   }
+}
+
+/** What the operation does, in the reference's words: «شراء» / «بيع» for market orders (odSide),
+    the authority vocabulary for entries, closes, modifications and cancellations. */
+export function orderLineAction(request: Record<string, unknown>, locale: string) {
+  const action = String(request.action ?? "");
+  const ar = locale.startsWith("ar");
+  const labels = accountAuthorityLabels[ar ? "ar" : "en"] as Record<string, string>;
+  const label =
+    action === "buy"
+      ? ar
+        ? "شراء"
+        : "Buy"
+      : action === "sell"
+        ? ar
+          ? "بيع"
+          : "Sell"
+        : (labels[action] ?? action);
+  // A volume belongs to entries and closes; a modification or a cancellation has none.
+  const volume = [
+    "buy",
+    "sell",
+    "buy_limit",
+    "sell_limit",
+    "buy_stop",
+    "sell_stop",
+    "close_position",
+  ].includes(action)
+    ? decimal(request.volume)
+    : null;
+  const direction: "up" | "down" | null = action.startsWith("buy")
+    ? "up"
+    : action.startsWith("sell")
+      ? "down"
+      : null;
+  return { label, volume, direction };
 }

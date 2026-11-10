@@ -112,6 +112,7 @@ export { callPart, validateAgentRichContent, voicePart } from "./message-parts";
 export {
   type OrderLine,
   type OrderLineState,
+  orderLineAction,
   orderLineLabels,
   orderLineState,
   orderLineText,

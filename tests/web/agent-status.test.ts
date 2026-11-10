@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentLiveState, Journal } from "../../packages/contracts/src/index";
 import { agentStatusLine, uncertainLine } from "../../packages/core/src/agent-status";
-import { orderLineState, orderLineText } from "../../packages/core/src/order-line";
+import { orderLineAction, orderLineState, orderLineText } from "../../packages/core/src/order-line";
 
 const now = new Date("2026-11-08T10:00:00Z");
 const idle: AgentLiveState = {
@@ -170,4 +170,104 @@ test("an order line shows the server state under the reference's names", () => {
   assert.equal(orderLineState(attested("not_executed")).state, "cancelled");
   assert.equal(orderLineState(attested("unknown")).state, "uncertain");
   assert.equal(orderLineText("accepted", "ar"), "مقبول لدى الوسيط");
+});
+
+// The MetaApi adapter's TradeResult (adapters/brokers/metaapi.py): the evidence lives in
+// broker_id and details{order_id, position_id, deal_id, price, partial_execution}; the journal
+// API adds verification_status beside it.
+const metaapi = (details: Record<string, unknown>, broker_id: string | null = "71455") => ({
+  operation_id: "op",
+  status: "confirmed",
+  broker_id,
+  code: "TRADE_RETCODE_DONE",
+  details: {
+    partial_execution: false,
+    numeric_code: 10009,
+    order_id: "71455",
+    position_id: "71455",
+    deal_id: "88123",
+    price: 2351.4,
+    description: null,
+    ...details,
+  },
+});
+
+test("M1: the order line reads the executor's real fields, not top-level guesses", () => {
+  const verified = orderLineState(
+    journal("confirmed", { result: metaapi({}), verification_status: "verified" }),
+  );
+  assert.equal(verified.state, "filled");
+  assert.equal(verified.ticket, "71455");
+  assert.equal(verified.fill_price, "2351.4");
+  // The broker's own partial flag wins, even when it reports no volume.
+  const partial = orderLineState(
+    journal("confirmed", {
+      result: metaapi({ partial_execution: true, numeric_code: 10010 }),
+      verification_status: "verified",
+    }),
+  );
+  assert.equal(partial.state, "partial");
+  assert.equal(partial.filled_volume, null);
+  // Sent and acknowledged, the account state still being checked: accepted, no price.
+  const checking = orderLineState(
+    journal("confirmed", { result: metaapi({}), verification_status: "pending" }),
+  );
+  assert.equal(checking.state, "accepted");
+  assert.equal(checking.fill_price, null);
+  // A placed limit order rests at the broker: «مقبول لدى الوسيط», never filled, no fill price.
+  const placed = orderLineState(
+    journal("confirmed", {
+      request: { action: "buy_limit", symbol: "XAUUSD", volume: "0.10", price: "2300" },
+      result: metaapi({ position_id: null, deal_id: null, price: 2300 }),
+    }),
+  );
+  assert.equal(placed.state, "accepted");
+  assert.equal(placed.fill_price, null);
+  // Only an order id and no broker_id is still evidence (the executor's reconciliation shape).
+  const reconciled = orderLineState(
+    journal("confirmed", { result: metaapi({ position_id: null, deal_id: null }, null) }),
+  );
+  assert.equal(reconciled.ticket, "71455");
+  assert.equal(reconciled.state, "filled");
+  // A pre-send block (risk limit) never reached the broker: not a broker rejection.
+  const blocked = orderLineState(
+    journal("failed", {
+      send_state: "not_sent",
+      result: { operation_id: "op", status: "failed", code: "risk_daily_loss_limit", details: {} },
+    }),
+  );
+  assert.equal(blocked.state, "cancelled");
+  assert.equal(blocked.not_sent, true);
+  const rejected = orderLineState(
+    journal("failed", {
+      send_state: "sent",
+      result: { operation_id: "op", status: "failed", code: "TRADE_RETCODE_NO_MONEY", details: {} },
+    }),
+  );
+  assert.equal(rejected.state, "rejected");
+  assert.equal(rejected.not_sent, false);
+});
+
+test("M1: each action names itself; only entries and closes carry a volume", () => {
+  assert.deepEqual(orderLineAction({ action: "buy", volume: "0.10" }, "ar"), {
+    label: "شراء",
+    volume: "0.10",
+    direction: "up",
+  });
+  assert.equal(
+    orderLineAction({ action: "close_position", volume: "0.05" }, "ar").label,
+    "إغلاق صفقة",
+  );
+  const modify = orderLineAction({ action: "modify_position", volume: "0.10" }, "ar");
+  assert.equal(modify.label, "تعديل صفقة");
+  assert.equal(modify.volume, null);
+  assert.equal(orderLineAction({ action: "cancel_order" }, "en").label, "Cancel pending order");
+});
+
+test("M1: the conversation's order line and sheet use the one shared helper", async () => {
+  const { readFileSync } = await import("node:fs");
+  const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
+  assert.ok(cards.includes("orderLineState(row)"));
+  // The evidence never comes from guessed top-level fields of the result.
+  assert.ok(!/result\\??\.(order_id|position_id|deal_id|price|filled_volume)/.test(cards));
 });

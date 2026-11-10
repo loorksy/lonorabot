@@ -2,7 +2,14 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
-import { type ActivityCall, activityCallLabel, peerOutcome } from "@lonora/core";
+import {
+  type ActivityCall,
+  activityCallLabel,
+  type OrderLineState,
+  orderLineAction,
+  orderLineState,
+  peerOutcome,
+} from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -196,39 +203,12 @@ export function QuestionCard({
   );
 }
 
-/* ---- Orders (Q30): the server's operation states under the reference's names. «منفَّذ» only
-   with evidence (a broker ticket, or the owner's attestation). */
-export type OrderState =
-  | "requested"
-  | "sent"
-  | "accepted"
-  | "partial"
-  | "filled"
-  | "rejected"
-  | "cancelled"
-  | "uncertain";
+/* ---- Orders (Q30): the server's operation states under the reference's names, from the
+   one shared helper (core orderLineState: the executor's real TradeResult fields). «منفَّذ»
+   only with evidence (a broker ticket or a verified state, or the owner's attestation). */
+export type OrderState = OrderLineState;
 export function orderState(row: Journal): OrderState {
-  const result = row.result ?? {};
-  const resolution = row.resolution as { outcome?: string } | null | undefined;
-  if (row.status === "ambiguous" || row.awaiting_broker_confirmation) return "uncertain";
-  if (row.status === "resolved")
-    return resolution?.outcome === "not_executed"
-      ? "cancelled"
-      : resolution?.outcome === "executed"
-        ? "filled"
-        : "uncertain";
-  if (row.status === "failed")
-    return String(result.status ?? "").includes("cancel") ? "cancelled" : "rejected";
-  if (row.status === "confirmed") {
-    const filled = Number(result.filled_volume ?? result.volume ?? Number.NaN);
-    const wanted = Number(row.request.volume ?? Number.NaN);
-    if (!result.order_id && !result.position_id && !result.deal_id) return "uncertain";
-    return Number.isFinite(filled) && Number.isFinite(wanted) && filled < wanted
-      ? "partial"
-      : "filled";
-  }
-  if (row.status === "submitted") return row.send_state === "sent" ? "accepted" : "sent";
-  return "requested";
+  return orderLineState(row).state;
 }
 const ORDER_TONE: Record<OrderState, string> = {
   requested: "wait",
@@ -270,40 +250,52 @@ export function OrderBadge({ state }: { state: OrderState }) {
     </span>
   );
 }
-const sideOf = (row: Journal) =>
-  String(row.request.action ?? "").includes("sell") ? t`Sell` : t`Buy`;
 export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal) => void }) {
-  const state = orderState(row);
-  const volume = Number(row.request.volume ?? 0);
-  const price = row.request.price ?? row.result?.price;
+  const line = orderLineState(row);
+  const state = line.state;
+  const action = orderLineAction(row.request, i18n.locale);
+  const symbol = String(row.request.symbol ?? "");
+  const limit = row.request.price != null ? String(row.request.price) : null;
+  const summary = `${action.label}${action.volume ? ` ${action.volume}` : ""} ${symbol}`;
   return (
     <button
       type="button"
       className={`od-chat s-${state}`}
       data-operation-id={row.operation_id}
-      aria-label={t`Order ${sideOf(row)} ${volume.toFixed(2)} ${String(row.request.symbol ?? "")}: ${orderLabel(state)}. Show details`}
+      data-order-state={state}
+      aria-label={t`Order ${summary}: ${orderLabel(state)}. Show details`}
       onClick={() => onOpen(row)}
     >
       <span className="od-chat-ic">
-        <Icon name={String(row.request.action ?? "").includes("sell") ? "trendDown" : "trend"} />
+        <Icon
+          name={
+            action.direction === "down" ? "trendDown" : action.direction === "up" ? "trend" : "edit"
+          }
+        />
       </span>
       <span className="od-chat-body">
         <strong>
-          {sideOf(row)} <span className="ltr">{volume.toFixed(2)}</span>{" "}
-          <bdi>{String(row.request.symbol ?? "")}</bdi>
+          {action.label}
+          {action.volume && (
+            <>
+              {" "}
+              <span className="ltr">{action.volume}</span>
+            </>
+          )}{" "}
+          <bdi>{symbol}</bdi>
         </strong>
         <small>
-          {row.request.price != null ? (
+          {limit ? (
             <>
-              <Trans>Limit at</Trans> <span className="ltr">{String(row.request.price)}</span>
+              <Trans>Limit at</Trans> <span className="ltr">{limit}</span>
             </>
-          ) : (
+          ) : action.direction ? (
             <Trans>At market price</Trans>
-          )}
-          {state !== "uncertain" && price != null && row.request.price == null && (
+          ) : null}
+          {line.fill_price && (
             <>
               {" · "}
-              <span className="ltr">{String(price)}</span>
+              <span className="ltr">{line.fill_price}</span>
             </>
           )}
         </small>
@@ -315,7 +307,8 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
 
 /** The order sheet: the timeline, the evidence and the technical details (reference odSheet). */
 export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: () => void }) {
-  const state = orderState(row);
+  const line = orderLineState(row);
+  const state = line.state;
   const steps: OrderState[] = ["requested", "sent", "accepted", "filled"];
   const reached = {
     requested: 0,
@@ -327,9 +320,7 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
     cancelled: 2,
     uncertain: 1,
   }[state];
-  const ticket = String(
-    row.result?.order_id ?? row.result?.position_id ?? row.result?.deal_id ?? "—",
-  );
+  const ticket = line.ticket ?? "—";
   const time = (iso?: string | null) =>
     iso ? new Date(iso).toLocaleTimeString("en-GB", { hour12: false }) : "…";
   return (
@@ -381,11 +372,25 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
         <div className="od-ev ok">
           <Icon name="check" />
           <span>
-            <Trans>Fill evidence: ticket</Trans> <b className="ltr">{ticket}</b>
-            {row.result?.price != null && (
+            {line.evidence === "owner" ? (
+              <Trans>Recorded from your statement, not broker confirmation</Trans>
+            ) : (
               <>
-                {" · "}
-                <span className="ltr">{String(row.result.price)}</span>
+                <Trans>Fill evidence: ticket</Trans> <b className="ltr">{ticket}</b>
+                {line.fill_price && (
+                  <>
+                    {" · "}
+                    <span className="ltr">{line.fill_price}</span>
+                  </>
+                )}
+                {state === "partial" && line.filled_volume && (
+                  <>
+                    {" · "}
+                    <span className="ltr">
+                      {line.filled_volume}/{line.requested_volume ?? "?"}
+                    </span>
+                  </>
+                )}
               </>
             )}
           </span>
@@ -404,13 +409,18 @@ export function OrderSheetBody({ row, onResolve }: { row: Journal; onResolve?: (
           <Icon name="close" />
           <span>
             <Trans>The broker rejected the order</Trans>
-            {row.result?.message ? `: ${String(row.result.message)}` : ""}
+            {row.result?.code ? ` · ${userError({ code: String(row.result.code) })}` : ""}
           </span>
         </div>
       ) : state === "cancelled" ? (
         <div className="od-ev off">
           <Icon name="minus" />
-          <span>{orderLabel("cancelled")}</span>
+          <span>
+            {line.not_sent ? <Trans>Not sent to the broker</Trans> : orderLabel("cancelled")}
+            {line.not_sent && row.result?.code
+              ? ` · ${userError({ code: String(row.result.code) })}`
+              : ""}
+          </span>
         </div>
       ) : (
         <div className="od-ev wait">
