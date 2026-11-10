@@ -88,9 +88,6 @@ export async function moreSearchItems(
   );
   return {
     ...section,
-    items: [
-      ...section.items,
-      ...pages.flatMap((page, i) => page.results[sources[i]] ?? []),
-    ],
+    items: [...section.items, ...pages.flatMap((page, i) => page.results[sources[i]] ?? [])],
   };
 }

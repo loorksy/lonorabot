@@ -17,7 +17,18 @@ export default function Updates() {
   if (!owner) return <Redirect href="/sign-in" />;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <Text accessibilityRole="header" style={{ color: c.text, fontSize: 28, fontWeight: "700", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6, textAlign: rtl ? "right" : "left" }}>
+      <Text
+        accessibilityRole="header"
+        style={{
+          color: c.text,
+          fontSize: 28,
+          fontWeight: "700",
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: 6,
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
         {t("sh_updates")}
       </Text>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>

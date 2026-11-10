@@ -2,7 +2,14 @@
 // ticks (Q2: one grey tick = accepted by the server; two accent ticks = the agent's run started on
 // it), muted and pinned marks, the paused badge, and the count or the 12px dot.
 import type { Agent, InboxMessageKind } from "@lonora/contracts";
-import { type ChatRow, isMuted, isPinned, rowCount, rowIsUnread, rowMarkedOnly } from "@lonora/core";
+import {
+  type ChatRow,
+  isMuted,
+  isPinned,
+  rowCount,
+  rowIsUnread,
+  rowMarkedOnly,
+} from "@lonora/core";
 import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 import { fill } from "../../lib/i18n";
@@ -16,18 +23,41 @@ import { RowAvatar, useAgentRole } from "./kit";
 export const clockTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
-const kindIcon: Partial<Record<InboxMessageKind, IconName>> = { voice: "mic", file: "file", image: "image", card: "shield" };
+const kindIcon: Partial<Record<InboxMessageKind, IconName>> = {
+  voice: "mic",
+  file: "file",
+  image: "image",
+  card: "shield",
+};
 
-function Preview({ row, agents, outgoing, color }: { row: ChatRow; agents: readonly Agent[]; outgoing?: OutgoingIntent; color: string }) {
+function Preview({
+  row,
+  agents,
+  outgoing,
+  color,
+}: {
+  row: ChatRow;
+  agents: readonly Agent[];
+  outgoing?: OutgoingIntent;
+  color: string;
+}) {
   const { c } = useTheme();
   const { t, rtl } = useSession();
   const role = useAgentRole();
-  const style = { color, fontSize: 14, flexShrink: 1, textAlign: (rtl ? "right" : "left") as "right" | "left" };
+  const style = {
+    color,
+    fontSize: 14,
+    flexShrink: 1,
+    textAlign: (rtl ? "right" : "left") as "right" | "left",
+  };
   if (outgoing) {
     const failed = outgoing.message.delivery === "failed";
     return (
       <>
-        <View accessibilityLabel={failed ? t("sh_notSent") : t("sh_waitingNetwork")} accessibilityRole="image">
+        <View
+          accessibilityLabel={failed ? t("sh_notSent") : t("sh_waitingNetwork")}
+          accessibilityRole="image"
+        >
           <Icon name={failed ? "alert" : "clock"} size={16} color={failed ? c.red : c.muted} />
         </View>
         <Text numberOfLines={1} style={style}>
@@ -46,7 +76,10 @@ function Preview({ row, agents, outgoing, color }: { row: ChatRow; agents: reado
     );
   }
   const mine = last.role === "user";
-  const speaker = !mine && row.kind === "group" && last.agent_id ? agents.find((agent) => agent.id === last.agent_id)?.name : undefined;
+  const speaker =
+    !mine && row.kind === "group" && last.agent_id
+      ? agents.find((agent) => agent.id === last.agent_id)?.name
+      : undefined;
   const text = last.preview || last.content;
   const icon = kindIcon[last.kind];
   return (
@@ -102,7 +135,13 @@ export const ThreadRow = memo(function ThreadRow({
       accessibilityLabel={row.name}
       accessibilityState={{ selected: selecting ? picked : undefined }}
       testID={`thread-row-${row.key}`}
-      {...({ dataSet: { key: row.key, inboxAgentId: row.kind === "agent" ? row.id : undefined, inboxGroupId: row.kind === "group" ? row.id : undefined } } as object)}
+      {...({
+        dataSet: {
+          key: row.key,
+          inboxAgentId: row.kind === "agent" ? row.id : undefined,
+          inboxGroupId: row.kind === "group" ? row.id : undefined,
+        },
+      } as object)}
       delayLongPress={430}
       onPress={() => (selecting ? onSelect(row) : onOpen(row))}
       onLongPress={() => !selecting && onSelect(row)}
@@ -142,19 +181,48 @@ export const ThreadRow = memo(function ThreadRow({
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <View style={{ flexDirection: dir, alignItems: "center", gap: 8 }}>
-          <Text numberOfLines={1} style={{ flex: 1, color: c.text, fontSize: 16, fontWeight: unread ? "700" : "600", textAlign: align }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              color: c.text,
+              fontSize: 16,
+              fontWeight: unread ? "700" : "600",
+              textAlign: align,
+            }}
+          >
             {row.name}
           </Text>
           {at ? (
-            <Text style={{ color: unread && !muted ? c["accent-ink"] : c.muted, fontSize: 12, fontWeight: unread && !muted ? "600" : "400" }}>{clockTime(at)}</Text>
+            <Text
+              style={{
+                color: unread && !muted ? c["accent-ink"] : c.muted,
+                fontSize: 12,
+                fontWeight: unread && !muted ? "600" : "400",
+              }}
+            >
+              {clockTime(at)}
+            </Text>
           ) : null}
         </View>
         <View style={{ flexDirection: dir, alignItems: "center", gap: 8 }}>
           <View style={{ flex: 1, minWidth: 0, flexDirection: dir, alignItems: "center", gap: 4 }}>
-            <Preview row={row} agents={agents} outgoing={outgoing} color={unread ? c.text : c.muted} />
+            <Preview
+              row={row}
+              agents={agents}
+              outgoing={outgoing}
+              color={unread ? c.text : c.muted}
+            />
           </View>
           {row.paused ? (
-            <View style={{ paddingHorizontal: 8, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: c.fill }}>
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 1,
+                borderRadius: radius.pill,
+                backgroundColor: c.fill,
+              }}
+            >
               <Text style={{ color: c.muted, fontSize: 12 }}>{t("sh_paused")}</Text>
             </View>
           ) : null}
@@ -169,11 +237,26 @@ export const ThreadRow = memo(function ThreadRow({
             </View>
           ) : null}
           {count > 0 ? (
-            <View accessibilityLabel={fill(t("sh_unreadN"), { count })} style={{ minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: radius.pill, backgroundColor: countBg, alignItems: "center", justifyContent: "center" }}>
+            <View
+              accessibilityLabel={fill(t("sh_unreadN"), { count })}
+              style={{
+                minWidth: 22,
+                height: 22,
+                paddingHorizontal: 7,
+                borderRadius: radius.pill,
+                backgroundColor: countBg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Text style={{ color: countFg, fontSize: 12, fontWeight: "700" }}>{count}</Text>
             </View>
           ) : rowMarkedOnly(row) ? (
-            <View accessibilityRole="image" accessibilityLabel={t("sh_unreadMarked")} style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: countBg }} />
+            <View
+              accessibilityRole="image"
+              accessibilityLabel={t("sh_unreadMarked")}
+              style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: countBg }}
+            />
           ) : null}
         </View>
       </View>

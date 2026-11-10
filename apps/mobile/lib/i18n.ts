@@ -747,13 +747,15 @@ export function fill(template: string, first?: unknown, ...rest: (string | numbe
 }
 /** The reference's Arabic counts (arCount): one, two, 3–10, 11 and more. */
 export function chatsWord(locale: Locale, count: number): string {
-  if (locale === "en") return count === 1 ? "one chat" : count === 2 ? "two chats" : `${count} chats`;
+  if (locale === "en")
+    return count === 1 ? "one chat" : count === 2 ? "two chats" : `${count} chats`;
   if (count === 1) return "محادثة واحدة";
   if (count === 2) return "محادثتان";
   return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
 }
 export function agentsWord(locale: Locale, count: number): string {
-  if (locale === "en") return count === 1 ? "one agent" : count === 2 ? "two agents" : `${count} agents`;
+  if (locale === "en")
+    return count === 1 ? "one agent" : count === 2 ? "two agents" : `${count} agents`;
   if (count === 1) return "وكيل واحد";
   if (count === 2) return "وكيلان";
   return count <= 10 ? `${count} وكلاء` : count <= 99 ? `${count} وكيلًا` : `${count} وكيل`;

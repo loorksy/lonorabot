@@ -9,6 +9,7 @@ import {
   moreSearchItems,
   rowKey,
   SEARCH_TABS,
+  type SearchFetch,
   type SearchSection,
   type SearchTab,
   searchPath,
@@ -37,13 +38,23 @@ function Highlight({ text, query, color }: { text: string; query: string; color:
   return (
     <Text style={{ color }}>
       {text.slice(0, range[0])}
-      <Text style={{ backgroundColor: `${c.accent}4d`, color: c.text }}>{text.slice(range[0], range[1])}</Text>
+      <Text style={{ backgroundColor: `${c.accent}4d`, color: c.text }}>
+        {text.slice(range[0], range[1])}
+      </Text>
       {text.slice(range[1])}
     </Text>
   );
 }
 
-function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: readonly ChatRow[] }) {
+function Hit({
+  item,
+  query,
+  rows,
+}: {
+  item: SearchResult;
+  query: string;
+  rows: readonly ChatRow[];
+}) {
   const { c } = useTheme();
   const { t, rtl } = useSession();
   const data = useShellData();
@@ -51,10 +62,20 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
   const toast = useToast();
   const openChat = useOpenChat();
   const role = useAgentRole();
-  const agentName = (id?: string | null) => data.agents.find((agent) => agent.id === id)?.name ?? "";
+  const agentName = (id?: string | null) =>
+    data.agents.find((agent) => agent.id === id)?.name ?? "";
   const gone = () => toast(t("sh_resultGone"));
   const disc = (name: IconName) => (
-    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.fill, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: c.fill,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Icon name={name} size={20} color={c.muted} />
     </View>
   );
@@ -65,11 +86,23 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
   let open: () => void;
   switch (item.category) {
     case "chats": {
-      const row = rows.find((candidate) => candidate.key === rowKey(item.kind === "group" ? "group" : "agent", item.id));
+      const row = rows.find(
+        (candidate) => candidate.key === rowKey(item.kind === "group" ? "group" : "agent", item.id),
+      );
       const at = row?.entry?.last_message?.created_at;
-      lead = row ? <RowAvatar row={row} agents={data.agents} size={44} /> : disc(item.kind === "group" ? "users" : "bot");
+      lead = row ? (
+        <RowAvatar row={row} agents={data.agents} size={44} />
+      ) : (
+        disc(item.kind === "group" ? "users" : "bot")
+      );
       title = <Highlight text={item.title} query={query} color={c.text} />;
-      sub = <Highlight text={item.snippet || (row ? (row.agent ? role(row.agent) : row.subtitle) : "")} query={query} color={c.muted} />;
+      sub = (
+        <Highlight
+          text={item.snippet || (row ? (row.agent ? role(row.agent) : row.subtitle) : "")}
+          query={query}
+          color={c.muted}
+        />
+      );
       meta = at ? clockTime(at) : null;
       open = () => {
         if (!row) return gone();
@@ -82,8 +115,11 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
       const owner = item.thread_agent_id;
       const row =
         rows.find((candidate) => candidate.threadId === item.thread_id) ??
-        (!item.group_id && owner ? rows.find((candidate) => candidate.key === rowKey("agent", owner)) : undefined);
-      const speaker = item.role === "user" ? t("sh_you") : agentName(item.agent_id) || row?.name || "";
+        (!item.group_id && owner
+          ? rows.find((candidate) => candidate.key === rowKey("agent", owner))
+          : undefined);
+      const speaker =
+        item.role === "user" ? t("sh_you") : agentName(item.agent_id) || row?.name || "";
       lead = disc("chat");
       title = <Text style={{ color: c.text }}>{`${row?.name ?? ""} · ${speaker}`}</Text>;
       sub = <Highlight text={item.snippet} query={query} color={c.muted} />;
@@ -91,8 +127,16 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
       open = () => {
         if (!row || item.seq == null || !item.thread_id) return gone();
         // The hit's own conversation, not the row's main one; the conversation screen scrolls to `around`.
-        if (row.kind === "group") router.push({ pathname: "/group-thread", params: { groupId: row.id, around: String(item.seq) } });
-        else router.push({ pathname: "/thread", params: { id: item.thread_id ?? "", around: String(item.seq) } });
+        if (row.kind === "group")
+          router.push({
+            pathname: "/group-thread",
+            params: { groupId: row.id, around: String(item.seq) },
+          });
+        else
+          router.push({
+            pathname: "/thread",
+            params: { id: item.thread_id ?? "", around: String(item.seq) },
+          });
       };
       break;
     }
@@ -106,7 +150,12 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
     case "files":
       lead = disc("file");
       title = <Highlight text={item.title} query={query} color={c.text} />;
-      sub = item.snippet && item.snippet !== item.title ? <Highlight text={item.snippet} query={query} color={c.muted} /> : <Text style={{ color: c.muted }}>{t("sh_savedFile")}</Text>;
+      sub =
+        item.snippet && item.snippet !== item.title ? (
+          <Highlight text={item.snippet} query={query} color={c.muted} />
+        ) : (
+          <Text style={{ color: c.muted }}>{t("sh_savedFile")}</Text>
+        );
       meta = agentName(item.agent_id);
       open = () => router.push({ pathname: "/artifact", params: { artifactId: item.id } });
       break;
@@ -116,13 +165,20 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
       title = (
         <Text style={{ color: c.text }}>
           <Highlight text={item.title} query={query} color={c.text} />
-          <Text style={{ color: c.muted, fontWeight: "400" }}>{` · ${skill ? t("sh_skill") : t("sh_knowledge")}`}</Text>
+          <Text
+            style={{ color: c.muted, fontWeight: "400" }}
+          >{` · ${skill ? t("sh_skill") : t("sh_knowledge")}`}</Text>
         </Text>
       );
       sub = <Highlight text={item.snippet} query={query} color={c.muted} />;
       const owner = agentName(item.agent_id);
       meta = owner && owner !== item.title ? owner : null;
-      open = () => (skill ? router.push("/skills") : item.agent_id ? router.push({ pathname: "/bot-settings", params: { botId: item.agent_id } }) : gone());
+      open = () =>
+        skill
+          ? router.push("/skills")
+          : item.agent_id
+            ? router.push({ pathname: "/bot-settings", params: { botId: item.agent_id } })
+            : gone();
     }
   }
   return (
@@ -130,17 +186,44 @@ function Hit({ item, query, rows }: { item: SearchResult; query: string; rows: r
       accessibilityRole="button"
       testID={`search-hit-${item.category}`}
       onPress={open}
-      style={({ pressed }) => ({ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 12, minHeight: 64, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: pressed ? c.hover : "transparent" })}
+      style={({ pressed }) => ({
+        flexDirection: rtl ? "row-reverse" : "row",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 64,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: pressed ? c.hover : "transparent",
+      })}
     >
       {lead}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: "600", textAlign: rtl ? "right" : "left" }}>{title}</Text>
-        <Text numberOfLines={2} style={{ fontSize: 12, lineHeight: 19, textAlign: rtl ? "right" : "left" }}>{sub}</Text>
+        <Text
+          numberOfLines={2}
+          style={{ fontSize: 14, fontWeight: "600", textAlign: rtl ? "right" : "left" }}
+        >
+          {title}
+        </Text>
+        <Text
+          numberOfLines={2}
+          style={{ fontSize: 12, lineHeight: 19, textAlign: rtl ? "right" : "left" }}
+        >
+          {sub}
+        </Text>
       </View>
-      {meta ? <Text numberOfLines={1} style={{ maxWidth: "25%", color: c.muted, fontSize: 12 }}>{meta}</Text> : null}
+      {meta ? (
+        <Text numberOfLines={1} style={{ maxWidth: "25%", color: c.muted, fontSize: 12 }}>
+          {meta}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
+
+const fetchPage =
+  (signal?: AbortSignal): SearchFetch =>
+  (text, category, limit, offset) =>
+    request<SearchResponse>(searchPath(text, category, limit, offset), { signal });
 
 export function SearchSkeleton() {
   return (
@@ -156,7 +239,15 @@ export function SearchSkeleton() {
   );
 }
 
-export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: SearchTab; onTab: (tab: SearchTab) => void }) {
+export function UnifiedSearch({
+  query,
+  tab,
+  onTab,
+}: {
+  query: string;
+  tab: SearchTab;
+  onTab: (tab: SearchTab) => void;
+}) {
   const { c } = useTheme();
   const { t, rtl, errorText } = useSession();
   const lists = useLists();
@@ -165,8 +256,8 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [more, setMore] = useState(false);
   const controller = useRef<AbortController | null>(null);
-  const fetchPage = (signal?: AbortSignal) => (text: string, category: Parameters<typeof searchPath>[1], limit: number, offset: number) =>
-    request<SearchResponse>(searchPath(text, category, limit, offset), { signal });
+  const report = useRef(errorText);
+  report.current = errorText;
   useEffect(() => {
     controller.current?.abort();
     const abort = new AbortController();
@@ -178,7 +269,8 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
             if (!abort.signal.aborted) setLoaded({ key, sections });
           })
           .catch((error) => {
-            if (!abort.signal.aborted && !(error instanceof SessionRequestCancelled)) setLoaded({ key, sections: [], error: errorText(error) });
+            if (!abort.signal.aborted && !(error instanceof SessionRequestCancelled))
+              setLoaded({ key, sections: [], error: report.current(error) });
           });
       },
       q ? 160 : 0,
@@ -187,11 +279,29 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
       clearTimeout(timer);
       abort.abort();
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: one request per key
-  }, [key]);
-  const names: Record<SearchTab, string> = { all: t("sh_sAll"), chats: t("sh_sChats"), messages: t("sh_sMessages"), tasks: t("sh_sTasks"), files: t("sh_sFiles"), other: t("sh_sOther") };
+  }, [key, q, tab]);
+  const names: Record<SearchTab, string> = {
+    all: t("sh_sAll"),
+    chats: t("sh_sChats"),
+    messages: t("sh_sMessages"),
+    tasks: t("sh_sTasks"),
+    files: t("sh_sFiles"),
+    other: t("sh_sOther"),
+  };
   const tabs = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel={t("sh_filterSearch")} style={{ flexGrow: 0 }} contentContainerStyle={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8, paddingHorizontal: 14, paddingVertical: 10 }}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      accessibilityRole="tablist"
+      accessibilityLabel={t("sh_filterSearch")}
+      style={{ flexGrow: 0 }}
+      contentContainerStyle={{
+        flexDirection: rtl ? "row-reverse" : "row",
+        gap: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+      }}
+    >
       {SEARCH_TABS.map((name) => (
         <Pressable
           key={name}
@@ -199,9 +309,25 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
           accessibilityState={{ selected: tab === name }}
           accessibilityLabel={names[name]}
           onPress={() => onTab(name)}
-          style={{ minHeight: 34, paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.pill, borderWidth: 1, borderColor: tab === name ? "transparent" : c.line, backgroundColor: tab === name ? c.primary : c.surface }}
+          style={{
+            minHeight: 34,
+            paddingHorizontal: 14,
+            justifyContent: "center",
+            borderRadius: radius.pill,
+            borderWidth: 1,
+            borderColor: tab === name ? "transparent" : c.line,
+            backgroundColor: tab === name ? c.primary : c.surface,
+          }}
         >
-          <Text style={{ color: tab === name ? c["on-primary"] : c.text, fontSize: 14, fontWeight: tab === name ? "600" : "400" }}>{names[name]}</Text>
+          <Text
+            style={{
+              color: tab === name ? c["on-primary"] : c.text,
+              fontSize: 14,
+              fontWeight: tab === name ? "600" : "400",
+            }}
+          >
+            {names[name]}
+          </Text>
         </Pressable>
       ))}
     </ScrollView>
@@ -219,13 +345,32 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
     );
   const hasHistory = lists.rows.some((row) => row.entry?.last_message);
   const titles: Record<SearchSection["tab"], string> = q
-    ? { chats: t("sh_mAgentsGroups"), messages: t("sh_mMatching"), tasks: t("sh_sTasks"), files: t("sh_sFiles"), other: t("sh_sOther") }
-    : { chats: hasHistory ? t("sh_mRecentChats") : t("sh_mAgentsGroups"), messages: t("sh_mRecentMessages"), tasks: t("sh_sTasks"), files: t("sh_sFiles"), other: t("sh_sOther") };
+    ? {
+        chats: t("sh_mAgentsGroups"),
+        messages: t("sh_mMatching"),
+        tasks: t("sh_sTasks"),
+        files: t("sh_sFiles"),
+        other: t("sh_sOther"),
+      }
+    : {
+        chats: hasHistory ? t("sh_mRecentChats") : t("sh_mAgentsGroups"),
+        messages: t("sh_mRecentMessages"),
+        tasks: t("sh_sTasks"),
+        files: t("sh_sFiles"),
+        other: t("sh_sOther"),
+      };
   const loadMore = async (section: SearchSection) => {
     setMore(true);
     try {
       const next = await moreSearchItems(q, section, fetchPage());
-      setLoaded((current) => (current && current.key === key ? { ...current, sections: current.sections.map((row) => (row.tab === section.tab ? next : row)) } : current));
+      setLoaded((current) =>
+        current && current.key === key
+          ? {
+              ...current,
+              sections: current.sections.map((row) => (row.tab === section.tab ? next : row)),
+            }
+          : current,
+      );
     } catch {
       /* the button stays for another try */
     } finally {
@@ -235,38 +380,82 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
   const body = loaded.sections
     .filter((section) => section.items.length)
     .map((section) => {
-      const limit = tab === "all" ? (q ? 3 : section.tab === "chats" ? 4 : 2) : section.items.length;
+      const limit =
+        tab === "all" ? (q ? 3 : section.tab === "chats" ? 4 : 2) : section.items.length;
       const shown = section.items.slice(0, limit);
       const rest = tab === "all" ? section.count > limit : section.count > section.items.length;
       return (
-        <View key={section.tab} testID={`search-section-${section.tab}`} style={{ marginBottom: 12 }}>
-          <View style={{ flexDirection: rtl ? "row-reverse" : "row", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
-            <Text accessibilityRole="header" style={{ color: c.muted, fontSize: 12, fontWeight: "600" }}>{titles[section.tab]}</Text>
-            {q || tab !== "all" ? <Text style={{ color: c.muted, fontSize: 12 }}>{section.count}</Text> : null}
+        <View
+          key={section.tab}
+          testID={`search-section-${section.tab}`}
+          style={{ marginBottom: 12 }}
+        >
+          <View
+            style={{
+              flexDirection: rtl ? "row-reverse" : "row",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingTop: 14,
+              paddingBottom: 6,
+            }}
+          >
+            <Text
+              accessibilityRole="header"
+              style={{ color: c.muted, fontSize: 12, fontWeight: "600" }}
+            >
+              {titles[section.tab]}
+            </Text>
+            {q || tab !== "all" ? (
+              <Text style={{ color: c.muted, fontSize: 12 }}>{section.count}</Text>
+            ) : null}
           </View>
           {shown.map((item) => (
             <Hit key={`${item.category}:${item.id}`} item={item} query={q} rows={lists.rows} />
           ))}
           {rest ? (
-            <Pressable accessibilityRole="button" disabled={more} onPress={() => (tab === "all" ? onTab(section.tab) : void loadMore(section))} style={{ minHeight: 40, alignItems: "center", justifyContent: "center" }}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={more}
+              onPress={() => (tab === "all" ? onTab(section.tab) : void loadMore(section))}
+              style={{ minHeight: 40, alignItems: "center", justifyContent: "center" }}
+            >
               <Text style={{ color: c.text, fontSize: 14, fontWeight: "600" }}>
-                {tab === "all" ? (q ? fill(t("sh_showAllN"), section.count) : t("sh_showAll")) : t("sh_showMore")}
+                {tab === "all"
+                  ? q
+                    ? fill(t("sh_showAllN"), section.count)
+                    : t("sh_showAll")
+                  : t("sh_showMore")}
               </Text>
             </Pressable>
           ) : null}
         </View>
       );
     });
-  const browseEmpty: Record<SearchTab, string> = { all: t("sh_browseEmpty"), chats: t("sh_noChatsAvail"), messages: t("sh_noMessagesSaved"), tasks: t("sh_noTasksSaved"), files: t("sh_noFilesAvail"), other: t("sh_noKnowledgeSaved") };
+  const browseEmpty: Record<SearchTab, string> = {
+    all: t("sh_browseEmpty"),
+    chats: t("sh_noChatsAvail"),
+    messages: t("sh_noMessagesSaved"),
+    tasks: t("sh_noTasksSaved"),
+    files: t("sh_noFilesAvail"),
+    other: t("sh_noKnowledgeSaved"),
+  };
   const emptyBlock = (heading: string, text: string) => (
     <View style={{ padding: 48, alignItems: "center", gap: 8 }}>
       <Icon name="search" size={32} color={c.muted} />
-      <Text accessibilityRole="header" style={{ color: c.text, fontSize: 16, fontWeight: "600" }}>{heading}</Text>
-      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 22, textAlign: "center" }}>{text}</Text>
+      <Text accessibilityRole="header" style={{ color: c.text, fontSize: 16, fontWeight: "600" }}>
+        {heading}
+      </Text>
+      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 22, textAlign: "center" }}>
+        {text}
+      </Text>
     </View>
   );
   return (
-    <ScrollView testID="unified-search" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
+    <ScrollView
+      testID="unified-search"
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 120 }}
+    >
       {tabs}
       <View accessibilityLabel={q ? t("sh_searchResults") : t("sh_browseContent")}>
         {body.length
@@ -278,7 +467,14 @@ export function UnifiedSearch({ query, tab, onTab }: { query: string; tab: Searc
               : emptyBlock(t("sh_emptySection"), browseEmpty[tab])}
       </View>
       {!q && tab === "all" ? (
-        <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8, padding: 16 }}>
+        <View
+          style={{
+            flexDirection: rtl ? "row-reverse" : "row",
+            alignItems: "center",
+            gap: 8,
+            padding: 16,
+          }}
+        >
           <Icon name="search" size={18} color={c.faint} />
           <Text style={{ flex: 1, color: c.faint, fontSize: 12 }}>{t("sh_typeToSearch")}</Text>
         </View>

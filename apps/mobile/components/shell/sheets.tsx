@@ -1,7 +1,26 @@
 // The sheet system: one bottom sheet at a time (grabber, bar header with in-sheet pages, a
 // full-height variant, keyboard avoidance). Bodies are components, so they read the live data.
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Animated,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../../lib/session";
 import { radius, useTheme } from "../../lib/theme";
@@ -20,7 +39,11 @@ export type SheetSpec = {
   fixed?: boolean;
 };
 type Sheets = { open: (spec: SheetSpec) => void; close: () => void; current: string | null };
-const Context = createContext<Sheets>({ open: () => undefined, close: () => undefined, current: null });
+const Context = createContext<Sheets>({
+  open: () => undefined,
+  close: () => undefined,
+  current: null,
+});
 
 export function SheetProvider({ children }: { children: ReactNode }) {
   const { c } = useTheme();
@@ -36,7 +59,11 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   }, []);
   const close = useCallback(() => setSpec(null), []);
   useEffect(() => {
-    Animated.timing(slide, { toValue: spec ? 1 : 0, duration: spec ? 280 : 200, useNativeDriver: true }).start(({ finished }) => {
+    Animated.timing(slide, {
+      toValue: spec ? 1 : 0,
+      duration: spec ? 280 : 200,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
       if (finished && !spec) setMounted(false);
     });
   }, [spec, slide]);
@@ -49,7 +76,10 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     });
     return () => sub.remove();
   }, [spec]);
-  const value = useMemo(() => ({ open, close, current: spec?.id ?? null }), [open, close, spec?.id]);
+  const value = useMemo(
+    () => ({ open, close, current: spec?.id ?? null }),
+    [open, close, spec?.id],
+  );
   const last = useRef<SheetSpec | null>(null);
   if (spec) last.current = spec;
   const shown = spec ?? last.current;
@@ -58,11 +88,33 @@ export function SheetProvider({ children }: { children: ReactNode }) {
     <Context.Provider value={value}>
       {children}
       {mounted && shown ? (
-        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }} pointerEvents="box-none">
-          <Animated.View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: slide, backgroundColor: "rgba(0,0,0,0.5)" }}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("sh_cancel")} style={{ flex: 1 }} onPress={close} />
+        <View
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+          pointerEvents="box-none"
+        >
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: slide,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("sh_cancel")}
+              style={{ flex: 1 }}
+              onPress={close}
+            />
           </Animated.View>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }} pointerEvents="box-none">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1, justifyContent: "flex-end" }}
+            pointerEvents="box-none"
+          >
             <Animated.View
               role="dialog"
               aria-modal
@@ -77,38 +129,94 @@ export function SheetProvider({ children }: { children: ReactNode }) {
                 borderBottomWidth: 0,
                 borderColor: c["glass-line"],
                 paddingBottom: insets.bottom + 12,
-                transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }],
+                transform: [
+                  {
+                    translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }),
+                  },
+                ],
               }}
             >
               {shown.bar ? (
-                <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6, minHeight: 52 }}>
+                <View
+                  style={{
+                    flexDirection: rtl ? "row-reverse" : "row",
+                    alignItems: "center",
+                    paddingHorizontal: 10,
+                    paddingTop: 10,
+                    paddingBottom: 6,
+                    minHeight: 52,
+                  }}
+                >
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={shown.back ? t("sh_back") : t("sh_cancel")}
                     onPress={() => (shown.back ? shown.back() : close())}
-                    style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: c.fill }}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: c.fill,
+                    }}
                   >
-                    <View style={{ transform: [{ scaleX: shown.back && !rtl ? 1 : shown.back ? -1 : 1 }] }}>
+                    <View
+                      style={{
+                        transform: [{ scaleX: shown.back && !rtl ? 1 : shown.back ? -1 : 1 }],
+                      }}
+                    >
                       <Icon name={shown.back ? "back" : "close"} size={20} color={c.text} />
                     </View>
                   </Pressable>
-                  <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: "center", color: c.text, fontSize: 16, fontWeight: "600" }}>
+                  <Text
+                    accessibilityRole="header"
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      color: c.text,
+                      fontSize: 16,
+                      fontWeight: "600",
+                    }}
+                  >
                     {shown.title}
                   </Text>
                   <View style={{ width: 40 }} />
                 </View>
               ) : (
                 <View style={{ paddingTop: 8, paddingBottom: 6, alignItems: "center" }}>
-                  <View style={{ width: 36, height: 5, borderRadius: 3, backgroundColor: c["line-strong"] }} />
-                  <Text accessibilityRole="header" style={{ color: c.text, fontSize: 17, fontWeight: "700", marginTop: 12, textAlign: "center" }}>
+                  <View
+                    style={{
+                      width: 36,
+                      height: 5,
+                      borderRadius: 3,
+                      backgroundColor: c["line-strong"],
+                    }}
+                  />
+                  <Text
+                    accessibilityRole="header"
+                    style={{
+                      color: c.text,
+                      fontSize: 17,
+                      fontWeight: "700",
+                      marginTop: 12,
+                      textAlign: "center",
+                    }}
+                  >
                     {shown.title}
                   </Text>
                 </View>
               )}
               {shown.fixed ? (
-                <View style={{ flex: shown.full ? 1 : undefined, paddingHorizontal: 16 }}>{shown.body}</View>
+                <View style={{ flex: shown.full ? 1 : undefined, paddingHorizontal: 16 }}>
+                  {shown.body}
+                </View>
               ) : (
-                <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 12 }}>
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  style={{ flexGrow: 0 }}
+                  contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8, gap: 12 }}
+                >
                   {shown.body}
                 </ScrollView>
               )}

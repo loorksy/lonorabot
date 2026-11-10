@@ -2,8 +2,8 @@
 // down, the «المؤرشفة» row, and every agent and group as one row. The archived page shares its rows.
 import type { Thread } from "@lonora/contracts";
 import {
-  archivedRows,
   archivedRowSummary,
+  archivedRows,
   BUILTIN_FILTERS,
   type ChatRow,
   filterRows,
@@ -11,10 +11,27 @@ import {
   listIdOf,
 } from "@lonora/core";
 import { useRouter } from "expo-router";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { fill } from "../../lib/i18n";
+import {
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  FlatList,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { api } from "../../lib/api";
+import { fill } from "../../lib/i18n";
 import { listsApi } from "../../lib/lists-api";
 import { useLists } from "../../lib/lists-state";
 import { useSession } from "../../lib/session";
@@ -23,8 +40,8 @@ import { useTheme } from "../../lib/theme";
 import { Icon } from "./icon";
 import { Empty, GroupBox, Row, SkRows, Switch } from "./kit";
 import { useListSheets } from "./list-sheets";
-import { useToast } from "./toast";
 import { ThreadRow } from "./thread-row";
+import { useToast } from "./toast";
 
 const FILTER_H = 41;
 
@@ -41,7 +58,8 @@ export function useOpenChat() {
           return;
         }
         const threadId =
-          row.threadId ?? (await api.post<Thread>(`/agents/${encodeURIComponent(row.id)}/conversation`, {})).id;
+          row.threadId ??
+          (await api.post<Thread>(`/agents/${encodeURIComponent(row.id)}/conversation`, {})).id;
         router.push({ pathname: "/thread", params: { id: threadId, ...extra } });
       } catch (reason) {
         toast(errorText(reason), { type: "error" });
@@ -78,17 +96,53 @@ function Filters() {
         delayLongPress={480}
         style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: "center" }}
       >
-        <Text style={{ color: active ? c.text : c.muted, fontSize: 14, fontWeight: active ? "700" : "600" }}>{label}</Text>
-        {active ? <View style={{ position: "absolute", left: 8, right: 8, bottom: -1, height: 2.5, borderTopLeftRadius: 2, borderTopRightRadius: 2, backgroundColor: c.accent }} /> : null}
+        <Text
+          style={{
+            color: active ? c.text : c.muted,
+            fontSize: 14,
+            fontWeight: active ? "700" : "600",
+          }}
+        >
+          {label}
+        </Text>
+        {active ? (
+          <View
+            style={{
+              position: "absolute",
+              left: 8,
+              right: 8,
+              bottom: -1,
+              height: 2.5,
+              borderTopLeftRadius: 2,
+              borderTopRightRadius: 2,
+              backgroundColor: c.accent,
+            }}
+          />
+        ) : null}
       </Pressable>
     );
   };
   return (
-    <View accessibilityRole="toolbar" accessibilityLabel={t("sh_filterChats")} style={{ height: FILTER_H, borderBottomWidth: 1, borderBottomColor: c.line }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: rtl ? "row-reverse" : "row", paddingHorizontal: 4 }}>
+    <View
+      accessibilityRole="toolbar"
+      accessibilityLabel={t("sh_filterChats")}
+      style={{ height: FILTER_H, borderBottomWidth: 1, borderBottomColor: c.line }}
+    >
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexDirection: rtl ? "row-reverse" : "row", paddingHorizontal: 4 }}
+      >
         {BUILTIN_FILTERS.map((filter) => chip(filter, names[filter], filter))}
-        {data.chatLists.map((list) => chip(`list:${list.id}`, list.name, `list:${list.id}`, () => sheets.listMenu(list)))}
-        <Pressable accessibilityRole="button" accessibilityLabel={t("sh_newList")} onPress={() => sheets.newList()} style={{ width: 40, minHeight: 40, alignItems: "center", justifyContent: "center" }}>
+        {data.chatLists.map((list) =>
+          chip(`list:${list.id}`, list.name, `list:${list.id}`, () => sheets.listMenu(list)),
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("sh_newList")}
+          onPress={() => sheets.newList()}
+          style={{ width: 40, minHeight: 40, alignItems: "center", justifyContent: "center" }}
+        >
           <Icon name="plus" size={18} color={c.muted} />
         </Pressable>
       </ScrollView>
@@ -103,12 +157,44 @@ function ArchiveRow({ onOpen }: { onOpen: () => void }) {
   const { count, unread } = archivedRowSummary(lists.rows);
   if (!count) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={t("sh_archived")} testID="archive-row" onPress={onOpen} style={({ pressed }) => ({ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 12, minHeight: 54, paddingHorizontal: 16, backgroundColor: pressed ? c.hover : "transparent" })}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("sh_archived")}
+      testID="archive-row"
+      onPress={onOpen}
+      style={({ pressed }) => ({
+        flexDirection: rtl ? "row-reverse" : "row",
+        alignItems: "center",
+        gap: 12,
+        minHeight: 54,
+        paddingHorizontal: 16,
+        backgroundColor: pressed ? c.hover : "transparent",
+      })}
+    >
       <View style={{ width: 50, alignItems: "center" }}>
         <Icon name="archive" size={22} color={c.muted} />
       </View>
-      <Text style={{ flex: 1, color: c.text, fontSize: 16, fontWeight: "600", textAlign: rtl ? "right" : "left" }}>{t("sh_archived")}</Text>
-      <Text style={{ color: unread ? c["accent-ink"] : c.muted, fontSize: 12, fontWeight: "600", paddingHorizontal: 8 }}>{unread || count}</Text>
+      <Text
+        style={{
+          flex: 1,
+          color: c.text,
+          fontSize: 16,
+          fontWeight: "600",
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
+        {t("sh_archived")}
+      </Text>
+      <Text
+        style={{
+          color: unread ? c["accent-ink"] : c.muted,
+          fontSize: 12,
+          fontWeight: "600",
+          paddingHorizontal: 8,
+        }}
+      >
+        {unread || count}
+      </Text>
     </Pressable>
   );
 }
@@ -154,7 +240,8 @@ function RowsList({
   const snap = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!restHidden) return;
     const y = event.nativeEvent.contentOffset.y;
-    if (y > 0 && y < FILTER_H) ref.current?.scrollToOffset({ offset: y > FILTER_H / 2 ? FILTER_H : 0, animated: true });
+    if (y > 0 && y < FILTER_H)
+      ref.current?.scrollToOffset({ offset: y > FILTER_H / 2 ? FILTER_H : 0, animated: true });
   };
   return (
     <FlatList
@@ -163,7 +250,11 @@ function RowsList({
       extraData={lists.selected}
       keyExtractor={(row) => row.key}
       onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
-      contentContainerStyle={{ flexGrow: 1, paddingBottom: 120, minHeight: restHidden ? viewport + FILTER_H : undefined }}
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingBottom: 120,
+        minHeight: restHidden ? viewport + FILTER_H : undefined,
+      }}
       onScrollEndDrag={snap}
       onMomentumScrollEnd={snap}
       keyboardShouldPersistTaps="handled"
@@ -177,9 +268,9 @@ function RowsList({
           }}
         />
       }
-      ListHeaderComponent={<>{header}</>}
-      ListFooterComponent={<>{footer}</>}
-      ListEmptyComponent={<>{empty}</>}
+      ListHeaderComponent={header as ReactElement | undefined}
+      ListFooterComponent={footer as ReactElement | undefined}
+      ListEmptyComponent={empty as ReactElement}
       renderItem={({ item }) => (
         <ThreadRow
           row={item}
@@ -196,36 +287,74 @@ function RowsList({
   );
 }
 
-export function ChatList({ onArchived, scrollRef }: { onArchived: () => void; scrollRef?: React.RefObject<FlatList<ChatRow> | null> }) {
+export function ChatList({
+  onArchived,
+  scrollRef,
+}: {
+  onArchived: () => void;
+  scrollRef?: React.RefObject<FlatList<ChatRow> | null>;
+}) {
   const { c } = useTheme();
   const { t, rtl } = useSession();
   const data = useShellData();
   const lists = useLists();
   const sheets = useListSheets();
-  const visible = useMemo(() => filterRows(lists.rows, lists.filter, data.chatLists), [lists.rows, lists.filter, data.chatLists]);
+  const visible = useMemo(
+    () => filterRows(lists.rows, lists.filter, data.chatLists),
+    [lists.rows, lists.filter, data.chatLists],
+  );
   const listId = listIdOf(lists.filter);
   const activeList = listId ? data.chatLists.find((list) => list.id === listId) : undefined;
   const loading = !data.loaded;
   const empty = loading ? (
     <SkRows count={7} />
   ) : data.error && !data.inbox.length ? (
-    <View accessibilityRole="alert" style={{ padding: 20, gap: 10, alignItems: rtl ? "flex-end" : "flex-start" }}>
+    <View
+      accessibilityRole="alert"
+      style={{ padding: 20, gap: 10, alignItems: rtl ? "flex-end" : "flex-start" }}
+    >
       <Text style={{ color: c.muted, fontSize: 14 }}>{data.error}</Text>
     </View>
   ) : activeList ? (
     <View style={{ alignItems: "center", paddingVertical: 48, gap: 12 }}>
       <Icon name="layers" size={32} color={c.muted} />
-      <Text style={{ color: c.muted, fontSize: 16 }}>{fill(t("sh_noChatsInList"), activeList.name)}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={t("sh_addChats")} onPress={() => sheets.editList(activeList, "pick")} style={{ flexDirection: "row", gap: 6, alignItems: "center", minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: c["line-strong"] }}>
+      <Text style={{ color: c.muted, fontSize: 16 }}>
+        {fill(t("sh_noChatsInList"), activeList.name)}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("sh_addChats")}
+        onPress={() => sheets.editList(activeList, "pick")}
+        style={{
+          flexDirection: "row",
+          gap: 6,
+          alignItems: "center",
+          minHeight: 36,
+          paddingHorizontal: 14,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: c["line-strong"],
+        }}
+      >
         <Icon name="plus" size={16} color={c.text} />
         <Text style={{ color: c.text, fontSize: 14, fontWeight: "600" }}>{t("sh_addChats")}</Text>
       </Pressable>
     </View>
   ) : (
-    <Empty>{lists.filter === "unread" ? t("sh_noUnread") : lists.filter === "fav" ? t("sh_noFav") : t("sh_noChats")}</Empty>
+    <Empty>
+      {lists.filter === "unread"
+        ? t("sh_noUnread")
+        : lists.filter === "fav"
+          ? t("sh_noFav")
+          : t("sh_noChats")}
+    </Empty>
   );
   return (
-    <View testID="conversation-inbox" accessibilityLabel={t("sh_conversations")} style={{ flex: 1 }}>
+    <View
+      testID="conversation-inbox"
+      accessibilityLabel={t("sh_conversations")}
+      style={{ flex: 1 }}
+    >
       <RowsList
         rows={visible}
         scrollRef={scrollRef}
@@ -234,7 +363,15 @@ export function ChatList({ onArchived, scrollRef }: { onArchived: () => void; sc
           <>
             <Filters />
             {data.error && data.inbox.length ? (
-              <Text accessibilityRole="alert" style={{ color: c.red, fontSize: 12, padding: 12, textAlign: rtl ? "right" : "left" }}>
+              <Text
+                accessibilityRole="alert"
+                style={{
+                  color: c.red,
+                  fontSize: 12,
+                  padding: 12,
+                  textAlign: rtl ? "right" : "left",
+                }}
+              >
                 {data.error}
               </Text>
             ) : null}
@@ -286,15 +423,17 @@ export function ArchivedContent() {
   return (
     <RowsList
       rows={rows}
-      empty={
-        <Empty icon="archive">{t("sh_noArchived")}</Empty>
-      }
+      empty={<Empty icon="archive">{t("sh_noArchived")}</Empty>}
       footer={
         <View>
           {rows.length ? (
             <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8, margin: 18 }}>
               <Icon name="info" size={18} color={c.faint} />
-              <Text style={{ flex: 1, color: c.faint, fontSize: 14, textAlign: rtl ? "right" : "left" }}>{t("sh_archivedNote")}</Text>
+              <Text
+                style={{ flex: 1, color: c.faint, fontSize: 14, textAlign: rtl ? "right" : "left" }}
+              >
+                {t("sh_archivedNote")}
+              </Text>
             </View>
           ) : null}
           {settings}

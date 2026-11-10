@@ -18,7 +18,18 @@ export default function Tasks() {
   const runs = data.runs.filter((run) => data.agents.some((agent) => agent.id === run.agent_id));
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <Text accessibilityRole="header" style={{ color: c.text, fontSize: 28, fontWeight: "700", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6, textAlign: rtl ? "right" : "left" }}>
+      <Text
+        accessibilityRole="header"
+        style={{
+          color: c.text,
+          fontSize: 28,
+          fontWeight: "700",
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: 6,
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
         {t("sh_tasks")}
       </Text>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 130 }}>
@@ -31,10 +42,18 @@ export default function Tasks() {
                 <Row
                   key={run.id}
                   last={index === runs.length - 1}
-                  lead={<AgentFace agent={agent} working={activeStatuses.includes(run.status)} size={44} />}
+                  lead={
+                    <AgentFace
+                      agent={agent}
+                      working={activeStatuses.includes(run.status)}
+                      size={44}
+                    />
+                  }
                   title={agent.name}
                   sub={runStatusText(run.status, locale)}
-                  onPress={() => router.push({ pathname: "/thread", params: { id: run.thread_id } })}
+                  onPress={() =>
+                    router.push({ pathname: "/thread", params: { id: run.thread_id } })
+                  }
                 />
               );
             })}

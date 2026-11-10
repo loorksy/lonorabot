@@ -3,7 +3,15 @@
 // and comes back merged (the same contract as Web's lists/state).
 import type { ThreadPrefs, ThreadPrefsUpdate } from "@lonora/contracts";
 import { type ChatRow, chatRows, type ListFilter } from "@lonora/core";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { BackHandler } from "react-native";
 import { useToast } from "../components/shell/toast";
 import { ApiError } from "./api";
@@ -54,7 +62,8 @@ export function ListsProvider({ children }: { children: ReactNode }) {
       void hydrateOutgoing(outgoingKey(server, ownerId, entry.thread_id));
   }, [data.inbox, server, ownerId]);
   const latest = useCallback(
-    (thread: string) => outgoingMessages(outgoingKey(server, ownerId, thread)).at(-1)?.message.created_at,
+    (thread: string) =>
+      outgoingMessages(outgoingKey(server, ownerId, thread)).at(-1)?.message.created_at,
     [server, ownerId],
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: `version` re-reads the outbox
@@ -88,7 +97,11 @@ export function ListsProvider({ children }: { children: ReactNode }) {
   }, [selected]);
   // A list deleted elsewhere is no longer a filter.
   useEffect(() => {
-    if (filter.startsWith("list:") && data.loaded && !data.chatLists.some((list) => `list:${list.id}` === filter))
+    if (
+      filter.startsWith("list:") &&
+      data.loaded &&
+      !data.chatLists.some((list) => `list:${list.id}` === filter)
+    )
       setFilter("all");
   }, [filter, data.chatLists, data.loaded]);
   const start = useCallback((key: string) => setSelected(new Set([key])), []);
@@ -104,7 +117,10 @@ export function ListsProvider({ children }: { children: ReactNode }) {
   const selectAll = useCallback((keys: readonly string[]) => {
     setSelected((current) => (current ? new Set([...current, ...keys]) : current));
   }, []);
-  const picked = useMemo(() => (selected ? rows.filter((row) => selected.has(row.key)) : []), [rows, selected]);
+  const picked = useMemo(
+    () => (selected ? rows.filter((row) => selected.has(row.key)) : []),
+    [rows, selected],
+  );
   const { patchInbox, refresh } = data;
   const merge = useCallback(
     (prefs: ThreadPrefs[], created: boolean) => {
@@ -122,7 +138,10 @@ export function ListsProvider({ children }: { children: ReactNode }) {
       if (!targets.length) return;
       const ids = await threadsOf(targets);
       if (!ids.length) return;
-      merge(await listsApi.prefs(ids, change), targets.some((row) => !row.threadId || !row.entry));
+      merge(
+        await listsApi.prefs(ids, change),
+        targets.some((row) => !row.threadId || !row.entry),
+      );
     },
     [threadsOf, merge],
   );
@@ -147,7 +166,10 @@ export function ListsProvider({ children }: { children: ReactNode }) {
       const results = await Promise.all(
         targets.filter((row) => row.threadId).map((row) => listsApi.clear(row.threadId ?? "")),
       );
-      merge(results, targets.some((row) => !row.entry));
+      merge(
+        results,
+        targets.some((row) => !row.entry),
+      );
     },
     [merge],
   );
@@ -159,8 +181,41 @@ export function ListsProvider({ children }: { children: ReactNode }) {
     [toast, t, errorText],
   );
   const value = useMemo<Lists>(
-    () => ({ rows, filter, setFilter, selected, picked, start, toggle, selectAll, end, prefs, read, clear, threadsOf, failed, outgoing, queued }),
-    [rows, filter, selected, picked, start, toggle, selectAll, end, prefs, read, clear, threadsOf, failed, outgoing, queued],
+    () => ({
+      rows,
+      filter,
+      setFilter,
+      selected,
+      picked,
+      start,
+      toggle,
+      selectAll,
+      end,
+      prefs,
+      read,
+      clear,
+      threadsOf,
+      failed,
+      outgoing,
+      queued,
+    }),
+    [
+      rows,
+      filter,
+      selected,
+      picked,
+      start,
+      toggle,
+      selectAll,
+      end,
+      prefs,
+      read,
+      clear,
+      threadsOf,
+      failed,
+      outgoing,
+      queued,
+    ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

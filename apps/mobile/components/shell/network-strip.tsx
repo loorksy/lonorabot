@@ -31,17 +31,39 @@ export function NetworkStrip() {
   const waiting =
     queued > 0
       ? locale === "ar"
-        ? queued === 1 ? "رسالة واحدة تنتظر" : queued === 2 ? "رسالتان تنتظران" : queued <= 10 ? `${queued} رسائل تنتظر` : `${queued} رسالة تنتظر`
-        : queued === 1 ? "one message waiting" : `${queued} messages waiting`
+        ? queued === 1
+          ? "رسالة واحدة تنتظر"
+          : queued === 2
+            ? "رسالتان تنتظران"
+            : queued <= 10
+              ? `${queued} رسائل تنتظر`
+              : `${queued} رسالة تنتظر`
+        : queued === 1
+          ? "one message waiting"
+          : `${queued} messages waiting`
       : "";
   return (
     <View
       role="status"
       accessibilityLiveRegion="polite"
       testID="network-strip"
-      style={{ minHeight: 30, paddingHorizontal: 14, paddingVertical: 6, alignItems: "center", justifyContent: "center", backgroundColor: data.offline ? c["danger-fill"] : c.accent }}
+      style={{
+        minHeight: 30,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: data.offline ? c["danger-fill"] : c.accent,
+      }}
     >
-      <Text style={{ color: data.offline ? "#fff" : c["on-accent"], fontSize: 12, fontWeight: "600", textAlign: rtl ? "right" : "left" }}>
+      <Text
+        style={{
+          color: data.offline ? "#fff" : c["on-accent"],
+          fontSize: 12,
+          fontWeight: "600",
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
         {data.offline ? `${t("sh_netOff")}${waiting ? ` · ${waiting}` : ""}` : t("sh_netBack")}
       </Text>
     </View>

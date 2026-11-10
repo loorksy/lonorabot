@@ -1,6 +1,6 @@
 // Small pieces of the reference's look: grouped rows, buttons, empty states, the switch, skeletons.
 import type { Agent, Group as GroupResource } from "@lonora/contracts";
-import { type ChatRow } from "@lonora/core";
+import type { ChatRow } from "@lonora/core";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View, type ViewStyle } from "react-native";
 import { useSession } from "../../lib/session";
@@ -21,13 +21,23 @@ export function groupMembers(group: GroupResource | undefined, agents: readonly 
   const ids = (group?.payload.member_ids ?? []) as string[];
   const lead = (group?.payload as { lead_agent_id?: unknown } | undefined)?.lead_agent_id;
   const ordered =
-    typeof lead === "string" && ids.includes(lead) ? [lead, ...ids.filter((id) => id !== lead)] : ids;
+    typeof lead === "string" && ids.includes(lead)
+      ? [lead, ...ids.filter((id) => id !== lead)]
+      : ids;
   return ordered
     .map((id) => agents.find((agent) => agent.id === id))
     .filter((agent): agent is Agent => Boolean(agent));
 }
 
-export function AgentFace({ agent, working = false, size = 50 }: { agent: Agent; working?: boolean; size?: number }) {
+export function AgentFace({
+  agent,
+  working = false,
+  size = 50,
+}: {
+  agent: Agent;
+  working?: boolean;
+  size?: number;
+}) {
   return (
     <BotAvatar
       tradesOnItsOwn={agent.trades_on_its_own}
@@ -40,15 +50,39 @@ export function AgentFace({ agent, working = false, size = 50 }: { agent: Agent;
   );
 }
 
-export function RowAvatar({ row, agents, working = false, size = 50 }: { row: ChatRow; agents: readonly Agent[]; working?: boolean; size?: number }) {
+export function RowAvatar({
+  row,
+  agents,
+  working = false,
+  size = 50,
+}: {
+  row: ChatRow;
+  agents: readonly Agent[];
+  working?: boolean;
+  size?: number;
+}) {
   if (row.agent) return <AgentFace agent={row.agent} working={working} size={size} />;
-  return <GroupAvatar members={groupMembers(row.group as GroupResource | undefined, agents)} size={size} />;
+  return (
+    <GroupAvatar
+      members={groupMembers(row.group as GroupResource | undefined, agents)}
+      size={size}
+    />
+  );
 }
 
 export function IconDisc({ name, size = 44 }: { name: IconName; size?: number }) {
   const { c } = useTheme();
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: c.fill, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: c.fill,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Icon name={name} size={size * 0.46} color={c.text} />
     </View>
   );
@@ -56,14 +90,39 @@ export function IconDisc({ name, size = 44 }: { name: IconName; size?: number })
 
 export function GroupBox({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   const { c } = useTheme();
-  return <View style={[{ backgroundColor: c.surface, borderRadius: radius.md, overflow: "hidden", marginVertical: 8 }, style]}>{children}</View>;
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: c.surface,
+          borderRadius: radius.md,
+          overflow: "hidden",
+          marginVertical: 8,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   const { c } = useTheme();
   const { rtl } = useSession();
   return (
-    <Text accessibilityRole="header" style={{ color: c.muted, fontSize: 12, fontWeight: "600", marginTop: 14, marginBottom: 2, paddingHorizontal: 4, textAlign: rtl ? "right" : "left" }}>
+    <Text
+      accessibilityRole="header"
+      style={{
+        color: c.muted,
+        fontSize: 12,
+        fontWeight: "600",
+        marginTop: 14,
+        marginBottom: 2,
+        paddingHorizontal: 4,
+        textAlign: rtl ? "right" : "left",
+      }}
+    >
       {children}
     </Text>
   );
@@ -117,11 +176,27 @@ export function Row({
     >
       {lead}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={{ color: c.text, fontSize: 16, fontWeight: "600", textAlign: rtl ? "right" : "left" }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: c.text,
+            fontSize: 16,
+            fontWeight: "600",
+            textAlign: rtl ? "right" : "left",
+          }}
+        >
           {title}
         </Text>
         {sub ? (
-          <Text numberOfLines={2} style={{ color: c.muted, fontSize: 14, lineHeight: 21, textAlign: rtl ? "right" : "left" }}>
+          <Text
+            numberOfLines={2}
+            style={{
+              color: c.muted,
+              fontSize: 14,
+              lineHeight: 21,
+              textAlign: rtl ? "right" : "left",
+            }}
+          >
             {sub}
           </Text>
         ) : null}
@@ -165,14 +240,24 @@ export function Btn({
         justifyContent: "center",
         alignSelf: full ? "stretch" : "flex-start",
         flexGrow: full ? 1 : 0,
-        backgroundColor: variant === "primary" ? c.primary : variant === "fill" ? c.fill : "transparent",
+        backgroundColor:
+          variant === "primary" ? c.primary : variant === "fill" ? c.fill : "transparent",
         borderWidth: variant === "outline" || variant === "danger" ? 1 : 0,
         borderColor: variant === "danger" ? c.red : c["line-strong"],
         opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
       })}
     >
       {icon ? <Icon name={icon} size={18} color={fg} /> : null}
-      <Text style={{ color: fg, fontSize: 14, fontWeight: "600", textDecorationLine: variant === "ghost" ? "underline" : "none" }}>{label}</Text>
+      <Text
+        style={{
+          color: fg,
+          fontSize: 14,
+          fontWeight: "600",
+          textDecorationLine: variant === "ghost" ? "underline" : "none",
+        }}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -182,12 +267,24 @@ export function Empty({ icon = "folder", children }: { icon?: IconName; children
   return (
     <View style={{ alignItems: "center", paddingVertical: 56, paddingHorizontal: 16, gap: 12 }}>
       <Icon name={icon} size={32} color={c.muted} />
-      <Text style={{ color: c.muted, fontSize: 16, textAlign: "center", lineHeight: 24 }}>{children}</Text>
+      <Text style={{ color: c.muted, fontSize: 16, textAlign: "center", lineHeight: 24 }}>
+        {children}
+      </Text>
     </View>
   );
 }
 
-export function Switch({ value, onChange, label, disabled }: { value: boolean; onChange: (value: boolean) => void; label: string; disabled?: boolean }) {
+export function Switch({
+  value,
+  onChange,
+  label,
+  disabled,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
   const { c } = useTheme();
   return (
     <Pressable
@@ -198,15 +295,40 @@ export function Switch({ value, onChange, label, disabled }: { value: boolean; o
       aria-checked={value}
       disabled={disabled}
       onPress={() => onChange(!value)}
-      style={{ width: 46, height: 28, borderRadius: 14, padding: 3, backgroundColor: value ? c.accent : c["fill-2"], opacity: disabled ? 0.5 : 1, alignItems: value ? "flex-end" : "flex-start" }}
+      style={{
+        width: 46,
+        height: 28,
+        borderRadius: 14,
+        padding: 3,
+        backgroundColor: value ? c.accent : c["fill-2"],
+        opacity: disabled ? 0.5 : 1,
+        alignItems: value ? "flex-end" : "flex-start",
+      }}
     >
-      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: value ? c["on-accent"] : c.text }} />
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          backgroundColor: value ? c["on-accent"] : c.text,
+        }}
+      />
     </Pressable>
   );
 }
 
 /** The skeleton shimmer: a pulsing block (a moving layer in the reference). */
-export function Sk({ width, height = 14, round = 8, style }: { width: number | `${number}%`; height?: number; round?: number; style?: ViewStyle }) {
+export function Sk({
+  width,
+  height = 14,
+  round = 8,
+  style,
+}: {
+  width: number | `${number}%`;
+  height?: number;
+  round?: number;
+  style?: ViewStyle;
+}) {
   const { c } = useTheme();
   const pulse = useRef(new Animated.Value(0.45)).current;
   useEffect(() => {
@@ -219,16 +341,37 @@ export function Sk({ width, height = 14, round = 8, style }: { width: number | `
     loop.start();
     return () => loop.stop();
   }, [pulse]);
-  return <Animated.View style={[{ width, height, borderRadius: round, backgroundColor: c.fill, opacity: pulse }, style]} />;
+  return (
+    <Animated.View
+      style={[
+        { width, height, borderRadius: round, backgroundColor: c.fill, opacity: pulse },
+        style,
+      ]}
+    />
+  );
 }
 
 export function SkRows({ count = 6, size = 50 }: { count?: number; size?: number }) {
   const { rtl, t } = useSession();
   return (
-    <View role="status" aria-busy accessibilityLabel={t("sh_loading")} style={{ paddingVertical: 8 }}>
+    <View
+      role="status"
+      aria-busy
+      accessibilityLabel={t("sh_loading")}
+      style={{ paddingVertical: 8 }}
+    >
       {Array.from({ length: count }, (_, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list
-        <View key={index} style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 9 }}>
+        <View
+          // biome-ignore lint/suspicious/noArrayIndexKey: a static placeholder list
+          key={index}
+          style={{
+            flexDirection: rtl ? "row-reverse" : "row",
+            alignItems: "center",
+            gap: 12,
+            paddingHorizontal: 16,
+            paddingVertical: 9,
+          }}
+        >
           <Sk width={size} height={size} round={size / 2} />
           <View style={{ flex: 1, gap: 8 }}>
             <Sk width={`${46 + ((index * 13) % 30)}%`} />

@@ -2,10 +2,9 @@
 // row, every agent and group as a row, and the unified search over it all.
 import type { SearchTab } from "@lonora/core";
 import { filterRows } from "@lonora/core";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { BackHandler, View } from "react-native";
-import { useRouter } from "expo-router";
 import { ChatList } from "../../components/shell/chat-list";
 import { ChatsHeader, TopBar } from "../../components/shell/chrome";
 import { useNewChatSheet } from "../../components/shell/new-chat-sheet";
@@ -33,7 +32,10 @@ export default function Chats() {
       return () => sub.remove();
     }, [search.expanded, clearSearch]),
   );
-  const visibleKeys = useMemo(() => filterRows(lists.rows, lists.filter, data.chatLists).map((row) => row.key), [lists.rows, lists.filter, data.chatLists]);
+  const visibleKeys = useMemo(
+    () => filterRows(lists.rows, lists.filter, data.chatLists).map((row) => row.key),
+    [lists.rows, lists.filter, data.chatLists],
+  );
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <TopBar solid={Boolean(lists.selected)}>
@@ -51,7 +53,11 @@ export default function Chats() {
         )}
       </TopBar>
       {search.expanded && !lists.selected ? (
-        <UnifiedSearch query={search.query} tab={search.tab} onTab={(tab) => setSearch((current) => ({ ...current, tab }))} />
+        <UnifiedSearch
+          query={search.query}
+          tab={search.tab}
+          onTab={(tab) => setSearch((current) => ({ ...current, tab }))}
+        />
       ) : (
         <ChatList onArchived={() => router.push("/archived")} />
       )}

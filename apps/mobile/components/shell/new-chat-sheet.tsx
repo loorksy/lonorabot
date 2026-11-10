@@ -24,12 +24,24 @@ function Body() {
     sheets.close();
     router.push(path);
   };
-  const rowFor = (kind: "agent" | "group", id: string) => lists.rows.find((row) => row.key === rowKey(kind, id));
+  const rowFor = (kind: "agent" | "group", id: string) =>
+    lists.rows.find((row) => row.key === rowKey(kind, id));
   return (
     <View>
       <GroupBox>
-        <Row lead={<IconDisc name="userPlus" />} title={t("sh_newAgent")} sub={t("sh_newAgentSub")} onPress={() => go("/new")} />
-        <Row last lead={<IconDisc name="users" />} title={t("sh_newGroup")} sub={t("sh_newGroupSub")} onPress={() => go("/new-group")} />
+        <Row
+          lead={<IconDisc name="userPlus" />}
+          title={t("sh_newAgent")}
+          sub={t("sh_newAgentSub")}
+          onPress={() => go("/new")}
+        />
+        <Row
+          last
+          lead={<IconDisc name="users" />}
+          title={t("sh_newGroup")}
+          sub={t("sh_newGroupSub")}
+          onPress={() => go("/new-group")}
+        />
       </GroupBox>
       <SectionTitle>{t("sh_fAgents")}</SectionTitle>
       <GroupBox>
@@ -43,7 +55,11 @@ function Body() {
               lead={row ? <RowAvatar row={row} agents={data.agents} size={44} /> : null}
               title={agent.name}
               sub={role(agent)}
-              trailing={agent.paused ? <Text style={{ color: c.muted, fontSize: 12 }}>{t("sh_paused")}</Text> : null}
+              trailing={
+                agent.paused ? (
+                  <Text style={{ color: c.muted, fontSize: 12 }}>{t("sh_paused")}</Text>
+                ) : null
+              }
               onPress={() => {
                 sheets.close();
                 if (row) void open(row);

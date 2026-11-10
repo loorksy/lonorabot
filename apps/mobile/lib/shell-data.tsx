@@ -70,10 +70,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
-    const cached = conversationCache.get<InboxSnapshot>(
-      scope,
-      "inbox",
-    );
+    const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
     setInbox(cached?.inbox ?? []);
     setAgents(cached?.agents ?? []);
     setGroups(cached?.groups ?? []);
@@ -90,10 +87,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       const current = () =>
         stillLive() && requestOwner === currentOwner.current && conversationCache.current(scope);
       try {
-        const previous = conversationCache.get<InboxSnapshot>(
-          scope,
-          "inbox",
-        );
+        const previous = conversationCache.get<InboxSnapshot>(scope, "inbox");
         let extras = { runs: previous?.runs ?? [], attention: previous?.attention ?? [] };
         const primary = Promise.all([
           api.get<Agent[]>("/agents"),
@@ -124,10 +118,7 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         ]).then(([nextRuns, nextAttention]) => {
           if (!current()) return;
           extras = { runs: nextRuns, attention: nextAttention };
-          const cached = conversationCache.get<InboxSnapshot>(
-            scope,
-            "inbox",
-          );
+          const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
           if (cached) conversationCache.set(scope, "inbox", { ...cached, ...extras });
           setRuns(nextRuns);
           setAttention(nextAttention);
@@ -137,7 +128,14 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         if (stillLive() && requestOwner === currentOwner.current) {
           setError(reportError.current(reason));
           // A read that fails without an HTTP answer is the network; an answer is the server.
-          setOffline(!(reason && typeof reason === "object" && "status" in reason && (reason as { status: number }).status > 0));
+          setOffline(
+            !(
+              reason &&
+              typeof reason === "object" &&
+              "status" in reason &&
+              (reason as { status: number }).status > 0
+            ),
+          );
         }
       }
     },
@@ -171,7 +169,8 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer);
       void tick();
     };
-    if (Platform.OS === "web" && typeof window !== "undefined") window.addEventListener("online", online);
+    if (Platform.OS === "web" && typeof window !== "undefined")
+      window.addEventListener("online", online);
     void tick();
     return () => {
       subscription.remove();
@@ -182,17 +181,17 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     };
   }, [ready, owner]);
 
-  const patchInbox = useCallback((prefs: ThreadPrefs[]) => {
-    setInbox((entries) => {
-      const next = mergePrefs(entries, prefs);
-      const cached = conversationCache.get<InboxSnapshot>(
-        scope,
-        "inbox",
-      );
-      if (cached) conversationCache.set(scope, "inbox", { ...cached, inbox: next });
-      return next;
-    });
-  }, [scope]);
+  const patchInbox = useCallback(
+    (prefs: ThreadPrefs[]) => {
+      setInbox((entries) => {
+        const next = mergePrefs(entries, prefs);
+        const cached = conversationCache.get<InboxSnapshot>(scope, "inbox");
+        if (cached) conversationCache.set(scope, "inbox", { ...cached, inbox: next });
+        return next;
+      });
+    },
+    [scope],
+  );
   const setChatLists = useCallback(
     (update: (lists: ChatList[]) => ChatList[]) => setChatListsState(update),
     [],
@@ -202,7 +201,8 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
     [],
   );
   const busyIds = useMemo(
-    () => new Set(runs.filter((run) => activeStatuses.includes(run.status)).map((run) => run.agent_id)),
+    () =>
+      new Set(runs.filter((run) => activeStatuses.includes(run.status)).map((run) => run.agent_id)),
     [runs],
   );
   const value = useMemo<ShellData>(
@@ -224,7 +224,23 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
       setThreadSettings: setThreadSettingsState,
       clearAttention,
     }),
-    [agents, groups, inbox, chatLists, threadSettings, runs, attention, busyIds, owner, loadedOwner, offline, error, patchInbox, setChatLists, clearAttention],
+    [
+      agents,
+      groups,
+      inbox,
+      chatLists,
+      threadSettings,
+      runs,
+      attention,
+      busyIds,
+      owner,
+      loadedOwner,
+      offline,
+      error,
+      patchInbox,
+      setChatLists,
+      clearAttention,
+    ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

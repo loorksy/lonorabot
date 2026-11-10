@@ -153,7 +153,6 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
-export { foldSearch, highlightRange } from "./search-fold";
 export {
   firstSearchPage,
   moreSearchItems,
@@ -165,6 +164,7 @@ export {
   type SearchTab,
   searchPath,
 } from "./search-feed";
+export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,
   type SupervisionText,

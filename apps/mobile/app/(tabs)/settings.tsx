@@ -2,8 +2,8 @@ import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { SettingsGroup, SettingsRow } from "../../components/settings-group";
 import { colors, Loading } from "../../components/ui";
-import { useTheme } from "../../lib/theme";
 import { useSession } from "../../lib/session";
+import { useTheme } from "../../lib/theme";
 export default function Settings() {
   const { ready, owner, t, rtl } = useSession();
   const router = useRouter();
@@ -12,7 +12,17 @@ export default function Settings() {
   if (!owner) return <Redirect href="/sign-in" />;
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 28, fontWeight: "700", paddingHorizontal: 20, paddingTop: 14, textAlign: rtl ? "right" : "left" }}>
+      <Text
+        accessibilityRole="header"
+        style={{
+          color: colors.foreground,
+          fontSize: 28,
+          fontWeight: "700",
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          textAlign: rtl ? "right" : "left",
+        }}
+      >
         {t("settings")}
       </Text>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 130, gap: 24 }}>

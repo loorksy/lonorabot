@@ -30,7 +30,13 @@ const TABS: { icon: IconName; label: Label }[] = [
 ];
 const RECENT = "lonora.emoji.recent";
 
-export function EmojiPanel({ onPick, onDelete }: { onPick: (emoji: string) => void; onDelete: () => void }) {
+export function EmojiPanel({
+  onPick,
+  onDelete,
+}: {
+  onPick: (emoji: string) => void;
+  onDelete: () => void;
+}) {
   const { c } = useTheme();
   const { t, rtl } = useSession();
   const data = useMemo(() => EMOJI_DATA.map(parse), []);
@@ -52,31 +58,90 @@ export function EmojiPanel({ onPick, onDelete }: { onPick: (emoji: string) => vo
   };
   const q = foldSearch(query);
   const results = useMemo(
-    () => (q ? data.flat().filter((emoji) => foldSearch(`${emoji.ar} ${emoji.en}`).includes(q)).slice(0, 120) : []),
+    () =>
+      q
+        ? data
+            .flat()
+            .filter((emoji) => foldSearch(`${emoji.ar} ${emoji.en}`).includes(q))
+            .slice(0, 120)
+        : [],
     [data, q],
   );
-  const shown = q ? results.map((emoji) => emoji.e) : section === 0 ? recent : (data[section - 1] ?? []).map((emoji) => emoji.e);
+  const shown = q
+    ? results.map((emoji) => emoji.e)
+    : section === 0
+      ? recent
+      : (data[section - 1] ?? []).map((emoji) => emoji.e);
   return (
-    <View accessibilityLabel={t("sh_emojis")} style={{ height: 300, backgroundColor: c.raised, borderTopWidth: 1, borderTopColor: c.line, marginHorizontal: -16 }}>
-      <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-        <View style={{ flex: 1, height: 36, borderRadius: 18, backgroundColor: c.fill, justifyContent: "center" }}>
+    <View
+      accessibilityLabel={t("sh_emojis")}
+      style={{
+        height: 300,
+        backgroundColor: c.raised,
+        borderTopWidth: 1,
+        borderTopColor: c.line,
+        marginHorizontal: -16,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: rtl ? "row-reverse" : "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: c.fill,
+            justifyContent: "center",
+          }}
+        >
           <TextInput
             accessibilityLabel={t("sh_searchEmoji")}
             placeholder={t("sh_searchEmoji")}
             placeholderTextColor={c.muted}
             value={query}
             onChangeText={setQuery}
-            style={{ color: c.text, paddingHorizontal: 14, fontSize: 14, textAlign: rtl ? "right" : "left" }}
+            style={{
+              color: c.text,
+              paddingHorizontal: 14,
+              fontSize: 14,
+              textAlign: rtl ? "right" : "left",
+            }}
           />
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("sh_delete")} onPress={onDelete} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("sh_delete")}
+          onPress={onDelete}
+          style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+        >
           <Icon name="back" size={20} color={c.text} />
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8 }} keyboardShouldPersistTaps="always">
+      <ScrollView
+        contentContainerStyle={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8 }}
+        keyboardShouldPersistTaps="always"
+      >
         {shown.length ? (
           shown.map((emoji) => (
-            <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={emoji} onPress={() => pick(emoji)} style={{ width: "12.5%", aspectRatio: 1, alignItems: "center", justifyContent: "center" }}>
+            <Pressable
+              key={emoji}
+              accessibilityRole="button"
+              accessibilityLabel={emoji}
+              onPress={() => pick(emoji)}
+              style={{
+                width: "12.5%",
+                aspectRatio: 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Text style={{ fontSize: 26 }}>{emoji}</Text>
             </Pressable>
           ))
@@ -84,9 +149,35 @@ export function EmojiPanel({ onPick, onDelete }: { onPick: (emoji: string) => vo
           <Text style={{ color: c.muted, padding: 20 }}>{t("sh_emoNone")}</Text>
         ) : null}
       </ScrollView>
-      <View accessibilityRole="tablist" style={{ flexDirection: rtl ? "row-reverse" : "row", justifyContent: "space-around", borderTopWidth: 1, borderTopColor: c.line, paddingVertical: 6 }}>
+      <View
+        accessibilityRole="tablist"
+        style={{
+          flexDirection: rtl ? "row-reverse" : "row",
+          justifyContent: "space-around",
+          borderTopWidth: 1,
+          borderTopColor: c.line,
+          paddingVertical: 6,
+        }}
+      >
         {TABS.map(({ icon, label }, index) => (
-          <Pressable key={label} accessibilityRole="tab" accessibilityLabel={t(label)} accessibilityState={{ selected: section === index && !q }} onPress={() => { setQuery(""); setSection(index); }} style={{ width: 36, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17, backgroundColor: section === index && !q ? c.fill : "transparent" }}>
+          <Pressable
+            key={label}
+            accessibilityRole="tab"
+            accessibilityLabel={t(label)}
+            accessibilityState={{ selected: section === index && !q }}
+            onPress={() => {
+              setQuery("");
+              setSection(index);
+            }}
+            style={{
+              width: 36,
+              height: 34,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 17,
+              backgroundColor: section === index && !q ? c.fill : "transparent",
+            }}
+          >
             <Icon name={icon} size={20} color={section === index && !q ? c.text : c.muted} />
           </Pressable>
         ))}
