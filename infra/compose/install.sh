@@ -177,7 +177,7 @@ chmod 600 .env
 say "Created $home/.env with freshly generated secrets."
 if [[ -n "$env_from" ]]; then
     # Copy the known keys over the generated values; never print a value.
-    copied="" ignored="" line name value
+    copied="" ignored="" line="" name="" value=""
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
         name="${line%%=*}"; value="${line#*=}"
