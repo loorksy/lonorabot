@@ -271,3 +271,12 @@ test("M1: the conversation's order line and sheet use the one shared helper", as
   // The evidence never comes from guessed top-level fields of the result.
   assert.ok(!/result\\??\.(order_id|position_id|deal_id|price|filled_volume)/.test(cards));
 });
+
+test("«حسم» opens the operation's own resolve card, and the order sheet offers «حسم العملية»", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sheet = readFileSync("apps/web/src/conversation/sheets/AgentSheet.tsx", "utf8");
+  assert.match(sheet, /onJump\(op\.resolve_card_id\)/);
+  const conversation = readFileSync("apps/web/src/conversation/Conversation.tsx", "utf8");
+  assert.match(conversation, /card\.facts\.operation\?\.operation_id === journalRow\.operation_id/);
+  assert.match(conversation, /<OrderSheetBody\s+row=\{journalRow\}\s+onResolve=/);
+});

@@ -812,13 +812,34 @@ export function Conversation({
           card={
             <OrderLine
               row={row.journal}
-              onOpen={(journalRow) =>
+              onOpen={(journalRow) => {
+                // «حسم العملية»: the operation's own pending resolve card in this chat.
+                const resolve = ownerActions.rows.find(
+                  (card) =>
+                    card.kind === "resolve_operation" &&
+                    card.status === "pending" &&
+                    card.facts.operation?.operation_id === journalRow.operation_id,
+                );
                 sheets.open({
                   id: "order",
                   title: t`Trade order`,
-                  body: <OrderSheetBody row={journalRow} />,
-                })
-              }
+                  body: (
+                    <OrderSheetBody
+                      row={journalRow}
+                      onResolve={
+                        resolve
+                          ? () => {
+                              sheets.close();
+                              window.dispatchEvent(
+                                new CustomEvent("lonora:jump", { detail: { id: resolve.id } }),
+                              );
+                            }
+                          : undefined
+                      }
+                    />
+                  ),
+                });
+              }}
             />
           }
         />,

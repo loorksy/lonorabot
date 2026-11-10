@@ -556,13 +556,14 @@ function AgentSheetBody({
                     <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
                   </small>
                 </span>
-                {pendingId && (
+                {op.resolve_card_id && (
                   <button
                     type="button"
                     className="btn sm"
+                    data-resolve-card={op.resolve_card_id}
                     onClick={() => {
                       close();
-                      onJump(pendingId);
+                      if (op.resolve_card_id) onJump(op.resolve_card_id);
                     }}
                   >
                     <Trans>Resolve</Trans>

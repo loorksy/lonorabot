@@ -706,6 +706,7 @@ async def card_facts(
             await session.get(BrokerSessionRow, operation.account_id), operation.account_id
         )
         facts["operation"] = {
+            "operation_id": operation.operation_id,
             "action": request.get("action"),
             "symbol": request.get("symbol"),
             "volume": None if request.get("volume") is None else str(request["volume"]),

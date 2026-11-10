@@ -245,6 +245,8 @@ export type TradingReadiness = {
     submitted_at: string | null;
     this_agent: boolean;
     blocks: "new_risk_on_this_symbol_or_ticket";
+    /** The operation's own pending resolve card («حسم»), or null. */
+    resolve_card_id: string | null;
   }>;
   unresolved_count: number;
   exits_allowed: boolean;

@@ -120,6 +120,7 @@ export type OwnerAction = {
       set_by_agent_name: string | null;
     };
     operation?: {
+      operation_id: string;
       action: string | null;
       symbol: string | null;
       volume: string | null;

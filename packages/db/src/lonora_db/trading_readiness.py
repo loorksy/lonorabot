@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import fixed_market
 from .agent_permissions import permission_state
-from .schema import AgentRow, BrokerSessionRow, SettingRow, TradingJournalRow
+from .schema import AgentRow, BrokerSessionRow, OwnerActionRow, SettingRow, TradingJournalRow
 from .trading_restrictions import list_restrictions, relevant_to, restriction_state
 from .transactions import SettingsRepository, execution_policy_key
 
@@ -211,6 +211,27 @@ async def trading_readiness(
                     "blocks": "new_risk_on_this_symbol_or_ticket",
                 }
             )
+    # «حسم» opens the operation's own resolve card (a live, pending one), never another card.
+    cards: dict[str, str] = {}
+    if operations:
+        for card_id, subject in (
+            await session.execute(
+                select(OwnerActionRow.id, OwnerActionRow.subject)
+                .where(
+                    OwnerActionRow.owner_id == owner_id,
+                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.status == "pending",
+                    OwnerActionRow.expires_at > now,
+                    OwnerActionRow.subject.in_(
+                        ["operation:" + item["operation_id"] for item in operations]
+                    ),
+                )
+                .order_by(OwnerActionRow.created_at)
+            )
+        ).all():
+            cards[subject.removeprefix("operation:")] = card_id
+    for item in operations:
+        item["resolve_card_id"] = cards.get(item["operation_id"])
     active = [
         item
         for item in restrictions
