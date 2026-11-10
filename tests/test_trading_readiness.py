@@ -167,6 +167,7 @@ async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
 async def test_a_granted_account_is_read_whatever_the_owner_s_other_accounts(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
