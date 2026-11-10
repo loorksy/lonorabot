@@ -733,7 +733,9 @@ export function Composer({
                 agent,
                 isGroup,
                 trading,
-                permission,
+                // Another agent's level is never shown while this one's loads.
+                permission: permission?.agent_id === agent?.id ? permission : null,
+                permissionFailed,
                 webSearch: options.webSearch,
                 onWebSearch: options.setWebSearch,
                 onFiles: () => fileInput.current?.click(),

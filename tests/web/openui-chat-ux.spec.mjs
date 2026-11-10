@@ -348,6 +348,12 @@ test("S7: the permission chip never guesses a level, and the mandate draft belon
   await expect(chip).toHaveAttribute("data-level", "unknown");
   await expect(chip).toContainText("Permission unknown");
   await expect(chip).not.toContainText("No execution");
+  // Item 18: the tools sheet's Permission row says the same, never «No execution».
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+  const row = page.locator("#dialog").getByRole("button", { name: /^Permission/ });
+  await expect(row).toContainText("Permission unknown");
+  await expect(row).not.toContainText("No execution");
+  await page.keyboard.press("Escape");
   await page.unroute(permissions);
   const drafts = [];
   await page.route(

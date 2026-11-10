@@ -16,6 +16,7 @@ export type ToolsInput = {
   isGroup: boolean;
   trading: boolean;
   permission: PermissionState | null;
+  permissionFailed?: boolean;
   webSearch: boolean;
   onWebSearch: (on: boolean) => Promise<void> | void;
   onFiles: () => void;
@@ -69,7 +70,8 @@ function ToolsBody({
   nav: { go: (path: string) => void };
 }) {
   const [web, setWeb] = useState(input.webSearch);
-  const level: AgentPermissionLevel = input.permission?.effective_level ?? "analysis";
+  // Until the level is read (or when it cannot be), the row says so: never a guessed level.
+  const level: AgentPermissionLevel | null = input.permission?.effective_level ?? null;
   const go = (path: string) => {
     close();
     nav.go(path);
@@ -140,9 +142,9 @@ function ToolsBody({
           />
         ) : input.trading ? (
           <AddRow
-            icon={LEVEL_ICON[level]}
+            icon={level ? LEVEL_ICON[level] : input.permissionFailed ? "alert" : "shield"}
             title={<Trans>Permission</Trans>}
-            sub={levelName(level)}
+            sub={level ? levelName(level) : input.permissionFailed ? t`Permission unknown` : "…"}
             onClick={() => {
               close();
               requestAnimationFrame(() =>
