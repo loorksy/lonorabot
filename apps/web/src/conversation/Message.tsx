@@ -62,13 +62,15 @@ export function Ticks({ message }: { message: ConversationMessage }) {
   if (message.role !== "user") return null;
   const outgoing = isOutgoingMessage(message) ? message : undefined;
   if (outgoing?.delivery === "failed") return null;
-  if (outgoing)
+  if (outgoing) {
+    // Q6: a queued message says why it waits; one being sent just shows the clock.
+    const label = outgoing.delivery === "queued" ? t`Waiting for the network…` : t`Waiting to send`;
     return (
-      <span className="ticks wait">
+      <span className="ticks wait" role="status" aria-label={label}>
         <Icon name="clock" />
-        <span className="sr-only">{t`Waiting to send`}</span>
       </span>
     );
+  }
   return message.consumed ? (
     <span className="ticks read">
       <Icon name="checks" />
@@ -442,7 +444,6 @@ export function Message({
       }
     >
       <div className="msg-line">
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: long-press and swipe gestures; every action also has a button */}
         <div
           className={`bubble ${bubbleClass}${live?.streaming ? " is-streaming" : ""}`.trim()}
           onPointerDown={

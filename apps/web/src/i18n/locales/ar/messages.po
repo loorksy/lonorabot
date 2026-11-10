@@ -39,7 +39,7 @@ msgid "{0} is not linked to a trading account, so it works without execution: it
 msgstr "لا يرتبط {0} بحساب تداول، لذلك يعمل دون تنفيذ: يحلّل ويتابع فقط."
 
 #. placeholder {0}: agent.name
-#: src/conversation/Message.tsx:271
+#: src/conversation/Message.tsx:273
 msgid "{0} is typing"
 msgstr "{0} يكتب"
 
@@ -84,11 +84,11 @@ msgstr "{count} غير مؤكَّدة"
 msgid "{count} unread"
 msgstr "{count} غير مقروءة"
 
-#: src/conversation/Message.tsx:208
+#: src/conversation/Message.tsx:210
 msgid "{kb} KB"
 msgstr "{kb} كيلوبايت"
 
-#: src/conversation/Message.tsx:227
+#: src/conversation/Message.tsx:229
 msgid "{label}. Tap to call back"
 msgstr "{label}. اضغط لمعاودة الاتصال"
 
@@ -116,7 +116,7 @@ msgstr "{seconds} ث"
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظر} two {أُرسلت رسالتان كانت تنتظر} few {أُرسلت # رسائل كانت تنتظر} many {أُرسلت # رسالة كانت تنتظر} other {أُرسلت # رسالة كانت تنتظر}}"
 
-#: src/shell/ChatHeader.tsx:73
+#: src/shell/ChatHeader.tsx:92
 msgid "{typingName} is typing…"
 msgstr "{typingName} يكتب…"
 
@@ -232,7 +232,7 @@ msgstr "الإجراء"
 
 #: src/conversation/sheets/AgentSheet.tsx:71
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:82
+#: src/shell/ChatHeader.tsx:101
 msgid "Active"
 msgstr "نشط"
 
@@ -362,7 +362,7 @@ msgstr "تعاون الوكلاء"
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
-#: src/shell/ChatHeader.tsx:65
+#: src/shell/ChatHeader.tsx:84
 #: src/shell/ChatMenu.tsx:105
 #: src/shell/ChatMenu.tsx:118
 msgid "Agent info"
@@ -637,7 +637,7 @@ msgstr "استوديو الأفاتار"
 
 #: src/conversation/PermissionMenu.tsx:295
 #: src/pages/shell/bot-panel.tsx:166
-#: src/shell/ChatHeader.tsx:87
+#: src/shell/ChatHeader.tsx:106
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
@@ -981,7 +981,7 @@ msgstr "تعذّر عرض الشارت."
 msgid "Chat list"
 msgstr "قائمة المحادثات"
 
-#: src/shell/ChatHeader.tsx:125
+#: src/shell/ChatHeader.tsx:144
 #: src/shell/ChatMenu.tsx:101
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
@@ -1312,7 +1312,7 @@ msgstr "جارٍ الاتصال"
 #~ msgid "Connecting microphone"
 #~ msgstr "جارٍ توصيل الميكروفون"
 
-#: src/shell/ChatHeader.tsx:70
+#: src/shell/ChatHeader.tsx:89
 msgid "Connecting…"
 msgstr "جارٍ الاتصال…"
 
@@ -1770,7 +1770,7 @@ msgstr "تعديل القائمة"
 msgid "Edit the message"
 msgstr "تعديل الرسالة"
 
-#: src/conversation/Message.tsx:403
+#: src/conversation/Message.tsx:405
 msgid "Edited"
 msgstr "مُعدّلة"
 
@@ -1960,7 +1960,7 @@ msgstr "رابط المصدر أو Webhook"
 msgid "Fibonacci"
 msgstr "فيبوناتشي"
 
-#: src/conversation/Message.tsx:207
+#: src/conversation/Message.tsx:209
 msgid "File"
 msgstr "ملف"
 
@@ -2116,7 +2116,7 @@ msgstr "الانتقال إلى آخر الرسائل"
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
-#: src/conversation/Message.tsx:110
+#: src/conversation/Message.tsx:112
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
@@ -2142,7 +2142,7 @@ msgstr "مجموعة"
 msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
-#: src/shell/ChatHeader.tsx:65
+#: src/shell/ChatHeader.tsx:84
 #: src/shell/ChatMenu.tsx:104
 #: src/shell/ChatMenu.tsx:118
 msgid "Group info"
@@ -2660,7 +2660,7 @@ msgstr "الإشارة إلى وكيل"
 #~ msgid "Mentions"
 #~ msgstr "الإشارات"
 
-#: src/conversation/Message.tsx:117
+#: src/conversation/Message.tsx:119
 msgid "Message"
 msgstr "الرسالة"
 
@@ -2678,7 +2678,7 @@ msgstr "محرر الرسالة"
 
 #: src/conversation/Conversation.tsx:490
 #: src/conversation/Conversation.tsx:513
-#: src/conversation/Message.tsx:518
+#: src/conversation/Message.tsx:519
 msgid "Message options"
 msgstr "خيارات الرسالة"
 
@@ -2736,8 +2736,8 @@ msgstr "الحد الأدنى للهامش الحر"
 msgid "Minimum volume"
 msgstr "أدنى حجم"
 
-#: src/conversation/Message.tsx:91
-#: src/conversation/Message.tsx:218
+#: src/conversation/Message.tsx:93
+#: src/conversation/Message.tsx:220
 msgid "Missed voice call"
 msgstr "مكالمة صوتية فائتة"
 
@@ -3073,7 +3073,7 @@ msgstr "لا توجد مراقبات."
 msgid "Not sent"
 msgstr "لم يُرسل"
 
-#: src/conversation/Message.tsx:557
+#: src/conversation/Message.tsx:558
 msgid "Not sent · tap to retry"
 msgstr "لم تُرسل · اضغط لإعادة المحاولة"
 
@@ -3142,8 +3142,8 @@ msgstr "افتح «الأذونات» ثم «الكاميرا»."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "افتح «الأذونات» ثم «الميكروفون»."
 
-#: src/shell/ChatHeader.tsx:117
-#: src/shell/ChatHeader.tsx:118
+#: src/shell/ChatHeader.tsx:136
+#: src/shell/ChatHeader.tsx:137
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
@@ -3311,7 +3311,7 @@ msgstr "موقوفة مؤقتًا"
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
 #: src/pages/Routines.tsx:83
-#: src/shell/ChatHeader.tsx:80
+#: src/shell/ChatHeader.tsx:99
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
@@ -3384,7 +3384,7 @@ msgstr "المساعد الشخصي"
 msgid "Photo"
 msgstr "صورة"
 
-#: src/conversation/Message.tsx:173
+#: src/conversation/Message.tsx:175
 msgid "Photo, tap to view"
 msgstr "صورة، اضغط لعرضها"
 
@@ -3569,7 +3569,7 @@ msgstr "شعاع"
 msgid "React {emoji}"
 msgstr "تفاعل {emoji}"
 
-#: src/conversation/Message.tsx:539
+#: src/conversation/Message.tsx:540
 msgid "React to the message"
 msgstr "تفاعل مع الرسالة"
 
@@ -3578,11 +3578,11 @@ msgstr "تفاعل مع الرسالة"
 msgid "Reactions"
 msgstr "التفاعلات"
 
-#: src/conversation/Message.tsx:143
+#: src/conversation/Message.tsx:145
 msgid "Reactions: {label}"
 msgstr "التفاعلات: {label}"
 
-#: src/conversation/Message.tsx:75
+#: src/conversation/Message.tsx:77
 msgid "Read"
 msgstr "قُرئت"
 
@@ -4178,7 +4178,7 @@ msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
 #: src/conversation/Cards.tsx:251
-#: src/conversation/Message.tsx:80
+#: src/conversation/Message.tsx:82
 msgid "Sent"
 msgstr "أُرسلت"
 
@@ -4559,7 +4559,7 @@ msgstr "جني الربح · اختياري"
 msgid "Tap the lock icon next to the site address."
 msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 
-#: src/conversation/Message.tsx:237
+#: src/conversation/Message.tsx:239
 msgid "Tap to call back"
 msgstr "اضغط لمعاودة الاتصال"
 
@@ -4760,7 +4760,7 @@ msgstr "لم تعد الرسالة متاحة."
 msgid "The message was not sent"
 msgstr "لم تُرسل الرسالة"
 
-#: src/conversation/Message.tsx:530
+#: src/conversation/Message.tsx:531
 msgid "The message was not sent. Options"
 msgstr "لم تُرسل الرسالة. خيارات"
 
@@ -4814,7 +4814,7 @@ msgid "The operation could not be completed"
 msgstr "تعذّر إكمال العملية"
 
 #: src/conversation/Conversation.tsx:455
-#: src/conversation/Message.tsx:122
+#: src/conversation/Message.tsx:124
 msgid "The original message is no longer available."
 msgstr "الرسالة الأصلية لم تعد متاحة."
 
@@ -5275,11 +5275,11 @@ msgstr "النوع"
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "اكتب كلمة للبحث في المحادثات والرسائل والمهام والملفات."
 
-#: src/conversation/Message.tsx:271
+#: src/conversation/Message.tsx:273
 msgid "Typing"
 msgstr "يكتب"
 
-#: src/shell/ChatHeader.tsx:78
+#: src/shell/ChatHeader.tsx:97
 msgid "Typing…"
 msgstr "يكتب…"
 
@@ -5431,10 +5431,10 @@ msgstr "الرؤية"
 msgid "Voice"
 msgstr "الصوت"
 
-#: src/conversation/Message.tsx:92
-#: src/conversation/Message.tsx:218
-#: src/shell/ChatHeader.tsx:117
-#: src/shell/ChatHeader.tsx:118
+#: src/conversation/Message.tsx:94
+#: src/conversation/Message.tsx:220
+#: src/shell/ChatHeader.tsx:136
+#: src/shell/ChatHeader.tsx:137
 msgid "Voice call"
 msgstr "اتصال صوتي"
 
@@ -5452,7 +5452,7 @@ msgid "Voice message"
 msgstr "رسالة صوتية"
 
 #. placeholder {0}: voiceFmt(voice.duration)
-#: src/conversation/Message.tsx:94
+#: src/conversation/Message.tsx:96
 msgid "Voice message ({0})"
 msgstr "رسالة صوتية ({0})"
 
@@ -5510,7 +5510,8 @@ msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. ل
 msgid "Waiting for the broker's answer…"
 msgstr "بانتظار رد الوسيط…"
 
-#: src/shell/ChatHeader.tsx:68
+#: src/conversation/Message.tsx:67
+#: src/shell/ChatHeader.tsx:87
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "بانتظار الشبكة…"
@@ -5521,7 +5522,7 @@ msgstr "بانتظار الشبكة…"
 msgid "Waiting for your reply"
 msgstr "بانتظار ردك"
 
-#: src/conversation/Message.tsx:69
+#: src/conversation/Message.tsx:67
 msgid "Waiting to send"
 msgstr "بانتظار الإرسال"
 
@@ -5640,8 +5641,8 @@ msgstr "أمس"
 
 #: src/components/charts/ChartAnnotations.tsx:81
 #: src/conversation/Conversation.tsx:547
-#: src/conversation/Message.tsx:117
-#: src/conversation/Message.tsx:136
+#: src/conversation/Message.tsx:119
+#: src/conversation/Message.tsx:138
 #: src/shell/lists/UnifiedSearch.tsx:152
 msgid "You"
 msgstr "أنت"
@@ -5671,7 +5672,7 @@ msgstr "وصلت إلى حد الاستهلاك"
 msgid "You set the markets, actions, duration and money limit"
 msgstr "تحدّد الأسواق والإجراءات والمدة والحد المالي"
 
-#: src/conversation/Message.tsx:399
+#: src/conversation/Message.tsx:401
 msgid "You stopped the reply"
 msgstr "أوقفتَ الرد"
 

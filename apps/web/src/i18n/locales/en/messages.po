@@ -39,7 +39,7 @@ msgid "{0} is not linked to a trading account, so it works without execution: it
 msgstr "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
 
 #. placeholder {0}: agent.name
-#: src/conversation/Message.tsx:271
+#: src/conversation/Message.tsx:273
 msgid "{0} is typing"
 msgstr "{0} is typing"
 
@@ -84,11 +84,11 @@ msgstr "{count} unconfirmed"
 msgid "{count} unread"
 msgstr "{count} unread"
 
-#: src/conversation/Message.tsx:208
+#: src/conversation/Message.tsx:210
 msgid "{kb} KB"
 msgstr "{kb} KB"
 
-#: src/conversation/Message.tsx:227
+#: src/conversation/Message.tsx:229
 msgid "{label}. Tap to call back"
 msgstr "{label}. Tap to call back"
 
@@ -116,7 +116,7 @@ msgstr "{seconds} s"
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
-#: src/shell/ChatHeader.tsx:73
+#: src/shell/ChatHeader.tsx:92
 msgid "{typingName} is typing…"
 msgstr "{typingName} is typing…"
 
@@ -232,7 +232,7 @@ msgstr "Action"
 
 #: src/conversation/sheets/AgentSheet.tsx:71
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:82
+#: src/shell/ChatHeader.tsx:101
 msgid "Active"
 msgstr "Active"
 
@@ -362,7 +362,7 @@ msgstr "Agent collaboration"
 msgid "Agent files"
 msgstr "Agent files"
 
-#: src/shell/ChatHeader.tsx:65
+#: src/shell/ChatHeader.tsx:84
 #: src/shell/ChatMenu.tsx:105
 #: src/shell/ChatMenu.tsx:118
 msgid "Agent info"
@@ -637,7 +637,7 @@ msgstr "Avatar Studio"
 
 #: src/conversation/PermissionMenu.tsx:295
 #: src/pages/shell/bot-panel.tsx:166
-#: src/shell/ChatHeader.tsx:87
+#: src/shell/ChatHeader.tsx:106
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
@@ -981,7 +981,7 @@ msgstr "Chart could not be displayed."
 msgid "Chat list"
 msgstr "Chat list"
 
-#: src/shell/ChatHeader.tsx:125
+#: src/shell/ChatHeader.tsx:144
 #: src/shell/ChatMenu.tsx:101
 msgid "Chat menu"
 msgstr "Chat menu"
@@ -1312,7 +1312,7 @@ msgstr "Connecting"
 #~ msgid "Connecting microphone"
 #~ msgstr "Connecting microphone"
 
-#: src/shell/ChatHeader.tsx:70
+#: src/shell/ChatHeader.tsx:89
 msgid "Connecting…"
 msgstr "Connecting…"
 
@@ -1770,7 +1770,7 @@ msgstr "Edit the list"
 msgid "Edit the message"
 msgstr "Edit the message"
 
-#: src/conversation/Message.tsx:403
+#: src/conversation/Message.tsx:405
 msgid "Edited"
 msgstr "Edited"
 
@@ -1960,7 +1960,7 @@ msgstr "Feed or webhook URL"
 msgid "Fibonacci"
 msgstr "Fibonacci"
 
-#: src/conversation/Message.tsx:207
+#: src/conversation/Message.tsx:209
 msgid "File"
 msgstr "File"
 
@@ -2116,7 +2116,7 @@ msgstr "Go to the latest messages"
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
-#: src/conversation/Message.tsx:110
+#: src/conversation/Message.tsx:112
 msgid "Go to the quoted message"
 msgstr "Go to the quoted message"
 
@@ -2142,7 +2142,7 @@ msgstr "Group"
 msgid "Group from the selected"
 msgstr "Group from the selected"
 
-#: src/shell/ChatHeader.tsx:65
+#: src/shell/ChatHeader.tsx:84
 #: src/shell/ChatMenu.tsx:104
 #: src/shell/ChatMenu.tsx:118
 msgid "Group info"
@@ -2660,7 +2660,7 @@ msgstr "Mention an agent"
 #~ msgid "Mentions"
 #~ msgstr "Mentions"
 
-#: src/conversation/Message.tsx:117
+#: src/conversation/Message.tsx:119
 msgid "Message"
 msgstr "Message"
 
@@ -2678,7 +2678,7 @@ msgstr "Message composer"
 
 #: src/conversation/Conversation.tsx:490
 #: src/conversation/Conversation.tsx:513
-#: src/conversation/Message.tsx:518
+#: src/conversation/Message.tsx:519
 msgid "Message options"
 msgstr "Message options"
 
@@ -2736,8 +2736,8 @@ msgstr "Minimum free margin"
 msgid "Minimum volume"
 msgstr "Minimum volume"
 
-#: src/conversation/Message.tsx:91
-#: src/conversation/Message.tsx:218
+#: src/conversation/Message.tsx:93
+#: src/conversation/Message.tsx:220
 msgid "Missed voice call"
 msgstr "Missed voice call"
 
@@ -3073,7 +3073,7 @@ msgstr "No watches."
 msgid "Not sent"
 msgstr "Not sent"
 
-#: src/conversation/Message.tsx:557
+#: src/conversation/Message.tsx:558
 msgid "Not sent · tap to retry"
 msgstr "Not sent · tap to retry"
 
@@ -3142,8 +3142,8 @@ msgstr "Open “Permissions”, then “Camera”."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "Open “Permissions”, then “Microphone”."
 
-#: src/shell/ChatHeader.tsx:117
-#: src/shell/ChatHeader.tsx:118
+#: src/shell/ChatHeader.tsx:136
+#: src/shell/ChatHeader.tsx:137
 msgid "Open active call"
 msgstr "Open active call"
 
@@ -3311,7 +3311,7 @@ msgstr "paused"
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
 #: src/pages/Routines.tsx:83
-#: src/shell/ChatHeader.tsx:80
+#: src/shell/ChatHeader.tsx:99
 msgid "Paused"
 msgstr "Paused"
 
@@ -3384,7 +3384,7 @@ msgstr "Personal Agent"
 msgid "Photo"
 msgstr "Photo"
 
-#: src/conversation/Message.tsx:173
+#: src/conversation/Message.tsx:175
 msgid "Photo, tap to view"
 msgstr "Photo, tap to view"
 
@@ -3569,7 +3569,7 @@ msgstr "Ray"
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
-#: src/conversation/Message.tsx:539
+#: src/conversation/Message.tsx:540
 msgid "React to the message"
 msgstr "React to the message"
 
@@ -3578,11 +3578,11 @@ msgstr "React to the message"
 msgid "Reactions"
 msgstr "Reactions"
 
-#: src/conversation/Message.tsx:143
+#: src/conversation/Message.tsx:145
 msgid "Reactions: {label}"
 msgstr "Reactions: {label}"
 
-#: src/conversation/Message.tsx:75
+#: src/conversation/Message.tsx:77
 msgid "Read"
 msgstr "Read"
 
@@ -4178,7 +4178,7 @@ msgid "Sending…"
 msgstr "Sending…"
 
 #: src/conversation/Cards.tsx:251
-#: src/conversation/Message.tsx:80
+#: src/conversation/Message.tsx:82
 msgid "Sent"
 msgstr "Sent"
 
@@ -4559,7 +4559,7 @@ msgstr "Take profit · optional"
 msgid "Tap the lock icon next to the site address."
 msgstr "Tap the lock icon next to the site address."
 
-#: src/conversation/Message.tsx:237
+#: src/conversation/Message.tsx:239
 msgid "Tap to call back"
 msgstr "Tap to call back"
 
@@ -4760,7 +4760,7 @@ msgstr "The message is no longer available."
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
-#: src/conversation/Message.tsx:530
+#: src/conversation/Message.tsx:531
 msgid "The message was not sent. Options"
 msgstr "The message was not sent. Options"
 
@@ -4814,7 +4814,7 @@ msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
 #: src/conversation/Conversation.tsx:455
-#: src/conversation/Message.tsx:122
+#: src/conversation/Message.tsx:124
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
 
@@ -5275,11 +5275,11 @@ msgstr "Type"
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "Type a word to search chats, messages, tasks and files."
 
-#: src/conversation/Message.tsx:271
+#: src/conversation/Message.tsx:273
 msgid "Typing"
 msgstr "Typing"
 
-#: src/shell/ChatHeader.tsx:78
+#: src/shell/ChatHeader.tsx:97
 msgid "Typing…"
 msgstr "Typing…"
 
@@ -5431,10 +5431,10 @@ msgstr "Vision"
 msgid "Voice"
 msgstr "Voice"
 
-#: src/conversation/Message.tsx:92
-#: src/conversation/Message.tsx:218
-#: src/shell/ChatHeader.tsx:117
-#: src/shell/ChatHeader.tsx:118
+#: src/conversation/Message.tsx:94
+#: src/conversation/Message.tsx:220
+#: src/shell/ChatHeader.tsx:136
+#: src/shell/ChatHeader.tsx:137
 msgid "Voice call"
 msgstr "Voice call"
 
@@ -5452,7 +5452,7 @@ msgid "Voice message"
 msgstr "Voice message"
 
 #. placeholder {0}: voiceFmt(voice.duration)
-#: src/conversation/Message.tsx:94
+#: src/conversation/Message.tsx:96
 msgid "Voice message ({0})"
 msgstr "Voice message ({0})"
 
@@ -5510,7 +5510,8 @@ msgstr "Waiting for the broker to report the entry position. The accepted order 
 msgid "Waiting for the broker's answer…"
 msgstr "Waiting for the broker's answer…"
 
-#: src/shell/ChatHeader.tsx:68
+#: src/conversation/Message.tsx:67
+#: src/shell/ChatHeader.tsx:87
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "Waiting for the network…"
@@ -5521,7 +5522,7 @@ msgstr "Waiting for the network…"
 msgid "Waiting for your reply"
 msgstr "Waiting for your reply"
 
-#: src/conversation/Message.tsx:69
+#: src/conversation/Message.tsx:67
 msgid "Waiting to send"
 msgstr "Waiting to send"
 
@@ -5640,8 +5641,8 @@ msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
 #: src/conversation/Conversation.tsx:547
-#: src/conversation/Message.tsx:117
-#: src/conversation/Message.tsx:136
+#: src/conversation/Message.tsx:119
+#: src/conversation/Message.tsx:138
 #: src/shell/lists/UnifiedSearch.tsx:152
 msgid "You"
 msgstr "You"
@@ -5671,7 +5672,7 @@ msgstr "You reached the usage limit"
 msgid "You set the markets, actions, duration and money limit"
 msgstr "You set the markets, actions, duration and money limit"
 
-#: src/conversation/Message.tsx:399
+#: src/conversation/Message.tsx:401
 msgid "You stopped the reply"
 msgstr "You stopped the reply"
 
