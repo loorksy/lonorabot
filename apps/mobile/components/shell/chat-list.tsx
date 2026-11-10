@@ -26,7 +26,6 @@ import {
   type NativeSyntheticEvent,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -71,7 +70,7 @@ export function useOpenChat() {
 
 function Filters() {
   const { c } = useTheme();
-  const { t, rtl } = useSession();
+  const { t } = useSession();
   const data = useShellData();
   const lists = useLists();
   const sheets = useListSheets();
