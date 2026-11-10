@@ -90,8 +90,8 @@ export function snippet(message?: ApiMessage | null): string {
   const voice = voicePart(message);
   const text = call
     ? call.missed
-      ? t`Missed voice call`
-      : t`Voice call`
+      ? t({ message: "Missed voice call", context: "call log" })
+      : t({ message: "Voice call", context: "call log" })
     : voice
       ? t`Voice message (${voiceFmt(voice.duration)})`
       : message.content;
@@ -222,7 +222,9 @@ function CallBubble({ message }: { message: ConversationMessage }) {
   const ctx = useConversation();
   const call = callPart(message);
   if (!call) return null;
-  const label = call.missed ? t`Missed voice call` : t`Voice call`;
+  const label = call.missed
+    ? t({ message: "Missed voice call", context: "call log" })
+    : t({ message: "Voice call", context: "call log" });
   const minutes = Math.floor(call.duration_seconds / 60);
   const seconds = String(call.duration_seconds % 60).padStart(2, "0");
   return (

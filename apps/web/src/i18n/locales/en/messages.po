@@ -17,7 +17,7 @@ msgid "«New message» shows instead of the content"
 msgstr "«New message» shows instead of the content"
 
 #. placeholder {0}: state.watch_count
-#: src/conversation/sheets/AgentSheet.tsx:351
+#: src/conversation/sheets/AgentSheet.tsx:366
 msgid "{0} active"
 msgstr "{0} active"
 
@@ -58,7 +58,7 @@ msgid "{0} is not linked to a trading account, so it works without execution: it
 msgstr "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
 
 #. placeholder {0}: agent.name
-#: src/conversation/Message.tsx:283
+#: src/conversation/Message.tsx:285
 msgid "{0} is typing"
 msgstr "{0} is typing"
 
@@ -123,7 +123,7 @@ msgstr "{count, plural, one {one chat} two {two chats} few {# chats} many {# cha
 msgid "{count} agents"
 msgstr "{count} agents"
 
-#: src/conversation/sheets/AgentSheet.tsx:133
+#: src/conversation/sheets/AgentSheet.tsx:146
 msgid "{count} unconfirmed"
 msgstr "{count} unconfirmed"
 
@@ -135,7 +135,7 @@ msgstr "{count} unread"
 msgid "{kb} KB"
 msgstr "{kb} KB"
 
-#: src/conversation/Message.tsx:239
+#: src/conversation/Message.tsx:241
 msgid "{label}. Tap to call back"
 msgstr "{label}. Tap to call back"
 
@@ -178,6 +178,10 @@ msgstr "{seconds} s"
 #: src/shell/Shell.tsx:391
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
+
+#: src/conversation/sheets/MandateSheet.tsx:142
+msgid "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
+msgstr "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
 
 #: src/shell/ChatHeader.tsx:98
 msgid "{typingName} is typing…"
@@ -241,11 +245,15 @@ msgstr "A chat returns to the list when a new message arrives."
 msgid "A chat will return when a new message arrives"
 msgstr "A chat will return when a new message arrives"
 
+#: src/conversation/sheets/AgentSheet.tsx:70
+msgid "A decision is needed"
+msgstr "A decision is needed"
+
 #: src/shell/settings/ConnectionPages.tsx:507
 msgid "A demo account trades against market data you import: the balance, the symbols, their prices and candles. Import a snapshot file to use it."
 msgstr "A demo account trades against market data you import: the balance, the symbols, their prices and candles. Import a snapshot file to use it."
 
-#: src/lib/user_error.ts:41
+#: src/lib/user_error.ts:43
 msgid "A different answer was already recorded."
 msgstr "A different answer was already recorded."
 
@@ -348,7 +356,7 @@ msgstr "Account currency"
 msgid "Account ID"
 msgstr "Account ID"
 
-#: src/conversation/sheets/AgentSheet.tsx:588
+#: src/conversation/sheets/AgentSheet.tsx:603
 #: src/conversation/sheets/LimitsSheet.tsx:299
 msgid "Account limits"
 msgstr "Account limits"
@@ -384,7 +392,7 @@ msgstr "Action"
 #~ msgid "Activate with device authentication"
 #~ msgstr "Activate with device authentication"
 
-#: src/conversation/sheets/AgentSheet.tsx:78
+#: src/conversation/sheets/AgentSheet.tsx:91
 #: src/lib/goal-status.ts:6
 #: src/shell/ChatHeader.tsx:107
 msgid "Active"
@@ -535,7 +543,7 @@ msgstr "Add to a list"
 msgid "Add to favourites"
 msgstr "Add to favourites"
 
-#: src/conversation/ToolsSheet.tsx:213
+#: src/conversation/ToolsSheet.tsx:215
 msgid "Add to the conversation"
 msgstr "Add to the conversation"
 
@@ -621,7 +629,7 @@ msgstr "Agent name"
 #~ msgid "Agent settings"
 #~ msgstr "Agent settings"
 
-#: src/conversation/sheets/AgentSheet.tsx:633
+#: src/conversation/sheets/AgentSheet.tsx:672
 msgid "Agent status"
 msgstr "Agent status"
 
@@ -685,11 +693,11 @@ msgstr "All"
 msgid "All already in «{0}»"
 msgstr "All already in «{0}»"
 
-#: src/conversation/sheets/MandateSheet.tsx:141
+#: src/conversation/sheets/MandateSheet.tsx:143
 msgid "All pairs and all actions until cancelled; the account's limits still apply"
 msgstr "All pairs and all actions until cancelled; the account's limits still apply"
 
-#: src/conversation/sheets/MandateSheet.tsx:177
+#: src/conversation/sheets/MandateSheet.tsx:179
 msgid "All pairs on the account"
 msgstr "All pairs on the account"
 
@@ -709,15 +717,15 @@ msgstr "All time"
 #~ msgid "Allow autonomous trading for this goal"
 #~ msgstr "Allow autonomous trading for this goal"
 
-#: src/lib/user_error.ts:129
+#: src/lib/user_error.ts:131
 msgid "Allow microphone access to start a voice conversation."
 msgstr "Allow microphone access to start a voice conversation."
 
-#: src/conversation/sheets/AgentSheet.tsx:476
+#: src/conversation/sheets/AgentSheet.tsx:491
 msgid "Allowed"
 msgstr "Allowed"
 
-#: src/conversation/sheets/MandateSheet.tsx:184
+#: src/conversation/sheets/MandateSheet.tsx:186
 msgid "Allowed actions"
 msgstr "Allowed actions"
 
@@ -730,7 +738,7 @@ msgstr "Allowed actions"
 msgid "Amount limits are in the account currency: enter it to save."
 msgstr "Amount limits are in the account currency: enter it to save."
 
-#: src/lib/user_error.ts:59
+#: src/lib/user_error.ts:61
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "An active skill is no longer available. Review its settings before resuming this task."
 
@@ -825,6 +833,10 @@ msgstr "Applies to every agent of this account"
 #: src/components/trading/TradeApprovals.tsx:212
 msgid "Approval request"
 msgstr "Approval request"
+
+#: src/conversation/sheets/AgentSheet.tsx:68
+msgid "Approval request · {what}"
+msgstr "Approval request · {what}"
 
 #: src/components/trading/TradeApprovals.tsx:288
 msgid "Approve"
@@ -1106,7 +1118,7 @@ msgstr "Broker account"
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
-#: src/lib/user_error.ts:155
+#: src/lib/user_error.ts:157
 msgid "Broker account not found."
 msgstr "Broker account not found."
 
@@ -1114,15 +1126,15 @@ msgstr "Broker account not found."
 #~ msgid "Broker acknowledged — resulting state unverified"
 #~ msgstr "Broker acknowledged — resulting state unverified"
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:173
 msgid "Broker authentication was rejected."
 msgstr "Broker authentication was rejected."
 
-#: src/lib/user_error.ts:147
+#: src/lib/user_error.ts:149
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:184
+#: src/lib/user_error.ts:186
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
@@ -1138,11 +1150,11 @@ msgstr "Broker connection recovered"
 msgid "Broker connection requires attention"
 msgstr "Broker connection requires attention"
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:167
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "Broker data does not match the selected account. Nothing was sent."
 
-#: src/lib/user_error.ts:199
+#: src/lib/user_error.ts:201
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
@@ -1241,7 +1253,7 @@ msgstr "Call ended"
 msgid "Call with {name}"
 msgstr "Call with {name}"
 
-#: src/conversation/ToolsSheet.tsx:89
+#: src/conversation/ToolsSheet.tsx:91
 msgid "Camera"
 msgstr "Camera"
 
@@ -1254,7 +1266,7 @@ msgstr "Camera not allowed"
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
-#: src/conversation/sheets/AgentSheet.tsx:422
+#: src/conversation/sheets/AgentSheet.tsx:437
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
@@ -1367,7 +1379,7 @@ msgctxt "schedule details"
 msgid "Channel"
 msgstr "Channel"
 
-#: src/conversation/ToolsSheet.tsx:157
+#: src/conversation/ToolsSheet.tsx:159
 #: src/shell/ChatMenu.tsx:94
 #: src/shell/ChatMenu.tsx:142
 msgid "Chart"
@@ -1455,7 +1467,7 @@ msgstr "Check the fields"
 msgid "Check the highlighted fields."
 msgstr "Check the highlighted fields."
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:207
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -1516,6 +1528,10 @@ msgstr "Choose a glowing face and color. Preview your changes before applying th
 msgid "Choose a time that has not passed."
 msgstr "Choose a time that has not passed."
 
+#: src/lib/user_error.ts:37
+msgid "Choose a valid time zone for the trading day."
+msgstr "Choose a valid time zone for the trading day."
+
 #: src/pages/Knowledge.tsx:67
 #: src/pages/shell/bot-picker.tsx:17
 msgid "Choose an agent"
@@ -1525,7 +1541,7 @@ msgstr "Choose an agent"
 #~ msgid "Choose an agent or return to your workspace."
 #~ msgstr "Choose an agent or return to your workspace."
 
-#: src/lib/user_error.ts:37
+#: src/lib/user_error.ts:39
 msgid "Choose an available answer."
 msgstr "Choose an available answer."
 
@@ -1550,7 +1566,7 @@ msgstr "Choose at least one action"
 msgid "Choose broker account"
 msgstr "Choose broker account"
 
-#: src/lib/user_error.ts:140
+#: src/lib/user_error.ts:142
 msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 
@@ -1558,7 +1574,7 @@ msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgid "Choose how replies appear and how you write. Applies to every conversation."
 msgstr "Choose how replies appear and how you write. Applies to every conversation."
 
-#: src/lib/user_error.ts:142
+#: src/lib/user_error.ts:144
 msgid "Choose supported global speech models in Settings."
 msgstr "Choose supported global speech models in Settings."
 
@@ -1661,11 +1677,11 @@ msgstr "Close trades"
 msgid "Closes"
 msgstr "Closes"
 
-#: src/conversation/sheets/AgentSheet.tsx:304
+#: src/conversation/sheets/AgentSheet.tsx:319
 msgid "closing allowed"
 msgstr "closing allowed"
 
-#: src/conversation/sheets/AgentSheet.tsx:608
+#: src/conversation/sheets/AgentSheet.tsx:623
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 
@@ -1673,7 +1689,7 @@ msgstr "Closing and tightening the stop loss are always allowed, even when tradi
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "Closing and tightening the stop loss are always allowed."
 
-#: src/conversation/sheets/AgentSheet.tsx:538
+#: src/conversation/sheets/AgentSheet.tsx:553
 msgid "closing is frozen too"
 msgstr "closing is frozen too"
 
@@ -1768,7 +1784,7 @@ msgstr "Condition — for the conditional alert"
 msgid "Condition triggered"
 msgstr "Condition triggered"
 
-#: src/lib/user_error.ts:127
+#: src/lib/user_error.ts:129
 msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
 msgstr "Configure an OpenAI credential with GPT-Live access to start a voice call."
 
@@ -1807,7 +1823,7 @@ msgstr "Connect a broker account before creating a trading agent."
 msgid "Connect a model provider"
 msgstr "Connect a model provider"
 
-#: src/lib/user_error.ts:87
+#: src/lib/user_error.ts:89
 msgid "Connect a provider and choose a global model in Settings."
 msgstr "Connect a provider and choose a global model in Settings."
 
@@ -1869,11 +1885,11 @@ msgstr "Content"
 #~ msgid "Context panel"
 #~ msgstr "Context panel"
 
-#: src/conversation/Composer.tsx:1163
+#: src/conversation/Composer.tsx:1165
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:988
+#: src/conversation/Conversation.tsx:996
 #: src/pages/ModelRoutingSettings.tsx:10
 msgid "Conversation"
 msgstr "Conversation"
@@ -1897,7 +1913,7 @@ msgstr "Conversations"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
-#: src/conversation/Conversation.tsx:372
+#: src/conversation/Conversation.tsx:380
 msgid "Copied"
 msgstr "Copied"
 
@@ -1918,7 +1934,7 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/conversation/Conversation.tsx:522
+#: src/conversation/Conversation.tsx:530
 msgid "Copy text"
 msgstr "Copy text"
 
@@ -1934,7 +1950,7 @@ msgstr "Cost · {window}"
 msgid "Cost per hour today"
 msgstr "Cost per hour today"
 
-#: src/conversation/Conversation.tsx:374
+#: src/conversation/Conversation.tsx:382
 msgid "Could not copy"
 msgstr "Could not copy"
 
@@ -2066,7 +2082,7 @@ msgstr "Crosses above"
 msgid "Crosses below"
 msgstr "Crosses below"
 
-#: src/conversation/sheets/AgentSheet.tsx:323
+#: src/conversation/sheets/AgentSheet.tsx:338
 msgid "Current work"
 msgstr "Current work"
 
@@ -2093,11 +2109,11 @@ msgstr "Daily"
 msgid "Daily cost"
 msgstr "Daily cost"
 
-#: src/conversation/sheets/AgentSheet.tsx:219
+#: src/conversation/sheets/AgentSheet.tsx:232
 #: src/conversation/sheets/LimitsSheet.tsx:42
-#: src/conversation/sheets/MandateSheet.tsx:236
-#: src/conversation/sheets/MandateSheet.tsx:249
-#: src/conversation/sheets/MandateSheet.tsx:257
+#: src/conversation/sheets/MandateSheet.tsx:238
+#: src/conversation/sheets/MandateSheet.tsx:251
+#: src/conversation/sheets/MandateSheet.tsx:259
 msgid "Daily loss limit"
 msgstr "Daily loss limit"
 
@@ -2137,7 +2153,7 @@ msgid "Decision evidence"
 msgstr "Decision evidence"
 
 #: src/conversation/sheets/LimitsSheet.tsx:202
-#: src/conversation/sheets/MandateSheet.tsx:260
+#: src/conversation/sheets/MandateSheet.tsx:262
 msgid "Decrease"
 msgstr "Decrease"
 
@@ -2151,7 +2167,7 @@ msgid "Default market"
 msgstr "Default market"
 
 #: src/conversation/PermissionMenu.tsx:30
-#: src/conversation/sheets/MandateSheet.tsx:404
+#: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Delegated execution"
 msgstr "Delegated execution"
 
@@ -2165,7 +2181,7 @@ msgstr "Delegation changed"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:503
+#: src/conversation/Conversation.tsx:511
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2212,7 +2228,7 @@ msgstr "Delete the fact"
 msgid "Delete the list"
 msgstr "Delete the list"
 
-#: src/conversation/Composer.tsx:1136
+#: src/conversation/Composer.tsx:1138
 msgid "Delete the recording"
 msgstr "Delete the recording"
 
@@ -2288,11 +2304,11 @@ msgstr "Determined"
 msgid "Device"
 msgstr "Device"
 
-#: src/lib/user_error.ts:75
+#: src/lib/user_error.ts:77
 msgid "Device authentication was cancelled. No authority was granted."
 msgstr "Device authentication was cancelled. No authority was granted."
 
-#: src/lib/user_error.ts:79
+#: src/lib/user_error.ts:81
 msgid "Device verification failed. No authority was granted."
 msgstr "Device verification failed. No authority was granted."
 
@@ -2321,7 +2337,7 @@ msgstr "Dictation is not available in this browser; hold the microphone to recor
 msgid "Dictation needs an internet connection"
 msgstr "Dictation needs an internet connection"
 
-#: src/conversation/Composer.tsx:783
+#: src/conversation/Composer.tsx:785
 msgid "Dictation, or hold to record a voice message"
 msgstr "Dictation, or hold to record a voice message"
 
@@ -2387,7 +2403,7 @@ msgstr "Drafts and unsent messages"
 msgid "Dreamy"
 msgstr "Dreamy"
 
-#: src/conversation/Composer.tsx:843
+#: src/conversation/Composer.tsx:845
 msgid "Drop here to attach"
 msgstr "Drop here to attach"
 
@@ -2403,7 +2419,7 @@ msgstr "Due time"
 msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
-#: src/conversation/sheets/MandateSheet.tsx:213
+#: src/conversation/sheets/MandateSheet.tsx:215
 msgid "Duration"
 msgstr "Duration"
 
@@ -2411,7 +2427,7 @@ msgstr "Duration"
 msgid "e.g. 7310"
 msgstr "e.g. 7310"
 
-#: src/conversation/ToolsSheet.tsx:135
+#: src/conversation/ToolsSheet.tsx:137
 msgid "Each agent has its own permissions"
 msgstr "Each agent has its own permissions"
 
@@ -2428,7 +2444,7 @@ msgstr "Economic calendar feed"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/conversation/Conversation.tsx:523
+#: src/conversation/Conversation.tsx:531
 msgid "Edit and resend"
 msgstr "Edit and resend"
 
@@ -2457,7 +2473,7 @@ msgstr "Edit skill"
 #~ msgid "Edit the limit"
 #~ msgstr "Edit the limit"
 
-#: src/conversation/sheets/AgentSheet.tsx:602
+#: src/conversation/sheets/AgentSheet.tsx:617
 msgid "Edit the limits"
 msgstr "Edit the limits"
 
@@ -2470,7 +2486,7 @@ msgstr "Edit the list"
 msgid "Edit the message"
 msgstr "Edit the message"
 
-#: src/conversation/Message.tsx:424
+#: src/conversation/Message.tsx:426
 msgid "Edited"
 msgstr "Edited"
 
@@ -2557,7 +2573,7 @@ msgstr "Enter a valid domain like example.com"
 msgid "Enter the access token"
 msgstr "Enter the access token"
 
-#: src/lib/user_error.ts:159
+#: src/lib/user_error.ts:161
 msgid "Enter the access token."
 msgstr "Enter the access token."
 
@@ -2665,7 +2681,7 @@ msgstr "Execution history"
 #~ msgid "Execution mode"
 #~ msgstr "Execution mode"
 
-#: src/lib/user_error.ts:65
+#: src/lib/user_error.ts:67
 msgid "Execution mode changed. Review the saved plan before continuing."
 msgstr "Execution mode changed. Review the saved plan before continuing."
 
@@ -2761,7 +2777,7 @@ msgstr "File name"
 msgid "Files"
 msgstr "Files"
 
-#: src/conversation/ToolsSheet.tsx:85
+#: src/conversation/ToolsSheet.tsx:87
 msgctxt "add to the conversation"
 msgid "Files"
 msgstr "Files"
@@ -2886,7 +2902,7 @@ msgstr "From 22:00 to 08:00"
 msgid "From the cache"
 msgstr "From the cache"
 
-#: src/conversation/Conversation.tsx:478
+#: src/conversation/Conversation.tsx:486
 msgid "From the conversation"
 msgstr "From the conversation"
 
@@ -2902,7 +2918,7 @@ msgstr "Full screen"
 msgid "Gathers information and summarises it without trading"
 msgstr "Gathers information and summarises it without trading"
 
-#: src/conversation/ToolsSheet.tsx:170
+#: src/conversation/ToolsSheet.tsx:172
 msgid "Gathers sources before replying"
 msgstr "Gathers sources before replying"
 
@@ -2944,11 +2960,11 @@ msgstr "Global routing"
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
-#: src/conversation/Conversation.tsx:1058
+#: src/conversation/Conversation.tsx:1066
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:1058
+#: src/conversation/Conversation.tsx:1066
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -2974,7 +2990,7 @@ msgstr "Goals"
 msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 msgstr "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 
-#: src/lib/user_error.ts:133
+#: src/lib/user_error.ts:135
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live is not available for this OpenAI project. Check its API access."
 
@@ -3020,7 +3036,7 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/conversation/Conversation.tsx:1136
+#: src/conversation/Conversation.tsx:1144
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -3036,11 +3052,11 @@ msgstr "Hide the key"
 msgid "Higher contrast"
 msgstr "Higher contrast"
 
-#: src/lib/user_error.ts:173
+#: src/lib/user_error.ts:175
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
 
-#: src/lib/user_error.ts:177
+#: src/lib/user_error.ts:179
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
@@ -3058,7 +3074,7 @@ msgstr "Hour"
 msgid "How to reach you"
 msgstr "How to reach you"
 
-#: src/lib/user_error.ts:224
+#: src/lib/user_error.ts:226
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
@@ -3074,7 +3090,7 @@ msgstr "Image attachment"
 msgid "Immediately"
 msgstr "Immediately"
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:205
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -3110,7 +3126,7 @@ msgid "In-app notifications"
 msgstr "In-app notifications"
 
 #: src/conversation/sheets/LimitsSheet.tsx:212
-#: src/conversation/sheets/MandateSheet.tsx:271
+#: src/conversation/sheets/MandateSheet.tsx:273
 msgid "Increase"
 msgstr "Increase"
 
@@ -3176,7 +3192,7 @@ msgstr "Instructions"
 #~ msgid "Insufficient data for performance conclusions"
 #~ msgstr "Insufficient data for performance conclusions"
 
-#: src/conversation/ToolsSheet.tsx:182
+#: src/conversation/ToolsSheet.tsx:184
 #: src/shell/pages.tsx:135
 #: src/shell/settings/SettingsRoot.tsx:325
 msgid "Integrations"
@@ -3288,7 +3304,7 @@ msgstr "Keyboard shortcuts"
 msgid "Kind of mandate"
 msgstr "Kind of mandate"
 
-#: src/conversation/ToolsSheet.tsx:194
+#: src/conversation/ToolsSheet.tsx:196
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:130
 #: src/shell/ChatMenu.tsx:159
@@ -3374,7 +3390,7 @@ msgstr "Leave the edits?"
 msgid "Legacy instructions"
 msgstr "Legacy instructions"
 
-#: src/conversation/sheets/AgentSheet.tsx:551
+#: src/conversation/sheets/AgentSheet.tsx:566
 msgid "Lift"
 msgstr "Lift"
 
@@ -3492,7 +3508,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:1025
+#: src/conversation/Conversation.tsx:1033
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -3566,13 +3582,13 @@ msgstr "Maintenance is still in progress. Try again shortly"
 msgid "Manage agents"
 msgstr "Manage agents"
 
-#: src/conversation/sheets/MandateSheet.tsx:284
-#: src/conversation/sheets/MandateSheet.tsx:291
+#: src/conversation/sheets/MandateSheet.tsx:286
+#: src/conversation/sheets/MandateSheet.tsx:293
 msgid "Manage manual trades"
 msgstr "Manage manual trades"
 
 #: src/conversation/PermissionMenu.tsx:291
-#: src/conversation/sheets/MandateSheet.tsx:404
+#: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Mandate details"
 msgstr "Mandate details"
 
@@ -3642,7 +3658,7 @@ msgstr "Market sell"
 msgid "Market watches"
 msgstr "Market watches"
 
-#: src/conversation/sheets/MandateSheet.tsx:152
+#: src/conversation/sheets/MandateSheet.tsx:154
 msgid "Markets"
 msgstr "Markets"
 
@@ -3679,7 +3695,7 @@ msgstr "MCP servers are never given a financial tool; write tools are non-financ
 msgid "Members"
 msgstr "Members"
 
-#: src/conversation/ToolsSheet.tsx:134
+#: src/conversation/ToolsSheet.tsx:136
 msgid "Members' permissions"
 msgstr "Members' permissions"
 
@@ -3721,9 +3737,9 @@ msgstr "Message {name}"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/conversation/Conversation.tsx:505
-#: src/conversation/Conversation.tsx:528
-#: src/conversation/Message.tsx:544
+#: src/conversation/Conversation.tsx:513
+#: src/conversation/Conversation.tsx:536
+#: src/conversation/Message.tsx:546
 msgid "Message options"
 msgstr "Message options"
 
@@ -3776,7 +3792,7 @@ msgstr "Minimize"
 msgid "Minimize call"
 msgstr "Minimize call"
 
-#: src/conversation/sheets/AgentSheet.tsx:222
+#: src/conversation/sheets/AgentSheet.tsx:235
 #: src/conversation/sheets/LimitsSheet.tsx:66
 msgid "Minimum free margin"
 msgstr "Minimum free margin"
@@ -3787,6 +3803,12 @@ msgstr "Minimum volume"
 
 #: src/conversation/Message.tsx:93
 #: src/conversation/Message.tsx:225
+#~ msgid "Missed voice call"
+#~ msgstr "Missed voice call"
+
+#: src/conversation/Message.tsx:93
+#: src/conversation/Message.tsx:226
+msgctxt "call log"
 msgid "Missed voice call"
 msgstr "Missed voice call"
 
@@ -3912,7 +3934,7 @@ msgstr "New owner skills use explicit activation and read-only metadata. They do
 msgid "New request"
 msgstr "New request"
 
-#: src/conversation/ToolsSheet.tsx:111
+#: src/conversation/ToolsSheet.tsx:113
 #: src/shell/ChatMenu.tsx:182
 #: src/shell/Welcome.tsx:57
 msgid "New task"
@@ -3927,23 +3949,23 @@ msgstr "New text file"
 msgid "New ticket"
 msgstr "New ticket"
 
-#: src/conversation/sheets/AgentSheet.tsx:474
+#: src/conversation/sheets/AgentSheet.tsx:489
 msgid "New trades"
 msgstr "New trades"
 
-#: src/conversation/sheets/AgentSheet.tsx:123
+#: src/conversation/sheets/AgentSheet.tsx:136
 msgid "New trades are paused"
 msgstr "New trades are paused"
 
-#: src/conversation/sheets/AgentSheet.tsx:123
+#: src/conversation/sheets/AgentSheet.tsx:136
 msgid "New trades are paused until {until}"
 msgstr "New trades are paused until {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:507
+#: src/conversation/sheets/AgentSheet.tsx:522
 msgid "New trades paused until 23:59"
 msgstr "New trades paused until 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:484
+#: src/conversation/sheets/AgentSheet.tsx:499
 msgid "New trades resumed"
 msgstr "New trades resumed"
 
@@ -4014,7 +4036,7 @@ msgstr "No artifacts found."
 msgid "No authentication"
 msgstr "No authentication"
 
-#: src/lib/user_error.ts:181
+#: src/lib/user_error.ts:183
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "No candle history was found for this symbol and timeframe."
 
@@ -4093,7 +4115,7 @@ msgstr "No groups yet."
 msgid "No internet connection"
 msgstr "No internet connection"
 
-#: src/conversation/sheets/AgentSheet.tsx:251
+#: src/conversation/sheets/AgentSheet.tsx:264
 #: src/conversation/sheets/LimitsSheet.tsx:129
 #: src/conversation/sheets/LimitsSheet.tsx:188
 #: src/conversation/sheets/LimitsSheet.tsx:224
@@ -4270,7 +4292,7 @@ msgstr "Not linked · messages to a bot can reach an agent"
 msgid "Not sent"
 msgstr "Not sent"
 
-#: src/conversation/Message.tsx:583
+#: src/conversation/Message.tsx:585
 msgid "Not sent · tap to retry"
 msgstr "Not sent · tap to retry"
 
@@ -4294,7 +4316,7 @@ msgstr "Note"
 msgid "note.txt"
 msgstr "note.txt"
 
-#: src/conversation/sheets/MandateSheet.tsx:325
+#: src/conversation/sheets/MandateSheet.tsx:327
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
@@ -4371,11 +4393,11 @@ msgstr "of the total cost"
 msgid "OK"
 msgstr "OK"
 
-#: src/conversation/sheets/AgentSheet.tsx:448
+#: src/conversation/sheets/AgentSheet.tsx:463
 msgid "On"
 msgstr "On"
 
-#: src/conversation/sheets/AgentSheet.tsx:447
+#: src/conversation/sheets/AgentSheet.tsx:462
 msgid "On · closing is always allowed"
 msgstr "On · closing is always allowed"
 
@@ -4409,7 +4431,7 @@ msgstr "One profile all your agents read. Every change is logged with its author
 msgid "One step"
 msgstr "One step"
 
-#: src/conversation/ToolsSheet.tsx:118
+#: src/conversation/ToolsSheet.tsx:120
 msgid "One time or repeating"
 msgstr "One time or repeating"
 
@@ -4460,7 +4482,7 @@ msgstr "Open new trades"
 msgid "Open price"
 msgstr "Open price"
 
-#: src/conversation/sheets/AgentSheet.tsx:221
+#: src/conversation/sheets/AgentSheet.tsx:234
 #: src/conversation/sheets/LimitsSheet.tsx:58
 msgid "Open risk limit"
 msgstr "Open risk limit"
@@ -4583,7 +4605,7 @@ msgstr "Owner-supplied source"
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/lib/user_error.ts:222
+#: src/lib/user_error.ts:224
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
@@ -4611,11 +4633,15 @@ msgstr "Paste the value here"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:258
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:419
-#: src/conversation/sheets/AgentSheet.tsx:511
+#: src/conversation/sheets/AgentSheet.tsx:434
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
+msgid "Pause"
+msgstr "Pause"
+
+#: src/conversation/sheets/AgentSheet.tsx:526
+msgctxt "new trades pause"
 msgid "Pause"
 msgstr "Pause"
 
@@ -4628,7 +4654,7 @@ msgstr "Pause"
 msgid "Pause agent and scheduled work"
 msgstr "Pause agent and scheduled work"
 
-#: src/conversation/Composer.tsx:1163
+#: src/conversation/Composer.tsx:1165
 msgid "Pause recording"
 msgstr "Pause recording"
 
@@ -4691,7 +4717,7 @@ msgstr "Period"
 #~ msgid "Permanently delete {0}? This cannot be undone."
 #~ msgstr "Permanently delete {0}? This cannot be undone."
 
-#: src/conversation/ToolsSheet.tsx:144
+#: src/conversation/ToolsSheet.tsx:146
 msgid "Permission"
 msgstr "Permission"
 
@@ -4705,6 +4731,7 @@ msgid "Permission level · {0}"
 msgstr "Permission level · {0}"
 
 #: src/conversation/PermissionMenu.tsx:142
+#: src/conversation/ToolsSheet.tsx:147
 msgid "Permission unknown"
 msgstr "Permission unknown"
 
@@ -4731,7 +4758,7 @@ msgstr "Persistent child agent"
 msgid "Personal Agent"
 msgstr "Personal Agent"
 
-#: src/conversation/Conversation.tsx:472
+#: src/conversation/Conversation.tsx:480
 msgid "Photo"
 msgstr "Photo"
 
@@ -4739,11 +4766,11 @@ msgstr "Photo"
 msgid "Photo, tap to view"
 msgstr "Photo, tap to view"
 
-#: src/conversation/ToolsSheet.tsx:88
+#: src/conversation/ToolsSheet.tsx:90
 msgid "Photos"
 msgstr "Photos"
 
-#: src/conversation/Composer.tsx:846
+#: src/conversation/Composer.tsx:848
 msgid "Photos and files up to 8 MB"
 msgstr "Photos and files up to 8 MB"
 
@@ -4945,8 +4972,8 @@ msgctxt "task state"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/conversation/Conversation.tsx:398
-#: src/conversation/Conversation.tsx:534
+#: src/conversation/Conversation.tsx:406
+#: src/conversation/Conversation.tsx:542
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
@@ -4970,16 +4997,16 @@ msgstr "Raising or removing a limit needs the passkey."
 msgid "Ray"
 msgstr "Ray"
 
-#: src/conversation/Conversation.tsx:404
+#: src/conversation/Conversation.tsx:412
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
-#: src/conversation/Message.tsx:565
+#: src/conversation/Message.tsx:567
 msgid "React to the message"
 msgstr "React to the message"
 
-#: src/conversation/Conversation.tsx:545
-#: src/conversation/Conversation.tsx:579
+#: src/conversation/Conversation.tsx:553
+#: src/conversation/Conversation.tsx:587
 msgid "Reactions"
 msgstr "Reactions"
 
@@ -5084,7 +5111,7 @@ msgstr "Recorded from your statement, not broker confirmation"
 msgid "Recorded in Updates without any alert"
 msgstr "Recorded in Updates without any alert"
 
-#: src/conversation/Composer.tsx:1142
+#: src/conversation/Composer.tsx:1144
 msgid "Recording length"
 msgstr "Recording length"
 
@@ -5118,7 +5145,7 @@ msgstr "Region"
 #~ msgid "Register a passkey"
 #~ msgstr "Register a passkey"
 
-#: src/lib/user_error.ts:71
+#: src/lib/user_error.ts:73
 msgid "Register a passkey before activating this request."
 msgstr "Register a passkey before activating this request."
 
@@ -5209,7 +5236,7 @@ msgstr "Repeat"
 msgid "Replies"
 msgstr "Replies"
 
-#: src/conversation/Conversation.tsx:521
+#: src/conversation/Conversation.tsx:529
 #: src/shell/lists/HeadsUp.tsx:235
 msgid "Reply"
 msgstr "Reply"
@@ -5287,7 +5314,7 @@ msgstr "Reset all"
 #~ msgid "Resize panel"
 #~ msgstr "Resize panel"
 
-#: src/conversation/sheets/AgentSheet.tsx:579
+#: src/conversation/sheets/AgentSheet.tsx:594
 msgid "Resolve"
 msgstr "Resolve"
 
@@ -5333,11 +5360,11 @@ msgstr "Restore"
 msgid "Restored"
 msgstr "Restored"
 
-#: src/conversation/sheets/AgentSheet.tsx:121
+#: src/conversation/sheets/AgentSheet.tsx:134
 msgid "Restricted: {what}"
 msgstr "Restricted: {what}"
 
-#: src/conversation/sheets/AgentSheet.tsx:121
+#: src/conversation/sheets/AgentSheet.tsx:134
 msgid "Restricted: {what} until {until}"
 msgstr "Restricted: {what} until {until}"
 
@@ -5352,8 +5379,8 @@ msgstr "Restriction set"
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/goals/TradingGoals.tsx:256
 #: src/components/market/MarketWatch.tsx:323
-#: src/conversation/sheets/AgentSheet.tsx:421
-#: src/conversation/sheets/AgentSheet.tsx:487
+#: src/conversation/sheets/AgentSheet.tsx:436
+#: src/conversation/sheets/AgentSheet.tsx:502
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
@@ -5365,7 +5392,7 @@ msgstr "Resume"
 #: src/components/call/CallCard.tsx:149
 #: src/components/call/CallCard.tsx:149
 #: src/conversation/Cards.tsx:116
-#: src/conversation/Conversation.tsx:500
+#: src/conversation/Conversation.tsx:508
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -5381,7 +5408,7 @@ msgstr "Retry in {left} s"
 
 #: src/components/ai/AgentLiveStatus.tsx:36
 #: src/components/ai/AgentLiveStatus.tsx:95
-#: src/conversation/sheets/AgentSheet.tsx:386
+#: src/conversation/sheets/AgentSheet.tsx:401
 msgid "Retry scheduled"
 msgstr "Retry scheduled"
 
@@ -5390,7 +5417,7 @@ msgstr "Retry scheduled"
 #~ msgid "Review a new Super Bot request and authorize it with your device."
 #~ msgstr "Review a new Super Bot request and authorize it with your device."
 
-#: src/conversation/sheets/MandateSheet.tsx:320
+#: src/conversation/sheets/MandateSheet.tsx:322
 msgid "Review and sign with the passkey"
 msgstr "Review and sign with the passkey"
 
@@ -5406,11 +5433,11 @@ msgstr "Review now"
 #~ msgid "Review plan"
 #~ msgstr "Review plan"
 
-#: src/lib/user_error.ts:57
+#: src/lib/user_error.ts:59
 msgid "Review skill dependencies and unique identities before saving."
 msgstr "Review skill dependencies and unique identities before saving."
 
-#: src/lib/user_error.ts:53
+#: src/lib/user_error.ts:55
 msgid "Review the skill identity, version and manifest before saving."
 msgstr "Review the skill identity, version and manifest before saving."
 
@@ -5559,7 +5586,7 @@ msgstr "Scenario"
 #~ msgid "Schedule"
 #~ msgstr "Schedule"
 
-#: src/conversation/ToolsSheet.tsx:117
+#: src/conversation/ToolsSheet.tsx:119
 msgctxt "add to the conversation"
 msgid "Schedule"
 msgstr "Schedule"
@@ -5696,7 +5723,7 @@ msgstr "Sections"
 #~ msgid "Secure device authentication is unavailable in this browser."
 #~ msgstr "Secure device authentication is unavailable in this browser."
 
-#: src/lib/user_error.ts:77
+#: src/lib/user_error.ts:79
 msgid "Secure device authentication is unavailable on this device."
 msgstr "Secure device authentication is unavailable on this device."
 
@@ -5732,7 +5759,7 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
-#: src/conversation/Composer.tsx:817
+#: src/conversation/Composer.tsx:819
 msgid "Send"
 msgstr "Send"
 
@@ -5749,11 +5776,11 @@ msgstr "Send (Shift+Enter for a new line)"
 msgid "Send the answer"
 msgstr "Send the answer"
 
-#: src/conversation/Composer.tsx:816
+#: src/conversation/Composer.tsx:818
 msgid "Send the message"
 msgstr "Send the message"
 
-#: src/conversation/Composer.tsx:1184
+#: src/conversation/Composer.tsx:1186
 msgid "Send the voice message"
 msgstr "Send the voice message"
 
@@ -5801,12 +5828,12 @@ msgstr "Servers and repositories"
 #~ msgid "Service needs attention"
 #~ msgstr "Service needs attention"
 
-#: src/conversation/sheets/AgentSheet.tsx:280
-#: src/conversation/sheets/AgentSheet.tsx:280
+#: src/conversation/sheets/AgentSheet.tsx:295
+#: src/conversation/sheets/AgentSheet.tsx:295
 msgid "Set by the agent"
 msgstr "Set by the agent"
 
-#: src/conversation/sheets/AgentSheet.tsx:534
+#: src/conversation/sheets/AgentSheet.tsx:549
 msgid "Set by you"
 msgstr "Set by you"
 
@@ -5891,7 +5918,7 @@ msgstr "Show the full log"
 msgid "Show the key"
 msgstr "Show the key"
 
-#: src/conversation/sheets/AgentSheet.tsx:368
+#: src/conversation/sheets/AgentSheet.tsx:383
 msgid "Show the request"
 msgstr "Show the request"
 
@@ -5924,7 +5951,7 @@ msgstr "Sign in"
 msgid "Sign out"
 msgstr "Sign out"
 
-#: src/lib/user_error.ts:83
+#: src/lib/user_error.ts:85
 msgid "Sign-in failed. Check your email and password."
 msgstr "Sign-in failed. Check your email and password."
 
@@ -5999,11 +6026,11 @@ msgstr "Skill saved"
 msgid "Skill updated"
 msgstr "Skill updated"
 
-#: src/lib/user_error.ts:50
+#: src/lib/user_error.ts:52
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "Skill version controls could not be verified. Reload before making changes."
 
-#: src/conversation/ToolsSheet.tsx:189
+#: src/conversation/ToolsSheet.tsx:191
 #: src/pages/Knowledge.tsx:44
 #: src/shell/pages.tsx:111
 #: src/shell/settings/IntegrationsPage.tsx:637
@@ -6035,7 +6062,7 @@ msgstr "Skip"
 msgid "Sleepy"
 msgstr "Sleepy"
 
-#: src/conversation/Composer.tsx:1157
+#: src/conversation/Composer.tsx:1159
 msgid "Slide to cancel"
 msgstr "Slide to cancel"
 
@@ -6127,12 +6154,12 @@ msgstr "Start now"
 msgid "Status"
 msgstr "Status"
 
-#: src/conversation/sheets/AgentSheet.tsx:631
+#: src/conversation/sheets/AgentSheet.tsx:670
 #: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "Status and safety"
 
-#: src/conversation/sheets/AgentSheet.tsx:85
+#: src/conversation/sheets/AgentSheet.tsx:98
 msgid "Status: {text}"
 msgstr "Status: {text}"
 
@@ -6140,7 +6167,7 @@ msgstr "Status: {text}"
 msgid "Still unknown"
 msgstr "Still unknown"
 
-#: src/conversation/Composer.tsx:825
+#: src/conversation/Composer.tsx:827
 #: src/pages/ActivityList.tsx:259
 msgid "Stop"
 msgstr "Stop"
@@ -6163,7 +6190,7 @@ msgstr "Stop loss · optional"
 #~ msgid "Stop Super Bot"
 #~ msgstr "Stop Super Bot"
 
-#: src/conversation/Composer.tsx:824
+#: src/conversation/Composer.tsx:826
 msgid "Stop the reply"
 msgstr "Stop the reply"
 
@@ -6189,7 +6216,7 @@ msgstr "Stop unnecessary animations and transitions"
 #~ msgid "Stopped"
 #~ msgstr "Stopped"
 
-#: src/conversation/sheets/AgentSheet.tsx:445
+#: src/conversation/sheets/AgentSheet.tsx:460
 msgid "Stopped · no new orders are sent"
 msgstr "Stopped · no new orders are sent"
 
@@ -6206,7 +6233,7 @@ msgstr "Storage and data"
 #~ msgid "Submitted"
 #~ msgstr "Submitted"
 
-#: src/conversation/sheets/MandateSheet.tsx:252
+#: src/conversation/sheets/MandateSheet.tsx:254
 msgid "Suggested value 3%"
 msgstr "Suggested value 3%"
 
@@ -6297,19 +6324,19 @@ msgstr "Tap the lock icon next to the site address."
 msgid "Tap the share button at the bottom of the browser."
 msgstr "Tap the share button at the bottom of the browser."
 
-#: src/conversation/Message.tsx:249
+#: src/conversation/Message.tsx:251
 msgid "Tap to call back"
 msgstr "Tap to call back"
 
-#: src/conversation/Composer.tsx:784
+#: src/conversation/Composer.tsx:786
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
-#: src/conversation/Conversation.tsx:565
+#: src/conversation/Conversation.tsx:573
 msgid "Tap to remove"
 msgstr "Tap to remove"
 
-#: src/conversation/Conversation.tsx:385
+#: src/conversation/Conversation.tsx:393
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/shell/domain/SchedulesPages.tsx:477
@@ -6320,7 +6347,7 @@ msgstr "Task"
 msgid "Task boards"
 msgstr "Task boards"
 
-#: src/conversation/sheets/AgentSheet.tsx:414
+#: src/conversation/sheets/AgentSheet.tsx:429
 #: src/shell/domain/UpdatesPages.tsx:44
 msgid "Task cancelled"
 msgstr "Task cancelled"
@@ -6331,7 +6358,7 @@ msgstr "Task cancelled"
 msgid "Task completed"
 msgstr "Task completed"
 
-#: src/conversation/Conversation.tsx:387
+#: src/conversation/Conversation.tsx:395
 #: src/shell/domain/UpdatesPages.tsx:40
 msgid "Task created"
 msgstr "Task created"
@@ -6348,15 +6375,15 @@ msgstr "Task is retrying through a model outage"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
 #: src/components/ai/AttentionInbox.tsx:24
-#: src/conversation/sheets/AgentSheet.tsx:390
+#: src/conversation/sheets/AgentSheet.tsx:405
 msgid "Task needs review"
 msgstr "Task needs review"
 
-#: src/conversation/sheets/AgentSheet.tsx:413
+#: src/conversation/sheets/AgentSheet.tsx:428
 msgid "Task paused"
 msgstr "Task paused"
 
-#: src/conversation/sheets/AgentSheet.tsx:411
+#: src/conversation/sheets/AgentSheet.tsx:426
 msgid "Task resumed"
 msgstr "Task resumed"
 
@@ -6368,7 +6395,7 @@ msgstr "Task title"
 msgid "Task when triggered"
 msgstr "Task when triggered"
 
-#: src/conversation/sheets/AgentSheet.tsx:376
+#: src/conversation/sheets/AgentSheet.tsx:391
 #: src/shell/FloatingTabBar.tsx:23
 #: src/shell/lists/UnifiedSearch.tsx:274
 #: src/shell/lists/UnifiedSearch.tsx:309
@@ -6409,7 +6436,7 @@ msgstr "Text size"
 msgid "Text size · {0}"
 msgstr "Text size · {0}"
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:188
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
@@ -6425,11 +6452,11 @@ msgstr "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgid "The account is linked"
 msgstr "The account is linked"
 
-#: src/conversation/sheets/MandateSheet.tsx:301
+#: src/conversation/sheets/MandateSheet.tsx:303
 msgid "The account's current limits stay in force."
 msgstr "The account's current limits stay in force."
 
-#: src/conversation/sheets/MandateSheet.tsx:238
+#: src/conversation/sheets/MandateSheet.tsx:240
 msgid "The account's limit stays"
 msgstr "The account's limit stays"
 
@@ -6441,7 +6468,7 @@ msgstr "The accounts and sources your agents can reach. Any source outside this 
 msgid "The agent could not reply"
 msgstr "The agent could not reply"
 
-#: src/conversation/ToolsSheet.tsx:112
+#: src/conversation/ToolsSheet.tsx:114
 msgid "The agent follows it until it is done"
 msgstr "The agent follows it until it is done"
 
@@ -6457,23 +6484,23 @@ msgstr "The agent follows it until it is done"
 msgid "The agent's work steps"
 msgstr "The agent's work steps"
 
-#: src/lib/user_error.ts:163
+#: src/lib/user_error.ts:165
 msgid "The broker account could not be verified. Check its connection details and try again."
 msgstr "The broker account could not be verified. Check its connection details and try again."
 
-#: src/lib/user_error.ts:169
+#: src/lib/user_error.ts:171
 msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 msgstr "The broker account is not ready at the connection provider. Check its status, then retry."
 
-#: src/lib/user_error.ts:195
+#: src/lib/user_error.ts:197
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:169
 msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
 msgstr "The broker connection is stopped at the connection provider. Start it there, then retry."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:203
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
@@ -6485,15 +6512,15 @@ msgstr "The broker could not establish this operation's outcome. Record what you
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 
-#: src/lib/user_error.ts:179
+#: src/lib/user_error.ts:181
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:199
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:190
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
 
@@ -6501,11 +6528,11 @@ msgstr "The broker quote is unavailable for this exact symbol."
 msgid "The broker rejected the order"
 msgstr "The broker rejected the order"
 
-#: src/lib/user_error.ts:175
+#: src/lib/user_error.ts:177
 msgid "The broker rejected this timeframe or candle request."
 msgstr "The broker rejected this timeframe or candle request."
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:192
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
@@ -6555,7 +6582,7 @@ msgstr "The connection works · {count} tools"
 msgid "The connection works · <0>{who}</0>"
 msgstr "The connection works · <0>{who}</0>"
 
-#: src/lib/user_error.ts:121
+#: src/lib/user_error.ts:123
 msgid "The current market no longer confirms this goal's condition. No trade was sent."
 msgstr "The current market no longer confirms this goal's condition. No trade was sent."
 
@@ -6623,20 +6650,20 @@ msgstr "the last 7 days"
 msgid "The list of agents while you write"
 msgstr "The list of agents while you write"
 
-#: src/conversation/ToolsSheet.tsx:158
+#: src/conversation/ToolsSheet.tsx:160
 msgid "The market"
 msgstr "The market"
 
-#: src/conversation/Conversation.tsx:225
-#: src/conversation/Conversation.tsx:228
+#: src/conversation/Conversation.tsx:233
+#: src/conversation/Conversation.tsx:236
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
-#: src/conversation/Conversation.tsx:496
+#: src/conversation/Conversation.tsx:504
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
-#: src/conversation/Message.tsx:556
+#: src/conversation/Message.tsx:558
 msgid "The message was not sent. Options"
 msgstr "The message was not sent. Options"
 
@@ -6649,7 +6676,7 @@ msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
-#: src/lib/user_error.ts:220
+#: src/lib/user_error.ts:222
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -6661,11 +6688,11 @@ msgstr "The model is not available right now"
 msgid "The model provider could not be reached. Try another model or retry shortly."
 msgstr "The model provider could not be reached. Try another model or retry shortly."
 
-#: src/lib/user_error.ts:103
+#: src/lib/user_error.ts:105
 msgid "The model provider is unavailable right now. Try again shortly."
 msgstr "The model provider is unavailable right now. Try again shortly."
 
-#: src/lib/user_error.ts:89
+#: src/lib/user_error.ts:91
 msgid "The model provider rate limit was reached. Try again shortly."
 msgstr "The model provider rate limit was reached. Try again shortly."
 
@@ -6673,11 +6700,11 @@ msgstr "The model provider rate limit was reached. Try again shortly."
 msgid "The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets."
 msgstr "The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets."
 
-#: src/lib/user_error.ts:105
+#: src/lib/user_error.ts:107
 msgid "The model provider rejected this request."
 msgstr "The model provider rejected this request."
 
-#: src/lib/user_error.ts:107
+#: src/lib/user_error.ts:109
 msgid "The model provider returned an unreadable response. Try again."
 msgstr "The model provider returned an unreadable response. Try again."
 
@@ -6685,11 +6712,11 @@ msgstr "The model provider returned an unreadable response. Try again."
 msgid "The model provider's quota ran out"
 msgstr "The model provider's quota ran out"
 
-#: src/lib/user_error.ts:97
+#: src/lib/user_error.ts:99
 msgid "The model provider’s safety system withheld this answer."
 msgstr "The model provider’s safety system withheld this answer."
 
-#: src/lib/user_error.ts:99
+#: src/lib/user_error.ts:101
 msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 msgstr "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 
@@ -6701,7 +6728,7 @@ msgstr "The new schema is approved"
 msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
-#: src/conversation/Conversation.tsx:466
+#: src/conversation/Conversation.tsx:474
 #: src/conversation/Message.tsx:124
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
@@ -6722,7 +6749,7 @@ msgstr "the previous thirty days"
 msgid "The previous value is restored"
 msgstr "The previous value is restored"
 
-#: src/lib/user_error.ts:91
+#: src/lib/user_error.ts:93
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
@@ -6738,7 +6765,7 @@ msgstr "The reply did not arrive in time; the connection may be weak."
 msgid "The reply timed out"
 msgstr "The reply timed out"
 
-#: src/lib/user_error.ts:226
+#: src/lib/user_error.ts:228
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -6746,15 +6773,15 @@ msgstr "The request could not be completed. Try again."
 msgid "The requested work is done"
 msgstr "The requested work is done"
 
-#: src/lib/user_error.ts:135
+#: src/lib/user_error.ts:137
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "The resident voice worker is unavailable. Check server readiness and retry."
 
-#: src/lib/user_error.ts:144
+#: src/lib/user_error.ts:146
 msgid "The resident worker is preparing this chart."
 msgstr "The resident worker is preparing this chart."
 
-#: src/conversation/sheets/AgentSheet.tsx:548
+#: src/conversation/sheets/AgentSheet.tsx:563
 msgid "The restriction was lifted"
 msgstr "The restriction was lifted"
 
@@ -6778,7 +6805,7 @@ msgstr "The selected group's chat history is hidden for you. The group stays wit
 msgid "The selected groups' chat history is hidden for you. The groups stay with their members."
 msgstr "The selected groups' chat history is hidden for you. The groups stay with their members."
 
-#: src/lib/user_error.ts:101
+#: src/lib/user_error.ts:103
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "The selected model is not available from this provider. Choose another model in Settings."
 
@@ -6798,7 +6825,7 @@ msgstr "The server is stopped"
 msgid "The server's schema changed. Review the tools before approving them."
 msgstr "The server's schema changed. Review the tools before approving them."
 
-#: src/lib/user_error.ts:85
+#: src/lib/user_error.ts:87
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
@@ -6826,7 +6853,7 @@ msgstr "The task no longer exists."
 #~ msgid "The task resumed from its saved state after reconnection."
 #~ msgstr "The task resumed from its saved state after reconnection."
 
-#: src/lib/user_error.ts:157
+#: src/lib/user_error.ts:159
 msgid "The test did not get an answer in time. Nothing was saved."
 msgstr "The test did not get an answer in time. Nothing was saved."
 
@@ -6838,7 +6865,7 @@ msgstr "The value is sent encrypted and is not shown after saving."
 msgid "The value is too short"
 msgstr "The value is too short"
 
-#: src/lib/user_error.ts:138
+#: src/lib/user_error.ts:140
 msgid "The voice connection failed. Retry the call."
 msgstr "The voice connection failed. Retry the call."
 
@@ -6877,7 +6904,7 @@ msgstr "These settings apply to every agent and routine. Voice routes require mo
 msgid "Thinking"
 msgstr "Thinking"
 
-#: src/lib/user_error.ts:43
+#: src/lib/user_error.ts:45
 msgid "This agent has reached its blocked-version limit. Existing blocks have been preserved."
 msgstr "This agent has reached its blocked-version limit. Existing blocks have been preserved."
 
@@ -6889,23 +6916,23 @@ msgstr "This agent’s market scope cannot be changed."
 msgid "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
 msgstr "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
 
-#: src/lib/user_error.ts:93
+#: src/lib/user_error.ts:95
 msgid "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
 msgstr "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
 
-#: src/lib/user_error.ts:81
+#: src/lib/user_error.ts:83
 msgid "This authorization request expired or changed. Review a new request."
 msgstr "This authorization request expired or changed. Review a new request."
 
-#: src/lib/user_error.ts:109
+#: src/lib/user_error.ts:111
 msgid "This broker account does not permit trading. Check its trading permissions."
 msgstr "This broker account does not permit trading. Check its trading permissions."
 
-#: src/lib/user_error.ts:161
+#: src/lib/user_error.ts:163
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "This broker account is already connected. Use the existing connection."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:194
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
@@ -6921,7 +6948,7 @@ msgstr "This browser cannot use a passkey."
 #~ msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 #~ msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
-#: src/lib/user_error.ts:149
+#: src/lib/user_error.ts:151
 msgid "This exact symbol is not available from your broker."
 msgstr "This exact symbol is not available from your broker."
 
@@ -6929,15 +6956,15 @@ msgstr "This exact symbol is not available from your broker."
 msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 msgstr "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 
-#: src/lib/user_error.ts:116
+#: src/lib/user_error.ts:118
 msgid "This goal is paused, cancelled or completed. Reload its current state."
 msgstr "This goal is paused, cancelled or completed. Reload its current state."
 
-#: src/lib/user_error.ts:113
+#: src/lib/user_error.ts:115
 msgid "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
 msgstr "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
 
-#: src/lib/user_error.ts:118
+#: src/lib/user_error.ts:120
 msgid "This goal stopped because its conversation or agent was deleted. Its history is kept."
 msgstr "This goal stopped because its conversation or agent was deleted. Its history is kept."
 
@@ -6945,11 +6972,11 @@ msgstr "This goal stopped because its conversation or agent was deleted. Its his
 msgid "This is how text looks in conversations."
 msgstr "This is how text looks in conversations."
 
-#: src/lib/user_error.ts:125
+#: src/lib/user_error.ts:127
 msgid "This item changed. Reload it before saving."
 msgstr "This item changed. Reload it before saving."
 
-#: src/lib/user_error.ts:218
+#: src/lib/user_error.ts:220
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
@@ -6957,19 +6984,19 @@ msgstr "This message is too large to process, even after older history was summa
 msgid "This month"
 msgstr "This month"
 
-#: src/lib/user_error.ts:73
+#: src/lib/user_error.ts:75
 msgid "This needs a new grant you sign with your passkey."
 msgstr "This needs a new grant you sign with your passkey."
 
-#: src/conversation/sheets/AgentSheet.tsx:539
+#: src/conversation/sheets/AgentSheet.tsx:554
 msgid "this one does not block closing"
 msgstr "this one does not block closing"
 
-#: src/lib/user_error.ts:153
+#: src/lib/user_error.ts:155
 msgid "This operation already has a settled outcome. Reload the journal."
 msgstr "This operation already has a settled outcome. Reload the journal."
 
-#: src/lib/user_error.ts:151
+#: src/lib/user_error.ts:153
 msgid "This operation is still in progress. Wait for its broker result before resolving it."
 msgstr "This operation is still in progress. Wait for its broker result before resolving it."
 
@@ -6999,7 +7026,7 @@ msgstr "This page may have moved or is no longer available."
 msgid "This pair is permanent for this agent. Create another agent to use a different pair."
 msgstr "This pair is permanent for this agent. Create another agent to use a different pair."
 
-#: src/lib/user_error.ts:67
+#: src/lib/user_error.ts:69
 msgid "This passkey request is not available in this session. Start it again."
 msgstr "This passkey request is not available in this session. Start it again."
 
@@ -7011,11 +7038,11 @@ msgstr "This permanent block cannot be undone. Confirm the exact skill and versi
 #~ msgid "This plan is advisory and cannot execute trades."
 #~ msgstr "This plan is advisory and cannot execute trades."
 
-#: src/lib/user_error.ts:45
+#: src/lib/user_error.ts:47
 msgid "This procedure requires a validated version before it can be enabled or changed."
 msgstr "This procedure requires a validated version before it can be enabled or changed."
 
-#: src/lib/user_error.ts:39
+#: src/lib/user_error.ts:41
 msgid "This question is no longer waiting for an answer."
 msgstr "This question is no longer waiting for an answer."
 
@@ -7023,19 +7050,19 @@ msgstr "This question is no longer waiting for an answer."
 #~ msgid "This run was recovered by another worker."
 #~ msgstr "This run was recovered by another worker."
 
-#: src/lib/user_error.ts:47
+#: src/lib/user_error.ts:49
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:209
+#: src/lib/user_error.ts:211
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "This step was interrupted and picked up again. Nothing was repeated."
 
-#: src/lib/user_error.ts:214
+#: src/lib/user_error.ts:216
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:211
+#: src/lib/user_error.ts:213
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -7118,7 +7145,7 @@ msgstr "today so far"
 msgid "Tokens"
 msgstr "Tokens"
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:209
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
@@ -7151,11 +7178,11 @@ msgstr "Tools that could move money are refused: {0}"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:825
+#: src/conversation/Conversation.tsx:833
 msgid "Trade order"
 msgstr "Trade order"
 
-#: src/conversation/sheets/AgentSheet.tsx:220
+#: src/conversation/sheets/AgentSheet.tsx:233
 #: src/conversation/sheets/LimitsSheet.tsx:50
 msgid "Trade risk limit"
 msgstr "Trade risk limit"
@@ -7170,9 +7197,9 @@ msgstr "Trades"
 msgid "Trades on its own"
 msgstr "Trades on its own"
 
-#: src/conversation/sheets/AgentSheet.tsx:434
-#: src/conversation/sheets/AgentSheet.tsx:441
+#: src/conversation/sheets/AgentSheet.tsx:449
 #: src/conversation/sheets/AgentSheet.tsx:456
+#: src/conversation/sheets/AgentSheet.tsx:471
 #: src/pages/settings-sidebar.tsx:15
 #: src/pages/Trading.tsx:25
 #: src/shell/settings/SettingsRoot.tsx:332
@@ -7195,7 +7222,7 @@ msgstr "Trading agent"
 #~ msgid "Trading and operation journal"
 #~ msgstr "Trading and operation journal"
 
-#: src/conversation/sheets/AgentSheet.tsx:632
+#: src/conversation/sheets/AgentSheet.tsx:671
 msgid "Trading and safety"
 msgstr "Trading and safety"
 
@@ -7215,7 +7242,7 @@ msgstr "Trading goals"
 #~ msgid "Trading is off."
 #~ msgstr "Trading is off."
 
-#: src/conversation/sheets/AgentSheet.tsx:147
+#: src/conversation/sheets/AgentSheet.tsx:160
 msgid "Trading is stopped"
 msgstr "Trading is stopped"
 
@@ -7235,15 +7262,15 @@ msgstr "Trading pair"
 #~ msgid "Trading request"
 #~ msgstr "Trading request"
 
-#: src/conversation/sheets/AgentSheet.tsx:462
+#: src/conversation/sheets/AgentSheet.tsx:477
 msgid "Trading resumed"
 msgstr "Trading resumed"
 
-#: src/conversation/sheets/AgentSheet.tsx:465
+#: src/conversation/sheets/AgentSheet.tsx:480
 msgid "Trading stopped"
 msgstr "Trading stopped"
 
-#: src/conversation/sheets/AgentSheet.tsx:464
+#: src/conversation/sheets/AgentSheet.tsx:479
 msgid "Trading stopped · closing is still allowed"
 msgstr "Trading stopped · closing is still allowed"
 
@@ -7269,7 +7296,7 @@ msgstr "Trusted"
 msgid "Try again"
 msgstr "Try again"
 
-#: src/conversation/Conversation.tsx:526
+#: src/conversation/Conversation.tsx:534
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
@@ -7294,7 +7321,7 @@ msgstr "Type"
 msgid "Type a word to search chats, messages, tasks and files."
 msgstr "Type a word to search chats, messages, tasks and files."
 
-#: src/conversation/Message.tsx:283
+#: src/conversation/Message.tsx:285
 msgid "Typing"
 msgstr "Typing"
 
@@ -7319,7 +7346,7 @@ msgctxt "order state"
 msgid "Unconfirmed"
 msgstr "Unconfirmed"
 
-#: src/conversation/sheets/AgentSheet.tsx:566
+#: src/conversation/sheets/AgentSheet.tsx:581
 msgid "Unconfirmed operation · not confirmed by the broker"
 msgstr "Unconfirmed operation · not confirmed by the broker"
 
@@ -7484,7 +7511,7 @@ msgstr "Usage of {0} · last {1} days"
 msgid "Use the arrows to move between the columns."
 msgstr "Use the arrows to move between the columns."
 
-#: src/lib/user_error.ts:69
+#: src/lib/user_error.ts:71
 msgid "Use the configured secure website for device authentication."
 msgstr "Use the configured secure website for device authentication."
 
@@ -7561,15 +7588,19 @@ msgstr "Vision"
 msgid "Voice"
 msgstr "Voice"
 
-#: src/conversation/Message.tsx:94
-#: src/conversation/Message.tsx:225
 #: src/shell/ChatHeader.tsx:142
 #: src/shell/ChatHeader.tsx:143
 msgid "Voice call"
 msgstr "Voice call"
 
-#: src/conversation/Composer.tsx:792
-#: src/conversation/Composer.tsx:793
+#: src/conversation/Message.tsx:94
+#: src/conversation/Message.tsx:227
+msgctxt "call log"
+msgid "Voice call"
+msgstr "Voice call"
+
+#: src/conversation/Composer.tsx:794
+#: src/conversation/Composer.tsx:795
 msgid "Voice conversation"
 msgstr "Voice conversation"
 
@@ -7577,7 +7608,7 @@ msgstr "Voice conversation"
 #~ msgid "Voice disconnected"
 #~ msgstr "Voice disconnected"
 
-#: src/conversation/ToolsSheet.tsx:123
+#: src/conversation/ToolsSheet.tsx:125
 msgid "Voice message"
 msgstr "Voice message"
 
@@ -7586,7 +7617,7 @@ msgstr "Voice message"
 msgid "Voice message ({0})"
 msgstr "Voice message ({0})"
 
-#: src/lib/user_error.ts:131
+#: src/lib/user_error.ts:133
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "Voice requires a browser with WebRTC and microphone support on HTTPS."
 
@@ -7629,11 +7660,11 @@ msgid "Waiting for handover"
 msgstr "Waiting for handover"
 
 #: src/components/ai/AgentLiveStatus.tsx:100
-#: src/conversation/sheets/AgentSheet.tsx:388
+#: src/conversation/sheets/AgentSheet.tsx:403
 msgid "Waiting for reconciliation"
 msgstr "Waiting for reconciliation"
 
-#: src/lib/user_error.ts:123
+#: src/lib/user_error.ts:125
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 
@@ -7669,7 +7700,7 @@ msgstr "Watch confirmed — review current evidence"
 msgid "Watch source"
 msgstr "Watch source"
 
-#: src/conversation/sheets/AgentSheet.tsx:349
+#: src/conversation/sheets/AgentSheet.tsx:364
 #: src/shell/ChatMenu.tsx:153
 msgid "Watches"
 msgstr "Watches"
@@ -7691,17 +7722,17 @@ msgstr "We found no results for «{q}». Try a shorter word or a different term.
 msgid "We heard nothing. Try again."
 msgstr "We heard nothing. Try again."
 
-#: src/conversation/Composer.tsx:770
-#: src/conversation/ToolsSheet.tsx:169
+#: src/conversation/Composer.tsx:772
+#: src/conversation/ToolsSheet.tsx:171
 #: src/shell/domain/SkillsPages.tsx:22
 msgid "Web search"
 msgstr "Web search"
 
-#: src/conversation/Composer.tsx:769
+#: src/conversation/Composer.tsx:771
 msgid "Web search is on, tap to turn it off"
 msgstr "Web search is on, tap to turn it off"
 
-#: src/conversation/Composer.tsx:773
+#: src/conversation/Composer.tsx:775
 msgid "Web search turned off"
 msgstr "Web search turned off"
 
@@ -7731,7 +7762,7 @@ msgstr "What happened at the broker"
 msgid "What is needed"
 msgstr "What is needed"
 
-#: src/conversation/Conversation.tsx:1142
+#: src/conversation/Conversation.tsx:1150
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -7804,7 +7835,7 @@ msgstr "Worried"
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
-#: src/conversation/Conversation.tsx:1140
+#: src/conversation/Conversation.tsx:1148
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
@@ -7836,7 +7867,7 @@ msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:562
+#: src/conversation/Conversation.tsx:570
 #: src/conversation/Message.tsx:119
 #: src/conversation/Message.tsx:138
 #: src/shell/lists/UnifiedSearch.tsx:152
@@ -7885,7 +7916,7 @@ msgstr "You rejected a request"
 msgid "You set the markets, actions, duration and money limit"
 msgstr "You set the markets, actions, duration and money limit"
 
-#: src/conversation/Message.tsx:420
+#: src/conversation/Message.tsx:422
 msgid "You stopped the reply"
 msgstr "You stopped the reply"
 
@@ -7926,11 +7957,11 @@ msgstr "Your conversations and files are kept in Lonora, not in this browser."
 #~ msgid "Your Lonora workspace"
 #~ msgstr "Your Lonora workspace"
 
-#: src/lib/user_error.ts:95
+#: src/lib/user_error.ts:97
 msgid "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
 msgstr "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
 
-#: src/lib/user_error.ts:61
+#: src/lib/user_error.ts:63
 msgid "Your Personal Agent cannot be deleted."
 msgstr "Your Personal Agent cannot be deleted."
 

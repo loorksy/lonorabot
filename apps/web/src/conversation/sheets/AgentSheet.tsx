@@ -523,7 +523,7 @@ function AgentSheetBody({
                       );
                     }}
                   >
-                    <Trans>Pause</Trans>
+                    {t({ message: "Pause", context: "new trades pause" })}
                   </button>
                 )
               )}

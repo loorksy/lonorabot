@@ -323,3 +323,17 @@ test("item 21: «Mandate details» opens the signed grant card of this chat", as
   const sheet = readFileSync("apps/web/src/conversation/sheets/MandateSheet.tsx", "utf8");
   assert.match(sheet, /if \(card\) return <OwnerActionCard row=\{card\}/);
 });
+
+test("item 24: the call log and the new-trades pause have their own Arabic words", async () => {
+  const { readFileSync } = await import("node:fs");
+  const po = readFileSync("apps/web/src/i18n/locales/ar/messages.po", "utf8");
+  const entry = (id: string, context?: string) => {
+    const head = `${context ? `msgctxt "${context}"\n` : "\n"}msgid "${id}"\nmsgstr "`;
+    const at = po.indexOf(head);
+    assert.ok(at >= 0, `${context ?? ""} ${id}`);
+    return po.slice(at + head.length, po.indexOf('"', at + head.length));
+  };
+  assert.equal(entry("Voice call", "call log"), "مكالمة صوتية");
+  assert.equal(entry("Voice call"), "اتصال صوتي");
+  assert.equal(entry("Pause", "new trades pause"), "تعليق");
+});
