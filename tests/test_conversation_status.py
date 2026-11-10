@@ -268,6 +268,63 @@ async def test_a_reply_that_started_other_work_is_never_retried():
 
 
 @pytest.mark.asyncio
+async def test_a_reply_that_started_a_real_ticket_or_task_is_never_retried():
+    """R4: the real start paths link their work to the starting run (started_by_run_id), so
+    POST /runs/{id}/retry refuses the reply that started a ticket or a Task."""
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.automation.background import start_ticket
+    from lonora_contracts.tasks import TaskCreate
+    from lonora_db.boards import BoardRepository
+    from lonora_db.runs import fail_run
+    from lonora_db.schema import RunRow
+    from lonora_db.tasks import create_task
+    from lonora_db.tickets import TicketRepository
+
+    fixture = await Fixture().open()
+    try:
+        for work in ("ticket", "task"):
+            thread, run_id = await conversation_run(fixture)
+            run = await fixture.request("GET", f"/runs/{run_id}")
+            context = await fixture.lease({"id": run_id, **run})
+            db = fixture.runtime.db
+            if work == "ticket":
+                async with db.sessions() as session, session.begin():
+                    board = await BoardRepository().create(
+                        session, fixture.owner, {"title": "Work"}, agent_id=run["agent_id"]
+                    )
+                    ticket = await TicketRepository().create(
+                        session,
+                        fixture.owner,
+                        {"board_id": board.id, "title": "Reconcile", "description": ""},
+                        agent_id=run["agent_id"],
+                    )
+                started = await start_ticket(db, fixture.owner, ticket.id, lease=context.lease)
+            else:
+                async with db.sessions() as session, session.begin():
+                    starter = await session.get(RunRow, run_id)
+                    task = await create_task(
+                        session,
+                        fixture.owner,
+                        run["agent_id"],
+                        thread["id"],
+                        TaskCreate(title="Reconcile", description=""),
+                        starter=starter,
+                    )
+                    started = {"id": task.payload["run_id"]}
+            async with db.sessions() as session, session.begin():
+                child = await session.get(RunRow, started["id"])
+                assert child is not None, work
+                assert child.model_metadata["started_by_run_id"] == run_id, work
+                await fail_run(session, context.lease, "model_provider_unavailable")
+            response = await post(fixture, f"/runs/{run_id}/retry")
+            assert response.status_code == 409, work
+            assert response.json()["code"] == "run_not_retryable", work
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_a_reply_to_an_edited_message_is_never_retried():
     """M2(c): edit-and-resend replaced the owner's message; its old request never runs again."""
     database()
