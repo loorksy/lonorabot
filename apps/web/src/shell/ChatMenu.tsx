@@ -4,6 +4,9 @@ import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback } from "react";
 import { ConversationCharts } from "../components/charts/ConversationCharts";
 import { TradingGoals } from "../components/goals/TradingGoals";
+import { useChatPrefs } from "../conversation/prefs";
+import { useAgentSheet } from "../conversation/sheets/AgentSheet";
+import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
 import type { Agent, Resource } from "../lib/api";
 import { GroupSettings } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
@@ -56,6 +59,12 @@ export function useChatMenu({
   const nav = useNavigation();
   const data = useShellData();
   const { refresh } = useClient();
+  const prefs = useChatPrefs();
+  const statusSheet = useAgentSheet((id) =>
+    window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
+  );
+  const watchesSheet = useWatchesSheet();
+  const trading = Boolean(agent && (agent.trading_account_id || agent.template === "trading"));
   // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
   const openChart = useCallback(
     (chartId?: string) => {
@@ -110,6 +119,20 @@ export function useChatMenu({
                 onClick={() => openPage("info", "fwd")}
               />
               <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
+              {agent && (trading || prefs.agentStatus) && (
+                <MenuRow
+                  icon="shield"
+                  label={<Trans>Status and safety</Trans>}
+                  onClick={() => statusSheet(agent, trading, prefs.agentStatus)}
+                />
+              )}
+              {agent && trading && (
+                <MenuRow
+                  icon="radar"
+                  label={<Trans>Watches</Trans>}
+                  onClick={() => watchesSheet(agent)}
+                />
+              )}
               <MenuRow
                 icon="book"
                 label={<Trans>Knowledge</Trans>}
@@ -179,7 +202,20 @@ export function useChatMenu({
         { morph: true },
       );
     },
-    [sheets, nav, data, group, agent, memberAgents, refresh, openChart],
+    [
+      sheets,
+      nav,
+      data,
+      group,
+      agent,
+      memberAgents,
+      refresh,
+      openChart,
+      prefs.agentStatus,
+      statusSheet,
+      trading,
+      watchesSheet,
+    ],
   );
   return {
     openMenu: () => openPage("menu"),

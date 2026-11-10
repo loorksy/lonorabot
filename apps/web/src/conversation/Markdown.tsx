@@ -18,18 +18,28 @@ export function mentionPattern(names: string[]): RegExp | null {
   return all.length ? new RegExp(`\\u200e?@(${all.join("|")})(?=$|[\\s.,،!?؟:؛)\\]])`, "g") : null;
 }
 
-/** Plain text with mentions marked (the owner's own words: no Markdown). */
+/** Plain text with mentions marked and bare links clickable (the owner's own words: no
+    Markdown, nothing else interpreted). */
 export function richText(text: string, mentions: RegExp | null): ReactNode[] {
-  if (!mentions) return [text];
+  const pattern = new RegExp(
+    `(https?:\\/\\/[^\\s<]+[^\\s<.,،)])${mentions ? `|${mentions.source}` : ""}`,
+    "g",
+  );
   const out: ReactNode[] = [];
   let last = 0;
-  for (const match of text.matchAll(new RegExp(mentions.source, "g"))) {
+  for (const match of text.matchAll(pattern)) {
     const at = match.index ?? 0;
     if (at > last) out.push(text.slice(last, at));
     out.push(
-      <span key={`m${at}`} className="mention" dir="auto">
-        @{match[1]}
-      </span>,
+      match[1] ? (
+        <a key={`l${at}`} href={match[1]} target="_blank" rel="noopener noreferrer" dir="ltr">
+          {match[1]}
+        </a>
+      ) : (
+        <span key={`m${at}`} className="mention" dir="auto">
+          @{match[2]}
+        </span>
+      ),
     );
     last = at + match[0].length;
   }

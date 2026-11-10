@@ -2,7 +2,13 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentLiveState, MoneyLimitName, TradingReadiness } from "@lonora/contracts";
-import { agentStatusLine, readinessTime, uncertainLine } from "@lonora/core";
+import {
+  agentStatusLine,
+  readinessTime,
+  tradingReadinessLine,
+  tradingSafetyText,
+  uncertainLine,
+} from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useCallback, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -14,7 +20,6 @@ import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
-import { levelName } from "../PermissionMenu";
 import { useChatPrefs } from "../prefs";
 import { useLimitsSheet } from "./LimitsSheet";
 import { useWatchesSheet } from "./WatchesSheet";
@@ -65,6 +70,7 @@ export function StatusLine({ agent, onOpen }: { agent: Agent; onOpen: () => void
     <button
       type="button"
       className={`presence st-line st-${kind}`}
+      data-testid="agent-status-line"
       aria-haspopup="dialog"
       aria-label={t`Status: ${text}`}
       onClick={onOpen}
@@ -115,7 +121,12 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
   let icon: IconName;
   let text: string;
   let showFlag = true;
-  if (readiness.global_trading.state === "stopped") {
+  if (!readiness.exits_allowed) {
+    // A freeze blocks exits too: the capsule says so in the server's own words.
+    tone = "off";
+    icon = "lock";
+    text = tradingReadinessLine(readiness, i18n.locale);
+  } else if (readiness.global_trading.state === "stopped") {
     tone = "off";
     icon = "power";
     text = t`Trading is stopped`;
@@ -199,15 +210,17 @@ function AgentSheetBody({
   const work = state?.current_work;
   const pendingId = state?.pending_card_id;
   const stopped = readiness?.global_trading.state === "stopped";
+  const exits = readiness?.exits_allowed !== false;
+  const closing = exits ? ` · ${t`closing allowed`}` : "";
   return (
     <>
       <div className="sf-head">
         <AgentAvatar agent={agent} />
         <div>
           <strong>{agent.name}</strong>
-          <small>
+          <small data-testid="agent-mode-line">
             {readiness
-              ? levelName(readiness.level)
+              ? tradingReadinessLine(readiness, i18n.locale)
               : state
                 ? agentStatusLine(state, i18n.locale)
                 : ""}
@@ -282,7 +295,9 @@ function AgentSheetBody({
                 <small>
                   {stopped
                     ? t`Stopped · no new orders are sent`
-                    : t`On · closing is always allowed`}
+                    : exits
+                      ? t`On · closing is always allowed`
+                      : t`On`}
                 </small>
               </span>
               <button
@@ -306,9 +321,7 @@ function AgentSheetBody({
                 <strong>
                   <Trans>New trades</Trans>
                 </strong>
-                <small>
-                  {ownPause ? `${restrictionText(ownPause)} · ${t`closing allowed`}` : t`Allowed`}
-                </small>
+                <small>{ownPause ? `${restrictionText(ownPause)}${closing}` : t`Allowed`}</small>
               </span>
               {ownPause ? (
                 <button
@@ -428,11 +441,19 @@ function AgentSheetBody({
               </button>
             </>
           )}
-          <p className="note">
-            <Trans>
-              Closing and tightening the stop loss are always allowed, even when trading is stopped.
-            </Trans>
-          </p>
+          {exits ? (
+            <p className="note">
+              <Trans>
+                Closing and tightening the stop loss are always allowed, even when trading is
+                stopped.
+              </Trans>
+            </p>
+          ) : (
+            <p className="oa-warn" role="alert">
+              <Icon name="lock" />
+              <span>{tradingSafetyText(i18n.locale).exitsFrozen}</span>
+            </p>
+          )}
         </>
       )}
     </>

@@ -562,10 +562,10 @@ test("offline: a plain message waits and goes out by itself; an answer stays fai
     return route.continue();
   });
   await page.goto(`/app/${gamma.id}?thread=${thread.id}`);
-  const composer = page.getByRole("combobox", { name: "Message", exact: true });
+  const composer = page.locator(".composer textarea");
   await composer.fill("Written offline");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
-  const waiting = page.locator("article[data-delivery='queued']");
+  await page.locator(".composer .send").click();
+  const waiting = page.locator(".msg[data-delivery='queued']");
   await expect(waiting).toContainText("Written offline");
   await expect(waiting.getByRole("status", { name: "Waiting for the network…" })).toBeVisible();
   // The list row shows the clock too.
@@ -573,7 +573,7 @@ test("offline: a plain message waits and goes out by itself; an answer stays fai
   offline = false;
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("#toast")).toHaveText("One waiting message was sent");
-  await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
   expect(sent).toHaveLength(1);
   expect(sent[0].content).toBe("Written offline");
   expect(sent[0].input_answer).toBeUndefined();
@@ -598,22 +598,22 @@ test("offline: a gateway's empty 502 during the flush keeps the message waiting 
     return route.continue();
   });
   await page.goto(`/app/${gamma.id}?thread=${thread.id}`);
-  const composer = page.getByRole("combobox", { name: "Message", exact: true });
+  const composer = page.locator(".composer textarea");
   await composer.fill("Behind the gateway");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
-  const waiting = page.locator("article[data-delivery='queued']");
+  await page.locator(".composer .send").click();
+  const waiting = page.locator(".msg[data-delivery='queued']");
   await expect(waiting).toContainText("Behind the gateway");
   network = "gateway";
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect.poll(() => attempts.length).toBeGreaterThan(0);
   // The API never answered: the message waits again instead of failing.
-  await expect(page.locator("article[data-delivery='sending']")).toHaveCount(0);
+  await expect(page.locator(".msg[data-delivery='sending']")).toHaveCount(0);
   await expect(waiting.getByRole("status", { name: "Waiting for the network…" })).toBeVisible();
-  await expect(page.locator("article[data-delivery='failed']")).toHaveCount(0);
+  await expect(page.locator(".msg[data-delivery='failed']")).toHaveCount(0);
   network = "online";
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("#toast")).toHaveText("One waiting message was sent");
-  await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+  await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
   await expect(
     page.getByTestId("transcript").getByText("Behind the gateway", { exact: true }),
   ).toHaveCount(1);
@@ -645,7 +645,7 @@ test("offline: an owner's answer is never sent later by itself", async ({ page, 
     await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
     const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
     await card.getByRole("button", { name: fixture.question.choices[0].label }).click();
-    const failed = page.locator("article[data-delivery='failed']");
+    const failed = page.locator(".msg[data-delivery='failed']");
     await expect(failed).toBeVisible();
     offline = false;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -654,7 +654,7 @@ test("offline: an owner's answer is never sent later by itself", async ({ page, 
     await expect(failed).toBeVisible();
     expect(nonces).toHaveLength(1);
     await failed.getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     expect(nonces).toHaveLength(2);
     expect(nonces[1]).toBe(nonces[0]);
   } finally {

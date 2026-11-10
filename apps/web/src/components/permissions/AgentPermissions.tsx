@@ -85,7 +85,10 @@ export function AgentPermissions({
   threadId,
   surface = "settings",
   pendingTrade = false,
+  autostart,
 }: {
+  /** The mandate sheet opens straight on the review of the pending or active grant. */
+  autostart?: "autonomous";
   agent: Agent;
   threadId: string;
   surface?: "composer" | "settings";
@@ -467,6 +470,12 @@ export function AgentPermissions({
         : state?.status === "autonomous_stopped"
           ? text.stopped
           : null;
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autostart || started.current || !state) return;
+    started.current = true;
+    choose(autostart);
+  });
   const reviewPending = Boolean(
     review && authorityStatus(review) === "pending" && state?.pending_authority?.id === review.id,
   );

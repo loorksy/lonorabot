@@ -9,7 +9,7 @@ import type {
   PermissionState,
 } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { OwnerActionCard } from "../../components/owner-actions/OwnerActionCard";
 import { AgentPermissions } from "../../components/permissions/AgentPermissions";
 import type { Agent } from "../../lib/api";
@@ -271,24 +271,58 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
   );
 }
 
+/* A grant the agent proposed, or one already signed, is reviewed (and signed or revoked)
+   through the permission flow itself; otherwise the owner drafts one. Read fresh: the
+   composer's snapshot may predate the agent's proposal. */
+function MandateEntry({
+  agent,
+  details,
+  threadId,
+}: {
+  agent: Agent;
+  details: boolean;
+  threadId?: string;
+}) {
+  const [state, setState] = useState<PermissionState | null>(null);
+  const [error, setError] = useState<unknown>();
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
+      .then((row) => live && setState(row))
+      .catch((cause) => live && setError(cause));
+    return () => {
+      live = false;
+    };
+  }, [agent.id]);
+  if (error != null) return <p className="form-error">{userError(error)}</p>;
+  if (!state) return <p className="note">…</p>;
+  return details || state.pending_authority || state.active_authorities.length ? (
+    <div className="legacy-surface">
+      <AgentPermissions
+        key={agent.id}
+        agent={agent}
+        threadId={threadId ?? ""}
+        surface="settings"
+        autostart="autonomous"
+      />
+    </div>
+  ) : (
+    <MandateBody agent={agent} threadId={threadId} />
+  );
+}
+
 export function useMandateSheet() {
   const sheets = useSheets();
   return useCallback(
-    (agent: Agent, _permission: PermissionState | null, details = false, threadId?: string) => {
+    (agent: Agent, permission: PermissionState | null, details = false, threadId?: string) => {
       const title = details ? t`Mandate details` : t`Delegated execution`;
       sheets.open({
         id: "mandate",
         bar: true,
         title,
         label: title,
-        body: details ? (
-          // «تفاصيل التفويض»: the signed grant and «إلغاء التفويض» through the permission flow.
-          <div className="legacy-surface">
-            <AgentPermissions key={agent.id} agent={agent} threadId="" surface="settings" />
-          </div>
-        ) : (
-          <MandateBody agent={agent} threadId={threadId} />
-        ),
+        body: <MandateEntry agent={agent} details={details} threadId={threadId} />,
       });
     },
     [sheets],

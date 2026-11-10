@@ -39,7 +39,11 @@ function WatchesBody({ agent }: { agent: Agent }) {
           {list.map((w) => {
             const paused = w.lifecycle === "paused";
             return (
-              <div key={w.id} className={`row wt-row wt-${paused ? "paused" : "active"}`}>
+              <div
+                key={w.id}
+                className={`row wt-row wt-${paused ? "paused" : "active"}`}
+                data-watch={w.id}
+              >
                 <span className="row-icon">
                   <Icon name={paused ? "pause" : "radar"} />
                 </span>

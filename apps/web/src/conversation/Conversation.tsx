@@ -58,7 +58,7 @@ import {
 } from "./context";
 import { hasGenUi } from "./GenUiPart";
 import { mentionPattern } from "./Markdown";
-import { type LiveReply, Message, snippet, TypingBubble } from "./Message";
+import { type LiveReply, Message, TypingBubble } from "./Message";
 import { useChatPrefs } from "./prefs";
 import { WALL_LEVELS, wallDefs } from "./wallpaper";
 import "./conversation.css";
@@ -804,7 +804,8 @@ export function Conversation({
     if (message.id.startsWith("activity:")) {
       const run = runsById.get(message.id.slice("activity:".length));
       if (!run) return;
-      const calls = turnActivity(run, localEvents).calls;
+      const activity = turnActivity(run, localEvents);
+      const calls = activity.calls;
       const responder = agents.find((a) => a.id === run.agent_id);
       body.push(
         calls.length && prefs.steps ? (
@@ -812,7 +813,13 @@ export function Conversation({
             key={message.id}
             message={{ ...message, id: `preview:${run.id}` }}
             previous={prev}
-            live={{ text: "", streaming: false, runId: run.id }}
+            live={{
+              text: "",
+              streaming: false,
+              runId: run.id,
+              progress: true,
+              phase: activity.phase,
+            }}
             steps={<Steps calls={calls} running seconds={0} defaultOpen />}
           />
         ) : (
@@ -820,6 +827,8 @@ export function Conversation({
             key={message.id}
             agent={responder}
             named={isGroup || run.agent_id !== agentId}
+            runId={run.id}
+            phase={activity.phase}
           />
         ),
       );
@@ -828,8 +837,10 @@ export function Conversation({
     const streamRow = previews.get(message.id);
     if (streamRow) {
       const { run, stream } = streamRow;
-      const calls = turnActivity({ ...run, stream }, localEvents).calls;
+      const activity = turnActivity({ ...run, stream }, localEvents);
+      const calls = activity.calls;
       const live: LiveReply = {
+        phase: activity.phase,
         text: stream.text,
         streaming: stream.phase === "streaming",
         rich: stream.rich_content,
@@ -889,7 +900,11 @@ export function Conversation({
     );
     for (const failure of failures.filter((f) => f.message.id === message.id))
       body.push(
-        <div key={`failed:${failure.run.id}`} className="msg theirs first k-error">
+        <div
+          key={`failed:${failure.run.id}`}
+          className="msg theirs first k-error"
+          data-failed-run-id={failure.run.id}
+        >
           <div className="msg-line">
             <AgentErrorCard run={failure.run} onRetry={retryRun} onFix={fixFailure} />
           </div>
@@ -1024,9 +1039,6 @@ export function Conversation({
         onUploaded={(row) => setArtifacts((old) => [...old.filter((a) => a.id !== row.id), row])}
       />
       {preview && <FilePreviewPanel artifact={preview} onClose={() => setPreview(null)} />}
-      <span className="sr-only" aria-live="polite">
-        {snippet(lastAgent)}
-      </span>
     </ConversationContext.Provider>
   );
 }

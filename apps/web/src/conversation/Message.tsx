@@ -23,6 +23,10 @@ import { VoiceNote, voiceFmt } from "./Voice";
    decisions, approvals, orders, notices, errors) come in as `card` and keep the same frame. */
 
 export type LiveReply = {
+  /** turnActivity phase (preparing, writing, queued…): data-activity-phase. */
+  phase?: string;
+  /** A typing/steps row for a run with no text yet: data-progress-run-id. */
+  progress?: boolean;
   text: string;
   /** The answer is still being written (caret). */
   streaming: boolean;
@@ -145,12 +149,18 @@ function Reactions({ message }: { message: ConversationMessage }) {
   );
 }
 
+/** The image types the browser shows in an <img> (SVG in the image context, never inline). */
+export function isImage(artifact?: Resource) {
+  const mime = String(
+    artifact?.payload.media_type ?? artifact?.payload.mime_type ?? "",
+  ).toLowerCase();
+  return /^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(mime);
+}
+
 function Attachments({ ids, caption }: { ids: string[]; caption?: ReactNode }) {
   const ctx = useConversation();
   const items = ids.map((id) => ({ id, artifact: ctx.artifacts.get(id) }));
-  const images = items.filter(({ artifact }) =>
-    String(artifact?.payload.media_type ?? "").startsWith("image/"),
-  );
+  const images = items.filter(({ artifact }) => isImage(artifact));
   const files = items.filter((item) => !images.includes(item));
   return (
     <>
@@ -159,6 +169,7 @@ function Attachments({ ids, caption }: { ids: string[]; caption?: ReactNode }) {
           key={id}
           type="button"
           className="img-msg"
+          data-artifact-id={id}
           aria-label={t`Photo, tap to view`}
           onClick={() => artifact && ctx.onOpenImage(artifact)}
         >
@@ -238,12 +249,25 @@ function CallBubble({ message }: { message: ConversationMessage }) {
   );
 }
 
-export function TypingBubble({ agent, named }: { agent?: Agent; named: boolean }) {
+export function TypingBubble({
+  agent,
+  named,
+  runId,
+  phase,
+}: {
+  agent?: Agent;
+  named: boolean;
+  runId?: string;
+  phase?: string;
+}) {
   const ctx = useConversation();
   return (
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the typing row is named for assistive technology
     <div
       className="msg theirs first"
+      data-progress-run-id={runId}
+      data-turn-run-id={runId}
+      data-activity-phase={phase}
       aria-label={named && agent ? t`${agent.name} is typing` : t`Typing`}
     >
       <div className="msg-line">
@@ -301,9 +325,7 @@ export function Message({
       ));
   const superseded = Boolean(message.superseded_by);
   const submitted = mine && message.origin === "ui_submit";
-  const images = message.attachment_ids.some((id) =>
-    String(ctx.artifacts.get(id)?.payload.media_type ?? "").startsWith("image/"),
-  );
+  const images = message.attachment_ids.some((id) => isImage(ctx.artifacts.get(id)));
   const kindClass = card
     ? ` k-card${cardKind && cardKind !== "card" ? ` k-${cardKind}` : ""}`
     : voice
@@ -403,6 +425,10 @@ export function Message({
       data-message-id={message.id}
       data-mid={message.id}
       data-delivery={outgoing?.delivery}
+      data-stream-run-id={live && !live.progress ? live.runId : undefined}
+      data-progress-run-id={live?.progress ? live.runId : undefined}
+      data-turn-run-id={live?.runId}
+      data-activity-phase={live?.phase}
       onContextMenu={
         interactive
           ? (event) => {

@@ -119,7 +119,7 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${seeded.agent}`);
       const card = page.locator(`[data-owner-action="${seeded.credential}"]`);
       await expect(card).toHaveAttribute("data-owner-action-kind", "connect_credential");
-      await expect(card.locator("strong")).toHaveText(text.connectTitle);
+      await expect(card.locator(".oa-kind")).toHaveText(text.connectTitle);
       const key = card.locator('input[name="secret"]');
       await expect(key).toHaveAttribute("type", "password");
       await expect(key).toHaveAttribute("dir", "ltr");

@@ -62,6 +62,15 @@ async function setup(context, locale = "en") {
     headers,
     async open(page, full = false) {
       await page.goto(`/app/${agent.id}?thread=${thread.id}`);
+      if (!full) {
+        // The conversation: the chip's «تنفيذ مفوَّض» opens the agent's pending grant for review.
+        await page.getByTestId("permission-chip").click();
+        await page.getByTestId("mode-option-autonomous").click();
+        const review = page.getByTestId("permission-review");
+        await expect(review).toBeVisible();
+        return review;
+      }
+      await legacy(page);
       const selector = page.getByTestId("permission-selector");
       await expect(selector).toBeVisible();
       if (full) {
@@ -84,6 +93,7 @@ async function setup(context, locale = "en") {
     async revoke(page, signed = false) {
       if (await page.getByTestId("permission-review").count())
         await page.getByTestId("permission-cancel").click();
+      await legacy(page);
       await page.getByTestId("permission-selector").click();
       const changed = page.waitForResponse(
         (response) =>
@@ -98,16 +108,24 @@ async function setup(context, locale = "en") {
         await warning.getByTestId("permission-downgrade-confirm").click();
       }
       expect((await changed).ok()).toBeTruthy();
-      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-        "data-level",
-        "analysis",
-      );
+      await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "analysis");
     },
     async cleanup() {
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       fixture({ ...data, action: "cleanup" });
     },
   };
+}
+/* The full permission flow (review, editor, signing) in the agent's info panel. */
+async function legacy(page) {
+  if (await page.getByTestId("permission-selector").count()) return;
+  await page.locator(".chat-head .head-avatar").click();
+  await page
+    .locator("details.tpl-profile-advanced > summary", {
+      hasText: /^(Agent Permissions|صلاحيات الوكيل)$/,
+    })
+    .click();
+  await expect(page.getByTestId("permission-selector")).toBeVisible();
 }
 for (const locale of ["en", "ar"])
   test(`account permission ${locale} is unsigned until device proof and revocation persists`, async ({
@@ -195,10 +213,7 @@ for (const full of [false, true])
         expect(activated.envelope.maximum_order_volume).toBeNull();
       }
       await expect(review).toHaveCount(0);
-      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-        "data-level",
-        "autonomous",
-      );
+      await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "autonomous");
       const saved = await (
         await context.request.get(`/api/agents/${state.agent.id}/account-authorities`)
       ).json();

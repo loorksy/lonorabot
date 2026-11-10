@@ -326,29 +326,28 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
         writes.push(request.postDataJSON());
     });
     await page.goto(`/app/${agent.id}`);
-    const pill = page.getByTestId("safety-pill");
-    await expect(pill).toHaveAttribute("data-readiness", "stopped");
-    await expect(pill).toHaveText("New trading stopped · exits allowed");
-    await pill.click();
-    const sheet = page.getByTestId("safety-sheet");
-    await expect(sheet.locator('[data-trading-state="stopped"]')).toContainText(
-      "New trading is stopped",
-    );
-    await expect(sheet.getByText("Ask me", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("No pauses", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("No money limit set", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("No operation is waiting for the broker.")).toBeVisible();
-    await sheet.getByRole("button", { name: "Resume trading", exact: true }).click();
-    await expect(pill).toHaveText("Asks you before each trade");
+    // The capsule under the header shows abnormal states only (reference safetyCap).
+    const capsule = page.getByTestId("safety-capsule");
+    await expect(capsule).toHaveAttribute("data-readiness", "stopped");
+    await expect(capsule).toContainText("Trading is stopped");
+    await capsule.click();
+    const sheet = page.locator("#dialog");
+    const trading = sheet.getByRole("switch", { name: "Trading", exact: true });
+    await expect(trading).toHaveAttribute("aria-checked", "false");
+    await expect(
+      sheet.getByText("Stopped · no new orders are sent", { exact: true }),
+    ).toBeVisible();
+    await trading.click();
+    await expect(trading).toHaveAttribute("aria-checked", "true");
     expect(writes).toEqual([{ enabled: true, emergency_stop: false }]);
     expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
-    await expect(sheet.locator('[data-trading-state="running"]')).toContainText(
-      "New trading is running",
-    );
-    await sheet.getByRole("button", { name: "Stop new trading", exact: true }).click();
-    await expect(pill).toHaveAttribute("data-readiness", "stopped");
+    // A normal state pins nothing under the header.
+    await expect(capsule).toHaveCount(0);
+    await trading.click();
+    await expect(trading).toHaveAttribute("aria-checked", "false");
     expect(writes.at(-1)).toEqual({ enabled: false, emergency_stop: true });
     expect(await state.read()).toEqual({ enabled: false, emergency_stop: true });
+    await expect(capsule).toHaveAttribute("data-readiness", "stopped");
   } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();
@@ -375,12 +374,12 @@ for (const locale of ["en", "ar"])
     const text =
       locale === "ar"
         ? {
-            allowed: "التداول الجديد متوقف · الخروج متاح",
+            allowed: "التداول متوقف",
             frozen: "التداول الجديد متوقف · والخروج مجمّد أيضًا",
             alert: "يوجد تجميد نشط: الخروج محظور أيضًا.",
           }
         : {
-            allowed: "New trading stopped · exits allowed",
+            allowed: "Trading is stopped",
             frozen: "New trading stopped · exits frozen too",
             alert: "A freeze is active: exits are blocked too.",
           };
@@ -397,8 +396,8 @@ for (const locale of ["en", "ar"])
       await state.controls({ enabled: true, emergency_stop: false });
       await state.controls({ enabled: false, emergency_stop: true });
       await page.goto(`/app/${agent.id}`);
-      const pill = page.getByTestId("safety-pill");
-      await expect(pill).toHaveText(text.allowed);
+      const pill = page.getByTestId("safety-capsule");
+      await expect(pill.locator(".sc-text")).toHaveText(text.allowed);
       const created = await context.request.post("/api/trading/restrictions", {
         headers: state.headers,
         data: { account_id: state.data.account, action_class: "all_mutations" },
@@ -407,11 +406,11 @@ for (const locale of ["en", "ar"])
       freeze = (await created.json()).id;
       await page.reload();
       await expect(pill).toHaveAttribute("data-readiness", "stopped");
-      await expect(pill).toHaveText(text.frozen);
+      // A freeze blocks exits too: the capsule says it in the server's words.
+      await expect(pill.locator(".sc-text")).toHaveText(text.frozen);
       await pill.click();
-      const sheet = page.getByTestId("safety-sheet");
-      // The sheet's description repeats the line; it never contradicts the freeze alert.
-      await expect(sheet.getByText(text.frozen, { exact: true })).toBeVisible();
+      const sheet = page.locator("#dialog");
+      // The sheet never says closing is allowed while a freeze blocks it.
       await expect(sheet.getByRole("alert")).toHaveText(text.alert);
       await expect(sheet.getByText(text.allowed, { exact: true })).toHaveCount(0);
     } finally {

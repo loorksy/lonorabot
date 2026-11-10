@@ -289,6 +289,7 @@ export function OwnerActionCard({
                   role="radio"
                   aria-checked={on}
                   className={`oa-radio${on ? " on" : ""}`}
+                  aria-label={option.label}
                   data-owner-action-choice={option.choice?.value}
                   disabled={busy}
                   onClick={() => void choose(option)}

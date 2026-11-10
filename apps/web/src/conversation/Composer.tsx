@@ -403,7 +403,8 @@ export function Composer({
     "composer",
     canSend || text.trim() ? "has-text" : "",
     replyTarget ? "is-replying" : "",
-    streaming ? "is-streaming" : "",
+    // Send turns into ■ while the agent works; typing a direction brings send back (steering).
+    streaming && !text.trim() && !files.length ? "is-streaming" : "",
     showSuggestion ? "has-suggest" : "",
     listening ? "listening" : "",
     recorder.active ? "recording" : "",

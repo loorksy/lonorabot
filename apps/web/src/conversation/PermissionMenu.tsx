@@ -135,7 +135,8 @@ export function PermissionChip({
       aria-haspopup="menu"
       aria-expanded="false"
       aria-label={t`Permissions: ${levelName(level)}`}
-      data-permission-level={level}
+      data-testid="permission-chip"
+      data-level={level}
       onClick={(event) =>
         popover.open(
           event.currentTarget,
@@ -235,7 +236,7 @@ function PermissionMenu({
             className={`pop-opt${level === row ? " on" : ""}`}
             role="menuitemradio"
             aria-checked={level === row}
-            data-permission-option={row}
+            data-testid={`mode-option-${row}`}
             disabled={busy}
             onClick={() => pick(row)}
           >
@@ -300,7 +301,7 @@ function PermissionMenu({
                 <Trans>Change the permission level</Trans>
               </strong>
             </div>
-            <div className="mp-warn">
+            <div className="mp-warn" data-testid="mode-downgrade">
               <span className="mp-warn-ic">
                 <Icon name="alert" />
               </span>
@@ -319,6 +320,7 @@ function PermissionMenu({
               type="button"
               className="pop-opt danger-opt"
               role="menuitem"
+              data-testid="mode-downgrade-confirm"
               disabled={busy}
               onClick={() => void setLevel(page.level as "analysis" | "supervised")}
             >

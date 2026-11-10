@@ -97,11 +97,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await expect(preview.locator("img")).toBeVisible();
     await expect(preview.locator("iframe")).toHaveCount(0);
     await preview.getByRole("button", { name: "Close", exact: true }).click();
-    await page
-      .getByRole("combobox", { name: "Message", exact: true })
-      .fill("**Keep these characters** https://example.com");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    const literal = page.getByTestId("transcript").locator(".template-user-text");
+    await page.locator(".composer textarea").fill("**Keep these characters** https://example.com");
+    await page.locator(".composer .send").click();
+    const literal = page.getByTestId("transcript").locator(".msg.mine .bubble .text");
     await expect(literal).toContainText("**Keep these characters**");
     await expect(literal.locator("strong")).toHaveCount(0);
     await expect(
@@ -170,7 +168,7 @@ test("actual chart snapshot arrives as an assistant image card and survives relo
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${png.agent_id}`);
     const image = page.locator(
-      `[data-message-id='${png.message_id}'][class*='assistant'] [data-artifact-id='${png.artifact_id}'] img`,
+      `[data-message-id='${png.message_id}'].theirs [data-artifact-id='${png.artifact_id}'] img`,
     );
     await expect(image).toBeVisible();
     await expect

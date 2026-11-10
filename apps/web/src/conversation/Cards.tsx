@@ -73,7 +73,7 @@ export function AgentErrorCard({
   const fix =
     family === "quota" ? t`Edit the limit` : family === "model" ? t`Change the model` : null;
   return (
-    <div className="err-card" role="alert" data-failed-run-id={run.id} data-failure={family}>
+    <div className="err-card" role="alert" data-failure={family}>
       <div className="err-top">
         <span className="err-ic">
           <Icon name={ERROR_ICON[family]} />
@@ -81,28 +81,32 @@ export function AgentErrorCard({
         <strong>{title}</strong>
       </div>
       <p>{text}</p>
-      <div className="err-actions">
-        {fix && (
-          <button type="button" className="btn primary small" onClick={() => onFix(family)}>
-            {fix}
+      {/* Retry only re-asks the provider: a reply that failed for another reason (it may
+          have touched the executor) never gets a generic retry. */}
+      {family !== "other" && (
+        <div className="err-actions">
+          {fix && (
+            <button type="button" className="btn primary small" onClick={() => onFix(family)}>
+              {fix}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`btn ${fix ? "outline" : "primary"} small`}
+            disabled={left > 0 || busy}
+            onClick={() => {
+              setBusy(true);
+              setError(undefined);
+              void onRetry(run)
+                .catch(setError)
+                .finally(() => setBusy(false));
+            }}
+          >
+            <Icon name="refresh" />
+            <span>{left ? t`Retry in ${left} s` : t`Retry`}</span>
           </button>
-        )}
-        <button
-          type="button"
-          className={`btn ${fix ? "outline" : "primary"} small`}
-          disabled={left > 0 || busy}
-          onClick={() => {
-            setBusy(true);
-            setError(undefined);
-            void onRetry(run)
-              .catch(setError)
-              .finally(() => setBusy(false));
-          }}
-        >
-          <Icon name="refresh" />
-          <span>{left ? t`Retry in ${left} s` : t`Retry`}</span>
-        </button>
-      </div>
+        </div>
+      )}
       {error != null && <p>{userError(error)}</p>}
     </div>
   );

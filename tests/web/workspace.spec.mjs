@@ -206,13 +206,13 @@ test("send, cancel and reload retain one real transcript", async ({ page, contex
   await page.goto(`/app/${agent.id}`);
   await expect(page.getByTestId("transcript")).toHaveCount(1);
   const message = `${prefix} persistent message`;
-  await page.getByRole("combobox", { name: "Message", exact: true }).fill(message);
+  await page.locator(".composer textarea").fill(message);
   const sent = page.waitForResponse(
     (response) =>
       /\/api\/threads\/[^/]+\/messages$/.test(new URL(response.url()).pathname) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.locator(".composer .send").click();
   const receipt = await (await sent).json();
   expect(receipt.run_ids).toHaveLength(1);
   await expect(page.getByTestId("transcript").getByText(message, { exact: true })).toHaveCount(1);
@@ -410,9 +410,9 @@ test("retry after a committed message response is lost reuses its real receipt",
     );
   try {
     await page.goto(`/app/${agent.id}`);
-    const composer = page.getByRole("combobox", { name: "Message", exact: true });
+    const composer = page.locator(".composer textarea");
     await composer.fill(message);
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     // A durable event acknowledges the canonical message even when HTTP delivery
     // loses its response. Replay the same nonce explicitly to verify the receipt;
     // the UI must not ask the owner to resend an already committed message.

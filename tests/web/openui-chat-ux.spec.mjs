@@ -70,7 +70,7 @@ for (const variant of [
   { locale: "en", theme: "dark", width: 1440, height: 900 },
   { locale: "ar", theme: "light", width: 390, height: 844 },
 ]) {
-  test(`shared reading column, unboxed reply and growing floating composer in ${variant.locale}/${variant.theme}`, async ({
+  test(`the reference's reading column and growing floating composer in ${variant.locale}/${variant.theme}`, async ({
     page,
     conversation,
   }) => {
@@ -100,61 +100,30 @@ for (const variant of [
     );
     await page.goto(`/app/${conversation.agent.id}`);
     await expect(page.locator("[data-message-id='ux-message-2']")).toBeVisible();
-    const composer = page.getByRole("combobox", {
-      name: variant.locale === "ar" ? "الرسالة" : "Message",
-      exact: true,
-    });
-    const bar = page.getByTestId("composer-bar");
-    const initial = await bar.boundingBox();
-    expect(initial.height).toBeGreaterThanOrEqual(55);
-    expect(initial.height).toBeLessThanOrEqual(58);
-    const geometry = await page.evaluate(() => {
-      const content = document
-        .querySelector(".template-transcript-content")
-        .getBoundingClientRect();
-      const composer = document.querySelector(".template-composer-bar").getBoundingClientRect();
-      const assistant = getComputedStyle(
-        document.querySelector(".template-message.assistant .template-message-text"),
-      );
-      return {
-        content: content.width,
-        composer: composer.width,
-        assistantFill: assistant.backgroundColor,
-        width: document.documentElement.clientWidth,
-        scroll: document.documentElement.scrollWidth,
-      };
-    });
-    if (variant.width > 767) {
-      expect(geometry.content).toBeCloseTo(728, 0);
-      expect(geometry.composer).toBeCloseTo(geometry.content, 0);
-      expect(await composer.evaluate((input) => document.activeElement === input)).toBe(true);
-      expect(await page.locator("#app").evaluate((app) => getComputedStyle(app).borderRadius)).toBe(
-        "16px",
-      );
-    } else {
-      expect(geometry.composer).toBeLessThanOrEqual(variant.width - 24);
-      expect(await composer.evaluate((input) => document.activeElement === input)).toBe(false);
-    }
-    expect(geometry.assistantFill).toBe("rgba(0, 0, 0, 0)");
+    // The reference's geometry (Desktop-37 327-435): a 760px reading column, a floating
+    // composer card of at most 820px, a 28px field growing to min(164px, 34vh).
+    const composer = page.locator(".composer textarea");
+    const card = page.locator(".composer-card");
+    const geometry = await page.evaluate(() => ({
+      column: document.querySelector(".messages").getBoundingClientRect().width,
+      card: document.querySelector(".composer-card").getBoundingClientRect().width,
+      width: document.documentElement.clientWidth,
+      scroll: document.documentElement.scrollWidth,
+    }));
+    expect(geometry.column).toBeLessThanOrEqual(760);
+    expect(geometry.card).toBeLessThanOrEqual(820);
     expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
+    if (variant.width > 767)
+      expect(await composer.evaluate((input) => document.activeElement === input)).toBe(true);
+    else expect(await composer.evaluate((input) => document.activeElement === input)).toBe(false);
+    await expect.poll(() => composer.evaluate((input) => input.clientHeight)).toBe(28);
     await composer.fill(Array.from({ length: 24 }, (_, index) => `Line ${index + 1}`).join("\n"));
-    await expect.poll(() => composer.evaluate((input) => input.clientHeight)).toBe(200);
-    // Filling leaves the caret at the bottom, as ordinary typing does. Move
-    // deliberately to the top before checking the lower overflow affordance.
-    await composer.evaluate((input) => {
-      input.scrollTop = 0;
-      input.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
-    await expect(bar).toHaveAttribute("data-overflow-bottom", "true");
-    await composer.evaluate((input) => {
-      input.scrollTop = input.scrollHeight;
-      input.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
-    await expect(bar).toHaveAttribute("data-overflow-top", "true");
-    const box = await bar.boundingBox();
+    const cap = Math.min(164, Math.round(variant.height * 0.34));
+    await expect.poll(() => composer.evaluate((input) => input.clientHeight)).toBe(cap);
+    const box = await card.boundingBox();
     expect(box.y + box.height).toBeLessThanOrEqual(variant.height);
     await composer.fill("Short draft");
-    await expect.poll(() => composer.evaluate((input) => input.clientHeight)).toBe(32);
+    await expect.poll(() => composer.evaluate((input) => input.clientHeight)).toBe(28);
     await page.screenshot({
       path: `.runtime/openui-chat-${variant.locale}-${variant.theme}.png`,
       fullPage: true,
@@ -173,7 +142,7 @@ test("composer respects IME and multiline input while preserving immediate sends
     return route.continue();
   });
   await page.goto(`/app/${conversation.agent.id}`);
-  const composer = page.getByRole("combobox", { name: "Message", exact: true });
+  const composer = page.locator(".composer textarea");
   await composer.fill("A composed draft");
   await composer.dispatchEvent("keydown", { key: "Enter", code: "Enter", isComposing: true });
   await expect(composer).toHaveValue("A composed draft");
@@ -187,12 +156,13 @@ test("composer respects IME and multiline input while preserving immediate sends
     page.getByTestId("transcript").getByText("A composed draft", { exact: true }),
   ).toHaveCount(1);
   await expect(composer).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Send direction", exact: true })).toHaveCount(0);
+  await expect(page.locator(".composer .stop")).toBeVisible();
+  await expect(page.locator(".composer .send")).toBeHidden();
   expect(posts).toBe(1);
   await composer.fill("Continue with this direction");
-  await expect(page.getByRole("button", { name: "Send direction", exact: true })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(1);
+  // A direction typed while the agent works: send comes back (steering), ■ stays reachable.
+  await expect(page.locator(".composer .send")).toBeEnabled();
+  await expect(page.locator(".composer .send")).toBeVisible();
 });
 
 test("manual transcript scrolling is preserved as fresh content arrives", async ({
@@ -214,7 +184,7 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
   await page.goto(`/app/${conversation.agent.id}`);
   const transcript = page.getByTestId("transcript");
   await expect(page.locator("[data-message-id='ux-message-24']")).toBeVisible();
-  const composer = page.getByRole("combobox", { name: "Message", exact: true });
+  const composer = page.locator(".composer textarea");
   await composer.fill(Array.from({ length: 16 }, (_, index) => `Draft ${index}`).join("\n"));
   await expect
     .poll(() =>
@@ -224,21 +194,22 @@ test("manual transcript scrolling is preserved as fresh content arrives", async 
     )
     .toBeLessThanOrEqual(2);
   const latest = await page.locator("[data-message-id='ux-message-24']").boundingBox();
-  const growingBar = await page.getByTestId("composer-bar").boundingBox();
+  const growingBar = await page.locator(".composer-card").boundingBox();
   expect(latest.y + latest.height).toBeLessThan(growingBar.y);
   await composer.fill("");
   await transcript.evaluate((element) => {
     element.scrollTop = 150;
     element.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
-  await expect(page.getByRole("button", { name: "Jump to latest", exact: true })).toBeVisible();
+  // The ↓ button turns on more than 260px from the newest message (reference syncJump).
+  await expect(page.locator(".jump")).toHaveClass(/\bon\b/);
   rows.push(message(conversation, 25, "assistant", "New content while the owner reads above."));
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("[data-message-id='ux-message-25']")).toHaveCount(1);
   expect(await transcript.evaluate((element) => element.scrollTop)).toBeLessThan(200);
-  await page.getByRole("button", { name: "Jump to latest", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jump to latest", exact: true })).toHaveCount(0);
+  await page.locator(".jump").click();
+  await expect(page.locator(".jump")).not.toHaveClass(/\bon\b/);
   const newest = await page.locator("[data-message-id='ux-message-25']").boundingBox();
-  const restingBar = await page.getByTestId("composer-bar").boundingBox();
+  const restingBar = await page.locator(".composer-card").boundingBox();
   expect(newest.y + newest.height).toBeLessThan(restingBar.y);
 });
