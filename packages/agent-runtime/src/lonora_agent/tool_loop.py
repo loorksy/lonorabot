@@ -337,6 +337,9 @@ async def execute_tool_loop(
     async def save() -> None:
         await persist(context, state, messages, pending)
 
+    # Tools whose successful result can support a reply saying something was done.
+    effect_tools = frozenset(name for name, tool in registry.tools.items() if not tool.read_only)
+
     async def refresh_after_steering() -> None:
         updated_skills = await refresh_skill_context(
             context, registry, messages, retained_ids=state.get("viewed_skill_ids", [])
@@ -601,6 +604,7 @@ async def execute_tool_loop(
                 else "silent",
             },
             save,
+            effect_tools=effect_tools if is_conversational(run.trigger) else None,
         )
         if outcome is not None:
             return outcome

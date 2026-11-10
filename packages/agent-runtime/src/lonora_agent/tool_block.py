@@ -30,6 +30,7 @@ from .loop_outcomes import (
     rich_metadata,
 )
 from .progress import progress
+from .reply_gates import entry_refusal
 from .runtime_notices import attach_notice
 from .skills.access import admitted_view_ids
 from .tool_batch import Segment, gather_bounded, next_segment
@@ -293,7 +294,16 @@ async def run_and_record_segment(
     the outcome that ends this pass; ``None`` means the block continues.
     """
     segment = next_segment(pending, registry.tools)
-    results = await execute_segment(context, registry, state, segment, scope, save)
+    # Financial calls run alone; a new entry never answers a stop or pause request.
+    refusal = entry_refusal(messages, segment.calls[0]) if segment.kind == "serial" else None
+    if refusal:
+        call = segment.calls[0]
+        await progress(
+            context, "tool.started", started_payload(call, registry.tools.get(call.name))
+        )
+        results = [refusal]
+    else:
+        results = await execute_segment(context, registry, state, segment, scope, save)
     for index, (call, result) in enumerate(zip(segment.calls, results, strict=True)):
         tool = registry.tools.get(call.name)
         guarded = result.get("code") == "guardrail_blocked" and result.get("executed") is False

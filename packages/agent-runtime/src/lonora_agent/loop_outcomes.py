@@ -1,7 +1,7 @@
 """The outcomes that end one pass: a final reply after the Task stop gates, or a checkpointed
 wait (a question, owner attention or an external event) that the next pass re-enters."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -11,6 +11,7 @@ from lonora_db.tasks import OWNER_ATTENTION
 from lonora_tools.context import ToolContext
 
 from .environment import environment_state
+from .reply_gates import claim_gate
 from .runtime_notices import (
     append_notice,
     attention_message,
@@ -158,8 +159,28 @@ async def final_answer(
     text: str,
     metadata: dict[str, Any],
     save: Callable[[], Awaitable[None]],
+    *,
+    effect_tools: Collection[str] | None = None,
 ) -> LoopOutcome | None:
-    """Apply the bounded task stop gates; ``None`` means the turn continues."""
+    """Apply the bounded task stop gates; ``None`` means the turn continues.
+
+    With ``effect_tools`` (a conversation) an action the reply claims must be
+    supported by a successful effect result in this request: one repair turn,
+    then an honest line replaces the claim.
+    """
+    if effect_tools is not None:
+        claim = claim_gate(state, messages, text, effect_tools)
+        if claim.nudge:
+            append_notice(messages, "effect_claim_check", claim.nudge)
+            await save()
+            return None
+        if claim.replacement:
+            text = claim.replacement
+            state.pop("rich_content", None)
+            metadata = {k: v for k, v in metadata.items() if k != "rich_content"}
+            if messages and messages[-1].role == "assistant":
+                messages[-1] = ModelMessage(role="assistant", content=text)
+            await save()
     verdict = await task_stop_gate(context, state)
     if verdict.continue_turn:
         append_notice(messages, "completion_check", verdict.nudge or "")

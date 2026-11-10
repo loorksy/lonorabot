@@ -274,7 +274,8 @@ def tools() -> list[Tool]:
             "said), MEMORY.md (your knowledge) or OPERATING.md (your working notes); patch "
             "replaces unique old_text with content; remove deletes the lines old_text touches. "
             "A duplicate add returns changed false; overflow returns the shortfall. content "
-            "replaces your document at version. No credentials, prices or authority claims. "
+            "replaces your document at version. No credentials, prices or authority claims, "
+            "and no limits or rules for the server to enforce (owner_action_propose). "
             "Say remembered only after success.",
             MemoryWrite,
             write,
