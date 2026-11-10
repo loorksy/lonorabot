@@ -27,7 +27,7 @@ from lonora_contracts.genui import (
     UiDocument,
     walk,
 )
-from lonora_contracts.genui_expr import environment, evaluate, references, render_template
+from lonora_contracts.genui_expr import environment, evaluate, references, render_template, show
 from lonora_contracts.genui_intents import REGISTRY, intent_denied
 from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
@@ -672,16 +672,39 @@ def compile_card(
                 if isinstance(node.get(name), str):
                     out.append(render_template(node[name], at))
             for option in cast(list[Any], node.get("options", [])):
-                label = (
-                    cast(dict[str, Any], option).get("label")
-                    if isinstance(option, dict)
-                    else option
-                )
-                if isinstance(label, str):
-                    out.append(render_template(label, at))
+                if isinstance(option, dict):
+                    # The client shows ``label ?? value`` as a template (UiCard optionList).
+                    item = cast(dict[str, Any], option)
+                    shown = item.get("label")
+                    shown = item.get("value") if shown is None else shown
+                    if shown is not None:
+                        out.append(render_template(show(shown), at))
+                elif option is not None:
+                    out.append(show(option))  # a plain option is shown raw
             for row in node.get("rows", []):
                 out.extend(render_template(c, at) for c in row if isinstance(c, str))
         return out
+
+    def raw() -> list[str]:
+        """Every displayed string as written (and the calc sources they read), so a branch
+        no sampled state renders is still read; action data is never shown, so not read."""
+        found: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+        found.extend(str(v) for v in calc.values() if isinstance(v, str))
+        for _path, node in walk(blocks):
+            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+                if isinstance(node.get(name), str):
+                    found.append(node[name])
+            for option in cast(list[Any], node.get("options", [])):
+                if isinstance(option, dict):
+                    item = cast(dict[str, Any], option)
+                    found.extend(
+                        show(item[k]) for k in ("label", "value") if item.get(k) is not None
+                    )
+                elif option is not None:
+                    found.append(show(option))
+            for row in node.get("rows", []):
+                found.extend(c for c in row if isinstance(c, str))
+        return found
 
     states: list[dict[str, Any]] = [state]
     for _path, node in walk(blocks):
@@ -696,6 +719,7 @@ def compile_card(
     strings: list[str] = []
     for at in states[:24]:
         strings.extend(rendered(environment(at, calc, fact_values)))
+    strings.extend(raw())
     strings.extend(str(v) for v in state.values() if isinstance(v, str))
     for text in strings:
         if public_reply_violation(text, public_ids=public_ids):

@@ -593,3 +593,27 @@ async def test_a_card_built_on_a_calc_chain_falls_back_or_stays_bounded_never_cr
     rich = projection.rich_until()
     assert rich is not None
     assert len(json.dumps(rich, ensure_ascii=False)) < 64_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "edit",
+    [
+        # An option without a label shows its value (UiCard optionList).
+        lambda b: b.replace(
+            '{"type":"Text","tone":"muted"',
+            '{"type":"Segmented","bind":"pick","label":"x","options":'
+            '[{"value":"0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b"}]}\n{"type":"Text","tone":"muted"',
+        ),
+        # A branch no sampled state renders is still read as written.
+        lambda b: b.replace(
+            '"title":"تنبيه سعر"', "\"title\":\"{$f ? '/workspace/k' : 'T'}\""
+        ).replace('"state":{', '"state":{"f":false,'),
+    ],
+)
+async def test_the_privacy_guard_reads_what_the_client_shows_and_every_branch(edit) -> None:
+    projection, projector = await project(reply(edit(A01)))
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"] == "card_fallback_private" for d in projector.diagnostics), [
+        d["code"] for d in projector.diagnostics
+    ]
