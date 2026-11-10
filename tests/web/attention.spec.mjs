@@ -19,30 +19,41 @@ test("durable notification is shared across views and stays read after reload", 
     })),
   );
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  await page.goto("/app/activity");
-  const inbox = page.getByTestId("attention-inbox");
-  const alert = inbox.locator(`[data-attention-id="${fixture.notification.id}"]`);
+  // «التنبيهات» on «المستجدات» (UI phase 4b).
+  await page.goto("/app/updates");
+  const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
   await expect(alert.getByText("New trading stopped", { exact: true })).toBeVisible();
+  await expect(alert.locator(".dot")).toHaveCount(1);
   // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
-  const uncertain = inbox.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
+  const uncertain = page.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
   await expect(
     uncertain.getByText("A trade still has no confirmed broker result", { exact: true }),
   ).toBeVisible();
   await expect(uncertain.getByText("XAUUSD", { exact: true })).toBeVisible();
   await expect(uncertain).not.toContainText(fixture.uncertain.parameters.operation_id);
-  // It names and opens the agent that placed the trade, not the Personal Agent.
+  // It names the agent that placed the trade, not the Personal Agent, and opens it.
   await expect(uncertain.getByText(fixture.agent.name, { exact: true })).toBeVisible();
-  await expect(
-    uncertain.getByRole("link", { name: "Open conversation", exact: true }),
-  ).toHaveAttribute("href", `/app/${fixture.agent.id}`);
   await page.reload();
-  await expect(alert).toHaveCount(1);
-  await alert.getByRole("button", { name: "Mark as read", exact: true }).click();
-  await expect(alert).toHaveCount(0);
-  await uncertain.getByRole("button", { name: "Mark as read", exact: true }).click();
-  await expect(uncertain).toHaveCount(0);
+  await expect(alert.locator(".dot")).toHaveCount(1);
+  await uncertain.click();
+  await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
+  await page.goto("/app/updates");
+  await expect(uncertain.locator(".dot")).toHaveCount(0);
+  // «تحديد الكل كمقروء»: the plain update is read, the critical stop stays unread (Q4).
+  const info = page.locator(`[data-attention-id="${fixture.informational.id}"]`);
+  await expect(info.locator(".dot")).toHaveCount(1);
+  const seenAll = page.waitForResponse((response) =>
+    response.url().endsWith("/api/attention/seen-all"),
+  );
+  await page.getByRole("button", { name: "Mark all as read", exact: true }).click();
+  expect((await seenAll).ok()).toBeTruthy();
+  await expect(info.locator(".dot")).toHaveCount(0);
+  await expect(alert.locator(".dot")).toHaveCount(1);
+  const open = (await (await context.request.get("/api/attention")).json()).map((row) => row.id);
+  expect(open).toContain(fixture.notification.id);
+  expect(open).not.toContain(fixture.informational.id);
   await page.reload();
-  await expect(inbox.getByText("No new notifications", { exact: true })).toBeVisible();
+  await expect(uncertain.locator(".dot")).toHaveCount(0);
   const controls = await (await context.request.get("/api/trading/controls")).json();
   expect(controls).toMatchObject({ enabled: false, emergency_stop: true });
 });

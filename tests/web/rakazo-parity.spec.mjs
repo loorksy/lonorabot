@@ -41,18 +41,14 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       .toBe(true);
     expect(await page.evaluate(() => window.svgProbe)).toBeUndefined();
     await expect(page.locator(".chat-head .chat-name")).toContainText(data.name);
-    // The runs live on the Updates tab (the reference's المستجدات); the rail opens it.
+    // The rail opens «المستجدات» (UI phase 4b: stories, notifications, upcoming, latest actions).
     await page
       .locator(".desktop-rail")
       .getByRole("button", { name: "Updates", exact: true })
       .click();
-    const activity = page.getByTestId("workspace-activity");
-    await expect(activity).toBeVisible();
-    await activity.getByLabel("Search activity", { exact: true }).fill("NO MATCHING RUN FIXTURE");
-    await expect(activity.getByText("No runs match these filters.", { exact: true })).toBeVisible();
-    await activity.getByLabel("Search activity", { exact: true }).fill(data.name);
-    await activity.getByRole("combobox", { name: "Status", exact: true }).selectOption("completed");
-    await expect(activity).toContainText(data.name);
+    await expect(page).toHaveURL(/\/app\/updates$/);
+    await expect(page.locator("main .stories")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Latest actions", exact: true })).toBeVisible();
     await page.goto(`/app/${data.agent}?thread=${data.thread}`);
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
     const profile = page.locator("#dialog");

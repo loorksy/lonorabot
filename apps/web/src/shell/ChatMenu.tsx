@@ -12,7 +12,6 @@ import { useAgentLiveState } from "../lib/agent-live-state";
 import type { Agent, Resource } from "../lib/api";
 import { GroupSettings } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
-import { Routines } from "../pages/Routines";
 import { AgentSettings } from "../pages/shell/bot-settings";
 import { useClient } from "../providers/ClientProvider";
 import { useShellData } from "./data";
@@ -22,7 +21,7 @@ import { useSheets } from "./sheets/SheetHost";
 /* The conversation's ⋮ menu as a bar sheet whose rows open their content as in-sheet pages
    (← back to the menu, the sheet's height morphs). The pages mount the existing panels until
    phases 3 and 4 give them the reference's own layouts. */
-type MenuPage = "menu" | "info" | "knowledge" | "goals" | "routines";
+type MenuPage = "menu" | "info" | "knowledge" | "goals";
 
 function MenuRow({
   icon,
@@ -129,9 +128,7 @@ export function useChatMenu({
               : t`Agent info`
             : page === "knowledge"
               ? t`Knowledge`
-              : page === "goals"
-                ? t`Goals`
-                : t`Routines`;
+              : t`Goals`;
       let body: ReactNode;
       if (page === "menu")
         body = (
@@ -169,10 +166,14 @@ export function useChatMenu({
                   onClick={() => openPage("goals", "fwd")}
                 />
               )}
+              {/* «المهام المجدولة» of this agent (or the group's first member): the page. */}
               <MenuRow
                 icon="clock"
-                label={<Trans>Routines</Trans>}
-                onClick={() => openPage("routines", "fwd")}
+                label={<Trans>Scheduled tasks</Trans>}
+                onClick={() => {
+                  sheets.close();
+                  nav.go(`/app/routines?agent=${agent?.id ?? memberAgents[0]?.id ?? ""}`);
+                }}
               />
             </div>
             <div className="group">
@@ -184,7 +185,10 @@ export function useChatMenu({
               <MenuRow
                 icon="file"
                 label={<Trans>Agent files</Trans>}
-                onClick={() => nav.go("/app/artifacts")}
+                onClick={() => {
+                  sheets.close();
+                  nav.go(`/app/artifacts${agent ? `?agent=${agent.id}` : ""}`);
+                }}
               />
             </div>
           </>
@@ -211,8 +215,7 @@ export function useChatMenu({
             initialAgent={agent?.id ?? memberAgents[0]?.id ?? ""}
           />
         );
-      else if (page === "goals") body = agent ? <TradingGoals agentId={agent.id} /> : null;
-      else body = <Routines key={agent?.id ?? group?.id} agents={agent ? [agent] : memberAgents} />;
+      else body = agent ? <TradingGoals agentId={agent.id} /> : null;
       sheets.open(
         {
           id: "chat-menu",

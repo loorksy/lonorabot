@@ -17,10 +17,8 @@ for (const locale of ["ar", "en"]) {
       })),
     );
     await page.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
-    await page.goto("/app/activity");
-    const alert = page
-      .getByTestId("attention-inbox")
-      .locator(`[data-attention-id="${fixture.notification.id}"]`);
+    await page.goto("/app/updates");
+    const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
     const label = locale === "ar" ? "نبّهك وكيلك" : "Your agent alerted you";
     await expect(alert.getByText(label, { exact: true })).toBeVisible();
     const summary = alert.getByTestId("attention-summary");
@@ -29,9 +27,10 @@ for (const locale of ["ar", "en"]) {
     await expect(summary).toHaveAttribute("dir", "auto");
     await expect(alert).not.toContainText(fixture.notification.id);
     await expect(alert).not.toContainText("broker:sim-gold-1");
-    await alert
-      .getByRole("button", { name: locale === "ar" ? "تحديد كمقروء" : "Mark as read" })
-      .click();
-    await expect(alert).toHaveCount(0);
+    // Opening it reads it: the unread dot goes, the row stays in «التنبيهات».
+    await expect(alert.locator(".dot")).toHaveCount(1);
+    await alert.click();
+    await page.goto("/app/updates");
+    await expect(alert.locator(".dot")).toHaveCount(0);
   });
 }

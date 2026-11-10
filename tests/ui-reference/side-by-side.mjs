@@ -41,6 +41,7 @@ import { mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { DOMAIN_PROBES, domainStates } from "./domain-states.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("@playwright/test");
@@ -630,6 +631,8 @@ const STATES = [
     app: (page) => scrollTo(page, "end"),
   },
 ];
+// UI phase 4b: the domain pages (seeded by seed_domain.py).
+STATES.push(...domainStates({ ROOT, env, seed, refRun, visible, pause }));
 
 /* ------------------------------------------------------------------ probes */
 /* The app reuses the reference's class names: the same selectors, measured on both sides. */
@@ -785,7 +788,7 @@ const rowProbes = (side) =>
     .flatMap(([name, key]) =>
       ROW_PARTS.map((part) => [`row:${name}${part}`, `.thread[data-key="${key}"]${part}`]),
     );
-async function probe(page, side) {
+async function probe(page, side, extra = []) {
   return page.evaluate(
     ([selectors, props]) => {
       const out = {};
@@ -806,7 +809,7 @@ async function probe(page, side) {
       }
       return out;
     },
-    [[...PROBES, ...rowProbes(side)], PROPS],
+    [[...PROBES, ...extra, ...rowProbes(side)], PROPS],
   );
 }
 function probeDiff(ref, app) {
@@ -969,7 +972,15 @@ async function capture(state, side, viewport, theme) {
     }
     await settle(page, state.wait ?? 600);
     const png = await page.screenshot({ animations: "disabled", caret: "hide" });
-    return { png, probe: await probe(page, side), words: await words(page), requests, errors };
+    // The domain pages' own classes are probed on their states only.
+    const extra = state.domain ? DOMAIN_PROBES : [];
+    return {
+      png,
+      probe: await probe(page, side, extra),
+      words: await words(page),
+      requests,
+      errors,
+    };
   } catch (error) {
     return { error: String(error), requests, errors };
   } finally {
