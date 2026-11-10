@@ -119,6 +119,13 @@ export type Journal = {
   verification_status?: string | null;
   awaiting_broker_confirmation?: boolean;
   resolution?: OperationResolutionRecord | null;
+  /**
+   * Conversation anchor (presentation only): the thread and its next message seq when an
+   * agent Run of that conversation requested the operation; null for the owner's own
+   * controls and background transitions. The chat places the order line there.
+   */
+  thread_id?: string | null;
+  timeline_seq?: number | null;
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {

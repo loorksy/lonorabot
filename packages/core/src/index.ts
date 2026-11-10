@@ -27,6 +27,7 @@ export {
   agentStatusLine,
   agentStatusText,
   liveAvatarState,
+  uncertainLine,
   watchCondition,
   watchUntil,
 } from "./agent-status";
@@ -101,6 +102,13 @@ export {
 } from "./financial-boundary";
 export { archivedSummary, inboxUnread, isUnread, orderInbox, unreadBadgeTotal } from "./inbox";
 export { callPart, validateAgentRichContent, voicePart } from "./message-parts";
+export {
+  type OrderLine,
+  type OrderLineState,
+  orderLineLabels,
+  orderLineState,
+  orderLineText,
+} from "./order-line";
 export {
   type CredentialField,
   type CredentialForm,

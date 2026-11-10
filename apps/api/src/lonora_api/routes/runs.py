@@ -1,9 +1,11 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.runs import RunRequest
 from lonora_core.user_error import LonoraError
+from lonora_db.run_retry import RunRetryTooEarly, retry_run
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import RunRow, ThreadRow
 from lonora_db.transactions import owned_thread
@@ -56,6 +58,23 @@ async def read(
             raise LonoraError("run_not_found", 404)
         await owned_thread(session, owner.id, row.thread_id)
         return run_data(row)
+
+
+@router.post("/{run_id}/retry", status_code=202, response_model=None)
+async def retry(
+    request: Request, run_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any] | JSONResponse:
+    """Re-run a failed conversational reply for the same message (a new Run, same input).
+
+    Idempotent per failed Run. A Run with any financial operation is never retried.
+    """
+    try:
+        async with runtime(request).db.sessions() as session, session.begin():
+            return run_data(await retry_run(session, owner.id, run_id))
+    except RunRetryTooEarly as error:
+        return JSONResponse(
+            {"code": error.code, "retry_after_seconds": error.retry_after_seconds}, error.status
+        )
 
 
 @router.post("/{run_id}/resume")

@@ -19,7 +19,7 @@ from lonora_db.schema import ShadowTradeRow, TradingJournalRow, TradingOpportuni
 from lonora_db.shadow_positions import shadow_order, shadow_position, shadow_rows
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_decisions import decision_history, read_decision
-from lonora_db.trading_journal import persist_result, reserve_operation
+from lonora_db.trading_journal import anchor_operation, persist_result, reserve_operation
 from lonora_db.transactions import resource_data
 from lonora_market.health import assess_quote, require_healthy
 from lonora_market.relationships import relationship_usable
@@ -263,6 +263,7 @@ async def execute_shadow(
         )
         if not created:
             return TradeResult.model_validate(journal.result)
+        await anchor_operation(session, journal, run)
         captured = (
             execution_evidence(
                 snapshot, request, mode="shadow", phase="virtual_preflight", goal=goal

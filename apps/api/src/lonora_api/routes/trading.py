@@ -121,10 +121,16 @@ async def execute(
 
 @router.get("/journal")
 async def journal(
-    request: Request, account_id: str | None = None, owner: OwnerIdentity = Depends(require_owner)
+    request: Request,
+    account_id: str | None = None,
+    thread_id: str | None = None,
+    owner: OwnerIdentity = Depends(require_owner),
 ) -> list[dict[str, Any]]:
     async with runtime(request).db.sessions() as session:
-        return [journal_data(row) for row in await journal_entries(session, owner.id, account_id)]
+        return [
+            journal_data(row)
+            for row in await journal_entries(session, owner.id, account_id, thread_id=thread_id)
+        ]
 
 
 @router.post("/journal/{operation_id}/resolve")

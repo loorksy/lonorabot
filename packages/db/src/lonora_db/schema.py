@@ -624,6 +624,7 @@ class TradingJournalRow(Base):
     __tablename__ = "ln_trading_journal"
     __table_args__ = (
         Index("ln_journal_reconcile_due", "status", "submitted_at"),
+        Index("ln_trading_journal_thread", "thread_id", "updated_at"),
         CheckConstraint(
             "execution_mode IN ('live','shadow')", name="ln_trading_journal_execution_mode"
         ),
@@ -637,6 +638,10 @@ class TradingJournalRow(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Presentation anchor only (never read by execution or authority): the conversation
+    # and its next message seq when an agent Run of that conversation requested it.
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
 
 
 class ScratchpadRow(ResourceRow):
