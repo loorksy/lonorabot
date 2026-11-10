@@ -130,6 +130,9 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await page.goto("/app/integrations");
     await expect(page.getByText("Trading accounts")).toBeVisible();
     await page.goto("/app/broker");
+    // MetaApi is the default broker (Q52): preselected with its token and region fields.
+    await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
+    await expect(page.getByLabel("Region")).toBeVisible();
     await page.getByLabel("Broker").selectOption("simulation");
     await expect(page.getByText("Demo", { exact: true })).toBeVisible();
     await expect(page.getByLabel(/Password/)).toHaveCount(0);

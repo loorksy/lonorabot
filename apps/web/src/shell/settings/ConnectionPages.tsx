@@ -74,14 +74,14 @@ const fieldLabel = (field: BrokerField) =>
         ? t`Access token — stored encrypted, never shown again`
         : field.name;
 
-/* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): the broker is an adapter
-   the server has, or «تجريبي», the simulation provider; secrets are stored encrypted and never
+/* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): MetaApi is the default
+   broker (preselected, its fields shown); «تجريبي», the simulation provider, is the second choice; secrets are stored encrypted and never
    shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
 export function BrokerFormPage() {
   const nav = useNavigation();
   const toast = useToast();
   const catalog = useLoad(brokerProviders, []);
-  const [provider, setProvider] = useState("");
+  const [provider, setProvider] = useState("metaapi");
   const [test, setTest] = useState<TestState>(null);
   const [busy, setBusy] = useState(false);
   const entry = catalog.value?.find((item) => item.provider === provider);
@@ -136,7 +136,6 @@ export function BrokerFormPage() {
             setTest(null);
           }}
         >
-          <option value="">{t`Choose the broker`}</option>
           {(catalog.value ?? []).map((item) => (
             <option key={item.provider} value={item.provider}>
               {brokerName(item.provider)}
