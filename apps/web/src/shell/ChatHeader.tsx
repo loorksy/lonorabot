@@ -87,7 +87,15 @@ export function ChatHeader({
           <Icon name="phone" />
         </button>
       )}
-      <button type="button" className="icon" aria-label={t`Chat menu`} onClick={onMenu}>
+      {/* The menu is built from the loaded agent or group (its Goals row, its info page): until
+          they arrive after a reload it would open without them and keep that body. */}
+      <button
+        type="button"
+        className="icon"
+        aria-label={t`Chat menu`}
+        disabled={!agent && !group}
+        onClick={onMenu}
+      >
         <Icon name="more" />
       </button>
     </header>

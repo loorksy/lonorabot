@@ -1092,7 +1092,7 @@ msgstr "Chart could not be displayed."
 msgid "Chat list"
 msgstr "Chat list"
 
-#: src/shell/ChatHeader.tsx:90
+#: src/shell/ChatHeader.tsx:95
 #: src/shell/ChatMenu.tsx:92
 msgid "Chat menu"
 msgstr "Chat menu"

@@ -82,9 +82,18 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     expect(current.state).not.toHaveProperty("autonomous");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    // The agent list arrives late after this reload: the chat menu waits for it, so it is
+    // never opened without the agent's Goals row (the menu keeps the body it opened with).
+    const slowAgents = /\/api\/agents(\?.*)?$/;
+    await page.route(slowAgents, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
     await page.reload();
+    await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeDisabled();
     // Sheets are not remembered across a reload: open the goals again from the chat menu.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.unroute(slowAgents);
     await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Resume", exact: true }).click();

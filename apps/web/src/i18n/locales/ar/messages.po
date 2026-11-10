@@ -1092,7 +1092,7 @@ msgstr "تعذّر عرض الشارت."
 msgid "Chat list"
 msgstr "قائمة المحادثات"
 
-#: src/shell/ChatHeader.tsx:90
+#: src/shell/ChatHeader.tsx:95
 #: src/shell/ChatMenu.tsx:92
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
