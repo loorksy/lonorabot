@@ -50,6 +50,8 @@ const toolbar = (page, name = "Selected chats") => page.getByRole("toolbar", { n
 const toast = (page) => page.getByRole("status").filter({ hasNotText: /^$/ });
 /** A long press: hold the pointer on the row for 520ms. */
 async function hold(page, locator) {
+  // Centre the row first: the floating tab bar covers the bottom of a long list.
+  await locator.evaluate((element) => element.scrollIntoView({ block: "center" }));
   const box = await locator.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -269,6 +271,7 @@ test("search browses recent content and finds a message; the new-chat sheet lead
   await field.fill(alpha.name.split(" ")[0]);
   await expect(page.getByTestId("search-section-chats")).toContainText(alpha.name);
   await field.fill("Second update");
+  await page.getByRole("tab", { name: "All", exact: true }).click();
   await page.getByTestId("search-hit-messages").first().click();
   await expect(page).toHaveURL(/\/thread\?.*around=\d+/);
   await page.goBack();
@@ -312,6 +315,7 @@ test("«حذف» and «مسح» hide the history for the owner; agents and group
   ).toBeGreaterThan(0);
   // A group row too: «مسح الرسائل» from the ⋮ menu hides its history; the group stays (Q1, Q44).
   const groupKey = `group:${fixture.group.id}`;
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await hold(page, row(page, groupKey));
   await toolbar(page).getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: "Clear the messages", exact: true }).click();
