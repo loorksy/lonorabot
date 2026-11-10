@@ -110,3 +110,49 @@ test("a preference answer is merged into the inbox entry", () => {
   assert.equal(cleared.unread_count, 0);
   assert.equal(mergePrefs([base], [prefs({ thread_id: "other" })])[0], base);
 });
+
+test("after a clear, a message past the boundary stays unread; hidden ones do not", () => {
+  const entry = (seq: number, unread: number): InboxEntry => ({
+    thread_id: "t1",
+    agent_id: "a1",
+    group_id: null,
+    last_message: {
+      id: "m",
+      role: "assistant",
+      agent_id: "a1",
+      content: "x",
+      created_at: "2026-01-01T00:00:00Z",
+      seq,
+      kind: "text",
+      preview: "x",
+      attachments: { count: 0, kinds: [] },
+      consumed: null,
+    },
+    last_activity_at: "2026-01-01T00:00:00Z",
+    unread_count: unread,
+    last_read_seq: 0,
+    marked_unread: false,
+    muted: false,
+    archived: false,
+    favourite: false,
+    pinned_order: null,
+    hidden_before_seq: 0,
+  });
+  const cleared = (boundary: number) => ({
+    thread_id: "t1",
+    last_read_seq: 0,
+    marked_unread: false,
+    muted: false,
+    archived: false,
+    favourite: false,
+    pinned_order: null,
+    hidden_before_seq: boundary,
+    updated_at: null,
+  });
+  // Everything hidden: nothing unread, no preview.
+  assert.equal(mergePrefs([entry(5, 3)], [cleared(5)])[0].unread_count, 0);
+  // A newer message (seq 7) past the boundary 5: still unread, at most the two after it.
+  const merged = mergePrefs([entry(7, 4)], [cleared(5)])[0];
+  assert.equal(merged.unread_count, 2);
+  assert.notEqual(merged.last_message, null);
+});

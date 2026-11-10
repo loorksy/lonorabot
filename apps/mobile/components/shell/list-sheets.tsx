@@ -277,7 +277,13 @@ export function useListSheets() {
         list = await listsApi.members(draft.id, threadIds);
       } else {
         const created = await listsApi.createList(name);
-        list = await listsApi.members(created.id, threadIds);
+        try {
+          list = await listsApi.members(created.id, threadIds);
+        } catch (error) {
+          // Never leave the owner an empty list behind: roll the creation back, then report.
+          await listsApi.deleteList(created.id).catch(() => undefined);
+          throw error;
+        }
       }
       setChatLists((rows) =>
         rows.some((row) => row.id === list.id)

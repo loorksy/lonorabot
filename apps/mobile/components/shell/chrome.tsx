@@ -2,7 +2,7 @@
 // toolbar), bare inner pages with a floating back, the floating tab bar with its badges, the
 // network strip and the update/permission places. Notifications' permission flow stays hidden (Q10).
 import { useRouter } from "expo-router";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../../lib/session";
@@ -243,7 +243,7 @@ export function FloatingTabBar({
     tasks: t("sh_tasks"),
     settings: t("sh_settings"),
   };
-  const order = rtl ? [...ROOTS].reverse() : ROOTS;
+  const order = useMemo(() => (rtl ? [...ROOTS].reverse() : ROOTS), [rtl]);
   useEffect(() => {
     Animated.spring(lens, {
       toValue: order.indexOf(section),

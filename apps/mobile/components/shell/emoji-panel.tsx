@@ -46,15 +46,22 @@ export function EmojiPanel({
   useEffect(() => {
     void loadSetting(RECENT)
       .then((stored) => {
-        if (stored) setRecent(JSON.parse(stored) as string[]);
+        const parsed: unknown = stored ? JSON.parse(stored) : [];
+        if (Array.isArray(parsed))
+          setRecent(
+            parsed.filter((value): value is string => typeof value === "string").slice(0, 24),
+          );
       })
       .catch(() => undefined);
   }, []);
   const pick = (emoji: string) => {
     onPick(emoji);
-    const next = [emoji, ...recent.filter((value) => value !== emoji)].slice(0, 24);
-    setRecent(next);
-    void saveSetting(RECENT, JSON.stringify(next)).catch(() => undefined);
+    // A functional update: two quick taps must not overwrite each other.
+    setRecent((current) => {
+      const next = [emoji, ...current.filter((value) => value !== emoji)].slice(0, 24);
+      void saveSetting(RECENT, JSON.stringify(next)).catch(() => undefined);
+      return next;
+    });
   };
   const q = foldSearch(query);
   const results = useMemo(

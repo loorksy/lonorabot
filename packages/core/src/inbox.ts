@@ -56,12 +56,19 @@ export function mergePrefs(entries: InboxEntry[], prefs: ThreadPrefs[]): InboxEn
     if (!next) return entry;
     const { thread_id: _thread, updated_at: _updated, ...state } = next;
     const hidden = next.hidden_before_seq > entry.hidden_before_seq;
+    const lastSeq = entry.last_message?.seq ?? 0;
+    // «مسح» hides what is at or before the boundary: those cannot be unread, a message after it can.
+    const unread =
+      next.last_read_seq >= lastSeq || (hidden && lastSeq <= next.hidden_before_seq)
+        ? 0
+        : hidden
+          ? Math.min(entry.unread_count, lastSeq - next.hidden_before_seq)
+          : entry.unread_count;
     return {
       ...entry,
       ...state,
-      // Nothing hidden can be unread, and «مسح» empties the preview until the refetch.
-      unread_count:
-        next.last_read_seq >= (entry.last_message?.seq ?? 0) || hidden ? 0 : entry.unread_count,
+      // «مسح» empties the preview until the refetch.
+      unread_count: unread,
       last_message:
         hidden && entry.last_message && entry.last_message.seq <= next.hidden_before_seq
           ? null
