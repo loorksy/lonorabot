@@ -91,6 +91,15 @@ class MessageCreate(Contract):
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
     attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
+    # Edit and resend (Q21): the owner's text message this one replaces.
+    edited_from: str | None = Field(default=None, max_length=36)
+
+
+class ThreadOptions(Contract):
+    """Per-chat options the agent reads (Q33): ``web_search`` makes it gather sources with
+    the web_search tool before answering."""
+
+    web_search: bool = False
 
 
 class ResourceInput(Contract):

@@ -237,6 +237,8 @@ class ThreadRow(Base):
     group_id: Mapped[str | None] = mapped_column(String(36), index=True)
     title: Mapped[str] = mapped_column(String(160), default="")
     next_seq: Mapped[int] = mapped_column(Integer, default=1)
+    # Per-chat options the agent reads ({"web_search": bool}).
+    options: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default=text("'{}'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -261,6 +263,25 @@ class MessageRow(Base):
     client_nonce: Mapped[str | None] = mapped_column(String(100))
     reply_to: Mapped[str | None] = mapped_column(String(36))
     attachment_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # The agent's optional next-reply suggestion on a conversational answer (Q23).
+    suggested_reply: Mapped[str | None] = mapped_column(String(60))
+    # Edit and resend (Q21): the original owner message this one replaces; both stay.
+    edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MessageReactionRow(Base):
+    """One quick reaction per reactor ("owner" or an agent id) and message (Q26, Q28)."""
+
+    __tablename__ = "ln_message_reactions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "reactor", name="ln_message_reaction_reactor"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    message_id: Mapped[str] = mapped_column(ForeignKey("ln_messages.id", ondelete="CASCADE"))
+    thread_id: Mapped[str] = mapped_column(String(36))
+    reactor: Mapped[str] = mapped_column(String(36))
+    emoji: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
