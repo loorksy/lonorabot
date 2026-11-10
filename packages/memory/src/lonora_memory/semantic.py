@@ -77,8 +77,16 @@ async def retrieve_memory(
 
 
 async def index_note(
-    db: Database, credentials: ProviderCredentials, owner_id: str, agent_id: str, text: str
+    db: Database,
+    credentials: ProviderCredentials,
+    owner_id: str,
+    agent_id: str,
+    text: str,
+    title: str | None = None,
+    replaces: str | None = None,
 ) -> dict[str, Any]:
+    """Index one note; ``replaces`` (the owner's edit) removes that note of the same agent in
+    the same transaction, so an edit never leaves both notes or neither."""
     if not text.strip():
         raise LonoraError("memory_note_required")
     if len(text) > 24000:
@@ -99,7 +107,32 @@ async def index_note(
                 id=document_id,
                 owner_id=owner_id,
                 agent_id=agent_id,
-                payload={"text": text, "embedding": vector, "model": model},
+                payload={
+                    "text": text,
+                    "embedding": vector,
+                    "model": model,
+                    **({"title": title} if title is not None else {}),
+                },
             )
             session.add(row)
+            from lonora_db.events import emit
+
+            # A new note reads «أُضيفت معرفة» in the activity log; an edit (replaces) is an
+            # update, which the log does not list.
+            emit(
+                session,
+                owner_id,
+                "knowledge_notes.updated" if replaces else "knowledge_notes.created",
+                agent_id=agent_id,
+                payload={"id": document_id},
+            )
+        elif title is not None and row.payload.get("title") != title:
+            # The owner's name for the note in «المعرفة»; recall reads the text only.
+            row.payload = {**row.payload, "title": title}
+            row.version += 1
+        if replaces and replaces != document_id:
+            old = await session.get(SemanticMemoryRow, replaces, with_for_update=True)
+            if old is None or old.owner_id != owner_id or old.agent_id != agent_id:
+                raise LonoraError("knowledge_note_not_found", 404)
+            await session.delete(old)
         return {"id": document_id, "indexed": True}
