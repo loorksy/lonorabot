@@ -2,8 +2,7 @@
 import { Redirect } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { AttentionInbox } from "../../components/attention-inbox";
-import { Empty } from "../../components/shell/kit";
-import { Loading } from "../../components/ui";
+import { colors, Loading } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useShellData } from "../../lib/shell-data";
@@ -32,7 +31,8 @@ export default function Updates() {
         {t("sh_updates")}
       </Text>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
-        {data.attention.length ? (
+        {/* The attention inbox keeps its own (dark) palette until phase 4 re-skins it. */}
+        <View style={{ margin: 16, borderRadius: 16, overflow: "hidden", backgroundColor: colors.background }}>
           <AttentionInbox
             items={data.attention}
             agents={data.agents}
@@ -41,9 +41,7 @@ export default function Updates() {
               data.clearAttention(id);
             }}
           />
-        ) : (
-          <Empty icon="bell">{t("sh_browseEmpty")}</Empty>
-        )}
+        </View>
       </ScrollView>
     </View>
   );

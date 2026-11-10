@@ -9,6 +9,7 @@ import {
   filterRows,
   type ListFilter,
   listIdOf,
+  rowIsUnread,
 } from "@lonora/core";
 import { useRouter } from "expo-router";
 import {
@@ -50,9 +51,14 @@ export function useOpenChat() {
   const router = useRouter();
   const { errorText } = useSession();
   const toast = useToast();
+  const lists = useLists();
+  const { read } = lists;
   return useCallback(
     async (row: ChatRow, extra: Record<string, string> = {}) => {
       try {
+        // Opening a chat reads it on the server; the row and the tab badge follow. The conversation
+        // screen itself is a later part of the port, so the list does it on the way in.
+        if (rowIsUnread(row)) void read([row]).catch(() => undefined);
         if (row.kind === "group") {
           router.push({ pathname: "/group-thread", params: { groupId: row.id, ...extra } });
           return;
@@ -65,7 +71,7 @@ export function useOpenChat() {
         toast(errorText(reason), { type: "error" });
       }
     },
-    [router, errorText, toast],
+    [router, errorText, toast, read],
   );
 }
 

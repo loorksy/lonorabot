@@ -158,7 +158,9 @@ test("selection: long press, toolbar, favourites and select all; archive with un
   const was = await keep.getAttribute("aria-checked");
   await keep.click();
   await expect
-    .poll(async () => String((await (await context.request.get("/api/threads/settings")).json()).keep_archived))
+    .poll(async () =>
+      String((await (await context.request.get("/api/threads/settings")).json()).keep_archived),
+    )
     .toBe(was === "true" ? "false" : "true");
   await keep.click();
   await hold(page, row(page, key(gamma)));
@@ -258,7 +260,9 @@ test("«حذف» and «مسح» hide the history for the owner; agents and group
   const agents = await (await context.request.get("/api/agents")).json();
   expect(agents.some((agent) => agent.id === alpha.id)).toBe(true);
   const inbox = await (await context.request.get("/api/threads/inbox")).json();
-  expect(inbox.find((entry) => entry.thread_id === fixture.threads[0].id).hidden_before_seq).toBeGreaterThan(0);
+  expect(
+    inbox.find((entry) => entry.thread_id === fixture.threads[0].id).hidden_before_seq,
+  ).toBeGreaterThan(0);
 });
 
 test("offline: the network strip says so and a restored connection clears it", async ({
@@ -309,4 +313,25 @@ test("«وكيل جديد» posts /api/agents/create with the template, never /a
     })
     .toBe(true);
   await context.request.delete(`/api/agents/${created.id}`, { headers: seeded.headers });
+});
+
+test("opening an unread chat reads it on the server; the row and the tab badge follow", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const beta = fixture.agents[1];
+  await page.goto("/");
+  await expect(row(page, key(beta)).getByLabel("2 unread")).toBeVisible();
+  await row(page, key(beta)).click();
+  await expect(page).toHaveURL(/\/thread/);
+  await expect
+    .poll(async () => {
+      const rows = await (await context.request.get("/api/threads/inbox")).json();
+      return rows.find((entry) => entry.thread_id === fixture.threads[1].id).unread_count;
+    })
+    .toBe(0);
+  await page.goBack();
+  await expect(row(page, key(beta)).getByLabel("2 unread")).toHaveCount(0);
 });

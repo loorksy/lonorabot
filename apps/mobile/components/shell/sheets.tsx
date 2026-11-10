@@ -103,12 +103,8 @@ export function SheetProvider({ children }: { children: ReactNode }) {
               backgroundColor: "rgba(0,0,0,0.5)",
             }}
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("sh_cancel")}
-              style={{ flex: 1 }}
-              onPress={close}
-            />
+            {/* A tap outside closes; the sheet's own buttons are the accessible way. */}
+            <Pressable accessible={false} style={{ flex: 1 }} onPress={close} />
           </Animated.View>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
