@@ -138,6 +138,10 @@ const errors: Readonly<Record<string, Text>> = {
     en: "Set both the start and the end of quiet hours, or clear both.",
     ar: "حدّد بداية أوقات الهدوء ونهايتها معًا، أو امسحهما معًا.",
   },
+  incoming_call_quiet_hours_empty: {
+    en: "Quiet hours must start and end at different times.",
+    ar: "يجب أن تبدأ ساعات الهدوء وتنتهي في وقتين مختلفين.",
+  },
   invalid_timezone: {
     en: "Choose a valid time zone, such as Asia/Riyadh.",
     ar: "اختر منطقة زمنية صحيحة، مثل Asia/Riyadh.",

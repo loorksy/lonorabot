@@ -49,18 +49,24 @@ function fresh(mode: Mode, onDone?: (ok: boolean) => void): State {
           : t`Enter the code again`,
   };
 }
+/** The unlock state with the wrong tries and cool-down this device has recorded, so a reload
+ * never resets the 5-try / 30 s limit. */
+function unlockState(): State {
+  const lock = readLock();
+  return { ...fresh("unlock"), tries: lock.tries ?? 0, until: lock.until ?? 0 };
+}
 const vibrate = (pattern: number | number[]) => navigator.vibrate?.(pattern);
 
 export function AppLockProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
-  const [state, setState] = useState<State | null>(() => (readLock().on ? fresh("unlock") : null));
+  const [state, setState] = useState<State | null>(() => (readLock().on ? unlockState() : null));
   const [, tick] = useState(0);
   const hiddenAt = useRef(0);
   const live = useRef(state);
   live.current = state;
 
   const lockNow = useCallback(() => {
-    if (readLock().on && !live.current) setState(fresh("unlock"));
+    if (readLock().on && !live.current) setState(unlockState());
   }, []);
   useEffect(() => {
     const changed = () => {
@@ -160,20 +166,56 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     },
     [finish, toast],
   );
+  const layer = useRef<HTMLDivElement>(null);
+  const locked = state !== null;
+  // While the lock is up nothing behind it takes input: every other layer of the page is inert
+  // and hidden from assistive tech, focus moves into the lock and stays there, and no other key
+  // handler (the composer, the shell's shortcuts) sees a key.
   useEffect(() => {
-    if (!state) return;
+    if (!locked) return;
+    const others = [...document.body.children].filter(
+      (node): node is HTMLElement =>
+        node instanceof HTMLElement && node !== layer.current && !node.hasAttribute("inert"),
+    );
+    for (const node of others) {
+      node.setAttribute("inert", "");
+      node.setAttribute("aria-hidden", "true");
+    }
+    layer.current?.querySelector<HTMLElement>(".lk-key")?.focus({ preventScroll: true });
+    return () => {
+      for (const node of others) {
+        node.removeAttribute("inert");
+        node.removeAttribute("aria-hidden");
+      }
+    };
+  }, [locked]);
+  useEffect(() => {
+    if (!locked) return;
     const down = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        const keys = [
+          ...(layer.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? []),
+        ];
+        if (!keys.length) return event.preventDefault();
+        const at = keys.indexOf(document.activeElement as HTMLElement);
+        const next = event.shiftKey ? (at <= 0 ? keys.length - 1 : at - 1) : (at + 1) % keys.length;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        keys[next].focus();
+        return;
+      }
+      event.stopImmediatePropagation();
       if (/^[0-9]$/.test(event.key)) {
         event.preventDefault();
         key(event.key);
       } else if (event.key === "Backspace") {
         event.preventDefault();
         key("del");
-      }
+      } else if (event.key !== "Enter" && event.key !== " ") event.preventDefault();
     };
-    document.addEventListener("keydown", down, true);
-    return () => document.removeEventListener("keydown", down, true);
-  }, [state, key]);
+    window.addEventListener("keydown", down, true);
+    return () => window.removeEventListener("keydown", down, true);
+  }, [locked, key]);
 
   const api = useMemo<Api>(
     () => ({ setCode: (onDone) => setState(fresh("set", onDone)), lockNow }),
@@ -204,7 +246,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       {children}
       {state &&
         createPortal(
-          <div className="app-shell">
+          <div className="app-shell" ref={layer}>
             <div id="lock" role="dialog" aria-modal="true" aria-label={t`App lock`}>
               <div className="lk">
                 {setup && (

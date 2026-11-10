@@ -43,8 +43,7 @@ class OwnerProfileUpdate(Contract):
 
 class OwnerPreferencesUpdate(Contract):
     """The owner's own preferences, saved as one change: the reach-me policy and reply
-    language, and «الاسم» / «طريقة المخاطبة» (WP-H). A field left out stays as it is,
-    except reply_language beside a reach_me (the clients that always send both)."""
+    language, and «الاسم» / «طريقة المخاطبة» (WP-H). Only the fields sent change."""
 
     reply_language: Literal["ar", "en"] | None = None
     reach_me: IncomingCallPolicy | None = None
@@ -136,9 +135,7 @@ async def write_preferences(
             session,
             owner.id,
             policy=body.reach_me,
-            reply_language=body.reply_language
-            if "reply_language" in fields or body.reach_me is not None
-            else "keep",
+            reply_language=body.reply_language if "reply_language" in fields else "keep",
             name=body.name if "name" in fields else "keep",
             address=body.address if "address" in fields else "keep",
             author="owner",

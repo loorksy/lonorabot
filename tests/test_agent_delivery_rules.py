@@ -106,3 +106,73 @@ async def test_daily_limit_and_in_app_off_keep_alerts_in_activity_but_urgent_one
         assert critical["attention_id"], critical
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_calls_off_means_the_agent_never_rings():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import new_id, utcnow
+    from lonora_contracts.incoming_calls import IncomingCallPolicy
+    from lonora_core.user_error import LonoraError
+    from lonora_db.schema import AttentionRow, DeviceCredentialRow
+    from lonora_voice.incoming import preferences, request_call, set_preferences
+
+    fixture = await Fixture().open()
+    device = new_id()
+    async with fixture.runtime.db.sessions() as session:
+        before = await preferences(session, fixture.owner)
+    try:
+        agent = await fixture.agent("No calls " + uuid4().hex[:6])
+        thread = await fixture.conversation(agent)
+        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"calls": False})
+        attention = new_id()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                DeviceCredentialRow(
+                    id=device,
+                    owner_id=fixture.owner,
+                    name="Test device",
+                    credential_id="fixture-" + device,
+                    public_key="fixture-not-authentication",
+                    sign_count=0,
+                    revoked=False,
+                )
+            )
+            await session.flush()
+            await set_preferences(
+                session, fixture.owner, IncomingCallPolicy(enabled=True, device_id=device)
+            )
+            session.add(
+                AttentionRow(
+                    id=attention,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    importance="critical",
+                    code="emergency_stop",
+                    status="ready",
+                    logical_key=attention,
+                    coalesce_key=attention,
+                    parameters={},
+                    source_events=[],
+                    source_count=1,
+                    version=1,
+                    due_at=utcnow(),
+                )
+            )
+        with pytest.raises(LonoraError) as refused:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await request_call(
+                    session,
+                    fixture.owner,
+                    attention,
+                    "Urgent verified account safety change",
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                )
+        assert refused.value.code == "incoming_call_agent_disabled"
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_preferences(session, fixture.owner, before)
+        await fixture.close()

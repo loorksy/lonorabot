@@ -3,8 +3,9 @@ import { Trans } from "@lingui/react/macro";
 import type { Agent } from "@lonora/contracts";
 import { ownerProfileLabel } from "@lonora/core";
 import { useState } from "react";
+import { useNavigation } from "../shell/navigation";
+import { useSheets } from "../shell/sheets/SheetHost";
 import { KnowledgeSection } from "./KnowledgeSection";
-import { OwnerProfileSection } from "./OwnerProfileSection";
 import { ScratchpadSection } from "./ScratchpadSection";
 import { SkillsSection } from "./SkillsSection";
 import { AgentPicker } from "./shell/bot-picker";
@@ -52,8 +53,8 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
         </button>
       </div>
       {tab === "profile" ? (
-        // The owner profile is shared by every agent, whichever agent is selected.
-        <OwnerProfileSection />
+        // The owner profile is shared by every agent: it lives in Settings ← Profile.
+        <OwnerProfileLink />
       ) : agent ? (
         tab === "memory" ? (
           <KnowledgeSection key={agent} agentId={agent} />
@@ -67,6 +68,29 @@ export function Knowledge({ agents, initialAgent }: { agents: Agent[]; initialAg
           <Trans>Choose an agent</Trans>
         </p>
       )}
+    </section>
+  );
+}
+
+/** The owner profile, its change log and how agents reach the owner are settings pages. */
+function OwnerProfileLink() {
+  const nav = useNavigation();
+  const sheets = useSheets();
+  const go = (path: string) => {
+    sheets.close(true);
+    nav.go(path);
+  };
+  return (
+    <section className="card">
+      <p>
+        <Trans>One profile all your agents read, with its change log, is in Settings.</Trans>
+      </p>
+      <button type="button" onClick={() => go("/app/owner")}>
+        <Trans>Open the profile</Trans>
+      </button>{" "}
+      <button type="button" onClick={() => go("/app/notify-settings")}>
+        <Trans>How to reach you</Trans>
+      </button>
     </section>
   );
 }

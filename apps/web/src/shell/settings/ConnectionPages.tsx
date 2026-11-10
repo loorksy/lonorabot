@@ -38,14 +38,14 @@ export type BrokerField = {
 };
 export type BrokerProvider = {
   provider: string;
-  environment: "paper" | "live" | "simulation";
+  environment: "broker" | "simulation";
   fields: BrokerField[];
 };
 export function brokerProviders(): Promise<BrokerProvider[]> {
   return Promise.resolve([
     {
       provider: "metaapi",
-      environment: "live",
+      environment: "broker",
       fields: [
         { name: "account_id", kind: "text", required: true, secret: false },
         { name: "api_key", kind: "password", required: true, secret: true },
@@ -143,12 +143,7 @@ export function BrokerFormPage() {
           ))}
         </select>
       </label>
-      {entry && (
-        <ValueRow
-          label={t`Account type`}
-          value={entry.environment === "live" ? t`Real` : t`Demo`}
-        />
-      )}
+      {entry?.environment === "simulation" && <ValueRow label={t`Account type`} value={t`Demo`} />}
       {entry?.fields.map((item) => (
         <label className="field" key={`${provider}:${item.name}`}>
           <span>{fieldLabel(item)}</span>
@@ -307,6 +302,19 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
       ),
     });
   };
+  const needsSnapshot =
+    demo &&
+    (account.error as { code?: string } | undefined)?.code === "simulation_snapshot_required";
+  if (needsSnapshot)
+    return (
+      <SimulationImport
+        number={number}
+        onImported={() => {
+          account.reload();
+          symbols.reload();
+        }}
+      />
+    );
   const cells = list.map((symbol) => {
     const who = agents
       .filter((agent) => agent.trading_symbol === symbol)
@@ -343,7 +351,8 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
             <bdi>{broker}</bdi>
           </strong>
           <small>
-            <span className="ltr">{number}</span> · {demo ? t`Demo` : t`Real`}
+            <span className="ltr">{number}</span>
+            {demo ? ` · ${t`Demo`}` : ""}
             {account.value?.server ? (
               <>
                 {" "}
@@ -368,7 +377,7 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
             )
           }
         />
-        <ValueRow label={t`Account type`} value={demo ? t`Demo` : t`Real`} />
+        {demo && <ValueRow label={t`Account type`} value={t`Demo`} />}
       </div>
       <h3>
         {symbols.loading ? (
@@ -459,6 +468,71 @@ export function BrokerAccountPage({ connectionId }: { connectionId: string }) {
   );
 }
 
+/* «حساب تجريبي» trades against a market snapshot the owner imports (balance, currency,
+   instruments, quotes and candles; the server's simulation format). Nothing is invented here:
+   until a snapshot is imported the account has no symbols. */
+function SimulationImport({ number, onImported }: { number: string; onImported: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const connections = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
+  const row = connections.value?.find((item) => item.payload.account_id === number);
+  return (
+    <>
+      <div className="acct-hero">
+        <span className="row-icon">
+          <Icon name="trend" />
+        </span>
+        <div>
+          <strong>
+            <bdi>{t`Demo account`}</bdi>
+          </strong>
+          <small>
+            <span className="ltr">{number}</span> · {t`Demo`}
+          </small>
+        </div>
+      </div>
+      <p className="muted">
+        <Trans>
+          A demo account trades against market data you import: the balance, the symbols, their
+          prices and candles. Import a snapshot file to use it.
+        </Trans>
+      </p>
+      <label className="btn full primary">
+        <Trans>Import the demo account data</Trans>
+        <input
+          type="file"
+          accept="application/json,.json"
+          hidden
+          disabled={busy || !row}
+          onChange={async (event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (!file || !row) return;
+            setBusy(true);
+            try {
+              const snapshot = JSON.parse(await file.text()) as unknown;
+              await api.post(`/trading/connections/${encodeURIComponent(row.id)}/simulation`, {
+                snapshot,
+              });
+              toast(t`The demo account data is imported`, { type: "success" });
+              onImported();
+            } catch (error) {
+              toast(
+                error instanceof SyntaxError ? t`The file is not valid JSON.` : userError(error),
+                {
+                  type: "error",
+                },
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
+    </>
+  );
+}
+
 const PROVIDER_NAMES: Record<string, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
@@ -513,6 +587,10 @@ export function ProvidersPage() {
    (POST /providers/{id}/test: lists the models without storing the key) and save (the key is
    stored encrypted, then the catalog is discovered). */
 export function ProviderFormPage({ initial }: { initial?: string }) {
+  if (initial !== undefined && !Object.hasOwn(PROVIDER_NAMES, initial)) return <NotFoundPage />;
+  return <ProviderForm initial={initial} />;
+}
+function ProviderForm({ initial }: { initial?: string }) {
   const nav = useNavigation();
   const toast = useToast();
   const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
@@ -536,8 +614,12 @@ export function ProviderFormPage({ initial }: { initial?: string }) {
         if (!check(form) || busy) return;
         setBusy(true);
         try {
-          await api.put(`/providers/${provider}/credential`, { api_key: key(form) });
-          await api.post(`/providers/${provider}/discover`, {}).catch(() => undefined);
+          await api.put(`/providers/${encodeURIComponent(provider)}/credential`, {
+            api_key: key(form),
+          });
+          await api
+            .post(`/providers/${encodeURIComponent(provider)}/discover`, {})
+            .catch(() => undefined);
           clearDirty();
           toast(t`Saved`, { type: "success" });
           nav.go("/app/providers", { replace: true });
@@ -606,9 +688,12 @@ export function ProviderFormPage({ initial }: { initial?: string }) {
           setBusy(true);
           setTest(null);
           try {
-            const result = await api.post<{ models: string[] }>(`/providers/${provider}/test`, {
-              api_key: key(form),
-            });
+            const result = await api.post<{ models: string[] }>(
+              `/providers/${encodeURIComponent(provider)}/test`,
+              {
+                api_key: key(form),
+              },
+            );
             const count = result.models.length;
             setTest({ ok: true, text: t`The connection works · ${count} models available` });
           } catch (error) {

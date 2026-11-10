@@ -43,14 +43,19 @@ function Field({
 export function AuthFlow({
   initialized,
   expired = false,
+  intro = false,
   onLogin,
 }: {
   initialized: boolean;
   expired?: boolean;
+  /** The owner signed out: the intro opens again, as in the reference. */
+  intro?: boolean;
   onLogin: (owner: Owner) => void;
 }) {
   const after: Step = initialized ? (expired ? "expired" : "signin") : "bootstrap";
-  const [step, setStepOnly] = useState<Step>(() => (introSeen() && initialized ? after : "intro"));
+  const [step, setStepOnly] = useState<Step>(() =>
+    introSeen() && initialized && !intro ? after : "intro",
+  );
   const [slide, setSlide] = useState(0);
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);

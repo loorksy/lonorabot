@@ -19,8 +19,8 @@ of the reference's own class names (`.prefs-row`, `.lang-select`, `.theme-switch
 | settings-storage | 4.9% | 2.1% | Parts are what this browser really keeps (drafts and unsent messages, settings, cache); no media group or chat export (Q48: no data export actions). |
 | settings-a11y | 5.7% | 2.8% | Same layout; bubble preview uses the app's bubble classes. |
 | usage | 7.7% | 5.3% | No budget meter or «تعديل الحد» (D4, Q22): the card shows month to date, the day of the month and the projection. Real figures from WP-I (zero on a fresh database). |
-| broker-form | 12.5% | 7.7% | The server's fields (Q52): broker = MetaApi or «حساب تجريبي» (simulation), account number, token (MetaApi only) and region; no password or server field. |
-| lock | 1.6% | 0.5% | Same keypad and dots; the code is stored as a salted digest. |
+| broker-form | 12.5% | 7.7% | The server's fields (Q52): MetaApi preselected (account number, token, region), «حساب تجريبي» (simulation) second; no password or server field. The account type shows only for the demo account (the server has no real/demo fact for MetaApi). A demo account imports its market snapshot on its account page. |
+| lock | 1.6% | 0.5% | Same keypad and dots. The code is a PBKDF2 salted digest, wrong tries and the cool-down survive a reload, and while locked the page behind is inert (no keys, no focus, no shortcuts). |
 
 Not built in this phase (recorded deviations): `settings.chat-prefs` and the wallpaper row (they
 belong to the conversation of phase 3, which must read them first; a switch that changes nothing
@@ -28,3 +28,6 @@ would be faked), the per-agent MCP allow list (Q55), stdio MCP (Q56), phone/OTP,
 forgot-password (Q46), support sheets (Q49), legal pages (Q50), «حول» (Q54), the provider form's
 model select (the server stores a key per provider, not a default model; models are chosen per
 agent) and deleting a provider key (no server route).
+
+Auth: the intro slides show on a device's first visit and again after the owner signs out, as
+the reference's `signOut` does; a session the server ended shows «انتهت جلستك» instead.

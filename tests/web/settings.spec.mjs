@@ -37,9 +37,9 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
 }) => {
   const data = fixture({ action: "init", empty: true });
   const headers = csrf(data);
+  await signIn(context, data);
   const before = await (await context.request.get("/api/voice/incoming/policy")).json();
   try {
-    await signIn(context, data);
     await page.setViewportSize({ width: 1280, height: 860 });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -105,10 +105,38 @@ test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ p
     );
     const stored = await page.evaluate(() => localStorage.getItem("lonora.lock"));
     expect(stored).not.toContain("1234");
-    await page.reload();
+    // Locked over a conversation: nothing behind the lock takes a key or a click.
+    const agent = (await (await context.request.get("/api/agents")).json())[0];
+    const sent = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && /\/api\/(messages|runs)\b/.test(request.url()))
+        sent.push(request.url());
+    });
+    await page.goto(agent ? `/app/${agent.id}` : "/app");
     await expect(lock).toBeVisible();
+    await expect(page.locator("#root")).toHaveAttribute("inert", "");
+    await page.keyboard.type("hello");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Control+K");
+    for (let index = 0; index < 4; index += 1) {
+      await page.keyboard.press("Tab");
+      expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#lock")))).toBe(
+        true,
+      );
+    }
+    expect(sent).toEqual([]);
+    // "hello" has no digits; the first wrong code is counted and survives a reload.
     await page.keyboard.type("1111");
     await expect(lock.getByText("Wrong code. 4 tries left")).toBeVisible();
+    await page.reload();
+    await expect(lock).toBeVisible();
+    await page.keyboard.type("2222");
+    await expect(lock.getByText("Wrong code. 3 tries left")).toBeVisible();
+    await page.keyboard.type("1234");
+    await expect(lock).toHaveCount(0);
+    await expect(page.locator("#root")).not.toHaveAttribute("inert", "");
+    await page.goto("/app/privacy");
+    await expect(lock).toBeVisible();
     await page.keyboard.type("1234");
     await expect(lock).toHaveCount(0);
     await page.getByRole("switch", { name: "Lock the app with a code" }).click();
@@ -182,8 +210,10 @@ test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ pa
     await expect(page.locator("#auth")).toHaveCount(0);
     await page.evaluate(() => window.dispatchEvent(new Event("lonora:session-expired")));
     await expect(page.getByRole("heading", { name: "Your session ended" })).toBeVisible();
+    // Signed out on this device without signing out: the intro is not shown a second time.
+    await context.clearCookies();
     await page.reload();
-    // The intro shows once per device.
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Welcome to Lonora" })).toHaveCount(0);
   } finally {
     fixture({ ...data, action: "cleanup" });

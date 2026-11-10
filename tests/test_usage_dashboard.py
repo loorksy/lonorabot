@@ -26,6 +26,21 @@ NOW = datetime(2030, 3, 15, 10, 30, tzinfo=RIYADH).astimezone(UTC)
 SONNET = ("anthropic", "claude-sonnet-4-5", 1000, 500, 2000)  # input excludes cached
 GPT4O = ("openai", "gpt-4o", 3000, 100, 1000)  # prompt_tokens includes cached
 UNKNOWN = ("openai", "gpt-9-imaginary", 10, 10, 0)
+
+
+@pytest.fixture(autouse=True)
+def openai_test_price(monkeypatch):
+    """The production table has no unverified OpenAI prices; these tests use a test-only
+    OpenAI row to exercise the provider that counts cached tokens inside its input."""
+    from lonora_core import model_pricing
+
+    monkeypatch.setitem(
+        model_pricing._PRICES,
+        "openai",
+        {"gpt-4o": model_pricing.ModelPrice(2.50, 1.25, 10.00)},
+    )
+
+
 SONNET_COST = (1000 * 3 + 2000 * 0.3 + 500 * 15) / 1e6
 GPT4O_COST = (2000 * 2.5 + 1000 * 1.25 + 100 * 10) / 1e6
 
@@ -57,7 +72,9 @@ def test_unknown_models_have_no_price_and_variants_are_not_guessed():
     assert model_price("anthropic", "claude-sonnet-4-5-20250929") == model_price(
         "anthropic", "claude-sonnet-4-5"
     )
-    assert model_price("openai", "gpt-4o-2024-08-06") == model_price("openai", "gpt-4o")
+    # Only Anthropic's dated ids are its listed model; another provider's snapshot is
+    # unpriced unless it has its own row.
+    assert model_price("openai", "gpt-4o-2024-05-13") is None
     assert model_price("openai", "gpt-4o-mini") != model_price("openai", "gpt-4o")
 
 

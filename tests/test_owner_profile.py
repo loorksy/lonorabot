@@ -300,10 +300,14 @@ def test_reach_me_is_one_preference_and_enabled_follows_it():
 
 def test_owner_preferences_tool_input_requires_a_change():
     assert OwnerPreferencesUpdate(reach_me="message").reach_me == "message"
+    minutes = OwnerPreferencesUpdate(quiet_start="22:30", quiet_end="07:15")
+    assert (minutes.quiet_start, minutes.quiet_end) == ("22:30", "07:15")
     for invalid in (
         {},
-        {"quiet_start_hour": 22},
-        {"clear_quiet_hours": True, "quiet_start_hour": 1, "quiet_end_hour": 2},
+        {"quiet_start": "22:30"},
+        {"quiet_start": "22:00", "quiet_end": "22:00"},
+        {"quiet_start": "25:00", "quiet_end": "06:00"},
+        {"clear_quiet_hours": True, "quiet_start": "01:00", "quiet_end": "02:00"},
         {"timezone": "Made/Up"},
         {"reach_me": "email"},
     ):

@@ -23,6 +23,7 @@ POLICY_ERROR_CODES = frozenset(
         "incoming_call_channel_conflict",
         "incoming_call_device_required",
         "incoming_call_quiet_hours_incomplete",
+        "incoming_call_quiet_hours_empty",
         "invalid_timezone",
     }
 )
@@ -80,23 +81,26 @@ class IncomingCallPolicy(Contract):
         self._align_quiet_minutes()
         if (self.quiet_start_minute is None) != (self.quiet_end_minute is None):
             raise ValueError("incoming_call_quiet_hours_incomplete")
+        if self.quiet_start_minute is not None and self.quiet_start_minute == self.quiet_end_minute:
+            raise ValueError("incoming_call_quiet_hours_empty")
         return self
 
     def _align_quiet_minutes(self) -> None:
-        """Hours and minutes describe one window. A client that sends only hours (or an hour
-        that disagrees with a stored minute) sets the minute on the hour; clearing the hours
-        clears the window."""
-        hours_sent = {"quiet_start_hour", "quiet_end_hour"} & self.model_fields_set
-        if hours_sent and self.quiet_start_hour is None and self.quiet_end_hour is None:
-            self.quiet_start_minute = self.quiet_end_minute = None
-            return
+        """Hours and minutes describe one window. A side whose hour was sent follows it: a
+        cleared hour clears that side, a different hour moves the minute onto it; a side sent
+        in minutes only sets its hour."""
         for side in ("start", "end"):
             hour: int | None = getattr(self, f"quiet_{side}_hour")
             minute: int | None = getattr(self, f"quiet_{side}_minute")
-            if hour is not None and (minute is None or minute // 60 != hour):
-                setattr(self, f"quiet_{side}_minute", hour * 60)
-            elif hour is None and minute is not None:
+            if f"quiet_{side}_hour" in self.model_fields_set:
+                if hour is None:
+                    setattr(self, f"quiet_{side}_minute", None)
+                elif minute is None or minute // 60 != hour:
+                    setattr(self, f"quiet_{side}_minute", hour * 60)
+            elif minute is not None:
                 setattr(self, f"quiet_{side}_hour", minute // 60)
+            elif hour is not None:
+                setattr(self, f"quiet_{side}_minute", hour * 60)
 
     def quiet(self, now: datetime) -> bool:
         if self.quiet_start_minute is None or self.quiet_end_minute is None:

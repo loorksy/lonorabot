@@ -348,6 +348,8 @@ test("compact call survives navigation with its origin, real track mute and orde
     await page.getByRole("button", { name: /^Sign out/ }).click();
     // «تسجيل الخروج» asks once in a sheet.
     await page.locator("dialog").getByRole("button", { name: "Sign out", exact: true }).click();
+    // Signing out reopens the intro (the reference's signOut); skip to the sign-in step.
+    await page.getByRole("button", { name: "Skip", exact: true }).click();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     expect(closes).toHaveLength(2);
     expect(ordering.slice(-2)).toEqual(["voice-close", "owner-logout"]);

@@ -149,11 +149,11 @@ msgstr "7 أيام"
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
-#: src/shell/settings/NotifyPages.tsx:120
+#: src/shell/settings/NotifyPages.tsx:123
 msgid "A bar at the top of the screen when a reply arrives in another conversation"
 msgstr "شريط أعلى الشاشة عند وصول رد في محادثة أخرى"
 
-#: src/shell/settings/NotifyPages.tsx:232
+#: src/shell/settings/NotifyPages.tsx:235
 msgid "A call rings this device · registered for the passkey"
 msgstr "تصل المكالمة إلى هذا الجهاز · مسجَّل لمفتاح المرور"
 
@@ -168,6 +168,10 @@ msgstr "تعود المحادثة إلى القائمة عند وصول رسال
 #: src/shell/lists/ChatList.tsx:432
 msgid "A chat will return when a new message arrives"
 msgstr "ستعود المحادثة عند وصول رسالة جديدة"
+
+#: src/shell/settings/ConnectionPages.tsx:495
+msgid "A demo account trades against market data you import: the balance, the symbols, their prices and candles. Import a snapshot file to use it."
+msgstr "يتداول الحساب التجريبي على بيانات سوق تستوردها: الرصيد والرموز وأسعارها وشموعها. استورد ملف لقطة لاستخدامه."
 
 #: src/lib/user_error.ts:37
 msgid "A different answer was already recorded."
@@ -197,7 +201,7 @@ msgstr "يتوفر إصدار جديد"
 msgid "A removed agent"
 msgstr "وكيل محذوف"
 
-#: src/shell/settings/NotifyPages.tsx:134
+#: src/shell/settings/NotifyPages.tsx:137
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
@@ -217,13 +221,12 @@ msgstr "نحو {perRequest} توكن للطلب"
 msgid "Above"
 msgstr "أعلى من"
 
-#: src/pages/McpServersOverlay.tsx:70
-#: src/shell/settings/ConnectionPages.tsx:715
+#: src/shell/settings/ConnectionPages.tsx:800
 msgid "Access token"
 msgstr "رمز الوصول"
 
 #: src/shell/settings/ConnectionPages.tsx:74
-#: src/shell/settings/ConnectionPages.tsx:721
+#: src/shell/settings/ConnectionPages.tsx:806
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
@@ -232,7 +235,7 @@ msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مر
 msgid "Accessibility"
 msgstr "سهولة الاستخدام"
 
-#: src/shell/settings/ConnectionPages.tsx:296
+#: src/shell/settings/ConnectionPages.tsx:291
 msgid "Account {number} is unlinked"
 msgstr "فُصل الحساب {number}"
 
@@ -249,8 +252,8 @@ msgstr "معرّف الحساب"
 msgid "Account number"
 msgstr "رقم الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:148
-#: src/shell/settings/ConnectionPages.tsx:371
+#: src/shell/settings/ConnectionPages.tsx:146
+#: src/shell/settings/ConnectionPages.tsx:380
 msgid "Account type"
 msgstr "نوع الحساب"
 
@@ -309,7 +312,7 @@ msgstr "تم تحديث النشاط"
 msgid "Add"
 msgstr "إضافة"
 
-#: src/shell/settings/ConnectionPages.tsx:506
+#: src/shell/settings/ConnectionPages.tsx:580
 msgid "Add a provider"
 msgstr "إضافة مزود"
 
@@ -367,8 +370,8 @@ msgid "Add indicator"
 msgstr "إضافة مؤشر"
 
 #: src/components/integrations/IntegrationSetup.tsx:158
-msgid "Add integration"
-msgstr "إضافة تكامل"
+#~ msgid "Add integration"
+#~ msgstr "إضافة تكامل"
 
 #: src/components/charts/ChartAnnotations.tsx:53
 msgid "Add line"
@@ -382,7 +385,7 @@ msgstr "إضافة MCP"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/shell/settings/ConnectionPages.tsx:760
+#: src/shell/settings/ConnectionPages.tsx:845
 msgid "Add the server"
 msgstr "إضافة الخادم"
 
@@ -430,7 +433,7 @@ msgstr "بعد دقيقة"
 msgid "After leaving the app"
 msgstr "بعد مغادرة التطبيق"
 
-#: src/shell/settings/ConnectionPages.tsx:206
+#: src/shell/settings/ConnectionPages.tsx:201
 msgid "After linking, the account's trading symbols are fetched from the broker and appear in the pair pickers."
 msgstr "بعد الربط تُجلب رموز التداول المتاحة من الحساب تلقائيًا، وتظهر في قوائم اختيار الزوج."
 
@@ -450,7 +453,7 @@ msgstr "بعد الربط تُجلب رموز التداول المتاحة من
 msgid "Agent"
 msgstr "الوكيل"
 
-#: src/shell/settings/NotifyPages.tsx:313
+#: src/shell/settings/NotifyPages.tsx:316
 msgid "Agent calls"
 msgstr "مكالمات الوكيل"
 
@@ -505,7 +508,7 @@ msgstr "الوكلاء"
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/shell/settings/ConnectionPages.tsx:422
+#: src/shell/settings/ConnectionPages.tsx:431
 msgid "Agents on this account"
 msgstr "الوكلاء على هذا الحساب"
 
@@ -553,8 +556,8 @@ msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
 #: src/components/integrations/IntegrationSetup.tsx:148
-msgid "Allowed destinations · comma separated"
-msgstr "الوجهات المسموح بها · مفصولة بفواصل"
+#~ msgid "Allowed destinations · comma separated"
+#~ msgstr "الوجهات المسموح بها · مفصولة بفواصل"
 
 #: src/lib/user_error.ts:55
 msgid "An active skill is no longer available. Review its settings before resuming this task."
@@ -564,7 +567,7 @@ msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع 
 msgid "An alert on your device"
 msgstr "تنبيه على جهازك"
 
-#: src/shell/settings/NotifyPages.tsx:195
+#: src/shell/settings/NotifyPages.tsx:198
 msgid "An unconfirmed operation or a restriction on your account"
 msgstr "عملية غير مؤكَّدة أو قيد على حسابك"
 
@@ -593,16 +596,16 @@ msgstr "حيوانات وطبيعة"
 msgid "Answered"
 msgstr "تمت الإجابة"
 
-#: src/shell/settings/ConnectionPages.tsx:277
+#: src/shell/settings/ConnectionPages.tsx:272
 msgid "Any signed delegation on this account is revoked, and {names} go back to «Execute with approval» without an account until you choose another one."
 msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، ويعود {names} إلى «تنفيذ بموافقة» دون حساب حتى تختار حسابًا آخر."
 
 #: src/pages/ModelSettingsOverlay.tsx:78
-#: src/shell/settings/ConnectionPages.tsx:574
+#: src/shell/settings/ConnectionPages.tsx:656
 msgid "API key"
 msgstr "مفتاح API"
 
-#: src/shell/settings/AppLock.tsx:208
+#: src/shell/settings/AppLock.tsx:250
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "قفل التطبيق"
@@ -611,7 +614,7 @@ msgstr "قفل التطبيق"
 msgid "App lock turned off"
 msgstr "أُوقف قفل التطبيق"
 
-#: src/shell/settings/AppLock.tsx:101
+#: src/shell/settings/AppLock.tsx:107
 msgid "App lock turned on"
 msgstr "فُعّل قفل التطبيق"
 
@@ -620,12 +623,12 @@ msgid "App space in this browser"
 msgstr "مساحة التطبيق في هذا المتصفح"
 
 #: src/pages/settings-sidebar.tsx:19
-msgid "Appearance"
-msgstr "المظهر"
+#~ msgid "Appearance"
+#~ msgstr "المظهر"
 
 #: src/pages/LocalSettings.tsx:12
-msgid "Appearance and workspace"
-msgstr "المظهر ومساحة العمل"
+#~ msgid "Appearance and workspace"
+#~ msgstr "المظهر ومساحة العمل"
 
 #: src/components/trading/TradeApprovals.tsx:195
 msgid "Approve"
@@ -694,7 +697,7 @@ msgstr "ملفات مرفقة"
 msgid "Attachment"
 msgstr "مرفق"
 
-#: src/shell/settings/ConnectionPages.tsx:707
+#: src/shell/settings/ConnectionPages.tsx:792
 msgid "Authentication"
 msgstr "المصادقة"
 
@@ -712,13 +715,13 @@ msgstr "القفل التلقائي"
 msgid "Available"
 msgstr "متاحة"
 
-#: src/shell/settings/ConnectionPages.tsx:375
-#: src/shell/settings/ConnectionPages.tsx:398
+#: src/shell/settings/ConnectionPages.tsx:384
+#: src/shell/settings/ConnectionPages.tsx:407
 msgid "Available symbols"
 msgstr "الرموز المتاحة"
 
 #. placeholder {0}: list.length
-#: src/shell/settings/ConnectionPages.tsx:377
+#: src/shell/settings/ConnectionPages.tsx:386
 msgid "Available symbols · {0}"
 msgstr "الرموز المتاحة · {0}"
 
@@ -784,7 +787,7 @@ msgstr "العمل في الخلفية"
 
 #: src/components/market/MarketWatch.tsx:194
 #: src/components/trading/AccountSummary.tsx:40
-#: src/shell/settings/ConnectionPages.tsx:358
+#: src/shell/settings/ConnectionPages.tsx:367
 msgid "Balance"
 msgstr "الرصيد"
 
@@ -838,8 +841,8 @@ msgid "Bot token"
 msgstr "رمز البوت"
 
 #: src/components/integrations/IntegrationSetup.tsx:76
-msgid "Brave web search"
-msgstr "بحث الويب عبر Brave"
+#~ msgid "Brave web search"
+#~ msgstr "بحث الويب عبر Brave"
 
 #: src/pages/Shell.tsx:627
 #~ msgid "Bring agents together in a group."
@@ -976,8 +979,8 @@ msgid "bytes"
 msgstr "بايت"
 
 #: src/pages/UsageSettingsPanel.tsx:43
-msgid "Cached"
-msgstr "من الذاكرة المؤقتة"
+#~ msgid "Cached"
+#~ msgstr "من الذاكرة المؤقتة"
 
 #: src/shell/settings/NotifyPages.tsx:22
 msgid "Call"
@@ -1002,8 +1005,8 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillEditor.tsx:141
 #: src/pages/Board.tsx:576
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:214
-#: src/shell/settings/ConnectionPages.tsx:285
+#: src/shell/settings/AppLock.tsx:256
+#: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "إلغاء"
@@ -1031,8 +1034,8 @@ msgid "Cancelled"
 msgstr "ملغى"
 
 #: src/pages/settings-sidebar.tsx:20
-msgid "Capabilities"
-msgstr "القدرات"
+#~ msgid "Capabilities"
+#~ msgstr "القدرات"
 
 #: src/pages/ModelSettingsOverlay.tsx:122
 msgid "Capabilities unverified"
@@ -1136,7 +1139,7 @@ msgstr "تحقق من نتيجة الإغلاق"
 msgid "Check existing operation"
 msgstr "فحص العملية الحالية"
 
-#: src/shell/settings/AuthFlow.tsx:89
+#: src/shell/settings/AuthFlow.tsx:94
 msgid "Check the highlighted fields."
 msgstr "تحقق من الحقول المحددة."
 
@@ -1190,8 +1193,7 @@ msgstr "اختر مصدرًا"
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
-#: src/components/integrations/IntegrationSetup.tsx:136
-#: src/pages/Knowledge.tsx:67
+#: src/pages/Knowledge.tsx:68
 #: src/pages/shell/bot-picker.tsx:17
 msgid "Choose an agent"
 msgstr "اختر وكيلًا"
@@ -1233,8 +1235,8 @@ msgstr "اختر نماذج صوت مدعومة من الإعدادات العا
 msgid "Choose the broker"
 msgstr "اختر الوسيط"
 
-#: src/shell/settings/ConnectionPages.tsx:525
-#: src/shell/settings/ConnectionPages.tsx:564
+#: src/shell/settings/ConnectionPages.tsx:603
+#: src/shell/settings/ConnectionPages.tsx:646
 msgid "Choose the provider"
 msgstr "اختر المزود"
 
@@ -1405,16 +1407,16 @@ msgstr "اربط مزودًا واختر نموذجًا عالميًا في ال
 #~ msgstr "اربط خادمًا لإتاحة أدواته لوكلائك."
 
 #: src/pages/McpServersOverlay.tsx:49
-msgid "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
-msgstr "اربط خادمًا، ثم راجع أدواته وثِق بها من القدرات. قبل أن تثق بها يرى الوكلاء الخادم ولا يستخدمون أدواته؛ والأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا."
+#~ msgid "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
+#~ msgstr "اربط خادمًا، ثم راجع أدواته وثِق بها من القدرات. قبل أن تثق بها يرى الوكلاء الخادم ولا يستخدمون أدواته؛ والأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا."
 
 #: src/components/trading/BrokerConnection.tsx:89
 msgid "Connect account"
 msgstr "ربط الحساب"
 
 #: src/pages/McpServersOverlay.tsx:79
-msgid "Connect server"
-msgstr "ربط الخادم"
+#~ msgid "Connect server"
+#~ msgstr "ربط الخادم"
 
 #: src/pages/Shell.tsx:476
 #~ msgid "Connected"
@@ -1437,7 +1439,7 @@ msgid "Connection restored"
 msgstr "عاد الاتصال"
 
 #: src/components/trading/BrokerConnection.tsx:47
-#: src/shell/settings/ConnectionPages.tsx:691
+#: src/shell/settings/ConnectionPages.tsx:776
 msgid "Connection type"
 msgstr "نوع الاتصال"
 
@@ -1537,7 +1539,7 @@ msgstr "أنشئ وكلاء قبل بدء مجموعة."
 msgid "Create an agent before adding a routine."
 msgstr "أنشئ وكيلًا قبل إضافة مهمة مجدولة."
 
-#: src/shell/settings/AuthFlow.tsx:66
+#: src/shell/settings/AuthFlow.tsx:71
 msgid "Create an agent for each task, and gather them in groups that work together."
 msgstr "أنشئ وكيلًا لكل مهمة، واجمعهم في مجموعات تتعاون وتتبادل الأدوار."
 
@@ -1583,7 +1585,7 @@ msgstr "إنشاء القائمة · {count}"
 #~ msgid "Create the owner account using the setup token from your server configuration."
 #~ msgstr "أنشئ حساب المالك باستخدام رمز الإعداد الموجود في إعدادات الخادم."
 
-#: src/shell/settings/AuthFlow.tsx:235
+#: src/shell/settings/AuthFlow.tsx:240
 msgid "Create the owner account with the setup token from your server configuration."
 msgstr "أنشئ حساب المالك برمز الإعداد من إعدادات الخادم."
 
@@ -1591,7 +1593,7 @@ msgstr "أنشئ حساب المالك برمز الإعداد من إعدادا
 msgid "Create watch"
 msgstr "إنشاء مراقبة"
 
-#: src/shell/settings/AuthFlow.tsx:276
+#: src/shell/settings/AuthFlow.tsx:281
 msgid "Create workspace"
 msgstr "إنشاء مساحة العمل"
 
@@ -1625,13 +1627,13 @@ msgstr "تخصيص الأفاتار"
 msgid "Daily cost"
 msgstr "التكلفة اليومية"
 
-#: src/shell/settings/NotifyPages.tsx:323
+#: src/shell/settings/NotifyPages.tsx:326
 msgid "Daily notification limit"
 msgstr "حد الإشعارات اليومي"
 
 #: src/pages/LocalSettings.tsx:33
-msgid "Dark"
-msgstr "داكن"
+#~ msgid "Dark"
+#~ msgstr "داكن"
 
 #: src/shell/settings/SettingsRoot.tsx:165
 msgid "Dark mode"
@@ -1668,16 +1670,14 @@ msgstr "سوق افتراضي"
 msgid "Delegated task"
 msgstr "مهمة مفوّضة"
 
-#: src/components/integrations/IntegrationSetup.tsx:184
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:238
+#: src/shell/settings/AppLock.tsx:280
 msgid "Delete"
 msgstr "حذف"
 
@@ -1715,12 +1715,13 @@ msgid "Delete these owner instructions? Existing version blocks will remain."
 msgstr "هل تريد حذف هذه التعليمات الخاصة؟ ستبقى عمليات حظر الإصدارات محفوظة."
 
 #: src/components/integrations/IntegrationSetup.tsx:128
-msgid "Deliver incoming messages to"
-msgstr "توصيل الرسائل الواردة إلى"
+#~ msgid "Deliver incoming messages to"
+#~ msgstr "توصيل الرسائل الواردة إلى"
 
-#: src/shell/settings/ConnectionPages.tsx:149
-#: src/shell/settings/ConnectionPages.tsx:346
-#: src/shell/settings/ConnectionPages.tsx:371
+#: src/shell/settings/ConnectionPages.tsx:146
+#: src/shell/settings/ConnectionPages.tsx:355
+#: src/shell/settings/ConnectionPages.tsx:380
+#: src/shell/settings/ConnectionPages.tsx:490
 msgid "Demo"
 msgstr "تجريبي"
 
@@ -1730,7 +1731,8 @@ msgid "Demo · {0}"
 msgstr "تجريبي · {0}"
 
 #: src/shell/settings/ConnectionPages.tsx:64
-#: src/shell/settings/ConnectionPages.tsx:262
+#: src/shell/settings/ConnectionPages.tsx:257
+#: src/shell/settings/ConnectionPages.tsx:487
 msgid "Demo account"
 msgstr "حساب تجريبي"
 
@@ -1757,8 +1759,8 @@ msgstr "الوصف"
 msgid "Determined"
 msgstr "مصمم"
 
-#: src/shell/settings/NotifyPages.tsx:208
-#: src/shell/settings/NotifyPages.tsx:210
+#: src/shell/settings/NotifyPages.tsx:211
+#: src/shell/settings/NotifyPages.tsx:213
 msgid "Device"
 msgstr "الجهاز"
 
@@ -1777,8 +1779,8 @@ msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 
 #: src/components/integrations/IntegrationSetup.tsx:177
 #: src/pages/McpServersOverlay.tsx:95
-msgid "Disable"
-msgstr "تعطيل"
+#~ msgid "Disable"
+#~ msgstr "تعطيل"
 
 #: src/components/skills/shared.ts:37
 msgid "Disabled"
@@ -1835,7 +1837,7 @@ msgstr "حالم"
 msgid "Durable trading journal"
 msgstr "سجل التداول الدائم"
 
-#: src/shell/settings/ConnectionPages.tsx:162
+#: src/shell/settings/ConnectionPages.tsx:157
 msgid "e.g. 7310"
 msgstr "مثل: 7310"
 
@@ -1844,7 +1846,6 @@ msgstr "مثل: 7310"
 msgid "Economic calendar"
 msgstr "التقويم الاقتصادي"
 
-#: src/components/integrations/IntegrationSetup.tsx:82
 #: src/components/market/MarketWatch.tsx:218
 msgid "Economic calendar feed"
 msgstr "مصدر التقويم الاقتصادي"
@@ -1863,8 +1864,8 @@ msgstr "تعديل المهمة المجدولة"
 msgid "Edit the list"
 msgstr "تعديل القائمة"
 
-#: src/shell/settings/AuthFlow.tsx:199
-#: src/shell/settings/AuthFlow.tsx:251
+#: src/shell/settings/AuthFlow.tsx:204
+#: src/shell/settings/AuthFlow.tsx:256
 msgid "Email"
 msgstr "البريد الإلكتروني"
 
@@ -1898,8 +1899,8 @@ msgstr "فارغة"
 
 #: src/components/integrations/IntegrationSetup.tsx:177
 #: src/pages/McpServersOverlay.tsx:95
-msgid "Enable"
-msgstr "تفعيل"
+#~ msgid "Enable"
+#~ msgstr "تفعيل"
 
 #: src/lib/user_error.ts:120
 #~ msgid "Enable autonomous trading for this goal in its owner controls first."
@@ -1925,7 +1926,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/shell/settings/ConnectionPages.tsx:650
+#: src/shell/settings/ConnectionPages.tsx:735
 #: src/shell/settings/IntegrationsPage.tsx:281
 msgid "Enter a link that starts with https://"
 msgstr "أدخل رابطًا يبدأ بـ https://"
@@ -1935,7 +1936,7 @@ msgid "Enter a valid domain like example.com"
 msgstr "أدخل نطاقًا صحيحًا مثل example.com"
 
 #: src/shell/settings/ConnectionPages.tsx:101
-#: src/shell/settings/ConnectionPages.tsx:652
+#: src/shell/settings/ConnectionPages.tsx:737
 msgid "Enter the access token"
 msgstr "أدخل رمز الوصول"
 
@@ -1947,22 +1948,22 @@ msgstr "أدخل رمز الوصول."
 msgid "Enter the account number"
 msgstr "أدخل رقم الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:526
+#: src/shell/settings/ConnectionPages.tsx:604
 msgid "Enter the API key"
 msgstr "أدخل مفتاح API"
 
 #: src/shell/settings/AppLock.tsx:49
-#: src/shell/settings/AppLock.tsx:91
+#: src/shell/settings/AppLock.tsx:97
 msgid "Enter the code again"
 msgstr "أعد إدخال الرمز"
 
 #: src/shell/settings/AppLock.tsx:46
-#: src/shell/settings/AppLock.tsx:149
-#: src/shell/settings/AppLock.tsx:151
+#: src/shell/settings/AppLock.tsx:155
+#: src/shell/settings/AppLock.tsx:157
 msgid "Enter the lock code"
 msgstr "أدخل رمز القفل"
 
-#: src/shell/settings/ConnectionPages.tsx:648
+#: src/shell/settings/ConnectionPages.tsx:733
 msgid "Enter the server name"
 msgstr "أدخل اسم الخادم"
 
@@ -1984,8 +1985,8 @@ msgid "Every · minutes"
 msgstr "التكرار · بالدقائق"
 
 #: src/components/integrations/IntegrationSetup.tsx:108
-msgid "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
-msgstr "يقرأ كل وكيل هذا الموجز. تابع محللي X عبر موجزاتهم أو البحث على الويب أو خادم MCP لـ X تثق به؛ لا تستخدم لونورا حسابك على X أبدًا."
+#~ msgid "Every agent reads this feed. Follow X analysts through their feeds, web search or a trusted X MCP server; Lonora never uses your X account."
+#~ msgstr "يقرأ كل وكيل هذا الموجز. تابع محللي X عبر موجزاتهم أو البحث على الويب أو خادم MCP لـ X تثق به؛ لا تستخدم لونورا حسابك على X أبدًا."
 
 #: src/shell/lists/ListSheets.tsx:113
 msgid "Every list you create becomes a filter above the chat list."
@@ -2068,18 +2069,18 @@ msgid "Feed link"
 msgstr "رابط خلاصة"
 
 #: src/components/integrations/IntegrationSetup.tsx:96
-msgid "Feed or webhook URL"
-msgstr "رابط المصدر أو Webhook"
+#~ msgid "Feed or webhook URL"
+#~ msgstr "رابط المصدر أو Webhook"
 
 #: src/shell/settings/IntegrationsPage.tsx:123
 msgid "Fetch the tools to review them before approving the server."
 msgstr "اجلب الأدوات لمراجعتها قبل اعتماد الخادم."
 
-#: src/shell/settings/ConnectionPages.tsx:405
+#: src/shell/settings/ConnectionPages.tsx:414
 msgid "Fetched from the broker account, and shown in the pair pickers when creating an agent and in delegation."
 msgstr "تُجلب من حساب الوسيط تلقائيًا، وتظهر في قوائم اختيار الزوج عند إنشاء وكيل وفي التفويض."
 
-#: src/shell/settings/ConnectionPages.tsx:384
+#: src/shell/settings/ConnectionPages.tsx:393
 msgid "Fetching the symbols from <0>{broker}</0>…"
 msgstr "جارٍ جلب الرموز من <0>{broker}</0>…"
 
@@ -2091,7 +2092,7 @@ msgstr "فيبوناتشي"
 #: src/shell/lists/UnifiedSearch.tsx:307
 #: src/shell/lists/UnifiedSearch.tsx:314
 #: src/shell/pages.tsx:75
-#: src/shell/settings/SettingsRoot.tsx:332
+#: src/shell/settings/SettingsRoot.tsx:336
 msgid "Files"
 msgstr "الملفات"
 
@@ -2156,7 +2157,7 @@ msgstr "مثال: العمل، الأصدقاء"
 msgid "For urgent matters: the agent calls you"
 msgstr "للأمور العاجلة: يتصل بك الوكيل"
 
-#: src/shell/settings/AuthFlow.tsx:162
+#: src/shell/settings/AuthFlow.tsx:167
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "لأمان حسابك، سجّل الدخول مجددًا. محادثاتك ومسوداتك محفوظة."
 
@@ -2175,17 +2176,17 @@ msgstr "الهامش المتاح"
 
 #: src/pages/ActivityList.tsx:116
 #: src/pages/ActivityList.tsx:119
-#: src/shell/settings/NotifyPages.tsx:161
+#: src/shell/settings/NotifyPages.tsx:164
 msgid "From"
 msgstr "من"
 
 #. placeholder {0}: clock(policy?.quiet_start_minute)
 #. placeholder {1}: clock(policy?.quiet_end_minute)
-#: src/shell/settings/NotifyPages.tsx:148
+#: src/shell/settings/NotifyPages.tsx:151
 msgid "From {0} to {1}"
 msgstr "من {0} إلى {1}"
 
-#: src/shell/settings/NotifyPages.tsx:149
+#: src/shell/settings/NotifyPages.tsx:152
 msgid "From 22:00 to 08:00"
 msgstr "من 22:00 إلى 08:00"
 
@@ -2222,7 +2223,8 @@ msgstr "ينجز المهام اليومية دون زوج محدد"
 msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
-#: src/pages/settings-sidebar.tsx:21
+#: src/pages/settings-sidebar.tsx:13
+#: src/shell/settings/SettingsRoot.tsx:329
 msgid "Global models"
 msgstr "النماذج العالمية"
 
@@ -2293,7 +2295,7 @@ msgstr "سعيد"
 msgid "Hide message text"
 msgstr "إخفاء نص الرسائل"
 
-#: src/shell/settings/ConnectionPages.tsx:587
+#: src/shell/settings/ConnectionPages.tsx:669
 msgid "Hide the key"
 msgstr "إخفاء المفتاح"
 
@@ -2313,8 +2315,9 @@ msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البي
 msgid "Hour"
 msgstr "الساعة"
 
-#: src/shell/settings/NotifyPages.tsx:76
-#: src/shell/settings/NotifyPages.tsx:78
+#: src/pages/Knowledge.tsx:92
+#: src/shell/settings/NotifyPages.tsx:79
+#: src/shell/settings/NotifyPages.tsx:81
 msgid "How to reach you"
 msgstr "طريقة التواصل"
 
@@ -2338,11 +2341,15 @@ msgstr "فورًا"
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
-#: src/shell/settings/NotifyPages.tsx:308
+#: src/shell/settings/ConnectionPages.tsx:501
+msgid "Import the demo account data"
+msgstr "استيراد بيانات الحساب التجريبي"
+
+#: src/shell/settings/NotifyPages.tsx:311
 msgid "In-app messages"
 msgstr "رسائل داخل التطبيق"
 
-#: src/shell/settings/NotifyPages.tsx:119
+#: src/shell/settings/NotifyPages.tsx:122
 msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
 
@@ -2365,8 +2372,8 @@ msgid "Indicators and drawings"
 msgstr "المؤشرات والرسومات"
 
 #: src/pages/UsageSettingsPanel.tsx:31
-msgid "Input"
-msgstr "الإدخال"
+#~ msgid "Input"
+#~ msgstr "الإدخال"
 
 #. placeholder {0}: 100 - input
 #: src/shell/settings/UsagePage.tsx:397
@@ -2381,7 +2388,7 @@ msgstr "تثبيت Lonora"
 msgid "Install now"
 msgstr "تثبيت الآن"
 
-#: src/shell/settings/SettingsRoot.tsx:346
+#: src/shell/settings/SettingsRoot.tsx:350
 msgid "Install the app"
 msgstr "تثبيت التطبيق"
 
@@ -2407,8 +2414,6 @@ msgstr "التعليمات"
 #~ msgid "Insufficient data for performance conclusions"
 #~ msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
-#: src/components/integrations/IntegrationSetup.tsx:70
-#: src/pages/settings-sidebar.tsx:24
 #: src/shell/pages.tsx:99
 #: src/shell/settings/SettingsRoot.tsx:324
 msgid "Integrations"
@@ -2490,7 +2495,7 @@ msgstr "متابعة التعديل"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "واصل العمل بجانب المحادثة."
 
-#: src/shell/settings/ConnectionPages.tsx:491
+#: src/shell/settings/ConnectionPages.tsx:565
 msgid "Key saved · never shown again"
 msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 
@@ -2498,12 +2503,12 @@ msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 msgid "Keyboard"
 msgstr "لوحة المفاتيح"
 
-#: src/shell/settings/SettingsRoot.tsx:359
+#: src/shell/settings/SettingsRoot.tsx:363
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
 
-#: src/pages/Knowledge.tsx:20
+#: src/pages/Knowledge.tsx:21
 #: src/shell/ChatMenu.tsx:98
 #: src/shell/ChatMenu.tsx:115
 #: src/shell/pages.tsx:85
@@ -2535,8 +2540,8 @@ msgstr "التسمية"
 
 #: src/pages/LocalSettings.tsx:15
 #: src/pages/LocalSettings.tsx:17
-msgid "Language"
-msgstr "اللغة"
+#~ msgid "Language"
+#~ msgstr "اللغة"
 
 #: src/shell/settings/DevicePages.tsx:29
 msgid "Large"
@@ -2572,14 +2577,14 @@ msgid "Legacy instructions"
 msgstr "تعليمات قديمة"
 
 #: src/pages/LocalSettings.tsx:36
-msgid "Light"
-msgstr "فاتح"
+#~ msgid "Light"
+#~ msgstr "فاتح"
 
 #: src/shell/settings/IntegrationsPage.tsx:628
 msgid "Link"
 msgstr "ربط"
 
-#: src/shell/settings/ConnectionPages.tsx:253
+#: src/shell/settings/ConnectionPages.tsx:248
 #: src/shell/settings/IntegrationsPage.tsx:698
 msgid "Link a trading account"
 msgstr "ربط حساب تداول"
@@ -2588,7 +2593,7 @@ msgstr "ربط حساب تداول"
 msgid "Link Telegram"
 msgstr "ربط Telegram"
 
-#: src/shell/settings/ConnectionPages.tsx:213
+#: src/shell/settings/ConnectionPages.tsx:208
 msgid "Link the account"
 msgstr "ربط الحساب"
 
@@ -2634,8 +2639,8 @@ msgstr "يستمع"
 #~ msgstr "أستمع إليك · تحدث للمقاطعة"
 
 #: src/pages/LocalSettings.tsx:45
-msgid "Live connection active"
-msgstr "الاتصال المباشر فعّال"
+#~ msgid "Live connection active"
+#~ msgstr "الاتصال المباشر فعّال"
 
 #: src/components/trading/ExecutionModeSettings.tsx:81
 #~ msgid "Live observations"
@@ -2696,7 +2701,7 @@ msgstr "جارٍ تحميل المعاينة…"
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
-#: src/shell/settings/SettingsRoot.tsx:339
+#: src/shell/settings/SettingsRoot.tsx:343
 msgid "Lock on"
 msgstr "القفل مفعّل"
 
@@ -2704,7 +2709,7 @@ msgstr "القفل مفعّل"
 msgid "Lock the app with a code"
 msgstr "قفل التطبيق برمز"
 
-#: src/pages/Knowledge.tsx:37
+#: src/pages/Knowledge.tsx:38
 #: src/pages/KnowledgeSection.tsx:83
 msgid "Long-term memory"
 msgstr "الذاكرة الدائمة"
@@ -2713,7 +2718,7 @@ msgstr "الذاكرة الدائمة"
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:385
+#: src/shell/settings/SettingsRoot.tsx:389
 msgid "Lonora · version {version}"
 msgstr "Lonora · الإصدار {version}"
 
@@ -2820,8 +2825,8 @@ msgstr "خادم MCP · {0}"
 
 #: src/pages/McpServersOverlay.tsx:46
 #: src/pages/settings-sidebar.tsx:25
-msgid "MCP servers"
-msgstr "خوادم MCP"
+#~ msgid "MCP servers"
+#~ msgstr "خوادم MCP"
 
 #: src/shell/settings/IntegrationsPage.tsx:183
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
@@ -2948,7 +2953,7 @@ msgstr "كتم الميكروفون"
 msgid "Mute notifications"
 msgstr "كتم الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:145
+#: src/shell/settings/NotifyPages.tsx:148
 msgid "Mute notifications at night"
 msgstr "كتم الإشعارات ليلًا"
 
@@ -2961,8 +2966,6 @@ msgstr "مكتومة"
 #~ msgid "My device"
 #~ msgstr "جهازي"
 
-#: src/components/integrations/IntegrationSetup.tsx:91
-#: src/pages/McpServersOverlay.tsx:56
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/settings/OwnerPage.tsx:186
 msgid "Name"
@@ -3039,12 +3042,12 @@ msgid "News domains"
 msgstr "نطاقات الأخبار"
 
 #: src/components/integrations/IntegrationSetup.tsx:79
-msgid "News or RSS feed"
-msgstr "موجز أخبار أو RSS"
+#~ msgid "News or RSS feed"
+#~ msgstr "موجز أخبار أو RSS"
 
 #: src/pages/shell/bot-panel.tsx:76
 #: src/pages/SkillsSection.tsx:140
-#: src/shell/settings/AuthFlow.tsx:147
+#: src/shell/settings/AuthFlow.tsx:152
 msgid "Next"
 msgstr "التالي"
 
@@ -3056,7 +3059,7 @@ msgstr "التنفيذ القادم"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/settings/ConnectionPages.tsx:452
+#: src/shell/settings/ConnectionPages.tsx:461
 msgid "No agent works on this account."
 msgstr "لا يعمل أي وكيل على هذا الحساب."
 
@@ -3079,7 +3082,7 @@ msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على 
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/shell/settings/ConnectionPages.tsx:714
+#: src/shell/settings/ConnectionPages.tsx:799
 msgid "No authentication"
 msgstr "بدون مصادقة"
 
@@ -3136,7 +3139,7 @@ msgstr "لا توجد مجموعات."
 msgid "No internet connection"
 msgstr "لا يوجد اتصال بالإنترنت"
 
-#: src/shell/settings/NotifyPages.tsx:332
+#: src/shell/settings/NotifyPages.tsx:335
 msgid "No limit"
 msgstr "دون حد"
 
@@ -3204,7 +3207,7 @@ msgstr "لا توجد رسائل محفوظة بعد. ستظهر هنا بعد �
 msgid "No saved tasks yet."
 msgstr "لا توجد مهام محفوظة بعد."
 
-#: src/shell/settings/AuthFlow.tsx:71
+#: src/shell/settings/AuthFlow.tsx:76
 msgid "No sensitive action runs without a permission you grant, and you can stop it any moment."
 msgstr "لا يُنفَّذ أي إجراء حساس دون صلاحية تمنحها، ويمكنك إيقافها في أي لحظة."
 
@@ -3236,7 +3239,7 @@ msgstr "دون أدوات"
 msgid "No tools."
 msgstr "لا أدوات."
 
-#: src/shell/settings/ConnectionPages.tsx:250
+#: src/shell/settings/ConnectionPages.tsx:245
 msgid "No trading account is linked."
 msgstr "لا يوجد حساب تداول مرتبط."
 
@@ -3283,7 +3286,7 @@ msgstr "إشعار"
 #: src/components/ai/AttentionInbox.tsx:69
 #: src/components/ai/AttentionInbox.tsx:71
 #: src/shell/settings/DevicePages.tsx:293
-#: src/shell/settings/NotifyPages.tsx:115
+#: src/shell/settings/NotifyPages.tsx:118
 msgid "Notifications"
 msgstr "الإشعارات"
 
@@ -3296,11 +3299,11 @@ msgstr "الإشعارات والتواصل"
 msgid "Notifications muted"
 msgstr "كُتمت الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:256
+#: src/shell/settings/NotifyPages.tsx:259
 msgid "Notifications off"
 msgstr "الإشعارات متوقفة"
 
-#: src/shell/settings/NotifyPages.tsx:256
+#: src/shell/settings/NotifyPages.tsx:259
 msgid "Notifications on"
 msgstr "الإشعارات مفعّلة"
 
@@ -3346,6 +3349,10 @@ msgstr "وكيل واحد"
 #: src/pages/ModelRoutingSettings.tsx:109
 msgid "One model for text work"
 msgstr "نموذج واحد للمهام النصية"
+
+#: src/pages/Knowledge.tsx:86
+msgid "One profile all your agents read, with its change log, is in Settings."
+msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
 #: src/shell/settings/OwnerPage.tsx:337
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
@@ -3399,6 +3406,10 @@ msgstr "سعر الفتح"
 msgid "Open the ⋮ menu of the browser."
 msgstr "افتح قائمة ⋮ في المتصفح."
 
+#: src/pages/Knowledge.tsx:89
+msgid "Open the profile"
+msgstr "فتح الملف الشخصي"
+
 #: src/components/trading/BrokerPairPicker.tsx:153
 msgid "Open trading settings"
 msgstr "فتح إعدادات التداول"
@@ -3411,7 +3422,7 @@ msgstr "تم ضبط مفتاح OpenAI للصوت"
 #~ msgid "Opening conversation…"
 #~ msgstr "جارٍ فتح المحادثة…"
 
-#: src/App.tsx:63
+#: src/App.tsx:65
 msgid "Opening workspace…"
 msgstr "جارٍ فتح مساحة العمل…"
 
@@ -3453,8 +3464,8 @@ msgstr "سعر الأمر"
 #~ msgstr "النتيجة غير مؤكدة — لن تُرسل مجددًا"
 
 #: src/pages/UsageSettingsPanel.tsx:37
-msgid "Output"
-msgstr "الإخراج"
+#~ msgid "Output"
+#~ msgstr "الإخراج"
 
 #: src/shell/pages.tsx:111
 msgid "Overall usage"
@@ -3484,11 +3495,11 @@ msgstr "الصفحة غير موجودة"
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
 
-#: src/shell/settings/AuthFlow.tsx:208
+#: src/shell/settings/AuthFlow.tsx:213
 msgid "Password"
 msgstr "كلمة المرور"
 
-#: src/shell/settings/AuthFlow.tsx:259
+#: src/shell/settings/AuthFlow.tsx:264
 msgid "Password · at least 12 characters"
 msgstr "كلمة المرور · 12 حرفًا على الأقل"
 
@@ -3534,7 +3545,7 @@ msgstr "قيد الانتظار"
 msgid "Pending orders"
 msgstr "الأوامر المعلقة"
 
-#: src/shell/settings/NotifyPages.tsx:247
+#: src/shell/settings/NotifyPages.tsx:250
 msgid "Per agent"
 msgstr "لكل وكيل"
 
@@ -3666,7 +3677,7 @@ msgid "Price zone"
 msgstr "منطقة سعرية"
 
 #: src/shell/pages.tsx:117
-#: src/shell/settings/SettingsRoot.tsx:337
+#: src/shell/settings/SettingsRoot.tsx:341
 msgid "Privacy and security"
 msgstr "الخصوصية والأمان"
 
@@ -3712,7 +3723,7 @@ msgstr "احمِ محادثاتك برمز من 4 أرقام"
 
 #: src/pages/ModelSettingsOverlay.tsx:57
 #: src/pages/ModelSettingsOverlay.tsx:59
-#: src/shell/settings/ConnectionPages.tsx:553
+#: src/shell/settings/ConnectionPages.tsx:635
 msgid "Provider"
 msgstr "المزود"
 
@@ -3735,13 +3746,17 @@ msgstr "أُغلق السؤال"
 msgid "Queued"
 msgstr "في الانتظار"
 
-#: src/shell/settings/NotifyPages.tsx:141
+#: src/shell/settings/NotifyPages.tsx:144
 msgid "Quiet hours"
 msgstr "ساعات الهدوء"
 
-#: src/shell/settings/NotifyPages.tsx:319
+#: src/shell/settings/NotifyPages.tsx:322
 msgid "Quiet hours are in Settings ← Notifications and contact."
 msgstr "ساعات الهدوء من الإعدادات ← الإشعارات والتواصل."
+
+#: src/shell/settings/NotifyPages.tsx:68
+msgid "Quiet hours must start and end at different times."
+msgstr "يجب أن تبدأ ساعات الهدوء وتنتهي في وقتين مختلفين."
 
 #: src/components/charts/ChartAnnotations.tsx:72
 msgid "Ray"
@@ -3763,8 +3778,8 @@ msgstr "جاهز للتنفيذ"
 #: src/shell/settings/ConnectionPages.tsx:149
 #: src/shell/settings/ConnectionPages.tsx:346
 #: src/shell/settings/ConnectionPages.tsx:371
-msgid "Real"
-msgstr "حقيقي"
+#~ msgid "Real"
+#~ msgstr "حقيقي"
 
 #: src/pages/VoiceSettingsOverlay.tsx:14
 msgid "Realtime conversation"
@@ -3812,8 +3827,8 @@ msgid "Reconnecting"
 msgstr "جارٍ إعادة الاتصال"
 
 #: src/pages/LocalSettings.tsx:47
-msgid "Reconnecting to live updates"
-msgstr "جارٍ إعادة الاتصال بالتحديثات المباشرة"
+#~ msgid "Reconnecting to live updates"
+#~ msgstr "جارٍ إعادة الاتصال بالتحديثات المباشرة"
 
 #: src/shell/NetworkStrip.tsx:72
 msgid "Reconnecting…"
@@ -3843,7 +3858,7 @@ msgstr "تحديث الرسم البياني"
 #~ msgid "Refresh live candles"
 #~ msgstr "تحديث الشموع المباشر"
 
-#: src/shell/settings/ConnectionPages.tsx:418
+#: src/shell/settings/ConnectionPages.tsx:427
 msgid "Refresh the symbols"
 msgstr "تحديث الرموز"
 
@@ -3880,13 +3895,12 @@ msgstr "رفض"
 #: src/components/skills/SkillCard.tsx:93
 #: src/components/skills/SkillEditor.tsx:112
 #: src/pages/KnowledgeSection.tsx:49
-#: src/pages/OwnerProfileSection.tsx:136
 #: src/pages/SkillsSection.tsx:96
 #: src/shell/Toast.tsx:59
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/shell/settings/ConnectionPages.tsx:754
+#: src/shell/settings/ConnectionPages.tsx:839
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
@@ -3965,7 +3979,7 @@ msgstr "البحث المعمق"
 msgid "Research agent"
 msgstr "وكيل بحث"
 
-#: src/shell/settings/ConnectionPages.tsx:689
+#: src/shell/settings/ConnectionPages.tsx:774
 msgid "Research tools"
 msgstr "أدوات الأبحاث"
 
@@ -4031,7 +4045,7 @@ msgstr "استُعيدت"
 msgid "Resume"
 msgstr "استئناف"
 
-#: src/App.tsx:53
+#: src/App.tsx:55
 #: src/components/call/CallCard.tsx:149
 #: src/components/call/CallCard.tsx:149
 #: src/pages/ActivityList.tsx:153
@@ -4124,7 +4138,7 @@ msgstr "جارٍ التنفيذ"
 #: src/pages/ScratchpadSection.tsx:195
 #: src/pages/shell/bot-settings.tsx:167
 #: src/shell/settings/IntegrationsPage.tsx:442
-#: src/shell/settings/NotifyPages.tsx:348
+#: src/shell/settings/NotifyPages.tsx:351
 #: src/shell/settings/OwnerPage.tsx:237
 msgid "Save"
 msgstr "حفظ"
@@ -4153,15 +4167,15 @@ msgstr "حفظ القائمة"
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
-#: src/shell/settings/ConnectionPages.tsx:625
+#: src/shell/settings/ConnectionPages.tsx:710
 msgid "Save the settings"
 msgstr "حفظ الإعدادات"
 
 #: src/components/skills/SkillEditor.tsx:119
 #: src/pages/KnowledgeSection.tsx:96
 #: src/pages/ModelRoutingSettings.tsx:161
-#: src/shell/settings/ConnectionPages.tsx:542
-#: src/shell/settings/NotifyPages.tsx:295
+#: src/shell/settings/ConnectionPages.tsx:624
+#: src/shell/settings/NotifyPages.tsx:298
 #: src/shell/settings/OwnerPage.tsx:136
 msgid "Saved"
 msgstr "تم الحفظ"
@@ -4205,7 +4219,7 @@ msgstr "جدول العمل المتكرر لوكلائك."
 #~ msgid "Scheduled work"
 #~ msgstr "العمل المجدول"
 
-#: src/pages/Knowledge.tsx:51
+#: src/pages/Knowledge.tsx:52
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
@@ -4285,8 +4299,8 @@ msgid "Searching"
 msgstr "يبحث"
 
 #: src/components/integrations/IntegrationSetup.tsx:116
-msgid "Secret or API token"
-msgstr "السر أو مفتاح API"
+#~ msgid "Secret or API token"
+#~ msgstr "السر أو مفتاح API"
 
 #: src/shell/DesktopRail.tsx:53
 msgid "Sections"
@@ -4353,17 +4367,17 @@ msgstr "إرسال توجيه"
 msgid "Sending…"
 msgstr "جارٍ الإرسال…"
 
-#: src/shell/settings/ConnectionPages.tsx:694
+#: src/shell/settings/ConnectionPages.tsx:779
 msgid "Server address"
 msgstr "عنوان الخادم"
 
-#: src/shell/settings/ConnectionPages.tsx:687
+#: src/shell/settings/ConnectionPages.tsx:772
 msgid "Server name"
 msgstr "اسم الخادم"
 
 #: src/pages/McpServersOverlay.tsx:60
-msgid "Server URL"
-msgstr "رابط الخادم"
+#~ msgid "Server URL"
+#~ msgstr "رابط الخادم"
 
 #: src/shell/settings/IntegrationsPage.tsx:506
 msgid "Servers and repositories"
@@ -4373,7 +4387,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/settings/AuthFlow.tsx:232
+#: src/shell/settings/AuthFlow.tsx:237
 msgid "Set up Lonora"
 msgstr "إعداد Lonora"
 
@@ -4383,7 +4397,7 @@ msgstr "إعداد Lonora"
 msgid "Settings"
 msgstr "الإعدادات"
 
-#: src/shell/settings/AuthFlow.tsx:267
+#: src/shell/settings/AuthFlow.tsx:272
 msgid "Setup token"
 msgstr "رمز الإعداد"
 
@@ -4446,7 +4460,7 @@ msgstr "عرض كجدول"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/settings/ConnectionPages.tsx:587
+#: src/shell/settings/ConnectionPages.tsx:669
 msgid "Show the key"
 msgstr "إظهار المفتاح"
 
@@ -4454,7 +4468,7 @@ msgstr "إظهار المفتاح"
 msgid "Show the shortcuts"
 msgstr "عرض الاختصارات"
 
-#: src/shell/settings/NotifyPages.tsx:127
+#: src/shell/settings/NotifyPages.tsx:130
 msgid "Show the start of the message in the notification"
 msgstr "إظهار بداية الرسالة في الإشعار"
 
@@ -4462,10 +4476,10 @@ msgstr "إظهار بداية الرسالة في الإشعار"
 msgid "Side"
 msgstr "الاتجاه"
 
-#: src/shell/settings/AuthFlow.tsx:167
-#: src/shell/settings/AuthFlow.tsx:181
-#: src/shell/settings/AuthFlow.tsx:216
-#: src/shell/settings/AuthFlow.tsx:285
+#: src/shell/settings/AuthFlow.tsx:172
+#: src/shell/settings/AuthFlow.tsx:186
+#: src/shell/settings/AuthFlow.tsx:221
+#: src/shell/settings/AuthFlow.tsx:290
 msgid "Sign in"
 msgstr "تسجيل الدخول"
 
@@ -4475,7 +4489,7 @@ msgstr "تسجيل الدخول"
 
 #: src/shell/settings/SettingsRoot.tsx:272
 #: src/shell/settings/SettingsRoot.tsx:294
-#: src/shell/settings/SettingsRoot.tsx:373
+#: src/shell/settings/SettingsRoot.tsx:377
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
@@ -4488,13 +4502,13 @@ msgid "Signals"
 msgstr "أعمدة الإشارة"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:376
+#: src/shell/settings/SettingsRoot.tsx:380
 msgid "Signed in as <0>{0}</0>"
 msgstr "مسجَّل الدخول باسم <0>{0}</0>"
 
 #: src/components/integrations/IntegrationSetup.tsx:86
-msgid "Signed webhook"
-msgstr "Webhook موقّع"
+#~ msgid "Signed webhook"
+#~ msgstr "Webhook موقّع"
 
 #: src/lib/broker-identity.ts:17
 msgid "Simulation"
@@ -4534,7 +4548,7 @@ msgstr "معرّف المهارة"
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
-#: src/pages/Knowledge.tsx:44
+#: src/pages/Knowledge.tsx:45
 #: src/shell/settings/IntegrationsPage.tsx:637
 msgid "Skills"
 msgstr "المهارات"
@@ -4551,7 +4565,7 @@ msgstr "لون البشرة"
 msgid "Skin tone {tone}"
 msgstr "درجة لون {tone}"
 
-#: src/shell/settings/AuthFlow.tsx:125
+#: src/shell/settings/AuthFlow.tsx:130
 msgid "Skip"
 msgstr "تخطي"
 
@@ -4563,7 +4577,7 @@ msgstr "نعسان"
 msgid "Small"
 msgstr "صغير"
 
-#: src/shell/settings/AuthFlow.tsx:62
+#: src/shell/settings/AuthFlow.tsx:67
 msgid "Smart agents working for you, all in one conversation."
 msgstr "وكلاء أذكياء يعملون من أجلك، كلهم في محادثة واحدة."
 
@@ -4575,7 +4589,7 @@ msgstr "مبتسم"
 msgid "Smileys & people"
 msgstr "وجوه ضاحكة وأشخاص"
 
-#: src/shell/settings/NotifyPages.tsx:133
+#: src/shell/settings/NotifyPages.tsx:136
 msgid "Sounds"
 msgstr "الأصوات"
 
@@ -4632,7 +4646,7 @@ msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 #~ msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 #~ msgstr "ابدأ محادثة. يحتفظ وكيلك بذاكرته ويواصل مهامه المجدولة هنا."
 
-#: src/shell/settings/AuthFlow.tsx:147
+#: src/shell/settings/AuthFlow.tsx:152
 msgid "Start now"
 msgstr "ابدأ الآن"
 
@@ -4691,7 +4705,7 @@ msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
 #: src/shell/pages.tsx:115
-#: src/shell/settings/SettingsRoot.tsx:331
+#: src/shell/settings/SettingsRoot.tsx:335
 msgid "Storage and data"
 msgstr "التخزين والبيانات"
 
@@ -4830,13 +4844,13 @@ msgstr "فُصل Telegram"
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
-#: src/shell/settings/ConnectionPages.tsx:203
-#: src/shell/settings/ConnectionPages.tsx:621
-#: src/shell/settings/ConnectionPages.tsx:751
+#: src/shell/settings/ConnectionPages.tsx:198
+#: src/shell/settings/ConnectionPages.tsx:706
+#: src/shell/settings/ConnectionPages.tsx:836
 msgid "Test the connection"
 msgstr "اختبار الاتصال"
 
-#: src/shell/settings/NotifyPages.tsx:126
+#: src/shell/settings/NotifyPages.tsx:129
 msgid "Text preview"
 msgstr "معاينة النص"
 
@@ -4853,7 +4867,7 @@ msgstr "حجم النص · {0}"
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
-#: src/shell/settings/ConnectionPages.tsx:273
+#: src/shell/settings/ConnectionPages.tsx:268
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "يُفصل الحساب <0>{number}</0> لدى <1>{broker}</1>."
 
@@ -4939,23 +4953,23 @@ msgstr "المحادثات"
 msgid "The code is asked when Lonora opens"
 msgstr "يُطلب الرمز عند فتح Lonora"
 
-#: src/shell/settings/AppLock.tsx:107
+#: src/shell/settings/AppLock.tsx:113
 msgid "The codes do not match. Choose a new code"
 msgstr "الرمزان غير متطابقين. اختر رمزًا جديدًا"
 
-#: src/shell/settings/ConnectionPages.tsx:193
+#: src/shell/settings/ConnectionPages.tsx:188
 msgid "The connection works"
 msgstr "الاتصال يعمل"
 
-#: src/shell/settings/ConnectionPages.tsx:613
+#: src/shell/settings/ConnectionPages.tsx:698
 msgid "The connection works · {count} models available"
 msgstr "الاتصال يعمل · {count} نموذجًا متاحًا"
 
-#: src/shell/settings/ConnectionPages.tsx:743
+#: src/shell/settings/ConnectionPages.tsx:828
 msgid "The connection works · {count} tools"
 msgstr "الاتصال يعمل · {count} أداة"
 
-#: src/shell/settings/ConnectionPages.tsx:189
+#: src/shell/settings/ConnectionPages.tsx:184
 msgid "The connection works · <0>{who}</0>"
 msgstr "الاتصال يعمل · <0>{who}</0>"
 
@@ -4966,6 +4980,10 @@ msgstr "لم يعد السوق الحالي يؤكد شرط هذا الهدف. �
 #: src/components/trading/AgentMarketPicker.tsx:43
 msgid "The default market is optional. Other markets can be analyzed; trading follows your separate authorization."
 msgstr "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يخضع لتفويضك المنفصل."
+
+#: src/shell/settings/ConnectionPages.tsx:517
+msgid "The demo account data is imported"
+msgstr "استُوردت بيانات الحساب التجريبي"
 
 #: src/shell/settings/DevicePages.tsx:243
 msgid "The device did not confirm. Try again."
@@ -4979,6 +4997,10 @@ msgstr "يبقى السوق الثابت الحالي دون تغيير حتى �
 msgid "The fact is removed"
 msgstr "حُذفت المعلومة"
 
+#: src/shell/settings/ConnectionPages.tsx:521
+msgid "The file is not valid JSON."
+msgstr "الملف ليس JSON صالحًا."
+
 #: src/components/common/FilePreviewPanel.tsx:20
 msgid "The file preview could not be displayed"
 msgstr "تعذّر عرض معاينة الملف"
@@ -4991,7 +5013,7 @@ msgstr "ستظهر الإجابة كاملة عند الانتهاء."
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
 
-#: src/shell/settings/ConnectionPages.tsx:595
+#: src/shell/settings/ConnectionPages.tsx:677
 msgid "The key is stored encrypted and is never shown again."
 msgstr "يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى."
 
@@ -5105,7 +5127,7 @@ msgstr "يُحذف سجل الدردشات في المجموعات المحدد�
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من الإعدادات."
 
-#: src/shell/settings/ConnectionPages.tsx:676
+#: src/shell/settings/ConnectionPages.tsx:761
 msgid "The server is added"
 msgstr "أُضيف الخادم"
 
@@ -5151,8 +5173,8 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 
 #: src/pages/LocalSettings.tsx:26
 #: src/pages/LocalSettings.tsx:28
-msgid "Theme"
-msgstr "المظهر"
+#~ msgid "Theme"
+#~ msgstr "المظهر"
 
 #: src/shell/lists/UnifiedSearch.tsx:421
 msgid "There is no content in this section yet"
@@ -5356,7 +5378,7 @@ msgstr "العنوان"
 
 #: src/pages/ActivityList.tsx:125
 #: src/pages/ActivityList.tsx:128
-#: src/shell/settings/NotifyPages.tsx:174
+#: src/shell/settings/NotifyPages.tsx:177
 msgid "To"
 msgstr "إلى"
 
@@ -5382,8 +5404,8 @@ msgstr "اليوم حتى الآن"
 
 #: src/pages/settings-sidebar.tsx:26
 #: src/pages/UsageSettingsPanel.tsx:25
-msgid "Token usage"
-msgstr "استهلاك الرموز"
+#~ msgid "Token usage"
+#~ msgstr "استهلاك الرموز"
 
 #: src/shell/settings/UsagePage.tsx:285
 #: src/shell/settings/UsagePage.tsx:389
@@ -5394,7 +5416,7 @@ msgstr "التوكن"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
-#: src/shell/settings/AppLock.tsx:227
+#: src/shell/settings/AppLock.tsx:269
 msgid "Too many tries. Try again in {wait} s"
 msgstr "محاولات كثيرة. حاول بعد {wait} ث"
 
@@ -5425,8 +5447,9 @@ msgstr "الصفقات"
 msgid "Trades on its own"
 msgstr "يتداول بنفسه"
 
-#: src/pages/settings-sidebar.tsx:23
+#: src/pages/settings-sidebar.tsx:15
 #: src/pages/Trading.tsx:25
+#: src/shell/settings/SettingsRoot.tsx:331
 msgid "Trading"
 msgstr "التداول"
 
@@ -5508,7 +5531,6 @@ msgstr "إعادة المحاولة"
 #~ msgid "Turn trading ON"
 #~ msgstr "تفعيل التداول"
 
-#: src/components/integrations/IntegrationSetup.tsx:73
 #: src/pages/shell/bot-panel.tsx:146
 msgid "Type"
 msgstr "النوع"
@@ -5543,13 +5565,13 @@ msgstr "النموذج الموحد"
 msgid "Unlink"
 msgstr "فصل"
 
-#: src/shell/settings/ConnectionPages.tsx:265
-#: src/shell/settings/ConnectionPages.tsx:303
-#: src/shell/settings/ConnectionPages.tsx:456
+#: src/shell/settings/ConnectionPages.tsx:260
+#: src/shell/settings/ConnectionPages.tsx:298
+#: src/shell/settings/ConnectionPages.tsx:465
 msgid "Unlink the account"
 msgstr "فصل الحساب"
 
-#: src/shell/settings/AppLock.tsx:236
+#: src/shell/settings/AppLock.tsx:278
 msgid "Unlock with fingerprint"
 msgstr "فتح بالبصمة"
 
@@ -5557,7 +5579,7 @@ msgstr "فتح بالبصمة"
 msgid "Unlock with fingerprint or face"
 msgstr "الفتح بالبصمة أو الوجه"
 
-#: src/shell/settings/AppLock.tsx:148
+#: src/shell/settings/AppLock.tsx:154
 msgid "Unlocked"
 msgstr "فُتح القفل"
 
@@ -5626,15 +5648,15 @@ msgstr "رفع ملف"
 msgid "Uploading…"
 msgstr "جارٍ الرفع…"
 
-#: src/shell/settings/NotifyPages.tsx:343
+#: src/shell/settings/NotifyPages.tsx:346
 msgid "Urgent alerts always arrive and do not count."
 msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتسب."
 
-#: src/shell/settings/NotifyPages.tsx:192
+#: src/shell/settings/NotifyPages.tsx:195
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 
-#: src/shell/settings/SettingsRoot.tsx:330
+#: src/shell/settings/SettingsRoot.tsx:334
 msgid "Usage"
 msgstr "الاستهلاك"
 
@@ -5662,7 +5684,7 @@ msgstr "بيانات مؤكدة"
 msgid "Verifying execution"
 msgstr "جارٍ التحقق من التنفيذ"
 
-#: src/shell/settings/AppLock.tsx:142
+#: src/shell/settings/AppLock.tsx:148
 msgid "Verifying…"
 msgstr "جارٍ التحقق…"
 
@@ -5691,7 +5713,8 @@ msgstr "مراجعة ضوابط الإصدارات"
 msgid "Vision"
 msgstr "الرؤية"
 
-#: src/pages/settings-sidebar.tsx:22
+#: src/pages/settings-sidebar.tsx:14
+#: src/shell/settings/SettingsRoot.tsx:330
 msgid "Voice"
 msgstr "الصوت"
 
@@ -5791,11 +5814,11 @@ msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر
 msgid "Welcome {name}"
 msgstr "مرحبًا {name}"
 
-#: src/shell/settings/AuthFlow.tsx:184
+#: src/shell/settings/AuthFlow.tsx:189
 msgid "Welcome back."
 msgstr "أهلًا بعودتك."
 
-#: src/shell/settings/AuthFlow.tsx:62
+#: src/shell/settings/AuthFlow.tsx:67
 msgid "Welcome to Lonora"
 msgstr "مرحبًا بك في Lonora"
 
@@ -5859,12 +5882,12 @@ msgstr "يكتب"
 msgid "Written by {0} · {1}"
 msgstr "كتبها {0} · {1}"
 
-#: src/shell/settings/AppLock.tsx:127
+#: src/shell/settings/AppLock.tsx:133
 msgid "Wrong code"
 msgstr "رمز غير صحيح"
 
 #. placeholder {0}: 5 - tries
-#: src/shell/settings/AppLock.tsx:127
+#: src/shell/settings/AppLock.tsx:133
 msgid "Wrong code. {0} tries left"
 msgstr "رمز غير صحيح. بقيت {0} محاولات"
 
@@ -5893,11 +5916,11 @@ msgstr "يمكنك متابعة التعديل أو تجاهل التغييرا�
 msgid "You can pin 3 chats only"
 msgstr "يمكنك تثبيت 3 محادثات فقط"
 
-#: src/shell/settings/AuthFlow.tsx:70
+#: src/shell/settings/AuthFlow.tsx:75
 msgid "You decide"
 msgstr "أنت صاحب القرار"
 
-#: src/shell/settings/ConnectionPages.tsx:502
+#: src/shell/settings/ConnectionPages.tsx:576
 msgid "You have not added a provider yet."
 msgstr "لم تضف مزودًا بعد."
 
@@ -5959,7 +5982,7 @@ msgstr "مساعدك الشخصي"
 msgid "Your profile"
 msgstr "ملفك"
 
-#: src/shell/settings/AuthFlow.tsx:159
+#: src/shell/settings/AuthFlow.tsx:164
 msgid "Your session ended"
 msgstr "انتهت جلستك"
 
@@ -5971,6 +5994,6 @@ msgstr "انتهت جلستك"
 msgid "Your statement (optional)"
 msgstr "إفادتك (اختيارية)"
 
-#: src/shell/settings/AuthFlow.tsx:65
+#: src/shell/settings/AuthFlow.tsx:70
 msgid "Your team of agents"
 msgstr "فريقك من الوكلاء"

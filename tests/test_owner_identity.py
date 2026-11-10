@@ -31,6 +31,12 @@ async def test_name_and_address_save_log_and_restore():
         await fixture.request("POST", f"/memory/revisions/{latest['id']}/revert", {})
         profile = await fixture.request("GET", "/owner/profile")
         assert profile["name"] == "أحمد" and profile["address"] == "أبو خالد"
+        # Saving only the reach-me policy keeps the reply language (only sent fields change).
+        await fixture.request("PUT", "/owner/preferences", {"reply_language": "ar"})
+        policy = (await fixture.request("GET", "/owner/profile"))["reach_me"]
+        policy.pop("enabled", None)
+        kept = await fixture.request("PUT", "/owner/preferences", {"reach_me": policy})
+        assert kept["reply_language"] == "ar", kept
         cleared = await fixture.request("PUT", "/owner/preferences", {"name": "", "address": None})
         assert cleared["name"] is None and cleared["address"] is None
     finally:

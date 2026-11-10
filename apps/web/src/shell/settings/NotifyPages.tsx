@@ -63,13 +63,16 @@ export function NotifyPage() {
     }
   };
   const quiet = policy?.quiet_start_minute != null && policy.quiet_end_minute != null;
-  const setWindow = (start: number | null, end: number | null) =>
-    save({
+  const setWindow = (start: number | null, end: number | null) => {
+    if (start != null && start === end)
+      return toast(t`Quiet hours must start and end at different times.`, { type: "warn" });
+    return save({
       quiet_start_minute: start,
       quiet_end_minute: end,
       quiet_start_hour: start == null ? null : Math.floor(start / 60),
       quiet_end_hour: end == null ? null : Math.floor(end / 60),
     });
+  };
   return (
     <>
       <h3>

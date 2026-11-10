@@ -13,6 +13,8 @@ export default function App() {
   const [error, setError] = useState<unknown>();
   // «انتهت جلستك»: the server ended the session (not the owner's own sign-out).
   const [expired, setExpired] = useState(false);
+  // The reference reopens the intro slides when the owner signs out (signOut → authOpen("intro")).
+  const [signedOut, setSignedOut] = useState(false);
   useEffect(() => {
     const expired = () => {
       resetSessionRequests();
@@ -68,9 +70,11 @@ export default function App() {
       <AuthFlow
         initialized={initialized}
         expired={expired}
+        intro={signedOut}
         onLogin={(account) => {
           setInitialized(true);
           setExpired(false);
+          setSignedOut(false);
           setOwner(account);
         }}
       />
@@ -86,6 +90,7 @@ export default function App() {
       <Shell
         onLogout={() => {
           setExpired(false);
+          setSignedOut(true);
           setOwner(null);
         }}
       />

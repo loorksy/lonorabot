@@ -4,14 +4,14 @@ Prices are USD per million tokens for uncached input, cached (cache-read) input 
 output, standard tier. Cost is a view of what a request cost at list price; it never
 limits anything. A model the table does not name has no cost (``None``): a price is
 never guessed, and a variant (``-mini``, ``-pro``, a new minor version) is a different
-model with its own row. Only a dated snapshot of a listed model (``-20250929``,
-``-2024-08-06``, ``@20250929``) is priced as that model.
+model with its own row. Only Anthropic's dated ids (``-20250929``, ``@20250929``), which its
+price table names as the same model, are priced as the listed model; any other dated
+snapshot is unpriced unless it has its own row.
 
-Recorded on ``PRICES_AS_OF``. Anthropic rows follow Anthropic's published model pricing
-(table dated 2026-11-03). OpenAI, DeepSeek and Z.ai rows are the providers' published
-list prices as last confirmed (their pricing pages could not be re-read on the
-recording date); update them when a provider changes its prices. OpenRouter re-sells
-other providers' models under its own ids and is not priced here.
+Recorded on ``PRICES_AS_OF``: the rows follow Anthropic's published model pricing (table
+dated 2026-11-03). OpenAI, DeepSeek, Z.ai and OpenRouter prices could not be verified on
+the recording date, so their models are unpriced (cost ``None``, counted as
+``unpriced_requests``) until verified rows are added.
 
 Not modelled: cache writes (the adapters do not record ``cache_creation_input_tokens``),
 long-context premium tiers (Claude Haiku 5.5 above 100K prompt tokens, Sonnet 4.x above
@@ -67,43 +67,22 @@ _PRICES: dict[str, dict[str, ModelPrice]] = {
         "claude-haiku-4-5": _p(1.00, 0.10, 5.00),
         "claude-3-5-haiku": _p(0.80, 0.08, 4.00),
     },
-    "openai": {
-        "gpt-5": _p(1.25, 0.125, 10.00),
-        "gpt-5-chat-latest": _p(1.25, 0.125, 10.00),
-        "gpt-5-mini": _p(0.25, 0.025, 2.00),
-        "gpt-5-nano": _p(0.05, 0.005, 0.40),
-        "gpt-4.1": _p(2.00, 0.50, 8.00),
-        "gpt-4.1-mini": _p(0.40, 0.10, 1.60),
-        "gpt-4.1-nano": _p(0.10, 0.025, 0.40),
-        "gpt-4o": _p(2.50, 1.25, 10.00),
-        "gpt-4o-mini": _p(0.15, 0.075, 0.60),
-        "o3": _p(2.00, 0.50, 8.00),
-        "o4-mini": _p(1.10, 0.275, 4.40),
-        "o3-mini": _p(1.10, 0.55, 4.40),
-        "o1": _p(15.00, 7.50, 60.00),
-    },
-    "deepseek": {
-        "deepseek-chat": _p(0.28, 0.028, 0.42),
-        "deepseek-reasoner": _p(0.28, 0.028, 0.42),
-    },
-    "zai": {
-        "glm-4.6": _p(0.60, 0.11, 2.20),
-        "glm-4.5": _p(0.60, 0.11, 2.20),
-        "glm-4.5-air": _p(0.20, 0.03, 1.10),
-        "glm-4.5v": _p(0.60, 0.11, 1.80),
-    },
 }
-
-_SNAPSHOT = re.compile(r"[-@](\d{8}|\d{4}-\d{2}-\d{2})$")
+_SNAPSHOT = re.compile(r"[-@]\d{8}$")
+# Providers whose price table names a dated id as the same model.
+_SNAPSHOT_IS_MODEL = frozenset({"anthropic"})
 
 
 def model_price(provider: str, model: str) -> ModelPrice | None:
     """The list price of a listed model or its dated snapshot, else ``None``."""
-    table = _PRICES.get(provider.strip().lower())
+    key = provider.strip().lower()
+    table = _PRICES.get(key)
     if table is None:
         return None
-    name = _SNAPSHOT.sub("", model.strip().lower())
-    return table.get(name)
+    name = model.strip().lower()
+    if name in table:
+        return table[name]
+    return table.get(_SNAPSHOT.sub("", name)) if key in _SNAPSHOT_IS_MODEL else None
 
 
 def prompt_tokens(provider: str, input_tokens: int, cached_tokens: int) -> int:

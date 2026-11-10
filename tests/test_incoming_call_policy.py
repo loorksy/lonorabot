@@ -57,3 +57,11 @@ def test_hour_only_clients_keep_working():
         IncomingCallPolicy(quiet_start_minute=1440, quiet_end_minute=0)
     with pytest.raises(ValidationError):
         IncomingCallPolicy(quiet_start_minute=60)
+    # Clearing one side of a stored window is incomplete, never a silent keep.
+    with pytest.raises(ValidationError):
+        IncomingCallPolicy(
+            quiet_start_hour=None, quiet_end_hour=6, quiet_start_minute=1350, quiet_end_minute=375
+        )
+    # An empty window (start = end) would silence everything all day: refused.
+    with pytest.raises(ValidationError, match="incoming_call_quiet_hours_empty"):
+        IncomingCallPolicy(quiet_start_minute=600, quiet_end_minute=600)
