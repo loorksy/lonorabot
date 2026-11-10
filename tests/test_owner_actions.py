@@ -543,7 +543,6 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
                     request_hash="h",
                     request={"symbol": "GBPUSD"},
                     status="ambiguous" if identifier == "op-other" else "resolved",
-                    execution_mode="live",
                     result={},
                 )
             )
@@ -645,7 +644,6 @@ async def test_an_uncertain_trade_the_owner_is_already_asked_about_raises_no_sec
                     request_hash="h",
                     request={"symbol": "XAUUSD"},
                     status="ambiguous",
-                    execution_mode="live",
                     submitted_at=utcnow() - timedelta(hours=1),
                     result={"details": {"execution": {"agent_id": agent, "run_id": run.id}}},
                 )

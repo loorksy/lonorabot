@@ -4,9 +4,9 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from lonora_contracts.shadow import PerformanceRead
+from lonora_contracts.execution_quality import PerformanceRead
 from lonora_db.client import Database
-from lonora_db.schema import ShadowTradeRow, TradingJournalRow
+from lonora_db.schema import TradingJournalRow
 from sqlalchemy import select
 
 MINIMUM_SAMPLE = 20
@@ -34,7 +34,7 @@ def quality_dimensions(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def quality_summary(
-    records: list[dict[str, Any]], *, mode: str, minimum_sample: int = MINIMUM_SAMPLE
+    records: list[dict[str, Any]], *, minimum_sample: int = MINIMUM_SAMPLE
 ) -> dict[str, Any]:
     threshold = max(MINIMUM_SAMPLE, minimum_sample)
     known = [
@@ -48,7 +48,6 @@ def quality_summary(
             reasons[code] = reasons.get(code, 0) + 1
     sample = len(records)
     return {
-        "execution_mode": mode,
         "sample_count": sample,
         "minimum_sample": threshold,
         "sample_state": "sufficient_observations" if sample >= threshold else "insufficient_data",
@@ -74,80 +73,45 @@ async def performance_snapshot(
 ) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
     async with db.sessions() as session:
-        if params.execution_mode == "shadow":
-            query = select(ShadowTradeRow).where(
-                ShadowTradeRow.owner_id == owner_id,
-                ShadowTradeRow.agent_id == agent_id,
-                ShadowTradeRow.status == "closed",
-            )
-            if params.account_id:
-                query = query.where(ShadowTradeRow.account_id == params.account_id)
-            if params.symbol:
-                query = query.where(ShadowTradeRow.symbol == params.symbol)
-            rows = await session.scalars(
-                query.order_by(ShadowTradeRow.updated_at.desc()).limit(1000)
-            )
-            for row in rows:
-                if (
-                    params.strategy_version
-                    and row.payload.get("strategy_version") != params.strategy_version
-                ):
-                    continue
-                records.append(
-                    {
-                        "id": row.id,
-                        "symbol": row.symbol,
-                        "timeframe": row.payload.get("timeframe"),
-                        "strategy_version": row.payload.get("strategy_version"),
-                        "setup_key": row.payload.get("setup_key"),
-                        "regime": row.payload.get("regime"),
-                        "status": row.status,
-                        "price_return_fraction": row.state.get("price_return_fraction"),
-                        "quality": row.state.get("quality", {}),
-                        "gate_codes": row.state.get("gate_codes", []),
-                    }
-                )
-        else:
-            query = select(TradingJournalRow).where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.execution_mode == "live",
-                TradingJournalRow.status.in_(["confirmed", "failed"]),
-            )
-            if params.account_id:
-                query = query.where(TradingJournalRow.account_id == params.account_id)
-            rows = await session.scalars(
-                query.order_by(TradingJournalRow.updated_at.desc()).limit(1000)
-            )
-            from lonora_db.schema import RunRow
+        query = select(TradingJournalRow).where(
+            TradingJournalRow.owner_id == owner_id,
+            TradingJournalRow.status.in_(["confirmed", "failed"]),
+        )
+        if params.account_id:
+            query = query.where(TradingJournalRow.account_id == params.account_id)
+        rows = await session.scalars(
+            query.order_by(TradingJournalRow.updated_at.desc()).limit(1000)
+        )
+        from lonora_db.schema import RunRow
 
-            for entry in rows:
-                # Historical entries without a frozen strategy identity cannot
-                # satisfy a strategy filter by borrowing today's Agent/thesis.
-                if params.strategy_version:
-                    continue
-                details = entry.result.get("details", {})
-                origin = details.get("execution", {})
-                attributed_agent = origin.get("agent_id")
-                if not attributed_agent:
-                    # Legacy receipts may only have a fenced Run reference.
-                    lease = details.get("lease")
-                    run = await session.get(RunRow, lease["run_id"]) if lease else None
-                    attributed_agent = run.agent_id if run else None
-                if attributed_agent != agent_id or (
-                    params.symbol and entry.request.get("symbol") != params.symbol
-                ):
-                    continue
-                quality = entry.result.get("details", {}).get("execution_quality", {})
-                records.append(
-                    {
-                        "id": entry.operation_id,
-                        "symbol": entry.request.get("symbol"),
-                        "quality": {"execution": quality},
-                        "gate_codes": [entry.result["code"]]
-                        if entry.status == "failed" and entry.result.get("code")
-                        else [],
-                    }
-                )
+        for entry in rows:
+            # Historical entries without a frozen strategy identity cannot
+            # satisfy a strategy filter by borrowing today's Agent/thesis.
+            if params.strategy_version:
+                continue
+            details = entry.result.get("details", {})
+            origin = details.get("execution", {})
+            attributed_agent = origin.get("agent_id")
+            if not attributed_agent:
+                # Legacy receipts may only have a fenced Run reference.
+                lease = details.get("lease")
+                run = await session.get(RunRow, lease["run_id"]) if lease else None
+                attributed_agent = run.agent_id if run else None
+            if attributed_agent != agent_id or (
+                params.symbol and entry.request.get("symbol") != params.symbol
+            ):
+                continue
+            quality = entry.result.get("details", {}).get("execution_quality", {})
+            records.append(
+                {
+                    "id": entry.operation_id,
+                    "symbol": entry.request.get("symbol"),
+                    "quality": {"execution": quality},
+                    "gate_codes": [entry.result["code"]]
+                    if entry.status == "failed" and entry.result.get("code")
+                    else [],
+                }
+            )
     grouped: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         identity = json.dumps(
@@ -160,15 +124,11 @@ async def performance_snapshot(
         )
         grouped.setdefault(identity, []).append(record)
     return {
-        **quality_summary(
-            records, mode=params.execution_mode, minimum_sample=params.minimum_sample
-        ),
+        **quality_summary(records, minimum_sample=params.minimum_sample),
         "groups": [
             {
                 "dimension_key": key,
-                **quality_summary(
-                    group, mode=params.execution_mode, minimum_sample=params.minimum_sample
-                ),
+                **quality_summary(group, minimum_sample=params.minimum_sample),
             }
             for key, group in sorted(grouped.items())[:30]
         ],

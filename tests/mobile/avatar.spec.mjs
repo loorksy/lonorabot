@@ -224,9 +224,11 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
 
     // Creation exposes the same picker and saves the selected expression without a broker binding.
     await page.goto("/new");
+    await page.getByRole("button", { name: "التالي", exact: true }).click();
     await page
-      .getByRole("textbox", { name: "الاسم", exact: true })
+      .getByRole("textbox", { name: "اسم الوكيل", exact: true })
       .fill(`Native face ${randomUUID()}`);
+    await page.getByRole("textbox", { name: "الوصف", exact: true }).fill("Face check");
     await page.getByRole("button", { name: "تعديل الأفاتار", exact: true }).click();
     await expect(studio.getByTestId("avatar-face-face-smile")).toHaveAttribute(
       "aria-checked",
@@ -236,15 +238,14 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
     await studio.getByRole("button", { name: "حفظ", exact: true }).click();
     const createdByUi = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/agents") && response.request().method() === "POST",
+        response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "إنشاء", exact: true }).click();
+    await page.getByRole("button", { name: "إنشاء الوكيل", exact: true }).click();
     const uiResponse = await createdByUi;
     expect(uiResponse.status()).toBe(201);
     uiAgent = await uiResponse.json();
-    expect(uiAgent.avatar).toBe("face-happy");
     await expect(page.getByTestId("trading-avatar").first()).toBeVisible();
-    expect((await readAgent(uiAgent.id)).avatar).toBe("face-happy");
+    await expect.poll(async () => (await readAgent(uiAgent.id)).avatar).toBe("face-happy");
 
     expect(errors).toEqual([]);
   } finally {

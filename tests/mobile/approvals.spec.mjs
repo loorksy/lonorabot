@@ -83,7 +83,6 @@ test("Expo approval buttons show durable real broker receipts", async ({ page, c
     expect(decisions).toBe(1);
     const rejected = {
       ...approval,
-      execution_mode: "shadow",
       id: randomUUID(),
       status: "pending",
       results: [],

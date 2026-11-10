@@ -4,7 +4,9 @@ export const DESKTOP_QUERY = "(min-width: 900px)";
 const motionQuery = "(prefers-reduced-motion: reduce)";
 
 export const isDesktop = () => matchMedia(DESKTOP_QUERY).matches;
-export const reducedMotion = () => matchMedia(motionQuery).matches;
+// «تقليل الحركة» in سهولة الاستخدام (body.rm) counts like the system setting.
+export const reducedMotion = () =>
+  matchMedia(motionQuery).matches || document.body.classList.contains("rm");
 
 export function useMedia(query: string) {
   const [matches, setMatches] = useState(() => matchMedia(query).matches);

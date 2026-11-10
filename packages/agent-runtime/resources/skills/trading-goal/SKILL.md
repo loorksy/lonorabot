@@ -25,7 +25,7 @@ Use this procedure for existing Goal plans within current Agent permission.
    No trading permits preparation and monitoring but no broker mutations. Ask me
    requires the existing exact-operation owner approval. On its own sends a step
    inside a matching active signed grant; a step outside it becomes an approval
-   card. Shadow steps stay virtual and need no approval.
+   card.
 5. Pending preparation is not authorization. If the owner wants the agent to
    trade on its own, propose a grant_authority card the owner signs with the
    passkey. Chat/memory cannot grant authority or manual-position access. Keep

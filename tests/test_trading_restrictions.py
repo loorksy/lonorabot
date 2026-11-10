@@ -197,7 +197,6 @@ def journal(
         request_hash="hash",
         request=request.model_dump(mode="json"),
         status=status,
-        execution_mode="live",
         result={"operation_id": operation_id, "status": status, "details": {}} | result,
         submitted_at=NOW,
         updated_at=NOW,

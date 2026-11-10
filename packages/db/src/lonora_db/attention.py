@@ -15,6 +15,7 @@ from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .agent_delivery import delivery_block
 from .events import emit
 from .owner_profile import reach_me_policy
 from .schema import (
@@ -410,6 +411,17 @@ async def notify_owner(
         if (criticals or 0) >= CRITICAL_LIMIT_PER_HOUR:
             request = request.model_copy(update={"importance": "important_change"})
             critical = False
+    # Owner decision Q47: the agent's own delivery rules may keep a non-urgent alert in
+    # Activity only (in-app off, or past its daily limit). The event is still recorded.
+    blocked = await delivery_block(
+        session,
+        owner_id,
+        agent_id,
+        request.importance,
+        event_kind=NOTIFY_EVENT,
+        timezone=reach.timezone,
+        now=now,
+    )
     held_until = None if critical else reach.quiet_until(now)
     parameters: dict[str, Any] = {
         "execution_authorized": False,
@@ -444,13 +456,13 @@ async def notify_owner(
         coalesce_scope="notify:" + request.dedupe_key,
         suppression_code="owner_reach_me_activity"
         if reach.channel == "activity" and not critical
-        else None,
+        else blocked,
     )
     if row is None:
         status = (
             "activity_only"
             if reach.channel == "activity" and not critical
-            else "not_shown_owner_preference"
+            else blocked or "not_shown_owner_preference"
         )
     elif held_until is not None:
         row.due_at = held_until

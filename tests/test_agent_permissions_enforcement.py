@@ -68,17 +68,23 @@ async def test_live_goal_follows_current_permission_not_retired_goal_autonomy(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("trigger", ["user", "goal", "watch"])
-@pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
-async def test_shadow_goal_needs_neither_goal_autonomy_nor_approval(
-    monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
+async def test_a_goal_or_run_from_removed_shadow_trading_never_runs_live(
+    monkeypatch: pytest.MonkeyPatch,
 ):
-    """Shadow never touches the broker: no approval, whatever the level or the trigger."""
-    monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
-    monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
+    """Shadow trading is removed (Q57): its old Goals and Runs are refused, never live."""
+    from lonora_db import goal_scope
+
+    financial = AsyncMock()
+    monkeypatch.setattr(goal_scope, "require_financial_agent", financial)
     shadow = legacy_goal()
-    shadow.state = {"execution_mode": "shadow", "steps": {}}
-    assert await goals.goal_requires_approval(AsyncMock(), shadow, origin(trigger)) is False
+    shadow.state = {"status": "active", "execution_mode": "shadow", "steps": {}}
+    with pytest.raises(LonoraError, match="goal_execution_mode_invalid"):
+        await goal_scope.require_goal_agent(AsyncMock(), shadow)
+    financial.assert_not_awaited()
+    shadow_run = origin()
+    shadow_run.model_metadata = {"execution_mode": "shadow"}
+    with pytest.raises(LonoraError, match="shadow_execution_forbidden"):
+        await execution.require_task_authority(AsyncMock(), shadow_run)
 
 
 @pytest.mark.asyncio

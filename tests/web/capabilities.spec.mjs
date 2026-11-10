@@ -59,13 +59,8 @@ const copy = {
     trustTitle: "Trust this source?",
     trust: "Trust",
     trusted: "Trusted.",
-    tab: "Capabilities",
-    github: "All public GitHub repositories",
-    remove: "Remove",
-    restore: "Restore",
-    search: "Web search: Ready",
-    undo: "Undo",
-    undone: "undone",
+    domains: "News domains",
+    undoVersion: "Undo this version",
   },
   ar: {
     connectTitle: "ربط بحث Brave",
@@ -74,13 +69,8 @@ const copy = {
     trustTitle: "الوثوق بهذا المصدر؟",
     trust: "ثقة",
     trusted: "صار موثوقًا.",
-    tab: "القدرات",
-    github: "كل المستودعات العامة على GitHub",
-    remove: "إزالة",
-    restore: "استعادة",
-    search: "البحث على الويب: جاهز",
-    undo: "تراجع",
-    undone: "تم التراجع",
+    domains: "نطاقات الأخبار",
+    undoVersion: "التراجع عن هذا الإصدار",
   },
 };
 
@@ -145,26 +135,19 @@ for (const locale of ["en", "ar"])
       await expect(trust).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(trust.getByRole("status")).toHaveText(text.trusted);
 
-      await page.goto("/app?settings=capabilities");
-      await page.getByRole("button", { name: text.tab, exact: true }).click();
-      const view = page.locator("[data-capabilities]");
-      await expect(view.locator('[data-capability="web_search"]')).toHaveText(text.search);
-      const site = view.locator('[data-trusted-source="feed_domain"]').filter({ hasText: domain });
-      await expect(site).toBeVisible();
-      const github = view.locator('[data-trusted-source="github"]');
-      await expect(github).toContainText(text.github);
+      // «التكاملات» (phase 5): the trusted news domain is in its sheet, and the skill its
+      // agent wrote can be undone once from its row.
+      await page.goto("/app/integrations");
+      await page.getByRole("button", { name: new RegExp(text.domains) }).click();
+      await expect(page.locator("dialog").getByText(domain, { exact: true })).toBeVisible();
       if (locale === "ar")
-        await view.screenshot({ path: test.info().outputPath("capabilities-ar.png") });
-      await github.getByRole("button", { name: text.remove, exact: true }).click();
-      await expect(github.getByRole("button", { name: text.restore, exact: true })).toBeVisible();
-      await github.getByRole("button", { name: text.restore, exact: true }).click();
-      await expect(github.getByRole("button", { name: text.remove, exact: true })).toBeVisible();
-      // Undo a Skill its agent wrote: the line says it is undone and offers no second Undo.
-      const written = view.locator(`[data-capability-skill="${skill}"]`);
-      await expect(written).toContainText(`⁨${skill}⁩`);
-      await written.getByRole("button", { name: text.undo, exact: true }).click();
-      await expect(written).toContainText(text.undone);
-      await expect(written.getByRole("button", { name: text.undo, exact: true })).toHaveCount(0);
+        await page.locator("dialog").screenshot({ path: test.info().outputPath("domains-ar.png") });
+      await page.keyboard.press("Escape");
+      const written = page.locator(".cap-skill").filter({ hasText: skill });
+      await expect(written).toBeVisible();
+      await written.getByRole("button", { name: text.undoVersion }).click();
+      await expect(written).toHaveClass(/off/);
+      await expect(written.getByRole("button", { name: text.undoVersion })).toHaveCount(0);
       const catalog = await (
         await context.request.get(`/api/agents/${seeded.agent}/skills/catalog/${skill}`)
       ).json();
