@@ -500,6 +500,12 @@ registry (real digests), PostgreSQL 16 and Caddy 2.10: all 18 lifecycle checks p
 fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
 archives were complete, and the new install came up with `/ready` passing and an empty database.
 
+`build-from-source.sh` was run here on the checkout (`--cpus 1 --memory 2g`): the BuildKit container
+ran with a CPU quota of 100000 and a 2 GiB memory limit on the host network, the registry listened on
+`127.0.0.1:5055` only, the image was pushed and its digest printed; `install.sh --project srctest
+--behind-proxy 127.0.0.1:18040 --version 127.0.0.1:5055/lonora:src1` then installed it, pinned that
+digest, and `/health` answered 200 through `127.0.0.1:18040` with `/ready` passing.
+
 Still to be checked on a real server:
 
 - The test images were built from the real `Dockerfile` with only the Chromium and font `apt-get`
@@ -511,4 +517,7 @@ Still to be checked on a real server:
 - The systemd backup timer (installed with `--no-systemd` in the test).
 - Pulling from `ghcr.io` (the test used a local registry), and the CI publish workflow, which
   cannot run while GitHub Actions is unavailable.
-- The fresh-start procedure on the actual VPS (its customised Compose file is not in the repository).
+- The side-by-side install on the actual VPS next to traefik and the running projects, the traefik
+  route files, and the switch-over (only with the owner's permission; the lifecycle test covers the
+  same steps beside a dummy project here).
+- The fresh-start procedure on a server where the new installation replaces the old one.
