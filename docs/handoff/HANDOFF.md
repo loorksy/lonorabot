@@ -1,6 +1,6 @@
 # Handoff: finishing the reference UI and the production cut-over
 
-Written 2026-11-10 by the lead Claude session, for the next agent (Codex). The owner's instructions
+Written 2026-11-10 by the lead Claude session, for the next agent (Cursor or any coding agent). The owner's instructions
 in Arabic are quoted where they matter. Owner-facing replies are in Arabic. Code, prompts, skills and
 commit messages are in English.
 
