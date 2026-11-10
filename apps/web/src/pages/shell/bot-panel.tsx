@@ -12,6 +12,7 @@ import { userError } from "../../lib/user_error";
 import { useAvatarSheet } from "../../shell/agent/AvatarSheet";
 import { useRead } from "../../shell/agent/shared";
 import { useShellData } from "../../shell/data";
+import "../../shell/agent/agent.css";
 
 type Template = Exclude<AgentTemplate, "supervisor">;
 
@@ -167,6 +168,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
           <button
             type="button"
             className="pencil"
+            data-testid="avatar-studio-trigger"
             aria-label={t`Edit avatar`}
             onClick={() =>
               openAvatar(null, {
@@ -246,6 +248,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
               </span>
               <input
                 type="checkbox"
+                className="switch"
                 role="switch"
                 checked={supervises.includes(row.id)}
                 aria-checked={supervises.includes(row.id)}

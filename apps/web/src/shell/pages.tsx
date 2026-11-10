@@ -65,7 +65,7 @@ export function pageTitle(page: Page): string {
     case "agent":
       return t`Agent info`;
     case "identity":
-      return t`Identity and model`;
+      return t`Agent identity`;
     case "trades":
       return t({ message: "Trades", context: "agent page" });
     case "group":

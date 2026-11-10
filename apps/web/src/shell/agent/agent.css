@@ -349,3 +349,19 @@
   aspect-ratio: auto;
   min-height: 200px;
 }
+/* The reference's global svg size (22px) for the template rows' icons. */
+.check > svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+/* Check rows as the reference's switches (input[type=checkbox][role=switch]). */
+input.switch:checked {
+  background: var(--accent);
+}
+input.switch:checked::before {
+  transform: translateX(20px);
+}
+.hero.recovered > svg {
+  color: var(--accent-ink);
+}

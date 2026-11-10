@@ -64,9 +64,13 @@ export function useChatMenu({
         agent?.trading_account_id && agent.trading_symbol
           ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
           : null,
-        { agentId: agent?.id, chartId },
+        {
+          agentId: agent?.id,
+          chartId,
+          threadId: group?.state?.thread_id ? String(group.state.thread_id) : undefined,
+        },
       ),
-    [chartSheet, agent],
+    [chartSheet, agent, group],
   );
   const openPage = useCallback(
     (page: MenuPage, dir?: "fwd" | "back") => {

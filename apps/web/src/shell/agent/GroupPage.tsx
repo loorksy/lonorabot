@@ -229,7 +229,10 @@ export function NewGroupPage({
   const [name, setName] = useState(initialName);
   const [purpose, setPurpose] = useState("");
   const [picked, setPicked] = useState<string[]>(initialMembers);
-  const [lead, setLead] = useState(initialMembers[0] ?? "");
+  // The reference's select: the first preselected member, else the first agent listed.
+  const [lead, setLead] = useState(
+    initialMembers[0] ?? data.agents.find((agent) => agent.role !== "delegated")?.id ?? "",
+  );
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -245,7 +248,7 @@ export function NewGroupPage({
     setTried(true);
     if (!name.trim() || busy) return;
     if (!picked.length) return toast(t`Choose at least one member.`, { type: "warn" });
-    const coordinator = lead || picked[0];
+    const coordinator = lead;
     if (!picked.includes(coordinator))
       return toast(t`The coordinator must be one of the group's members.`, { type: "warn" });
     setBusy(true);
@@ -310,6 +313,7 @@ export function NewGroupPage({
           </span>
           <input
             type="checkbox"
+            className="switch"
             role="switch"
             name="members"
             value={agent.id}
@@ -321,7 +325,6 @@ export function NewGroupPage({
                 ? [...picked, agent.id]
                 : picked.filter((id) => id !== agent.id);
               setPicked(next);
-              if (!lead && next.length) setLead(next[0]);
             }}
           />
         </label>
@@ -331,7 +334,6 @@ export function NewGroupPage({
           <Trans>Coordinator</Trans>
         </span>
         <select name="leader" value={lead} onChange={(event) => setLead(event.target.value)}>
-          {!lead && <option value="" />}
           {agents.map((agent) => (
             <option key={agent.id} value={agent.id}>
               {agent.name}

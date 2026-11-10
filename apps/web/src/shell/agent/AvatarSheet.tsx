@@ -36,8 +36,8 @@ function AvatarEditor({
   const [error, setError] = useState<unknown>();
   const labels = avatarFaceLabels();
   return (
-    <>
-      <div className="preview">
+    <div data-testid="avatar-studio">
+      <div className="preview" data-testid="avatar-studio-preview">
         <AgentAvatar identity={identity} name={name} shape={look.avatar} color={look.color} />
       </div>
       <div className="sheet-head">
@@ -47,9 +47,10 @@ function AvatarEditor({
         <button
           type="button"
           className="btn"
+          data-testid="avatar-studio-reset"
           onClick={() => setLook({ avatar: "orb", color: DEFAULT_AVATAR_COLOR })}
         >
-          <Trans>Reset</Trans>
+          {t({ message: "Reset", context: "avatar" })}
         </button>
       </div>
       <div className="face-grid">
@@ -58,6 +59,7 @@ function AvatarEditor({
             type="button"
             key={id}
             className={`face-option${look.avatar === id ? " selected" : ""}`}
+            data-face-option={id}
             aria-pressed={look.avatar === id}
             onClick={() => setLook((old) => ({ ...old, avatar: id }))}
           >
@@ -99,12 +101,18 @@ function AvatarEditor({
       </p>
       {error != null && <p role="alert">{userError(error)}</p>}
       <div className="actions">
-        <button type="button" className="btn outline" onClick={onCancel}>
+        <button
+          type="button"
+          className="btn outline"
+          data-testid="avatar-studio-cancel"
+          onClick={onCancel}
+        >
           <Trans>Cancel</Trans>
         </button>
         <button
           type="button"
           className="btn primary"
+          data-testid="avatar-studio-save"
           disabled={busy}
           onClick={async () => {
             setBusy(true);
@@ -120,7 +128,7 @@ function AvatarEditor({
           <Trans>Save avatar</Trans>
         </button>
       </div>
-    </>
+    </div>
   );
 }
 

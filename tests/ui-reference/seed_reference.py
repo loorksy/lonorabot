@@ -14,10 +14,12 @@ ids with a fresh sign-in, so a run can be repeated with --no-bindings).
 
 import asyncio
 import json
+import math
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -60,6 +62,28 @@ def cookies(fixture: Fixture) -> list[dict[str, str]]:
     ]
 
 
+def candles() -> list[dict[str, str]]:
+    """Five-minute XAUUSD bars along the reference's demo formula, ending 10:00 UTC today."""
+    end = datetime.now(UTC).replace(hour=10, minute=0, second=0, microsecond=0)
+    close = [2355 - (145 - j * 2.2 + math.sin(j * 1.7) * 18) / 10 for j in range(-60, 30)]
+    rows = []
+    for index in range(1, len(close)):
+        o, c = close[index - 1], close[index]
+        rows.append(
+            {
+                "symbol": "XAUUSD",
+                "timeframe": "5m",
+                "time": (end - timedelta(minutes=5 * (len(close) - 1 - index))).isoformat(),
+                "open": f"{o:.2f}",
+                "high": f"{max(o, c) + 1.1:.2f}",
+                "low": f"{min(o, c) - 1.1:.2f}",
+                "close": f"{c:.2f}",
+                "volume": "1",
+            }
+        )
+    return rows
+
+
 async def attach(fixture: Fixture, agents: list[dict[str, Any]]) -> dict[str, Any]:
     """A database this script seeded before: the same ids, a fresh sign-in."""
     names = {
@@ -97,6 +121,17 @@ async def init(fixture: Fixture) -> dict[str, Any]:
             "snapshot": {
                 "balance": "10000",
                 "currency": "USD",
+                # Phase 4a: the chart sheet draws real candles (the reference's own curve).
+                "candles": {"XAUUSD:5m": candles()},
+                "quotes": {
+                    "XAUUSD": {
+                        "symbol": "XAUUSD",
+                        "bid": "2339.90",
+                        "ask": "2340.00",
+                        "observed_at": datetime.now(UTC).isoformat(),
+                        "source": "simulation/imported-fixture",
+                    }
+                },
                 "instruments": [
                     {
                         "symbol": "XAUUSD",
@@ -120,6 +155,24 @@ async def init(fixture: Fixture) -> dict[str, Any]:
             "market": "XAUUSD",
         },
     )
+    # The trades page's open position (the reference's demo trade), opened by the owner
+    # through the executor; the trading controls are put back as they were.
+    controls = await fixture.request("GET", "/trading/controls")
+    await fixture.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
+    await fixture.request(
+        "POST",
+        "/trading/execute",
+        {
+            "account_id": account["id"],
+            "operation_id": str(uuid4()),
+            "action": "buy",
+            "symbol": "XAUUSD",
+            "volume": "0.01",
+            "stop_loss": "2335",
+            "take_profit": "2350",
+        },
+    )
+    await fixture.request("PUT", "/trading/controls", controls)
     research = await fixture.request(
         "POST",
         "/agents/create",

@@ -64,7 +64,12 @@ test("«إدارة الوكلاء» opens the agents page from the new-chat shee
   ).toContainText("2 agents");
   await expect(main.locator(".status.on").first()).toHaveText("Active");
   await main.getByRole("button", { name: new RegExp(fixture.group.payload.name) }).click();
-  await expect(page).toHaveURL(new RegExp(`/app/g/${fixture.group.id}`));
+  // A group row opens the group page (phase 4a), whose button opens the group chat.
+  await expect(page).toHaveURL(new RegExp(`/app/group/${fixture.group.id}$`));
+  await expect(main.locator(".hero h2")).toHaveText(String(fixture.group.payload.name));
+  await expect(main).toContainText("Each member keeps its own permissions.");
+  await main.getByRole("button", { name: "Open the group chat", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/g/${fixture.group.id}$`));
 
   await page.getByRole("button", { name: "List options", exact: true }).click();
   await page.getByRole("menuitem", { name: "Manage agents" }).click();
@@ -106,7 +111,8 @@ test("«وكيل جديد» persists its template and the new chat sorts below t
   state.extra.push(agent.id);
   expect(agent.template).toBe("research");
   expect(posts).toEqual(["/api/agents/create"]);
-  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  // The new agent lands on its own page (agent.new.templates).
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   // Nothing said yet: below every seeded chat that has a message (the reference's lastAt).
   await expect(page.locator(`.desktop-list .thread[data-key="agent:${agent.id}"]`)).toBeVisible();
   const keys = await page
@@ -154,7 +160,7 @@ test("a failed appearance save never reads as a failed creation (no second agent
   await main.getByRole("button", { name: "Create the agent", exact: true }).click();
   const agent = await (await creation).json();
   state.extra.push(agent.id);
-  await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   await expect(main.getByRole("alert")).toHaveCount(0);
   expect(posts).toEqual(["/api/agents/create"]);
 });

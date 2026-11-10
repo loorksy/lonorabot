@@ -58,7 +58,7 @@ export function RecoveryPage() {
   if (!down.length)
     return (
       <>
-        <div className="hero">
+        <div className="hero recovered">
           <Icon name="check" />
           <h2>
             <Trans>The broker is connected</Trans>

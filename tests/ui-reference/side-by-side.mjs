@@ -346,7 +346,7 @@ const STATES = [
     // The expandable sheet (the market chart) resting at its content height …
     name: "sheet-detent-rest",
     ref: (page) => refRun(page, () => chart()),
-    appPath: () => `/app/${seed.agents.lonora}`,
+    appPath: () => `/app/${seed.agents.gold}`,
     app: async (page) => {
       await visible(page, 'button[aria-label="قائمة المحادثة"]').click();
       await pause(page, 500);
@@ -362,7 +362,7 @@ const STATES = [
       await pause(page, 900);
       await visible(page, "dialog .sheet-expand").click();
     },
-    appPath: () => `/app/${seed.agents.lonora}`,
+    appPath: () => `/app/${seed.agents.gold}`,
     app: async (page) => {
       await visible(page, 'button[aria-label="قائمة المحادثة"]').click();
       await pause(page, 500);
@@ -421,6 +421,89 @@ const STATES = [
     name: "not-found",
     ref: (page) => refRun(page, () => go("missing-page")),
     appPath: "/app/missing/page",
+    app: async () => {},
+  },
+  // Phase 4a: the agent pages (agents.page, agent.page.*, agent.identity.form, group.*,
+  // trades.page, recovery.page). Each opens straight on its route on both sides.
+  {
+    name: "agents-page",
+    ref: (page) => refRun(page, () => go("agents")),
+    appPath: "/app/agents",
+    app: async () => {},
+  },
+  {
+    name: "agent-trader",
+    ref: (page) => refRun(page, () => go("agent", { agent: "gold" })),
+    appPath: () => `/app/agent/${seed.agents.gold}`,
+    app: async () => {},
+    wait: 900,
+  },
+  {
+    // Q38: Lonora's page has no «إيقاف الوكيل».
+    name: "agent-lonora",
+    ref: (page) => refRun(page, () => go("agent", { agent: "lonora" })),
+    appPath: () => `/app/agent/${seed.agents.lonora}`,
+    app: async () => {},
+    wait: 900,
+  },
+  {
+    name: "agent-research",
+    ref: (page) => refRun(page, () => go("agent", { agent: "research" })),
+    appPath: () => `/app/agent/${seed.agents.research}`,
+    app: async () => {},
+    wait: 900,
+  },
+  {
+    name: "avatar-sheet",
+    ref: async (page) => {
+      await refRun(page, () => go("agent", { agent: "gold" }));
+      await pause(page, 400);
+      await visible(page, ".pencil").click();
+    },
+    appPath: () => `/app/agent/${seed.agents.gold}`,
+    app: async (page) => {
+      await pause(page, 400);
+      await visible(page, ".pencil").click();
+    },
+    wait: 900,
+  },
+  {
+    name: "identity-trader",
+    ref: (page) => refRun(page, () => go("identity", { agent: "gold" })),
+    appPath: () => `/app/identity/${seed.agents.gold}`,
+    app: async () => {},
+    wait: 1100,
+  },
+  {
+    name: "group-page",
+    ref: (page) => refRun(page, () => go("group", { item: "team", thread: "team" })),
+    appPath: () => `/app/group/${seed.group}`,
+    app: async () => {},
+  },
+  {
+    name: "new-group",
+    ref: (page) => refRun(page, () => go("new-group")),
+    appPath: "/app/new-group",
+    app: async () => {},
+  },
+  {
+    name: "new-agent-templates",
+    ref: (page) => refRun(page, () => go("agent-type")),
+    appPath: "/app/new-agent",
+    app: async () => {},
+  },
+  {
+    name: "trades-trader",
+    ref: (page) => refRun(page, () => go("trades", { agent: "gold" })),
+    appPath: () => `/app/trades/${seed.agents.gold}`,
+    app: async () => {},
+    wait: 1100,
+  },
+  {
+    // The app shows the broker session's real state: the seeded simulation is connected.
+    name: "recovery",
+    ref: (page) => refRun(page, () => go("recovery")),
+    appPath: "/app/recovery",
     app: async () => {},
   },
   {

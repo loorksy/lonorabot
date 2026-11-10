@@ -234,14 +234,17 @@ export function ChartSheetBody({
   symbol,
   agentId,
   preferredChartId,
+  initialFrame,
 }: {
   accountId: string;
   symbol: string;
   agentId?: string;
   preferredChartId?: string;
+  /** A chart opened by its id starts on its own timeframe. */
+  initialFrame?: string;
 }) {
   const { revision } = useClient();
-  const [frame, setFrame] = useState<Frame>("5m");
+  const [frame, setFrame] = useState<Frame>(FRAMES.find((item) => item === initialFrame) ?? "5m");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [scene, setScene] = useState<ChartScene | null>(null);
   const [error, setError] = useState<unknown>();
@@ -307,19 +310,37 @@ export function ChartSheetBody({
   );
 }
 
-/** A chart an answer named: its pair comes from the chart itself. */
-function ChartById({ chartId, agentId }: { chartId: string; agentId?: string }) {
+/** A chart an answer named, or the conversation's latest: its pair comes from the chart. */
+function ChartById({
+  chartId,
+  agentId,
+  threadId,
+}: {
+  chartId?: string;
+  agentId?: string;
+  threadId?: string;
+}) {
   const [row, setRow] = useState<Resource<ChartState> | null | undefined>();
   useEffect(() => {
     let live = true;
     charts
       .list()
-      .then((rows) => live && setRow(rows.find((item) => item.id === chartId) ?? null))
+      .then((rows) => {
+        const pick = chartId
+          ? rows.find((item) => item.id === chartId)
+          : rows.find(
+              (item) =>
+                (agentId && item.agent_id === agentId) ||
+                (threadId && item.thread_id === threadId) ||
+                (!item.agent_id && !item.thread_id),
+            );
+        if (live) setRow(pick ?? null);
+      })
       .catch(() => live && setRow(null));
     return () => {
       live = false;
     };
-  }, [chartId]);
+  }, [chartId, agentId, threadId]);
   if (row === undefined)
     return (
       <SkPage>
@@ -329,7 +350,13 @@ function ChartById({ chartId, agentId }: { chartId: string; agentId?: string }) 
   if (!row)
     return (
       <p className="note">
-        <Trans>This chart is no longer available.</Trans>
+        {chartId ? (
+          <Trans>This chart is no longer available.</Trans>
+        ) : (
+          <Trans>
+            This conversation has no pair to chart. Ask the agent for a chart, or open the market.
+          </Trans>
+        )}
       </p>
     );
   return (
@@ -338,6 +365,7 @@ function ChartById({ chartId, agentId }: { chartId: string; agentId?: string }) 
       symbol={row.payload.symbol}
       agentId={agentId}
       preferredChartId={row.id}
+      initialFrame={row.payload.timeframe}
     />
   );
 }
@@ -348,7 +376,7 @@ export function useChartSheet() {
   return useCallback(
     (
       binding: { accountId: string; symbol: string } | null,
-      options: { agentId?: string; chartId?: string } = {},
+      options: { agentId?: string; chartId?: string; threadId?: string } = {},
     ) => {
       const pair = options.chartId ? null : binding;
       const title = pair ? (
@@ -363,22 +391,19 @@ export function useChartSheet() {
         expand: true,
         title,
         label: pair ? `${t`Chart`} ${pair.symbol}` : t`Chart`,
-        body: options.chartId ? (
-          <ChartById chartId={options.chartId} agentId={options.agentId} />
-        ) : pair ? (
+        body: pair ? (
           <ChartSheetBody
             key={`${pair.accountId}:${pair.symbol}`}
             accountId={pair.accountId}
             symbol={pair.symbol}
             agentId={options.agentId}
-            preferredChartId={options.chartId}
           />
         ) : (
-          <p className="note">
-            <Trans>
-              This conversation has no pair to chart. Ask the agent for a chart, or open the market.
-            </Trans>
-          </p>
+          <ChartById
+            chartId={options.chartId}
+            agentId={options.agentId}
+            threadId={options.threadId}
+          />
         ),
       });
     },

@@ -278,12 +278,10 @@ function PositionCard({
         <span className="ltr">{position.symbol}</span>{" "}
         <span className="badge">{sideName(position.side)}</span>
       </h2>
-      <div className="group">
-        <Value label={t`Volume`} value={position.volume} />
-        <Value label={t`Entry price`} value={position.open_price} />
-        <Value label={t`Stop loss`} value={position.stop_loss} />
-        <Value label={t`Take profit`} value={position.take_profit} />
-      </div>
+      <Value label={t`Volume`} value={position.volume} />
+      <Value label={t`Entry price`} value={position.open_price} />
+      <Value label={t`Stop loss`} value={position.stop_loss} />
+      <Value label={t`Take profit`} value={position.take_profit} />
       <div className="actions">
         <button
           type="button"
