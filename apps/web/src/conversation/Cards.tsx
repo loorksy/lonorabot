@@ -125,50 +125,43 @@ export function QuestionCard({
 }) {
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
-  const answered =
-    request.status !== "pending"
-      ? request.choices.find((choice) => choice.id === request.selected_choice_id)?.label
-      : null;
+  // The chosen row until the server's own answer arrives, then the server's.
+  const [picked, setPicked] = useState<string | null>(null);
+  const chosen = request.status !== "pending" ? request.selected_choice_id : picked;
+  const open = request.status === "pending" && !picked;
   return (
-    <div className="mcard" data-input-request={request.id}>
+    <div className="mcard" data-input-request={request.id} data-question-id={request.id}>
       <div className="mcard-kicker">
         <Icon name="chat" />
         <Trans>Question from the agent</Trans>
       </div>
       <strong dir="auto">{request.question}</strong>
-      {request.status !== "pending" ? (
-        answered && (
-          <span className="badge">
-            <Icon name="check" />
-            {answered}
-          </span>
-        )
-      ) : (
-        <>
-          {/* biome-ignore lint/a11y/useSemanticElements: the reference's answer rows */}
-          <div className="opt-list" role="group" aria-label={t`Answers`}>
-            {request.choices.map((choice) => (
-              <button
-                key={choice.id}
-                type="button"
-                className="opt-row"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true);
-                  void onAnswer(
-                    { run_id: request.run_id, question_id: request.id, choice_id: choice.id },
-                    choice.label,
-                  ).finally(() => setBusy(false));
-                }}
-              >
-                <span dir="auto">{choice.label}</span>
-                <Icon name="chev" />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      {request.status === "pending" && (
+      {/* biome-ignore lint/a11y/useSemanticElements: the reference's answer rows */}
+      <div className="opt-list" role="group" aria-label={t`Answers`}>
+        {request.choices.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            className={`opt-row${chosen === choice.id ? " on" : ""}`}
+            aria-pressed={chosen === choice.id}
+            disabled={busy || !open}
+            onClick={() => {
+              setBusy(true);
+              setPicked(choice.id);
+              void onAnswer(
+                { run_id: request.run_id, question_id: request.id, choice_id: choice.id },
+                choice.label,
+              )
+                .catch(() => setPicked(null))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <span dir="auto">{choice.label}</span>
+            <Icon name={chosen === choice.id ? "check" : "chev"} />
+          </button>
+        ))}
+      </div>
+      {open && (
         <form
           className="mcard-form"
           onSubmit={(event) => {
