@@ -4,7 +4,8 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "9998_good_probe"
-down_revision = "0045_chat_lists"
+# build_test_images.sh replaces the placeholder with the base image's migration head.
+down_revision = "__BASE_HEAD__"
 branch_labels = None
 depends_on = None
 

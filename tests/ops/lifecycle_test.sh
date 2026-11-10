@@ -25,6 +25,9 @@ fi
 
 work="$(mktemp -d)"
 home="$work/home"
+# The migration head of v1/v2 (main's head when the images were built).
+base_head="$(docker run --rm --network none --entrypoint cat "$repo:v2" /app/release.json | sed -n 's/.*"migration_head": "\([^"]*\)".*/\1/p')"
+[[ -n "$base_head" ]] || { echo "No migration head in $repo:v2" >&2; exit 1; }
 export LONORA_IMAGE_REPO="$repo" LONORA_READY_TIMEOUT="${LONORA_READY_TIMEOUT:-90}"
 passed=0
 ok() { passed=$((passed + 1)); printf 'PASS %s\n' "$*"; }
@@ -201,7 +204,7 @@ if lonora update v3-broken >"$work/broken.log" 2>&1; then fail 'broken update re
 grep -q 'Update failed at: /ready health gate' "$work/broken.log" || { show "$work/broken.log"; fail 'failure point'; }
 grep -q 'Rolled back to' "$work/broken.log" || { show "$work/broken.log"; fail 'rollback message'; }
 [[ "$(pinned)" == "$(digest_of v2)" ]] || fail 'rollback restores the v2 pin'
-[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == 0045_chat_lists ]] || fail 'rollback restores the schema revision'
+[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == "$base_head" ]] || fail 'rollback restores the schema revision'
 [[ "$(sql "SELECT to_regclass('ln_broken_probe') IS NULL")" == t ]] || fail 'rollback removed the broken migration table'
 [[ "$(sql "SELECT string_agg(note, ',') FROM ops_probe")" == before-update ]] || fail 'rows written before the update survive'
 [[ "$(owners)" == 1 ]] || fail 'data kept across rollback'
@@ -232,7 +235,7 @@ status=0; lonora rollback >"$work/rb.log" 2>&1 || status=$?
 lonora rollback --force >"$work/rbforce.log" 2>&1 || { show "$work/rbforce.log"; fail 'rollback --force'; }
 [[ "$(pinned)" == "$(digest_of v2)" ]] || fail 'forced rollback pins v2'
 [[ "$(sql "SELECT count(*) FROM ln_trading_journal WHERE operation_id='op-during-gate'")" == 0 ]] || fail 'forced rollback restored the backup'
-[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == 0045_chat_lists ]] || fail 'forced rollback schema'
+[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == "$base_head" ]] || fail 'forced rollback schema'
 ready || fail 'ready after forced rollback'
 ok 'journal written during the gate: rollback held (DB kept, gateway stopped, commands shown); --force restores on request'
 
@@ -263,7 +266,7 @@ dc exec -T api sh -c 'rm /app/.runtime/artifacts/probe.txt'
 lonora restore "$b1" --replace >"$work/restore.log" 2>&1 || { show "$work/restore.log"; fail restore; }
 grep -q 'Backing up the current state first' "$work/restore.log" || fail 'restore safety backup'
 [[ "$(backups)" -gt "$count" ]] || fail 'safety backup written'
-[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == 9998_good_probe ]] || fail 'restored 0045 backup migrated to 9998'
+[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == 9998_good_probe ]] || fail 'restored base-head backup migrated to 9998'
 [[ "$(owners)" == 1 ]] || fail 'restore brought the owner back'
 dc exec -T api cat /app/.runtime/artifacts/probe.txt | grep -q lifecycle-probe || fail 'restore brought the artifact back'
 if lonora restore "$b1" >/dev/null 2>&1; then fail 'restore without --replace accepted'; fi
@@ -297,12 +300,16 @@ done
 ok 'disaster recovery: newer backup refused on an older image; --with-config restores secrets, keeps the new DB password, /ready'
 
 # 15. Optional path: adopt an installation that runs an image from before this tooling.
+# The old image creates its own (older) schema, as a real old installation has.
 wipe
 install_fresh v2
+dc down -v >/dev/null 2>&1
 printf 'LONORA_IMAGE=%s\n' "$(digest_of old)" >"$home/state/image.env"
 dc up -d --wait >/dev/null 2>&1 || fail 'old image start'
+old_rev="$(sql 'SELECT version_num FROM lonora_v2_alembic')"
 lonora update v2 >"$work/adopt.log" 2>&1 || { show "$work/adopt.log"; fail 'adopt old install'; }
 [[ "$(pinned)" == "$(digest_of v2)" ]] || fail 'adoption pins v2'
-ok 'adoption (optional): an old-image installation updates to v2'
+[[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == "$base_head" ]] || fail "adoption migrated $old_rev to $base_head"
+ok "adoption (optional): an old-image installation at $old_rev updates to v2 at $base_head"
 
 printf '\nAll %d lifecycle checks passed.\n' "$passed"

@@ -208,7 +208,7 @@ Every image carries `/app/release.json`, e.g.:
 
 ```json
 {"schema": 1, "version": "v0.3.0", "package_version": "0.2.0", "git_sha": "…",
- "built_at": "2026-11-10T00:00:00Z", "migration_head": "0045_chat_lists",
+ "built_at": "2026-11-10T00:00:00Z", "migration_head": "0053_remove_shadow_trading",
  "min_client_version": "0.2.8"}
 ```
 

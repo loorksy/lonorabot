@@ -54,27 +54,32 @@ build "$root" "$repo:v1" --build-arg LONORA_VERSION=v1 --build-arg LONORA_GIT_SH
 build "$root" "$repo:v2" --build-arg LONORA_VERSION=v2 --build-arg LONORA_GIT_SHA="$(git -C "$root" rev-parse --short HEAD)"
 docker push -q "$repo:v2" >/dev/null   # v3/v4 build FROM it
 
+# The probes chain onto whatever migration head v2 has.
+base_head="$(docker run --rm --network none --entrypoint cat "$repo:v2" /app/release.json | sed -n 's/.*"migration_head": "\([^"]*\)".*/\1/p')"
+[[ -n "$base_head" ]] || { echo 'v2 has no migration head' >&2; exit 1; }
+echo "base migration head: $base_head"
+
 echo 'v3-broken: schema-changing migration, Gateway never ready'
 mkdir "$work/broken"
-cp "$root/tests/ops/fixtures/9999_broken_probe.py" "$work/broken/"
+sed "s/__BASE_HEAD__/$base_head/" "$root/tests/ops/fixtures/9999_broken_probe.py" >"$work/broken/9999_broken_probe.py"
 cat >"$work/broken/Dockerfile" <<EOF
 FROM $repo:v2
 COPY 9999_broken_probe.py /app/packages/db/migrations/versions/9999_broken_probe.py
 USER root
 RUN sed -i 's|exec lonora-gateway "\$@"|exec sleep infinity|' /app/entrypoint.sh && \\
-    sed -i 's/"version": "v2"/"version": "v3-broken"/; s/"migration_head": "0045_chat_lists"/"migration_head": "9999_broken_probe"/' /app/release.json /app/deploy/release.json
+    sed -i 's/"version": "v2"/"version": "v3-broken"/; s/"migration_head": "[^"]*"/"migration_head": "9999_broken_probe"/' /app/release.json /app/deploy/release.json
 USER lonora
 EOF
 docker build -q -t "$repo:v3-broken" "$work/broken" >/dev/null
 
 echo 'v4-good: working migration'
 mkdir "$work/good"
-cp "$root/tests/ops/fixtures/9998_good_probe.py" "$work/good/"
+sed "s/__BASE_HEAD__/$base_head/" "$root/tests/ops/fixtures/9998_good_probe.py" >"$work/good/9998_good_probe.py"
 cat >"$work/good/Dockerfile" <<EOF
 FROM $repo:v2
 COPY 9998_good_probe.py /app/packages/db/migrations/versions/9998_good_probe.py
 USER root
-RUN sed -i 's/"version": "v2"/"version": "v4-good"/; s/"migration_head": "0045_chat_lists"/"migration_head": "9998_good_probe"/' /app/release.json /app/deploy/release.json
+RUN sed -i 's/"version": "v2"/"version": "v4-good"/; s/"migration_head": "[^"]*"/"migration_head": "9998_good_probe"/' /app/release.json /app/deploy/release.json
 USER lonora
 EOF
 docker build -q -t "$repo:v4-good" "$work/good" >/dev/null
