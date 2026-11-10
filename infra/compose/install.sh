@@ -36,6 +36,8 @@ fi
 mkdir -p "$home"; chmod 750 "$home"; cd "$home"
 mkdir -p state backups .runtime/releases/android .runtime/releases/ota
 chmod 700 state backups
+# The API (uid 10001) reads OTA releases and the APK through a read-only mount.
+chmod 755 .runtime .runtime/releases .runtime/releases/android .runtime/releases/ota
 
 if [[ "$version" == *@sha256:* || "$version" == */* ]]; then ref="$version"; else ref="$repo:$version"; fi
 say "Pulling $ref"

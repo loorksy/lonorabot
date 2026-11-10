@@ -214,9 +214,13 @@ cmd_restore_test() {
         printf 'LONORA_COOKIE_SECURE=false\nLONORA_ALLOWED_ORIGIN=http://localhost:8000\nLONORA_MIGRATE_ON_START=false\n'
     } >"$WORK/app.env"
     rm -f "$WORK/b/.env"
-    local name="lonora-restoretest-$$" status=1
-    local net="$name" db="$name-db" api="$name-api" gw="$name-gateway"
-    teardown() { docker rm -f "$gw" "$api" "$db" >/dev/null 2>&1 || true; docker network rm "$net" >/dev/null 2>&1 || true; }
+    local status=1
+    RT_NAME="lonora-restoretest-$$"
+    local net="$RT_NAME" db="$RT_NAME-db" api="$RT_NAME-api" gw="$RT_NAME-gateway"
+    teardown() {
+        docker rm -f "$RT_NAME-gateway" "$RT_NAME-api" "$RT_NAME-db" >/dev/null 2>&1 || true
+        docker network rm "$RT_NAME" >/dev/null 2>&1 || true
+    }
     trap 'teardown; cleanup' EXIT
     docker network create --internal "$net" >/dev/null
     docker run -d --name "$db" --network "$net" --network-alias db -e POSTGRES_DB=lonora -e POSTGRES_USER=lonora \
