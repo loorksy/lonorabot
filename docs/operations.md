@@ -3,38 +3,45 @@
 ## ملخص بالعربية
 
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
-- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، يوقف API وGateway، يأخذ نسخة احتياطية مشفرة ويتحقق منها أولاً، يشغّل الترحيلات خطوةً مستقلة، يشغّل API أولًا ثم Gateway، ثم ينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
-- **إذا فشل التحديث:** تظهر رسالة «Rolled back to …» ويعمل الإصدار السابق؛ لا تفعل شيئًا آخر. **إذا ظهرت «ROLLBACK HELD»** فمعناها أن الإصدار الجديد ربما أرسل أوامر إلى الوسيط، فلم تُستعد قاعدة البيانات حتى لا تُمحى سجلاتها، وAPI وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ تضيع السجلات المكتوبة بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data`.
-- **إذا انقطع التحديث** (انقطاع SSH أو إعادة تشغيل): `sudo lonora status` يعرض «UPDATE NOT FINISHED»، والأمر `sudo lonora update <الإصدار>` يتراجع عن التحديث المنقطع أولًا ثم يكمل.
-- **النسخ الاحتياطي:** نسخة يومية مشفرة (AES-256 عبر gpg) تشمل قاعدة البيانات والمرفقات وملف الإعدادات والإصدار المثبّت وملفات تحديثات التطبيق. يُحتفظ بآخر 14 نسخة.
+- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (كل طلب تعديل يُجاب بـ «يجري التحديث» حتى ينتهي)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
+- **ماذا تفعل عند كل نتيجة:**
+  - «Rolled back to …»: عاد الإصدار السابق ويعمل. لا تفعل شيئًا.
+  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف التداول، القيود، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
+  - «ROLLBACK INCOMPLETE»: فشلت استعادة قاعدة البيانات. أصلح السبب (المساحة مثلًا؛ `sudo lonora status` و`sudo lonora logs db`) ثم: `sudo lonora rollback` (يعيد المحاولة).
+  - «ROLLBACK did not reach /ready»: راجع `sudo lonora logs api` و`sudo lonora logs gateway`، ثم: `sudo lonora rollback` (يشغّل ويفحص من جديد).
+  - انقطع التحديث (انقطاع SSH أو إعادة تشغيل): `sudo lonora status` يعرض «UPDATE NOT FINISHED»؛ نفّذ `sudo lonora rollback` أو `sudo lonora update <الإصدار>` (يتراجع أولًا ثم يكمل).
+- **النسخ الاحتياطي:** نسخة يومية مشفرة (AES-256 عبر gpg) ومُتحقَّق منها، تشمل قاعدة البيانات والمرفقات وملف الإعدادات والإصدار المثبّت وملفات تحديثات التطبيق. يُحتفظ بآخر 14 نسخة، ولا تُحذف أبدًا نسخة يحتاجها تحديث معلّق أو استعادة جارية. مجلد `backups/` لا يحوي إلا ملفات مشفرة، فيمكن نسخه إلى أي مكان.
 - **المفتاح:** الملف `/opt/lonora/backup.key` (صلاحية 600، لا يُطبع ولا يُسجَّل أبدًا). **إذا ضاع هذا المفتاح تصبح كل النسخ الاحتياطية غير قابلة للقراءة نهائيًا، ولا توجد أي طريقة لاسترجاعها.** احفظ نسخة منه خارج الخادم، مثلًا في مدير كلمات المرور، وفي مكان منفصل عن النسخ الاحتياطية نفسها.
-- **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة معزولة عن الإنترنت (بلا مفاتيح مزودين أو وسيط، فلا تداول ولا اتصال خارجي)، ويتأكد أن التطبيق يعمل عليها، ثم يحذفها. شغّله مرة شهريًا على الأقل.
-- **الاستعادة الفعلية:** `sudo lonora restore <ملف> --replace` تأخذ نسخة احتياطية من الوضع الحالي أولًا، ثم تستبدل البيانات بالنسخة وتشغّل الترحيلات.
-- **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، انسخ إليه ملف النسخة الاحتياطية ومفتاحك `backup.key` (صلاحية 600)، ثم: `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق من النسخة، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
-- **الخادم الحالي (VPS):** لم يُلمس. المسار الموصى به بداية جديدة بقاعدة بيانات فارغة: تُحفظ نسخة كاملة من التثبيت القديم وتُنحّى جانبًا، ثم يُثبَّت النظام الجديد. الخطوات في قسم «Your current server: start fresh» أدناه. نقل التثبيت القديم كما هو خيار إضافي فقط.
+- **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة. تنبيه صريح: قاعدة البيانات المستعادة تحتوي مفاتيح المزودين والوسيط المحفوظة فيها، ومفتاح فكّ تشفيرها يُمرَّر إلى البيئة المؤقتة حتى يعمل التطبيق. ما يمنعها من الاتصال بأي مزود أو وسيط هو الشبكة الداخلية بلا أي مخرج، ويتحقق الأمر من ذلك قبل تشغيل Gateway ويتوقف إن وجد مخرجًا. ثم يحذف كل شيء. شغّله مرة شهريًا على الأقل.
+- **الاستعادة الفعلية:** `sudo lonora restore /opt/lonora/backups/<ملف> --replace` تأخذ نسخة احتياطية من الوضع الحالي أولًا، ثم تستبدل البيانات وتشغّل الترحيلات. إذا توقفت في منتصفها: أعد الأمر نفسه.
+- **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، ثم `sudo install -m 600 <مفتاحك> /opt/lonora/backup.key`، ثم `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
+- **الخادم الحالي (VPS):** لم يُلمس. المسار المعتمد بداية جديدة بقاعدة بيانات فارغة: تُحفظ نسخة كاملة من التثبيت القديم وتُنحّى جانبًا، ثم يُثبَّت النظام الجديد. الخطوات في قسم «Your current server: start fresh» أدناه.
 
 ## The pieces
 
 | Piece | Where | What it does |
 |---|---|---|
-| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one canonical production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
-| Optional overlays | `infra/research/compose.research.yml`, `infra/analysis/compose.workspace.yml`, or your own file | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them, so every command sees the same stack. |
-| `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | Status, start, update, backup, restore, restore test. |
+| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
+| Optional overlays | `infra/research/compose.research.yml`, `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
 | Release manifest | `/app/release.json` inside every server image | Version, commit, migration head, minimum client version. |
 
 All of these files ship **inside the server image** under `/app/deploy`. The installer and
 `lonora update` copy them from the image to the server, so the server never needs a source
-checkout, Git, Python or Node. The files on the server always match the image that runs.
+checkout, Git, Python or Node, and the files on the server always match the image that runs.
+There is no other way to deploy: no build-from-source script on the server, no host-PostgreSQL
+variant.
 
 Layout on a server (default `/opt/lonora`):
 
 ```
 /opt/lonora/.env              configuration and secrets (mode 600)
 /opt/lonora/backup.key        backup encryption key (mode 600) — copy it off the server
-/opt/lonora/state/image.env   the pinned image, e.g. ghcr.io/loorksy/lonorabot@sha256:…
-/opt/lonora/state/history.log one line per update, rollback and the backup taken
-/opt/lonora/backups/          encrypted backups, lonora-YYYYMMDDTHHMMSSZ.tar.gpg
+/opt/lonora/state/            mode 700: the pinned image (image.env), history.log, the lock,
+                              the update marker, and scratch space (.work) for clear dumps
+/opt/lonora/backups/          encrypted backups only, lonora-YYYYMMDDTHHMMSSZ.tar.gpg
+/opt/lonora/maintenance/on    exists while an update, rollback or restore runs
 /opt/lonora/infra/…           the deployment files from the image
 /opt/lonora/.runtime/releases mobile APK and OTA updates (served read-only by the API)
 ```
@@ -53,15 +60,16 @@ sudo bash install.sh --domain lonora.example.com --version main
 `--version` takes a tag (`main`, `v0.3.0`) or an exact `repo@sha256:…` reference. The installer:
 
 1. pulls the image and pins its digest in `state/image.env`;
-2. copies the deployment files out of the image;
+2. copies the deployment files out of the image, with explicit modes;
 3. creates `.env` with a fresh database password, encryption key, bootstrap token and
    webhook secret, and `backup.key` — all mode 600, never printed;
 4. enables the daily backup timer (`lonora-backup.timer`, 03:00);
 5. runs `lonora start`: database, migrations, services, and waits for `/ready`.
 
-It is for new installations only: it refuses a directory that already has one (use `lonora update`
-there) and refuses to start when a Docker volume `lonora_database` already exists, because the new
-install would silently reuse that old data.
+It is for new installations only. It refuses a directory that already has one (there,
+`sudo lonora update <version>` updates it, or starts it again behind the health gates when the
+version is the one already pinned), and it refuses when a Docker volume `lonora_database` already
+exists, because the new install would silently reuse that old data.
 
 Then:
 
@@ -76,53 +84,59 @@ Then:
 sudo lonora update v0.3.0     # or: main, or ghcr.io/loorksy/lonorabot@sha256:…
 ```
 
-What happens, in order:
+Everything is checked before anything changes: the tag resolves to an exact digest, the pinned
+image must itself be a `repo@sha256` digest (otherwise a rollback could not return to exactly it),
+the new image must carry a release manifest, and the database's migration must be known to the
+new image (no downgrades: restore a backup made on that version instead). Then, in order:
 
-1. The tag is resolved to its exact digest. Only that digest is ever run. An installation with no
-   pinned image is refused (a rollback would have nothing to return to).
-2. The image's release manifest is read. An image without one is refused. If the database is at
-   a migration the new image does not know (a downgrade), the update is refused: restore a
-   backup made on that version instead.
-3. An in-progress marker (`state/update-in-progress`) is written, then API and Gateway are stopped,
-   so nothing writes during the next steps.
-4. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
-   whole dump read back). If that fails, nothing changes, the marker is removed and the old version
-   starts again.
-5. The new deployment files are copied in (each file renamed into place) and the new digest is pinned.
-6. Migrations run as their own step (`migrate` service).
-7. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Only then does
+1. **Maintenance on.** `maintenance/on` is created. While it exists, Caddy answers every write
+   (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق», so the owner
+   cannot change trading controls, restrictions or authorities while the update decides what the
+   database will be. Reads keep working when the API is up.
+2. An in-progress marker (`state/update-in-progress`) is written; API and Gateway are stopped.
+3. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
+   whole dump read back). If that fails, nothing changes: marker and maintenance are removed and
+   the old version starts again.
+4. The new deployment files are copied in (each renamed into place) and the new digest is pinned.
+5. Migrations run as their own step (`migrate` service). Right after, a fingerprint of the
+   owner-control and money records is taken (see below).
+6. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Only then does
    the Gateway (agent and trading loops) start, and the update waits for `/ready` (default 240 s,
    `LONORA_READY_TIMEOUT`).
-8. **If step 5, 6, 7 or a health gate fails**, `lonora` rolls back by itself: the old deployment
-   files and pin come back, and the database is **restored from the backup of step 4** — dropped
-   and recreated from that dump, not migrated down. An Alembic downgrade after the new version has
-   written rows can lose or corrupt data; restoring the pre-update backup cannot. Because API and
-   Gateway were stopped before that backup, nothing the owner did is lost, and nothing the failed
-   version wrote (including a half-applied migration) survives. Services start, `/ready` is checked
-   again, and it says clearly that the update was not applied.
+7. Success: marker and maintenance removed, `state/history.log` updated.
 
-**The money exception — a held rollback.** While the new Gateway runs during the `/ready` wait, it
-could send an order to the broker. Before restoring, `lonora` compares a digest of the trading
-journal and trade approvals with the one taken at the backup. If they differ, it does **not** drop
-the database (that would erase the record of orders that may be live at the broker). It stops API
-and Gateway, keeps the failed version pinned, prints `ROLLBACK HELD` and exits with status 2. Then:
+**If step 4, 5, 6 or a health gate fails**, `lonora` rolls back by itself: the old deployment files
+and pin come back and the database is **restored from the backup of step 3** — dropped and recreated
+from that dump, not migrated down. An Alembic downgrade after the new version has written rows can
+lose or corrupt data; restoring the pre-update backup cannot. Because API and Gateway were stopped
+before that backup, nothing the owner did before the update is lost, and nothing the failed version
+wrote (including a half-applied migration) survives.
 
-1. check positions and orders in the broker's own terminal since the time it shows;
-2. choose `sudo lonora rollback --force` to restore the pre-update backup anyway (journal rows
-   written since then are lost, so note them first), or
-   `sudo lonora update <fixed version> --keep-data` to keep the current data and update forward.
+**The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
+undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
+authority, or the record of an order already at the broker. So before restoring, `lonora` compares
+the fingerprint of these records with the one from step 5: whole rows of `ln_trading_restrictions`,
+`ln_account_authorities`, `ln_supervision_grants`, `ln_owner_actions`, `ln_trade_approvals`,
+`ln_trading_journal`, and the trading switch and emergency stop in `ln_settings`. If any of them
+changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
+and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
 
-**An interrupted update** (SSH dropped, reboot) leaves the marker behind. `lonora status` shows
-`UPDATE NOT FINISHED`, `lonora start` and `lonora restore` refuse to run, and the next
-`sudo lonora update <version>` first rolls the unfinished one back (same rules, including the hold),
-then performs the requested update. `sudo lonora rollback` only rolls back.
+### When an update does not finish: what to do
+
+| You see | It means | Do |
+|---|---|---|
+| `Rolled back to …; /ready passes` | The previous version runs again. | Nothing. Report the failed version. |
+| `ROLLBACK HELD: …` (exit 2) | Owner controls or trading records changed while the new version ran. API and Gateway are stopped. | Check positions and orders in the broker's own terminal since the time shown. Then either `sudo lonora rollback --force` (restore the pre-update backup; what was written since is lost, so note it first) or `sudo lonora update <fixed version> --keep-data` (keep the current data and update forward). |
+| `--keep-data` fails again | The forward update did not pass its gates. | It returns to the held state (data kept, services stopped); same two choices. Passing the version that is already pinned starts it again behind the gates. |
+| `ROLLBACK INCOMPLETE: restoring the database … failed` | The database was dropped but the restore failed (for example a full disk). | Fix the cause (`sudo lonora status`, `sudo lonora logs db`, `df -h`), then `sudo lonora rollback` — it retries the restore from the same backup. |
+| `ROLLBACK did not reach /ready` | The previous version and data are back but do not start. | `sudo lonora logs api`, `sudo lonora logs gateway`; when fixed, `sudo lonora rollback` starts and checks again. |
+| `UPDATE NOT FINISHED` in `lonora status` | The update was interrupted (SSH dropped, reboot). `start` and `restore` refuse to run. | `sudo lonora rollback`, or `sudo lonora update <version>`, which rolls the unfinished one back first (same rules, including the hold) and then updates. |
 
 Only one of update, restore, restore-test, rollback, start and backup runs at a time (a lock in
-`state/`); the daily backup waits for a running update. Whoever takes the lock first removes any
-scratch files a killed run left in `backups/`. `state/history.log` records every update and rollback
-with the backup that was taken.
-
-Expect a short outage (stop → backup → migrate → start), usually under a minute plus backup time.
+`state/`); the daily backup waits for a running update. Whoever takes the lock first removes
+scratch files a killed run left behind. `state/history.log` records every update and rollback with
+the backup that was taken. Expect a short outage (stop → backup → migrate → start), usually under a
+minute plus backup time.
 
 ## Backups
 
@@ -130,64 +144,70 @@ Expect a short outage (stop → backup → migrate → start), usually under a m
 sudo lonora backup
 ```
 
-One file per backup, `backups/lonora-<time>.tar.gpg`, mode 600. It is a single gpg file
-(AES-256, key stretched with SHA-512) containing:
+One file per backup, `backups/lonora-<time>.tar.gpg`, mode 600: a single gpg file (AES-256, key
+stretched with SHA-512) containing
 
 - `database.dump` — the full PostgreSQL database (`pg_dump -Fc`);
 - `artifacts.tar.gz` — all files agents and charts produced;
 - `config.tar.gz` — `.env` (which holds the key that decrypts saved provider and broker
   credentials), the pinned image (for information) and the mobile APK/OTA releases. Deployment
   files are not in backups: they always come from the image;
-- `manifest.json` — time, image, migration revision and the financial-journal digest;
-  `SHA256SUMS` for every member.
+- `manifest.json` — time, image and migration revision; `SHA256SUMS` for every member.
 
 Every backup is verified before it is kept: decrypted, authenticated, every checksum checked and
-the whole dump read with `pg_restore`. A backup that fails any step is deleted, never kept as good.
-Work files (the clear dump while it is being built and checked) live in a mode-700 directory on
-the backups disk, not in `/tmp`, and are removed on every exit path.
+the whole dump read with `pg_restore`. A backup that fails any step is deleted. The clear dump and
+decrypted copies exist only in `state/.work` (mode 700, never in `backups/`) and are removed on
+every exit path; gpg's home (it holds only its agent socket) is a short-lived directory in `/tmp`.
+So `backups/` only ever holds encrypted files, and can be copied anywhere.
 
 **If the key is lost, every backup is unreadable for good** — there is no recovery, by design.
 Keep a copy off the server (a password manager is fine), separate from where backups are stored.
+The key comes from `LONORA_BACKUP_KEY` in the environment if set, otherwise from `backup.key` (or
+`LONORA_BACKUP_KEY_FILE`). It is handed to gpg on a file descriptor; it never appears in a command
+line, a log or the output.
 
-The key comes from `LONORA_BACKUP_KEY` in the environment if set, otherwise from
-`backup.key` (or `LONORA_BACKUP_KEY_FILE`). It is handed to gpg on a file descriptor; it never
-appears in a command line, a log or the output. The newest 14 backups are kept
-(`LONORA_BACKUP_KEEP`). Not included: Caddy's TLS certificates (re-issued automatically).
-
-Backups stay on the same server. For real protection copy `backups/` off the server
-regularly (they are encrypted, so any storage is fine) — and keep `backup.key` in a
-different place from the backups.
+The newest 14 backups are kept (`LONORA_BACKUP_KEEP`), except that rotation never deletes the backup
+an unfinished or held update would roll back to, nor the backup being restored. Not included:
+Caddy's TLS certificates (re-issued automatically). Copy `backups/` off the server regularly, and
+keep `backup.key` in a different place.
 
 ### Prove a backup restores
 
 ```sh
-sudo lonora restore-test                       # newest backup
-sudo lonora restore-test backups/lonora-….tar.gpg
+sudo lonora restore-test                                   # newest backup
+sudo lonora restore-test /opt/lonora/backups/lonora-….tar.gpg
 ```
 
-This decrypts the backup, checks every checksum and refuses anything unexpected inside, then
-builds a **separate, throwaway** stack: a fresh PostgreSQL, the backup restored into it, the
-migrations run, and the API and Gateway started on it. It passes only if `/ready` passes. The
-stack runs on a Docker network with **no internet access**, and only the encryption key and the
-bootstrap token from the backup are passed in — no provider keys — so it cannot call a model
-provider or a broker, and cannot trade. Nothing is shared with the live installation; everything
-(containers and their volumes) is deleted afterwards. A wrong key, a damaged file or a forged
-one fails with "Decryption failed": only a file gpg really decrypts and authenticates with this key
-is accepted — a plain, unencrypted OpenPGP file is refused.
+This decrypts and authenticates the backup, checks every checksum and refuses anything unexpected
+inside, then builds a **separate, throwaway** stack: a fresh PostgreSQL, the backup restored into
+it, the migrations run, the API and then the Gateway started on it. It passes only if `/ready`
+passes. Afterwards every container, volume and the network are deleted.
 
+Be clear about what is inside: the restored database still holds the provider and broker
+credentials saved in it, and the encryption key that opens them is passed in so the app can start
+(the bootstrap token too; no other `.env` value). What stops the test stack from reaching any model
+provider or broker is the network: an internal Docker network with no route out. `lonora` checks
+that before starting the Gateway — the network must be internal and a connection out must fail —
+and stops if either check fails.
+
+A wrong key, a damaged file or a forged one fails with "Decryption failed": only a file gpg really
+decrypts and authenticates with this key is accepted; a plain, unencrypted OpenPGP file is refused.
 Run it monthly, and after any change to how you back up.
 
 ### Restore
 
 ```sh
-sudo lonora restore backups/lonora-….tar.gpg --replace
+sudo lonora restore /opt/lonora/backups/lonora-….tar.gpg --replace
 ```
 
-It refuses a backup whose migration is newer than the installed image knows (update to that
-image first). Otherwise it **takes a safety backup of the current state first**, stops API, Gateway
-and Caddy, replaces the database with a fresh copy from the backup, replaces the artifact files,
-runs the migrations (so an older backup is brought up to the installed version), starts everything
-and waits for `/ready`. `--replace` is required.
+A relative path is read from the current directory, or else from `/opt/lonora`. Restore refuses a
+backup whose migration is newer than the installed image knows (update to that image first). It
+starts the database if it is stopped, **takes a safety backup of the current state first**, turns
+maintenance on, stops API and Gateway, replaces the database with a fresh copy from the backup,
+replaces the artifact files, runs the migrations (so an older backup is brought up to the installed
+version), starts everything and waits for `/ready`. `--replace` is required. If it stops part-way,
+it prints the same command to run again; a rerun with no current database skips the safety backup
+and says so.
 
 **Disaster recovery on a new server**, exactly:
 
@@ -219,12 +239,13 @@ same change that makes the server stop working with older mobile/web clients. Th
 workflow stamps the tag or branch, the commit and the build time. `lonora status` prints the
 manifest of the running image.
 
-## Your current server: start fresh (recommended)
+## Your current server: start fresh
 
 The owner decided the new system starts from an empty database: no agents or data are carried
-over. Nothing in this change touched the live VPS. Do this at a quiet time, as root, on the server.
-The new stack uses the same Compose project name (`lonora`) and volume names as the old one, so
-the old volumes must be archived and then removed — otherwise the new install would reuse them.
+over, and there is no in-place adoption of the old installation. Nothing in this change touched the
+live VPS. Do this at a quiet time, as root, on the server. The new stack uses the same Compose
+project name (`lonora`) and volume names as the old one, so the old volumes must be archived and
+then removed — otherwise the new install would reuse them (the installer refuses in that case).
 
 1. Stop the old install (use the Compose file it actually runs with):
    `cd /opt/lonora && docker compose --env-file .env -f <its compose file> stop`
@@ -246,7 +267,7 @@ the old volumes must be archived and then removed — otherwise the new install 
 4. Only after step 2 succeeded, remove the old volumes so the new database starts empty:
    `docker volume rm lonora_database lonora_artifacts`
 5. Install the new system as in «Install a new server» above, with your domain. Copy the new
-   `backup.key` off the server.
+   `backup.key` off the server. The installer replaces the old backup timer.
 6. Optional: to keep the existing Android download and OTA updates working, copy them over
    before clients update: `cp -a /opt/lonora-old/.runtime/releases/. /opt/lonora/.runtime/releases/`
 7. Check: `sudo lonora status` shows `/ready: ok`; open the site and create the owner account;
@@ -255,76 +276,39 @@ the old volumes must be archived and then removed — otherwise the new install 
 Once the new system has run well for a while, `/opt/lonora-old` and `/opt/lonora-old-archive`
 can be deleted. Until then they are the only way back to the old system.
 
-## Optional: adopting the existing install instead
-
-Not the recommended path (see above) and **not supported** for the owner's server; kept for a
-future server whose data must be kept. Known limits on this path: an image built on the server has
-no registry digest, so its local tag is a mutable pin; old backup timers that call
-`infra/compose/backup-prod.sh` keep working only once `backup.key` exists; ports the old Compose file
-published must be re-declared in an overlay; `deploy-main.sh` on a checkout and re-running
-`install.sh` there are not supported; and the lifecycle test's adoption check starts from an empty
-database, so it proves the mechanics, not that real data carries over.
-Nothing in this change touched the live VPS. The VPS today runs its own customised
-Compose file (see `docs/lonora-specs/DEPLOYMENT_2026_10_19.md`) from the checkout in `/opt/lonora`.
-To adopt it, at a quiet time:
-
-1. Compare: `cd /opt/lonora && git pull` (or copy the new `infra/` files in), then
-   `infra/compose/lonora config` prints the canonical stack (variables not expanded, so no secrets).
-   Put every real difference of the VPS file — published ports, extra mounts, extra services — into
-   one overlay file, e.g. `infra/compose/site.yml`, and list it in `LONORA_COMPOSE_OVERLAYS`.
-   Keep the Compose project name `lonora` and the volume names (`database`, `artifacts`) so the
-   existing data is used as is.
-2. Create the backup key: `sudo sh -c 'umask 077; head -c 48 /dev/urandom | base64 >/opt/lonora/backup.key'`
-   and copy it off the server.
-3. Pin what runs today: `mkdir -m 700 -p state && echo "LONORA_IMAGE=<current image>" >state/image.env`.
-   `docker image inspect --format '{{index .RepoDigests 0}}' "$(docker inspect lonora-api-1 --format '{{.Image}}')"`
-   prints its `repo@sha256:…` reference; for an image built on the server (no registry digest), use its
-   local tag instead and keep that image on the server until the first update succeeded — it is what a
-   rollback returns to.
-4. `sudo infra/compose/lonora backup`, then `sudo infra/compose/lonora restore-test`.
-5. The first update, exactly: `cd /opt/lonora && sudo infra/compose/lonora update <version>`. It
-   resolves the version to a digest, reads its release manifest, stops API and Gateway, takes the
-   encrypted backup, copies the new deployment files from the image into `infra/` (this replaces the
-   checked-out ones; your differences live in the overlay from step 1), pins the digest in
-   `state/image.env`, runs `migrate` as its own container, starts everything and waits for `/ready`,
-   rolling back on failure. From then on **the API no longer migrates when it starts**
-   (`LONORA_MIGRATE_ON_START=false` in the canonical Compose file): migrations run only through
-   `lonora update`, `lonora start` or `deploy-main.sh`. The lifecycle test below includes exactly this
-   adoption path (an installation running an image from before this tooling).
-6. Install the backup timer: `sudo install -m 644 infra/systemd/lonora-backup.* /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now lonora-backup.timer`.
-
-`infra/compose/deploy-main.sh` (build from source on the server) still uses the same Compose
-file, backs up with `lonora backup` (so it needs `backup.key`) and runs migrations as a separate
-step. It does not pin digests or roll back; use `lonora update` instead.
-
-The `docker-compose.postgres-host.yml` overlay (PostgreSQL on the host instead of the `db` service)
-points API, Gateway and `migrate` at the host database. `lonora backup`, `restore` and the rollback
-work only with the bundled `db` service.
-
 ## Testing
 
 `tests/ops/lifecycle_test.sh REPO` runs the whole lifecycle against real Docker on a disposable
 machine. It uses the project name `lonora`, its volume names and ports 80/443, so it refuses to run
-where a Lonora installation exists. It checks, in order:
+where a Lonora installation exists. It checks:
 
-1. install (digest pinned, secrets mode 600 and never printed, bundle modes, no second install);
-2. no secret in the image's bundle or `release.json`;
+1. install: digest pinned, secrets mode 600, bundle modes, refusal of its own home and of a
+   leftover `lonora_database` volume next to a new home;
+2. no secret and no legacy deployment path in the image's bundle or `release.json`;
 3. seed an owner account and an artifact;
-4. backup: verified; the decrypted copy holds the dump and `.env`, the file holds neither in clear;
-5. restore test, leaving no container or volume behind;
+4. backup: not a readable tar; the decrypted copy holds the dump and `.env`, the file neither;
+5. restore test: network internal with no route out (checked by `lonora`), nothing left behind;
 6. damaged file, wrong key and a forged plaintext backup refused, nothing changed;
 7. a failing and a truncating `pg_dump`: the update aborts before pinning, the live database untouched;
-8. refusals: a concurrent operation (lock), no pinned image, an image without a release manifest;
-9. update, API gated before the Gateway, the script replaced atomically;
-10. a broken update rolled back from the pre-update backup, earlier rows kept;
-11. a journal row written during the `/ready` wait: rollback held, then `rollback --force`;
+8. refusals: a concurrent operation, no pin, a tag (not digest) pin, an image without a manifest;
+9. update: API gated before the Gateway, script replaced atomically, writes open again after;
+10. a broken update: writes answered `503 «يجري التحديث»` during it, rolled back from the pre-update
+    backup, earlier rows kept;
+11. the same with `pg_restore` failing after `DROP DATABASE`: the rollback stops at phase
+    `restoring` with a working command, and `lonora rollback` retries and completes;
 12. an update killed mid-way: marker kept, `start` refused, the next update rolls back and completes;
-13. `restore --replace`: safety backup first, an older backup migrated to the image head;
-14. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
+13. restore from another directory with the database stopped, of the oldest backup while rotation
+    would delete it: safety backup, file kept, older schema migrated up;
+14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
+    bad tag changes nothing, a fixed version updates forward keeping the restriction;
+15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
+    `rollback` still holds; `rollback --force` restores;
+16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
     secrets and keeps the new database password;
-15. adoption of an installation on an image from before this tooling (optional path).
+17. no secret (encryption key, backup key, database passwords, bootstrap token, webhook secret) in
+    any log the test wrote or in `state/history.log`.
 
-`REPO` must hold the tags `old`, `v1`, `v2`, `v3-broken` and `v4-good`. Build them with
+`REPO` must hold the tags `old`, `v1`, `v2`, `v4-good`, `v3-broken` and `v3-fixed`. Build them with
 `tests/ops/build_test_images.sh REPO`, into any registry you control:
 
 ```sh
@@ -334,22 +318,21 @@ bash tests/ops/lifecycle_test.sh localhost:5000/lonora
 ```
 
 It builds `old` from main at `80e195f` (the last commit before this tooling, override with
-`OLD_SHA`), `v1` and `v2` from the checkout with different `LONORA_VERSION`, `v3-broken` (v2 plus
-`tests/ops/fixtures/9999_broken_probe.py`, which creates a table, and a Gateway that never starts)
-and `v4-good` (v2 plus `tests/ops/fixtures/9998_good_probe.py`). The probe migrations exist only
-inside those test images. It pushes all five and prints their digests (also written to
-`.runtime/ops-test-images.txt`). Where the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1`
-drops the Chromium/fonts line; `LONORA_BUILD_CA_FILE` and `LONORA_BUILD_NETWORK=host` help behind a
-TLS-intercepting proxy on `127.0.0.1`. The runs reported here used all three.
+`OLD_SHA`), `v1` and `v2` from the checkout with different `LONORA_VERSION`, and three probe images
+on top of `v2` from `tests/ops/fixtures`: `v4-good` (+ `9998_good_probe`), `v3-broken` (+ 9998 and
+`9999_broken_probe`, with a Gateway that never starts) and `v3-fixed` (the same migrations, working).
+The probes chain onto `v2`'s migration head at build time and exist only inside those test images.
+It pushes all six and prints their digests (also written to `.runtime/ops-test-images.txt`). Where
+the Debian mirror is unreachable, `LONORA_TEST_SKIP_APT=1` drops the Chromium/fonts line;
+`LONORA_BUILD_CA_FILE` and `LONORA_BUILD_NETWORK=host` help behind a TLS-intercepting proxy on
+`127.0.0.1`. The runs reported here used all three.
 
 ### What was verified, and what still needs a real host
 
 Verified in a development container with Docker 29.9 and Compose 5.6, real images, a real local
-registry (real digests), PostgreSQL 16: all 15 lifecycle checks passed.
-
-The fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones
-(`lonora_database` with a PostgreSQL cluster, `lonora_artifacts` with a file): both archives were
-complete, and the new install came up with `/ready` passing, no old table, no owner and no artifacts.
+registry (real digests), PostgreSQL 16 and Caddy 2.10: all 17 lifecycle checks passed. The
+fresh-start steps 2, 4 and 5 were also run here against volumes named like the old ones: both
+archives were complete, and the new install came up with `/ready` passing and an empty database.
 
 Still to be checked on a real server:
 
@@ -357,8 +340,7 @@ Still to be checked on a real server:
   line removed (the development container cannot reach the Debian package mirror). That line stays
   in the production `Dockerfile` unchanged: Chromium drives the server chart renderer (TradingView
   image capture, `LONORA_CHART_BROWSER_EXECUTABLE=/usr/bin/chromium`) and the fonts render chart text.
-  `/ready` does not depend on them, which is why the lifecycle passed without them; chart capture was
-  not exercised here. The full production image build itself was not run here.
+  `/ready` does not depend on them; chart capture was not exercised here.
 - Caddy obtaining a real certificate for a public domain (the test used `localhost`).
 - The systemd backup timer (installed with `--no-systemd` in the test).
 - Pulling from `ghcr.io` (the test used a local registry), and the CI publish workflow, which
