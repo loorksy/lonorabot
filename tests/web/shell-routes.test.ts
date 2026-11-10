@@ -18,3 +18,10 @@ test("domain pages: the task and skill pages take their id in the path, the rest
   assert.deepEqual(parseRoute("/app/goals/x"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/tasks/t1/x"), { kind: "not-found" });
 });
+
+test("calls: «المكالمة» is one page, «مكالمة واردة» takes its call id in the path", () => {
+  assert.deepEqual(parseRoute("/app/call"), { kind: "page", page: "call" });
+  assert.deepEqual(parseRoute("/app/call/x"), { kind: "not-found" });
+  assert.deepEqual(parseRoute("/app/incoming/c1"), { kind: "page", page: "incoming", item: "c1" });
+  assert.deepEqual(parseRoute("/app/incoming/c1/x"), { kind: "not-found" });
+});

@@ -11,6 +11,9 @@
   border-top: 1px solid var(--glass-line);
 }
 .call-strip > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
   color: var(--accent-ink);
 }
 .call-strip .label {
@@ -91,6 +94,10 @@
   background: var(--text);
   color: var(--bg);
 }
+.circle svg {
+  width: 22px;
+  height: 22px;
+}
 .circle.red {
   background: linear-gradient(180deg, #f0605f, var(--danger-fill));
   color: #fff;
@@ -129,8 +136,20 @@
 .wave.muted i {
   background: var(--muted);
 }
+/* The call's approval cards: a call never approves a trade; each keeps its own card. */
 .call-follow {
   width: min(100%, 520px);
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  margin-top: 12px;
+  text-align: start;
+}
+.call-follow .card {
+  margin: 0 0 8px;
+  padding: 12px;
+}
+.call-follow .actions button {
+  flex: 1;
 }
 .call-follow:empty {
   display: none;

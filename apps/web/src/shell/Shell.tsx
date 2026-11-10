@@ -715,7 +715,8 @@ function ShellBody() {
   const largeTitle =
     isRoot(route) && bareSection(route, desktop) ? (
       <LargeTitle title={title} />
-    ) : route.kind === "page" && bareDetail(route, desktop) ? (
+    ) : route.kind === "page" && route.page !== "call" && bareDetail(route, desktop) ? (
+      // The call screen has no page title (the reference's largeTitle skips `call`).
       <LargeTitle title={title} detail />
     ) : null;
   const content = (
