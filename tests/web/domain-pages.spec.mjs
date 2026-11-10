@@ -127,6 +127,70 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   await expect(page.locator('select[name="type"] option[value="condition"]')).toHaveCount(0);
 });
 
+/** Marks a one-shot as fired («نُفّذت»): its time passed, it ran and switched itself off. */
+const fireOneShot = (routineId) =>
+  execFileSync(
+    ".venv/bin/python",
+    [
+      "-c",
+      `import asyncio, os, sys, asyncpg
+async def main():
+    url = os.environ["LONORA_DATABASE_URL"].replace("postgresql+asyncpg", "postgresql")
+    conn = await asyncpg.connect(url)
+    await conn.execute(
+        "UPDATE ln_routines SET enabled = false, run_at = now() - interval '2 minutes',"
+        " last_run_at = now() - interval '1 minute' WHERE id::text = $1", sys.argv[1])
+    await conn.close()
+asyncio.run(main())`,
+      routineId,
+    ],
+    { encoding: "utf8" },
+  );
+
+test("schedules: a fired one-shot reschedules from its details sheet, from both lists", async ({
+  page,
+  owner,
+}) => {
+  const { agent, prefix, call } = owner;
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const once = await call("POST", `/routines/${agent.id}`, {
+    title: `${prefix} fired`,
+    prompt: "Send the summary",
+    run_at: "2031-01-02T09:00:00Z",
+    timezone: "UTC",
+  });
+  fireOneShot(once.id);
+  const reschedule = async (date) => {
+    const row = page.locator("#app main .row", { hasText: `${prefix} fired` });
+    await expect(row.locator(".value")).toHaveText("Done");
+    await row.getByRole("button", { name: new RegExp(`${prefix} fired`) }).click();
+    const sheet = page.locator('form[data-form="reschedule"]');
+    await sheet.getByLabel("Date", { exact: true }).fill(date);
+    await sheet.getByLabel("Time", { exact: true }).fill("08:45");
+    const put = saved(page, "PUT", new RegExp(`^/api/routines/${once.id}$`));
+    await sheet.getByRole("button", { name: "Schedule again", exact: true }).click();
+    const body = await (await put).json();
+    expect(body.enabled).toBe(true);
+    expect(new Date(body.run_at).getMinutes()).toBe(45);
+    await expect(
+      page.getByRole("switch", { name: `Enable ${prefix} fired`, exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
+  };
+  await page.goto(`/app/routines?agent=${agent.id}`);
+  await reschedule("2031-03-04");
+  fireOneShot(once.id);
+  await page.goto("/app/tasks");
+  await page.getByRole("tab", { name: "Scheduled", exact: true }).click();
+  await reschedule("2031-05-06");
+  const [row] = (await call("GET", `/routines?agent_id=${agent.id}`)).filter(
+    (item) => item.id === once.id,
+  );
+  expect(row).toMatchObject({ enabled: true, title: `${prefix} fired` });
+  expect(new Date(row.run_at).getDate()).toBe(6);
+  expect(errors).toEqual([]);
+});
+
 test("goals, knowledge links and text files persist", async ({ page, owner }) => {
   const { agent, prefix } = owner;
   await page.goto(`/app/goals?agent=${agent.id}`);

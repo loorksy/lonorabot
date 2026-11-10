@@ -494,7 +494,7 @@ async def test_completing_a_task_with_no_active_run_cancels_its_trade_approvals(
 
 
 @pytest.mark.asyncio
-async def test_a_one_shot_that_cannot_enqueue_stays_scheduled_and_past_times_are_refused():
+async def test_a_paused_goals_one_shot_waits_other_refusals_switch_it_off_and_past_is_refused():
     database()
     from check_streaming import Fixture
     from lonora_contracts.domain import utcnow
@@ -543,6 +543,84 @@ async def test_a_one_shot_that_cannot_enqueue_stays_scheduled_and_past_times_are
                 assert not await enqueue_routine(session, row, now)
                 # Without a paused goal the refusal is final: it switches off.
                 assert row.enabled is False
+        finally:
+            routines.create_run = original
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_goal_one_shot_waits_for_its_step_and_switches_off_once_it_cannot_run():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.routines import ONE_SHOT_RETRY, enqueue_routine, one_shot_can_wait
+    from lonora_db.schema import RoutineRow, TradingGoalRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Steps")
+        created = await fixture.request(
+            "POST",
+            f"/routines/{agent['id']}",
+            {"prompt": "Once", "run_at": "2031-01-01T09:00:00Z"},
+        )
+        import lonora_db.routines as routines
+
+        async def refused(*_: Any, **__: Any) -> None:
+            from lonora_core.user_error import LonoraError
+
+            raise LonoraError("goal_step_unavailable", 409)
+
+        original = routines.create_run
+        routines.create_run = refused  # type: ignore[assignment]
+        try:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                goal = TradingGoalRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    payload={"title": "g", "steps": [{"id": s} for s in ("s1", "s2", "s3")]},
+                    state={
+                        "status": "active",
+                        "current_step": "s2",
+                        "steps": {
+                            "s1": {"status": "completed"},
+                            "s2": {"status": "executing"},
+                            "s3": {"status": "pending"},
+                        },
+                    },
+                )
+                session.add(goal)
+                await session.flush()
+                row = await session.get(RoutineRow, created["id"], with_for_update=True)
+                assert row is not None
+                row.goal_id = goal.id
+                wait = "goal_step_unavailable"
+                # Not reached yet (an earlier step is pending): it waits and retries.
+                row.step_id = "s3"
+                assert await one_shot_can_wait(session, row, wait)
+                now = datetime(2031, 1, 1, 9, 0, 1, tzinfo=UTC)
+                assert not await enqueue_routine(session, row, now)
+                assert row.enabled is True and row.next_run_at == now + ONE_SHOT_RETRY
+                # Its own step's trade is executing: it waits.
+                row.step_id = "s2"
+                assert await one_shot_can_wait(session, row, wait)
+                # Its step is completed, or it was passed: it switches off.
+                row.step_id = "s1"
+                assert not await one_shot_can_wait(session, row, wait)
+                goal.state = {**goal.state, "steps": {**goal.state["steps"], "s1": {}}}
+                assert not await one_shot_can_wait(session, row, wait)
+                assert not await enqueue_routine(session, row, now)
+                assert row.enabled is False
+                # Its step is gone: it switches off.
+                row.step_id = "s9"
+                assert not await one_shot_can_wait(session, row, wait)
+                assert not await one_shot_can_wait(session, row, "goal_step_not_found")
+                # The goal has ended: even a step ahead switches it off.
+                row.step_id = "s3"
+                goal.state = {**goal.state, "status": "cancelled"}
+                assert not await one_shot_can_wait(session, row, wait)
+                goal.state = {**goal.state, "status": "completed"}
+                assert not await one_shot_can_wait(session, row, "goal_not_active")
         finally:
             routines.create_run = original
     finally:
@@ -806,7 +884,7 @@ async def test_one_shot_edges_off_switch_reschedule_text_edit_watchdog_and_ended
     from check_streaming import Fixture
     from lonora_contracts.domain import utcnow
     from lonora_core.user_error import LonoraError
-    from lonora_db.routines import due_routines, enqueue_routine
+    from lonora_db.routines import due_routines, enqueue_one, enqueue_routine
     from lonora_db.schema import RoutineRow, TradingGoalRow
 
     fixture = await Fixture().open()
@@ -857,6 +935,19 @@ async def test_one_shot_edges_off_switch_reschedule_text_edit_watchdog_and_ended
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(RoutineRow, once["id"])
             assert row is not None and row.last_run_at is None
+        # When its new time comes it is due again, fires once and switches itself off.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, once["id"], with_for_update=True)
+            assert row is not None
+            row.next_run_at = utcnow() - timedelta(seconds=5)
+        async with fixture.runtime.db.sessions() as session:
+            assert once["id"] in [i for i, _ in await due_routines(session)]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            assert await enqueue_one(session, once["id"])
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RoutineRow, once["id"])
+            assert row is not None and row.enabled is False and row.last_run_at is not None
+            assert once["id"] not in [i for i, _ in await due_routines(session)]
         # A goal-linked one-shot: a paused goal waits, an ended goal switches it off.
         async with fixture.runtime.db.sessions() as session, session.begin():
             goal = TradingGoalRow(

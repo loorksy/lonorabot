@@ -132,9 +132,19 @@ const scheduleError = (cause: unknown) =>
     ? t`That time has passed. Choose a new time.`
     : userError(cause);
 
-/** «جدولة من جديد»: a new date and time for a one-shot that already ran. */
-function Reschedule({ routine, onDone }: { routine: Routine; onDone: () => void }) {
-  const toast = useToast();
+type Toast = ReturnType<typeof useToast>;
+
+/** «جدولة من جديد»: a new date and time for a one-shot that already ran. It renders inside the
+    sheet layer, which sits outside the toast provider, so the page hands it `toast`. */
+function Reschedule({
+  routine,
+  toast,
+  onDone,
+}: {
+  routine: Routine;
+  toast: Toast;
+  onDone: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   return (
     <FormPage
@@ -173,6 +183,7 @@ function Reschedule({ routine, onDone }: { routine: Routine; onDone: () => void 
 /** The schedule details sheet: «التكرار», «الوقت», «القناة», «حذف الجدول». */
 export function useScheduleDetails(onDeleted: () => void) {
   const sheets = useSheets();
+  const toast = useToast();
   const confirm = useConfirm();
   return (routine: Routine) => {
     const facts = scheduleFacts(routine);
@@ -191,6 +202,7 @@ export function useScheduleDetails(onDeleted: () => void) {
           {fired(routine) && (
             <Reschedule
               routine={routine}
+              toast={toast}
               onDone={() => {
                 sheets.close();
                 onDeleted();

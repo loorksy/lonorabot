@@ -7,6 +7,7 @@ import { Button, colors, ErrorNotice, Field, Loading, Screen, styles } from "../
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import { agents as agentApi } from "../lib/agents";
 import { routines } from "../lib/routine";
+import { titleInput } from "../lib/routine-title";
 import { useSession } from "../lib/session";
 
 export default function RoutineScreen() {
@@ -161,10 +162,10 @@ function RoutineForm({
               interval_seconds: mode === "interval" ? Number(minutes) * 60 : null,
               cron: mode === "cron" ? cron : null,
             };
-      // The task text is the routine's title too (as on the web), so an edit shows.
+      const text = prompt.trim();
       const input = {
-        title: prompt.trim().slice(0, 160),
-        prompt: prompt.trim(),
+        ...titleInput(routine, text),
+        prompt: text,
         ...schedule,
         timezone,
         ...(fired ? {} : { enabled }),

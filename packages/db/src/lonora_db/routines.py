@@ -216,10 +216,10 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             # A one-shot routine fires once and then stays off until the owner reschedules it.
             row.enabled, row.last_run_at = False, now
         elif await one_shot_can_wait(session, row, refused):
-            # Its goal is only paused: it stays scheduled and is tried again later.
+            # Its goal can still reach its step: it stays scheduled and is tried again later.
             row.next_run_at = now + ONE_SHOT_RETRY
         else:
-            # Its goal ended or its step is gone: it can never run, so it switches off.
+            # Its goal ended or its step is completed, passed or gone: it switches off.
             row.enabled = False
         return enqueued
     row.last_run_at = now
@@ -238,12 +238,24 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
 
 
 async def one_shot_can_wait(session: AsyncSession, row: RoutineRow, refused: str | None) -> bool:
-    """A goal-linked one-shot waits only while its goal is paused; ended goals or a passed
-    step can never run it."""
-    if refused != "goal_not_active" or not row.goal_id:
+    """A goal-linked one-shot waits while its goal can still reach its step: the goal is paused
+    or blocked, the step is not reached yet, or its trade is executing. It switches off only
+    when the goal has ended or its step is completed, passed or gone."""
+    if refused not in {"goal_not_active", "goal_step_unavailable"} or not row.goal_id:
         return False
     goal = await session.get(TradingGoalRow, row.goal_id)
-    return goal is not None and goal.state.get("status") not in {"completed", "cancelled"}
+    if goal is None or goal.state.get("status") in {"completed", "cancelled"}:
+        return False
+    if refused == "goal_not_active":
+        return True
+    order = [step["id"] for step in goal.payload.get("steps", [])]
+    current = goal.state.get("current_step")
+    if row.step_id not in order or current not in order:
+        return False
+    if goal.state.get("steps", {}).get(row.step_id, {}).get("status") == "completed":
+        return False
+    # The current step (executing, or held) or one still ahead of it; an earlier one has passed.
+    return order.index(row.step_id) >= order.index(current)
 
 
 async def owned_routine(session: AsyncSession, owner_id: str, routine_id: str) -> RoutineRow:

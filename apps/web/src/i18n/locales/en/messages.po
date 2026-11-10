@@ -491,7 +491,7 @@ msgstr "After linking, the account's trading symbols are fetched from the broker
 #: src/pages/shell/message-cards.tsx:264
 #: src/pages/shell/message-cards.tsx:267
 #: src/pages/shell/message-cards.tsx:334
-#: src/shell/domain/SchedulesPages.tsx:467
+#: src/shell/domain/SchedulesPages.tsx:479
 #: src/shell/domain/TasksPages.tsx:197
 msgid "Agent"
 msgstr "Agent"
@@ -564,7 +564,7 @@ msgstr "Agents on this account"
 msgid "Agents read news from these domains only, and name the source and the time with every piece of information."
 msgstr "Agents read news from these domains only, and name the source and the time with every piece of information."
 
-#: src/shell/domain/SchedulesPages.tsx:493
+#: src/shell/domain/SchedulesPages.tsx:505
 msgid "Alert channel"
 msgstr "Alert channel"
 
@@ -1144,8 +1144,8 @@ msgstr "Changes"
 msgid "Channel"
 msgstr "Channel"
 
-#: src/shell/domain/SchedulesPages.tsx:188
-#: src/shell/domain/SchedulesPages.tsx:235
+#: src/shell/domain/SchedulesPages.tsx:199
+#: src/shell/domain/SchedulesPages.tsx:247
 msgctxt "schedule details"
 msgid "Channel"
 msgstr "Channel"
@@ -1288,8 +1288,8 @@ msgstr "Choose a file smaller than 600 KB."
 msgid "Choose a glowing face and color. Preview your changes before applying them."
 msgstr "Choose a glowing face and color. Preview your changes before applying them."
 
-#: src/shell/domain/SchedulesPages.tsx:153
-#: src/shell/domain/SchedulesPages.tsx:437
+#: src/shell/domain/SchedulesPages.tsx:163
+#: src/shell/domain/SchedulesPages.tsx:449
 msgid "Choose a time that has not passed."
 msgstr "Choose a time that has not passed."
 
@@ -1340,8 +1340,8 @@ msgstr "Choose the broker"
 msgid "Choose the provider"
 msgstr "Choose the provider"
 
-#: src/shell/domain/SchedulesPages.tsx:148
-#: src/shell/domain/SchedulesPages.tsx:432
+#: src/shell/domain/SchedulesPages.tsx:158
+#: src/shell/domain/SchedulesPages.tsx:444
 msgid "Choose the task's date."
 msgstr "Choose the task's date."
 
@@ -1495,12 +1495,12 @@ msgstr "Completion criterion"
 msgid "Condition"
 msgstr "Condition"
 
-#: src/shell/domain/SchedulesPages.tsx:230
+#: src/shell/domain/SchedulesPages.tsx:242
 msgctxt "watch"
 msgid "Condition"
 msgstr "Condition"
 
-#: src/shell/domain/SchedulesPages.tsx:491
+#: src/shell/domain/SchedulesPages.tsx:503
 msgid "Condition — for the conditional alert"
 msgstr "Condition — for the conditional alert"
 
@@ -1785,7 +1785,7 @@ msgid "Customize avatar"
 msgstr "Customize avatar"
 
 #: src/shell/domain/SchedulesPages.tsx:103
-#: src/shell/domain/SchedulesPages.tsx:484
+#: src/shell/domain/SchedulesPages.tsx:496
 msgctxt "schedule repeat"
 msgid "Daily"
 msgstr "Daily"
@@ -1806,8 +1806,8 @@ msgstr "Daily notification limit"
 msgid "Dark mode"
 msgstr "Dark mode"
 
-#: src/shell/domain/SchedulesPages.tsx:167
-#: src/shell/domain/SchedulesPages.tsx:489
+#: src/shell/domain/SchedulesPages.tsx:177
+#: src/shell/domain/SchedulesPages.tsx:501
 msgid "Date"
 msgstr "Date"
 
@@ -1851,7 +1851,7 @@ msgstr "Delegation changed"
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
-#: src/shell/domain/SchedulesPages.tsx:204
+#: src/shell/domain/SchedulesPages.tsx:216
 #: src/shell/domain/TasksPages.tsx:183
 #: src/shell/domain/TasksPages.tsx:247
 #: src/shell/lists/EmojiPanel.tsx:405
@@ -1878,7 +1878,7 @@ msgstr "Delete owner instructions"
 #~ msgid "Delete permanently"
 #~ msgstr "Delete permanently"
 
-#: src/shell/domain/SchedulesPages.tsx:210
+#: src/shell/domain/SchedulesPages.tsx:222
 msgid "Delete schedule"
 msgstr "Delete schedule"
 
@@ -1902,7 +1902,7 @@ msgstr "Delete these owner instructions? Existing version blocks will remain."
 msgid "Delete this file?"
 msgstr "Delete this file?"
 
-#: src/shell/domain/SchedulesPages.tsx:204
+#: src/shell/domain/SchedulesPages.tsx:216
 msgid "Delete this schedule?"
 msgstr "Delete this schedule?"
 
@@ -2008,7 +2008,7 @@ msgstr "Display"
 #~ msgid "Done"
 #~ msgstr "Done"
 
-#: src/shell/domain/SchedulesPages.tsx:315
+#: src/shell/domain/SchedulesPages.tsx:327
 msgctxt "one-shot"
 msgid "Done"
 msgstr "Done"
@@ -2133,8 +2133,8 @@ msgstr "Empty"
 #. placeholder {0}: routineTitle(routine)
 #. placeholder {0}: skillTitle(row.payload)
 #. placeholder {0}: watch.payload.prompt ?? ""
-#: src/shell/domain/SchedulesPages.tsx:319
-#: src/shell/domain/SchedulesPages.tsx:341
+#: src/shell/domain/SchedulesPages.tsx:331
+#: src/shell/domain/SchedulesPages.tsx:353
 #: src/shell/domain/SkillsPages.tsx:169
 msgid "Enable {0}"
 msgstr "Enable {0}"
@@ -2627,9 +2627,9 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "In progress"
 
-#: src/shell/domain/SchedulesPages.tsx:189
-#: src/shell/domain/SchedulesPages.tsx:236
-#: src/shell/domain/SchedulesPages.tsx:493
+#: src/shell/domain/SchedulesPages.tsx:200
+#: src/shell/domain/SchedulesPages.tsx:248
+#: src/shell/domain/SchedulesPages.tsx:505
 msgid "In the app"
 msgstr "In the app"
 
@@ -3558,7 +3558,7 @@ msgstr "No saved messages yet. They appear here once a chat starts."
 msgid "No saved tasks yet."
 msgstr "No saved tasks yet."
 
-#: src/shell/domain/SchedulesPages.tsx:288
+#: src/shell/domain/SchedulesPages.tsx:300
 msgid "No scheduled tasks."
 msgstr "No scheduled tasks."
 
@@ -3733,7 +3733,7 @@ msgid "OK"
 msgstr "OK"
 
 #: src/shell/domain/SchedulesPages.tsx:93
-#: src/shell/domain/SchedulesPages.tsx:395
+#: src/shell/domain/SchedulesPages.tsx:407
 msgctxt "schedule type"
 msgid "Once"
 msgstr "Once"
@@ -4267,7 +4267,7 @@ msgid "Recorded in Updates without any alert"
 msgstr "Recorded in Updates without any alert"
 
 #: src/shell/domain/SchedulesPages.tsx:98
-#: src/shell/domain/SchedulesPages.tsx:394
+#: src/shell/domain/SchedulesPages.tsx:406
 msgctxt "schedule type"
 msgid "Recurring"
 msgstr "Recurring"
@@ -4368,8 +4368,8 @@ msgstr "Removed {0}"
 msgid "Removed from favourites"
 msgstr "Removed from favourites"
 
-#: src/shell/domain/SchedulesPages.tsx:185
-#: src/shell/domain/SchedulesPages.tsx:481
+#: src/shell/domain/SchedulesPages.tsx:196
+#: src/shell/domain/SchedulesPages.tsx:493
 msgid "Repeat"
 msgstr "Repeat"
 
@@ -4607,7 +4607,7 @@ msgstr "Save members"
 msgid "Save memory"
 msgstr "Save memory"
 
-#: src/shell/domain/SchedulesPages.tsx:408
+#: src/shell/domain/SchedulesPages.tsx:420
 msgid "Save schedule"
 msgstr "Save schedule"
 
@@ -4667,13 +4667,13 @@ msgstr "Scenario"
 #~ msgid "Schedule"
 #~ msgstr "Schedule"
 
-#: src/shell/domain/SchedulesPages.tsx:362
+#: src/shell/domain/SchedulesPages.tsx:374
 #: src/shell/domain/TasksPages.tsx:92
 #: src/shell/pages.tsx:104
 msgid "Schedule a task"
 msgstr "Schedule a task"
 
-#: src/shell/domain/SchedulesPages.tsx:142
+#: src/shell/domain/SchedulesPages.tsx:152
 msgid "Schedule again"
 msgstr "Schedule again"
 
@@ -4681,11 +4681,11 @@ msgstr "Schedule again"
 #~ msgid "Schedule recurring work for your agents."
 #~ msgstr "Schedule recurring work for your agents."
 
-#: src/shell/domain/SchedulesPages.tsx:456
+#: src/shell/domain/SchedulesPages.tsx:468
 msgid "Schedule saved"
 msgstr "Schedule saved"
 
-#: src/shell/domain/SchedulesPages.tsx:474
+#: src/shell/domain/SchedulesPages.tsx:486
 msgid "Schedule type"
 msgstr "Schedule type"
 
@@ -5211,13 +5211,13 @@ msgstr "Stop loss · optional"
 msgid "Stop the server"
 msgstr "Stop the server"
 
-#: src/shell/domain/SchedulesPages.tsx:244
-#: src/shell/domain/SchedulesPages.tsx:249
-#: src/shell/domain/SchedulesPages.tsx:253
+#: src/shell/domain/SchedulesPages.tsx:256
+#: src/shell/domain/SchedulesPages.tsx:261
+#: src/shell/domain/SchedulesPages.tsx:265
 msgid "Stop the watch"
 msgstr "Stop the watch"
 
-#: src/shell/domain/SchedulesPages.tsx:243
+#: src/shell/domain/SchedulesPages.tsx:255
 msgid "Stop this watch?"
 msgstr "Stop this watch?"
 
@@ -5331,7 +5331,7 @@ msgstr "Tap the share button at the bottom of the browser."
 
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
-#: src/shell/domain/SchedulesPages.tsx:465
+#: src/shell/domain/SchedulesPages.tsx:477
 msgid "Task"
 msgstr "Task"
 
@@ -5936,9 +5936,9 @@ msgstr "Thoughtful"
 msgid "Tick size"
 msgstr "Tick size"
 
-#: src/shell/domain/SchedulesPages.tsx:168
-#: src/shell/domain/SchedulesPages.tsx:186
-#: src/shell/domain/SchedulesPages.tsx:490
+#: src/shell/domain/SchedulesPages.tsx:178
+#: src/shell/domain/SchedulesPages.tsx:197
+#: src/shell/domain/SchedulesPages.tsx:502
 msgid "Time"
 msgstr "Time"
 
@@ -6212,7 +6212,7 @@ msgstr "Unsafe instructions"
 msgid "Unsaved changes"
 msgstr "Unsaved changes"
 
-#: src/shell/domain/SchedulesPages.tsx:233
+#: src/shell/domain/SchedulesPages.tsx:245
 msgid "Until"
 msgstr "Until"
 
@@ -6444,7 +6444,7 @@ msgid "Web search"
 msgstr "Web search"
 
 #: src/shell/domain/SchedulesPages.tsx:106
-#: src/shell/domain/SchedulesPages.tsx:486
+#: src/shell/domain/SchedulesPages.tsx:498
 msgctxt "schedule repeat"
 msgid "Weekly"
 msgstr "Weekly"
@@ -6485,8 +6485,8 @@ msgstr "What should this agent know about its work?"
 msgid "What your agents know about you"
 msgstr "What your agents know about you"
 
-#: src/shell/domain/SchedulesPages.tsx:334
-#: src/shell/domain/SchedulesPages.tsx:397
+#: src/shell/domain/SchedulesPages.tsx:346
+#: src/shell/domain/SchedulesPages.tsx:409
 msgctxt "schedule type"
 msgid "When a condition is met"
 msgstr "When a condition is met"
@@ -6500,7 +6500,7 @@ msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
 #: src/shell/domain/SchedulesPages.tsx:105
-#: src/shell/domain/SchedulesPages.tsx:485
+#: src/shell/domain/SchedulesPages.tsx:497
 msgctxt "schedule repeat"
 msgid "Workdays"
 msgstr "Workdays"
@@ -6530,7 +6530,7 @@ msgstr "Workspace files"
 msgid "Worried"
 msgstr "Worried"
 
-#: src/shell/domain/SchedulesPages.tsx:418
+#: src/shell/domain/SchedulesPages.tsx:430
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
