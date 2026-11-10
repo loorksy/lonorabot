@@ -332,3 +332,35 @@ test("S2: long-press opens the message menu by touch, never by a held mouse butt
   await hold("touch");
   await expect(page.getByRole("menu")).toBeVisible();
 });
+
+test("S7: the permission chip never guesses a level, and the mandate draft belongs to this chat", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const permissions = `**/api/agents/${conversation.agent.id}/permissions`;
+  await page.route(permissions, (route) =>
+    route.fulfill({ status: 503, json: { code: "service_unavailable" } }),
+  );
+  await page.goto(`/app/${conversation.agent.id}`);
+  const chip = page.getByTestId("permission-chip");
+  await expect(chip).toHaveAttribute("data-level", "unknown");
+  await expect(chip).toContainText("Permission unknown");
+  await expect(chip).not.toContainText("No execution");
+  await page.unroute(permissions);
+  const drafts = [];
+  await page.route(
+    `**/api/agents/${conversation.agent.id}/account-authorities/draft`,
+    async (route) => {
+      drafts.push(route.request().postDataJSON());
+      await route.fulfill({ status: 409, json: { code: "service_unavailable" } });
+    },
+  );
+  await page.reload();
+  await expect(chip).toHaveAttribute("data-level", /^(analysis|supervised)$/);
+  await chip.click();
+  await page.getByRole("menu").getByText("Delegated execution", { exact: true }).click();
+  await page.getByRole("button", { name: "Review and sign with the passkey" }).click();
+  await expect.poll(() => drafts.length).toBe(1);
+  expect(drafts[0].thread_id).toBe(conversation.thread.id);
+});

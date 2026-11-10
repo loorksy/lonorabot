@@ -43,6 +43,7 @@ export function PermissionChip({
   isGroup,
   trading,
   permission,
+  permissionFailed = false,
   onChanged,
   threadId,
 }: {
@@ -51,6 +52,7 @@ export function PermissionChip({
   isGroup: boolean;
   trading: boolean;
   permission: PermissionState | null;
+  permissionFailed?: boolean;
   onChanged: (state: PermissionState) => void;
 }) {
   const popover = usePopover();
@@ -127,7 +129,20 @@ export function PermissionChip({
         <span>{levelName("analysis")}</span>
       </button>
     );
-  const level = permission?.effective_level ?? "analysis";
+  // Until the level is read (or when it cannot be), the chip says so: never a guessed level.
+  if (!permission)
+    return (
+      <span
+        className="mode-chip is-off"
+        role="status"
+        data-testid="permission-chip"
+        data-level="unknown"
+      >
+        <Icon name={permissionFailed ? "alert" : "shield"} />
+        <span>{permissionFailed ? t`Permission unknown` : "…"}</span>
+      </span>
+    );
+  const level = permission.effective_level;
   return (
     <button
       type="button"
@@ -145,6 +160,7 @@ export function PermissionChip({
             permission={permission}
             onChanged={onChanged}
             go={nav.go}
+            threadId={threadId}
           />,
           t`Permission level`,
           { cls: "mode-pop", above: true },
@@ -167,7 +183,7 @@ function PermissionMenu({
 }: {
   threadId?: string;
   agent: Agent;
-  permission: PermissionState | null;
+  permission: PermissionState;
   onChanged: (state: PermissionState) => void;
   go: (path: string) => void;
 }) {
@@ -181,7 +197,7 @@ function PermissionMenu({
   });
   const [summary, setSummary] = useState<AgentModelSummary | null>(null);
   const [busy, setBusy] = useState(false);
-  const level = permission?.effective_level ?? "analysis";
+  const level = permission.effective_level;
   const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
     let live = true;

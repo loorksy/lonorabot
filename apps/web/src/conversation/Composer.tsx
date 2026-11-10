@@ -123,6 +123,7 @@ export function Composer({
   const options = useThreadOptions(threadId);
   const { revision } = useClient();
   const [permission, setPermission] = useState<PermissionState | null>(null);
+  const [permissionFailed, setPermissionFailed] = useState(false);
 
   useEffect(() => {
     void revision;
@@ -130,8 +131,12 @@ export function Composer({
     let live = true;
     void api
       .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
-      .then((row) => live && setPermission(row))
-      .catch(() => undefined);
+      .then((row) => {
+        if (!live) return;
+        setPermission(row);
+        setPermissionFailed(false);
+      })
+      .catch(() => live && setPermissionFailed(true));
     return () => {
       live = false;
     };
@@ -752,7 +757,9 @@ export function Composer({
             agent={agent}
             isGroup={isGroup}
             trading={trading}
-            permission={permission}
+            // Another agent's level is never shown while this one's loads.
+            permission={permission?.agent_id === agent?.id ? permission : null}
+            permissionFailed={permissionFailed}
             onChanged={setPermission}
           />
           {options.webSearch && (
