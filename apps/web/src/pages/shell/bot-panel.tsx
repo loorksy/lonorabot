@@ -1,21 +1,25 @@
 // Modified for Lonora; source attribution in THIRD_PARTY_NOTICES.md. Apache-2.0.
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentTemplate } from "@lonora/contracts";
+import type { AgentModelSummary, AgentTemplate } from "@lonora/contracts";
 import { DEFAULT_AVATAR_COLOR } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { useState } from "react";
-import { AvatarStudio } from "../../components/ai/AvatarStudio";
+import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { type BrokerPair, BrokerPairPicker } from "../../components/trading/BrokerPairPicker";
 import { type Agent, api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
+import { useAvatarSheet } from "../../shell/agent/AvatarSheet";
+import { useRead } from "../../shell/agent/shared";
+import { useShellData } from "../../shell/data";
 
 type Template = Exclude<AgentTemplate, "supervisor">;
 
 /* «وكيل جديد» (owner decision Q9): step 1 is the reference's three templates (agentTypePage);
    step 2 names the agent and its role (and the pair for a trading agent). The agent is created
    through POST /api/agents/create, the same input and service as the agent_create tool, so the
-   template is persisted and the ladder starts where the template says. */
+   template is persisted and the ladder starts where the template says. «الإشراف على وكلاء
+   آخرين» is a capability on any template: the agents it supervises go in `supervises`. */
 export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => void }) {
   const [template, setTemplate] = useState<Template>("general");
   const [step, setStep] = useState<"template" | "details">("template");
@@ -26,6 +30,20 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
   const [avatar, setAvatar] = useState("face-smile");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
+  const [supervise, setSupervise] = useState(false);
+  const [supervises, setSupervises] = useState<string[]>([]);
+  const [model, setModel] = useState("");
+  const data = useShellData();
+  const openAvatar = useAvatarSheet();
+  // The models a Fixed choice can pick are the owner's, not the agent's: read them once
+  // from the personal agent's summary (the same catalog every agent offers).
+  const personal = data.agents.find((row) => row.role === "personal");
+  const models = useRead<AgentModelSummary>(
+    step === "details" && personal
+      ? `/agents/${encodeURIComponent(personal.id)}/model/summary`
+      : null,
+  );
+  const others = data.agents.filter((row) => row.role !== "delegated");
   const templates: Record<Template, { icon: IconName; label: string; sub: string; code: string }> =
     {
       trading: {
@@ -72,6 +90,29 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
             </label>
           ))}
         </div>
+        <div className="group">
+          <div className="row">
+            <span className="row-icon">
+              <Icon name="eye" />
+            </span>
+            <span className="body">
+              <strong>
+                <Trans>Supervise other agents</Trans>
+              </strong>
+              <small>
+                <Trans>A capability added to any template, not a separate type</Trans>
+              </small>
+            </span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={supervise}
+              aria-label={t`Supervise other agents`}
+              onClick={() => setSupervise((on) => !on)}
+            />
+          </div>
+        </div>
         <button type="button" className="btn full primary" onClick={() => setStep("details")}>
           <Trans>Next</Trans>
         </button>
@@ -94,6 +135,8 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
             ...(trading
               ? { market: pair.trading_symbol, account_id: pair.trading_account_id }
               : {}),
+            ...(model ? { model: JSON.parse(model) } : {}),
+            ...(supervise && supervises.length ? { supervises } : {}),
           });
           // The appearance is the agent's own setting, saved on it right after. The agent
           // exists either way: a failed save is not a failed creation (a retry would make a
@@ -107,16 +150,38 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
         }
       }}
     >
-      <div className="hero legacy-surface">
-        <AvatarStudio
-          name={name}
-          avatar={avatar}
-          color={color}
-          onChange={(face, value) => {
-            setAvatar(face);
-            setColor(value);
-          }}
-        />
+      <div className="hero">
+        <span className="edit-wrap">
+          <AgentAvatar
+            agent={{
+              id: "new",
+              name,
+              avatar,
+              color,
+              instructions: "",
+              paused: false,
+              parent_id: null,
+              created_at: "",
+            }}
+          />
+          <button
+            type="button"
+            className="pencil"
+            aria-label={t`Edit avatar`}
+            onClick={() =>
+              openAvatar(null, {
+                name,
+                look: { avatar, color },
+                onPick: (look) => {
+                  setAvatar(look.avatar);
+                  setColor(look.color);
+                },
+              })
+            }
+          >
+            <Icon name="edit" />
+          </button>
+        </span>
       </div>
       <label className="field">
         <span>
@@ -152,6 +217,48 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
         <div className="legacy-surface">
           <BrokerPairPicker value={pair} onChange={setPair} />
         </div>
+      )}
+      <label className="field">
+        <span>
+          <Trans>Model</Trans>
+        </span>
+        <select name="model" value={model} onChange={(event) => setModel(event.target.value)}>
+          <option value="">{t({ message: "Automatic", context: "model" })}</option>
+          {(models.value?.available ?? []).map((item) => (
+            <option
+              key={`${item.provider}:${item.model}`}
+              value={JSON.stringify({ provider: item.provider, model: item.model })}
+            >
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {supervise && others.length > 0 && (
+        <>
+          <h3>
+            <Trans>Agents it supervises</Trans>
+          </h3>
+          {others.map((row) => (
+            <label className="check" key={row.id}>
+              <span>
+                <bdi>{row.name}</bdi>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={supervises.includes(row.id)}
+                aria-checked={supervises.includes(row.id)}
+                disabled={!supervises.includes(row.id) && supervises.length >= 10}
+                onChange={(event) =>
+                  setSupervises((old) =>
+                    event.target.checked ? [...old, row.id] : old.filter((id) => id !== row.id),
+                  )
+                }
+              />
+            </label>
+          ))}
+        </>
       )}
       <p className="note">
         {trading

@@ -11,7 +11,7 @@ export type TicketOutcome = { status: string; details?: unknown; code?: string |
  * double click, a retry after a timeout or a reload never creates a second operation.
  */
 export function useTicketAction(
-  action: "close_position" | "cancel_order",
+  action: "close_position" | "cancel_order" | "modify_position",
   accountId: string,
   journal: Journal[] | undefined,
   onChange: () => void,
@@ -27,9 +27,7 @@ export function useTicketAction(
     // outcome stays on the row, and the button acts again as a new operation.
     const settled: Record<string, TicketOutcome> = {};
     for (const entry of journal ?? []) {
-      const ticket = String(
-        entry.request[action === "close_position" ? "position_id" : "order_id"],
-      );
+      const ticket = String(entry.request[action === "cancel_order" ? "order_id" : "position_id"]);
       if (
         heldOperation(action, accountId, ticket) === entry.operation_id &&
         settleOperation(action, accountId, ticket, entry.status)

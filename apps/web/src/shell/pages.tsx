@@ -2,14 +2,13 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
-import { Route, Routes, useLocation, useSearchParams } from "react-router-dom";
+import { Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
 import { ActivityList } from "../pages/ActivityList";
 import { Artifacts } from "../pages/Artifacts";
 import { BoardPage } from "../pages/Board";
-import { GroupCreatePanel } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
 import { OwnerProfileSection } from "../pages/OwnerProfileSection";
 import { Routines } from "../pages/Routines";
@@ -18,6 +17,11 @@ import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { ThreadViewport } from "../pages/shell/chat-context";
 import { useClient } from "../providers/ClientProvider";
 import { AgentsPage } from "./AgentsPage";
+import { AgentPage } from "./agent/AgentPage";
+import { GroupPage, NewGroupPage } from "./agent/GroupPage";
+import { IdentityPage } from "./agent/IdentityPage";
+import { RecoveryPage } from "./agent/RecoveryPage";
+import { TradesPage } from "./agent/TradesPage";
 import { useShellData } from "./data";
 import { Lab } from "./Lab";
 import { ArchivedPage, ChatList } from "./lists/ChatList";
@@ -58,6 +62,16 @@ export function pageTitle(page: Page): string {
   switch (page) {
     case "agents":
       return t`Agents`;
+    case "agent":
+      return t`Agent info`;
+    case "identity":
+      return t`Identity and model`;
+    case "trades":
+      return t({ message: "Trades", context: "agent page" });
+    case "group":
+      return t({ message: "Groups", context: "page title" });
+    case "recovery":
+      return t`Outage and recovery`;
     case "artifacts":
       return t`Files`;
     case "archived":
@@ -197,6 +211,11 @@ export function DetailPages({
         />
         <Route path="/app/archived" element={<ArchivedPage />} />
         <Route path="/app/agents" element={<AgentsPage />} />
+        <Route path="/app/agent/:id" element={<ItemPage page="agent" />} />
+        <Route path="/app/identity/:id" element={<ItemPage page="identity" />} />
+        <Route path="/app/trades/:id" element={<ItemPage page="trades" />} />
+        <Route path="/app/group/:id" element={<ItemPage page="group" />} />
+        <Route path="/app/recovery" element={<RecoveryPage />} />
         <Route
           path="/app/market"
           element={
@@ -235,7 +254,7 @@ export function DetailPages({
             <AgentCreatePanel
               onCreated={(row) => {
                 data.refresh();
-                nav.go(`/app/${row.id}`, { replace: true });
+                nav.go(`/app/agent/${row.id}`, { replace: true });
               }}
             />
           }
@@ -243,19 +262,11 @@ export function DetailPages({
         <Route
           path="/app/new-group"
           element={
-            <Legacy>
-              <GroupCreatePanel
-                key={location.key}
-                agents={data.agents}
-                initialMembers={draft.members}
-                initialName={draft.name}
-                onCreated={(row) => {
-                  data.addGroup(row);
-                  data.refresh();
-                  nav.go(`/app/g/${row.id}`, { replace: true });
-                }}
-              />
-            </Legacy>
+            <NewGroupPage
+              key={location.key}
+              initialMembers={draft.members}
+              initialName={draft.name}
+            />
           }
         />
         <Route
@@ -280,6 +291,15 @@ export function DetailPages({
       </Routes>
     </Suspense>
   );
+}
+
+/** The pages of one agent or group, keyed by it so a new item starts fresh. */
+function ItemPage({ page }: { page: "agent" | "identity" | "trades" | "group" }) {
+  const { id = "" } = useParams();
+  if (page === "agent") return <AgentPage key={id} agentId={id} />;
+  if (page === "identity") return <IdentityPage key={id} agentId={id} />;
+  if (page === "trades") return <TradesPage key={id} agentId={id} />;
+  return <GroupPage key={id} groupId={id} />;
 }
 
 /* The conversation body: the existing message list and composer, mounted as they are. */

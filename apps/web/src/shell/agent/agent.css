@@ -12,10 +12,20 @@
   height: 44px;
   color: var(--amber);
 }
-.avatar.big,
-.hero .avatar.big {
+.edit-wrap > .lonora-agent-avatar,
+.hero > .group-av {
+  display: inline-block;
   width: 88px;
   height: 88px;
+}
+.preview > .lonora-agent-avatar {
+  display: inline-block;
+  width: 110px;
+  height: 110px;
+}
+.face-option > .lonora-agent-avatar {
+  width: 44px;
+  height: 44px;
 }
 .edit-wrap {
   position: relative;
@@ -164,10 +174,6 @@
 .preview {
   text-align: center;
   padding: 12px 0;
-}
-.preview .avatar {
-  width: 110px;
-  height: 110px;
 }
 .face-grid {
   display: grid;
@@ -342,9 +348,4 @@
   max-height: none;
   aspect-ratio: auto;
   min-height: 200px;
-}
-.group-hero .group-av {
-  display: inline-block;
-  width: 88px;
-  height: 88px;
 }

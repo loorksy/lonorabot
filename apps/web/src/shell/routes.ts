@@ -43,7 +43,13 @@ const ALIASES: Readonly<Record<string, string>> = {
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);
 /** Pages of one thing: the agent page, its identity form and trades, the group page. */
-const ITEM_PAGES: ReadonlySet<string> = new Set(["artifacts", "agent", "identity", "trades", "group"]);
+const ITEM_PAGES: ReadonlySet<string> = new Set([
+  "artifacts",
+  "agent",
+  "identity",
+  "trades",
+  "group",
+]);
 const NEEDS_ITEM: ReadonlySet<string> = new Set(["agent", "identity", "trades", "group"]);
 
 export const rootPath = (root: Root) => (root === "chats" ? "/app" : `/app/${root}`);
