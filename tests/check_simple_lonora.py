@@ -2246,10 +2246,11 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 .limit(1)
             )
             run_id = run.id if run else None
-        status = None
+        status = error_code = None
         started = utcnow()
         if run_id:
-            status = (await acceptance.work(run_id)).status
+            done = await acceptance.work(run_id)
+            status, error_code = done.status, done.error_code
         await acceptance.project()
         created = None
         async with acceptance.db.sessions() as session:
@@ -2282,6 +2283,7 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
         return {
             "run": run_id,
             "status": status,
+            "error_code": error_code,
             "agent": created,
             "cards": raised,
             "restrictions": restrictions,

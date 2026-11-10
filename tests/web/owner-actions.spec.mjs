@@ -138,6 +138,8 @@ async function setup(context, locale) {
     read: async () => (await context.request.get("/api/trading/controls")).json(),
     async cleanup() {
       await controls(original);
+      // Every test's own agent goes; leaked ones count against the agent-creation cap.
+      await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
     },
   };

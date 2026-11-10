@@ -106,6 +106,12 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
         data: { enabled, emergency_stop: false },
       });
 
+    // The agent's own creation is capped at 20 active agents per owner: a "Gold agent"
+    // an earlier spec run left behind (the specs run one at a time) must not use it up.
+    for (const leftover of await (await context.request.get("/api/agents")).json())
+      if (/^Gold agent [0-9a-f]{6}$/.test(leftover.name))
+        await context.request.delete(`/api/agents/${leftover.id}`, { headers });
+
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
@@ -116,7 +122,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       symbol: data.symbol,
       name,
     });
-    expect(created.status).toBe("completed");
+    expect(created.status, `creation run ${created.error_code}`).toBe("completed");
     gold = created.agent;
     expect(gold).toBeTruthy();
     // One creation card (Undo) and one grant card; nothing else to answer.
