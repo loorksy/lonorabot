@@ -79,7 +79,7 @@ msgid "{0} will be added to it"
 msgstr "{0} will be added to it"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:193
+#: src/shell/domain/UpdatesPages.tsx:197
 msgid "{0}, has something new"
 msgstr "{0}, has something new"
 
@@ -237,7 +237,7 @@ msgstr "A short tone when a reply arrives"
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
-#: src/shell/domain/UpdatesPages.tsx:54
+#: src/shell/domain/UpdatesPages.tsx:55
 msgid "A watch was met"
 msgstr "A watch was met"
 
@@ -294,7 +294,7 @@ msgstr "Account changes"
 msgid "Account ID"
 msgstr "Account ID"
 
-#: src/shell/domain/UpdatesPages.tsx:28
+#: src/shell/domain/UpdatesPages.tsx:29
 msgid "Account limits changed"
 msgstr "Account limits changed"
 
@@ -552,7 +552,7 @@ msgstr "Agent calls"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/domain/UpdatesPages.tsx:24
+#: src/shell/domain/UpdatesPages.tsx:25
 msgid "Agent created"
 msgstr "Agent created"
 
@@ -595,7 +595,7 @@ msgstr "Agent template"
 #~ msgstr "Agent workspace"
 
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:187
+#: src/shell/domain/UpdatesPages.tsx:191
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:53
 #: src/shell/pages.tsx:87
@@ -2007,7 +2007,7 @@ msgstr "Default market"
 msgid "Delegated task"
 msgstr "Delegated task"
 
-#: src/shell/domain/UpdatesPages.tsx:26
+#: src/shell/domain/UpdatesPages.tsx:27
 msgid "Delegation changed"
 msgstr "Delegation changed"
 
@@ -2730,7 +2730,7 @@ msgstr "Global routing"
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
-#: src/shell/domain/UpdatesPages.tsx:56
+#: src/shell/domain/UpdatesPages.tsx:57
 msgid "Goal added"
 msgstr "Goal added"
 
@@ -3055,7 +3055,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/domain/UpdatesPages.tsx:58
+#: src/shell/domain/UpdatesPages.tsx:59
 msgid "Knowledge added"
 msgstr "Knowledge added"
 
@@ -3107,7 +3107,7 @@ msgstr "Last successful read"
 msgid "Later"
 msgstr "Later"
 
-#: src/shell/domain/UpdatesPages.tsx:301
+#: src/shell/domain/UpdatesPages.tsx:305
 msgid "Latest actions"
 msgstr "Latest actions"
 
@@ -3336,7 +3336,7 @@ msgid "Margin"
 msgstr "Margin"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:211
+#: src/shell/domain/UpdatesPages.tsx:215
 msgid "Mark all as read"
 msgstr "Mark all as read"
 
@@ -3659,8 +3659,8 @@ msgstr "Next"
 msgid "Next: the chats"
 msgstr "Next: the chats"
 
-#: src/shell/domain/UpdatesPages.tsx:107
-#: src/shell/domain/UpdatesPages.tsx:320
+#: src/shell/domain/UpdatesPages.tsx:108
+#: src/shell/domain/UpdatesPages.tsx:324
 msgid "No activity yet."
 msgstr "No activity yet."
 
@@ -3720,7 +3720,7 @@ msgstr "No chats in «{0}» yet."
 msgid "No chats."
 msgstr "No chats."
 
-#: src/shell/domain/UpdatesPages.tsx:295
+#: src/shell/domain/UpdatesPages.tsx:299
 msgid "No enabled schedules."
 msgstr "No enabled schedules."
 
@@ -3788,7 +3788,7 @@ msgstr "No money limit"
 msgid "No new notifications"
 msgstr "No new notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:253
+#: src/shell/domain/UpdatesPages.tsx:257
 msgid "No notifications."
 msgstr "No notifications."
 
@@ -3997,7 +3997,7 @@ msgstr "Notification"
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/shell/domain/UpdatesPages.tsx:207
+#: src/shell/domain/UpdatesPages.tsx:211
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "Notifications"
@@ -4177,7 +4177,7 @@ msgstr "Operation"
 #~ msgid "Operation failed"
 #~ msgstr "Operation failed"
 
-#: src/shell/domain/UpdatesPages.tsx:34
+#: src/shell/domain/UpdatesPages.tsx:35
 msgid "Operation resolved"
 msgstr "Operation resolved"
 
@@ -4886,11 +4886,11 @@ msgstr "Restore"
 msgid "Restored"
 msgstr "Restored"
 
-#: src/shell/domain/UpdatesPages.tsx:32
+#: src/shell/domain/UpdatesPages.tsx:33
 msgid "Restriction lifted"
 msgstr "Restriction lifted"
 
-#: src/shell/domain/UpdatesPages.tsx:30
+#: src/shell/domain/UpdatesPages.tsx:31
 msgid "Restriction set"
 msgstr "Restriction set"
 
@@ -5385,12 +5385,12 @@ msgstr "Show as a chart"
 msgid "Show as a table"
 msgstr "Show as a table"
 
-#: src/shell/domain/UpdatesPages.tsx:129
+#: src/shell/domain/UpdatesPages.tsx:130
 #: src/shell/lists/UnifiedSearch.tsx:379
 msgid "Show more"
 msgstr "Show more"
 
-#: src/shell/domain/UpdatesPages.tsx:315
+#: src/shell/domain/UpdatesPages.tsx:319
 msgid "Show the full log"
 msgstr "Show the full log"
 
@@ -5477,7 +5477,7 @@ msgstr "Skill"
 msgid "Skill catalog"
 msgstr "Skill catalog"
 
-#: src/shell/domain/UpdatesPages.tsx:46
+#: src/shell/domain/UpdatesPages.tsx:47
 msgid "Skill created"
 msgstr "Skill created"
 
@@ -5502,7 +5502,7 @@ msgstr "Skill restored to version {version}"
 msgid "Skill saved"
 msgstr "Skill saved"
 
-#: src/shell/domain/UpdatesPages.tsx:48
+#: src/shell/domain/UpdatesPages.tsx:49
 msgid "Skill updated"
 msgstr "Skill updated"
 
@@ -5768,11 +5768,11 @@ msgstr "Supervises"
 msgid "Supervision · {0}"
 msgstr "Supervision · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:52
+#: src/shell/domain/UpdatesPages.tsx:53
 msgid "Supervision ended"
 msgstr "Supervision ended"
 
-#: src/shell/domain/UpdatesPages.tsx:50
+#: src/shell/domain/UpdatesPages.tsx:51
 msgid "Supervision started"
 msgstr "Supervision started"
 
@@ -5836,17 +5836,17 @@ msgstr "Task"
 msgid "Task boards"
 msgstr "Task boards"
 
-#: src/shell/domain/UpdatesPages.tsx:44
+#: src/shell/domain/UpdatesPages.tsx:45
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
 #: src/components/ai/AttentionInbox.tsx:30
 #: src/shell/domain/TasksPages.tsx:240
-#: src/shell/domain/UpdatesPages.tsx:42
+#: src/shell/domain/UpdatesPages.tsx:43
 msgid "Task completed"
 msgstr "Task completed"
 
-#: src/shell/domain/UpdatesPages.tsx:40
+#: src/shell/domain/UpdatesPages.tsx:41
 msgid "Task created"
 msgstr "Task created"
 
@@ -6743,7 +6743,7 @@ msgstr "Unmute microphone"
 msgid "Unpin"
 msgstr "Unpin"
 
-#: src/shell/domain/UpdatesPages.tsx:248
+#: src/shell/domain/UpdatesPages.tsx:252
 msgid "Unread"
 msgstr "Unread"
 
@@ -6791,7 +6791,7 @@ msgstr "Unverified metadata"
 msgid "Up {pct}%"
 msgstr "Up {pct}%"
 
-#: src/shell/domain/UpdatesPages.tsx:259
+#: src/shell/domain/UpdatesPages.tsx:263
 msgid "Upcoming"
 msgstr "Upcoming"
 
@@ -7149,7 +7149,7 @@ msgstr "Yesterday"
 msgid "You"
 msgstr "You"
 
-#: src/shell/domain/UpdatesPages.tsx:36
+#: src/shell/domain/UpdatesPages.tsx:37
 msgid "You approved a request"
 msgstr "You approved a request"
 
@@ -7178,7 +7178,7 @@ msgstr "You have not added a provider yet."
 msgid "You reached the name's maximum length"
 msgstr "You reached the name's maximum length"
 
-#: src/shell/domain/UpdatesPages.tsx:38
+#: src/shell/domain/UpdatesPages.tsx:39
 msgid "You rejected a request"
 msgstr "You rejected a request"
 

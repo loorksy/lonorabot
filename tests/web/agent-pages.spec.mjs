@@ -596,11 +596,14 @@ test("a broker outage: the heads-up and the updates list open the recovery page"
     new RegExp(`/app/recovery\\?account=${encodeURIComponent(data.account)}$`),
   );
   await expect(page.locator("main .hero h2")).toHaveText("The broker connection dropped");
+  // The updates page's notification row opens the same page.
   await page.goto("/app/updates");
-  const link = page.getByRole("link", { name: "Outage and recovery", exact: true }).first();
-  await expect(link).toHaveAttribute(
-    "href",
-    `/app/recovery?account=${encodeURIComponent(data.account)}`,
+  await page
+    .locator("main [data-attention-id]", { hasText: "Broker connection needs review" })
+    .first()
+    .click();
+  await expect(page).toHaveURL(
+    new RegExp(`/app/recovery\\?account=${encodeURIComponent(data.account)}$`),
   );
 });
 
