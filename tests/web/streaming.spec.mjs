@@ -198,7 +198,7 @@ test("live reply stays before a later owner message instead of moving to the foo
     const saved = await response.json();
     await expect(page.locator(`[data-message-id='${saved.message.id}']`)).toBeVisible();
     const order = await page
-      .locator('[data-testid="transcript"] article')
+      .locator('[data-testid="transcript"] .msg')
       .evaluateAll((nodes) =>
         nodes.map(
           (node) => node.getAttribute("data-stream-run-id") ?? node.getAttribute("data-message-id"),
@@ -210,7 +210,7 @@ test("live reply stays before a later owner message instead of moving to the foo
     const resumed = fixture({ ...data, action: "recover" });
     await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toContainText(resumed.text);
     const resumedOrder = await page
-      .locator('[data-testid="transcript"] article')
+      .locator('[data-testid="transcript"] .msg')
       .evaluateAll((nodes) =>
         nodes.map(
           (node) => node.getAttribute("data-stream-run-id") ?? node.getAttribute("data-message-id"),

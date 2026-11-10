@@ -527,7 +527,7 @@ test("a cleared conversation leaves the open chat and stays hidden when it is re
   await signIn(context, fixture);
   const [alpha, beta] = fixture.agents;
   await page.goto(`/app/${beta.id}?thread=${fixture.threads[1].id}`);
-  const cleared = page.locator("article", { hasText: "Second update" });
+  const cleared = page.locator(".msg", { hasText: "Second update" });
   await expect(cleared.first()).toBeVisible();
   await desktopRow(page, key(beta)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Delete", exact: true }).click();
