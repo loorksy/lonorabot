@@ -327,7 +327,7 @@ msgstr "Action"
 #~ msgstr "Activate with device authentication"
 
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:53
+#: src/shell/ChatHeader.tsx:56
 msgid "Active"
 msgstr "Active"
 
@@ -556,7 +556,7 @@ msgstr "Agent collaboration"
 msgid "Agent created"
 msgstr "Agent created"
 
-#: src/shell/ChatMenu.tsx:127
+#: src/shell/ChatMenu.tsx:132
 msgid "Agent files"
 msgstr "Agent files"
 
@@ -564,9 +564,9 @@ msgstr "Agent files"
 msgid "Agent identity"
 msgstr "Agent identity"
 
-#: src/shell/ChatHeader.tsx:42
-#: src/shell/ChatMenu.tsx:82
-#: src/shell/ChatMenu.tsx:93
+#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatMenu.tsx:87
+#: src/shell/ChatMenu.tsx:98
 #: src/shell/pages.tsx:89
 msgid "Agent info"
 msgstr "Agent info"
@@ -898,7 +898,7 @@ msgid "Awaiting review"
 msgstr "Awaiting review"
 
 #: src/pages/shell/bot-panel.tsx:276
-#: src/shell/ChatHeader.tsx:57
+#: src/shell/ChatHeader.tsx:60
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
 #: src/shell/StatePage.tsx:72
@@ -1265,7 +1265,7 @@ msgstr "Channel"
 #: src/shell/agent/ChartSheet.tsx:501
 #: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/agent/ChartSheet.tsx:507
-#: src/shell/ChatMenu.tsx:96
+#: src/shell/ChatMenu.tsx:101
 msgid "Chart"
 msgstr "Chart"
 
@@ -1291,8 +1291,8 @@ msgstr "Chat"
 msgid "Chat list"
 msgstr "Chat list"
 
-#: src/shell/ChatHeader.tsx:90
-#: src/shell/ChatMenu.tsx:78
+#: src/shell/ChatHeader.tsx:96
+#: src/shell/ChatMenu.tsx:83
 msgid "Chat menu"
 msgstr "Chat menu"
 
@@ -1717,7 +1717,7 @@ msgstr "Connecting"
 #~ msgid "Connecting microphone"
 #~ msgstr "Connecting microphone"
 
-#: src/shell/ChatHeader.tsx:47
+#: src/shell/ChatHeader.tsx:50
 msgid "Connecting…"
 msgstr "Connecting…"
 
@@ -2739,8 +2739,8 @@ msgid "Goal title"
 msgstr "Goal title"
 
 #: src/shell/agent/AgentPage.tsx:289
-#: src/shell/ChatMenu.tsx:85
-#: src/shell/ChatMenu.tsx:105
+#: src/shell/ChatMenu.tsx:90
+#: src/shell/ChatMenu.tsx:110
 #: src/shell/pages.tsx:115
 msgid "Goals"
 msgstr "Goals"
@@ -2766,9 +2766,9 @@ msgstr "Group"
 msgid "Group from the selected"
 msgstr "Group from the selected"
 
-#: src/shell/ChatHeader.tsx:42
-#: src/shell/ChatMenu.tsx:81
-#: src/shell/ChatMenu.tsx:93
+#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatMenu.tsx:86
+#: src/shell/ChatMenu.tsx:98
 msgid "Group info"
 msgstr "Group info"
 
@@ -3044,8 +3044,8 @@ msgstr "Keyboard shortcuts"
 
 #: src/pages/Knowledge.tsx:20
 #: src/shell/agent/AgentPage.tsx:285
-#: src/shell/ChatMenu.tsx:84
-#: src/shell/ChatMenu.tsx:99
+#: src/shell/ChatMenu.tsx:89
+#: src/shell/ChatMenu.tsx:104
 #: src/shell/pages.tsx:109
 msgid "Knowledge"
 msgstr "Knowledge"
@@ -3614,7 +3614,7 @@ msgstr "New message"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 
-#: src/shell/ChatMenu.tsx:122
+#: src/shell/ChatMenu.tsx:127
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "New task"
@@ -4094,8 +4094,8 @@ msgstr "Open “Permissions”, then “Camera”."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "Open “Permissions”, then “Microphone”."
 
-#: src/shell/ChatHeader.tsx:82
-#: src/shell/ChatHeader.tsx:83
+#: src/shell/ChatHeader.tsx:85
+#: src/shell/ChatHeader.tsx:86
 msgid "Open active call"
 msgstr "Open active call"
 
@@ -4291,7 +4291,7 @@ msgstr "Pause for now"
 
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
-#: src/shell/ChatHeader.tsx:51
+#: src/shell/ChatHeader.tsx:54
 msgid "Paused"
 msgstr "Paused"
 
@@ -5125,7 +5125,7 @@ msgid "Scheduled"
 msgstr "Scheduled"
 
 #: src/shell/agent/AgentPage.tsx:292
-#: src/shell/ChatMenu.tsx:112
+#: src/shell/ChatMenu.tsx:117
 #: src/shell/pages.tsx:107
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
@@ -6909,8 +6909,8 @@ msgstr "Vision"
 msgid "Voice"
 msgstr "Voice"
 
-#: src/shell/ChatHeader.tsx:82
-#: src/shell/ChatHeader.tsx:83
+#: src/shell/ChatHeader.tsx:85
+#: src/shell/ChatHeader.tsx:86
 msgid "Voice call"
 msgstr "Voice call"
 
@@ -6971,7 +6971,7 @@ msgid "Waiting for the broker to report the entry position. The accepted order w
 msgstr "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 
 #: src/pages/shell/message-cards.tsx:188
-#: src/shell/ChatHeader.tsx:45
+#: src/shell/ChatHeader.tsx:48
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "Waiting for the network…"
@@ -7093,7 +7093,7 @@ msgstr "Workdays"
 msgid "Working"
 msgstr "Working"
 
-#: src/shell/Shell.tsx:807
+#: src/shell/Shell.tsx:808
 msgid "Workspace"
 msgstr "Workspace"
 
