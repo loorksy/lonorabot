@@ -34,8 +34,8 @@ export function homeToolbarUi(mobile) {
         const surface = mobile ? page : page.locator(".topbar header.chats-header");
         // Web: the reference's chats header is the «Lonora» title, the search field and «+»; no settings there.
         const search = mobile
-          ? surface.getByRole("button", {
-              name: locale === "ar" ? "ابحث عن وكيل أو مجموعة" : "Search agents or groups",
+          ? surface.getByRole("searchbox", {
+              name: locale === "ar" ? "بحث في Lonora" : "Search in Lonora",
               exact: true,
             })
           : surface.getByRole("searchbox", {
@@ -43,12 +43,14 @@ export function homeToolbarUi(mobile) {
               exact: true,
             });
         await expect(search).toBeVisible();
-        await expect(
-          surface.getByRole("button", {
-            name: locale === "ar" ? "الإعدادات" : "Settings",
-            exact: true,
-          }),
-        ).toHaveCount(0);
+        // Phones: Settings is the fourth tab of the floating bar, not part of the chats header.
+        if (!mobile)
+          await expect(
+            surface.getByRole("button", {
+              name: locale === "ar" ? "الإعدادات" : "Settings",
+              exact: true,
+            }),
+          ).toHaveCount(0);
         await expect(
           page.getByRole("heading", {
             name: locale === "ar" ? "المحادثات" : "Conversations",
@@ -56,27 +58,23 @@ export function homeToolbarUi(mobile) {
           }),
         ).toHaveCount(0);
         await search.click();
-        const field = mobile
-          ? page.getByPlaceholder(
-              locale === "ar" ? "ابحث عن وكيل أو مجموعة" : "Search agents or groups",
-              { exact: true },
-            )
-          : search;
+        const field = search;
         await expect(field).toBeVisible();
         if (!mobile) await expect(surface).toHaveClass(/search-active/);
         await field.fill("no-match-visual-regression");
         if (!mobile) await expect(page.locator("[data-inbox-agent-id]")).toHaveCount(0);
         await field.fill("");
         if (mobile) {
-          await search.click();
-          await expect(field).not.toBeVisible();
+          await page
+            .getByRole("button", { name: locale === "ar" ? "إغلاق البحث" : "Close search" })
+            .click();
+          await expect(page.getByTestId("unified-search")).toHaveCount(0);
         } else {
           await page.keyboard.press("Escape");
           await expect(surface).not.toHaveClass(/search-active/);
         }
         const create = surface.getByRole("button", {
-          name:
-            locale === "ar" ? (mobile ? "إنشاء" : "محادثة جديدة") : mobile ? "Create" : "New chat",
+          name: locale === "ar" ? "محادثة جديدة" : "New chat",
           exact: true,
         });
         await expect(create).toBeVisible();

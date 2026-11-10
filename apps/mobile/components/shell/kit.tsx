@@ -154,26 +154,18 @@ export function Row({
 }) {
   const { c } = useTheme();
   const { rtl } = useSession();
-  return (
-    <Pressable
-      accessibilityRole={role ?? "button"}
-      accessibilityLabel={accessibilityLabel ?? title}
-      accessibilityState={checked === undefined ? undefined : { checked }}
-      testID={testID}
-      disabled={!onPress}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: rtl ? "row-reverse" : "row",
-        alignItems: "center",
-        gap: 12,
-        minHeight: 60,
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomColor: c.line,
-        backgroundColor: pressed ? c.hover : "transparent",
-      })}
-    >
+  const layout = {
+    flexDirection: rtl ? "row-reverse" : "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderBottomWidth: last ? 0 : 1,
+    borderBottomColor: c.line,
+  } as const;
+  const inner = (
+    <>
       {lead}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text
@@ -202,6 +194,26 @@ export function Row({
         ) : null}
       </View>
       {trailing}
+    </>
+  );
+  // A row with nothing to press is a plain view: its trailing control (a switch) must not sit
+  // inside a disabled button.
+  if (!onPress)
+    return (
+      <View testID={testID} style={layout}>
+        {inner}
+      </View>
+    );
+  return (
+    <Pressable
+      accessibilityRole={role ?? "button"}
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={checked === undefined ? undefined : { checked }}
+      testID={testID}
+      onPress={onPress}
+      style={({ pressed }) => ({ ...layout, backgroundColor: pressed ? c.hover : "transparent" })}
+    >
+      {inner}
     </Pressable>
   );
 }

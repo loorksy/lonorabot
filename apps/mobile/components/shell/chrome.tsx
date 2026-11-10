@@ -114,7 +114,8 @@ export function ChatsHeader({
         </View>
         <TextInput
           ref={input}
-          accessibilityRole="search"
+          inputMode="search"
+          returnKeyType="search"
           accessibilityLabel={t("sh_searchPh")}
           placeholder={t("sh_searchPh")}
           placeholderTextColor={c.muted}
