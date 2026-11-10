@@ -14,7 +14,14 @@ class RoutineCreate(Contract):
     cron: str | None = None
     run_at: datetime | None = Field(
         default=None,
-        description="One-shot schedule: fire once at this time, then switch the routine off.",
+        description=(
+            "One-shot schedule: fire once at this time, then switch the routine off. A one-shot"
+            " linked to a goal step fires at this time if its step is current; if the step is"
+            " not current yet (an earlier step is pending, or its trade is executing) or the goal"
+            " is paused or blocked, it retries every 5 minutes and fires when the step becomes"
+            " current. It switches off once it can no longer run: its step is completed, passed"
+            " or removed, or the goal has ended."
+        ),
     )
     timezone: str = "UTC"
     enabled: bool = True

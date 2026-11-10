@@ -615,6 +615,11 @@ async def test_a_goal_one_shot_waits_for_its_step_and_switches_off_once_it_canno
                 row.step_id = "s9"
                 assert not await one_shot_can_wait(session, row, wait)
                 assert not await one_shot_can_wait(session, row, "goal_step_not_found")
+                # The goal is blocked (a failed trade waits for the owner): it waits.
+                row.step_id = "s3"
+                goal.state = {**goal.state, "status": "blocked"}
+                assert await one_shot_can_wait(session, row, "goal_not_active")
+                goal.state = {**goal.state, "status": "active"}
                 # The goal has ended: even a step ahead switches it off.
                 row.step_id = "s3"
                 goal.state = {**goal.state, "status": "cancelled"}
@@ -623,6 +628,75 @@ async def test_a_goal_one_shot_waits_for_its_step_and_switches_off_once_it_canno
                 assert not await one_shot_can_wait(session, row, "goal_not_active")
         finally:
             routines.create_run = original
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_goal_one_shot_refused_by_the_real_goal_binding_waits_then_fires():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_db.routines import ONE_SHOT_RETRY, enqueue_routine
+    from lonora_db.schema import RoutineRow, RunRow, TradingGoalRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Bound")
+        created = await fixture.request(
+            "POST",
+            f"/routines/{agent['id']}",
+            {"prompt": "Review step two", "run_at": "2031-01-01T09:00:00Z"},
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, created["id"], with_for_update=True)
+            assert row is not None
+            goal = TradingGoalRow(
+                owner_id=fixture.owner,
+                agent_id=agent["id"],
+                thread_id=row.thread_id,
+                payload={
+                    "title": "Plan",
+                    "steps": [{"id": "s1", "title": "Analyse"}, {"id": "s2", "title": "Review"}],
+                },
+                state={
+                    "status": "active",
+                    "current_step": "s1",
+                    "steps": {"s1": {"status": "pending"}, "s2": {"status": "pending"}},
+                },
+            )
+            session.add(goal)
+            await session.flush()
+            row.goal_id, row.step_id = goal.id, "s2"
+            goal_id = goal.id
+        now = utcnow()
+        # Step two is not current yet: the real binding refuses it, and it waits.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, created["id"], with_for_update=True)
+            assert row is not None
+            assert not await enqueue_routine(session, row, now)
+            assert row.enabled is True and row.last_run_at is None
+            assert row.next_run_at == now + ONE_SHOT_RETRY
+        # Step one is done and step two is current: the retry fires it, once.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            goal = await session.get(TradingGoalRow, goal_id, with_for_update=True)
+            assert goal is not None
+            goal.state = {
+                "status": "active",
+                "current_step": "s2",
+                "steps": {"s1": {"status": "completed"}, "s2": {"status": "pending"}},
+            }
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RoutineRow, created["id"], with_for_update=True)
+            assert row is not None
+            assert await enqueue_routine(session, row, now + ONE_SHOT_RETRY)
+            assert row.enabled is False and row.last_run_at is not None
+        async with fixture.runtime.db.sessions() as session:
+            runs = (
+                await session.scalars(select(RunRow).where(RunRow.agent_id == agent["id"]))
+            ).all()
+        assert [run.model_metadata.get("step_id") for run in runs] == ["s2"]
     finally:
         await fixture.close()
 
