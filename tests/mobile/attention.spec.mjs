@@ -18,8 +18,14 @@ test("Expo Arabic attention uses durable server state and read does not grant tr
   );
   await page.goto("/");
   await page.getByTestId("tab-updates").click();
-  await expect(page.getByText("التداول الجديد متوقف", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "تحديد كمقروء", exact: true }).click();
+  // This owner may hold earlier alerts from other specs: read them all, one at a time.
+  await expect(page.getByText("التداول الجديد متوقف", { exact: true }).first()).toBeVisible();
+  const read = page.getByRole("button", { name: "تحديد كمقروء", exact: true });
+  while (await read.count()) {
+    const before = await read.count();
+    await read.first().click();
+    await expect(read).toHaveCount(before - 1);
+  }
   await expect(page.getByText("التداول الجديد متوقف", { exact: true })).toHaveCount(0);
   await page.reload();
   await page.getByTestId("tab-updates").click();

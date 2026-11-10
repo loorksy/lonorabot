@@ -245,7 +245,7 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
     expect(uiResponse.status()).toBe(201);
     uiAgent = await uiResponse.json();
     await expect(page.getByTestId("trading-avatar").first()).toBeVisible();
-    expect((await readAgent(uiAgent.id)).avatar).toBe("face-happy");
+    await expect.poll(async () => (await readAgent(uiAgent.id)).avatar).toBe("face-happy");
 
     expect(errors).toEqual([]);
   } finally {

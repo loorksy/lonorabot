@@ -84,12 +84,16 @@ for (let i = 0; ; i++) {
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 const seed = JSON.parse(
-  execFileSync(join(ROOT, ".venv/bin/python"), [join(ROOT, "tests/ui-reference/seed_reference.py")], {
-    cwd: ROOT,
-    env,
-    input: JSON.stringify({ action: "init" }),
-    encoding: "utf8",
-  }),
+  execFileSync(
+    join(ROOT, ".venv/bin/python"),
+    [join(ROOT, "tests/ui-reference/seed_reference.py")],
+    {
+      cwd: ROOT,
+      env,
+      input: JSON.stringify({ action: "init" }),
+      encoding: "utf8",
+    },
+  ),
 );
 const csrf = seed.cookies.find((cookie) => cookie.name === "lonora_csrf").value;
 const agentKey = (name) => `agent:${seed.agents[name]}`;
@@ -171,7 +175,10 @@ async function scrollRef(page, to) {
 async function scrollApp(page, to) {
   const found = await page.evaluate((where) => {
     let el = document.querySelector("[data-key]");
-    while (el && !(el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)))
+    while (
+      el &&
+      !(el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY))
+    )
       el = el.parentElement;
     if (!el) return false;
     el.scrollTop = where === "end" ? el.scrollHeight : where;
@@ -206,7 +213,8 @@ const STATES = [
     name: "filters-revealed",
     ref: (page) => scrollRef(page, 0),
     app: async (page) => {
-      if (!(await scrollApp(page, 0))) throw new Error("no scrollable ancestor of [data-key] (FlatList)");
+      if (!(await scrollApp(page, 0)))
+        throw new Error("no scrollable ancestor of [data-key] (FlatList)");
     },
   },
   {

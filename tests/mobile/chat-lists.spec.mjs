@@ -66,8 +66,14 @@ for (const theme of ["dark", "light"])
     context,
   }) => {
     const fixture = seed({ action: "init" });
-    await signIn(context, fixture, "en", theme);
+    const headers = await signIn(context, fixture, "en", theme);
     const [alpha, beta, gamma, delta] = fixture.agents;
+    // Muted and paused marks come from the server's state.
+    await context.request.post("/api/threads/prefs", {
+      headers,
+      data: { thread_ids: [fixture.threads[2].id], muted: true },
+    });
+    await context.request.patch(`/api/agents/${delta.id}`, { headers, data: { paused: true } });
     await page.goto("/");
     await expect(row(page, key(alpha))).toContainText("Yes, it opened.");
     await expect(row(page, key(alpha)).getByLabel("1 unread")).toBeVisible();
@@ -75,6 +81,20 @@ for (const theme of ["dark", "light"])
     await expect(row(page, key(beta))).toContainText("Second update");
     await expect(row(page, key(gamma))).toContainText("You: Accepted only");
     await expect(row(page, key(delta))).toContainText(/\d\d:\d\d/);
+    // Q2: one grey tick when the server accepted it; two accent ticks once the run started.
+    await expect(
+      row(page, key(gamma)).getByRole("img", { name: "Received by the server" }),
+    ).toHaveCount(1);
+    await expect(row(page, key(gamma)).getByTestId("tick-read")).toHaveCount(0);
+    await expect(
+      row(page, key(delta)).getByRole("img", { name: "The agent started on it" }),
+    ).toHaveCount(1);
+    await expect(row(page, key(gamma)).getByRole("img", { name: "Muted" })).toBeVisible();
+    await expect(row(page, key(delta))).toContainText("Paused");
+    // The group's faces: Lonora's avatar, several of them in the cluster.
+    expect(
+      await row(page, `group:${fixture.group.id}`).getByTestId("trading-avatar").count(),
+    ).toBeGreaterThanOrEqual(2);
     // A group with nothing said yet shows its purpose.
     await expect(row(page, `group:${fixture.group.id}`)).toContainText("Gold research");
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
@@ -85,30 +105,52 @@ for (const theme of ["dark", "light"])
     await page.screenshot({ path: `.runtime/mobile-chats-${theme}.png`, animations: "disabled" });
   });
 
-test("pinning a fourth chat is refused; pins lead in pin order", async ({ page, context }) => {
+test("pinning a fourth chat is refused locally and when the server answers 409; pins lead in pin order", async ({
+  page,
+  context,
+}) => {
   const fixture = seed({ action: "init" });
   const headers = await signIn(context, fixture);
   const [alpha, beta, gamma, delta] = fixture.agents;
   const pin = (ids, pinned) =>
     context.request.post("/api/threads/prefs", { headers, data: { thread_ids: ids, pinned } });
   const before = await (await context.request.get("/api/threads/inbox")).json();
-  const pinned = before.filter((entry) => entry.pinned_order != null).map((e) => e.thread_id);
-  if (pinned.length) await pin(pinned, false);
-  expect(
-    (await pin([fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id], true)).ok(),
-  ).toBe(true);
-  await page.goto("/");
-  await expect(row(page, key(alpha))).toBeVisible();
-  const keys = await page
-    .locator("[data-key]")
-    .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
-  expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
-  await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
-  await hold(page, row(page, key(delta)));
-  await expect(toolbar(page)).toBeVisible();
-  await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
-  await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
-  await pin(pinned.length ? pinned : [], true);
+  const earlier = before.filter((entry) => entry.pinned_order != null).map((e) => e.thread_id);
+  if (earlier.length) await pin(earlier, false);
+  const mine = [fixture.threads[0].id, fixture.threads[1].id, fixture.threads[2].id];
+  expect((await pin(mine, true)).ok()).toBe(true);
+  try {
+    await page.goto("/");
+    await expect(row(page, key(alpha))).toBeVisible();
+    const keys = await page
+      .locator("[data-key]")
+      .evaluateAll((rows) => rows.slice(0, 3).map((r) => r.dataset.key));
+    expect(keys).toEqual([key(gamma), key(beta), key(alpha)]);
+    await expect(row(page, key(alpha)).getByRole("img", { name: "Pinned" })).toBeVisible();
+    // Refused locally: three are pinned already.
+    await hold(page, row(page, key(delta)));
+    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
+    await toolbar(page).getByRole("button", { name: "Cancel the selection" }).click();
+    // A stale view (another device pinned meanwhile) reaches the server, which refuses (409).
+    await page.route("**/api/threads/inbox", async (route) => {
+      const rows = await (await route.fetch()).json();
+      await route.fulfill({ json: rows.map((entry) => ({ ...entry, pinned_order: null })) });
+    });
+    await page.reload();
+    await expect(row(page, key(delta))).toBeVisible();
+    const refused = page.waitForResponse(
+      (response) => response.url().endsWith("/api/threads/prefs") && response.status() === 409,
+    );
+    await hold(page, row(page, key(delta)));
+    await toolbar(page).getByRole("button", { name: "Pin", exact: true }).click();
+    await refused;
+    await expect(page.getByText("You can pin 3 chats only")).toBeVisible();
+  } finally {
+    await page.unroute("**/api/threads/inbox");
+    await pin(mine, false);
+    if (earlier.length) await pin(earlier, true);
+  }
 });
 
 test("selection: long press, toolbar, favourites and select all; archive with undo; the archived page", async ({
@@ -226,6 +268,11 @@ test("search browses recent content and finds a message; the new-chat sheet lead
   await expect(page.getByText("No results in this category")).toBeVisible();
   await field.fill(alpha.name.split(" ")[0]);
   await expect(page.getByTestId("search-section-chats")).toContainText(alpha.name);
+  await field.fill("Second update");
+  await page.getByTestId("search-hit-messages").first().click();
+  await expect(page).toHaveURL(/\/thread\?.*around=\d+/);
+  await page.goBack();
+  await expect(field).toBeVisible();
   await page.getByRole("button", { name: "Close search" }).click();
   await expect(row(page, key(alpha))).toBeVisible();
   await page.getByRole("button", { name: "New chat", exact: true }).click();
@@ -263,6 +310,42 @@ test("«حذف» and «مسح» hide the history for the owner; agents and group
   expect(
     inbox.find((entry) => entry.thread_id === fixture.threads[0].id).hidden_before_seq,
   ).toBeGreaterThan(0);
+  // A group row too: «مسح الرسائل» from the ⋮ menu hides its history; the group stays (Q1, Q44).
+  const groupKey = `group:${fixture.group.id}`;
+  await hold(page, row(page, groupKey));
+  await toolbar(page).getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Clear the messages", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(row(page, groupKey)).toBeVisible();
+  expect(deletes).toEqual([]);
+  const groups = await (await context.request.get("/api/groups")).json();
+  expect(groups.some((group) => group.id === fixture.group.id)).toBe(true);
+});
+
+test("offline outbox (Q6): a message waiting for the network shows on its row and in the strip", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture, "ar");
+  const [alpha] = fixture.agents;
+  await page.goto(`/thread?id=${fixture.threads[0].id}`);
+  // The request never answers: the intent stays «sending» in this device's outbox.
+  await page.route("**/api/threads/*/messages", (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+  });
+  const text = `queued ${Date.now() % 10000}`;
+  await page.getByLabel("اكتب رسالة…", { exact: true }).fill(text);
+  await page.getByRole("button", { name: "إرسال", exact: true }).click();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "رجوع", exact: true }).click();
+  await expect(row(page, key(alpha))).toContainText(text);
+  await expect(row(page, key(alpha)).getByRole("img", { name: "بانتظار الشبكة…" })).toBeVisible();
+  await expect(page.getByTestId("network-strip")).toContainText("لا يوجد اتصال بالإنترنت", {
+    timeout: 20000,
+  });
+  await expect(page.getByTestId("network-strip")).toContainText("رسالة واحدة تنتظر");
+  await context.setOffline(false);
 });
 
 test("offline: the network strip says so and a restored connection clears it", async ({
@@ -312,6 +395,8 @@ test("«وكيل جديد» posts /api/agents/create with the template, never /a
       return Boolean(created);
     })
     .toBe(true);
+  // The template is saved on the agent (Q9).
+  expect(created.template).toBe("research");
   await context.request.delete(`/api/agents/${created.id}`, { headers: seeded.headers });
 });
 
@@ -334,4 +419,19 @@ test("opening an unread chat reads it on the server; the row and the tab badge f
     .toBe(0);
   await page.goBack();
   await expect(row(page, key(beta)).getByLabel("2 unread")).toHaveCount(0);
+});
+
+test("search pages a long result list by 32 with «Show more»", async ({ page, context }) => {
+  test.setTimeout(90000);
+  const fixture = seed({ action: "init", bulk: 40 });
+  await signIn(context, fixture);
+  await page.goto("/");
+  const field = page.getByRole("searchbox", { name: "Search in Lonora" });
+  await field.click();
+  await field.fill("Paging needle");
+  await page.getByRole("tab", { name: "Messages" }).click();
+  const hits = page.getByTestId("search-hit-messages");
+  await expect(hits).toHaveCount(32);
+  await page.getByRole("button", { name: "Show more", exact: true }).click();
+  await expect(hits).toHaveCount(40);
 });
