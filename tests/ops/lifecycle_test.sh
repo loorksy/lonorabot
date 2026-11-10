@@ -368,7 +368,8 @@ dc exec -T db touch /tmp/fail-once
 if lonora restore "$b1" --replace >"$work/restore-fail.log" 2>&1; then fail 'restore with a failing pg_restore succeeded'; fi
 grep -q 'Restoring the database failed' "$work/restore-fail.log" || { show "$work/restore-fail.log"; fail 'restore failure message'; }
 [[ -f "$home/state/restore-in-progress" ]] || fail 'restore marker kept'
-lonora status 2>&1 | grep -q 'RESTORE NOT FINISHED' || fail 'status shows the unfinished restore'
+lonora status >"$work/restore-status.log" 2>&1 || true
+grep -q 'RESTORE NOT FINISHED' "$work/restore-status.log" || { show "$work/restore-status.log"; fail 'status shows the unfinished restore'; }
 if lonora update v4-good >"$work/restore-blocks.log" 2>&1; then fail 'update ran over an unfinished restore'; fi
 grep -q 'A restore stopped part-way' "$work/restore-blocks.log" || fail 'update names the unfinished restore'
 count="$(backups)"
