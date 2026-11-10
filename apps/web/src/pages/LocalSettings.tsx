@@ -43,7 +43,6 @@ export function LocalSettings() {
       <label className="check">
         <input
           type="checkbox"
-          role="switch"
           checked={prefs.agentStatus}
           onChange={(event) => setChatPref("agentStatus", event.target.checked)}
         />
@@ -60,7 +59,6 @@ export function LocalSettings() {
       <label className="check">
         <input
           type="checkbox"
-          role="switch"
           checked={prefs.enterSend}
           onChange={(event) => setChatPref("enterSend", event.target.checked)}
         />

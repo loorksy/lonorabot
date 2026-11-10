@@ -1,6 +1,7 @@
 // biome-ignore-all lint/style/useTemplate: ported verbatim from the reference
 // biome-ignore-all lint/complexity/useArrowFunction: ported verbatim from the reference
 // biome-ignore-all lint/style/useConst: ported verbatim from the reference
+// biome-ignore-all lint/suspicious/useIterableCallbackReturn: ported verbatim from the reference
 /* The chat wallpaper of docs/ui-reference/Lonora-Desktop-37.html (4832-4960), ported line for
    line: a seeded Poisson-disc doodle on a 432px torus, one ink (currentColor), built once into a
    hidden sprite (#lw-defs); the chat paints one <rect fill="url(#lw-p-…)">. */
