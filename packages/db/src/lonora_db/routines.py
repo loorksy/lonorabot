@@ -6,7 +6,7 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import RunRequest
 from lonora_core.cron import next_occurrence
 from lonora_core.user_error import LonoraError
-from sqlalchemy import Select, select
+from sqlalchemy import ColumnElement, Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
@@ -14,8 +14,12 @@ from .schema import AgentRow, RoutineRow, ThreadRow, TradingGoalRow
 from .trading_goals import owned_goal, planned_step
 from .transactions import owned_agent, owned_thread
 
+ONE_SHOT_RETRY = timedelta(minutes=5)
+
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
+    if request.run_at is not None:
+        return request.run_at
     if request.cron:
         return next_occurrence(request.cron, request.timezone, after)
     return after + timedelta(seconds=request.interval_seconds or 60)
@@ -26,14 +30,17 @@ def routine_data(row: RoutineRow) -> dict[str, Any]:
         "id": row.id,
         "agent_id": row.agent_id,
         "thread_id": row.thread_id,
+        "title": row.title,
         "prompt": row.prompt,
         "goal_id": row.goal_id,
         "step_id": row.step_id,
         "interval_seconds": row.interval_seconds,
         "cron": row.cron,
+        "run_at": row.run_at.isoformat() if row.run_at else None,
         "timezone": row.timezone,
         "enabled": row.enabled,
         "next_run_at": row.next_run_at.isoformat(),
+        "last_run_at": row.last_run_at.isoformat() if row.last_run_at else None,
     }
 
 
@@ -85,6 +92,12 @@ async def create_routine(
     return row
 
 
+def not_fired_one_shot() -> ColumnElement[bool]:
+    """A one-shot that already fired never fires again until its run_at is changed, whoever
+    switches it back on (owner, the agent's routine_toggle, a supervisor)."""
+    return or_(RoutineRow.run_at.is_(None), RoutineRow.last_run_at.is_(None))
+
+
 def due_query(now: datetime) -> Select[RoutineRow]:
     return (
         select(RoutineRow)
@@ -93,6 +106,7 @@ def due_query(now: datetime) -> Select[RoutineRow]:
             RoutineRow.enabled.is_(True),
             RoutineRow.next_run_at <= now,
             AgentRow.paused.is_(False),
+            not_fired_one_shot(),
         )
         .order_by(RoutineRow.next_run_at)
     )
@@ -194,6 +208,21 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
             "goal_step_not_found",
         }:
             raise
+        refused = error.code
+    else:
+        refused = None
+    if row.run_at is not None:
+        if enqueued:
+            # A one-shot routine fires once and then stays off until the owner reschedules it.
+            row.enabled, row.last_run_at = False, now
+        elif await one_shot_can_wait(session, row, refused):
+            # Its goal can still reach its step: it stays scheduled and is tried again later.
+            row.next_run_at = now + ONE_SHOT_RETRY
+        else:
+            # Its goal ended or its step is completed, passed or gone: it switches off.
+            row.enabled = False
+        return enqueued
+    row.last_run_at = now
     request = RoutineCreate(
         prompt=row.prompt,
         interval_seconds=row.interval_seconds,
@@ -205,8 +234,28 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     candidate = next_run(request, previous)
     # Collapse missed schedules into one wake; never replay a burst after downtime.
     row.next_run_at = candidate if candidate > now else next_run(request, now)
-    row.last_run_at = now
     return enqueued
+
+
+async def one_shot_can_wait(session: AsyncSession, row: RoutineRow, refused: str | None) -> bool:
+    """A goal-linked one-shot waits while its goal can still reach its step: the goal is paused
+    or blocked, the step is not reached yet, or its trade is executing. It switches off only
+    when the goal has ended or its step is completed, passed or gone."""
+    if refused not in {"goal_not_active", "goal_step_unavailable"} or not row.goal_id:
+        return False
+    goal = await session.get(TradingGoalRow, row.goal_id)
+    if goal is None or goal.state.get("status") in {"completed", "cancelled"}:
+        return False
+    if refused == "goal_not_active":
+        return True
+    order = [step["id"] for step in goal.payload.get("steps", [])]
+    current = goal.state.get("current_step")
+    if row.step_id not in order or current not in order:
+        return False
+    if goal.state.get("steps", {}).get(row.step_id, {}).get("status") == "completed":
+        return False
+    # The current step (executing, or held) or one still ahead of it; an earlier one has passed.
+    return order.index(row.step_id) >= order.index(current)
 
 
 async def owned_routine(session: AsyncSession, owner_id: str, routine_id: str) -> RoutineRow:

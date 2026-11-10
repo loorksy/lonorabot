@@ -616,3 +616,22 @@ test("desktop: the agent page sits in the 720px column, centred", async ({ page 
   const right = main.x + main.width - (box.x + box.width);
   expect(Math.abs(left - right)).toBeLessThanOrEqual(2);
 });
+
+test("the agent page's rows open T7's pages filtered to that agent", async ({ page }) => {
+  const main = page.locator("main");
+  const rows = [
+    ["Knowledge", "knowledge", `Knowledge of ${data.trader.name}`],
+    ["Skills", "skills", `Skills of ${data.trader.name}`],
+    ["Goals", "goals", null],
+    ["Scheduled tasks", "routines", "Schedule a task"],
+    ["Files", "artifacts", `Files of ${data.trader.name}`],
+  ];
+  for (const [label, path, text] of rows) {
+    await page.goto(`/app/agent/${data.trader.id}`);
+    await main.getByRole("button", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/app/${path}\\?agent=${data.trader.id}$`));
+    await expect(main.locator(".domain-page")).toBeVisible();
+    await expect(main).not.toContainText("Page not found");
+    if (text) await expect(main).toContainText(text);
+  }
+});

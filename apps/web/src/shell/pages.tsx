@@ -6,11 +6,8 @@ import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
-import { ActivityList } from "../pages/ActivityList";
 import { Artifacts } from "../pages/Artifacts";
-import { BoardPage } from "../pages/Board";
 import { Knowledge } from "../pages/Knowledge";
-import { Routines } from "../pages/Routines";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { ThreadViewport } from "../pages/shell/chat-context";
@@ -23,6 +20,18 @@ import { RecoveryPage } from "./agent/RecoveryPage";
 import { scoped } from "./agent/scope";
 import { TradesPage } from "./agent/TradesPage";
 import { useShellData } from "./data";
+import "./domain/domain.css";
+import { FileEditPage, FilesPage } from "./domain/FilesPages";
+import {
+  GoalEditPage,
+  GoalsPage,
+  KnowledgeEditPage,
+  KnowledgePage,
+} from "./domain/GoalsKnowledgePages";
+import { NewSchedulePage, SchedulesPage } from "./domain/SchedulesPages";
+import { SkillPage, SkillsPage } from "./domain/SkillsPages";
+import { NewTaskPage, TaskPage, TasksPage } from "./domain/TasksPages";
+import { ActivityPage, UpdatesPage } from "./domain/UpdatesPages";
 import { Lab } from "./Lab";
 import { ArchivedPage, ChatList } from "./lists/ChatList";
 import { type SearchTab, UnifiedSearch } from "./lists/UnifiedSearch";
@@ -95,9 +104,33 @@ export function pageTitle(page: Page): string {
     case "trading":
       return t`Trades`;
     case "routines":
-      return t`Routines`;
+      return t`Scheduled tasks`;
     case "knowledge":
       return t`Knowledge`;
+    case "knowledge-edit":
+      return t`Edit knowledge`;
+    case "memory":
+      return t`Memory`;
+    case "goals":
+      return t`Goals`;
+    case "new-goal":
+      return t`Edit goal`;
+    case "new-schedule":
+      return t`Schedule a task`;
+    case "task":
+      return t`Task details`;
+    case "new-task":
+      return t({ message: "Create task", context: "page title" });
+    case "skills":
+      return t`Skills`;
+    case "skill":
+      return t`Edit skill`;
+    case "new-skill":
+      return t({ message: "Create a skill", context: "page title" });
+    case "file-edit":
+      return t`Edit file`;
+    case "activity":
+      return t`Activity log`;
     case "new-agent":
       return t`Create agent`;
     case "new-group":
@@ -155,18 +188,8 @@ export function RootPage({
     if (loading && !data.agents.length && !data.groups.length) return <SkChats />;
     return <ChatList />;
   }
-  if (root === "updates")
-    return (
-      <Legacy>
-        <ActivityList agents={data.agents} />
-      </Legacy>
-    );
-  if (root === "tasks")
-    return (
-      <Legacy>
-        <BoardPage agents={data.agents} />
-      </Legacy>
-    );
+  if (root === "updates") return <UpdatesPage />;
+  if (root === "tasks") return <TasksPage />;
   return <SettingsPage desktop={desktop} />;
 }
 
@@ -211,14 +234,8 @@ export function DetailPages({
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
-        <Route
-          path="/app/artifacts"
-          element={
-            <Legacy>
-              <Artifacts />
-            </Legacy>
-          }
-        />
+        {/* «الملفات»: an agent's (?agent=) or the workspace's text files (Q36). */}
+        <Route path="/app/artifacts" element={<FilesPage />} />
         <Route
           path="/app/artifacts/:artifactId"
           element={
@@ -250,22 +267,29 @@ export function DetailPages({
             </Legacy>
           }
         />
+        {/* «المهام المجدولة»: one agent's (?agent=) schedules. */}
+        <Route path="/app/routines" element={<SchedulesPage />} />
+        <Route path="/app/knowledge" element={<KnowledgePage />} />
+        <Route path="/app/knowledge-edit" element={<KnowledgeEditPage key={location.key} />} />
+        {/* The memory editor and the skills catalog keep their screen until their pages arrive. */}
         <Route
-          path="/app/routines"
-          element={
-            <Legacy>
-              <Routines agents={data.agents} />
-            </Legacy>
-          }
-        />
-        <Route
-          path="/app/knowledge"
+          path="/app/memory"
           element={
             <Legacy>
               <Knowledge agents={data.agents} initialAgent={knowledgeAgent || first} />
             </Legacy>
           }
         />
+        <Route path="/app/goals" element={<GoalsPage />} />
+        <Route path="/app/new-goal" element={<GoalEditPage key={location.key} />} />
+        <Route path="/app/new-schedule" element={<NewSchedulePage key={location.key} />} />
+        <Route path="/app/tasks/:taskId" element={<TaskPage />} />
+        <Route path="/app/new-task" element={<NewTaskPage key={location.key} />} />
+        <Route path="/app/skills" element={<SkillsPage />} />
+        <Route path="/app/skills/:skillId" element={<SkillPage />} />
+        <Route path="/app/new-skill" element={<SkillPage create key={location.key} />} />
+        <Route path="/app/file-edit" element={<FileEditPage key={location.key} />} />
+        <Route path="/app/activity" element={<ActivityPage />} />
         <Route
           path="/app/new-agent"
           element={scoped(

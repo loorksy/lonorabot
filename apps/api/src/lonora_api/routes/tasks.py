@@ -2,9 +2,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.tasks import TaskControl, TaskCreate
+from lonora_contracts.tasks import TaskComplete, TaskControl, TaskCreate
 from lonora_db.schema import TicketRow
-from lonora_db.tasks import control_task, create_task, get_task, snapshot
+from lonora_db.tasks import complete_task, control_task, create_task, get_task, snapshot
 from lonora_db.transactions import owned_agent
 from sqlalchemy import select
 
@@ -15,15 +15,16 @@ router = APIRouter(prefix="/tasks")
 
 @router.get("")
 async def list_tasks(
-    request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
+    request: Request, agent_id: str | None = None, owner: OwnerIdentity = Depends(require_owner)
 ) -> list[dict[str, Any]]:
+    """One agent's 20 latest Tasks, or (no agent) the owner's 100 latest for «المهام»."""
     async with runtime(request).db.sessions() as session:
-        await owned_agent(session, owner.id, agent_id)
+        query = select(TicketRow).where(TicketRow.owner_id == owner.id)
+        if agent_id:
+            await owned_agent(session, owner.id, agent_id)
+            query = query.where(TicketRow.agent_id == agent_id)
         rows = await session.scalars(
-            select(TicketRow)
-            .where(TicketRow.owner_id == owner.id, TicketRow.agent_id == agent_id)
-            .order_by(TicketRow.updated_at.desc())
-            .limit(20)
+            query.order_by(TicketRow.updated_at.desc()).limit(20 if agent_id else 100)
         )
         return [await snapshot(session, row) for row in rows if row.state.get("task")]
 
@@ -56,3 +57,17 @@ async def control(
 ) -> dict[str, Any]:
     async with runtime(request).db.sessions() as session, session.begin():
         return await snapshot(session, await control_task(session, owner.id, body))
+
+
+@router.post("/{task_id}/complete")
+async def complete(
+    request: Request,
+    task_id: str,
+    body: TaskComplete,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """«تحديد كمكتملة»: the owner ends the work as done; nothing is approved or executed."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        return await snapshot(
+            session, await complete_task(session, owner.id, task_id, body.expected_version)
+        )

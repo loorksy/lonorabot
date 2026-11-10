@@ -24,3 +24,14 @@ test("a broker outage opens the recovery page for its account", () => {
   assert.equal(recoveryPath("acct 1"), "/app/recovery?account=acct%201");
   assert.equal(recoveryPath(undefined), "/app/recovery");
 });
+
+test("domain pages: the task and skill pages take their id in the path, the rest query params", () => {
+  assert.deepEqual(parseRoute("/app/tasks/t1"), { kind: "page", page: "task", item: "t1" });
+  assert.deepEqual(parseRoute("/app/skills/k1"), { kind: "page", page: "skill", item: "k1" });
+  assert.deepEqual(parseRoute("/app/tasks"), { kind: "root", root: "tasks" });
+  assert.deepEqual(parseRoute("/app/goals"), { kind: "page", page: "goals" });
+  assert.deepEqual(parseRoute("/app/activity"), { kind: "page", page: "activity" });
+  assert.deepEqual(parseRoute("/app/task"), { kind: "not-found" });
+  assert.deepEqual(parseRoute("/app/goals/x"), { kind: "not-found" });
+  assert.deepEqual(parseRoute("/app/tasks/t1/x"), { kind: "not-found" });
+});

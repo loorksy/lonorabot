@@ -37,7 +37,8 @@ async function setup(context, locale = "en") {
     agent,
     headers,
     async open(page) {
-      await page.goto("/app/knowledge");
+      // The memory editor and the skills catalog keep their screen at /app/memory (phase 4b).
+      await page.goto("/app/memory");
       await page.locator(".page-header select").selectOption(agent.id);
       await page
         .getByRole("button", { name: locale === "ar" ? "المهارات" : "Skills", exact: true })
