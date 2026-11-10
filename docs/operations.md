@@ -3,17 +3,20 @@
 ## ملخص بالعربية
 
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
-- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (كل طلب تعديل يُجاب بـ «يجري التحديث» حتى ينتهي)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
+- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف الطارئ وإغلاق المراكز وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
 - **ماذا تفعل عند كل نتيجة:**
   - «Rolled back to …»: عاد الإصدار السابق ويعمل. لا تفعل شيئًا.
   - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف التداول، القيود، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
+  - «ROLLBACK HELD» مع «cannot be read»: تعذّرت قراءة سجلات التحكم. أصلح قاعدة البيانات (`sudo lonora logs db`) ثم: `sudo lonora rollback`.
   - «ROLLBACK INCOMPLETE»: فشلت استعادة قاعدة البيانات. أصلح السبب (المساحة مثلًا؛ `sudo lonora status` و`sudo lonora logs db`) ثم: `sudo lonora rollback` (يعيد المحاولة).
   - «ROLLBACK did not reach /ready»: راجع `sudo lonora logs api` و`sudo lonora logs gateway`، ثم: `sudo lonora rollback` (يشغّل ويفحص من جديد).
   - انقطع التحديث (انقطاع SSH أو إعادة تشغيل): `sudo lonora status` يعرض «UPDATE NOT FINISHED»؛ نفّذ `sudo lonora rollback` أو `sudo lonora update <الإصدار>` (يتراجع أولًا ثم يكمل).
+  - «Maintenance: on» في `sudo lonora status` وطلبات التعديل مرفوضة: `sudo lonora maintenance off` يفتحها دون انتظار `/ready`.
+  - توقف التثبيت قبل أول ترحيل: `sudo lonora start`.
 - **النسخ الاحتياطي:** نسخة يومية مشفرة (AES-256 عبر gpg) ومُتحقَّق منها، تشمل قاعدة البيانات والمرفقات وملف الإعدادات والإصدار المثبّت وملفات تحديثات التطبيق. يُحتفظ بآخر 14 نسخة، ولا تُحذف أبدًا نسخة يحتاجها تحديث معلّق أو استعادة جارية. مجلد `backups/` لا يحوي إلا ملفات مشفرة، فيمكن نسخه إلى أي مكان.
 - **المفتاح:** الملف `/opt/lonora/backup.key` (صلاحية 600، لا يُطبع ولا يُسجَّل أبدًا). **إذا ضاع هذا المفتاح تصبح كل النسخ الاحتياطية غير قابلة للقراءة نهائيًا، ولا توجد أي طريقة لاسترجاعها.** احفظ نسخة منه خارج الخادم، مثلًا في مدير كلمات المرور، وفي مكان منفصل عن النسخ الاحتياطية نفسها.
 - **اختبار الاستعادة:** `sudo lonora restore-test` يستعيد أحدث نسخة في بيئة مؤقتة. تنبيه صريح: قاعدة البيانات المستعادة تحتوي مفاتيح المزودين والوسيط المحفوظة فيها، ومفتاح فكّ تشفيرها يُمرَّر إلى البيئة المؤقتة حتى يعمل التطبيق. ما يمنعها من الاتصال بأي مزود أو وسيط هو الشبكة الداخلية بلا أي مخرج، ويتحقق الأمر من ذلك قبل تشغيل Gateway ويتوقف إن وجد مخرجًا. ثم يحذف كل شيء. شغّله مرة شهريًا على الأقل.
-- **الاستعادة الفعلية:** `sudo lonora restore /opt/lonora/backups/<ملف> --replace` تأخذ نسخة احتياطية من الوضع الحالي أولًا، ثم تستبدل البيانات وتشغّل الترحيلات. إذا توقفت في منتصفها: أعد الأمر نفسه.
+- **الاستعادة الفعلية:** `sudo lonora restore /opt/lonora/backups/<ملف> --replace` توقف API وGateway وتأخذ نسخة احتياطية من الوضع الحالي أولًا، ثم تستبدل البيانات وتشغّل الترحيلات. إذا توقفت في منتصفها: نفّذ الأمر الذي تطبعه (هو الأمر نفسه)، فيُكمل دون نسخة احتياطية ثانية؛ والتحديث والتشغيل مرفوضان حتى تكتمل.
 - **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، ثم `sudo install -m 600 <مفتاحك> /opt/lonora/backup.key`، ثم `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
 - **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
@@ -245,20 +248,21 @@ the new image must carry a release manifest, and the database's migration must b
 new image (no downgrades: restore a backup made on that version instead). Then, in order:
 
 1. **Maintenance on.** `maintenance/on` is created. While it exists, Caddy answers every write
-   (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق», so the owner
-   cannot change trading controls, restrictions or authorities while the update decides what the
-   database will be. Reads keep working when the API is up.
+   (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق». It is on only
+   while no Gateway runs: **a Gateway never runs while maintenance is on**, so whenever anything could
+   trade, the owner's emergency stop, trading stop, close, approval reject and authority revoke are
+   accepted.
 2. An in-progress marker (`state/update-in-progress`) is written; API and Gateway are stopped.
 3. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
    whole dump read back). If that fails, nothing changes: marker and maintenance are removed and
-   the old version starts again.
+   the old version starts again. A missing backup file also stops the update here.
 4. The new deployment files are copied in (each renamed into place) and the new digest is pinned.
 5. Migrations run as their own step (`migrate` service). Right after, a fingerprint of the
    owner-control and money records is taken (see below).
-6. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Only then does
-   the Gateway (agent and trading loops) start, and the update waits for `/ready` (default 240 s,
-   `LONORA_READY_TIMEOUT`).
-7. Success: marker and maintenance removed, `state/history.log` updated.
+6. The API starts first, **with the Gateway still stopped**, and must pass `/health`. Then
+   maintenance is turned off (writes open again), the Gateway (agent and trading loops) starts, and
+   the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
+7. Success: marker removed, `state/history.log` updated.
 
 **If step 4, 5, 6 or a health gate fails**, `lonora` rolls back by itself: the old deployment files
 and pin come back and the database is **restored from the backup of step 3** — dropped and recreated
@@ -269,10 +273,11 @@ wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
 undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
-authority, or the record of an order already at the broker. So before restoring, `lonora` compares
-the fingerprint of these records with the one from step 5: whole rows of `ln_trading_restrictions`,
-`ln_account_authorities`, `ln_supervision_grants`, `ln_owner_actions`, `ln_trade_approvals`,
-`ln_trading_journal`, and the trading switch and emergency stop in `ln_settings`. If any of them
+authority, an owner's message, or the record of an order already at the broker. So before restoring,
+`lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
+on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
+`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the trading switch and emergency stop
+in `ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
 changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
 and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
 
@@ -283,8 +288,13 @@ and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits
 | `Rolled back to …; /ready passes` | The previous version runs again. | Nothing. Report the failed version. |
 | `ROLLBACK HELD: …` (exit 2) | Owner controls or trading records changed while the new version ran. API and Gateway are stopped. | Check positions and orders in the broker's own terminal since the time shown. Then either `sudo lonora rollback --force` (restore the pre-update backup; what was written since is lost, so note it first) or `sudo lonora update <fixed version> --keep-data` (keep the current data and update forward). |
 | `--keep-data` fails again | The forward update did not pass its gates. | It returns to the held state (data kept, services stopped); same two choices. Passing the version that is already pinned starts it again behind the gates. |
+| `ROLLBACK HELD: … cannot be read` (exit 2) | The owner-control records could not be read, so it is unknown whether they changed. | Fix the database (`sudo lonora logs db`), then `sudo lonora rollback`. |
 | `ROLLBACK INCOMPLETE: restoring the database … failed` | The database was dropped but the restore failed (for example a full disk). | Fix the cause (`sudo lonora status`, `sudo lonora logs db`, `df -h`), then `sudo lonora rollback` — it retries the restore from the same backup. |
-| `ROLLBACK did not reach /ready` | The previous version and data are back but do not start. | `sudo lonora logs api`, `sudo lonora logs gateway`; when fixed, `sudo lonora rollback` starts and checks again. |
+| `ROLLBACK did not reach /ready` | The previous version and data are back but do not start; writes are open. | `sudo lonora logs api`, `sudo lonora logs gateway`; when fixed, `sudo lonora rollback` starts and checks again. |
+| `The pre-update backup … cannot be opened` | The backup could not be decrypted or extracted (key, disk space). | Fix it, then `sudo lonora rollback`. |
+| `Maintenance: on` in `lonora status`, writes answer 503 | Something stopped with maintenance on (only ever while no Gateway runs). | `sudo lonora maintenance off` opens writes without waiting for `/ready`. |
+| `Restoring the database failed … run it again: sudo lonora restore FILE --replace` | A restore stopped after the database was dropped. | Fix the cause, then run exactly the printed command: it resumes without a second safety backup. `update` and `start` refuse until it is done. |
+| `The database has no migration yet` | An installation stopped before its first migration. | `sudo lonora start`. |
 | `UPDATE NOT FINISHED` in `lonora status` | The update was interrupted (SSH dropped, reboot). `start` and `restore` refuse to run. | `sudo lonora rollback`, or `sudo lonora update <version>`, which rolls the unfinished one back first (same rules, including the hold) and then updates. |
 
 Only one of update, restore, restore-test, rollback, start and backup runs at a time (a lock in
@@ -357,12 +367,13 @@ sudo lonora restore /opt/lonora/backups/lonora-….tar.gpg --replace
 
 A relative path is read from the current directory, or else from `/opt/lonora`. Restore refuses a
 backup whose migration is newer than the installed image knows (update to that image first). It
-starts the database if it is stopped, **takes a safety backup of the current state first**, turns
-maintenance on, stops API and Gateway, replaces the database with a fresh copy from the backup,
-replaces the artifact files, runs the migrations (so an older backup is brought up to the installed
-version), starts everything and waits for `/ready`. `--replace` is required. If it stops part-way,
-it prints the same command to run again; a rerun with no current database skips the safety backup
-and says so.
+starts the database if it is stopped, turns maintenance on and stops API and Gateway, then **takes a
+safety backup of the current state** (so nothing written during it is lost), records a
+restore-in-progress marker, replaces the database with a fresh copy from the backup, replaces the
+artifact files, runs the migrations (so an older backup is brought up to the installed version),
+turns maintenance off, starts everything and waits for `/ready`. `--replace` is required. If it
+stops part-way it prints the command to run again; that rerun resumes from the marker without a
+second safety backup, and `update` and `start` refuse until it is done.
 
 **Disaster recovery on a new server**, exactly:
 

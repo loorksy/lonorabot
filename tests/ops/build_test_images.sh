@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and push the six images tests/ops/lifecycle_test.sh needs, into REPO.
+# Build and push the seven images tests/ops/lifecycle_test.sh needs, into REPO.
 #
 #   bash tests/ops/build_test_images.sh REPO
 #   bash tests/ops/lifecycle_test.sh REPO
@@ -14,6 +14,7 @@
 #   v4-good    v2 + tests/ops/fixtures/9998_good_probe.py (a working migration)
 #   v3-broken  v4-good's migration + 9999_broken_probe.py (creates a table), with a Gateway
 #              that never starts, so /ready never passes
+#   v3-broken2 v3-broken under another version (a second failing release, other digest)
 #   v3-fixed   the same migrations as v3-broken with a working Gateway (the "fixed version")
 # The probes form a linear chain (v2's head -> 9998 -> 9999), so every update the
 # lifecycle test makes between these images is an upgrade. They exist only inside these
@@ -87,13 +88,15 @@ echo 'v4-good: + 9998'
 probe_image v4-good 9998_good_probe ok 9998_good_probe.py
 echo 'v3-broken: + 9998 + 9999, Gateway never ready'
 probe_image v3-broken 9999_broken_probe broken 9998_good_probe.py 9999_broken_probe.py
+echo 'v3-broken2: the same as v3-broken under another version'
+probe_image v3-broken2 9999_broken_probe broken 9998_good_probe.py 9999_broken_probe.py
 echo 'v3-fixed: + 9998 + 9999'
 probe_image v3-fixed 9999_broken_probe ok 9998_good_probe.py 9999_broken_probe.py
 
 mkdir -p "$root/.runtime"
 out="$root/.runtime/ops-test-images.txt"
 : >"$out"
-for tag in old v1 v2 v4-good v3-broken v3-fixed; do
+for tag in old v1 v2 v4-good v3-broken v3-broken2 v3-fixed; do
     docker push -q "$repo:$tag" >/dev/null
     digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$repo:$tag" | grep -m1 "^$repo@")"
     printf '%-10s %s\n' "$tag" "$digest" | tee -a "$out"

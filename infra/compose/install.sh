@@ -59,7 +59,7 @@ existing_dir() { local dir="$1"; while [[ ! -d "$dir" ]]; do dir="$(dirname "$di
 say "Preflight for project '$project' in $home (nothing is changed unless every check passes):"
 if [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then check true "project name '$project'"; else check false "project name '$project' (use lowercase letters, digits, - or _)"; fi
 if [[ -e "$home/state/image.env" || -e "$home/.env" || -e "$home/infra" ]]; then
-    check false "$home already holds an installation (to update it, or start it again on the same version: sudo lonora update <version>)"
+    check false "$home already holds an installation (to start it: sudo lonora start; to update it: sudo lonora update <version>)"
 else
     check true "$home holds no installation"
 fi
