@@ -46,6 +46,9 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                             SecretRow.scope == "provider", SecretRow.name == provider
                         )
                     )
+            # Its agent goes too, so it never counts against the owner's agent cap.
+            if data["restore"].get("agent"):
+                await fixture.client.delete("/api/agents/" + data["restore"]["agent"])
             return {"cleaned": True}
         if data["action"] != "init":
             raise ValueError("Unknown model browser fixture action")
@@ -83,6 +86,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                     },
                 )
         agent = await fixture.agent("Model card " + data.get("locale", "en"))
+        restore["agent"] = agent["id"]
         thread = await fixture.conversation(agent)
         run = await fixture.request(
             "POST",

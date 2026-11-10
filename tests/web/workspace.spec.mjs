@@ -254,7 +254,8 @@ test("task form, task page and profile creation remain usable under StrictMode a
   );
   await form.getByRole("button", { name: "Create the agent", exact: true }).click();
   const teammate = remember("agents", await (await created).json());
-  await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
+  // A new agent lands on its own page (phase 4a, agent.new.templates).
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${teammate.id}$`));
   await page
     .locator(".desktop-rail")
     .getByRole("button", { name: "Settings", exact: true })
@@ -264,7 +265,7 @@ test("task form, task page and profile creation remain usable under StrictMode a
   await expect(root).toBeVisible();
   await page.goBack();
   await expect(root).toHaveCount(0);
-  await expect(page).toHaveURL(new RegExp(`/app/${teammate.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${teammate.id}$`));
 });
 
 test("New task from the welcome pane opens the task form that saves a durable task", async ({

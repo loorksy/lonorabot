@@ -122,6 +122,29 @@ async def main() -> None:
         print(
             "PASS partial close uses SDK partial-volume method and preserves separate order/position/deal IDs"
         )
+        rpc.create_market_buy_order = AsyncMock(
+            return_value={
+                "stringCode": "TRADE_RETCODE_DONE_PARTIAL",
+                "numericCode": 10010,
+                "orderId": "o2",
+                "positionId": "p2",
+                "price": 2701.5,
+                "volume": 0.3,
+            }
+        )
+        partial = await broker.execute(
+            TradeRequest(
+                account_id="fixture",
+                operation_id="partial-buy",
+                action="buy",
+                symbol="XAUUSDm",
+                volume=Decimal("0.5"),
+                stop_loss=Decimal("2600"),
+            )
+        )
+        assert partial.details["partial_execution"] is True, partial
+        assert partial.details["volume"] == 0.3 and partial.details["price"] == 2701.5, partial
+        print("PASS a partial fill records the executed volume and price the broker reported")
         validation_exception: Any = importlib.import_module(
             "metaapi_cloud_sdk.clients.error_handler"
         ).ValidationException

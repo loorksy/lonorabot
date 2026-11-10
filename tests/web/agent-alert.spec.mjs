@@ -1,6 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
+// The fixture's agent goes after each test, so it never counts against the agent cap.
+let fixtureAgent;
+test.afterEach(async ({ context }) => {
+  if (!fixtureAgent) return;
+  const csrf = (await context.cookies()).find((cookie) => cookie.name === "lonora_csrf");
+  await context.request.delete(`/api/agents/${fixtureAgent}`, {
+    headers: { "X-CSRF-Token": csrf?.value ?? "" },
+  });
+  fixtureAgent = undefined;
+});
+
 for (const locale of ["ar", "en"]) {
   test(`an agent's own alert shows its plain summary (${locale})`, async ({ page, context }) => {
     const fixture = JSON.parse(
@@ -8,6 +19,7 @@ for (const locale of ["ar", "en"]) {
         encoding: "utf8",
       }),
     );
+    fixtureAgent = fixture.agent?.id;
     await context.addCookies(
       fixture.cookies.map((cookie) => ({
         ...cookie,

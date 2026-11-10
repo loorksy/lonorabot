@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useAttention } from "../../providers/AttentionProvider";
+import { recoveryPath } from "../../shell/routes";
 
 /** What each attention item says (the inbox and the heads-up banner). */
 export function useAttentionLabels(): Record<AttentionCode, string> {
@@ -121,15 +122,21 @@ export function AttentionInbox({
           </div>
           <Link
             to={
-              item.parameters.group_id
-                ? `/app/g/${item.parameters.group_id}`
-                : `/app/${item.agent_id}`
+              item.code === "broker_degraded"
+                ? recoveryPath(item.parameters.account_id)
+                : item.parameters.group_id
+                  ? `/app/g/${item.parameters.group_id}`
+                  : `/app/${item.agent_id}`
             }
             onClick={() => {
               void seen(item.id).catch(setError);
             }}
           >
-            <Trans>Open conversation</Trans>
+            {item.code === "broker_degraded" ? (
+              <Trans>Outage and recovery</Trans>
+            ) : (
+              <Trans>Open conversation</Trans>
+            )}
           </Link>
           <button
             type="button"

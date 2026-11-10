@@ -160,6 +160,24 @@ async def action(data: dict[str, Any]):
         if data["action"] == "cleanup":
             if data.get("chart"):
                 await fixture.request("DELETE", "/charts/" + data["chart"])
+            # The agents a spec bound to this fixture's account go with it, so they never
+            # pile up against the owner's active-agent cap for later specs.
+            from lonora_db.schema import AgentRow
+            from sqlalchemy import select
+
+            async with fixture.runtime.db.sessions() as session:
+                bound = list(
+                    await session.scalars(
+                        select(AgentRow.id).where(
+                            AgentRow.owner_id == fixture.owner,
+                            AgentRow.trading_account_id == data["account"],
+                            AgentRow.role != "personal",
+                        )
+                    )
+                )
+            for agent_id in bound:
+                # A refusal (an unsettled operation) leaves that one agent; cleanup goes on.
+                await fixture.client.delete("/api/agents/" + agent_id)
             await fixture.request("DELETE", "/trading/connections/" + data["account"])
             return {"cleaned": True}
         raise ValueError("Unknown chart browser fixture action")
