@@ -35,7 +35,10 @@ else
 fi
 # Back up an existing installation before migrations change the schema.
 if "$backup" && [[ -n "$(docker compose --env-file .env -f "$compose" ps -q db)" ]]; then
-    LONORA_COMPOSE_FILE="$compose" bash scripts/backup.sh
+    infra/compose/lonora backup
 fi
+# Migrations are their own step; the API no longer migrates when it starts.
+docker compose --env-file .env -f "$compose" up -d --wait db
+docker compose --env-file .env -f "$compose" run --rm migrate
 docker compose --env-file .env -f "$compose" up -d --wait --remove-orphans
 echo 'Main deployed. Check the authenticated workspace and /ready through your domain.'

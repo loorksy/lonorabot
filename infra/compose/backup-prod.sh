@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
+# Kept for existing timers: production backups are made by `lonora backup` (encrypted).
 set -euo pipefail
-cd "$(dirname "$0")/../.."
-export LONORA_COMPOSE_FILE=infra/compose/docker-compose.prod.yml
-exec bash scripts/backup.sh
+exec "$(dirname "$0")/lonora" backup

@@ -1,3 +1,6 @@
+# The one canonical production deployment. `lonora` (infra/compose/lonora) drives it:
+# it pins LONORA_IMAGE to a digest in state/image.env, runs `migrate` as its own step
+# and adds the overlays listed in LONORA_COMPOSE_OVERLAYS. See docs/operations.md.
 name: lonora
 services:
   db:
@@ -28,6 +31,7 @@ services:
       LONORA_CHART_BROWSER_SANDBOX: "false"
       LONORA_OTA_ROOT: /app/releases/ota
       LONORA_ANDROID_APK_PATH: /app/releases/android/lonora.apk
+      LONORA_MIGRATE_ON_START: "false"
     command: ["api"]
     volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
     depends_on:
@@ -37,6 +41,16 @@ services:
       interval: 10s
       timeout: 6s
       retries: 15
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+  migrate:
+    image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
+    profiles: ["tools"]
+    env_file: ../../.env
+    environment: *runtime
+    command: ["migrate"]
+    depends_on:
+      db: {condition: service_healthy}
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
   gateway:
