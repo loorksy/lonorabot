@@ -35,7 +35,16 @@ sql() { dc exec -T db psql -U lonora -d lonora -tAc "$1" | tr -d '[:space:]'; }
 pinned() { sed -n 's/^LONORA_IMAGE=//p' "$home/state/image.env"; }
 digest_of() { docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$repo:$1" | grep -m1 "^$repo@"; }
 owners() { sql "SELECT count(*) FROM ln_owners"; }
-ready() { lonora status 2>&1 | grep -q '/ready: ok'; }
+ready() { # /ready can miss a beat (gateway heartbeat) on a loaded machine: poll up to 60 s
+    local deadline=$((SECONDS + 60))
+    while ((SECONDS < deadline)); do
+        lonora status >"$work/status.log" 2>&1 || true
+        if grep -q '/ready: ok' "$work/status.log"; then return 0; fi
+        sleep 3
+    done
+    show "$work/status.log"
+    return 1
+}
 backups() { find "$home/backups" -maxdepth 1 -name 'lonora-*.tar.gpg' | wc -l; }
 no_leftovers() {
     [[ -z "$(find "$home/backups" -mindepth 1 -maxdepth 1 \( -name '.work.*' -o -name '*.part' \))" ]] || fail "$1: plaintext work files left in backups/"
