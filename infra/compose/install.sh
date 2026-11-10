@@ -145,7 +145,7 @@ mkdir -p maintenance && chmod 755 maintenance
 chmod 755 .runtime .runtime/releases .runtime/releases/android .runtime/releases/ota
 
 bundle="$(mktemp -d "$home/.bundle.XXXXXX")"
-trap 'rm -rf "$bundle"' EXIT
+trap 'rm -rf "$bundle" "$home/.env.next"' EXIT
 container="$(docker create "$pinned")"
 docker cp -q "$container:/app/deploy/." "$bundle" && docker rm "$container" >/dev/null
 [[ -x "$bundle/infra/compose/lonora" ]] || die "$pinned carries no deployment bundle."
@@ -184,7 +184,9 @@ if [[ -n "$env_from" ]]; then
         [[ "$line" == *=* && "$name" =~ ^[A-Z][A-Z0-9_]*$ ]] || { ignored+=" (an unreadable line)"; continue; }
         if [[ "$ENV_FROM_KEYS" != *" $name "* || ( "$name" == LONORA_DOMAIN && "$domain_given" == true ) ]]; then ignored+=" $name"; continue; fi
         [[ "$value" != *[[:cntrl:]]* ]] || die "--env-from: $name has a control character; nothing more was changed."
-        { grep -v "^$name=" .env || true; printf '%s=%s\n' "$name" "$value"; } >.env.next
+        # Mode 600 from the first byte (umask 077 is also set at the top); renamed into place.
+        install -m 600 /dev/null .env.next
+        { grep -v "^$name=" .env || true; printf '%s=%s\n' "$name" "$value"; } >>.env.next
         mv -f .env.next .env
         copied+=" $name"
     done <"$env_from"
