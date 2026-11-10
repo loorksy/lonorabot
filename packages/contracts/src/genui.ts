@@ -46,7 +46,8 @@ export type UiDocument = {
   agent_id?: string;
   facts: Record<string, UiFact>;
   state: Record<string, unknown>;
-  calc: Record<string, string>;
+  /** Expressions, or literals (the reference's `uxExpr` returns non-strings as-is). */
+  calc: Record<string, string | number | boolean | null>;
   blocks: UiBlock[];
   why?: string;
   fallback: string;

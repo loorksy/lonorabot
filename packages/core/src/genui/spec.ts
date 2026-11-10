@@ -103,7 +103,13 @@ export function validateUiDocument(value: unknown): UiDocument | null {
     if (typeof value.fallback !== "string" || value.fallback.length > 1500) return null;
     if (!plain(value.facts) || !plain(value.state) || !plain(value.calc)) return null;
     if (
-      !Object.values(value.calc).every((source) => typeof source === "string" && expression(source))
+      !Object.values(value.calc).every(
+        (source) =>
+          source === null ||
+          typeof source === "boolean" ||
+          (typeof source === "number" && Number.isFinite(source)) ||
+          (typeof source === "string" && expression(source)),
+      )
     ) {
       return null;
     }

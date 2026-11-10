@@ -493,7 +493,7 @@ def render_template(text: str, env: Env) -> str:
 
 def environment(
     state: Mapping[str, Any],
-    calc: Mapping[str, str],
+    calc: Mapping[str, Any],
     facts: Mapping[str, Any],
     values: Mapping[str, Any] | None = None,
 ) -> Env:

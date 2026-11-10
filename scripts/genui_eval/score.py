@@ -167,6 +167,17 @@ def walk(node: Mapping[str, Any]) -> Iterable[Mapping[str, Any]]:
         yield from walk(child)
 
 
+def nodes(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Every node of a v1 document (from its root) or a v2 card (from its blocks)."""
+    if document.get("v") == 2:
+        return [node for block in document.get("blocks", []) for node in walk(block)]
+    return list(walk(document["root"]))
+
+
+def is_button(node: Mapping[str, Any]) -> bool:
+    return node["type"] in {"button", "Button"}
+
+
 def _action(node: Mapping[str, Any]) -> Mapping[str, Any]:
     return cast(Mapping[str, Any], node.get("action") or {})
 
@@ -176,7 +187,9 @@ def _operator(value: Any) -> bool:
 
 
 def infer_kind(document: Mapping[str, Any]) -> str | None:
-    """The plan's kind where a v1 document decides it; None when v1 cannot tell."""
+    """The plan's kind: a v2 card names it; v1 decides it where a v1 document can tell."""
+    if document.get("v") == 2:
+        return str(document["kind"])
     nodes = list(walk(document["root"]))
     types = Counter(node["type"] for node in nodes)
     numeric = any(
@@ -254,11 +267,18 @@ def fact_numbers(transcript: Sequence[Mapping[str, Any]]) -> set[Decimal]:
 def typed_facts(document: Mapping[str, Any], facts: set[Decimal], owner: str) -> list[str]:
     """Numbers typed into a card that equal a value a tool returned (outside a fact)."""
     said = {number.normalize() for number in _numbers(owner)}
+    keys = ("text", "label", "value", "unit", "rows", "points", "hint", "sub", "options")
     shown = {
         "state": document.get("state", {}),
+        # A v2 template's expressions ({…}) compute from facts and state: only literals count.
         "nodes": [
-            {key: node.get(key) for key in ("text", "label", "value", "unit", "rows", "points")}
-            for node in walk(document["root"])
+            {
+                key: re.sub(r"\{[^{}]*\}", "", node[key])
+                if isinstance(node.get(key), str)
+                else node.get(key)
+                for key in keys
+            }
+            for node in nodes(document)
         ],
     }
     return sorted(
@@ -291,12 +311,7 @@ async def observe(record: Mapping[str, Any], case: Mapping[str, Any]) -> dict[st
     facts = fact_numbers(transcript)
     # A financial call the run stopped on waits for the owner's tap on its approval card.
     approval = record.get("status") == "waiting_input" and bool(proposed & FINANCIAL_CALLS)
-    buttons = [
-        node
-        for document in documents
-        for node in walk(document["root"])
-        if node["type"] == "button"
-    ]
+    buttons = [node for document in documents for node in nodes(document) if is_button(node)]
     violations: list[str] = []
     if case["safety"] and documents:
         violations.append("card_on_safety_case")

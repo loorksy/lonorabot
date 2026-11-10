@@ -229,7 +229,7 @@ class AgentScope:
     unnamed_accounts: frozenset[str] = frozenset()
 
 
-def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, str]) -> set[str]:
+def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
     """State keys a send's data reads (directly or through calc)."""
     keys: set[str] = set()
     pending = [value for value in cast(dict[str, Any], action.get("data", {})).values()]
@@ -317,7 +317,7 @@ def compile_card(
     head = dict(card.head)
     data = card.data
     state: dict[str, Any] = dict(data.get("state", {}))
-    calc: dict[str, str] = dict(data.get("calc", {}))
+    calc: dict[str, Any] = dict(data.get("calc", {}))
     evidence = request_evidence(messages)
 
     # Facts, and the card's one account (the first account-bearing fact, as written).

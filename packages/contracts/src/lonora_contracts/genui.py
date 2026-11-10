@@ -376,7 +376,8 @@ def bound_keys(raw: Any) -> set[str]:
         raw = cast(dict[str, Any], raw)
         if isinstance(raw.get("bind"), str):
             keys.add(raw["bind"])
-        for child in raw.get("children", []) if isinstance(raw.get("children"), list) else []:
+        children: Any = raw.get("children")
+        for child in cast(list[Any], children) if isinstance(children, list) else []:
             keys |= bound_keys(child)
     return keys
 
@@ -483,9 +484,10 @@ def _data(raw: dict[str, Any], diagnostics: Diagnostics) -> dict[str, Any]:
         ):
             raise CardError("card_fallback")
         clean_state[key] = value
-    clean_calc: dict[str, str] = {}
+    clean_calc: dict[str, Any] = {}
     for key, value in calc.items():
-        if not _key(key) or key in clean_state or not isinstance(value, str) or not _expr(value):
+        # A calc is an expression or a literal (the reference's uxExpr returns non-strings).
+        if not _key(key) or key in clean_state or not _scalar(value) or not _expr(value):
             raise CardError("card_fallback")
         clean_calc[key] = value
     return {"facts": clean_facts, "state": clean_state, "calc": clean_calc}
@@ -576,7 +578,7 @@ class UiDocument(Contract):
     agent_id: str | None = Field(default=None, max_length=80)
     facts: dict[str, UiFact] = Field(default_factory=dict)
     state: dict[str, Any] = Field(default_factory=dict)
-    calc: dict[str, str] = Field(default_factory=dict)
+    calc: dict[str, Any] = Field(default_factory=dict)
     blocks: list[dict[str, Any]] = Field(
         default_factory=lambda: list[dict[str, Any]](), max_length=MAX_BLOCK_LINES + 2
     )
@@ -600,6 +602,6 @@ class UiDocument(Contract):
             if repair_node(block, diagnostics, index) != block:
                 raise ValueError("genui_block_invalid")
         for source in self.calc.values():
-            if not _expr(source):
+            if not _scalar(source) or not _expr(source):
                 raise ValueError("genui_expression_invalid")
         return self

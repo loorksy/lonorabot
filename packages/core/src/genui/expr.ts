@@ -441,7 +441,7 @@ export function renderTemplate(text: string, env: Env): string {
 /** `values` over `state`, then each calc in order into the same `$` namespace. */
 export function environment(
   state: Record<string, unknown>,
-  calc: Record<string, string>,
+  calc: Record<string, unknown>,
   facts: Record<string, unknown>,
   values?: Record<string, unknown>,
   context?: FormatContext,

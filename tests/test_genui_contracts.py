@@ -205,3 +205,11 @@ def test_stored_document_revalidates() -> None:
         )
     with pytest.raises(ValueError):
         UiDocument.model_validate({**document, "blocks": [{"type": "Html", "html": "<b>"}]})
+
+
+def test_a_calc_may_be_a_literal_as_in_the_reference() -> None:
+    body = A01.replace('"dp":"@Pick($symbol,\'EURUSD\',4,2)"', '"dp":2')
+    card = parse_lines(body, final=True)
+    assert card.data["calc"]["dp"] == 2
+    env = environment(card.data["state"], card.data["calc"], {"xau": 2368.4})
+    assert render_template(card.blocks[2]["hint"], env) == "الآن 2368.40"
