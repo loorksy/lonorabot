@@ -62,6 +62,8 @@ lock() { # flock options: -n (fail fast) or -w SECONDS (wait)
     exec 9>"$STATE/lock"
     flock "$@" 9 || die 'Another lonora operation (update, restore or backup) is running.'
     export LONORA_LOCK_HELD=1
+    # Holding the lock, nothing else uses scratch files: remove any a killed run left behind.
+    rm -rf -- "$BACKUPS"/.work.* "$BACKUPS"/*.part
 }
 
 # Only the overlay list is read from .env; nothing from it is evaluated here.
@@ -300,6 +302,7 @@ cmd_restore() {
 # live installation, and every container and volume removed afterwards.
 cmd_restore_test() {
     local file="${1:-}"
+    lock -n
     require_tools; require_key
     if [[ -n "$file" ]]; then file="$(absolute "$file")"; else file="$(newest_backup)"; fi
     [[ -n "$file" ]] || die 'No backup to test.'

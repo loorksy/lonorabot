@@ -253,6 +253,7 @@ grep -q 'Rolled back to' "$work/resume.log" || fail 'resume rollback result'
 [[ "$(pinned)" == "$(digest_of v4-good)" ]] || fail 'resumed update pins v4-good'
 [[ "$(sql 'SELECT version_num FROM lonora_v2_alembic')" == 9998_good_probe ]] || fail 'resumed update migrated'
 [[ "$(owners)" == 1 ]] || fail 'data across interrupted update'
+no_leftovers 'after the killed update'
 ok 'interrupted update (killed in the API phase): marker kept, start refused, next update rolled back then completed'
 
 # 13. Restoring an older backup takes a safety backup and migrates it to the image's head.
