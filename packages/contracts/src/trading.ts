@@ -245,8 +245,15 @@ export type TradingReadiness = {
     submitted_at: string | null;
     this_agent: boolean;
     blocks: "new_risk_on_this_symbol_or_ticket";
-    /** The operation's own pending resolve card («حسم»), or null. */
-    resolve_card_id: string | null;
+    /** The operation's own pending resolve card («حسم») and the conversation that holds it
+        (an agent's chat or a group), or null. */
+    resolve_card: {
+      id: string;
+      thread_id: string | null;
+      agent_id: string | null;
+      group_id: string | null;
+      timeline_seq: number | null;
+    } | null;
   }>;
   unresolved_count: number;
   exits_allowed: boolean;

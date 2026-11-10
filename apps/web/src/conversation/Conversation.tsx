@@ -108,6 +108,7 @@ export function Conversation({
   onOpenChart,
   knownRuns,
   aroundSeq,
+  jumpTo,
   groupLead,
 }: {
   threadId: string;
@@ -118,6 +119,8 @@ export function Conversation({
   onOpenChart?: (id: string) => void;
   knownRuns?: Run[];
   aroundSeq?: number;
+  /** A card to bring into view on arrival («حسم» from another conversation's sheet). */
+  jumpTo?: string;
   groupLead?: string;
 }) {
   const agent = agents.find((row) => row.id === agentId);
@@ -146,19 +149,22 @@ export function Conversation({
   const [selected, setSelected] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Map<string, MessageReaction[]>>(new Map());
   const [stopped, setStopped] = useState<Set<string>>(new Set());
-  const [jump, setJump] = useState<string | null>(null);
+  const [jump, setJump] = useState<string | null>(jumpTo ? `${jumpTo}#arrival` : null);
   const [actionError, setActionError] = useState<unknown>();
 
   useLayoutEffect(() => wallDefs(), []);
-  // «عرض الطلب» in the AgentSheet: bring that card into view.
+  // «عرض الطلب» / «حسم» in the AgentSheet: bring that card into view. A card that names
+  // another conversation is left to the sheet, which opens that conversation instead.
   useEffect(() => {
     const listener = (event: Event) => {
-      const id = (event as CustomEvent<{ id: string }>).detail?.id;
-      if (id) setJump(`${id}#${Date.now()}`);
+      const detail = (event as CustomEvent<{ id: string; thread_id?: string | null }>).detail;
+      if (!detail?.id || (detail.thread_id && detail.thread_id !== threadId)) return;
+      event.preventDefault();
+      setJump(`${detail.id}#${Date.now()}`);
     };
     window.addEventListener("lonora:jump", listener);
     return () => window.removeEventListener("lonora:jump", listener);
-  }, []);
+  }, [threadId]);
 
   /* ---- side data: files, order lines, the collaboration session */
   useEffect(() => {
@@ -221,6 +227,8 @@ export function Conversation({
       .then((rows) => {
         if (!live) return;
         const hit = rows.find((row) => row.seq === aroundSeq);
+        // Arriving for a card: the page around its anchor is loaded; the jump stays on it.
+        if (jumpTo) return;
         if (hit) setJump(hit.id);
         else toast(t`The message is no longer available.`);
       })
@@ -230,7 +238,7 @@ export function Conversation({
     return () => {
       live = false;
     };
-  }, [aroundSeq, toast]);
+  }, [aroundSeq, toast, jumpTo]);
 
   /* ---- runs: what is active, streaming, failed */
   const runs = thread.runs.filter((run) => run.thread_id === threadId);

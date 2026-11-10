@@ -505,3 +505,61 @@ test("R1/R2: the order sheet draws the executor's own rows: blocked before sendi
   await expect(reason).toContainText("Not enough money to complete the request");
   await expect(sheet).not.toContainText(/try again/i);
 });
+
+test("R5: «Resolve» in Lonora's sheet opens the conversation that holds the card", async ({
+  page,
+  context,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const lonora = (await (await context.request.get("/api/agents")).json()).find(
+    (row) => row.role === "personal",
+  );
+  const card = "ux-message-1";
+  await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({ json: [message(conversation, 1, "assistant", "The resolve card")] })
+      : route.continue(),
+  );
+  await page.route(`**/api/agents/${lonora.id}/state`, async (route) => {
+    const live = await (await route.fetch()).json();
+    const readiness = live.trading_readiness ?? {};
+    await route.fulfill({
+      json: {
+        ...live,
+        trading_readiness: {
+          ...readiness,
+          unresolved_count: 1,
+          unresolved_operations: [
+            {
+              operation_id: "op-elsewhere",
+              account_id: "acct",
+              symbol: "XAUUSD",
+              action: "buy",
+              status: "ambiguous",
+              submitted_at: null,
+              this_agent: false,
+              blocks: "new_risk_on_this_symbol_or_ticket",
+              // The card lives in another agent's chat.
+              resolve_card: {
+                id: card,
+                thread_id: conversation.thread.id,
+                agent_id: conversation.agent.id,
+                group_id: null,
+                timeline_seq: 1,
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
+  await page.goto(`/app/${lonora.id}`);
+  await expect(page.getByTestId("permission-chip")).toBeVisible();
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  await page.locator(`#dialog [data-resolve-card="${card}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${conversation.agent.id}\\?.*card=${card}`));
+  await expect(page).toHaveURL(new RegExp(`thread=${conversation.thread.id}`));
+  await expect(page.locator(`[data-message-id="${card}"]`)).toBeVisible();
+});

@@ -301,7 +301,7 @@ async def test_active_restriction_pauses_and_a_freeze_traps_no_exit_but_shows_it
 async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    db, owner, agent, _ = task_db
+    db, owner, agent, thread = task_db
     acct = await account(db, owner)
     await resume(db)
     level(monkeypatch, "autonomous", grant(acct))
@@ -332,11 +332,15 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
     assert operations[0]["this_agent"] is True and operations[1]["this_agent"] is False
     assert {item["blocks"] for item in operations} == {"new_risk_on_this_symbol_or_ticket"}
     # «حسم» opens that operation's own resolve card, never another pending card.
-    assert [item["resolve_card_id"] for item in operations] == [None, None]
+    assert [item["resolve_card"] for item in operations] == [None, None]
     async with db.sessions() as session, session.begin():
         card = OwnerActionRow(
             owner_id=owner,
             agent_id=agent,
+            # The card lives in a conversation (here the agent's own chat; another agent's or
+            # Lonora's likewise): «حسم» opens that conversation and jumps to it.
+            thread_id=thread,
+            timeline_seq=7,
             source="system",
             kind="resolve_operation",
             subject="operation:op-ambiguous",
@@ -362,7 +366,14 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
             )
         )
     linked = (await readiness(db, owner, agent))["unresolved_operations"]
-    assert [item["resolve_card_id"] for item in linked] == [card.id, None]
+    assert linked[0]["resolve_card"] == {
+        "id": card.id,
+        "thread_id": thread,
+        "agent_id": agent,
+        "group_id": None,
+        "timeline_seq": 7,
+    }
+    assert linked[1]["resolve_card"] is None
     # A stop or pause is the stronger line; the operation stays listed for the sheet.
     await save_controls(db, TradingControl(enabled=False))
     stopped = await readiness(db, owner, agent)

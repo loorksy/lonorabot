@@ -405,6 +405,7 @@ function AgentConversation({
         key={thread.id}
         threadId={thread.id}
         aroundSeq={aroundOf(params)}
+        jumpTo={params.get("card") ?? undefined}
         agentId={agent.id}
         agents={agents}
         knownRuns={knownRuns}
@@ -438,6 +439,7 @@ export function ChatPane({
         key={String(group.state.thread_id)}
         threadId={String(group.state.thread_id)}
         aroundSeq={aroundOf(params)}
+        jumpTo={params.get("card") ?? undefined}
         agentId=""
         knownRuns={data.runs}
         conversationName={String(group.payload.name)}

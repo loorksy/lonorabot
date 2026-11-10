@@ -28,6 +28,7 @@ import { liftRestriction, readConnections, resumeTrading, stopNewTrading } from 
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../../shell/data";
+import { useNavigation } from "../../shell/navigation";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
 import { useChatPrefs } from "../prefs";
@@ -259,10 +260,12 @@ export function LimitRows({ limits }: { limits: MoneyLimits }) {
 function AgentSheetBody({
   agent,
   onJump,
+  go,
   close,
 }: {
   agent: Agent;
   onJump: (id: string) => void;
+  go: (path: string) => void;
   close: () => void;
 }) {
   const { state } = useAgentLiveState(agent.id);
@@ -566,14 +569,14 @@ function AgentSheetBody({
                     <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
                   </small>
                 </span>
-                {op.resolve_card_id && (
+                {op.resolve_card && (
                   <button
                     type="button"
                     className="btn sm"
-                    data-resolve-card={op.resolve_card_id}
+                    data-resolve-card={op.resolve_card.id}
                     onClick={() => {
                       close();
-                      if (op.resolve_card_id) onJump(op.resolve_card_id);
+                      if (op.resolve_card) openCard(op.resolve_card, go);
                     }}
                   >
                     <Trans>Resolve</Trans>
@@ -622,8 +625,32 @@ function AgentSheetBody({
   );
 }
 
+/** «حسم»: the open chat jumps to the card when it holds it; otherwise the card's own
+    conversation (another agent's chat, a group, Lonora's) opens on it. */
+function openCard(card: ResolveCard, go: (path: string) => void) {
+  const held = !window.dispatchEvent(
+    new CustomEvent("lonora:jump", {
+      detail: { id: card.id, thread_id: card.thread_id },
+      cancelable: true,
+    }),
+  );
+  if (held) return;
+  const path = card.group_id
+    ? `/app/g/${encodeURIComponent(card.group_id)}`
+    : card.agent_id
+      ? `/app/${encodeURIComponent(card.agent_id)}`
+      : null;
+  if (!path) return;
+  const query = new URLSearchParams({ card: card.id });
+  if (card.thread_id && !card.group_id) query.set("thread", card.thread_id);
+  if (card.timeline_seq) query.set("around", String(card.timeline_seq));
+  go(`${path}?${query}`);
+}
+type ResolveCard = NonNullable<TradingReadiness["unresolved_operations"][number]["resolve_card"]>;
+
 export function useAgentSheet(onJump: (id: string) => void) {
   const sheets = useSheets();
+  const nav = useNavigation();
   return useCallback(
     (agent: Agent, trading: boolean, statusOn: boolean) => {
       const title = trading
@@ -635,9 +662,11 @@ export function useAgentSheet(onJump: (id: string) => void) {
         id: "safety",
         title,
         label: title,
-        body: <AgentSheetBody agent={agent} onJump={onJump} close={() => sheets.close()} />,
+        body: (
+          <AgentSheetBody agent={agent} onJump={onJump} go={nav.go} close={() => sheets.close()} />
+        ),
       });
     },
-    [sheets, onJump],
+    [sheets, onJump, nav.go],
   );
 }
