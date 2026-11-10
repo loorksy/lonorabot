@@ -23,6 +23,13 @@ export type InputRequest = {
   selected_choice_id: string | null;
   answer_message_id: string | null;
 };
+/** Why a Run failed, by the provider's error family (Q22); on `run.failed` and Run. */
+export type RunFailure = {
+  family: "quota" | "rate" | "timeout" | "model" | "other";
+  /** The provider's own Retry-After hint, counted from the failure; null without one. */
+  retry_after_seconds: number | null;
+};
+
 export type Run = {
   input_seq?: number;
   input_requests?: InputRequest[];
@@ -42,6 +49,8 @@ export type Run = {
     | "cancelled";
   trigger: string;
   error_code: string | null;
+  /** Present on a failed Run. */
+  failure?: RunFailure | null;
   result: string | null;
   model_metadata: Payload;
   stream?: ReplyStreamSnapshot | null;
