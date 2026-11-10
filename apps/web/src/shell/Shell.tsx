@@ -82,15 +82,16 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
         {/* One scope for the chrome and what the providers float above it (sheets, toast,
             menus): the reference's defaults reach all of them, the legacy styles none. */}
         <div className="app-shell">
-          <SheetProvider>
-            <ToastProvider>
+          {/* Sheet and menu bodies use the toast; menus open sheets; navigation closes both. */}
+          <ToastProvider>
+            <SheetProvider>
               <PopoverProvider>
                 <NavigationProvider>
                   <ShellLists />
                 </NavigationProvider>
               </PopoverProvider>
-            </ToastProvider>
-          </SheetProvider>
+            </SheetProvider>
+          </ToastProvider>
         </div>
       </ShellDataLoader>
     </VoiceProvider>

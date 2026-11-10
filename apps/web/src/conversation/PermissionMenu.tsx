@@ -137,7 +137,12 @@ export function PermissionChip({
       onClick={(event) =>
         popover.open(
           event.currentTarget,
-          <PermissionMenu agent={agent} permission={permission} onChanged={onChanged} />,
+          <PermissionMenu
+            agent={agent}
+            permission={permission}
+            onChanged={onChanged}
+            go={nav.go}
+          />,
           t`Permission level`,
           { cls: "mode-pop", above: true },
         )
@@ -154,10 +159,12 @@ function PermissionMenu({
   agent,
   permission,
   onChanged,
+  go,
 }: {
   agent: Agent;
   permission: PermissionState | null;
   onChanged: (state: PermissionState) => void;
+  go: (path: string) => void;
 }) {
   const popover = usePopover();
   const toast = useToast();
@@ -340,6 +347,7 @@ function PermissionMenu({
           </>
         ) : page.kind === "model" ? (
           <ModelPage
+            go={go}
             agent={agent}
             summary={summary}
             onSummary={setSummary}
@@ -356,13 +364,14 @@ function ModelPage({
   summary,
   onSummary,
   onBack,
+  go,
 }: {
   agent: Agent;
   summary: AgentModelSummary | null;
   onSummary: (row: AgentModelSummary) => void;
   onBack: () => void;
+  go: (path: string) => void;
 }) {
-  const nav = useNavigation();
   const popover = usePopover();
   const toast = useToast();
   const path = `/agents/${encodeURIComponent(agent.id)}/model`;
@@ -458,7 +467,7 @@ function ModelPage({
         role="menuitem"
         onClick={() => {
           popover.close();
-          nav.go("/app/settings?tab=models");
+          go("/app/settings?tab=models");
         }}
       >
         <Icon name="plus" />

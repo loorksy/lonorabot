@@ -55,7 +55,7 @@ msgid "{0} of {1}"
 msgstr "{0} of {1}"
 
 #. placeholder {0}: summary.usage.requests
-#: src/conversation/PermissionMenu.tsx:450
+#: src/conversation/PermissionMenu.tsx:454
 msgid "{0} requests · no cap for this agent"
 msgstr "{0} requests · no cap for this agent"
 
@@ -112,7 +112,7 @@ msgstr "{queued, plural, one {one message waiting} two {two messages waiting} fe
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/shell/Shell.tsx:387
+#: src/shell/Shell.tsx:388
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
@@ -317,7 +317,7 @@ msgstr "Add to a list"
 msgid "Add to favourites"
 msgstr "Add to favourites"
 
-#: src/conversation/ToolsSheet.tsx:201
+#: src/conversation/ToolsSheet.tsx:209
 msgid "Add to the conversation"
 msgstr "Add to the conversation"
 
@@ -579,13 +579,13 @@ msgstr "Attachment"
 msgid "Attachments"
 msgstr "Attachments"
 
+#: src/conversation/Composer.tsx:706
 #: src/conversation/Composer.tsx:707
-#: src/conversation/Composer.tsx:708
 msgid "Attachments and tools"
 msgstr "Attachments and tools"
 
-#: src/conversation/PermissionMenu.tsx:212
-#: src/conversation/PermissionMenu.tsx:411
+#: src/conversation/PermissionMenu.tsx:214
+#: src/conversation/PermissionMenu.tsx:415
 msgid "Automatic"
 msgstr "Automatic"
 
@@ -621,7 +621,7 @@ msgstr "Avatar Studio"
 #~ msgid "Awaiting reconciliation. This operation will not be sent again."
 #~ msgstr "Awaiting reconciliation. This operation will not be sent again."
 
-#: src/conversation/PermissionMenu.tsx:283
+#: src/conversation/PermissionMenu.tsx:285
 #: src/pages/shell/bot-panel.tsx:166
 #: src/shell/ChatHeader.tsx:87
 #: src/shell/sheets/SheetHost.tsx:580
@@ -643,7 +643,7 @@ msgstr "Back to chats"
 #~ msgid "Back to conversations"
 #~ msgstr "Back to conversations"
 
-#: src/conversation/PermissionMenu.tsx:393
+#: src/conversation/PermissionMenu.tsx:397
 msgid "Back to the permissions"
 msgstr "Back to the permissions"
 
@@ -857,7 +857,7 @@ msgstr "Call ended"
 msgid "Call with {name}"
 msgstr "Call with {name}"
 
-#: src/conversation/ToolsSheet.tsx:78
+#: src/conversation/ToolsSheet.tsx:85
 msgid "Camera"
 msgstr "Camera"
 
@@ -928,7 +928,7 @@ msgstr "Change a value to save it."
 msgid "Change the model"
 msgstr "Change the model"
 
-#: src/conversation/PermissionMenu.tsx:289
+#: src/conversation/PermissionMenu.tsx:291
 msgid "Change the permission level"
 msgstr "Change the permission level"
 
@@ -944,7 +944,7 @@ msgstr "Changing mode pauses active trading goals. Live trading still requires e
 msgid "Channel"
 msgstr "Channel"
 
-#: src/conversation/ToolsSheet.tsx:146
+#: src/conversation/ToolsSheet.tsx:153
 #: src/shell/ChatMenu.tsx:62
 #: src/shell/ChatMenu.tsx:112
 msgid "Chart"
@@ -1179,7 +1179,7 @@ msgstr "closing allowed"
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 
-#: src/conversation/PermissionMenu.tsx:269
+#: src/conversation/PermissionMenu.tsx:271
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "Closing and tightening the stop loss are always allowed."
 
@@ -1244,7 +1244,7 @@ msgstr "Configure an OpenAI credential with GPT-Live API access"
 #~ msgstr "Confirm account password"
 
 #. placeholder {0}: levelName(page.level)
-#: src/conversation/PermissionMenu.tsx:316
+#: src/conversation/PermissionMenu.tsx:318
 msgid "Confirm: {0}"
 msgstr "Confirm: {0}"
 
@@ -1256,7 +1256,7 @@ msgstr "Confirm: {0}"
 msgid "Connect a broker account before creating a trading agent."
 msgstr "Connect a broker account before creating a trading agent."
 
-#: src/conversation/PermissionMenu.tsx:466
+#: src/conversation/PermissionMenu.tsx:470
 msgid "Connect a model provider"
 msgstr "Connect a model provider"
 
@@ -1319,11 +1319,11 @@ msgstr "Content"
 #~ msgid "Context panel"
 #~ msgstr "Context panel"
 
-#: src/conversation/Composer.tsx:1114
+#: src/conversation/Composer.tsx:1113
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:908
+#: src/conversation/Conversation.tsx:918
 #: src/pages/ModelRoutingSettings.tsx:10
 #: src/pages/shell/chat-context.tsx:1079
 msgid "Conversation"
@@ -1348,7 +1348,7 @@ msgstr "Conversations"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
-#: src/conversation/Conversation.tsx:359
+#: src/conversation/Conversation.tsx:361
 msgid "Copied"
 msgstr "Copied"
 
@@ -1369,11 +1369,11 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/conversation/Conversation.tsx:505
+#: src/conversation/Conversation.tsx:507
 msgid "Copy text"
 msgstr "Copy text"
 
-#: src/conversation/Conversation.tsx:361
+#: src/conversation/Conversation.tsx:363
 msgid "Could not copy"
 msgstr "Could not copy"
 
@@ -1528,7 +1528,7 @@ msgstr "Delegated task"
 #: src/components/integrations/IntegrationSetup.tsx:184
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:486
+#: src/conversation/Conversation.tsx:488
 #: src/pages/McpServersOverlay.tsx:102
 #: src/pages/RoutineEditor.tsx:122
 #: src/pages/ScratchpadSection.tsx:203
@@ -1563,7 +1563,7 @@ msgstr "Delete the chats?"
 msgid "Delete the list"
 msgstr "Delete the list"
 
-#: src/conversation/Composer.tsx:1087
+#: src/conversation/Composer.tsx:1086
 msgid "Delete the recording"
 msgstr "Delete the recording"
 
@@ -1635,7 +1635,7 @@ msgstr "Dictation is not available in this browser; hold the microphone to recor
 msgid "Dictation needs an internet connection"
 msgstr "Dictation needs an internet connection"
 
-#: src/conversation/Composer.tsx:759
+#: src/conversation/Composer.tsx:758
 msgid "Dictation, or hold to record a voice message"
 msgstr "Dictation, or hold to record a voice message"
 
@@ -1688,7 +1688,7 @@ msgstr "Download this file to view it"
 msgid "Dreamy"
 msgstr "Dreamy"
 
-#: src/conversation/Composer.tsx:819
+#: src/conversation/Composer.tsx:818
 msgid "Drop here to attach"
 msgstr "Drop here to attach"
 
@@ -1696,7 +1696,7 @@ msgstr "Drop here to attach"
 msgid "Durable trading journal"
 msgstr "Durable trading journal"
 
-#: src/conversation/ToolsSheet.tsx:124
+#: src/conversation/ToolsSheet.tsx:131
 msgid "Each agent has its own permissions"
 msgstr "Each agent has its own permissions"
 
@@ -1714,7 +1714,7 @@ msgstr "Economic calendar feed"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/conversation/Conversation.tsx:506
+#: src/conversation/Conversation.tsx:508
 msgid "Edit and resend"
 msgstr "Edit and resend"
 
@@ -1831,7 +1831,7 @@ msgstr "Every agent reads this feed. Follow X analysts through their feeds, web 
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "Every list you create becomes a filter above the chat list."
 
-#: src/conversation/PermissionMenu.tsx:321
+#: src/conversation/PermissionMenu.tsx:323
 msgid "Every order is shown to you for approval before it is sent"
 msgstr "Every order is shown to you for approval before it is sent"
 
@@ -1935,11 +1935,15 @@ msgstr "Fibonacci"
 msgid "File"
 msgstr "File"
 
-#: src/conversation/ToolsSheet.tsx:76
 #: src/shell/lists/UnifiedSearch.tsx:272
 #: src/shell/lists/UnifiedSearch.tsx:307
 #: src/shell/lists/UnifiedSearch.tsx:314
 #: src/shell/pages.tsx:62
+msgid "Files"
+msgstr "Files"
+
+#: src/conversation/ToolsSheet.tsx:83
+msgctxt "add to the conversation"
 msgid "Files"
 msgstr "Files"
 
@@ -2018,7 +2022,7 @@ msgstr "Free margin"
 msgid "From"
 msgstr "From"
 
-#: src/conversation/Conversation.tsx:465
+#: src/conversation/Conversation.tsx:467
 msgid "From the conversation"
 msgstr "From the conversation"
 
@@ -2030,7 +2034,7 @@ msgstr "Full screen"
 msgid "Gathers information and summarises it without trading"
 msgstr "Gathers information and summarises it without trading"
 
-#: src/conversation/ToolsSheet.tsx:159
+#: src/conversation/ToolsSheet.tsx:166
 msgid "Gathers sources before replying"
 msgstr "Gathers sources before replying"
 
@@ -2071,11 +2075,11 @@ msgstr "Global routing"
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
-#: src/conversation/Conversation.tsx:978
+#: src/conversation/Conversation.tsx:988
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:978
+#: src/conversation/Conversation.tsx:988
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -2134,7 +2138,7 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/conversation/Conversation.tsx:1059
+#: src/conversation/Conversation.tsx:1069
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -2211,7 +2215,7 @@ msgid "Insufficient data for performance conclusions"
 msgstr "Insufficient data for performance conclusions"
 
 #: src/components/integrations/IntegrationSetup.tsx:70
-#: src/conversation/ToolsSheet.tsx:171
+#: src/conversation/ToolsSheet.tsx:178
 #: src/pages/settings-sidebar.tsx:24
 msgid "Integrations"
 msgstr "Integrations"
@@ -2249,7 +2253,7 @@ msgstr "It starts at «Ask me»: every order is shown to you before it is sent. 
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "It starts at «No trading». The level is changed from its chat."
 
-#: src/conversation/PermissionMenu.tsx:320
+#: src/conversation/PermissionMenu.tsx:322
 msgid "It stops executing and only analyses and follows"
 msgstr "It stops executing and only analyses and follows"
 
@@ -2270,7 +2274,7 @@ msgid "Jump to latest"
 msgstr "Jump to latest"
 
 #. placeholder {0}: levelName("autonomous")
-#: src/conversation/PermissionMenu.tsx:333
+#: src/conversation/PermissionMenu.tsx:335
 msgid "Keep «{0}»"
 msgstr "Keep «{0}»"
 
@@ -2300,7 +2304,7 @@ msgstr "Keyboard"
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
 
-#: src/conversation/ToolsSheet.tsx:183
+#: src/conversation/ToolsSheet.tsx:190
 #: src/pages/Knowledge.tsx:20
 #: src/shell/ChatMenu.tsx:98
 #: src/shell/ChatMenu.tsx:115
@@ -2438,7 +2442,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:945
+#: src/conversation/Conversation.tsx:955
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -2490,7 +2494,7 @@ msgstr "Lonora needs the microphone for dictation, voice messages and calls. Not
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/shell/Shell.tsx:491
+#: src/shell/Shell.tsx:492
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "Maintenance is still in progress. Try again shortly"
 
@@ -2499,7 +2503,7 @@ msgstr "Maintenance is still in progress. Try again shortly"
 msgid "Manage agents"
 msgstr "Manage agents"
 
-#: src/conversation/PermissionMenu.tsx:263
+#: src/conversation/PermissionMenu.tsx:265
 #: src/conversation/sheets/MandateSheet.tsx:15
 msgid "Mandate details"
 msgstr "Mandate details"
@@ -2589,7 +2593,7 @@ msgstr "MCP servers"
 msgid "Members"
 msgstr "Members"
 
-#: src/conversation/ToolsSheet.tsx:123
+#: src/conversation/ToolsSheet.tsx:130
 msgid "Members' permissions"
 msgstr "Members' permissions"
 
@@ -2628,8 +2632,8 @@ msgstr "Message {recipientName}"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/conversation/Conversation.tsx:488
-#: src/conversation/Conversation.tsx:511
+#: src/conversation/Conversation.tsx:490
+#: src/conversation/Conversation.tsx:513
 #: src/conversation/Message.tsx:492
 msgid "Message options"
 msgstr "Message options"
@@ -2697,8 +2701,8 @@ msgstr "Missed voice call"
 msgid "Mode"
 msgstr "Mode"
 
-#: src/conversation/PermissionMenu.tsx:247
-#: src/conversation/PermissionMenu.tsx:399
+#: src/conversation/PermissionMenu.tsx:249
+#: src/conversation/PermissionMenu.tsx:403
 msgid "Model"
 msgstr "Model"
 
@@ -2793,7 +2797,7 @@ msgstr "New owner skills use explicit activation and read-only metadata. They do
 msgid "New request"
 msgstr "New request"
 
-#: src/conversation/ToolsSheet.tsx:100
+#: src/conversation/ToolsSheet.tsx:107
 #: src/shell/ChatMenu.tsx:134
 #: src/shell/Welcome.tsx:57
 msgid "New task"
@@ -2872,7 +2876,7 @@ msgstr "No candle history was found for this symbol and timeframe."
 msgid "No candles available for this instrument and timeframe."
 msgstr "No candles available for this instrument and timeframe."
 
-#: src/conversation/PermissionMenu.tsx:336
+#: src/conversation/PermissionMenu.tsx:338
 msgid "No change"
 msgstr "No change"
 
@@ -3070,7 +3074,7 @@ msgstr "One model for text work"
 msgid "One step"
 msgstr "One step"
 
-#: src/conversation/ToolsSheet.tsx:107
+#: src/conversation/ToolsSheet.tsx:114
 msgid "One time or repeating"
 msgstr "One time or repeating"
 
@@ -3235,7 +3239,7 @@ msgstr "Pause"
 msgid "Pause agent and scheduled work"
 msgstr "Pause agent and scheduled work"
 
-#: src/conversation/Composer.tsx:1114
+#: src/conversation/Composer.tsx:1113
 msgid "Pause recording"
 msgstr "Pause recording"
 
@@ -3280,7 +3284,7 @@ msgstr "Period"
 #~ msgid "Permanently delete {0}? This cannot be undone."
 #~ msgstr "Permanently delete {0}? This cannot be undone."
 
-#: src/conversation/ToolsSheet.tsx:133
+#: src/conversation/ToolsSheet.tsx:140
 msgid "Permission"
 msgstr "Permission"
 
@@ -3289,12 +3293,12 @@ msgid "Permission level"
 msgstr "Permission level"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:218
+#: src/conversation/PermissionMenu.tsx:220
 msgid "Permission level · {0}"
 msgstr "Permission level · {0}"
 
 #. placeholder {0}: levelName(next)
-#: src/conversation/PermissionMenu.tsx:194
+#: src/conversation/PermissionMenu.tsx:196
 msgid "Permission: {0}"
 msgstr "Permission: {0}"
 
@@ -3316,7 +3320,7 @@ msgstr "Persistent child agent"
 msgid "Personal Agent"
 msgstr "Personal Agent"
 
-#: src/conversation/Conversation.tsx:459
+#: src/conversation/Conversation.tsx:461
 msgid "Photo"
 msgstr "Photo"
 
@@ -3324,11 +3328,11 @@ msgstr "Photo"
 msgid "Photo, tap to view"
 msgstr "Photo, tap to view"
 
-#: src/conversation/ToolsSheet.tsx:77
+#: src/conversation/ToolsSheet.tsx:84
 msgid "Photos"
 msgstr "Photos"
 
-#: src/conversation/Composer.tsx:822
+#: src/conversation/Composer.tsx:821
 msgid "Photos and files up to 8 MB"
 msgstr "Photos and files up to 8 MB"
 
@@ -3489,8 +3493,8 @@ msgstr "Question from the agent"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/conversation/Conversation.tsx:385
-#: src/conversation/Conversation.tsx:517
+#: src/conversation/Conversation.tsx:387
+#: src/conversation/Conversation.tsx:519
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
@@ -3502,7 +3506,7 @@ msgstr "Raising or removing a limit needs the passkey."
 msgid "Ray"
 msgstr "Ray"
 
-#: src/conversation/Conversation.tsx:391
+#: src/conversation/Conversation.tsx:393
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
@@ -3510,8 +3514,8 @@ msgstr "React {emoji}"
 msgid "React to the message"
 msgstr "React to the message"
 
-#: src/conversation/Conversation.tsx:528
-#: src/conversation/Conversation.tsx:562
+#: src/conversation/Conversation.tsx:530
+#: src/conversation/Conversation.tsx:564
 msgid "Reactions"
 msgstr "Reactions"
 
@@ -3593,7 +3597,7 @@ msgstr "Record a fresh market decision before virtual entry."
 msgid "Record resolution"
 msgstr "Record resolution"
 
-#: src/conversation/Composer.tsx:1093
+#: src/conversation/Composer.tsx:1092
 msgid "Recording length"
 msgstr "Recording length"
 
@@ -3672,7 +3676,7 @@ msgstr "Remove take profit"
 msgid "Removed from favourites"
 msgstr "Removed from favourites"
 
-#: src/conversation/Conversation.tsx:504
+#: src/conversation/Conversation.tsx:506
 #: src/pages/shell/message-cards.tsx:201
 #: src/pages/shell/message-cards.tsx:202
 #: src/shell/lists/HeadsUp.tsx:191
@@ -3791,7 +3795,7 @@ msgstr "Resume"
 #: src/components/call/CallCard.tsx:149
 #: src/components/call/CallCard.tsx:149
 #: src/conversation/Cards.tsx:103
-#: src/conversation/Conversation.tsx:483
+#: src/conversation/Conversation.tsx:485
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -3862,7 +3866,7 @@ msgid "Running"
 msgstr "Running"
 
 #. placeholder {0}: current.name
-#: src/conversation/PermissionMenu.tsx:415
+#: src/conversation/PermissionMenu.tsx:419
 msgid "Running on «{0}» now · the routing picks the best fit for each task"
 msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 
@@ -3934,8 +3938,12 @@ msgstr "Saving…"
 msgid "Scenario"
 msgstr "Scenario"
 
-#: src/conversation/ToolsSheet.tsx:106
 #: src/pages/RoutineSchedule.tsx:20
+msgid "Schedule"
+msgstr "Schedule"
+
+#: src/conversation/ToolsSheet.tsx:113
+msgctxt "add to the conversation"
 msgid "Schedule"
 msgstr "Schedule"
 
@@ -4076,7 +4084,7 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
-#: src/conversation/Composer.tsx:793
+#: src/conversation/Composer.tsx:792
 #: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
 msgid "Send"
@@ -4095,11 +4103,11 @@ msgstr "Send direction"
 msgid "Send the answer"
 msgstr "Send the answer"
 
-#: src/conversation/Composer.tsx:792
+#: src/conversation/Composer.tsx:791
 msgid "Send the message"
 msgstr "Send the message"
 
-#: src/conversation/Composer.tsx:1135
+#: src/conversation/Composer.tsx:1134
 msgid "Send the voice message"
 msgstr "Send the voice message"
 
@@ -4267,7 +4275,7 @@ msgstr "Skill ID"
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "Skill version controls could not be verified. Reload before making changes."
 
-#: src/conversation/ToolsSheet.tsx:178
+#: src/conversation/ToolsSheet.tsx:185
 #: src/pages/Knowledge.tsx:44
 msgid "Skills"
 msgstr "Skills"
@@ -4288,7 +4296,7 @@ msgstr "Skin tone {tone}"
 msgid "Sleepy"
 msgstr "Sleepy"
 
-#: src/conversation/Composer.tsx:1108
+#: src/conversation/Composer.tsx:1107
 msgid "Slide to cancel"
 msgstr "Slide to cancel"
 
@@ -4376,7 +4384,7 @@ msgstr "Status: {text}"
 msgid "Still unknown"
 msgstr "Still unknown"
 
-#: src/conversation/Composer.tsx:801
+#: src/conversation/Composer.tsx:800
 #: src/pages/ActivityList.tsx:259
 #: src/pages/shell/chat-context.tsx:896
 #: src/pages/shell/chat-context.tsx:897
@@ -4401,7 +4409,7 @@ msgstr "Stop loss · optional"
 #~ msgid "Stop Super Bot"
 #~ msgstr "Stop Super Bot"
 
-#: src/conversation/Composer.tsx:800
+#: src/conversation/Composer.tsx:799
 msgid "Stop the reply"
 msgstr "Stop the reply"
 
@@ -4496,15 +4504,15 @@ msgstr "Tap the lock icon next to the site address."
 msgid "Tap to call back"
 msgstr "Tap to call back"
 
-#: src/conversation/Composer.tsx:760
+#: src/conversation/Composer.tsx:759
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
-#: src/conversation/Conversation.tsx:548
+#: src/conversation/Conversation.tsx:550
 msgid "Tap to remove"
 msgstr "Tap to remove"
 
-#: src/conversation/Conversation.tsx:372
+#: src/conversation/Conversation.tsx:374
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/pages/RoutineEditor.tsx:75
@@ -4520,7 +4528,7 @@ msgstr "Task boards"
 msgid "Task completed"
 msgstr "Task completed"
 
-#: src/conversation/Conversation.tsx:374
+#: src/conversation/Conversation.tsx:376
 msgid "Task created"
 msgstr "Task created"
 
@@ -4566,7 +4574,7 @@ msgstr "That chart timeframe is not supported by this broker."
 msgid "The agent could not reply"
 msgstr "The agent could not reply"
 
-#: src/conversation/ToolsSheet.tsx:101
+#: src/conversation/ToolsSheet.tsx:108
 msgid "The agent follows it until it is done"
 msgstr "The agent follows it until it is done"
 
@@ -4676,18 +4684,18 @@ msgstr "The full response will appear when complete."
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "The grant is active, but its readiness check did not finish. No trade was sent."
 
-#: src/conversation/ToolsSheet.tsx:147
+#: src/conversation/ToolsSheet.tsx:154
 msgid "The market"
 msgstr "The market"
 
-#: src/conversation/Conversation.tsx:215
-#: src/conversation/Conversation.tsx:218
+#: src/conversation/Conversation.tsx:217
+#: src/conversation/Conversation.tsx:220
 #: src/pages/shell/chat-context.tsx:114
 #: src/pages/shell/chat-context.tsx:117
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
-#: src/conversation/Conversation.tsx:479
+#: src/conversation/Conversation.tsx:481
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
@@ -4744,7 +4752,7 @@ msgstr "The model’s answer was cut off at its output limit. Try again or ask f
 msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
-#: src/conversation/Conversation.tsx:453
+#: src/conversation/Conversation.tsx:455
 #: src/conversation/Message.tsx:118
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
@@ -4789,7 +4797,7 @@ msgstr "The restriction was lifted"
 msgid "The result is no longer available."
 msgstr "The result is no longer available."
 
-#: src/conversation/PermissionMenu.tsx:416
+#: src/conversation/PermissionMenu.tsx:420
 msgid "The routing picks the best fit for each task"
 msgstr "The routing picks the best fit for each task"
 
@@ -4809,7 +4817,7 @@ msgstr "The selected model is not available from this provider. Choose another m
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
-#: src/conversation/PermissionMenu.tsx:297
+#: src/conversation/PermissionMenu.tsx:299
 msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "The signed mandate is revoked; going back to it needs a new signature."
 
@@ -4954,7 +4962,7 @@ msgstr "This operation will not be sent again."
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
-#: src/shell/Shell.tsx:303
+#: src/shell/Shell.tsx:304
 msgid "This page is available in the development build only"
 msgstr "This page is available in the development build only"
 
@@ -5055,7 +5063,7 @@ msgstr "To do"
 #~ msgid "To:"
 #~ msgstr "To:"
 
-#: src/conversation/Conversation.tsx:82
+#: src/conversation/Conversation.tsx:83
 #: src/pages/Artifacts.tsx:235
 #: src/pages/shell/chat-context.tsx:1167
 msgid "Today"
@@ -5082,7 +5090,7 @@ msgstr "Tool activity"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:791
+#: src/conversation/Conversation.tsx:793
 msgid "Trade order"
 msgstr "Trade order"
 
@@ -5182,7 +5190,7 @@ msgstr "Trend line"
 msgid "Try again"
 msgstr "Try again"
 
-#: src/conversation/Conversation.tsx:509
+#: src/conversation/Conversation.tsx:511
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
@@ -5311,7 +5319,7 @@ msgstr "Uploading…"
 
 #. placeholder {0}: agent.name
 #. placeholder {1}: summary.usage.days
-#: src/conversation/PermissionMenu.tsx:445
+#: src/conversation/PermissionMenu.tsx:449
 msgid "Usage of {0} · last {1} days"
 msgstr "Usage of {0} · last {1} days"
 
@@ -5319,11 +5327,11 @@ msgstr "Usage of {0} · last {1} days"
 msgid "Use the configured secure website for device authentication."
 msgstr "Use the configured secure website for device authentication."
 
-#: src/conversation/Composer.tsx:681
+#: src/conversation/Composer.tsx:680
 msgid "Use the suggestion (Tab)"
 msgstr "Use the suggestion (Tab)"
 
-#: src/conversation/Composer.tsx:680
+#: src/conversation/Composer.tsx:679
 msgid "Use the suggestion: {suggestion}"
 msgstr "Use the suggestion: {suggestion}"
 
@@ -5366,8 +5374,8 @@ msgstr "Voice"
 msgid "Voice call"
 msgstr "Voice call"
 
+#: src/conversation/Composer.tsx:767
 #: src/conversation/Composer.tsx:768
-#: src/conversation/Composer.tsx:769
 msgid "Voice conversation"
 msgstr "Voice conversation"
 
@@ -5375,7 +5383,7 @@ msgstr "Voice conversation"
 #~ msgid "Voice disconnected"
 #~ msgstr "Voice disconnected"
 
-#: src/conversation/ToolsSheet.tsx:112
+#: src/conversation/ToolsSheet.tsx:119
 msgid "Voice message"
 msgstr "Voice message"
 
@@ -5487,16 +5495,16 @@ msgstr "We found no results for «{q}». Try a shorter word or a different term.
 msgid "We heard nothing. Try again."
 msgstr "We heard nothing. Try again."
 
-#: src/conversation/Composer.tsx:746
-#: src/conversation/ToolsSheet.tsx:158
+#: src/conversation/Composer.tsx:745
+#: src/conversation/ToolsSheet.tsx:165
 msgid "Web search"
 msgstr "Web search"
 
-#: src/conversation/Composer.tsx:745
+#: src/conversation/Composer.tsx:744
 msgid "Web search is on, tap to turn it off"
 msgstr "Web search is on, tap to turn it off"
 
-#: src/conversation/Composer.tsx:749
+#: src/conversation/Composer.tsx:748
 msgid "Web search turned off"
 msgstr "Web search turned off"
 
@@ -5508,7 +5516,7 @@ msgstr "Welcome {name}"
 msgid "What happened at the broker"
 msgstr "What happened at the broker"
 
-#: src/conversation/Conversation.tsx:1065
+#: src/conversation/Conversation.tsx:1075
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -5537,7 +5545,7 @@ msgstr "Work stopped after repeated interruptions"
 msgid "Working"
 msgstr "Working"
 
-#: src/shell/Shell.tsx:821
+#: src/shell/Shell.tsx:822
 msgid "Workspace"
 msgstr "Workspace"
 
@@ -5553,7 +5561,7 @@ msgstr "Workspace"
 msgid "Worried"
 msgstr "Worried"
 
-#: src/conversation/Conversation.tsx:1063
+#: src/conversation/Conversation.tsx:1073
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
@@ -5562,13 +5570,13 @@ msgstr "Write to the group, or pick a suggestion below."
 msgid "Writing"
 msgstr "Writing"
 
-#: src/conversation/Conversation.tsx:83
+#: src/conversation/Conversation.tsx:84
 #: src/pages/shell/chat-context.tsx:1168
 msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:545
+#: src/conversation/Conversation.tsx:547
 #: src/conversation/Message.tsx:113
 #: src/conversation/Message.tsx:132
 #: src/shell/lists/UnifiedSearch.tsx:152

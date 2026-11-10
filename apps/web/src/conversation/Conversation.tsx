@@ -60,6 +60,7 @@ import { hasGenUi } from "./GenUiPart";
 import { mentionPattern } from "./Markdown";
 import { type LiveReply, Message, snippet, TypingBubble } from "./Message";
 import { useChatPrefs } from "./prefs";
+import { WALL_LEVELS, wallDefs } from "./wallpaper";
 import "./conversation.css";
 
 /* The conversation (reference chatPage/messages, Desktop-37 3726-3820, 5601-5621): day pills in
@@ -144,6 +145,7 @@ export function Conversation({
   const [jump, setJump] = useState<string | null>(null);
   const [actionError, setActionError] = useState<unknown>();
 
+  useLayoutEffect(() => wallDefs(), []);
   // «عرض الطلب» in the AgentSheet: bring that card into view.
   useEffect(() => {
     const listener = (event: Event) => {
@@ -899,6 +901,14 @@ export function Conversation({
   const name = conversationName ?? agent?.name ?? "";
   return (
     <ConversationContext.Provider value={api_}>
+      <svg
+        className="chat-wall"
+        style={{ "--wa": WALL_LEVELS.light.a[theme === "light" ? 1 : 0] } as React.CSSProperties}
+        aria-hidden="true"
+        focusable="false"
+      >
+        <rect width="100%" height="100%" fill="url(#lw-p-lonora)" />
+      </svg>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: a real scroll by the owner shows the floating day */}
       {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the scroller is the named conversation */}
       <div

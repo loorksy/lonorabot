@@ -609,7 +609,6 @@ export function Composer({
             aria-autocomplete="list"
             aria-controls={assistOpen ? `assist-${threadId}` : undefined}
             aria-activedescendant={assistOpen ? `assist-${threadId}-${active}` : undefined}
-            dir="auto"
             value={text}
             onChange={(event) => update(event.target.value, event.target.selectionStart)}
             onSelect={(event) => {

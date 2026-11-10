@@ -4692,3 +4692,39 @@ button.oa-line-body:focus-visible {
 span.no-trade {
   cursor: default;
 }
+/* reference 846-852: the chat wallpaper, a still layer behind the messages */
+#lw-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--wall-ink);
+}
+.chat-wall {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+  opacity: var(--wa, 0.1);
+  contain: strict;
+}
+/* reference 603-604: the desktop composer */
+@media (min-width: 900px) {
+  .desktop-content .composer {
+    left: clamp(16px, 4vw, 56px);
+    right: clamp(16px, 4vw, 56px);
+    bottom: 16px;
+  }
+  .desktop-content .composer::before {
+    bottom: -16px;
+  }
+}
+/* Tailwind's preflight drops list markers; the reference keeps the browser's (reference 1134) */
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}

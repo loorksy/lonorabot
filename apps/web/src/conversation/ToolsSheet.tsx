@@ -59,8 +59,15 @@ function AddRow({
   );
 }
 
-function ToolsBody({ input, close }: { input: ToolsInput; close: () => void }) {
-  const nav = useNavigation();
+function ToolsBody({
+  input,
+  close,
+  nav,
+}: {
+  input: ToolsInput;
+  close: () => void;
+  nav: { go: (path: string) => void };
+}) {
   const [web, setWeb] = useState(input.webSearch);
   const level: AgentPermissionLevel = input.permission?.effective_level ?? "analysis";
   const go = (path: string) => {
@@ -73,7 +80,11 @@ function ToolsBody({ input, close }: { input: ToolsInput; close: () => void }) {
       <div className="add-tiles">
         {(
           [
-            ["fileUp", t`Files`, () => input.onFiles()],
+            [
+              "fileUp",
+              t({ message: "Files", context: "add to the conversation" }),
+              () => input.onFiles(),
+            ],
             ["image", t`Photos`, () => input.onPhotos(false)],
             ["camera", t`Camera`, () => input.onPhotos(true)],
           ] as const
@@ -103,7 +114,7 @@ function ToolsBody({ input, close }: { input: ToolsInput; close: () => void }) {
         />
         <AddRow
           icon="clock"
-          title={<Trans>Schedule</Trans>}
+          title={t({ message: "Schedule", context: "add to the conversation" })}
           sub={<Trans>One time or repeating</Trans>}
           onClick={() => go("/app/routines")}
         />
@@ -196,6 +207,7 @@ function ToolsBody({ input, close }: { input: ToolsInput; close: () => void }) {
 
 export function useToolsSheet() {
   const sheets = useSheets();
+  const nav = useNavigation();
   const open = useCallback(
     (input: ToolsInput) => {
       const title = t`Add to the conversation`;
@@ -204,10 +216,10 @@ export function useToolsSheet() {
         bar: true,
         title,
         label: title,
-        body: <ToolsBody input={input} close={() => sheets.close()} />,
+        body: <ToolsBody input={input} close={() => sheets.close()} nav={nav} />,
       });
     },
-    [sheets],
+    [sheets, nav],
   );
   return { open };
 }

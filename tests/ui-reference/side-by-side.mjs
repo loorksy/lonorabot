@@ -249,6 +249,79 @@ const MORE_AGENTS = [
 const refRun = (page, fn, arg) => page.evaluate(fn, arg);
 const refRow = (page, key) => visible(page, `.thread[data-key="${key}"]`);
 const appRow = (page, name) => visible(page, `.thread[data-key="${agentKey(name)}"]`);
+let conversationSeeded = false;
+const seedConversation = () => {
+  if (conversationSeeded) return;
+  execFileSync(
+    join(ROOT, ".venv/bin/python"),
+    [join(ROOT, "tests/ui-reference/seed_reference.py")],
+    { cwd: ROOT, env, input: JSON.stringify({ action: "conversation" }), encoding: "utf8" },
+  );
+  conversationSeeded = true;
+};
+const CONVERSATION_MD =
+  '## ملخص الفائدة\n- ثبّت البنك المركزي السعر هذا الأسبوع\n- تميل التوقعات إلى خفض في الربع القادم\n\n```json\n{"rate": 5.25, "next": "cut"}\n```';
+async function refConversation(page) {
+  await refRun(
+    page,
+    (md) => {
+      const day = new Date();
+      const at = (h, m) =>
+        Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m);
+      S.messages.research = [
+        {
+          id: "c1",
+          sender: "user",
+          text: "لخّص لي آخر تقرير عن الفائدة",
+          time: "09:10",
+          at: at(9, 10),
+          status: "read",
+        },
+        {
+          id: "c2",
+          sender: "agent",
+          agent: "research",
+          text: md,
+          time: "09:11",
+          at: at(9, 11),
+          reactions: { user: "👍" },
+        },
+        {
+          id: "c3",
+          sender: "user",
+          text: "اشرح لي الكود باختصار",
+          time: "09:12",
+          at: at(9, 12),
+          status: "read",
+          reply: { id: "c2", sender: "agent", agent: "research", text: "## ملخص الفائدة" },
+        },
+        {
+          id: "c4",
+          sender: "agent",
+          agent: "research",
+          kind: "error",
+          err: { type: "rate" },
+          time: "09:12",
+          at: at(9, 12),
+        },
+        {
+          id: "c5",
+          sender: "agent",
+          agent: "research",
+          kind: "call",
+          call: { dir: "in", missed: true },
+          text: "مكالمة صوتية فائتة",
+          time: "09:20",
+          at: at(9, 20),
+        },
+      ];
+      save();
+    },
+    CONVERSATION_MD,
+  );
+  await refRow(page, refKey.research).click();
+  await pause(page, 700);
+}
 const STATES = [
   {
     // Phone: filters rest hidden above the list. Desktop: the two panes with the welcome.
@@ -423,6 +496,50 @@ const STATES = [
     appPath: "/app/missing/page",
     app: async () => {},
   },
+  /* ---- phase 3: the conversation. The research agent's chat holds the same five messages on
+     both sides: a question, a Markdown answer with a code block and the owner's 👍, a reply
+     quoting it, a failed reply (rate limit) and a missed call. */
+  {
+    name: "chat-rich",
+    ref: (page) => refConversation(page),
+    appSetup: () => seedConversation(),
+    appPath: () => `/app/${seed.agents.research}`,
+    app: async () => {},
+    wait: 1200,
+  },
+  {
+    name: "chat-msg-menu",
+    ref: async (page) => {
+      await refConversation(page);
+      await visible(page, ".msg.theirs .md").click({ button: "right" });
+    },
+    appSetup: () => seedConversation(),
+    appPath: () => `/app/${seed.agents.research}`,
+    app: (page) => visible(page, ".msg.theirs .md").click({ button: "right" }),
+    wait: 700,
+  },
+  {
+    name: "chat-tools-sheet",
+    ref: async (page) => {
+      await refConversation(page);
+      await visible(page, ".composer .cbtn").click();
+    },
+    appSetup: () => seedConversation(),
+    appPath: () => `/app/${seed.agents.research}`,
+    app: (page) => visible(page, ".composer .cbtn").click(),
+    wait: 900,
+  },
+  {
+    name: "chat-permission-menu",
+    ref: async (page) => {
+      await refRow(page, refKey.gold).click();
+      await pause(page, 700);
+      await visible(page, ".composer .mode-chip").click();
+    },
+    appPath: () => `/app/${seed.agents.gold}`,
+    app: (page) => visible(page, ".composer .mode-chip").click(),
+    wait: 900,
+  },
   {
     // The topbar edge (glass fades in) and the «Lonora» title folding away. The demo's five rows
     // cannot scroll, so both sides get the same eight more agents (the app keeps them: last state).
@@ -452,6 +569,43 @@ const STATES = [
 /* ------------------------------------------------------------------ probes */
 /* The app reuses the reference's class names: the same selectors, measured on both sides. */
 const PROBES = [
+  ".chat-head",
+  ".chat-name",
+  ".presence",
+  ".msg",
+  ".msg-line",
+  ".bubble",
+  ".msg.mine .bubble",
+  ".msg.theirs .bubble",
+  ".meta",
+  ".ticks",
+  ".sender",
+  ".quote",
+  ".quote-name",
+  ".reacts",
+  ".md",
+  ".md .md-h",
+  ".code",
+  ".code-head",
+  ".code pre",
+  ".err-card",
+  ".call-bubble",
+  ".date span",
+  ".composer",
+  ".composer-card",
+  ".composer textarea",
+  ".composer .cbtn",
+  ".composer .mode-chip",
+  ".composer .no-trade",
+  ".composer .send",
+  ".composer .voice",
+  ".pop.msg-pop",
+  ".react-row",
+  ".react-btn",
+  ".pop.mode-pop",
+  ".pop-opt",
+  ".add-tile",
+  ".add-row",
   ".topbar",
   ".topbar header",
   ".topbar h1",
