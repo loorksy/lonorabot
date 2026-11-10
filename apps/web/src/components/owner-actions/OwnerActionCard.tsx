@@ -569,7 +569,12 @@ function DecisionLine({
         <span className="oa-line-kind">
           {kind} · {statusLabel(labels, row.status)}
         </span>
-        <span className="oa-line-text" dir="auto" data-owner-action-outcome={row.status}>
+        <span
+          className="oa-line-text"
+          role="status"
+          dir="auto"
+          data-owner-action-outcome={row.status}
+        >
           {text}
         </span>
       </button>
