@@ -165,7 +165,15 @@ async def voice_context(
             "content": bounded_text(profile.content if profile else "", 500, tail=True),
             **{
                 key: preferences[key]
-                for key in ("reply_language", "reach_me", "quiet_start_hour", "quiet_end_hour")
+                for key in (
+                    "name",
+                    "address",
+                    "reply_language",
+                    "reach_me",
+                    "quiet_start_minute",
+                    "quiet_end_minute",
+                    "timezone",
+                )
             },
         },
         "memory": {

@@ -198,3 +198,17 @@ test("quiet hours: 22:00-08:00 in the owner's zone, crossing midnight; none set,
   );
   assert.equal(inQuietHours(null, new Date()), false);
 });
+
+test("quiet hours to the minute (Q47): 22:30-07:15 wins over the whole hours", () => {
+  const policy = {
+    quiet_start_hour: 22,
+    quiet_end_hour: 7,
+    quiet_start_minute: 22 * 60 + 30,
+    quiet_end_minute: 7 * 60 + 15,
+    timezone: "UTC",
+  };
+  assert.equal(inQuietHours(policy, new Date("2026-11-09T22:29:00Z")), false);
+  assert.equal(inQuietHours(policy, new Date("2026-11-09T22:30:00Z")), true);
+  assert.equal(inQuietHours(policy, new Date("2026-11-10T07:14:00Z")), true);
+  assert.equal(inQuietHours(policy, new Date("2026-11-10T07:15:00Z")), false);
+});

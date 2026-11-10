@@ -46,7 +46,7 @@ async def round_trip() -> None:
     db = Database.connect(test_settings().database_url)
     try:
         heads = [line.strip() for line in alembic("heads").splitlines() if line.strip()]
-        # Exactly one head; later phases chain their revisions after 0045.
+        # Exactly one head; later phases chain their revisions after this one.
         assert len(heads) == 1 and heads[0].endswith("(head)"), heads
         tables, columns, indexes = await table_names(db)
         assert {"ln_thread_prefs", "ln_chat_lists", "ln_chat_list_members"} <= tables

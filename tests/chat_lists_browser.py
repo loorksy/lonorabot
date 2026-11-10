@@ -75,6 +75,11 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             await add(fixture, b["id"], "assistant", agents[1]["id"], "First update", False)
             await add(fixture, b["id"], "assistant", agents[1]["id"], "Second update", False)
             await add(fixture, c["id"], "user", None, "Accepted only", False)
+            for index in range(int(data.get("bulk", 0))):
+                # Enough matching messages for the search to page (32 a page).
+                await add(
+                    fixture, b["id"], "assistant", agents[1]["id"], f"Paging needle {index}", False
+                )
             started = await add(fixture, d["id"], "user", None, "Run started on this", False)
             async with fixture.runtime.db.sessions() as session, session.begin():
                 session.add(

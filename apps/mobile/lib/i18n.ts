@@ -1,3 +1,6 @@
+import { shellLabels } from "./labels-shell";
+import { shellExtraLabels } from "./labels-shell-extra";
+
 export type Locale = "ar" | "en";
 export const labels = {
   avatarStudio: ["استوديو الأفاتار", "Avatar Studio"],
@@ -229,15 +232,6 @@ export const labels = {
     "وضع التنفيذ لا يطابق صلاحيات هذه العملية.",
     "The execution mode does not match this operation's authority.",
   ],
-  shadow_monetary_pnl_unavailable: [
-    "الربح النقدي الافتراضي غير متاح دون تقييم موثق للعقد والعملة.",
-    "Virtual monetary profit requires verified contract and currency valuation.",
-  ],
-  shadow_decision_required: [
-    "سجّل قرار سوق حديثًا قبل الدخول الافتراضي.",
-    "Record a fresh market decision before virtual entry.",
-  ],
-  shadowMode: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
   input_answer_invalid: ["اختر إجابة متاحة", "Choose an available answer"],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
@@ -361,24 +355,6 @@ export const labels = {
     "This task cannot resume in its current state. Review its plan or retry limit.",
   ],
   task_retry_limit: ["وصلت المهمة إلى حد المحاولات المسموح.", "The task reached its retry limit."],
-  executionMode: ["وضع التنفيذ", "Execution mode"],
-  shadowTrading: ["تداول ظلي — أوامر افتراضية فقط", "Shadow trading — virtual orders only"],
-  executionModeHint: [
-    "تغيير الوضع يوقف أهداف التداول النشطة مؤقتًا. التنفيذ الحقيقي يبقى خاضعًا للموافقات وضوابط الأمان.",
-    "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls.",
-  ],
-  shadowObservations: ["ملاحظات التداول الظلي", "Shadow observations"],
-  liveObservations: ["ملاحظات التداول الحقيقي", "Live observations"],
-  performanceInsufficient: [
-    "بيانات غير كافية لاستنتاجات الأداء",
-    "Insufficient data for performance conclusions",
-  ],
-  shadowHistory: ["سجل التداول الظلي", "Shadow history"],
-  shadowFillHint: [
-    "التنفيذ بأسعار مأخوذة دوريًا افتراضي. الربح المالي غير متاح.",
-    "Sampled quote fills are hypothetical. Monetary profit is unavailable.",
-  ],
-  virtualTrade: ["افتراضي", "Virtual"],
   jumpLatest: ["انتقل إلى أحدث رسالة", "Jump to latest"],
   voice_native_unavailable: [
     "المكالمات غير متاحة في نسخة التطبيق الحالية. حدّث التطبيق وحاول مجددًا.",
@@ -727,8 +703,37 @@ export const labels = {
     "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
+  ...shellLabels,
+  ...shellExtraLabels,
 } as const;
 export type Label = keyof typeof labels;
 export function translate(locale: Locale, key: Label): string {
   return labels[key][locale === "ar" ? 0 : 1];
+}
+
+/** Fills «{0}» and «{name}» placeholders of a label. */
+export function fill(template: string, ...values: (string | number)[]): string;
+export function fill(template: string, values: Record<string, string | number>): string;
+export function fill(template: string, first?: unknown, ...rest: (string | number)[]): string {
+  if (first && typeof first === "object") {
+    const named = first as Record<string, string | number>;
+    return template.replace(/\{(\w+)\}/g, (_, key: string) => String(named[key] ?? ""));
+  }
+  const values = [first as string | number, ...rest];
+  return template.replace(/\{(\d+)\}/g, (_, index: string) => String(values[Number(index)] ?? ""));
+}
+/** The reference's Arabic counts (arCount): one, two, 3–10, 11 and more. */
+export function chatsWord(locale: Locale, count: number): string {
+  if (locale === "en")
+    return count === 1 ? "one chat" : count === 2 ? "two chats" : `${count} chats`;
+  if (count === 1) return "محادثة واحدة";
+  if (count === 2) return "محادثتان";
+  return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
+}
+export function agentsWord(locale: Locale, count: number): string {
+  if (locale === "en")
+    return count === 1 ? "one agent" : count === 2 ? "two agents" : `${count} agents`;
+  if (count === 1) return "وكيل واحد";
+  if (count === 2) return "وكيلان";
+  return count <= 10 ? `${count} وكلاء` : count <= 99 ? `${count} وكيلًا` : `${count} وكيل`;
 }

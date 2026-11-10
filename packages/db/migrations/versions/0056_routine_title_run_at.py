@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0056_routine_title_run_at"
-down_revision = "0045_chat_lists"
+down_revision = "0053_remove_shadow_trading"
 branch_labels = None
 depends_on = None
 

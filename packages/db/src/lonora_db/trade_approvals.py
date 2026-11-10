@@ -19,7 +19,6 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         "agent_id": row.agent_id,
         "timeline_seq": row.timeline_seq,
         "requests": row.requests,
-        "execution_mode": row.broker_snapshot.get("execution_mode", {}).get("value", "live"),
         "status": row.status,
         "results": row.results,
         "created_at": row.created_at.isoformat(),

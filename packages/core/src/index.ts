@@ -99,7 +99,14 @@ export {
   operationStatusText,
   runStatusText,
 } from "./financial-boundary";
-export { archivedSummary, inboxUnread, isUnread, orderInbox, unreadBadgeTotal } from "./inbox";
+export {
+  archivedSummary,
+  inboxUnread,
+  isUnread,
+  mergePrefs,
+  orderInbox,
+  unreadBadgeTotal,
+} from "./inbox";
 export {
   type CredentialField,
   type CredentialForm,
@@ -146,6 +153,17 @@ export {
   streamText,
 } from "./reply-stream";
 export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export {
+  firstSearchPage,
+  moreSearchItems,
+  SEARCH_PAGE,
+  SEARCH_SOURCES,
+  SEARCH_TABS,
+  type SearchFetch,
+  type SearchSection,
+  type SearchTab,
+  searchPath,
+} from "./search-feed";
 export { foldSearch, highlightRange } from "./search-fold";
 export {
   type SupervisionRow,

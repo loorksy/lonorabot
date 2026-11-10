@@ -38,7 +38,12 @@ const test = base.extend({
       headers,
     });
     await context.request.put("/api/owner/preferences", {
-      data: { reply_language: null, reach_me: { channel: "message" } },
+      data: {
+        reply_language: null,
+        name: null,
+        address: null,
+        reach_me: { channel: "message", quiet_start_hour: null, quiet_end_hour: null },
+      },
       headers,
     });
     const agents = await (await context.request.get("/api/agents")).json();
@@ -47,98 +52,84 @@ const test = base.extend({
   },
 });
 
-async function openProfile(page, agent) {
-  await page.goto(`/app/${agent.id}`);
-  await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
-  const panel = page.locator("#dialog");
-  await panel.getByRole("button", { name: /^(Knowledge|المعرفة)$/ }).click();
-  return panel;
-}
-
-test("the owner profile is edited, attributed, undone and its reach-me saved", async ({
+/* «الملف الشخصي» and «الإشعارات والتواصل» (UI phase 5): the shared profile is edited, its change
+   is logged with its author and restored; the reach mode is one choice saved on the server. */
+test("the owner profile is edited, logged, restored, and the reach mode saved", async ({
   page,
   context,
   owner,
 }) => {
-  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const panel = await openProfile(page, owner.agent);
-  await expect(panel.getByRole("button", { name: "About you", exact: true })).toHaveClass(
-    /selected/,
-  );
-  const profile = panel.getByRole("region", { name: "About you" });
-  await expect(
-    profile.getByText("Every agent reads this profile.", { exact: false }),
-  ).toBeVisible();
-  const text = profile.getByLabel("What agents know about you");
-  const preference = `- Short replies ${randomUUID().slice(0, 8)}`;
-  await text.fill(preference);
-  await profile.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(profile.getByRole("status")).toHaveText("Saved");
-  const history = panel.getByRole("region", { name: "Changes" });
-  const change = history.locator("li", { hasText: preference }).first();
-  await expect(change).toContainText("You");
-  await expect(change).toContainText("Added:");
-  await change.getByRole("button", { name: "Undo this change" }).click();
-  await expect(history.getByRole("status")).toHaveText("Undone. Later changes were kept.");
-  await expect(text).toHaveValue("");
-  const restored = await (await context.request.get("/api/owner/profile")).json();
-  expect(restored.content).toBe("");
-
-  // One reach-me preference, the same one agents and the call gate read.
-  const reach = panel.getByRole("form", { name: "How to reach you" });
-  await reach.getByRole("radio", { name: /Activity only/ }).check();
-  await reach.getByLabel("Reply language").selectOption("ar");
-  await reach.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(reach.getByRole("status")).toHaveText("Saved");
-  const policy = await (await context.request.get("/api/voice/incoming/policy")).json();
-  expect(policy.channel).toBe("activity");
-  expect(policy.enabled).toBe(false);
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  await page.goto("/app/owner");
+  const name = `Owner ${randomUUID().slice(0, 6)}`;
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  const line = `- Prefers short answers ${randomUUID().slice(0, 8)}`;
+  await page.getByLabel("Preferences", { exact: true }).fill(line);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(async () => (await (await context.request.get("/api/owner/profile")).json()).name)
+    .toBe(name);
   const saved = await (await context.request.get("/api/owner/profile")).json();
-  expect(saved.reply_language).toBe("ar");
-  await expect(history.locator("li", { hasText: "How to reach you" }).first()).toContainText(
-    "Message me → Activity only",
-  );
+  expect(saved.content.trim()).toBe(line);
+  const log = page.locator(".pf-log");
+  await expect(log.locator(".row").filter({ hasText: "Name" }).first()).toContainText(name);
+  // Restoring the text change puts the previous (empty) profile back as a new change.
+  const change = log.locator(".row").filter({ hasText: "Preferences" }).first();
+  await change.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect
+    .poll(async () =>
+      (await (await context.request.get("/api/owner/profile")).json()).content.trim(),
+    )
+    .toBe("");
+  await page.goto("/app/notify-settings");
+  await page.getByRole("radio", { name: /Activity log only/ }).click();
+  await expect
+    .poll(
+      async () => (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
+    )
+    .toBe("activity");
+  const after = await (await context.request.get("/api/owner/profile")).json();
+  expect(after.name).toBe(name);
+  expect(owner.agent.id).toBeTruthy();
 });
 
-test("saving one About-you form keeps the other form's unsaved edits", async ({
+test("the profile page reads right to left in Arabic with the reference's labels", async ({
   page,
   context,
   owner,
 }) => {
-  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  const panel = await openProfile(page, owner.agent);
-  const profile = panel.getByRole("region", { name: "About you" });
-  const text = profile.getByLabel("What agents know about you");
-  const typed = `- Typed, not saved yet ${randomUUID().slice(0, 8)}`;
-  await text.fill(typed);
-  // Saving reach-me does not discard the typed profile text, and vice versa.
-  const reach = panel.getByRole("form", { name: "How to reach you" });
-  await reach.getByRole("radio", { name: /Activity only/ }).check();
-  await reach.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(reach.getByRole("status")).toHaveText("Saved");
-  await expect(text).toHaveValue(typed);
-  await reach.getByRole("radio", { name: /Message me/ }).check();
-  await profile.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(profile.getByRole("status")).toHaveText("Saved");
-  await expect(reach.getByRole("radio", { name: /Message me/ })).toBeChecked();
-  const saved = await (await context.request.get("/api/owner/profile")).json();
-  expect(saved.content).toBe(`${typed}\n`);
-  expect(saved.reach_me.channel).toBe("activity");
-  // The notify choice promises only what happens today.
-  await expect(reach.getByText("alerts Lonora raises stay in your inbox")).toBeVisible();
-});
-
-test("the profile reads right to left in Arabic with shared labels", async ({
-  page,
-  context,
-  owner,
-}) => {
-  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
-  const panel = await openProfile(page, owner.agent);
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  await page.goto("/app/owner");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  const profile = panel.getByRole("region", { name: "عنك" });
-  await expect(profile.getByLabel("ما يعرفه الوكلاء عنك")).toBeVisible();
-  const reach = panel.getByRole("form", { name: "كيف نتواصل معك" });
-  await expect(reach.getByRole("radio", { name: /راسلني/ })).toBeChecked();
-  await expect(reach.getByText("يصل داخل لونورا حاليًا", { exact: false })).toBeVisible();
+  await expect(page.getByLabel("الاسم", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("طريقة المخاطبة", { exact: true })).toBeVisible();
+  await expect(page.getByText("سجل التغييرات")).toBeVisible();
+  await page.goto("/app/notify-settings");
+  await expect(page.getByRole("radio", { name: /رسالة/ })).toHaveAttribute("aria-checked", "true");
+  expect(owner.agent.id).toBeTruthy();
+});
+
+test("the Knowledge panel's profile link closes the chat menu and opens the profile page", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  await page.goto(`/app/${owner.agent.id}`);
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  const panel = page.locator("#dialog");
+  await panel.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await panel.getByRole("button", { name: "Open the profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/owner$/);
+  await expect(page.locator("#dialog[open]")).toHaveCount(0);
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
 });

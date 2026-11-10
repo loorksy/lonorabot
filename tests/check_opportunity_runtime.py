@@ -418,7 +418,6 @@ async def main() -> None:
                 "position_id": position_id,
                 "thesis_id": unsent["id"],
             },
-            execution_mode="live",
             status="resolved",
             result={
                 "operation_id": operation_id,

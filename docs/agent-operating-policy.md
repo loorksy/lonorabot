@@ -26,7 +26,7 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 | Broker identity/history | `lonora_tools.account`, `lonora_adapters.brokers.metaapi` |
 | Financial commands and consent | `lonora_tools.trade`, `trading_goal`, `lonora_trading.execution`, `lonora_db.trade_approvals` |
 | Goals and device authorization | `lonora_trading.goals`, `lonora_auth.devices`, `lonora_auth.account_authority` |
-| Evidence and performance | `lonora_tools.trading_decision`, `relationships`, `opportunity`, `shadow` |
+| Evidence and performance | `lonora_tools.trading_decision`, `relationships`, `opportunity`, `performance` |
 | Memory and procedures | `lonora_memory`, `lonora_agent.skills`, `lonora_tools.memory`, `scratchpad`, `skills` |
 | Collaboration and groups | `lonora_agent.collaboration`, `lonora_tools.collaboration`, `message`, `subagent` |
 | Research, files, configured connections | `lonora_tools.search`, `artifacts`, `mcp` |

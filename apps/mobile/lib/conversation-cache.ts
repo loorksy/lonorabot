@@ -3,6 +3,7 @@ import type {
   Artifact,
   AttentionNotification,
   Group,
+  InboxEntry,
   Message,
   Run,
   Thread,
@@ -10,13 +11,7 @@ import type {
 } from "@lonora/contracts";
 import { registerSessionTeardown } from "./session-lifecycle";
 
-export type InboxEntry = {
-  thread_id: string;
-  agent_id: string | null;
-  group_id: string | null;
-  last_message: Pick<Message, "id" | "role" | "content" | "created_at" | "seq"> | null;
-  last_activity_at: string;
-};
+export type { InboxEntry };
 export type InboxSnapshot = {
   agents: Agent[];
   groups: Group[];

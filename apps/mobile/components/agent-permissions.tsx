@@ -1348,12 +1348,7 @@ function PermissionControl({
                           void execute(prepare);
                         },
                         "permission-review-continue-native",
-                        busy ||
-                          !proposal ||
-                          conflict ||
-                          !state ||
-                          agent.execution_mode === "shadow" ||
-                          agent.paused,
+                        busy || !proposal || conflict || !state || agent.paused,
                       )
                     : reviewIsActive
                       ? actionButton(

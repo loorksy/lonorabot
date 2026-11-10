@@ -26,7 +26,7 @@ broken routine can no longer stop broker reconciliation.
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
-| `shadow`, `charts` | 2 s | 120 s | no |
+| `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |

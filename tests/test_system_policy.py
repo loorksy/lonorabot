@@ -100,7 +100,6 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
         "Ambiguous",
         "typed approval",
         "exact-symbol",
-        "Shadow",
         "Do not expose credentials",
         "Capability names and ordinary technical vocabulary are not secrets",
         "free-text",

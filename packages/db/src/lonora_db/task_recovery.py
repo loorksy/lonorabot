@@ -80,7 +80,6 @@ async def unresolved_financial(session: AsyncSession, run_id: str) -> bool:
             .where(
                 # Reserved, submitted or ambiguous: the outcome is not known yet.
                 TradingJournalRow.status.in_(sorted(IN_PROGRESS_STATUSES | UNRESOLVED_STATUSES)),
-                TradingJournalRow.execution_mode == "live",
                 or_(
                     TradingJournalRow.result["details"]["lease"]["run_id"].as_string() == run_id,
                     TradingJournalRow.result["details"]["execution"]["run_id"].as_string()

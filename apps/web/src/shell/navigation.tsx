@@ -30,6 +30,10 @@ export function clearDirty() {
   dirty = false;
 }
 export const isDirty = () => dirty;
+/* The shell's guarded navigation for UI that renders outside NavigationProvider (the sheet
+   layer sits above it): same unsaved-edits guard, closes the open sheet first. */
+let shellGo: ((path: string) => void) | null = null;
+export const goFromSheet = (path: string) => shellGo?.(path);
 
 document.addEventListener("input", (event) => {
   const target = event.target;
@@ -138,6 +142,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     },
     [navigate, sheets],
   );
+  useEffect(() => {
+    shellGo = (path) => go(path);
+    return () => {
+      shellGo = null;
+    };
+  }, [go]);
   const back = useCallback(() => {
     if (sheets.isOpen()) {
       sheets.close();
