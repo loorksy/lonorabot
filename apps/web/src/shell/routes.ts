@@ -3,6 +3,11 @@ export const ROOTS = ["chats", "updates", "tasks", "settings"] as const;
 export type Root = (typeof ROOTS)[number];
 export const PAGES = [
   "agents",
+  "agent",
+  "identity",
+  "trades",
+  "group",
+  "recovery",
   "artifacts",
   "archived",
   "market",
@@ -37,6 +42,9 @@ const ALIASES: Readonly<Record<string, string>> = {
 };
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);
+/** Pages of one thing: the agent page, its identity form and trades, the group page. */
+const ITEM_PAGES: ReadonlySet<string> = new Set(["artifacts", "agent", "identity", "trades", "group"]);
+const NEEDS_ITEM: ReadonlySet<string> = new Set(["agent", "identity", "trades", "group"]);
 
 export const rootPath = (root: Root) => (root === "chats" ? "/app" : `/app/${root}`);
 
@@ -50,7 +58,8 @@ export function parseRoute(pathname: string): ShellRoute {
   if (Object.hasOwn(ALIASES, head) && !item) return { kind: "alias", to: ALIASES[head] };
   if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
   if (pageNames.has(head)) {
-    if (extra || (item && head !== "artifacts")) return { kind: "not-found" };
+    if (extra || (item && !ITEM_PAGES.has(head)) || (!item && NEEDS_ITEM.has(head)))
+      return { kind: "not-found" };
     return item ? { kind: "page", page: head as Page, item } : { kind: "page", page: head as Page };
   }
   if (!item) return { kind: "chat", agentId: head };

@@ -1,0 +1,350 @@
+/* Phase 4a: the agent, identity, group, trades, chart and recovery pages, ported from
+   Lonora-Desktop-37.html (the rules the shell did not have yet). */
+.hero h2 {
+  margin: 12px 0 2px;
+}
+.hero p {
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.hero > svg {
+  width: 44px;
+  height: 44px;
+  color: var(--amber);
+}
+.avatar.big,
+.hero .avatar.big {
+  width: 88px;
+  height: 88px;
+}
+.edit-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.pencil {
+  position: absolute;
+  bottom: 0;
+  left: -4px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--fill);
+  border: 3px solid var(--bg);
+}
+.pencil svg {
+  width: 16px;
+  height: 16px;
+}
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 18px;
+}
+.hero-actions button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+.hero-actions .icon {
+  width: 48px;
+  height: 48px;
+  background: var(--surface);
+  box-shadow: var(--raise);
+}
+/* Q58: no voice provider — shown, dimmed, and still tappable for the warning. */
+.hero-actions button[aria-disabled="true"] {
+  color: var(--muted);
+}
+.hero-actions button[aria-disabled="true"] .icon {
+  opacity: 0.5;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  box-shadow: var(--hi);
+}
+.badge svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-ink);
+}
+.sup-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px auto 0;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.sup-line svg {
+  width: 14px;
+  height: 14px;
+}
+.sup-line svg:last-child {
+  width: 12px;
+  height: 12px;
+}
+.hero .sup-line {
+  display: flex;
+  width: max-content;
+}
+.pad {
+  padding: 0 4px;
+}
+.btn.sm {
+  min-height: 36px;
+  padding: 6px 14px;
+}
+/* Watches */
+.wt-row {
+  align-items: flex-start;
+}
+.wt-row .body {
+  display: grid;
+  gap: 2px;
+}
+.wt-row.wt-paused strong {
+  color: var(--muted);
+}
+.wt-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.wt-acts .btn {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: var(--fs-xs);
+}
+/* Check rows (the supervision picker, the group's members) */
+.reach-opt.on {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.pick-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 32%, transparent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.pick-box.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.pick-box svg {
+  width: 15px;
+  height: 15px;
+}
+/* Avatar editor */
+.preview {
+  text-align: center;
+  padding: 12px 0;
+}
+.preview .avatar {
+  width: 110px;
+  height: 110px;
+}
+.face-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.face-option {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.face-option:hover {
+  background: var(--hover);
+}
+.face-option small {
+  font-size: var(--fs-xs);
+}
+.face-option.selected {
+  border-color: var(--text);
+  background: var(--lens);
+}
+.colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+}
+.swatch.selected {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.color-input {
+  width: 44px !important;
+  min-height: 36px;
+  padding: 3px;
+  border-radius: var(--r-sm);
+}
+/* Identity form */
+.field-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -8px 0 14px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.field-note svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.acct-fetch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  min-height: 48px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.acct-fetch svg {
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.field-err {
+  display: block;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: var(--fs-xs);
+}
+/* Orders: the state badge of the «سجل الأوامر» rows */
+.od-st {
+  margin-inline-start: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px 2px 7px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--fill);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.od-st.t-ok {
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.od-st.t-warn {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+.od-st.t-bad {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+.od-row .od-st {
+  margin-inline-start: 6px;
+}
+/* The chart sheet (l_chart) */
+.tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 4px 0 16px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tabs button {
+  flex: 1;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.tabs button.active {
+  background: var(--fill-2);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--raise);
+}
+.chart {
+  width: 100%;
+  display: block;
+  max-height: min(45dvh, 340px);
+  height: auto;
+  aspect-ratio: 600 / 310;
+  touch-action: manipulation;
+  direction: ltr;
+}
+.chart-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.chart-body.grow .chart {
+  flex: 1;
+  max-height: none;
+  aspect-ratio: auto;
+  min-height: 200px;
+}
+.group-hero .group-av {
+  display: inline-block;
+  width: 88px;
+  height: 88px;
+}
