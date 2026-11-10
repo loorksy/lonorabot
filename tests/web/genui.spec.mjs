@@ -133,6 +133,8 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
       page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/),
     ).toBeVisible();
     await expect(page.locator(".ux-quote").getByText("تنبيه سعر")).toBeVisible();
+    // The quote's sparkle at the reference's quote icon size (review U5).
+    await expect(page.locator(".ux-quote svg")).toHaveCSS("width", "14px");
     await expect(alert).toHaveClass(/is-sent/);
     await expect(alert.getByText(/أُرسل إلى/)).toBeVisible();
     await expect(price).toBeDisabled();
@@ -145,6 +147,9 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     const receipt = page.locator(".ux").filter({ hasText: "تنبيه فعّال" });
     await expect(receipt).toBeVisible({ timeout: 15_000 });
     await expect(receipt.getByText("يصعد فوق 2,400")).toBeVisible();
+    // The send ran: it is never marked «لم يُنفَّذ» and its card stays locked (review U1).
+    await expect(page.locator("span[data-ui-mark]")).toHaveCount(0);
+    await expect(card(page)).toHaveClass(/is-sent/);
     // «تعديل» unlocks the card.
     await card(page).getByRole("button", { name: "تعديل" }).click();
     await expect(card(page)).not.toHaveClass(/is-sent/);
@@ -171,7 +176,28 @@ test("A01: Stop before the submission's Run starts marks it «لم يُنفَّ�
     const stop = page.getByRole("button", { name: /^(Stop|إيقاف)$/ }).first();
     await expect(stop).toBeVisible();
     await stop.click();
-    await expect(page.locator('[data-ui-mark="not_run"]')).toHaveText("لم يُنفَّذ");
+    await expect(page.locator('span[data-ui-mark="not_run"]')).toHaveText("لم يُنفَّذ");
+    await expect(alert).not.toHaveClass(/is-sent/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("A01: «تعديل» on a queued send marks it «مُعدّلة» and collapses it as superseded", async ({
+  page,
+  context,
+}) => {
+  const fixture = await open(page, context, { width: 1280, height: 800 });
+  try {
+    await background("stream", { ...fixture.input, delay: 0 });
+    const alert = card(page);
+    await alert.getByRole("button", { name: "إنشاء التنبيه" }).click();
+    await expect(alert).toHaveClass(/is-sent/);
+    await alert.getByRole("button", { name: "تعديل" }).click();
+    // Q21: the edit cancels the queued Run; the server records «مُعدّلة» (review U2).
+    await expect(page.locator('span[data-ui-mark="superseded"]')).toHaveText("مُعدّلة");
+    await expect(page.locator('article[data-ui-mark="superseded"]')).toBeVisible();
+    await expect(page.locator('span[data-ui-mark="not_run"]')).toHaveCount(0);
     await expect(alert).not.toHaveClass(/is-sent/);
   } finally {
     await fixture.cleanup();
@@ -189,6 +215,10 @@ const CLASSES = [
   ".ux-ht small",
   ".ux-body",
   ".ux-field",
+  // The Number field's label row: its hint sits beside the label (review U4).
+  ".ux-field > label",
+  ".ux-field > label span",
+  ".ux-field > label small",
   ".ux-label",
   ".ux-seg",
   ".ux-seg button",
@@ -206,6 +236,9 @@ const CLASSES = [
 ];
 const PROPS = [
   "display",
+  "flex-direction",
+  "justify-content",
+  "align-items",
   "font-family",
   "font-size",
   "font-weight",
@@ -322,6 +355,25 @@ for (const theme of ["dark", "light"]) {
             if (!same) defects.push(`${selector} ${prop}: ref ${value} · app ${other}`);
           }
         }
+        // The card's row is capped as the reference caps a ui message (Desktop-37 1312-1313,
+        // review U3): min(440px, 94%) on phones, min(460px, 78%) from 900 px.
+        const widths = await page.evaluate(() => {
+          const root = [...document.querySelectorAll(".ux")].find((node) =>
+            node.textContent.includes("تنبيه سعر"),
+          );
+          const row = root?.closest(".template-message-frame");
+          const list = root?.closest(".template-message")?.parentElement;
+          return {
+            row: Math.round(row?.getBoundingClientRect().width ?? 0),
+            list: Math.round(list?.getBoundingClientRect().width ?? 0),
+          };
+        });
+        const cap =
+          width >= 900 ? Math.min(460, widths.list * 0.78) : Math.min(440, widths.list * 0.94);
+        if (widths.row > Math.ceil(cap) + 1)
+          defects.push(
+            `card row width ${widths.row} over ${Math.round(cap)} (list ${widths.list})`,
+          );
         test.info().annotations.push({ type: "side-by-side", description: defects.join("\n") });
         expect(defects).toEqual([]);
       } finally {

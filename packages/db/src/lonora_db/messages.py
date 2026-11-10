@@ -48,7 +48,7 @@ def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")
     shown = {key: submit[key] for key in keys if key in submit}
-    for key in ("started_at", "superseded_at"):
+    for key in ("started_at", "superseded_at", "mark"):
         if submit.get(key):
             shown[key] = submit[key]
     return shown

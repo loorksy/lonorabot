@@ -53,8 +53,7 @@ export function renderUiPart(
 /** The reference's message note slot (Desktop-37:3798) on a card's send whose Run never
  * started (rule N): «مُعدّلة» after «تعديل», «لم يُنفَّذ» otherwise. */
 export function SubmitMark({ message }: { message: Message }) {
-  const host = useGenuiHost();
-  const mark = host ? submitMark(message, host.runs) : (message.ui_mark ?? null);
+  const mark = submitMark(message);
   if (!mark) return null;
   return (
     <span className="template-message-note" data-ui-mark={mark}>

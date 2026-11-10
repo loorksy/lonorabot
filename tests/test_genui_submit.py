@@ -358,7 +358,9 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
         assert unlocked["cancelled_run_id"] == submit["ui_submit"]["run_id"]
         page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
         assert "ui_lock" not in next(m for m in page if m["id"] == card.message_id)
-        assert next(m for m in page if m["id"] == submit["id"])["ui_mark"] == "superseded"
+        shown = next(m for m in page if m["id"] == submit["id"])
+        # The server's record, the only one a client reads (review U1, U2).
+        assert shown["ui_mark"] == "superseded" and shown["ui_submit"]["mark"] == "superseded"
         async with fixture.runtime.db.sessions() as session:
             run = await session.get(RunRow, earlier["id"])
             assert run is not None
@@ -379,7 +381,8 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
             expired = await expire_submits(session, card.thread["id"])
             assert [r.error_code for r in expired] == ["ui_submit_expired"]
         page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
-        assert next(m for m in page if m["id"] == late["message"]["id"])["ui_mark"] == "not_run"
+        shown = next(m for m in page if m["id"] == late["message"]["id"])
+        assert shown["ui_mark"] == "not_run" and shown["ui_submit"]["mark"] == "not_run"
         assert "ui_lock" not in next(m for m in page if m["id"] == card.message_id)
     finally:
         await fixture.close()
@@ -545,4 +548,44 @@ async def test_the_cards_account_is_named_beyond_the_bounded_account_list() -> N
             assert refused.value.code == "ui_submit_account_unnamed"
     finally:
         await retire(fixture, *connections)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_send_that_ran_is_never_marked_and_clients_learn_it_started() -> None:
+    """U1: the start is pushed to clients (``message.updated`` with ``started_at``), and a
+    Run that started and finished leaves no never-run mark, so its card stays locked."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.schema import EventRow, RunRow
+    from sqlalchemy import select
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2450}))
+        assert response.status_code == 202
+        submit = response.json()["message"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, response.json()["run_ids"][0], with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+            run.status = "completed"
+        async with fixture.runtime.db.sessions() as session:
+            events = list(
+                await session.scalars(
+                    select(EventRow).where(
+                        EventRow.thread_id == card.thread["id"],
+                        EventRow.kind == "message.updated",
+                    )
+                )
+            )
+        assert any(
+            e.payload.get("id") == submit["id"] and e.payload["ui_submit"].get("started_at")
+            for e in events
+        )
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        shown = next(m for m in page if m["id"] == submit["id"])
+        assert shown.get("ui_mark") is None and "mark" not in shown["ui_submit"]
+        assert next(m for m in page if m["id"] == card.message_id)["ui_lock"]["1"]
+    finally:
         await fixture.close()

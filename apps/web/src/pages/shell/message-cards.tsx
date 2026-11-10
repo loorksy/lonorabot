@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { plainTextLinkParts } from "@lonora/chat-ui/markdown";
 import { ChatMarkdown } from "@lonora/chat-ui/web";
 import type { VisualAction } from "@lonora/contracts";
-import { peerOutcome } from "@lonora/core";
+import { peerOutcome, submitMark } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { ArrowRight, CornerUpLeft, MessagesSquare } from "lucide-react";
 import type { ReactNode } from "react";
@@ -97,6 +97,7 @@ export function MessageBubble({
       className={`message template-message ${message.role}`}
       data-message-id={message.id}
       data-delivery={outgoing?.delivery}
+      data-ui-mark={submitMark(message) ?? undefined}
     >
       <div className={`template-message-frame${body ? " has-interactive-body" : ""}`}>
         {!user && showSpeaker && (

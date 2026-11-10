@@ -75,6 +75,9 @@
 }
 :where(.ux) label {
   display: block;
+  /* The legacy label rule stacks its children (styles.css); the reference never does,
+     so a Number's hint stays beside its label (review U4). */
+  flex-direction: row;
   margin: 0;
 }
 :where(.ux) p {
@@ -89,6 +92,18 @@
 }
 :where(.ux) button svg {
   pointer-events: none;
+}
+
+/* A ui message's row (Desktop-37 1312-1313, review U3): the message frame that holds a card. */
+.template-message:has(> .template-message-frame .ux) > .template-message-frame {
+  width: min(440px, 94%);
+  max-width: 94%;
+}
+@media (min-width: 900px) {
+  .template-message:has(> .template-message-frame .ux) > .template-message-frame {
+    width: min(460px, 78%);
+    max-width: 78%;
+  }
 }
 
 /* ---- Desktop-37 1311-1539 (the rules this release renders) ---- */

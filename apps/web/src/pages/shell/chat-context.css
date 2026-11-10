@@ -197,6 +197,20 @@
   font-size: 12px;
   white-space: pre-wrap;
 }
+/* A card's send quotes its card: the sparkle at the reference's quote icon size
+   (Desktop-37 \.quote-text svg, review U5). */
+.template-message-quote.ux-quote svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-inline-end: 3px;
+  flex: none;
+}
+/* A send «تعديل» superseded collapses into the reference's muted superseded look (Q21). */
+.template-message[data-ui-mark="superseded"] .template-message-body {
+  color: var(--muted);
+  opacity: 0.7;
+}
 .template-thread .template-message-meta {
   display: flex;
   align-items: center;

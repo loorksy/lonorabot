@@ -926,7 +926,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       />
                     ) : null}
                     <MessageBubble
-                      mark={submitMark(message, runs)}
+                      mark={submitMark(message)}
                       onChartLink={(value) => {
                         try {
                           const url = new URL(value, server);

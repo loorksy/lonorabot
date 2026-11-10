@@ -70,6 +70,8 @@ export type UiSubmitRecord = {
   run_id: string;
   started_at?: string;
   superseded_at?: string;
+  /** The server's record that its Run ended without starting (rule N). */
+  mark?: "superseded" | "not_run";
 };
 export type UiStatePart = { values?: Record<string, unknown>; fx?: unknown; unlocked_seq?: number };
 export type UiState = { parts?: Record<string, UiStatePart>; updated_at?: string };

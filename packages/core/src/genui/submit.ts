@@ -6,18 +6,14 @@ import type { Message, Run } from "@lonora/contracts";
 const TERMINAL = new Set(["completed", "failed", "cancelled"]);
 const WAITING = new Set(["waiting_input", "waiting_takeover"]);
 
-/** «مُعدّلة» (superseded by «تعديل») or «لم يُنفَّذ» (its Run ended without starting). */
-export function submitMark(
-  message: Message,
-  runs: readonly Run[],
-): "superseded" | "not_run" | null {
+/** «مُعدّلة» (superseded by «تعديل») or «لم يُنفَّذ» (its Run ended without starting).
+ * Only the server's record of that fact counts, never a Run's status seen here: a copy of
+ * the message older than the Run's start would make a send that ran look never run, and
+ * unlock its card (review U1). */
+export function submitMark(message: Message): "superseded" | "not_run" | null {
   if (message.origin !== "ui_submit" || !message.ui_submit) return null;
-  const submit = message.ui_submit;
-  if (submit.started_at) return null;
-  const run = runs.find((item) => item.id === submit.run_id);
-  const ended = run ? TERMINAL.has(run.status) : Boolean(message.ui_mark);
-  if (!ended) return null;
-  return submit.superseded_at || message.ui_mark === "superseded" ? "superseded" : "not_run";
+  if (message.ui_submit.started_at) return null;
+  return message.ui_submit.mark ?? message.ui_mark ?? null;
 }
 
 /** The locking submission of one card part, or null. */
@@ -25,7 +21,6 @@ export function cardLock(
   card: Message,
   part: number,
   messages: readonly Message[],
-  runs: readonly Run[],
 ): { id: string; seq: number } | null {
   const unlocked = Number(card.ui_state?.parts?.[String(part)]?.unlocked_seq ?? 0);
   let lock: { id: string; seq: number } | null = null;
@@ -36,7 +31,7 @@ export function cardLock(
       !message.ui_submit?.lock ||
       message.ui_submit.part !== part ||
       message.seq <= unlocked ||
-      submitMark(message, runs)
+      submitMark(message)
     )
       continue;
     if (!lock || message.seq > lock.seq) lock = { id: message.id, seq: message.seq };

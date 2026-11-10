@@ -441,6 +441,8 @@ async def decorate(
 async def submit_mark(session: AsyncSession, row: MessageRow) -> str | None:
     """«مُعدّلة» (superseded by «تعديل») or «لم يُنفَّذ» (never ran), rule N; else None."""
     submit = row.ui_submit or {}
+    if submit.get("mark") in {"superseded", "not_run"}:
+        return str(submit["mark"])
     if not never_ran(submit, await submit_status(session, row)):
         return None
     return "superseded" if submit.get("superseded_at") else "not_run"
@@ -448,7 +450,8 @@ async def submit_mark(session: AsyncSession, row: MessageRow) -> str | None:
 
 async def mark_submit_started(session: AsyncSession, run: RunRow) -> None:
     """The first ``running`` transition of a submission's Run (rules N and T): recorded,
-    never inferred, because a cancelled Run's status no longer says whether it ran."""
+    never inferred, because a cancelled Run's status no longer says whether it ran. Clients
+    learn it at once, so a send that ran is never shown as never run (review U1)."""
     origin = ui_submit_origin(run)
     if origin is None or run.model_metadata.get("ui_submit_started"):
         return
@@ -457,6 +460,36 @@ async def mark_submit_started(session: AsyncSession, run: RunRow) -> None:
     message = await session.get(MessageRow, str(origin.get("message_id")), with_for_update=True)
     if message is not None and message.ui_submit and not message.ui_submit.get("started_at"):
         message.ui_submit = {**message.ui_submit, "started_at": now}
+        await _updated(session, message)
+
+
+async def _updated(session: AsyncSession, message: MessageRow) -> None:
+    from .messages import message_data
+
+    thread = await session.get(ThreadRow, message.thread_id)
+    if thread is not None:
+        emit(
+            session,
+            thread.owner_id,
+            "message.updated",
+            thread_id=message.thread_id,
+            payload=message_data(message),
+        )
+
+
+async def settle_unstarted(session: AsyncSession, run: RunRow) -> None:
+    """Rule N recorded by the server when a submission's Run ends without starting:
+    «مُعدّلة» after «تعديل», «لم يُنفَّذ» otherwise. Clients read this fact, never infer it
+    from a Run's status (review U1)."""
+    origin = ui_submit_origin(run)
+    if origin is None or run.model_metadata.get("ui_submit_started") or run.status not in TERMINAL:
+        return
+    message = await session.get(MessageRow, str(origin.get("message_id")), with_for_update=True)
+    if message is None or not message.ui_submit or message.ui_submit.get("mark"):
+        return
+    mark = "superseded" if message.ui_submit.get("superseded_at") else "not_run"
+    message.ui_submit = {**message.ui_submit, "mark": mark}
+    await _updated(session, message)
 
 
 async def expire_submits(session: AsyncSession, thread_id: str | None = None) -> list[RunRow]:
@@ -489,6 +522,7 @@ async def expire_submits(session: AsyncSession, thread_id: str | None = None) ->
                 run_id=run.id,
                 payload={"code": "ui_submit_expired"},
             )
+        await settle_unstarted(session, run)
         expired.append(run)
     return expired
 
@@ -515,8 +549,9 @@ async def unlock_card(
     ):
         from .cancellation import cancel_run
 
-        await cancel_run(session, owner_id, run.id)
+        # Superseded first, so the cancellation records «مُعدّلة» (Q21, review U2).
         submit.ui_submit = {**submit.ui_submit, "superseded_at": utcnow().isoformat()}
+        await cancel_run(session, owner_id, run.id)
     state = dict(source.ui_state or {})
     parts = dict(state.get("parts", {}))
     parts[str(part)] = {**parts.get(str(part), {}), "unlocked_seq": submit.seq}

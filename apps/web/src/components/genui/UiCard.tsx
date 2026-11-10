@@ -398,7 +398,7 @@ export default function UiCard({
       }),
     [doc, facts, values, i18n.locale],
   );
-  const lock = message && genui ? cardLock(message, index, genui.messages, genui.runs) : null;
+  const lock = message && genui ? cardLock(message, index, genui.messages) : null;
   const awaiting =
     sentHere !== null && !genui?.messages.some((item) => item.client_nonce === sentHere);
   const locked = Boolean(lock) || awaiting;
