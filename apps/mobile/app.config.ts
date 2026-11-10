@@ -16,7 +16,7 @@ const config: ExpoConfig = {
   icon: "./assets/brand/icon-light.png",
   scheme: brand.scheme,
   orientation: "portrait",
-  userInterfaceStyle: "dark",
+  userInterfaceStyle: "automatic",
   ios: {
     icon: {
       light: "./assets/brand/icon-light.png",

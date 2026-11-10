@@ -26,9 +26,8 @@ for (const [name, summary, direction] of [
       })),
     );
     await page.goto("/");
-    // Activity lives in the home header's "More" menu.
-    await page.getByRole("button", { name: "المزيد", exact: true }).click();
-    await page.getByText("النشاط", { exact: true }).click();
+    // Activity is the Updates tab of the floating bar.
+    await page.getByTestId("tab-updates").click();
     const text = fixture.notification.parameters.summary;
     await expect(page.getByText("نبّهك وكيلك", { exact: true }).first()).toBeVisible();
     const shown = page.getByTestId("attention-summary").filter({ hasText: text });
