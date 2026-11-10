@@ -18,7 +18,7 @@
 - **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
   يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
-- **التحويل لاحقًا (قرارك أنت ومتى تشاء):** بعد التأكد من النسخة الجديدة، تعدّل أنت إعداد traefik ليشير نطاقك إلى `http://127.0.0.1:18030`، ثم توقف النسخة القديمة. الخطوات في قسم «Switch over later» أدناه. لا شيء من ذلك يحدث تلقائيًا.
+- **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -136,44 +136,83 @@ What this does and does not do:
   preflight refuses a port, project, volume or directory that is already taken.
 - The installer never edits the reverse proxy. Pointing it at the new entry is your step.
 
-A traefik file-provider route for it (put it in traefik's dynamic configuration directory; traefik
-reloads it by itself):
+### The owner's VPS: traefik file provider
+
+On the owner's VPS, traefik runs on the host network with the file provider watching
+`/docker/traefik/dynamic/`, and the certificate resolver is called `letsencrypt`. The old Lonora is
+routed by `lonora.yml`: `Host(\`lonora.lork.cloud\`)` → `http://127.0.0.1:18010`, plus a
+`/download` router (priority 1000) → `127.0.0.1:18020`. The old stack's volumes are
+`lonora-database` and `lonora-artifacts`, its networks `lonora-net` and `lonora-research`; a new
+installation under `--project lonora2` uses `lonora2_*` and `lonora2-*`, so nothing collides (the
+preflight refuses if any of its own names already exist).
+
+**Neither the installer nor `lonora` ever writes into `/docker/traefik/dynamic/`.** A malformed file
+there can break traefik's file provider for every host on the server, so whoever edits it should
+validate the YAML first and write atomically: create the file under another name in the same
+directory, check it, then `mv` it into place.
+
+**(a) A test host for the new installation** — a NEW file, `/docker/traefik/dynamic/lonora-next.yml`
+(the DNS record for `next.lonora.lork.cloud` is the owner's step; install with
+`--domain next.lonora.lork.cloud --behind-proxy 127.0.0.1:18030`):
 
 ```yaml
 http:
   routers:
-    lonora2:
-      rule: "Host(`new.example.com`)"
+    lonora-next:
+      rule: "Host(`next.lonora.lork.cloud`)"
       entryPoints: ["websecure"]
-      service: lonora2
+      service: lonora-next
       tls:
-        certResolver: letsencrypt      # the resolver name your traefik already uses
+        certResolver: letsencrypt
   services:
-    lonora2:
+    lonora-next:
       loadBalancer:
         servers:
           - url: "http://127.0.0.1:18030"
 ```
 
-`--domain` must be the public name the proxy serves for this installation: it sets the allowed
-origin and secure cookies. Use a separate test name (like `new.example.com`) while the old one keeps
-the main name.
+Write it safely, as root:
+
+```sh
+cd /docker/traefik/dynamic
+cat >.lonora-next.yml.tmp <<'YAML'
+…the YAML above…
+YAML
+python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' .lonora-next.yml.tmp && mv .lonora-next.yml.tmp lonora-next.yml
+```
+
+(Without PyYAML, `docker run --rm -v "$PWD":/d mikefarah/yq:4 e . /d/.lonora-next.yml.tmp` checks it
+the same way.) Check the entry point names (`websecure` above) against the existing files in that
+directory and use the same ones.
 
 ## Switch over later
 
 Only the owner does this, and only when they decide to; nothing here happens automatically.
 
-1. Check the new installation on its test name: sign in, `sudo lonora status` shows `/ready: ok`,
-   `sudo lonora backup` and `sudo lonora restore-test` pass.
-2. Set the main name on the new installation: edit `LONORA_DOMAIN=` in `/opt/lonora2/.env`, then
-   `sudo lonora start`. (Passkeys registered on the test name must be registered again on the main name.)
-3. In traefik, point the router for the main name at the new service: change its `service:` to
-   `lonora2` (or its rule to `Host(\`main.example.com\`)`). Traefik applies it on its own.
+1. Check the new installation on its test host: sign in at `https://next.lonora.lork.cloud`,
+   `sudo lonora status` shows `/ready: ok`, `sudo lonora backup` and `sudo lonora restore-test` pass.
+2. Give the new installation the main name: set `LONORA_DOMAIN=lonora.lork.cloud` in
+   `/opt/lonora2/.env`, then `sudo lonora start`. (Passkeys registered on the test name must be
+   registered again on the main name.)
+3. **(b) Cut over by swapping only the url** in `/docker/traefik/dynamic/lonora.yml`: the main
+   router's service url `http://127.0.0.1:18010` becomes `http://127.0.0.1:18030`. Leave the rest
+   of the file as it is (the `/download` router can stay on `127.0.0.1:18020` while the old downloads
+   service runs). Edit a copy, validate it, move it into place:
+
+   ```sh
+   cd /docker/traefik/dynamic
+   cp lonora.yml .lonora.yml.before          # keep for going back
+   sed 's#http://127.0.0.1:18010#http://127.0.0.1:18030#' lonora.yml >.lonora.yml.tmp
+   diff lonora.yml .lonora.yml.tmp           # exactly the one url line
+   python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' .lonora.yml.tmp && mv .lonora.yml.tmp lonora.yml
+   ```
+
+   Traefik picks the change up by itself. `lonora-next.yml` can be removed afterwards (`rm`, no edit).
 4. Stop the old stack, without deleting anything: `cd /opt/lonora && docker compose --env-file .env -f <its compose file> stop`.
    Its data stays in its volumes; archive it later as in «Your current server: start fresh» steps 2–4
    if you want the space back.
-5. To go back: point the router at the old service again and start the old stack
-   (`docker compose … start`).
+5. To go back: `mv .lonora.yml.before lonora.yml` in the traefik directory and start the old stack
+   again (`docker compose … start`).
 
 ## Build from source on the server
 

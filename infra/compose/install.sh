@@ -68,6 +68,12 @@ if docker volume inspect "${project}_database" >/dev/null 2>&1; then
 else
     check true "no ${project}_database volume"
 fi
+taken=""
+for volume in artifacts caddy-data caddy-config; do
+    if docker volume inspect "${project}_$volume" >/dev/null 2>&1; then taken+=" ${project}_$volume"; fi
+done
+if docker network inspect "${project}_default" >/dev/null 2>&1; then taken+=" ${project}_default"; fi
+if [[ -n "$taken" ]]; then check false "Docker names of project '$project' already exist:$taken"; else check true "no other volume or network named ${project}_*"; fi
 others="$(docker ps -aq --filter "label=com.docker.compose.project=$project" | wc -l)"
 if ((others > 0)); then check false "$others container(s) of Compose project '$project' already exist"; else check true "no containers of project '$project'"; fi
 if [[ -n "$proxy_listen" ]]; then
