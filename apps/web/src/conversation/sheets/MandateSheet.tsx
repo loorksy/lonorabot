@@ -8,6 +8,7 @@ import type {
   OwnerAction,
   PermissionState,
 } from "@lonora/contracts";
+import { hasFixedMarket } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useCallback, useEffect, useState } from "react";
 import { OwnerActionCard } from "../../components/owner-actions/OwnerActionCard";
@@ -49,8 +50,31 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
   const [mode, setMode] = useState<"custom" | "full">("custom");
   const [allPairs, setAllPairs] = useState(false);
   const [kinds, setKinds] = useState<Kind[]>(["open", "modify", "close"]);
-  const [duration, setDuration] = useState<AuthorityDuration>("24h");
+  // D1 (Q18): until the owner stops it; the daily loss is the account's own limit, else a
+  // suggested 3% of equity that is sent only when the owner sets it here.
+  const [duration, setDuration] = useState<AuthorityDuration>("until_stopped");
   const [loss, setLoss] = useState(3);
+  const [lossSet, setLossSet] = useState(false);
+  const [accountLoss, setAccountLoss] = useState<{ amount: string; currency: string } | null>(null);
+  useEffect(() => {
+    if (!agent.trading_account_id) return;
+    let live = true;
+    void api
+      .get<{ risk: { max_daily_loss?: string | null; currency?: string | null } }>(
+        `/trading/accounts/${encodeURIComponent(agent.trading_account_id)}/execution-policy`,
+      )
+      .then((row) => {
+        if (live && row.risk.max_daily_loss != null)
+          setAccountLoss({
+            amount: String(+Number(row.risk.max_daily_loss).toFixed(2)),
+            currency: row.risk.currency ?? "",
+          });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [agent.trading_account_id]);
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -58,6 +82,9 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
   if (card) return <OwnerActionCard row={card} onChanged={setCard} inSheet />;
   const full = mode === "full";
   const symbol = agent.trading_symbol;
+  // A fixed-pair agent trades its own pair only; Lonora works on the whole account.
+  const fixed = Boolean(symbol) && hasFixedMarket(agent) && agent.role !== "personal";
+  const accountWide = agent.role === "personal" || !symbol;
   const draft = async () => {
     if (!full && !kinds.length) return setError(new Error(t`Choose at least one action`));
     setBusy(true);
@@ -67,11 +94,18 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
       : {
           mode: "custom",
           ...(threadId ? { thread_id: threadId } : {}),
-          ...(allPairs ? { all_pairs: true } : symbol ? { symbols: [symbol] } : {}),
+          // Lonora's markets are the server's (the whole account); a fixed agent its own pair.
+          ...(agent.role === "personal"
+            ? {}
+            : allPairs && !fixed
+              ? { all_pairs: true }
+              : symbol
+                ? { symbols: [symbol] }
+                : {}),
           actions: kinds.flatMap((kind) => ACTIONS[kind]),
           duration,
           allow_manual_positions: manual,
-          daily_loss_percent: String(loss),
+          ...(lossSet && !accountLoss ? { daily_loss_percent: String(loss) } : {}),
         };
     try {
       const result = await api.post<AccountAuthorityDraftResult>(
@@ -119,7 +153,7 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
             </span>
             {/* biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice */}
             <div className="oa-seg" role="radiogroup">
-              {symbol && (
+              {symbol && agent.role !== "personal" && (
                 // biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice
                 <button
                   type="button"
@@ -131,16 +165,18 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
                   <span className="ltr">{symbol}</span>
                 </button>
               )}
-              {/* biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice */}
-              <button
-                type="button"
-                role="radio"
-                aria-checked={allPairs || !symbol}
-                className={allPairs || !symbol ? "on" : ""}
-                onClick={() => setAllPairs(true)}
-              >
-                <Trans>All pairs on the account</Trans>
-              </button>
+              {!fixed && (
+                // biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={allPairs || accountWide}
+                  className={allPairs || accountWide ? "on" : ""}
+                  onClick={() => setAllPairs(true)}
+                >
+                  <Trans>All pairs on the account</Trans>
+                </button>
+              )}
             </div>
           </div>
           <div className="oa-f col">
@@ -193,32 +229,56 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
               ))}
             </div>
           </div>
-          <div className="oa-f">
-            <span className="oa-l">
-              <Trans>Daily loss limit</Trans>
-              <small>
-                <Trans>Suggested value 3%</Trans>
-              </small>
-            </span>
-            {/* biome-ignore lint/a11y/useSemanticElements: the reference's stepper */}
-            <div className="oa-num" role="group" aria-label={t`Daily loss limit`}>
-              <button
-                type="button"
-                aria-label={t`Decrease`}
-                onClick={() => setLoss((v) => Math.max(0.5, +(v - 0.5).toFixed(2)))}
-              >
-                <Icon name="minus" />
-              </button>
-              <output className="ltr">{loss}%</output>
-              <button
-                type="button"
-                aria-label={t`Increase`}
-                onClick={() => setLoss((v) => Math.min(20, +(v + 0.5).toFixed(2)))}
-              >
-                <Icon name="plus" />
-              </button>
+          {accountLoss ? (
+            // The account's own daily loss limit stays as it is: the card never raises it.
+            <div className="oa-f" data-daily-loss="account">
+              <span className="oa-l">
+                <Trans>Daily loss limit</Trans>
+                <small>
+                  <Trans>The account's limit stays</Trans>
+                </small>
+              </span>
+              <span className="ltr">
+                {accountLoss.amount}
+                {accountLoss.currency ? ` ${accountLoss.currency}` : ""}
+              </span>
             </div>
-          </div>
+          ) : (
+            <div className="oa-f" data-daily-loss={lossSet ? "requested" : "suggested"}>
+              <span className="oa-l">
+                <Trans>Daily loss limit</Trans>
+                {!lossSet && (
+                  <small>
+                    <Trans>Suggested value 3%</Trans>
+                  </small>
+                )}
+              </span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the reference's stepper */}
+              <div className="oa-num" role="group" aria-label={t`Daily loss limit`}>
+                <button
+                  type="button"
+                  aria-label={t`Decrease`}
+                  onClick={() => {
+                    setLossSet(true);
+                    setLoss((v) => Math.max(0.5, +(v - 0.5).toFixed(2)));
+                  }}
+                >
+                  <Icon name="minus" />
+                </button>
+                <output className="ltr">{loss}%</output>
+                <button
+                  type="button"
+                  aria-label={t`Increase`}
+                  onClick={() => {
+                    setLossSet(true);
+                    setLoss((v) => Math.min(20, +(v + 0.5).toFixed(2)));
+                  }}
+                >
+                  <Icon name="plus" />
+                </button>
+              </div>
+            </div>
+          )}
           <div className="oa-f">
             <span className="oa-l">
               <Trans>Manage manual trades</Trans>
@@ -284,19 +344,44 @@ function MandateEntry({
   threadId?: string;
 }) {
   const [state, setState] = useState<PermissionState | null>(null);
+  // A grant waiting for the signature, or the signed one, opens as its own .oa grant card.
+  const [card, setCard] = useState<OwnerAction | null | undefined>();
   const [error, setError] = useState<unknown>();
   useEffect(() => {
     let live = true;
     void api
       .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
-      .then((row) => live && setState(row))
+      .then(async (row) => {
+        if (!live) return;
+        const held = Boolean(row.pending_authority || row.active_authorities.length);
+        const rows =
+          held && threadId
+            ? await api
+                .get<OwnerAction[]>(`/owner-actions?thread_id=${encodeURIComponent(threadId)}`)
+                .catch(() => [])
+            : [];
+        const status = row.pending_authority ? "pending" : "confirmed";
+        const found = rows
+          .filter(
+            (item) =>
+              item.kind === "grant_authority" &&
+              item.agent_id === agent.id &&
+              item.status === status,
+          )
+          .sort((a, b) => (b.timeline_seq ?? 0) - (a.timeline_seq ?? 0))[0];
+        if (!live) return;
+        setCard(found ?? null);
+        setState(row);
+      })
       .catch((cause) => live && setError(cause));
     return () => {
       live = false;
     };
-  }, [agent.id]);
+  }, [agent.id, threadId]);
   if (error != null) return <p className="form-error">{userError(error)}</p>;
   if (!state) return <p className="note">…</p>;
+  if (card && !details)
+    return <OwnerActionCard row={card} onChanged={(row) => setCard(row)} inSheet />;
   return details || state.pending_authority || state.active_authorities.length ? (
     <div className="legacy-surface">
       <AgentPermissions
