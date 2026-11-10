@@ -32,6 +32,9 @@ home="$work/home"
 base_head="$(docker run --rm --network none --entrypoint cat "$repo:v2" /app/release.json | sed -n 's/.*"migration_head": "\([^"]*\)".*/\1/p')"
 [[ -n "$base_head" ]] || { echo "No migration head in $repo:v2" >&2; exit 1; }
 export LONORA_IMAGE_REPO="$repo" LONORA_READY_TIMEOUT="${LONORA_READY_TIMEOUT:-90}"
+# A disposable test machine: a lower disk minimum than production's 10 GB (the disk check
+# itself is exercised in step 17 with an explicit minimum).
+export LONORA_MIN_FREE_DISK_GB="${LONORA_MIN_FREE_DISK_GB:-2}"
 passed=0
 ok() { passed=$((passed + 1)); printf 'PASS %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
