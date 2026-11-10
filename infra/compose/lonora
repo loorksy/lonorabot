@@ -82,7 +82,8 @@ lock() { # flock options: -n (fail fast) or -w SECONDS (wait)
     flock "$@" 9 || die 'Another lonora operation (update, restore or backup) is running.'
     export LONORA_LOCK_HELD=1
     # Holding the lock, nothing else uses scratch files: remove any a killed run left behind.
-    rm -rf -- "$SCRATCH" "$BACKUPS"/*.part
+    # gpg homes hold only an agent socket; every command that uses gpg holds this lock.
+    rm -rf -- "$SCRATCH" "$BACKUPS"/*.part /tmp/lonora-gpg.*
 }
 
 # Only the overlay list is read from .env; nothing from it is evaluated here.
