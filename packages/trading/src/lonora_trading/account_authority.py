@@ -116,7 +116,6 @@ async def lonora_opened(
         .where(
             TradingJournalRow.owner_id == owner_id,
             TradingJournalRow.account_id == request.account_id,
-            TradingJournalRow.execution_mode == "live",
             TradingJournalRow.status == "confirmed",
             TradingJournalRow.request["symbol"].as_string() == request.symbol,
             TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),

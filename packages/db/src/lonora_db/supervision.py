@@ -543,7 +543,6 @@ async def money_standing(session: AsyncSession, owner_id: str, agent: AgentRow) 
         select(TradingJournalRow.operation_id)
         .where(
             TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.execution_mode == "live",
             producer == agent.id,
         )
         .limit(1)

@@ -51,7 +51,6 @@ STEPS = (
     StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
-    StepSpec("shadow", 2, 120, critical=False),
     StepSpec("history", 10, 600, critical=False),
     StepSpec("charts", 2, 120, critical=False),
     StepSpec("watches", 2, 120),
@@ -206,13 +205,6 @@ class Gateway:
     async def market(self) -> None:
         await self.for_each_owner(lambda service: service.market.maintain())
 
-    async def shadow(self) -> None:
-        from lonora_trading.shadow import advance_shadow
-
-        await self.for_each_owner(
-            lambda service: advance_shadow(self.db, service.brokers, service.owner_id)
-        )
-
     async def history(self) -> None:
         await self.for_each_owner(lambda service: maintain_history(service, self.root))
 
@@ -280,7 +272,6 @@ class Gateway:
             "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
-            "shadow": self.shadow,
             "history": self.history,
             "charts": self.charts,
             "watches": self.watches,

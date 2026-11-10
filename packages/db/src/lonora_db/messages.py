@@ -43,6 +43,7 @@ async def voice_artifact(
         raise LonoraError("voice_artifact_invalid", 422)
     return artifact
 
+
 # A direct chat's @mention invites at most this many guests per message (Q29).
 MAX_DIRECT_GUESTS = 2
 

@@ -9,7 +9,6 @@ import { AccountAuthoritySettings } from "../components/account-authority-settin
 import { AgentMarketPicker } from "../components/agent-market-picker";
 import { AgentModelSettings } from "../components/agent-model-settings";
 import { AvatarPicker } from "../components/avatar-picker";
-import { ExecutionModeSettings } from "../components/execution-mode-settings";
 import { PersonalAgentBadge } from "../components/personal-agent-badge";
 import { SettingsGroup, SettingsRow, SettingsSwitch } from "../components/settings-group";
 import { SheetHeader } from "../components/sheet-header";
@@ -173,7 +172,6 @@ export default function BotSettings() {
               allowFixed={allowFixed}
             />
           )}
-          <ExecutionModeSettings agent={agent} onChange={setAgent} />
           <AccountAuthoritySettings key={agent.id} agent={agent} />
           <AgentModelSettings key={`model-${agent.id}`} agent={agent} />
           <SupervisionSettings key={`supervision-${agent.id}`} agent={agent} />

@@ -1,13 +1,7 @@
 import { Trans } from "@lingui/react/macro";
-export type SettingsTab =
-  | "overview"
-  | "capabilities"
-  | "models"
-  | "voice"
-  | "trading"
-  | "integrations"
-  | "mcp"
-  | "usage";
+/* The settings screens that have no page in the reference layout yet (model routing, voice,
+   the trading controls). Everything else lives on the phase 5 settings pages. */
+export type SettingsTab = "models" | "voice" | "trading";
 export function SettingsSidebar({
   selected,
   onSelect,
@@ -16,14 +10,9 @@ export function SettingsSidebar({
   onSelect: (tab: SettingsTab) => void;
 }) {
   const tabs: [SettingsTab, React.ReactNode][] = [
-    ["overview", <Trans key="367">Appearance</Trans>],
-    ["capabilities", <Trans key="capabilities">Capabilities</Trans>],
     ["models", <Trans key="410">Global models</Trans>],
     ["voice", <Trans key="455">Voice</Trans>],
     ["trading", <Trans key="494">Trading</Trans>],
-    ["integrations", <Trans key="540">Integrations</Trans>],
-    ["mcp", <Trans key="582">MCP servers</Trans>],
-    ["usage", <Trans key="625">Token usage</Trans>],
   ];
   return (
     <nav className="settings-nav">

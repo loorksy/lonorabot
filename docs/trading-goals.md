@@ -12,10 +12,6 @@ The Goals panel reads saved progress and decision evidence from PostgreSQL. Clou
 
 Regression checks use disposable PostgreSQL databases and explicit simulator or SDK transport fixtures. No test submits a live broker trade: `check_goals.py` includes a worker process crash after the simulated broker effect, lease recovery and reconciliation without resubmission; `check_pending_orders.py`, `check_chart_streaming.py` and the Web/Expo browser tests cover the connected surfaces.
 
-## Shadow goals
+## Shadow goals (removed)
 
-A new Goal freezes its Agent's current `live` or `shadow` execution mode in server-owned state. Existing Goals without this field remain live. Run mode, Agent identity and exact account/symbol must agree; changing Agent mode pauses active/waiting/blocked Goals. Resuming cannot convert an existing Shadow Goal into a real trade.
-
-Shadow Goals use the same tools, decisions, watches, scheduled reviews and journal recovery. A Shadow step never touches the broker, so it needs neither goal autonomy nor an approval card, from a conversation or a background wake, exactly like a shadow trade outside a Goal. Their targets come from the Agent's virtual book while quotes/candles and instrument constraints come from the broker's read path. Pending fills resolve to the same virtual identity before management; cancellation can inspect only the local virtual order during a broker outage. Virtual execution never calls broker mutation or reconciliation. Sampled fills are labelled; monetary PnL conditions remain unavailable rather than assuming zero. The Goals panel labels a Shadow goal "Shadow trading — virtual orders only".
-
-`tests/check_shadow_goals.py` covers four asset classes, all four pending entry types, background virtual steps without goal autonomy or approval, checkpoint recovery, stale-worker fencing, virtual watches, manual real-position isolation and mode changes with global live trading disabled. `tests/check_goals.py` covers a live step outside the signed grant becoming one approval card.
+Shadow (virtual) trading is removed (owner decision Q57). Every Goal is a live plan under its agent's level and grant. Migration `0053_remove_shadow_trading` cancelled every unfinished Shadow goal with the code `shadow_trading_removed`; a finished one stays as history, and a Goal or Run still marked Shadow is refused (`goal_execution_mode_invalid`, `shadow_execution_forbidden`), never run live.

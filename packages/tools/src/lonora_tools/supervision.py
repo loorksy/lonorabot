@@ -359,7 +359,6 @@ async def _operations(
             {
                 "operation_id": row.operation_id,
                 "account_id": row.account_id,
-                "execution_mode": row.execution_mode,
                 "action": row.request.get("action"),
                 "symbol": row.request.get("symbol"),
                 "volume": None if row.request.get("volume") is None else str(row.request["volume"]),

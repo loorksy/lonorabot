@@ -96,6 +96,8 @@ const labels = {
 } as const satisfies Record<string, Text>;
 
 const fields: Readonly<Record<string, Text>> = {
+  name: { en: "Name", ar: "الاسم" },
+  address: { en: "Form of address", ar: "طريقة المخاطبة" },
   reply_language: { en: "Reply language", ar: "لغة الردود" },
   reach_me: { en: "How to reach you", ar: "كيف نتواصل معك" },
   quiet_hours: { en: "Quiet hours", ar: "أوقات الهدوء" },
@@ -135,6 +137,10 @@ const errors: Readonly<Record<string, Text>> = {
   incoming_call_quiet_hours_incomplete: {
     en: "Set both the start and the end of quiet hours, or clear both.",
     ar: "حدّد بداية أوقات الهدوء ونهايتها معًا، أو امسحهما معًا.",
+  },
+  incoming_call_quiet_hours_empty: {
+    en: "Quiet hours must start and end at different times.",
+    ar: "يجب أن تبدأ ساعات الهدوء وتنتهي في وقتين مختلفين.",
   },
   invalid_timezone: {
     en: "Choose a valid time zone, such as Asia/Riyadh.",

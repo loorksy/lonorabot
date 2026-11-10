@@ -50,7 +50,6 @@ async def unsettled_obligation(
     """
     query = select(TradingJournalRow.operation_id).where(
         TradingJournalRow.owner_id == owner_id,
-        TradingJournalRow.execution_mode == "live",
         TradingJournalRow.status.in_(UNSETTLED),
     )
     if account_id is not None:

@@ -8,7 +8,6 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionQuality, ExecutionSnapshot
 from lonora_contracts.risk_limits import RiskAssessment
 from lonora_contracts.runs import Lease
-from lonora_contracts.shadow import ExecutionMode
 from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import (
     IN_PROGRESS_STATUSES,
@@ -75,25 +74,19 @@ async def require_goal_lineage(
     goal: GoalExecution | None,
     owner_id: str | None = None,
     request: TradeRequest | None = None,
-    *,
-    execution_mode: ExecutionMode = "live",
 ) -> None:
     origin_run = await require_lease(session, lease)
     if owner_id is not None:
-        await require_financial_agent(
-            session, owner_id, origin_run.agent_id, execution_mode=execution_mode
-        )
+        await require_financial_agent(session, owner_id, origin_run.agent_id)
     if (
         origin_run.trigger == "subagent"
         or origin_run.model_metadata.get("authority") == "observe_only"
     ):
         raise LonoraError("observe_only_execution_forbidden", 403)
-    await require_task_authority(session, origin_run, execution_mode=execution_mode)
+    await require_task_authority(session, origin_run)
     if owner_id is not None and request is not None:
         assert_market_binding(
-            await require_financial_agent(
-                session, owner_id, origin_run.agent_id, execution_mode=execution_mode
-            ),
+            await require_financial_agent(session, owner_id, origin_run.agent_id),
             request.account_id,
             request.symbol,
         )
@@ -114,12 +107,10 @@ async def require_goal_lineage(
             or ancestor.model_metadata.get("authority") == "observe_only"
         ):
             raise LonoraError("observe_only_execution_forbidden", 403)
-        await require_task_authority(session, ancestor, execution_mode=execution_mode)
+        await require_task_authority(session, ancestor)
         if owner_id is not None and request is not None:
             assert_market_binding(
-                await require_financial_agent(
-                    session, owner_id, ancestor.agent_id, execution_mode=execution_mode
-                ),
+                await require_financial_agent(session, owner_id, ancestor.agent_id),
                 request.account_id,
                 request.symbol,
             )
@@ -135,10 +126,9 @@ async def require_goal_lineage(
         raise LonoraError("goal_step_required", 409)
 
 
-async def require_task_authority(
-    session: AsyncSession, run: RunRow, *, execution_mode: ExecutionMode = "live"
-) -> None:
-    if run.model_metadata.get("execution_mode", "live") != execution_mode:
+async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
+    # Shadow trading is removed (Q57); a Run started in it still never sends.
+    if run.model_metadata.get("execution_mode", "live") != "live":
         raise LonoraError("shadow_execution_forbidden", 403)
     task_id = run.model_metadata.get("task_id")
     if not task_id:
@@ -171,10 +161,8 @@ class ExecutionService:
                 await require_goal_lineage(session, lease, goal, owner_id, request)
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
-                if (
-                    previous.execution_mode != "live"
-                    or previous.owner_id != owner_id
-                    or previous.request_hash != trade_fingerprint(request)
+                if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
+                    request
                 ):
                     raise LonoraError("idempotency_conflict", 409)
                 return receipt(previous)
@@ -271,7 +259,7 @@ class ExecutionService:
                     "lease": lease.model_dump() if lease else None,
                     "execution_evidence": {
                         "planned": execution_evidence(
-                            planned_snapshot, request, mode="live", phase="planned", goal=goal
+                            planned_snapshot, request, phase="planned", goal=goal
                         )
                     },
                     "execution": {
@@ -344,7 +332,7 @@ class ExecutionService:
                 request, snapshot, policy, planned_quote=planned_snapshot.quote
             )
             observed = execution_evidence(
-                snapshot, request, mode="live", phase="before_send", goal=goal, policy=policy
+                snapshot, request, phase="before_send", goal=goal, policy=policy
             )
             if quality.state != "executable":
                 # Persist the actual failed gate; no broker mutation is authorized.

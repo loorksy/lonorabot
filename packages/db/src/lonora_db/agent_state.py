@@ -333,7 +333,6 @@ async def agent_live_state(
             select(TradingJournalRow)
             .where(
                 TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.execution_mode == "live",
                 TradingJournalRow.status.in_(["submitted", "ambiguous"]),
                 TradingJournalRow.result["details"]["execution"]["agent_id"].as_string()
                 == agent.id,

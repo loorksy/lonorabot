@@ -288,7 +288,6 @@ const toolLabels: Readonly<Record<string, Label>> = {
   group_silence: { en: "Staying quiet in the group", ar: "يلتزم الصمت في المجموعة" },
   message_react: { en: "Reacting to a message", ar: "يتفاعل مع رسالة" },
   market_position_size: { en: "Sizing a position", ar: "يحسب حجم المركز" },
-  market_shadow_execute: { en: "Placing a virtual trade", ar: "ينفّذ صفقة افتراضية" },
   market_candles_to_workspace: {
     en: "Copying market data to the workspace",
     ar: "ينسخ بيانات السوق إلى مساحة العمل",

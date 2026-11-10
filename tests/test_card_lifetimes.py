@@ -78,7 +78,6 @@ async def uncertain(session: AsyncSession, owner: str, account: str, identifier:
             request_hash="h",
             request={"symbol": "XAUUSD", "action": "buy", "volume": "0.1"},
             status="ambiguous",
-            execution_mode="live",
             result={},
         )
     )

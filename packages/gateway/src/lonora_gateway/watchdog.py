@@ -296,7 +296,6 @@ class Watchdog:
                 await session.scalars(
                     select(TradingJournalRow)
                     .where(
-                        TradingJournalRow.execution_mode == "live",
                         TradingJournalRow.status.in_(
                             sorted(IN_PROGRESS_STATUSES | UNRESOLVED_STATUSES)
                         ),

@@ -237,11 +237,7 @@ async def stale_reason(
         )
     if kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
-        if (
-            operation is None
-            or operation.owner_id != owner_id
-            or (operation.execution_mode != "live")
-        ):
+        if operation is None or operation.owner_id != owner_id:
             raise LonoraError("operation_not_found", 404)
         return None if operation.status == "ambiguous" else "operation_already_settled"
     if kind == "set_account_limits":
@@ -1959,7 +1955,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
     unresolved = select(TradingJournalRow.operation_id).where(
         TradingJournalRow.owner_id == row.owner_id,
         TradingJournalRow.account_id == account,
-        TradingJournalRow.execution_mode == "live",
         TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
         TradingJournalRow.operation_id != answered_id,
     )

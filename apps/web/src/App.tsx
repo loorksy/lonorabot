@@ -4,17 +4,21 @@ import { ApiError, isRequestCancelled, resetSessionRequests } from "./lib/api";
 import { auth, type Owner } from "./lib/auth";
 import { onboardingStatus } from "./lib/bootstrap";
 import { userError } from "./lib/user_error";
-import { Auth } from "./pages/Auth";
-import { Onboarding } from "./pages/Onboarding";
 import { ClientProvider } from "./providers/ClientProvider";
 import { Shell } from "./shell/Shell";
+import { AuthFlow } from "./shell/settings/AuthFlow";
 export default function App() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [initialized, setInitialized] = useState<boolean>();
   const [error, setError] = useState<unknown>();
+  // «انتهت جلستك»: the server ended the session (not the owner's own sign-out).
+  const [expired, setExpired] = useState(false);
+  // The reference reopens the intro slides when the owner signs out (signOut → authOpen("intro")).
+  const [signedOut, setSignedOut] = useState(false);
   useEffect(() => {
     const expired = () => {
       resetSessionRequests();
+      setExpired(true);
       setOwner(null);
     };
     window.addEventListener("lonora:session-expired", expired);
@@ -62,19 +66,34 @@ export default function App() {
       </main>
     );
   if (!owner)
-    return initialized ? (
-      <Auth onLogin={setOwner} />
-    ) : (
-      <Onboarding
+    return (
+      <AuthFlow
+        initialized={initialized}
+        expired={expired}
+        intro={signedOut}
         onLogin={(account) => {
           setInitialized(true);
+          setExpired(false);
+          setSignedOut(false);
           setOwner(account);
         }}
       />
     );
+  try {
+    // Signed in once on this device: the intro slides are not shown again after a sign-out.
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  } catch {
+    /* storage unavailable */
+  }
   return (
     <ClientProvider key={owner.id} owner={owner}>
-      <Shell onLogout={() => setOwner(null)} />
+      <Shell
+        onLogout={() => {
+          setExpired(false);
+          setSignedOut(true);
+          setOwner(null);
+        }}
+      />
     </ClientProvider>
   );
 }

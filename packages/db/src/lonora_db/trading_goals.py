@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
-from .goal_scope import goal_mode, require_goal_agent
+from .goal_scope import require_goal_agent
 from .schema import GoalDecisionRow, GroupRow, RunRow, ThreadRow, TradingGoalRow
 from .transactions import owned_agent, owned_thread, resource_data
 
@@ -31,7 +31,7 @@ async def owned_goal(
 
 
 def goal_data(row: TradingGoalRow) -> dict[str, Any]:
-    data = {**resource_data(row), "execution_mode": goal_mode(row)}
+    data = resource_data(row)
     data["step_states"] = [
         {**step, **row.state.get("steps", {}).get(step["id"], {})}
         for step in row.payload.get("steps", [])
@@ -89,13 +89,7 @@ async def create_goal(
     It carries no authority of its own: each financial step is checked at execution
     like any other trade of the agent.
     """
-    agent = await owned_agent(session, owner_id, request.agent_id)
-    await require_financial_agent(
-        session,
-        owner_id,
-        request.agent_id,
-        execution_mode="shadow" if agent.execution_mode == "shadow" else "live",
-    )
+    await require_financial_agent(session, owner_id, request.agent_id)
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     assert_payload_binding(
         await owned_agent(session, owner_id, request.agent_id), request.model_dump(mode="json")
@@ -117,7 +111,6 @@ async def create_goal(
         payload=payload,
         state={
             "status": "active",
-            "execution_mode": agent.execution_mode,
             "plan_version": 1,
             "current_step": request.steps[0].id,
             "steps": {step.id: {"status": "pending", "attempt": 1} for step in request.steps},

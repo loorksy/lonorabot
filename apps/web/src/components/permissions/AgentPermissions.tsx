@@ -921,7 +921,7 @@ export function AgentPermissions({
                   type="button"
                   className="permission-primary"
                   data-testid="permission-review-continue"
-                  disabled={!proposal || busy || !threadId || agent.execution_mode === "shadow"}
+                  disabled={!proposal || busy || !threadId}
                   onClick={() => void execute(async () => prepare(draftRef.current, true))}
                 >
                   {busy ? text.preparing : text.continue}

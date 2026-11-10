@@ -217,32 +217,38 @@ export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolea
  * and badge); a critical or action_required attention item always shows.
  */
 export const headsUpAllowed = (entry: InboxEntry | undefined) => !entry?.muted && !entry?.archived;
-/** The owner's quiet hours (the reach-me policy): whole hours in the owner's time zone,
- * crossing midnight when the start is later than the end. No hours set, no quiet. */
+/** The owner's quiet hours (the reach-me policy) in the owner's time zone, crossing midnight
+ * when the start is later than the end. Minutes after midnight (Q47) when the server sent
+ * them, else whole hours. No window set, no quiet. */
 export type QuietHours = {
   quiet_start_hour: number | null;
   quiet_end_hour: number | null;
+  quiet_start_minute?: number | null;
+  quiet_end_minute?: number | null;
   timezone: string;
 };
 export function inQuietHours(policy: QuietHours | null | undefined, now: Date): boolean {
-  if (!policy || policy.quiet_start_hour == null || policy.quiet_end_hour == null) return false;
-  const start = policy.quiet_start_hour;
-  const end = policy.quiet_end_hour;
-  if (start === end) return false;
-  let hour: number;
+  if (!policy) return false;
+  const start =
+    policy.quiet_start_minute ??
+    (policy.quiet_start_hour == null ? null : policy.quiet_start_hour * 60);
+  const end =
+    policy.quiet_end_minute ?? (policy.quiet_end_hour == null ? null : policy.quiet_end_hour * 60);
+  if (start == null || end == null || start === end) return false;
+  let minute: number;
   try {
-    hour =
-      Number(
-        new Intl.DateTimeFormat("en-GB", {
-          hour: "numeric",
-          hourCycle: "h23",
-          timeZone: policy.timezone,
-        }).format(now),
-      ) % 24;
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+      timeZone: policy.timezone,
+    }).formatToParts(now);
+    const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    minute = (part("hour") % 24) * 60 + part("minute");
   } catch {
-    hour = now.getUTCHours();
+    minute = now.getUTCHours() * 60 + now.getUTCMinutes();
   }
-  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+  return start < end ? minute >= start && minute < end : minute >= start || minute < end;
 }
 export const attentionAlwaysShows = (importance: AttentionImportance) =>
   importance === "critical" || importance === "action_required";

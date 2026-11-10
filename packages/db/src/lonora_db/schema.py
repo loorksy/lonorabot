@@ -162,10 +162,8 @@ class AgentRow(Base):
         String(16), default="fixed_market", server_default="fixed_market"
     )
     scope_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    execution_mode: Mapped[str] = mapped_column(String(12), default="live", server_default="live")
     __tablename__ = "ln_agents"
     __table_args__ = (
-        CheckConstraint("execution_mode IN ('live','shadow')", name="ln_agents_execution_mode"),
         CheckConstraint(
             "role IN ('personal','general','specialist','delegated','legacy')", name="ln_agent_role"
         ),
@@ -331,6 +329,31 @@ class ChatListRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AgentDeliveryRulesRow(Base):
+    """Per-agent delivery rules (Q47): in-app alerts, calls and a daily alert limit.
+
+    No row = the owner-wide policy alone. The rules only narrow delivery; urgent items
+    always show and nothing here grants authority."""
+
+    __tablename__ = "ln_agent_delivery_rules"
+    __table_args__ = (
+        CheckConstraint(
+            "daily_limit IS NULL OR (daily_limit >= 1 AND daily_limit <= 100)",
+            name="ln_agent_delivery_rules_daily_limit",
+        ),
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    in_app: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    calls: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ChatListMemberRow(Base):
     __tablename__ = "ln_chat_list_members"
     list_id: Mapped[str] = mapped_column(
@@ -451,6 +474,9 @@ class OwnerProfileRow(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     # None follows the language of the owner's latest message.
     reply_language: Mapped[str | None] = mapped_column(String(8))
+    # «الاسم» and «طريقة المخاطبة» of the owner form (WP-H); None until the owner sets them.
+    name: Mapped[str | None] = mapped_column(String(80))
+    address: Mapped[str | None] = mapped_column(String(80))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -639,16 +665,10 @@ class ResourceRow(Base):
 
 
 class TradingJournalRow(Base):
-    execution_mode: Mapped[str] = mapped_column(
-        String(12), default="live", server_default="live", index=True
-    )
     __tablename__ = "ln_trading_journal"
     __table_args__ = (
         Index("ln_journal_reconcile_due", "status", "submitted_at"),
         Index("ln_trading_journal_thread", "thread_id", "updated_at"),
-        CheckConstraint(
-            "execution_mode IN ('live','shadow')", name="ln_trading_journal_execution_mode"
-        ),
     )
     operation_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
@@ -703,6 +723,7 @@ class ModelBackupRow(ResourceRow):
 
 class UsageRow(ResourceRow):
     __tablename__ = "ln_usage"
+    __table_args__ = (Index("ln_usage_owner_created", "owner_id", "created_at"),)
 
 
 class VoiceSessionRow(ResourceRow):
@@ -855,15 +876,6 @@ class TradingOpportunityRow(ResourceRow):
     status: Mapped[str] = mapped_column(String(24), default="forming", index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class ShadowTradeRow(ResourceRow):
-    __tablename__ = "ln_shadow_trades"
-    account_id: Mapped[str] = mapped_column(String(120), index=True)
-    symbol: Mapped[str] = mapped_column(String(80), index=True)
-    status: Mapped[str] = mapped_column(String(16), index=True)
-    decision_id: Mapped[str | None] = mapped_column(String(36))
-    thesis_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class TradingRestrictionRow(Base):

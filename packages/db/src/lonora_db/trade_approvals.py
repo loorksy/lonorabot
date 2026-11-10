@@ -50,7 +50,6 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         "agent_id": row.agent_id,
         "timeline_seq": row.timeline_seq,
         "requests": row.requests,
-        "execution_mode": row.broker_snapshot.get("execution_mode", {}).get("value", "live"),
         # Read lazily: a pending card past its expiry is shown expired before it settles.
         "status": "expired" if overdue(row) else row.status,
         "results": row.results,

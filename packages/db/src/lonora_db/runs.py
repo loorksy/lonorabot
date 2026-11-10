@@ -149,8 +149,6 @@ async def create_run(
             }
         },
     )
-    if agent.execution_mode == "shadow":
-        row.model_metadata = {**row.model_metadata, "execution_mode": "shadow"}
     if run_id:
         row.id = run_id
     session.add(row)

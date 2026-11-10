@@ -87,10 +87,7 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         trigger=row.trigger,
         prompt=row.prompt,
         input_seq=row.input_seq,
-        model_metadata={
-            "retry_of": row.id,
-            **({"execution_mode": "shadow"} if agent.execution_mode == "shadow" else {}),
-        },
+        model_metadata={"retry_of": row.id},
     )
     session.add(retry)
     await session.flush()

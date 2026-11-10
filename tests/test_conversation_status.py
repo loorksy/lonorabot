@@ -158,7 +158,6 @@ async def test_a_run_that_touched_the_executor_is_never_retried():
                             request_hash="hash",
                             request={"action": "buy", "symbol": "XAUUSD", "volume": "0.1"},
                             status="failed",
-                            execution_mode="live",
                             result={"details": {"execution": {"run_id": run_id}}},
                         )
                     )
@@ -295,13 +294,13 @@ async def test_live_state_names_the_current_work_and_the_pending_card():
 
 
 def test_anchors_are_written_beside_the_reservation_and_read_by_no_execution_path():
-    """Money safety: the anchor is presentation metadata. The live and shadow executors
-    write it right after their own reservation; no trading, tool or authority path filters
+    """Money safety: the anchor is presentation metadata. The executor writes it right
+    after its own reservation; no trading, tool or authority path filters
     or decides on it (only the owner's journal listing does)."""
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    for name in ("execution.py", "shadow.py"):
+    for name in ("execution.py",):
         source = (root / "packages/trading/src/lonora_trading" / name).read_text()
         reserved = source.index("await reserve_operation(")
         assert reserved < source.index("await anchor_operation(", reserved), name

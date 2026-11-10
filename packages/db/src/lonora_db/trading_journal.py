@@ -27,7 +27,6 @@ async def reserve_operation(
     account_id: str,
     request_hash: str,
     request: dict[str, Any],
-    execution_mode: str = "live",
 ) -> tuple[TradingJournalRow, bool]:
     # INSERT arbitrates even when no row exists yet; locking a missing row does not.
     created = await session.scalar(
@@ -38,7 +37,6 @@ async def reserve_operation(
             account_id=account_id,
             request_hash=request_hash,
             request=request,
-            execution_mode=execution_mode,
         )
         .on_conflict_do_nothing(index_elements=[TradingJournalRow.operation_id])
         .returning(TradingJournalRow.operation_id)
@@ -46,11 +44,7 @@ async def reserve_operation(
     row = await session.get(TradingJournalRow, operation_id, with_for_update=True)
     if row is None:
         raise LonoraError("operation_not_found", 404)
-    if (
-        row.owner_id != owner_id
-        or row.request_hash != request_hash
-        or row.execution_mode != execution_mode
-    ):
+    if row.owner_id != owner_id or row.request_hash != request_hash:
         raise LonoraError("operation_id_conflict", 409)
     return row, created is not None
 
@@ -77,12 +71,9 @@ async def journal_entries(
     session: AsyncSession,
     owner_id: str,
     account_id: str | None = None,
-    execution_mode: str = "live",
     thread_id: str | None = None,
 ) -> list[TradingJournalRow]:
-    query = select(TradingJournalRow).where(
-        TradingJournalRow.owner_id == owner_id, TradingJournalRow.execution_mode == execution_mode
-    )
+    query = select(TradingJournalRow).where(TradingJournalRow.owner_id == owner_id)
     if account_id:
         query = query.where(TradingJournalRow.account_id == account_id)
     if thread_id:
@@ -181,7 +172,7 @@ async def resolve_operation(
     deleted; the uncertain receipt, its evidence and the attestation stay on the row.
     """
     row = await session.get(TradingJournalRow, operation_id, with_for_update=True)
-    if row is None or row.owner_id != owner_id or row.execution_mode != "live":
+    if row is None or row.owner_id != owner_id:
         raise LonoraError("operation_not_found", 404)
     if row.status in IN_PROGRESS_STATUSES:
         raise LonoraError("operation_in_progress", 409)

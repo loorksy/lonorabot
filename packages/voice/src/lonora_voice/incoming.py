@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from lonora_contracts.domain import utcnow
 from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
+from lonora_db.agent_delivery import delivery_rules
 from lonora_db.attention import mandatory_current
 from lonora_db.call_log import log_call
 from lonora_db.client import Database
@@ -149,6 +150,8 @@ async def require_current_consent(session: AsyncSession, row: VoiceSessionRow) -
     thread = await owned_thread(session, row.owner_id, row.thread_id or "")
     if agent.paused or thread.agent_id != agent.id:
         raise LonoraError("incoming_call_scope_unavailable", 409)
+    if not (await delivery_rules(session, row.owner_id, agent.id)).calls:
+        raise LonoraError("incoming_call_agent_disabled", 409)
 
 
 async def request_call(
@@ -192,6 +195,9 @@ async def request_call(
     thread = await owned_thread(session, owner_id, source.thread_id)
     if agent.paused or thread.agent_id != agent.id:
         raise LonoraError("incoming_call_scope_unavailable", 409)
+    # Owner decision Q47: «مكالمات الوكيل» off for this agent means it never rings.
+    if not (await delivery_rules(session, owner_id, agent.id)).calls:
+        raise LonoraError("incoming_call_agent_disabled", 409)
     rows = list(
         await session.scalars(
             select(VoiceSessionRow)

@@ -47,8 +47,7 @@ async def resolve_target(
         )
         safe_broker_id = (
             source.result.get("broker_id")
-            if (details.get("simulation") is True or details.get("mode") == "shadow")
-            and same_entity
+            if details.get("simulation") is True and same_entity
             else None
         )
         if source_action in {"modify_position", "close_position", "modify_order", "cancel_order"}:

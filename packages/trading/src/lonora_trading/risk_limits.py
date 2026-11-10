@@ -431,7 +431,6 @@ async def risk_operations(
     query = select(TradingJournalRow).where(
         TradingJournalRow.owner_id == owner_id,
         TradingJournalRow.account_id == account_id,
-        TradingJournalRow.execution_mode == "live",
         or_(
             TradingJournalRow.status.in_(sorted(UNRESOLVED_STATUSES)),
             (TradingJournalRow.status == "confirmed")
