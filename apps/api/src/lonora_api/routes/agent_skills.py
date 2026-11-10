@@ -15,14 +15,15 @@ from lonora_contracts.skills import (
     SkillCatalog,
     SkillCatalogDetail,
     SkillCatalogEntry,
+    SkillRestore,
     SkillRevokeRequest,
     SkillVersionControls,
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import AnalyticalWorkspaceRow, ResourceRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls, revoke_skill_version
-from lonora_db.skills import SkillRepository
-from lonora_db.transactions import owned_agent
+from lonora_db.skills import SkillRepository, skill_versions, version_payload
+from lonora_db.transactions import owned_agent, resource_data
 from lonora_tools.loader import load_tools
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,6 +120,37 @@ class ValidatedSkillRepository(SkillRepository):
 
 router = APIRouter()
 router.include_router(resource_router("/skills", ValidatedSkillRepository()))
+
+
+@router.get("/skills/{skill_id}/versions")
+async def versions(
+    request: Request, skill_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> list[dict[str, Any]]:
+    """«سجل الإصدارات»: every saved version of the skill, newest first."""
+    async with runtime(request).db.sessions() as session:
+        skill = await ValidatedSkillRepository().get(session, owner.id, skill_id)
+        return await skill_versions(session, owner.id, skill)
+
+
+@router.post("/skills/{skill_id}/restore")
+async def restore(
+    request: Request,
+    skill_id: str,
+    body: SkillRestore,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """«الرجوع إلى الإصدار N»: save that version's payload as the skill's next version.
+
+    The restored payload passes the same validation as any owner edit (graph checks,
+    executable packages refused); undo is a restore of the version just left.
+    """
+    repository = ValidatedSkillRepository()
+    async with runtime(request).db.sessions() as session, session.begin():
+        await repository.get(session, owner.id, skill_id)
+        payload = await version_payload(session, owner.id, skill_id, body.version)
+        return resource_data(
+            await repository.update(session, owner.id, skill_id, payload, body.expected_version)
+        )
 
 
 async def current_catalog(

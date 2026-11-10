@@ -36,10 +36,6 @@ apps/
 │       │   ├── Knowledge.tsx
 │       │   ├── KnowledgeSection.tsx
 │       │   ├── ScratchpadSection.tsx
-│       │   ├── Routines.tsx
-│       │   ├── RoutineEditor.tsx
-│       │   ├── RoutineSchedule.tsx
-│       │   ├── RoutineRunHistory.tsx
 │       │   ├── LocalSettings.tsx
 │       │   ├── ModelSettingsOverlay.tsx
 │       │   ├── VoiceSettingsOverlay.tsx
@@ -190,7 +186,7 @@ tests/
 | `pages/SpaceSearch.tsx` | بحث Lonora الحقيقي وروابط نتائج تفتح الوكيل أو Thread أو المعرفة؛ الاسم يطابق حد البحث في القالب |
 | `pages/KnowledgeSection.tsx` | `MEMORY.md` والمعرفة الدلالية الاختيارية؛ تحميل وحفظ ونسخ مستقلة عن سجل الرسائل |
 | `pages/ScratchpadSection.tsx` | الملاحظات والمهارات المشتركة في تحرير الموارد ذي النسخ، عبر `/scratchpad` و`/skills`؛ إضافة العناصر وتعديلها أو حذفها عبر تخزين الخادم |
-| `pages/RoutineEditor.tsx` و`RoutineSchedule.tsx` و`RoutineRunHistory.tsx` | فصل التحرير والجدولة والمنطقة الزمنية عن نتائج تشغيل Routine الفعلية |
+| `shell/domain/SchedulesPages.tsx` | «المهام المجدولة» و«جدولة مهمة»: الجدولة المتكررة ومرة واحدة وعند تحقق شرط، عبر `/routines` و`/watches` |
 | `pages/GroupPanel.tsx` | إنشاء المجموعة وتعديل الاسم والأعضاء وسياسة المشاركة؛ المحادثة تستخدم Thread المجموعة |
 | `pages/SettingsOverlay.tsx` | الإعدادات العالمية داخل حوار النظام؛ التوجيه والنماذج والصوت والتكاملات والتداول والاستخدام |
 | `components/ArtifactFileCard.tsx` وعوارض الملفات | صفوف وبطاقات ملفات حقيقية؛ معاينة الصور وPDF وHTML المعزول؛ عرض هاتف قابل للاستخدام |

@@ -1,9 +1,12 @@
 import type { Routine, Run } from "@lonora/contracts";
 import { api } from "./api";
 
-export type RoutineInput = Pick<
-  Routine,
-  "prompt" | "interval_seconds" | "cron" | "timezone" | "enabled"
+/** What a save sends; the server keeps fields left out (a one-shot keeps its run_at). */
+export type RoutineInput = Partial<
+  Pick<
+    Routine,
+    "title" | "prompt" | "interval_seconds" | "cron" | "run_at" | "timezone" | "enabled"
+  >
 >;
 export const routines = {
   list: (agentId?: string) =>

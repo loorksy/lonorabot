@@ -215,7 +215,8 @@ async def build_context(
                 RESPONSIBILITY_NOTE + agent.instructions if written_by_agent else "",
                 88,
             ),
-            # Owner preferences, the Agent's operating notes, then its memory.
+            # Owner preferences, the owner's goals and links for this Agent, its operating
+            # notes, then its memory.
             *memory,
             *skill_context.sections,
             ContextSection(
