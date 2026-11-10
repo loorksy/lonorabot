@@ -24,6 +24,16 @@ export type AgentWatchSummary = {
   lifecycle: string;
 };
 
+/** What the agent does now, most urgent first, from durable records only. */
+export type AgentCurrentWork = {
+  kind: "analysing" | "searching" | "watching" | "broker" | "waiting_owner" | "other";
+  /** Task title, the owner's message being answered, the operation or the watched market (≤120). */
+  text: string;
+  /** ISO: the watch's expiry or the card's; null otherwise. */
+  until: string | null;
+  run_id: string | null;
+};
+
 export type AgentLiveState = {
   agent_id: string;
   observed_at: string;
@@ -72,4 +82,7 @@ export type AgentLiveState = {
   }>;
   /** Present on the owner's state endpoint; presentation only. */
   trading_readiness?: TradingReadiness | null;
+  current_work?: AgentCurrentWork | null;
+  /** The newest pending owner-action card or trade approval waiting for the owner. */
+  pending_card_id?: string | null;
 };

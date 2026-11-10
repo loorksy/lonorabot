@@ -7,6 +7,20 @@ from pydantic import Field
 
 from .domain import Contract
 
+CurrentWorkKind = Literal["analysing", "searching", "watching", "broker", "waiting_owner", "other"]
+
+
+class CurrentWork(Contract):
+    """What the agent does now, most urgent first (a card for the owner, an order at the
+    broker, a running Run, an active watch), derived from durable records only."""
+
+    kind: CurrentWorkKind
+    # The Task's title, the owner's message a running reply answers, the operation
+    # («شراء 0.10 XAUUSD») or the watched market; never a prompt or tool body.
+    text: str = Field(max_length=120)
+    until: datetime | None = None
+    run_id: str | None = None
+
 
 class AgentLiveState(Contract):
     agent_id: str
@@ -31,3 +45,6 @@ class AgentLiveState(Contract):
     # Presentation only (lonora_db.trading_readiness): can it trade now, and what stops
     # it. Never consulted for enforcement; the executor re-checks at the moment of send.
     trading_readiness: dict[str, Any] | None = None
+    current_work: CurrentWork | None = None
+    # The newest pending owner-action card or trade approval waiting for the owner.
+    pending_card_id: str | None = None

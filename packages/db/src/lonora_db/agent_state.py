@@ -1,9 +1,11 @@
 """Derived state only: no second runtime/cache and no fabricated progress."""
 
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, cast
 
-from lonora_contracts.agent_state import AgentLiveState
+from lonora_contracts.agent_state import AgentLiveState, CurrentWork
 from lonora_contracts.domain import utcnow
+from lonora_core.run_state import is_conversational
 from lonora_core.runtime_failure import MODEL_RETRY_REASON
 from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
@@ -17,6 +19,7 @@ from .schema import (
     BrokerSessionRow,
     CollaborationSessionRow,
     MarketWatchRow,
+    MessageRow,
     OwnerActionRow,
     RunRow,
     TicketRow,
@@ -70,6 +73,156 @@ DECISION_CARD_KINDS = frozenset(
         "agent_model",
     }
 )
+
+
+# The work a running tool's family puts the agent in (the toolset the registry reports).
+WORK_KINDS = {
+    "research": "searching",
+    "market": "analysing",
+    "charts": "analysing",
+    "intelligence": "analysing",
+    "account": "analysing",
+}
+# The reference's order words (odSide): what an operation does, in the owner's language.
+ACTION_WORDS = {
+    "buy": "شراء",
+    "sell": "بيع",
+    "buy_limit": "شراء",
+    "sell_limit": "بيع",
+    "buy_stop": "شراء",
+    "sell_stop": "بيع",
+    "close_position": "إغلاق",
+    "modify_position": "تعديل",
+    "cancel_order": "إلغاء",
+    "modify_order": "تعديل",
+}
+WORK_TEXT_LENGTH = 120
+
+
+def clip(text: str) -> str:
+    line = " ".join(text.split())
+    return line if len(line) <= WORK_TEXT_LENGTH else line[: WORK_TEXT_LENGTH - 1] + "…"
+
+
+def operation_title(request: dict[str, Any]) -> str:
+    """«شراء 0.10 XAUUSD»: the action, the volume when it has one, the market."""
+    action = str(request.get("action") or "")
+    volume = request.get("volume")
+    try:
+        amount = f"{Decimal(str(volume)):.2f}" if volume is not None else ""
+    except InvalidOperation:
+        amount = ""
+    words = (ACTION_WORDS.get(action, action), amount, str(request.get("symbol") or ""))
+    return clip(" ".join(part for part in words if part))
+
+
+async def newest_pending_card(
+    session: AsyncSession, owner_id: str, agent_id: str
+) -> tuple[str, str, str | None, str | None] | None:
+    """The newest card waiting for the owner's decision: an owner action or a trade approval.
+
+    Returns its id, a short text, its expiry and its Run.
+    """
+    card = await session.scalar(
+        select(OwnerActionRow)
+        .where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.agent_id == agent_id,
+            OwnerActionRow.status == "pending",
+            OwnerActionRow.kind.in_(sorted(DECISION_CARD_KINDS)),
+            OwnerActionRow.expires_at > utcnow(),
+        )
+        .order_by(OwnerActionRow.created_at.desc(), OwnerActionRow.id)
+        .limit(1)
+    )
+    approval = await session.scalar(
+        select(TradeApprovalRow)
+        .where(
+            TradeApprovalRow.owner_id == owner_id,
+            TradeApprovalRow.agent_id == agent_id,
+            TradeApprovalRow.status == "pending",
+        )
+        .order_by(TradeApprovalRow.created_at.desc(), TradeApprovalRow.id)
+        .limit(1)
+    )
+    if approval is not None and (card is None or approval.created_at >= card.created_at):
+        first = approval.requests[0] if approval.requests else {}
+        return approval.id, clip("طلب موافقة · " + operation_title(first)), None, approval.run_id
+    if card is not None:
+        return card.id, "قرار مطلوب", card.expires_at.isoformat(), card.run_id
+    return None
+
+
+def held_run(runs: list[RunRow], waiting_runs: set[str], watch_id: str) -> str | None:
+    for row in runs:
+        wait = row.execution_state.get("environment", {}).get("wait")
+        if row.id in waiting_runs and wait and wait.get("kind") == "watch":
+            if str(wait.get("source_id")) == watch_id:
+                return row.id
+    return None
+
+
+async def current_work(
+    session: AsyncSession,
+    runs: list[RunRow],
+    tasks: list[dict[str, Any]],
+    unsettled: list[TradingJournalRow],
+    watches: list[MarketWatchRow],
+    held_watches: set[str],
+    waiting_runs: set[str],
+) -> dict[str, Any] | None:
+    """What the agent does now, from durable records only, most urgent first.
+
+    An order at the broker, then a running Run (its Task's title, or the owner's message
+    it answers; the kind from its current tool family), then its first active watch.
+    """
+    sent = next((row for row in unsettled if row.status == "submitted"), None)
+    if sent is not None:
+        origin = cast(dict[str, Any], sent.result.get("details", {}).get("execution") or {})
+        return {
+            "kind": "broker",
+            "text": operation_title(sent.request),
+            "until": None,
+            "run_id": origin.get("run_id"),
+        }
+    run = next(
+        (row for row in runs if row.status in {"leased", "running"} and row.id not in waiting_runs),
+        None,
+    )
+    if run is not None:
+        activity = cast(dict[str, Any], run.model_metadata.get("activity") or {})
+        toolset = activity.get("toolset")
+        task = next(
+            (item for item in tasks if item["id"] == run.model_metadata.get("task_id")), None
+        )
+        text = str(task["title"]) if task else ""
+        if not text and is_conversational(run.trigger):
+            text = (
+                await session.scalar(
+                    select(MessageRow.content).where(
+                        MessageRow.thread_id == run.thread_id,
+                        MessageRow.seq == run.input_seq,
+                        MessageRow.role == "user",
+                    )
+                )
+                or ""
+            )
+        return {
+            "kind": WORK_KINDS.get(str(toolset), "other"),
+            "text": clip(text),
+            "until": None,
+            "run_id": run.id,
+        }
+    if watches:
+        watch = watches[0]
+        summary = watch_summary(watch)
+        return {
+            "kind": "watching",
+            "text": clip(str(summary["symbol"] or summary["kind"])),
+            "until": summary["expires_at"],
+            "run_id": held_run(runs, waiting_runs, watch.id) if watch.id in held_watches else None,
+        }
+    return None
 
 
 async def agent_live_state(
@@ -170,10 +323,9 @@ async def agent_live_state(
         or 0
     )
     # Its own live operations the broker has not settled: the same fact the pill shows.
-    unsettled = {
-        str(status)
-        for status in await session.scalars(
-            select(TradingJournalRow.status)
+    unsettled_rows = list(
+        await session.scalars(
+            select(TradingJournalRow)
             .where(
                 TradingJournalRow.owner_id == owner_id,
                 TradingJournalRow.execution_mode == "live",
@@ -181,9 +333,11 @@ async def agent_live_state(
                 TradingJournalRow.result["details"]["execution"]["agent_id"].as_string()
                 == agent.id,
             )
+            .order_by(TradingJournalRow.updated_at.desc())
             .limit(10)
         )
-    }
+    )
+    unsettled = {row.status for row in unsettled_rows}
     # Watching right now: enabled, not expired and not past its expiry.
     watch_rows = [
         row
@@ -460,6 +614,19 @@ async def agent_live_state(
         if watches and state == "waiting"
         else None
     )
+    pending_card = await newest_pending_card(session, owner_id, agent.id)
+    work = (
+        {
+            "kind": "waiting_owner",
+            "text": pending_card[1],
+            "until": pending_card[2],
+            "run_id": pending_card[3],
+        }
+        if pending_card
+        else await current_work(
+            session, runs, tasks, unsettled_rows, watch_rows, held_watches, waiting_runs
+        )
+    )
     return AgentLiveState(
         agent_id=agent.id,
         observed_at=utcnow(),
@@ -493,4 +660,6 @@ async def agent_live_state(
         ],
         health=health[:6],
         trading_readiness=await trading_readiness(session, owner_id, agent) if readiness else None,
+        current_work=CurrentWork.model_validate(work) if work else None,
+        pending_card_id=pending_card[0] if pending_card else None,
     )

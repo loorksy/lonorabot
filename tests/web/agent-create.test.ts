@@ -247,10 +247,13 @@ test("the status line says what it monitors and until when, in both languages", 
     agentStatusLine({ ...monitoring, phase: "thinking", state: "working" }, "en"),
     "Working",
   );
-  assert.equal(agentStatusLine({ ...monitoring, phase: "paused", state: "paused" }, "ar"), "متوقف");
+  assert.equal(
+    agentStatusLine({ ...monitoring, phase: "paused", state: "paused" }, "ar"),
+    "متوقف مؤقتًا",
+  );
   assert.equal(
     agentStatusLine({ ...monitoring, phase: "action_required", state: "action_required" }, "ar"),
-    "بانتظارك",
+    "بانتظار قرارك",
   );
 });
 
