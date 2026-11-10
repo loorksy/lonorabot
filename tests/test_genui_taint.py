@@ -131,7 +131,7 @@ async def test_a_wake_from_a_tainted_watch_is_tainted_and_never_a_queued_submit(
 
 
 @pytest.mark.asyncio
-async def test_peer_and_subagent_runs_inherit_the_taint_and_pass_it_to_their_work() -> None:
+async def test_a_run_started_from_a_tainted_parent_inherits_the_taint_and_passes_it_on() -> None:
     """M1: a Run started from a tainted one (peer, collaboration, subagent: all through
     ``parent_run_id``) stores the taint, and the watch and routine it creates wake tainted."""
     from lonora_contracts.runs import RunRequest
@@ -207,7 +207,7 @@ async def test_a_ticket_tainted_work_wrote_starts_tainted_whoever_starts_it() ->
 
 
 @pytest.mark.asyncio
-async def test_a_task_a_tainted_run_starts_is_tainted_with_every_run_it_resumes() -> None:
+async def test_a_task_a_tainted_run_starts_is_tainted_with_its_run() -> None:
     from lonora_db.genui_taint import TAINT
     from test_proactive_wakes import call
 
@@ -522,5 +522,385 @@ async def test_the_continuation_of_a_card_a_tainted_run_proposed_is_tainted() ->
             stored = await session.get(RunRow, continued_id)
             assert stored is not None and stored.parent_run_id is None
         assert await tainted(fixture, continued_id)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_tainted_peers_outcome_taints_the_run_it_returns_to() -> None:
+    """outcome_return: a tainted child's outcome steers its untainted parent, which then
+    carries the taint, as does a follow-up started from it."""
+    from lonora_agent.collaboration.outcome_return import return_outcome
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.genui_taint import TAINT
+    from lonora_db.runs import create_run
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card, submit_run, _ = await submit_lease(fixture)
+        parent = await fixture.run(card.agent, card.thread)
+        assert not await tainted(fixture, parent["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, parent["id"], with_for_update=True)
+            assert run is not None
+            run.status = "running"
+            child = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=card.thread["id"],
+                    agent_id=card.agent["id"],
+                    trigger="peer",
+                    parent_run_id=parent["id"],
+                    metadata={TAINT: {"message_id": "from-a-card"}},
+                ),
+            )
+            child.status, child.result = "completed", "peer result"
+            child_id = child.id
+        await return_outcome(fixture.runtime.db, child_id)
+        assert (await run_row(fixture, parent["id"])).model_metadata.get(TAINT)
+        assert await tainted(fixture, parent["id"])
+        del submit_run
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_collaboration_synthesis_over_a_tainted_participant_is_tainted() -> None:
+    from lonora_db.collaboration import participants_taint
+    from lonora_db.genui_taint import TAINT
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card, submit_run, _ = await submit_lease(fixture)
+        clean = await fixture.run(card.agent, card.thread)
+        async with fixture.runtime.db.sessions() as session:
+            runs = [await session.get(RunRow, i) for i in (clean["id"], submit_run["id"])]
+            assert all(r is not None for r in runs)
+            assert TAINT in await participants_taint(session, runs)  # type: ignore[arg-type]
+            assert await participants_taint(session, runs[:1]) == {}  # type: ignore[arg-type]
+    finally:
+        await fixture.close()
+
+
+def _goal_body(connection: str, steps: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "title": "Card goal",
+        "objective": "Wait for gold",
+        "account_id": connection,
+        "symbol": "XAUUSD",
+        "maximum_volume": "0.1",
+        "max_trade_actions": 1,
+        "steps": steps
+        or [
+            {"id": "look", "title": "Inspect", "kind": "analysis"},
+            {
+                "id": "wait",
+                "title": "Wait for gold",
+                "kind": "watch",
+                "condition": {
+                    "kind": "price",
+                    "account_id": connection,
+                    "symbol": "XAUUSD",
+                    "condition": "above",
+                    "level": "200",
+                    "prompt": "Recheck gold",
+                },
+            },
+        ],
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["create", "plan", "complete", "toggle"])
+async def test_a_goal_tainted_work_creates_or_changes_wakes_tainted(change: str) -> None:
+    """goal_create, goal_plan, goal_step_complete and goal_toggle from a tainted Run each
+    taint the goal, so its later wakes (wake_goal: goal_id, no parent) are tainted."""
+    from test_proactive_wakes import retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        card, _, context = await submit_lease(fixture)
+        if change == "create":
+            goal = await tool(context, "goal_create", _goal_body(connection))
+        else:
+            goal = await fixture.request(
+                "POST",
+                "/trading/goals",
+                {
+                    **_goal_body(connection),
+                    "agent_id": card.agent["id"],
+                    "thread_id": card.thread["id"],
+                },
+            )
+            assert await row_taint(fixture, "goal", goal["id"]) is None
+            if change == "plan":
+                steps = _goal_body(connection)["steps"]
+                await tool(
+                    context,
+                    "goal_plan",
+                    {"goal_id": goal["id"], "version": goal["version"], "steps": steps},
+                )
+            elif change == "complete":
+                await tool(
+                    context,
+                    "goal_step_complete",
+                    {"goal_id": goal["id"], "step_id": "look", "note": "Seen"},
+                )
+            else:
+                paused = await tool(
+                    context,
+                    "goal_control",
+                    {"goal_id": goal["id"], "version": goal["version"], "action": "pause"},
+                )
+                # A paused goal never wakes; resumed, its wake shows the taint.
+                await tool(
+                    context,
+                    "goal_control",
+                    {"goal_id": goal["id"], "version": paused["version"], "action": "resume"},
+                )
+        assert await row_taint(fixture, "goal", goal["id"]) is not None
+        assert await tainted(fixture, await wake(fixture, card, goal_id=goal["id"]))
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_task_control_from_tainted_work_taints_the_task_and_its_runs() -> None:
+    """tools/tasks.py control: a tainted Run that revises or pauses an owner's Task taints
+    it; the Task's own Run, resumed in place, follows."""
+    from test_proactive_wakes import call
+
+    fixture = await open_fixture()
+    try:
+        card, _, tainted_context = await submit_lease(fixture)
+        own = await owner_context(fixture, card)
+        task = await call(own, "task_start", title="Owner task", description="Mine")
+        task_run = task["runs"][0]["id"]
+        assert not await tainted(fixture, task_run)
+        await tool(
+            tainted_context,
+            "task_control",
+            {"task_id": task["id"], "action": "pause", "expected_version": task["version"]},
+        )
+        assert await row_taint(fixture, "ticket", task["id"]) is not None
+        assert await tainted(fixture, task_run)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_waiting_on_a_goal_target_from_tainted_work_taints_goal_and_routine() -> None:
+    """goals.py wait_for_goal_target: the review routine it writes, and the goal, carry
+    the taint of the Run that waited."""
+    from lonora_trading.goals import wait_for_goal_target
+    from test_proactive_wakes import retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        card, _, context = await submit_lease(fixture)
+        goal = await fixture.request(
+            "POST",
+            "/trading/goals",
+            {
+                **_goal_body(connection),
+                "agent_id": card.agent["id"],
+                "thread_id": card.thread["id"],
+            },
+        )
+        waited = await wait_for_goal_target(
+            fixture.runtime.db, fixture.owner, goal["id"], "look", context.lease
+        )
+        routine = waited["wake_source"]["id"]
+        assert await row_taint(fixture, "goal", goal["id"]) is not None
+        assert await row_taint(fixture, "routine", routine) is not None
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_tainted_task_owned_watch_resumes_its_task_tainted() -> None:
+    """watchers.py: a watch an owner's Task created, retargeted by tainted work, fires into
+    the Task's own Run; the Task, and so that Run, carries the taint."""
+    from lonora_market.watchers import check_watches
+    from test_proactive_wakes import call, retire, simulation
+
+    fixture = await open_fixture()
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        card, _, tainted_context = await submit_lease(fixture)
+        own = await owner_context(fixture, card)
+        task = await call(own, "task_start", title="Watch gold", description="Owner task")
+        task_run = task["runs"][0]
+        task_context = await fixture.lease(
+            {
+                "id": task_run["id"],
+                "agent_id": card.agent["id"],
+                "thread_id": task["work_thread_id"],
+            }
+        )
+        watch = await call(
+            task_context,
+            "watch_create",
+            account_id=connection,
+            symbol="XAUUSD",
+            condition="above",
+            level="300",
+            prompt="Tell me.",
+        )
+        assert not await tainted(fixture, task_run["id"])
+        await call(tainted_context, "watch_update", watch_id=watch["id"], level="50")
+        fired = await check_watches(
+            fixture.runtime.db, task_context.brokers, owner_id=fixture.owner
+        )
+        assert fired >= 1
+        assert await row_taint(fixture, "ticket", task["id"]) is not None
+        assert await tainted(fixture, task_run["id"])
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_supervisor_resuming_work_from_tainted_work_taints_it() -> None:
+    """supervision.py control_work: a supervisor's resume of another agent's routine, from
+    a card's send, taints that routine, so its later wakes are tainted."""
+    from test_proactive_wakes import call
+    from test_supervision import grant
+
+    fixture = await open_fixture()
+    try:
+        card, _, lead_context = await submit_lease(fixture)
+        gold = await fixture.agent("Gold")
+        gold_thread = await fixture.conversation(gold)
+        gold_context = await fixture.lease(await fixture.run(gold, gold_thread))
+        routine = await call(
+            gold_context, "routine_create", prompt="Check gold.", interval_seconds=3600
+        )
+        await grant(fixture, card.agent, gold)
+        target = {"agent_id": gold["id"], "target": "routine", "target_id": routine["id"]}
+        await call(lead_context, "agent_control", action="pause", **target)
+        assert await row_taint(fixture, "routine", routine["id"]) is None
+        resumed = await call(lead_context, "agent_control", action="resume", **target)
+        assert resumed["changed"] is True
+        assert await row_taint(fixture, "routine", routine["id"]) is not None
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_owner_words_skip_a_hidden_send_and_read_the_owners_earlier_message() -> None:
+    """owner_words.py (#38): for a Run whose window reaches another Run's queued send, the
+    send is skipped, not read: the owner's own earlier message is still their words."""
+    from lonora_db.owner_words import owner_typed_message
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "راقب الذهب"}
+        )
+        owner_run = typed["run_ids"][0]
+        response = await card.post(card.body({"price": 2490}))
+        assert response.status_code == 202
+        send = response.json()["message"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, owner_run, with_for_update=True)
+            assert run is not None
+            run.input_seq = send["seq"]  # its window now reaches the queued send
+            words = await owner_typed_message(session, run)
+            assert words is not None and words.id == typed["message"]["id"]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_conversation_recall_hides_unfinished_sends_and_labels_card_words() -> None:
+    """conversation.py (#44): recall applies rules V/N and labels a finished send
+    ``owner_via_card``."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.schema import RunRow
+    from lonora_memory.conversation import ConversationRecallScope, conversation_candidates
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        ran = await card.post(card.body({"price": 2401}))
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, ran.json()["run_ids"][0], with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+            run.status = "completed"
+        await card.place()
+        waiting = await card.post(card.body({"price": 2402}))
+        assert waiting.status_code == 202
+        top = waiting.json()["message"]["seq"] + 1
+        scope = ConversationRecallScope(
+            thread_id=card.thread["id"], input_seq=top + 1, before_seq=top, unloaded_through=top
+        )
+        async with fixture.runtime.db.sessions() as session:
+            found, _, _ = await conversation_candidates(
+                session, fixture.owner, card.agent["id"], scope, "تنبيهًا"
+            )
+        kinds = {item.provenance["message_id"]: item.provenance["author_kind"] for item in found}
+        assert kinds.get(ran.json()["message"]["id"]) == "owner_via_card"
+        assert waiting.json()["message"]["id"] not in kinds
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("origin", ["owner", "ui_submit"])
+async def test_another_runs_send_never_selects_this_runs_skills(origin: str) -> None:
+    """skills.py (#44): the latest message selects a Run's skills only when it is the
+    owner's own, or the Run's own send; another Run's card send never does (rule V)."""
+    from lonora_agent.context.skills import read_skill_context
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.runs import create_run, run_data
+    from lonora_db.schema import AgentRow, MessageRow, ThreadRow
+    from lonora_tools.loader import load_tools
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).start()
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, card.thread["id"], with_for_update=True)
+            assert thread is not None
+            session.add(
+                MessageRow(
+                    thread_id=thread.id,
+                    role="user",
+                    seq=thread.next_seq,
+                    content="[skill:position-management]",
+                    origin=origin,
+                    ui_submit={"run_id": "another-run"} if origin == "ui_submit" else None,
+                )
+            )
+            thread.next_seq += 1
+            await session.flush()
+            run = run_data(
+                await create_run(
+                    session,
+                    fixture.owner,
+                    RunRequest(thread_id=thread.id, agent_id=card.agent["id"], trigger="user"),
+                )
+            )
+        context = await fixture.lease(run)
+        async with fixture.runtime.db.sessions() as session:
+            agent = await session.get(AgentRow, card.agent["id"])
+            assert agent is not None
+            selected = await read_skill_context(session, context, agent, load_tools())
+        ids = {dict(section.attributes).get("id") for section in selected.sections}
+        assert ("position-management" in ids) is (origin == "owner")
     finally:
         await fixture.close()
