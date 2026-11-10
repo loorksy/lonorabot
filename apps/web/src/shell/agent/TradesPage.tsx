@@ -4,7 +4,7 @@ import { Trans } from "@lingui/react/macro";
 import { financialBoundaryError } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
-import { useTicketAction } from "../../components/trading/useTicketAction";
+import { modifyTicket, useTicketAction } from "../../components/trading/useTicketAction";
 import type { AccountSummary, Agent, Journal, Position, Resource } from "../../lib/api";
 import { operationStatusLabel } from "../../lib/operation-status";
 import { userError } from "../../lib/user_error";
@@ -12,7 +12,7 @@ import { useShellData } from "../data";
 import { SkPage, SkRows } from "../Skeleton";
 import { NotFoundPage } from "../StatePage";
 import { useSheets } from "../sheets/SheetHost";
-import { ORDER_TONE, type OrderState, orderState } from "./order-state";
+import { ORDER_TONE, type OrderState, orderFill, orderState } from "./order-state";
 import { accountLabel, clockTime, useRead } from "./shared";
 import "./agent.css";
 
@@ -20,6 +20,7 @@ const STATE_ICON: Record<OrderState, "check" | "close" | "minus" | "alert" | "ho
   requested: "hourglass",
   sent: "hourglass",
   accepted: "hourglass",
+  partial: "check",
   filled: "check",
   rejected: "close",
   cancelled: "minus",
@@ -34,6 +35,8 @@ function stateName(state: OrderState) {
       return t({ message: "Sent", context: "order state" });
     case "accepted":
       return t({ message: "Accepted by the broker", context: "order state" });
+    case "partial":
+      return t({ message: "Partly filled", context: "order state" });
     case "filled":
       return t({ message: "Filled", context: "order state" });
     case "rejected":
@@ -49,6 +52,32 @@ const sideName = (side: unknown) =>
   String(side).startsWith("sell")
     ? t({ message: "Sell", context: "side" })
     : t({ message: "Buy", context: "side" });
+
+/** Each executor action under the reference's words: what was asked, and how. */
+function orderWording(action: string): { title: string; kind: string } {
+  const side = sideName(action);
+  switch (action) {
+    case "buy":
+    case "sell":
+      return { title: side, kind: t`At market price` };
+    case "buy_limit":
+    case "sell_limit":
+      return { title: side, kind: t`Limit order` };
+    case "buy_stop":
+    case "sell_stop":
+      return { title: side, kind: t`Stop order` };
+    case "close_position":
+      return { title: t`Close the trade`, kind: t`At market price` };
+    case "modify_position":
+      return { title: t`Edit stop and target`, kind: t`Protection change` };
+    case "cancel_order":
+      return { title: t`Cancel order`, kind: t`Pending order` };
+    case "modify_order":
+      return { title: t`Edit order`, kind: t`Pending order` };
+    default:
+      return { title: action, kind: "" };
+  }
+}
 
 /* «الصفقات» (route trades): the agent's open positions with the owner's own «تعديل الوقف
    والهدف» and «إغلاق الصفقة» — the owner's direct order through POST /api/trading/execute,
@@ -127,13 +156,28 @@ function Trades({ agent }: { agent: Agent }) {
       <h3>
         <Trans>Order log</Trans>
       </h3>
-      {orders.length ? (
+      {journal.error != null ? (
+        <p role="alert">{userError(journal.error)}</p>
+      ) : !journal.value ? (
+        <SkPage>
+          <SkRows count={3} />
+        </SkPage>
+      ) : orders.length ? (
         <div className="group">
           {orders.map((entry) => {
             const state = orderState(entry);
             const request = entry.request;
-            const limit = String(request.action ?? "").includes("_limit");
-            const price = entry.result.price ?? request.price;
+            const action = String(request.action ?? "");
+            const wording = orderWording(action);
+            const fill = orderFill(entry);
+            // The broker's evidence price once filled; the asked price of a pending order.
+            const price =
+              state === "filled" || state === "partial"
+                ? fill.price
+                : request.price != null
+                  ? String(request.price)
+                  : null;
+            const asked = request.volume != null ? String(request.volume) : null;
             return (
               // The chat's order sheet (chat.messages.order-line) arrives with the journal's
               // conversation anchors (WP-F); until then a row shows its state only.
@@ -141,26 +185,28 @@ function Trades({ agent }: { agent: Agent }) {
                 className="row od-row"
                 key={entry.operation_id}
                 data-operation-id={entry.operation_id}
+                data-order-state={state}
               >
                 <span className="row-icon">
-                  <Icon name={String(request.action).startsWith("sell") ? "trendDown" : "trend"} />
+                  <Icon name={action.startsWith("sell") ? "trendDown" : "trend"} />
                 </span>
                 <span className="body">
                   <strong>
-                    {sideName(request.action)}{" "}
-                    {request.volume != null && (
-                      <span className="ltr">{String(request.volume)}</span>
+                    {wording.title}{" "}
+                    {asked && (
+                      <span className="ltr">
+                        {state === "partial" && fill.volume ? `${fill.volume} / ${asked}` : asked}
+                      </span>
                     )}{" "}
                     <bdi>{String(request.symbol ?? "")}</bdi>
                   </strong>
                   <small>
                     <span className="ltr">{clockTime(entry.submitted_at ?? entry.updated_at)}</span>
-                    {" · "}
-                    {limit ? t`Limit order` : t`At market price`}
-                    {price != null && state !== "uncertain" && (
+                    {wording.kind && <> · {wording.kind}</>}
+                    {price && state !== "uncertain" && (
                       <>
                         {" · "}
-                        <span className="ltr">{String(price)}</span>
+                        <span className="ltr">{price}</span>
                       </>
                     )}
                   </small>
@@ -213,8 +259,13 @@ function PositionCard({
   const sheets = useSheets();
   const close = useTicketAction("close_position", accountId, journal, onChange);
   const modify = useTicketAction("modify_position", accountId, journal, onChange);
-  const outcome = close.outcome(position.id) ?? modify.outcome(position.id);
-  const error = close.error ?? modify.error;
+  // The last thing the owner did is what the card reports: an old close never masks a
+  // later modify, and each modify body has its own operation.
+  const [last, setLast] = useState<{ action: "close" | "modify"; ticket: string } | null>(null);
+  const outcome =
+    last?.action === "modify" ? modify.outcome(last.ticket) : close.outcome(position.id);
+  const error = last?.action === "modify" ? modify.error : close.error;
+  const busy = close.busy(position.id) || (last ? modify.busy(last.ticket) : false);
   const openModify = () =>
     sheets.open({
       id: "trade-edit",
@@ -224,13 +275,22 @@ function PositionCard({
           position={position}
           onSubmit={(stop, target) => {
             sheets.close();
-            void modify.run(position.id, {
+            // An emptied field is an explicit clear: the server decides (clearing a stop
+            // widens risk and may be refused), and the card shows its real answer.
+            const request = {
               action: "modify_position",
               symbol: position.symbol,
               position_id: position.id,
-              ...(stop ? { stop_loss: stop } : {}),
-              ...(target ? { take_profit: target } : {}),
-            });
+              ...(stop ? { stop_loss: stop } : position.stop_loss ? { clear_stop_loss: true } : {}),
+              ...(target
+                ? { take_profit: target }
+                : position.take_profit
+                  ? { clear_take_profit: true }
+                  : {}),
+            };
+            const ticket = modifyTicket(request);
+            setLast({ action: "modify", ticket });
+            void modify.run(ticket, request);
           }}
         />
       ),
@@ -256,6 +316,7 @@ function PositionCard({
               className="btn danger"
               onClick={() => {
                 sheets.close();
+                setLast({ action: "close", ticket: position.id });
                 void close.run(position.id, {
                   action: "close_position",
                   symbol: position.symbol,
@@ -283,20 +344,10 @@ function PositionCard({
       <Value label={t`Stop loss`} value={position.stop_loss} />
       <Value label={t`Take profit`} value={position.take_profit} />
       <div className="actions">
-        <button
-          type="button"
-          className="btn outline"
-          disabled={modify.busy(position.id) || close.busy(position.id)}
-          onClick={openModify}
-        >
+        <button type="button" className="btn outline" disabled={busy} onClick={openModify}>
           <Trans>Edit stop and target</Trans>
         </button>
-        <button
-          type="button"
-          className="btn danger"
-          disabled={close.busy(position.id) || modify.busy(position.id)}
-          onClick={openClose}
-        >
+        <button type="button" className="btn danger" disabled={busy} onClick={openClose}>
           {close.held(position.id) ? (
             <Trans>Check close result</Trans>
           ) : (

@@ -8,33 +8,20 @@ import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { SkPage } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
+import { layout } from "./chart-geometry";
 import "./agent.css";
 
 const FRAMES = ["5m", "15m", "1h", "4h"] as const;
 type Frame = (typeof FRAMES)[number];
 
 type Size = { w: number; h: number };
-type Bar = { t: number; o: number; h: number; l: number; c: number };
-type Line = { y: number; label?: string; source?: string };
-type Segment = { x1: number; y1: number; x2: number; y2: number };
+const TONE = { agent: "var(--amber)", up: "var(--mint)", down: "var(--red)" } as const;
+/** How often an open chart re-reads its candles (the broker's own cadence is finer). */
+const POLL_MS = 15_000;
+const f = (v: number) => v.toFixed(1);
 
-const num = (value: unknown) => Number(value);
-const hm = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
-
-/** A round price step that puts grid lines ~48px apart (reference chartStep). */
-function priceStep(range: number, px: number) {
-  const want = Math.max(2, Math.floor(px / 48));
-  const raw = range / want;
-  const magnitude = 10 ** Math.floor(Math.log10(raw || 1));
-  return [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((step) => step >= raw) ?? 10 * magnitude;
-}
-
-/* The reference's geometry (chartGeom/drawChart): up to 600 units the drawing scales with the
-   width, wider shows more candles; the price axis fits the visible candles with 12% air and
-   a round step; labels stay ~10.5px. Drawn from the broker's real candles. */
+/* The reference's look (chartGeom/drawChart) over the broker's candles; the agent's drawings
+   and indicators are read-only, each kind in its own form (chart-geometry.ts). */
 export function CandleChart({
   candles,
   scene,
@@ -57,228 +44,301 @@ export function CandleChart({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const s = Math.min(1, Math.max(0.55, size.w / 600));
-  const VW = Math.round(size.w / s);
-  const VH = Math.max(160, Math.round(size.h / s));
-  const fs = +(10.5 / s).toFixed(1);
-  const gut = Math.round(fs * 3.7 + 14);
-  const right = VW - gut;
-  const xLast = right - 12;
-  const top = Math.round(fs * 0.9);
-  const bottom = VH - Math.round(fs * 1.9 + 8);
-  const n = Math.max(8, Math.floor((xLast - 20) / 17) + 1);
-  const bars: Bar[] = candles.slice(-n).map((c) => ({
-    t: Date.parse(c.time),
-    o: num(c.open),
-    h: num(c.high),
-    l: num(c.low),
-    c: num(c.close),
-  }));
-  const X = (i: number) => xLast - (bars.length - 1 - i) * 17;
-  let lo = Math.min(...bars.map((b) => b.l));
-  let hi = Math.max(...bars.map((b) => b.h));
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
-    lo = 0;
-    hi = 1;
-  }
-  if (hi === lo) hi = lo + 1;
-  const pad = (hi - lo) * 0.12;
-  const p0 = lo - pad;
-  const p1 = hi + pad;
-  const Y = (price: number) => top + ((p1 - price) / (p1 - p0)) * (bottom - top);
-  const step = priceStep(p1 - p0, (bottom - top) * s);
-  const digits = step < 0.01 ? 5 : step < 0.5 ? 2 : 1;
-  const grid: number[] = [];
-  for (let p = Math.ceil(p0 / step) * step; p <= p1 + 1e-9; p += step) grid.push(p);
-  const f = (v: number) => v.toFixed(1);
-  // Agent overlays: read-only, in the chart's own colours (Q37).
-  const lines: Line[] = [];
-  const segments: Segment[] = [];
-  const timeX = (iso: unknown) => {
-    const ms = Date.parse(String(iso));
-    if (!bars.length || !Number.isFinite(ms)) return null;
-    const span = bars.length > 1 ? (bars.at(-1)!.t - bars[0].t) / (bars.length - 1) : 1;
-    return X(0) + ((ms - bars[0].t) / (span || 1)) * 17 + 5;
-  };
-  for (const item of scene?.annotations ?? []) {
-    const kind = String(item.type);
-    if (["price", "horizontal_line", "note"].includes(kind) && item.price != null) {
-      const y = Y(num(item.price));
-      if (y >= top && y <= bottom)
-        lines.push({ y, label: typeof item.label === "string" ? item.label : undefined });
-    } else if (item.start && item.end) {
-      const a = item.start as { time: unknown; price: unknown };
-      const b = item.end as { time: unknown; price: unknown };
-      const x1 = timeX(a.time);
-      const x2 = timeX(b.time);
-      if (x1 != null && x2 != null)
-        segments.push({ x1, y1: Y(num(a.price)), x2, y2: Y(num(b.price)) });
-    }
-  }
-  const series: string[] = [];
-  if (scene && scene.timeframe === frame && scene.candles.length) {
-    const times = scene.candles.map((c) => Date.parse(c.time));
-    for (const indicator of scene.indicators) {
-      for (const values of Object.values(indicator.series)) {
-        const points = bars
-          .map((bar, i) => {
-            const at = times.indexOf(bar.t);
-            const value = at < 0 ? null : values[at];
-            return value == null ? null : `${f(X(i) + 5)},${f(Y(value))}`;
-          })
-          .filter(Boolean);
-        if (points.length > 1) series.push(points.join(" "));
-      }
-    }
-  }
+  const sameFrame = Boolean(scene && scene.timeframe === frame);
+  const g = layout({
+    width: size.w,
+    height: size.h,
+    frame,
+    bars: candles.map((c) => ({
+      t: Date.parse(c.time),
+      o: Number(c.open),
+      h: Number(c.high),
+      l: Number(c.low),
+      c: Number(c.close),
+    })),
+    annotations: scene?.annotations ?? [],
+    indicators: sameFrame && scene ? scene.indicators : [],
+    indicatorTimes: sameFrame && scene ? scene.candles.map((c) => Date.parse(c.time)) : [],
+    labels: {
+      entry: t({ message: "Entry", context: "chart" }),
+      stop: t({ message: "Stop", context: "chart" }),
+      target: t({ message: "Target", context: "chart" }),
+    },
+  });
+  const { fs, right } = g;
   return (
     <svg
       ref={ref}
       className="chart grow"
-      viewBox={`0 0 ${VW} ${VH}`}
+      viewBox={`0 0 ${g.VW} ${g.VH}`}
       role="img"
       aria-label={t`Market chart`}
     >
-      {grid.map((p) => (
-        <g key={p}>
+      {g.grid.map((line) => (
+        <g key={line.label}>
           <path
-            d={`M15 ${f(Y(p))}H${right}`}
+            d={`M15 ${f(line.y)}H${right}`}
             style={{ stroke: "var(--line)" }}
             strokeDasharray="4 5"
           />
           <text
             x={right + 8}
-            y={f(Y(p) + fs * 0.35)}
+            y={f(line.y + fs * 0.35)}
             style={{ fill: "var(--muted)" }}
             fontSize={fs}
           >
-            {p.toFixed(digits)}
+            {line.label}
           </text>
         </g>
       ))}
-      {bars.map((bar, i) => {
-        const x = X(i);
+      {g.shapes.map((shape, index) =>
+        shape.kind === "box" ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+          <g key={index} data-overlay="zone">
+            <rect
+              x={f(shape.x)}
+              y={f(shape.y)}
+              width={f(shape.w)}
+              height={f(shape.h)}
+              style={{ fill: TONE[shape.tone], fillOpacity: 0.14, stroke: TONE[shape.tone] }}
+            />
+            {shape.label && (
+              <text
+                x={f(shape.x + 4)}
+                y={f(shape.y + fs)}
+                style={{ fill: TONE[shape.tone] }}
+                fontSize={fs}
+              >
+                {shape.label}
+              </text>
+            )}
+          </g>
+        ) : null,
+      )}
+      {g.bars.map((bar, i) => {
+        const x = g.X(i);
         const color = bar.c >= bar.o ? "var(--mint)" : "var(--red)";
-        const y = Y(Math.max(bar.o, bar.c));
-        const h = Math.max(3, Math.abs(Y(bar.o) - Y(bar.c)));
+        const y = g.Y(Math.max(bar.o, bar.c));
+        const h = Math.max(3, Math.abs(g.Y(bar.o) - g.Y(bar.c)));
         return (
           <g key={bar.t}>
             <line
               x1={f(x + 5)}
               x2={f(x + 5)}
-              y1={f(Y(bar.h))}
-              y2={f(Y(bar.l))}
+              y1={f(g.Y(bar.h))}
+              y2={f(g.Y(bar.l))}
               style={{ stroke: color }}
             />
             <rect x={f(x)} y={f(y)} width="10" height={f(h)} rx="1.5" style={{ fill: color }} />
           </g>
         );
       })}
-      {series.map((points) => (
+      {g.priceLines.map((line) => (
         <polyline
-          key={points}
-          points={points}
+          key={line.name}
+          data-overlay="indicator"
+          points={line.points}
           fill="none"
           style={{ stroke: "var(--accent)" }}
           strokeWidth="1.5"
         />
       ))}
-      {lines.map((line) => (
-        <g key={`${line.y}-${line.label ?? ""}`} data-overlay="line">
-          <path
-            d={`M15 ${f(line.y)}H${right}`}
-            style={{ stroke: "var(--amber)" }}
-            strokeDasharray="6 4"
-          />
-          {line.label && (
-            <text x={18} y={f(line.y - fs * 0.4)} style={{ fill: "var(--amber)" }} fontSize={fs}>
-              {line.label}
-            </text>
-          )}
-        </g>
-      ))}
-      {segments.map((seg) => (
-        <line
-          key={`${seg.x1}-${seg.y1}-${seg.x2}-${seg.y2}`}
-          data-overlay="segment"
-          x1={f(seg.x1)}
-          y1={f(seg.y1)}
-          x2={f(seg.x2)}
-          y2={f(seg.y2)}
-          style={{ stroke: "var(--amber)" }}
-          strokeWidth="1.5"
-        />
-      ))}
-      {bars.map((bar, i) =>
-        (bars.length - 1 - i) % 7 === 1 && X(i) >= 15 ? (
-          <text
-            key={`t${bar.t}`}
-            x={f(X(i))}
-            y={f(VH - fs * 0.6)}
-            style={{ fill: "var(--muted)" }}
-            fontSize={fs}
-          >
-            {hm(bar.t)}
+      {g.shapes.map((shape, index) => {
+        if (shape.kind === "hline")
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+            <g key={index} data-overlay="line">
+              <path
+                d={`M${f(shape.x1)} ${f(shape.y)}H${f(shape.x2)}`}
+                style={{ stroke: TONE[shape.tone] }}
+                strokeDasharray={shape.dash ? "6 4" : undefined}
+              />
+              {shape.label && (
+                <text
+                  x={f(shape.x1 + 3)}
+                  y={f(shape.y - fs * 0.4)}
+                  style={{ fill: TONE[shape.tone] }}
+                  fontSize={fs}
+                >
+                  {shape.label}
+                </text>
+              )}
+            </g>
+          );
+        if (shape.kind === "segment")
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+            <g key={index} data-overlay={shape.arrow ? "arrow" : "segment"}>
+              <line
+                x1={f(shape.x1)}
+                y1={f(shape.y1)}
+                x2={f(shape.x2)}
+                y2={f(shape.y2)}
+                style={{ stroke: TONE[shape.tone] }}
+                strokeWidth="1.5"
+              />
+              {shape.arrow && (
+                <circle
+                  cx={f(shape.x2)}
+                  cy={f(shape.y2)}
+                  r={3}
+                  style={{ fill: TONE[shape.tone] }}
+                />
+              )}
+            </g>
+          );
+        if (shape.kind === "note")
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: drawings have no stable key here
+            <g key={index} data-overlay="note">
+              <circle cx={f(shape.x)} cy={f(shape.y)} r={3.5} style={{ fill: TONE[shape.tone] }} />
+              {shape.text && (
+                <text
+                  x={f(shape.x - 6)}
+                  y={f(shape.y - fs * 0.6)}
+                  textAnchor="end"
+                  style={{ fill: TONE[shape.tone] }}
+                  fontSize={fs}
+                >
+                  {shape.text}
+                </text>
+              )}
+            </g>
+          );
+        return null;
+      })}
+      {g.pane && (
+        <g data-overlay="pane">
+          <path d={`M15 ${f(g.pane.top - fs * 0.8)}H${right}`} style={{ stroke: "var(--line)" }} />
+          <text x={18} y={f(g.pane.top + fs * 0.2)} style={{ fill: "var(--muted)" }} fontSize={fs}>
+            {g.pane.label}
           </text>
-        ) : null,
+          {g.pane.guides.map((guide) => (
+            <g key={guide.label}>
+              <path
+                d={`M15 ${f(guide.y)}H${right}`}
+                style={{ stroke: "var(--line)" }}
+                strokeDasharray="2 4"
+              />
+              <text
+                x={right + 8}
+                y={f(guide.y + fs * 0.35)}
+                style={{ fill: "var(--muted)" }}
+                fontSize={fs}
+              >
+                {guide.label}
+              </text>
+            </g>
+          ))}
+          {g.pane.lines.map((line) => (
+            <polyline
+              key={line.name}
+              points={line.points}
+              fill="none"
+              style={{ stroke: "var(--accent)" }}
+              strokeWidth="1.5"
+            />
+          ))}
+        </g>
       )}
+      {g.times.map((time) => (
+        <text
+          key={time.x}
+          x={f(time.x)}
+          y={f(g.VH - fs * 0.6)}
+          style={{ fill: "var(--muted)" }}
+          fontSize={fs}
+        >
+          {time.label}
+        </text>
+      ))}
     </svg>
   );
 }
 
 /* The chart sheet (l_chart, Q37): the reference's look with the broker's candles for the
-   agent's pair, the timeframe tabs and the expandable sheet; the agent's annotations and
-   indicators from its chart (charts resource) as read-only overlays. */
+   pair, the timeframe tabs and the expandable sheet; the agent's annotations and indicators
+   from the chart shown (charts resource) as read-only overlays. Candles are re-read while the
+   sheet is open, and the scene again on every cloud_charts.scene_updated of that chart. */
 export function ChartSheetBody({
   accountId,
   symbol,
   agentId,
-  preferredChartId,
+  chartId,
   initialFrame,
 }: {
   accountId: string;
   symbol: string;
   agentId?: string;
-  preferredChartId?: string;
+  /** The chart shown; without it, the agent's chart on this pair (if any). */
+  chartId?: string;
   /** A chart opened by its id starts on its own timeframe. */
   initialFrame?: string;
 }) {
-  const { revision } = useClient();
+  const { events } = useClient();
   const [frame, setFrame] = useState<Frame>(FRAMES.find((item) => item === initialFrame) ?? "5m");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [scene, setScene] = useState<ChartScene | null>(null);
+  const [chosen, setChosen] = useState<string | null | undefined>(chartId);
   const [error, setError] = useState<unknown>();
+  // The chart whose scene is shown is decided once: the one named, or the agent's own.
   useEffect(() => {
-    let live = true;
-    setCandles(null);
-    setError(undefined);
-    readCandles(accountId, symbol, frame)
-      .then((rows) => live && setCandles(rows))
-      .catch((failure: unknown) => live && setError(failure));
-    return () => {
-      live = false;
-    };
-  }, [accountId, symbol, frame]);
-  useEffect(() => {
-    void revision;
+    if (chartId) return;
     let live = true;
     charts
       .list(agentId)
       .then((rows: Resource<ChartState>[]) => {
-        const mine = rows.filter(
+        const mine = rows.find(
           (row) => row.payload.account_id === accountId && row.payload.symbol === symbol,
         );
-        const pick = mine.find((row) => row.id === preferredChartId) ?? mine[0];
-        return pick ? readScene(pick.id) : null;
+        if (live) setChosen(mine?.id ?? null);
       })
+      .catch(() => live && setChosen(null));
+    return () => {
+      live = false;
+    };
+  }, [chartId, agentId, accountId, symbol]);
+  const updated = events
+    .filter((event) => event.kind === "cloud_charts.scene_updated" && event.payload?.id === chosen)
+    .at(-1)?.cursor;
+  useEffect(() => {
+    void updated;
+    if (!chosen) return;
+    let live = true;
+    readScene(chosen)
       .then((next) => live && setScene(next))
       .catch(() => live && setScene(null));
     return () => {
       live = false;
     };
-  }, [accountId, symbol, agentId, preferredChartId, revision]);
+  }, [chosen, updated]);
+  useEffect(() => {
+    void updated;
+    let live = true;
+    const read = () =>
+      readCandles(accountId, symbol, frame)
+        .then((rows) => {
+          if (!live) return;
+          setCandles(rows);
+          setError(undefined);
+        })
+        .catch((failure: unknown) => live && setError(failure));
+    void read();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void read();
+    }, POLL_MS);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [accountId, symbol, frame, updated]);
+  // A new timeframe starts from its skeleton, not the previous frame's bars.
+  useEffect(() => {
+    void frame;
+    setCandles(null);
+  }, [frame]);
   return (
-    <div className="chart-body grow" data-chart-id={preferredChartId ?? scene?.chart_id}>
+    <div className="chart-body grow" data-chart-id={chosen ?? undefined}>
       <div className="tabs" role="tablist">
         {FRAMES.map((item) => (
           <button
@@ -293,7 +353,7 @@ export function ChartSheetBody({
           </button>
         ))}
       </div>
-      {error != null ? (
+      {error != null && !candles ? (
         <p role="alert">{userError(error)}</p>
       ) : candles === null ? (
         <SkPage>
@@ -364,7 +424,7 @@ function ChartById({
       accountId={row.payload.account_id}
       symbol={row.payload.symbol}
       agentId={agentId}
-      preferredChartId={row.id}
+      chartId={row.id}
       initialFrame={row.payload.timeframe}
     />
   );

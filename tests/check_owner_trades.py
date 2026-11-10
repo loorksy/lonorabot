@@ -71,6 +71,22 @@ async def main() -> None:
         assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
         print("PASS with Trading OFF the server refuses a stop moved away from the market")
 
+        # The page sends an emptied stop as an explicit clear; removing protection widens
+        # risk, so with Trading OFF the server refuses it and the stop stays.
+        status, cleared = await execute(
+            fixture,
+            {
+                "account_id": account,
+                "action": "modify_position",
+                "position_id": position,
+                "clear_stop_loss": True,
+            },
+        )
+        assert status >= 400 or cleared.get("status") == "failed", cleared
+        after = (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
+        assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
+        print("PASS with Trading OFF the server refuses clearing the stop")
+
         status, tightened = await execute(
             fixture,
             {
