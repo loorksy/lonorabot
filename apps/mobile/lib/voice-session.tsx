@@ -26,7 +26,8 @@ type VoiceState = {
   activity: VoiceActivity;
   error: string | null;
   approvals: TradeApproval[];
-  start(agent: Agent, threadId: string): Promise<void>;
+  /** ``incomingCallId``: answering the agent's accepted incoming call. */
+  start(agent: Agent, threadId: string, incomingCallId?: string): Promise<void>;
   end(): Promise<void>;
   toggleMuted(): void;
   minimize(value: boolean): void;
@@ -149,7 +150,7 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
     };
   }, [origin, owner]);
 
-  const start = async (agent: Agent, threadId: string) => {
+  const start = async (agent: Agent, threadId: string, incomingCallId?: string) => {
     if (join.current || starting.current) {
       setMinimized(false);
       return;
@@ -191,7 +192,7 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
       setMinimized(false);
       setMuted(false);
       setApprovals([]);
-      await current.connect(agent.id, threadId);
+      await current.connect(agent.id, threadId, incomingCallId);
     } catch (reason) {
       setError(report.current(reason));
     } finally {

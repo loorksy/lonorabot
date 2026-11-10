@@ -417,18 +417,22 @@ async def test_an_ended_call_is_logged_once_and_starts_no_run():
 
 @pytest.mark.asyncio
 async def test_an_answered_agent_call_is_logged_incoming_once():
-    """An agent's call the owner accepted is the agent's call (the agent's side); the next
-    call the owner places is outgoing again."""
+    """An agent's call the owner accepted is the agent's call (the agent's side) by an
+    explicit link from the answering session; a call the owner places right after an
+    accepted, unanswered request is still outgoing (no guessing by time)."""
     database()
     from check_streaming import Fixture
+    from lonora_contracts.voice import VoiceSessionCreate
+    from lonora_core.user_error import LonoraError
     from lonora_db.schema import VoiceSessionRow
     from lonora_voice.incoming import MODE
+    from lonora_voice.sessions import answer_incoming
 
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Caller back")
         thread = await fixture.conversation(agent)
-        request, answered, later = new_id(), new_id(), new_id()
+        request, answered, placed = new_id(), new_id(), new_id()
         async with fixture.runtime.db.sessions() as session, session.begin():
             session.add(
                 VoiceSessionRow(
@@ -441,23 +445,59 @@ async def test_an_answered_agent_call_is_logged_incoming_once():
                     version=1,
                 )
             )
-            for identifier in (answered, later):
-                session.add(
-                    VoiceSessionRow(
-                        id=identifier,
-                        owner_id=fixture.owner,
-                        agent_id=agent["id"],
-                        thread_id=thread["id"],
-                        payload={"mode": "gpt_live", "status": "connected", "model": "m"},
-                        state={"connected_at": time.time() - 30},
-                        version=1,
-                    )
+        # The owner places a call while the accepted request waits: outgoing.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                VoiceSessionRow(
+                    id=placed,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    payload={"mode": "gpt_live", "status": "connected", "model": "m"},
+                    state={"connected_at": time.time() - 20},
+                    version=1,
                 )
-        await fixture.request("DELETE", f"/voice/sessions/{answered}")
-        await fixture.request("DELETE", f"/voice/sessions/{later}")
+            )
+        await fixture.request("DELETE", f"/voice/sessions/{placed}")
+        # The answering session links the request explicitly, once.
+        body = VoiceSessionCreate(
+            agent_id=agent["id"],
+            thread_id=thread["id"],
+            sdp="v=0",
+            client_nonce="answer",
+            incoming_call_id=request,
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await answer_incoming(session, fixture.owner, body, answered)
+            session.add(
+                VoiceSessionRow(
+                    id=answered,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    payload={
+                        "mode": "gpt_live",
+                        "status": "connected",
+                        "model": "m",
+                        "incoming_call_id": request,
+                    },
+                    state={"connected_at": time.time() - 30},
+                    version=1,
+                )
+            )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(VoiceSessionRow, request)
+            assert row is not None and row.payload["answered_session_id"] == answered
+            # A second session cannot answer the same call.
+            with pytest.raises(LonoraError) as twice:
+                await answer_incoming(session, fixture.owner, body, new_id())
+            assert twice.value.code == "incoming_call_already_answered"
+        # Ending runs twice per call; the bubble is written once.
+        for _ in range(2):
+            await fixture.request("DELETE", f"/voice/sessions/{answered}")
         logged = await call_messages(fixture, thread["id"])
         directions = [message.rich_content["parts"][0]["direction"] for message in logged]
-        assert directions == ["incoming", "outgoing"]
+        assert directions == ["outgoing", "incoming"]
     finally:
         await fixture.close()
 
