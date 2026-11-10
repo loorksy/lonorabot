@@ -369,6 +369,18 @@ def repair_node(
     return node
 
 
+def bound_keys(raw: Any) -> set[str]:
+    """Every ``bind`` inside a raw (possibly invalid) node."""
+    keys: set[str] = set()
+    if isinstance(raw, dict):
+        raw = cast(dict[str, Any], raw)
+        if isinstance(raw.get("bind"), str):
+            keys.add(raw["bind"])
+        for child in raw.get("children", []) if isinstance(raw.get("children"), list) else []:
+            keys |= bound_keys(child)
+    return keys
+
+
 def walk(nodes: list[dict[str, Any]], prefix: str = "") -> Iterator[tuple[str, dict[str, Any]]]:
     """Every node with its dotted path (``3`` or ``3.0``), depth first."""
     for index, node in enumerate(nodes):
@@ -398,6 +410,8 @@ class ParsedCard:
     fallback: str | None = None
     closed: bool = False
     dropped: int = 0
+    # State keys bound by inputs inside dropped blocks (``card_fallback_reachable``).
+    dropped_binds: set[str] = field(default_factory=lambda: set[str]())
     lines: int = 0
     diagnostics: Diagnostics = field(default_factory=Diagnostics)
 
@@ -530,6 +544,7 @@ def parse_lines(raw: str, *, final: bool) -> ParsedCard:
         node = repair_node(value, card.diagnostics, len(card.blocks))
         if node is None:
             card.dropped += 1
+            card.dropped_binds |= bound_keys(value)
         else:
             card.blocks.append(node)
     if card.head is None and final:

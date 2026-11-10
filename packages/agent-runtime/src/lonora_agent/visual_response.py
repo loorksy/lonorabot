@@ -12,16 +12,19 @@ import re
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
+from lonora_contracts.genui import CardError, is_v2_start, parse_lines
 from lonora_contracts.visual_response import MAX_VISUAL_BYTES, RichContent, VisualDocument
 from lonora_contracts.visual_values import EXTENDED_ARITY, evaluate_extended_visual_op
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
-from lonora_db.schema import ArtifactRow, CloudChartRow
+from lonora_db.schema import AgentRow, ArtifactRow, CloudChartRow
 from lonora_tools.context import ToolContext
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from .context.financial_result import public_broker_ids
 from .display_bindings import unbound_prose
+from .genui_capabilities import UiCapabilities, capabilities
+from .genui_compile import AgentScope, compile_card
 
 START = re.compile(r"^[ \t]*(?:`{3,}|~{3,})[ \t]*lonora-ui\b[^\n]*\n?", re.M | re.I)
 END = re.compile(r"(?m)^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:\r?\n|$)")
@@ -496,6 +499,14 @@ class VisualProjection:
         if text:
             self.segments.append(({"type": "text", "text": text}, text))
 
+    def card(self, document: dict[str, Any], *, building: bool = False) -> None:
+        """A v2 card: its text alternative is the model's fallback (``content`` = lead +
+        blank line + fallback); a building card projects no text until it is complete."""
+        part: dict[str, Any] = {"type": "ui", "document": document}
+        if building:
+            part["building"] = True
+        self.segments.append((part, "" if building else "\n" + document["fallback"] + "\n"))
+
     def visual(self, document: dict[str, Any]) -> None:
         # Preserve all original prose whitespace. Replacing just the internal
         # frame makes the progressively admitted prefix equal the final message.
@@ -518,7 +529,8 @@ class VisualProjection:
         remaining = len(self.text) if limit is None else limit
         parts: list[dict[str, Any]] = []
         for part, projected in self.segments:
-            if remaining <= 0:
+            # A building v2 card projects no text: it shows once everything before it has.
+            if remaining < 0 or (remaining == 0 and not (part["type"] == "ui" and not projected)):
                 break
             if part["type"] == "ui":
                 if remaining < len(projected):
@@ -572,6 +584,65 @@ class VisualReplyProjector:
         )
         self.unavailable = "غير متاح" if re.search(r"[\u0620-\u064a]", owner) else "Unavailable"
         self.missing_binding_logged = False
+        self.capabilities: UiCapabilities = capabilities(
+            language="ar" if re.search(r"[\u0620-\u064a]", owner) or not owner else "en"
+        )
+        self.scope: AgentScope | None = None
+        self.cards: dict[str, dict[str, Any] | None] = {}
+
+    async def agent_scope(self) -> AgentScope:
+        """The card's agent: its id and, for a fixed-market agent, its bound pair."""
+        if self.scope is None:
+            scope = AgentScope(agent_id=self.context.agent_id)
+            async with self.context.db.sessions() as session:
+                agent = await session.get(AgentRow, self.context.agent_id)
+            if agent is not None:
+                scope.bound_account = agent.trading_account_id
+                scope.bound_symbol = agent.trading_symbol
+            self.scope = scope
+        return self.scope
+
+    async def _v2(self, result: VisualProjection, raw: str, *, partial: bool, closed: bool) -> bool:
+        """Compile a v2 card. Returns False when a streaming card is not shown yet."""
+        final = closed or not partial
+        key = ("F" if final else "P") + raw
+        if key not in self.cards:
+            try:
+                card = parse_lines(raw, final=final)
+            except CardError as error:
+                if final:
+                    self.diagnostics.append({"code": str(error), "frame": 0, "paths": []})
+                self.cards[key] = None
+                card = None
+            if card is not None:
+                try:
+                    scope = await self.agent_scope()
+                    self.cards[key] = compile_card(
+                        card, self.messages, scope, self.capabilities, self.public_ids, final=final
+                    )
+                    if final:
+                        self.diagnostics.extend(card.diagnostics.items[:24])
+                except (CardError, ValueError, TypeError, KeyError, SQLAlchemyError) as error:
+                    code = str(error) if isinstance(error, CardError) else "card_fallback"
+                    if final:
+                        self.diagnostics.extend(card.diagnostics.items[:24])
+                        self.diagnostics.append({"code": code, "frame": 0, "paths": []})
+                    self.cards[key] = None
+                    if final:
+                        self.cards["fallback:" + key] = {"fallback": card.fallback}
+        document = self.cards[key]
+        if document is None:
+            if not final:
+                return False
+            fallback = (self.cards.get("fallback:" + key) or {}).get("fallback")
+            result.errors.append("visual_frame_rejected")
+            text = fallback or self.failure
+            self._prose(
+                result, "\n" + redact_private_reply(text, public_ids=self.public_ids) + "\n"
+            )
+            return True
+        result.card(document, building=not final)
+        return final
 
     def _failure(self, error: Exception, index: int) -> None:
         # Never log Pydantic inputs, model output, resource IDs or exception
@@ -656,6 +727,30 @@ class VisualReplyProjector:
             result.saw_visual = True
             self._prose(result, text[position : match.start()])
             closing = END.search(text, match.end())
+            body = text[match.end() : closing.start() if closing else len(text)]
+            if is_v2_start(body.split("\n", 1)[0]) or (
+                partial and closing is None and re.match(r'^\s*\{\s*"v"\s*:\s*2', body)
+            ):
+                complete = closing is not None and text[: closing.end()].endswith("\n")
+                if any(part["type"] == "ui" for part, _ in result.segments):
+                    # One card per reply: a second is dropped, its fallback kept as text.
+                    if partial and not complete:
+                        return result
+                    self.diagnostics.append({"code": "interface_extra", "frame": index})
+                    try:
+                        extra = parse_lines(body, final=True).fallback
+                    except CardError:
+                        extra = None
+                    if extra:
+                        self._prose(result, "\n" + extra + "\n")
+                    position = closing.end() if closing else len(text)
+                    continue
+                if partial and not complete:
+                    await self._v2(result, body, partial=True, closed=False)
+                    return result
+                await self._v2(result, body, partial=partial, closed=True)
+                position = closing.end() if closing else len(text)
+                continue
             # A closing line at the provider's current EOF is still ambiguous:
             # its next chunk may extend the line. Final EOF itself is complete.
             if partial and (closing is None or not text[: closing.end()].endswith("\n")):

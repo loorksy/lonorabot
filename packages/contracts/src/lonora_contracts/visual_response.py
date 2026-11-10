@@ -9,6 +9,7 @@ from pydantic import Field, JsonValue, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from .domain import Contract
+from .genui import UiDocument
 from .visual_values import EXTENDED_ARITY, has_visual_placeholder, legacy_visual_bindings
 
 MAX_VISUAL_BYTES = 64000
@@ -405,7 +406,11 @@ class RichTextPart(Contract):
 
 class RichUiPart(Contract):
     type: Literal["ui"]
-    document: VisualDocument
+    # A v1 document (legacy, read-only) or a compiled lonora-ui v2 card (GENUI_PLAN §2.2).
+    document: VisualDocument | UiDocument
+    # While a v2 card streams; ``cut`` is the number of blocks built when the owner stopped.
+    building: bool | None = None
+    cut: int | None = Field(default=None, ge=0, le=16)
 
 
 class RichContent(Contract):
