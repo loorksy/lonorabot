@@ -4,7 +4,7 @@ import { Children, Fragment, isValidElement } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useSession } from "../lib/session";
 import { NativeSymbol, type SymbolName } from "./native-symbol";
-import { colors } from "./ui";
+import { colors, onLegacyTheme } from "./ui";
 export function SettingsGroup({
   title,
   children,
@@ -198,7 +198,18 @@ export function SettingsSwitch({
     </View>
   );
 }
-const styles = StyleSheet.create({
-  card: { borderRadius: 16, overflow: "hidden", backgroundColor: colors.muted },
-  row: { minHeight: 52, paddingHorizontal: 16, paddingVertical: 12, alignItems: "center", gap: 12 },
+const makeStyles = () =>
+  StyleSheet.create({
+    card: { borderRadius: 16, overflow: "hidden", backgroundColor: colors.muted },
+    row: {
+      minHeight: 52,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      alignItems: "center",
+      gap: 12,
+    },
+  });
+let styles = makeStyles();
+onLegacyTheme(() => {
+  styles = makeStyles();
 });

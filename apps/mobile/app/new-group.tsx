@@ -1,5 +1,5 @@
 import type { Agent, Group } from "@lonora/contracts";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, Text } from "react-native";
 import { BotMemberPicker } from "../components/bot-member-picker";
@@ -11,9 +11,13 @@ import { useSession } from "../lib/session";
 export default function NewGroup() {
   const { ready, owner, rtl, t, errorText } = useSession();
   const router = useRouter();
-  const [name, setName] = useState("");
+  // «مجموعة من المحددين» arrives with the picked agents and a drafted name.
+  const draft = useLocalSearchParams<{ members?: string; name?: string }>();
+  const [name, setName] = useState(draft.name ?? "");
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [members, setMembers] = useState<string[]>([]);
+  const [members, setMembers] = useState<string[]>(() =>
+    draft.members ? draft.members.split(",").filter(Boolean) : [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {

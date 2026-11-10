@@ -26,7 +26,7 @@
 
 ## Phase 2 — layout, lists and sheets
 
-Status 2026-11-09: delivered on branch `ui/phase-2-shell` (each row's status carries **delivered**, or what is still partial and why); see «Reference UI phase 2 status» in `docs/lonora-specs/MANDATE_EXECUTION_PLAN.md`.
+Status 2026-11-09: delivered on branch `ui/phase-2-shell` (each row's status carries **delivered**, or what is still partial and why); see «Reference UI phase 2 status» in `docs/lonora-specs/MANDATE_EXECUTION_PLAN.md`. Mobile (`apps/mobile`) ported the shell and lists on `mobile/reference-shell`; see «Mobile reference shell status».
 
 Source: the shell-and-lists reader (verified routes `threads/messages/events/attention/search/agents/groups/health`, `lonora_db/{inbox,threads,messages,schema}.py`, contracts `domain.ts/events.ts/attention.ts`, hooks `useThreads/useEvents/useOverlayHistory`, `lib/{events,outgoing-messages,failed-replies}.ts`, `pages/shell/*`). Screenshots: `scratchpad/work/ui1/shell-lists/` (phone and desktop, dark and light).
 
