@@ -145,11 +145,13 @@ export function TradeApprovalCard({
           <span className="oa-line-body">
             <span className="oa-line-kind">
               <Trans>Approval request</Trans> ·{" "}
-              {status === "expired" ? (
-                <Trans>Expired</Trans>
-              ) : (
-                approvalStatusText(row.status, i18n.locale)
-              )}
+              <span data-trade-status-text>
+                {status === "expired" ? (
+                  <Trans>Expired</Trans>
+                ) : (
+                  approvalStatusText(row.status, i18n.locale)
+                )}
+              </span>
             </span>
             <span className="oa-line-text" dir="auto">
               {row.requests.map(requestLine).join(" · ")}
