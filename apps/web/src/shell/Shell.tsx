@@ -65,6 +65,7 @@ import { ChatPane, DetailPages, pageTitle, RootPage, useSettingsRedirect } from 
 import { isRoot, type Root, rootPath, type ShellRoute, sectionOf } from "./routes";
 import { useShortcutsSheet } from "./ShortcutsSheet";
 import { MaintenanceOverlay, PageErrorBoundary } from "./StatePage";
+import { AppLockProvider } from "./settings/AppLock";
 import { SheetProvider, useSheets } from "./sheets/SheetHost";
 import { ToastProvider, useToast } from "./Toast";
 import { bareDetail, bareSection, TopBar } from "./TopBar";
@@ -85,9 +86,11 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
           <SheetProvider>
             <ToastProvider>
               <PopoverProvider>
-                <NavigationProvider>
-                  <ShellLists />
-                </NavigationProvider>
+                <AppLockProvider>
+                  <NavigationProvider>
+                    <ShellLists />
+                  </NavigationProvider>
+                </AppLockProvider>
               </PopoverProvider>
             </ToastProvider>
           </SheetProvider>
