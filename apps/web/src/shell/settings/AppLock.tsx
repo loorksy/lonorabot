@@ -213,14 +213,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return;
       }
       event.stopImmediatePropagation();
+      // Zoom, reload and find stay the browser's (Ctrl/Cmd+0 is zoom reset, not a digit).
+      if (browserKey(event)) return;
       if (/^[0-9]$/.test(event.key)) {
         event.preventDefault();
         key(event.key);
       } else if (event.key === "Backspace") {
         event.preventDefault();
         key("del");
-      } else if (event.key !== "Enter" && event.key !== " " && !browserKey(event))
-        event.preventDefault();
+      } else if (event.key !== "Enter" && event.key !== " ") event.preventDefault();
     };
     window.addEventListener("keydown", down, true);
     return () => window.removeEventListener("keydown", down, true);

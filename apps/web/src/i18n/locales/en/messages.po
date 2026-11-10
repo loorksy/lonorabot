@@ -669,7 +669,7 @@ msgstr "Any signed delegation on this account is revoked, and {names} go back to
 msgid "API key"
 msgstr "API key"
 
-#: src/shell/settings/AppLock.tsx:259
+#: src/shell/settings/AppLock.tsx:260
 #: src/shell/settings/DevicePages.tsx:208
 msgid "App lock"
 msgstr "App lock"
@@ -1110,7 +1110,7 @@ msgstr "Camera not allowed"
 #: src/shell/agent/AvatarSheet.tsx:111
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/lists/Selection.tsx:78
-#: src/shell/settings/AppLock.tsx:265
+#: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
@@ -1846,7 +1846,7 @@ msgstr "Delegated task"
 #: src/shell/lists/EmojiPanel.tsx:405
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
-#: src/shell/settings/AppLock.tsx:289
+#: src/shell/settings/AppLock.tsx:290
 msgid "Delete"
 msgstr "Delete"
 
@@ -5946,7 +5946,7 @@ msgstr "Tokens"
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
-#: src/shell/settings/AppLock.tsx:278
+#: src/shell/settings/AppLock.tsx:279
 msgid "Too many tries. Try again in {wait} s"
 msgstr "Too many tries. Try again in {wait} s"
 
@@ -6133,7 +6133,7 @@ msgstr "Unlink"
 msgid "Unlink the account"
 msgstr "Unlink the account"
 
-#: src/shell/settings/AppLock.tsx:287
+#: src/shell/settings/AppLock.tsx:288
 msgid "Unlock with fingerprint"
 msgstr "Unlock with fingerprint"
 
