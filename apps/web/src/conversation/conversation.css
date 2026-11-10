@@ -4748,3 +4748,27 @@ span.no-trade {
 [dir="rtl"] .peer-card .peer-who .flip {
   transform: none;
 }
+
+/* ---- reference 1312-1313: a generated interface takes a wider line */
+.msg.k-ui .msg-line {
+  width: min(440px, 94%);
+  max-width: 94%;
+}
+@media (min-width: 900px) {
+  .msg.k-ui .msg-line {
+    width: min(460px, 78%);
+    max-width: 78%;
+  }
+}
+.bubble.ui-bubble {
+  padding: 8px 8px 6px;
+}
+.bubble.ui-bubble > .text,
+.bubble.ui-bubble > .md,
+.bubble.ui-bubble > .steps {
+  margin-inline: 4px;
+}
+.bubble.ui-bubble > .text {
+  display: block;
+  margin-bottom: 2px;
+}
