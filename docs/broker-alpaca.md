@@ -36,10 +36,12 @@ decision.
 | `orders()` | `GET /v2/orders?status=open` | Exit legs are not pending orders, they are protection (below). A queued market order is valued at the current side price, never at zero. A full page (500) is refused as `broker_snapshot_limit` |
 | `history()` | `GET /v2/account/activities/FILL` | |
 
-**Protection.** Alpaca has no stop-loss or take-profit on a position. A bracket or OTO
-entry leaves exit legs (`group_role` `stop_loss` / `take_profit`) as open orders. A
-position reads one leg per role as its `stop_loss` / `take_profit`, and only when exactly
-one leg on the exit side covers the whole quantity. Anything else reads as unprotected.
+**Protection.** Alpaca has no stop-loss or take-profit on a position. Protection is exit
+orders that hold the position's quantity: the legs a bracket or OTO entry leaves
+(`group_role` `stop_loss` / `take_profit`), or an OCO, stop or limit Lonora placed (client
+order id prefix `LNP_`). These are never pending entries. A position reads them as its
+`stop_loss` / `take_profit` only when one group on the exit side covers the whole quantity;
+anything else reads as unprotected.
 
 ## Execution
 
@@ -51,8 +53,8 @@ awaits `before_send` and sends **one** HTTP mutation:
 | --- | --- |
 | `buy` / `sell` | `POST /v2/orders` market (stocks `day`, crypto `gtc`). With SL and/or TP: `bracket` / `oto` (stocks only) |
 | `buy_limit` / `sell_limit` / `buy_stop` / `sell_stop` | `POST /v2/orders` limit / stop, `gtc` |
-| `close_position` | `DELETE /v2/positions/{asset_id}[?qty=]`: closes only what is held, so it can never reverse a position |
-| `modify_position` | `PATCH /v2/orders/{leg}` with the new `stop_price` or `limit_price` of one leg |
+| `close_position` | `DELETE /v2/positions/{asset_id}[?qty=]`: closes only what is held, so it can never reverse a position. A protected position closes in steps (below) |
+| `modify_position` | On an unprotected position, `POST /v2/orders`: an OCO for both levels, otherwise a stop or a limit, `gtc`, for the whole quantity, tagged `LNP_`. On a protected one, `PATCH /v2/orders/{leg}` with the new `stop_price` or `limit_price` of one leg (a replaced `LNP_` order keeps the prefix) |
 | `modify_order` | `PATCH /v2/orders/{id}` with the new `limit_price` / `stop_price` (Alpaca answers with a new order id) |
 | `cancel_order` | `DELETE /v2/orders/{id}` |
 
@@ -64,8 +66,9 @@ Refused before the boundary, so recorded `failed` / `not_sent`:
 - crypto stop orders: `broker_order_type_unsupported`;
 - SL/TP on crypto: `broker_protection_unsupported`;
 - SL/TP edits on a pending order: `broker_protection_edit_unsupported`;
-- clearing protection: `broker_protection_clear_unsupported`;
-- protecting a position that has no leg: `broker_protection_leg_missing`;
+- clearing protection (it widens risk): `broker_protection_clear_unsupported`;
+- protection split over several groups, or covering part of the position: `broker_protection_split`;
+- adding the missing level to a group that has only the other one: `broker_protection_leg_missing`;
 - changing both legs in one request: `broker_protection_edit_one_at_a_time`;
 - an unknown symbol, position or order: `symbol_not_found`, `position_not_found`, `order_not_found`.
 
@@ -78,6 +81,40 @@ Received answers after the boundary:
 - **Other 4xx** (buying power, held quantity, shorting, validation). `broker_request_rejected`; the details keep `http_status`, the broker's `broker_code` and the redacted description.
 - **5xx, a duplicate `client_order_id`, a transport error, a timeout or an unreadable receipt.** `ambiguous` (`broker_result_ambiguous`). It is never resent.
 
+## Closing a protected position
+
+Exits stay possible whatever protects the position, including with Trading OFF, under
+restrictions and during the owner's Stop. Alpaca refuses a close while exit orders hold the
+quantity, so a protected close is **one executor operation in ordered steps**, after the
+single `before_send`. Every step is recorded in `details.protection.steps` under the same
+operation id:
+
+1. Cancel every exit order of the position (`DELETE /v2/orders/{id}`).
+2. Wait, bounded (20 × 0.5 s), until none of them is in the open book. Alpaca releases a
+   cancelled order's quantity asynchronously (`pending_cancel`).
+3. Close (`DELETE /v2/positions/{asset_id}[?qty=]`) and follow the closing order until it is
+   final (same bound).
+4. Re-arm protection for what is still held, at the same levels (`LNP_` orders). A smaller
+   position keeps protection only for what it holds, taken from the last group first.
+
+When a step does not go through:
+
+- **A cancel refused, or the quantity never released.** The close is **not sent**. Any
+  group no longer intact is cleared and placed again. Result `failed`,
+  `broker_protection_cancel_failed`.
+- **The close refused, or the closing order rejected.** Protection is restored for the whole
+  position. Result `failed` with the broker's code.
+- **The close outcome unknown** (lost response, server fault, or the order still working at
+  the bound). Nothing is re-armed: an exit order with nothing held would open the opposite
+  position. Result `ambiguous`.
+
+`details.protection.restored` is false whenever the position may be left less protected
+than before. The executor then raises the owner's **`position_unprotected`** item
+(`action_required`, one per operation, `lonora_trading/protection.py`). The gateway's
+verification step reads the broker each pass and withdraws the item only when that
+position is protected again or closed. The operation settling does not clear it.
+`details.protection.attention` also marks a failed close after cancelled legs, as a record.
+
 ## Recovery
 
 `reconcile()` looks entries up with `GET /v2/orders:by_client_order_id`. A rejected order,
@@ -85,14 +122,21 @@ or a market order that ended without any fill, is `failed`. Any other found orde
 `confirmed` with `reconciled: true`. A missing order stays `ambiguous`
 (`execution_not_observed`). Closes, edits and cancels carry no client id at Alpaca, so
 they return `execution_not_observed` / `mutation_evidence_required` and the executor's
-target-state recovery settles them (`lonora_trading/target_state.py`).
+target-state recovery settles them (`lonora_trading/target_state.py`). The exception is
+protection added to an unprotected position: it is found by its own `LNP_` client order id.
 
 ## Verification
 
 - `tests/test_alpaca_adapter.py`: the adapter against the local fake server
   (`tests/alpaca_fake.py`, payloads in `tests/fixtures/alpaca`).
+- `tests/test_alpaca_protection.py`: covers each protected-close path (full, partial
+  re-arm, delayed release, release never comes, refused cancel, refused close, protection
+  not restorable, unknown close outcome), added stop and OCO protection, and widening edits
+  refused.
 - `tests/test_broker_contract.py`: one contract against simulation, MetaApi fixtures and Alpaca.
-- `tests/check_alpaca_paper.py`: the API and executor journey on PostgreSQL.
+- `tests/check_alpaca_paper.py`: the API and executor journey on PostgreSQL. With Trading
+  OFF it covers a protected partial and full close, an unprotected exit, an added stop, and
+  `position_unprotected` raised and then withdrawn.
 
 The fixtures follow the payload shapes of Alpaca's official `alpaca-py` SDK models. They
 were not recorded from a live account, because this environment cannot reach Alpaca.
@@ -105,5 +149,8 @@ entered through the connection form. It confirms against the real service:
 
 - crypto symbol spelling on positions and fills;
 - `group_role` on bracket legs;
-- that `DELETE /v2/positions/{id}` is refused while legs hold the quantity;
+- that `DELETE /v2/positions/{id}` is refused while legs hold the quantity, and how long a
+  cancel takes to release it;
+- whether cancelling one OCO leg cancels its sibling;
+- whether a replaced order keeps its `client_order_id`;
 - the 403/422 error bodies.
