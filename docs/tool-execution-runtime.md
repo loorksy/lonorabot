@@ -217,11 +217,49 @@ Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
 
-A failed call's observation is `{ok: false, code, class, retryable}` plus `recovery`; `class` is one of input, resolution, connection, permission, provider, internal (`environment.error_class`, from the recovery category). Two failures add
-what the model needs to continue by itself: `tool_arguments_invalid` carries its
-`issues`, and a symbol the account does not list (`symbol_not_found`,
-`symbol_ambiguous`) carries the account's real `candidates` and a `hint` and `next_actions`
-(`docs/market-analysis.md`, Instrument resolution).
+A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
+`class` is one of input, resolution, connection, permission, provider, internal
+(`environment.error_class`, from the recovery category). An operation the executor
+refused or the broker failed (`status` failed or rejected) is `ok: false` too; a read
+that returns the record of such an operation has itself succeeded and is not touched.
+The owner's rejection of a card (`trade_approval_rejected`) and an agent whose level
+does not trade (`agent_analysis_only`, `shadow_execution_forbidden`) are of class
+permission.
+
+Every failure has a `hint`: the tool's own when it wrote one, else the general sentence
+of its recovery category (`environment.RECOVERY_HINTS`). A general hint says no more
+than is known: an outcome that is not known says so and forbids both "failed" and "went
+through"; a permission hint says not to look for another way, and the sentence for an
+unclassified refusal says a rule or the owner's decision is respected; a connection
+failure is offered for another try only on a read, and a read that failed three times
+says it is not tried again. A handler that returns its own sentence under `recovery` has
+it carried as the `hint` (the structured block takes the `recovery` key), and a next step
+a handler names itself is kept in the block.
+
+A tool writes its own fields by raising `ToolRefusal` (`lonora_core.user_error`), whose
+`details` `tool_dispatch` forwards: authored text and the account's own data, never
+exception text. Today: `tool_arguments_invalid` carries its `issues`; a symbol the
+account does not list (`symbol_not_found`, `symbol_ambiguous`) carries the account's
+`candidates`, a `hint` and `next_actions` (`docs/market-analysis.md`, Instrument
+resolution); a new order whose size the contract cannot take (`volume_out_of_range`,
+`volume_step_mismatch`) is refused by `trade.require_order_size` before any card and
+before the executor, with the contract's `limits`. That check runs on a first attempt
+only (`trade.never_recorded`): a call that already has an approval card or a journal
+entry (after the owner's approval, after a restart, or to reconcile an unknown outcome)
+is answered from its record. A partial close is never checked there: an exit is the
+executor's alone. A broker rate limit (`broker_rate_limited`) is a transient read
+failure: a read is retried after a short wait like a dropped connection.
+
+**What the model reads.** The Run record keeps the whole envelope. The request to the
+model carries every tool result through `failure_view`: a `code` of ours becomes
+`reason` with its words spelled out ("symbol not found"), and the recovery labels
+likewise. That covers a failure, an outcome not yet known and a result that only notes
+why nothing was done (`no_positions`); a `code` that is not a machine label, such as one
+an outside tool returns, is left alone, and a `reason` the result already gives is kept
+after the code's words. Tool names stay exact. A reply cannot repeat a machine code the
+model never read; the gates, the scorer and the logs still read the codes in the record.
+The background summary and the context sections that list earlier failures still read
+the record and are not covered by this view.
 
 ## Dispatch deadlines
 

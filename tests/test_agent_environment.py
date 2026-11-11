@@ -1,10 +1,11 @@
 """Operational recovery never changes effect authority or exposes submitted values."""
 
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.environment import (
+    RECOVERY_HINTS,
     blocked_route,
     bounded_result,
     classify,
@@ -12,7 +13,7 @@ from lonora_agent.environment import (
     observe,
 )
 from lonora_contracts.domain import Contract
-from lonora_contracts.tool_environment import ToolRecovery
+from lonora_contracts.tool_environment import FailureCategory, ToolRecovery
 from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 
@@ -28,6 +29,7 @@ async def handler(_: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
         "tool_read_timeout",
         "broker_candles_unavailable",
         "tool_connection_failure",
+        "broker_rate_limited",
     ],
 )
 def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
@@ -177,3 +179,100 @@ def test_resolved_financial_outcome_is_settled_but_never_reported_as_confirmed()
     }
     observe(state, ToolCall(id="batch", name="financial", arguments={}), tool, batch)
     assert batch["recovery"]["next_action"] == "reload_authoritative_state"
+
+
+def test_every_failure_tells_the_model_its_class_whether_to_repeat_and_what_to_do() -> None:
+    """The unified error contract: no failure reaches the model as a bare code."""
+    read = Tool("account_read", "Read", Contract, handler, True)
+    limited: dict[str, Any] = {"ok": False, "code": "broker_rate_limited"}
+    observe({}, ToolCall(id="a", name="account_read", arguments={}), read, limited)
+    assert (limited["class"], limited["retryable"]) == ("connection", True)
+    assert "tried" in limited["hint"]
+    for code in ("volume_out_of_range", "volume_step_mismatch", "price_tick_mismatch"):
+        refused: dict[str, Any] = {"ok": False, "code": code}
+        observe({}, ToolCall(id=code, name="trade_execute", arguments={}), None, refused)
+        assert (refused["class"], refused["retryable"]) == ("input", False), code
+    stopped: dict[str, Any] = {"ok": False, "code": "trading_restriction_active"}
+    observe({}, ToolCall(id="r", name="trade_execute", arguments={}), None, stopped)
+    assert stopped["class"] == "permission" and "another way" in stopped["hint"]
+
+
+def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() -> None:
+    sentence = "Nothing changed. Retry with the exact model of one of these."
+    refused: dict[str, Any] = {"ok": False, "code": "model_not_in_catalog", "recovery": sentence}
+    observe({}, ToolCall(id="m", name="model_request", arguments={}), None, refused)
+    assert refused["hint"] == sentence and refused["recovery"]["category"]
+    named: dict[str, Any] = {
+        "ok": False,
+        "code": "consult_budget_exhausted",
+        "recovery": {"next_action": "decide_with_current_evidence"},
+    }
+    observe({}, ToolCall(id="c", name="consult_model", arguments={}), None, named)
+    assert named["recovery"]["next_action"] == "decide_with_current_evidence"
+    # A note that is not a failure keeps its sentence too, and recovery is never a string.
+    note: dict[str, Any] = {"created": False, "code": "agent_already_exists", "recovery": sentence}
+    observe({}, ToolCall(id="n", name="agent_create", arguments={}), None, note)
+    assert note["hint"] == sentence and "recovery" not in note
+
+
+def test_a_general_hint_never_says_more_than_is_known() -> None:
+    order = Tool("trade_execute", "Trade", Contract, handler, financial=True)
+    unknown: dict[str, Any] = {"ok": True, "status": "ambiguous"}
+    observe({}, ToolCall(id="u", name="trade_execute", arguments={}), order, unknown)
+    # Not known is neither failed nor sent, and the hint says so.
+    assert unknown["ok"] is True and unknown["retryable"] is False
+    assert "may or may not have taken effect" in unknown["hint"]
+    assert "never that it failed or went through" in unknown["hint"]
+    stale: dict[str, Any] = {"ok": False, "code": "quote_stale"}
+    observe({}, ToolCall(id="q", name="trade_execute", arguments={}), order, stale)
+    assert "too old" in stale["hint"] and "not found" not in stale["hint"]
+    unsent: dict[str, Any] = {"ok": False, "code": "broker_connection_unavailable"}
+    observe({}, ToolCall(id="w", name="trade_execute", arguments={}), order, unsent)
+    # A connection failure on an order is never offered for another try.
+    assert unsent["retryable"] is False and "Do not call it again" in unsent["hint"]
+    for code in ("trade_approval_rejected", "agent_analysis_only", "shadow_execution_forbidden"):
+        ruled: dict[str, Any] = {"ok": False, "code": code}
+        observe({}, ToolCall(id=code, name="trade_execute", arguments={}), order, ruled)
+        # The owner's no and the agent's level are rules: no other route is suggested.
+        assert ruled["class"] == "permission" and "another way" in ruled["hint"], code
+    read = Tool("account_read", "Read", Contract, handler, True)
+    state: dict[str, Any] = {}
+    call = ToolCall(id="t", name="account_read", arguments={})
+    dropped: dict[str, Any] = {}
+    for _ in range(3):
+        dropped = {"ok": False, "code": "broker_rate_limited"}
+        observe(state, call, read, dropped)
+    # The third failure of the same read is no longer offered for another try.
+    assert dropped["retryable"] is False and "not tried again" in dropped["hint"]
+    assert set(RECOVERY_HINTS) == set(get_args(FailureCategory))
+
+
+def test_reading_the_record_of_a_failed_operation_is_a_read_that_succeeded() -> None:
+    read_record = Tool("trade_read_record", "Read", Contract, handler, True)
+    record: dict[str, Any] = {"ok": True, "status": "failed", "code": "volume_out_of_range"}
+    seen = observe(
+        {}, ToolCall(id="h", name="trade_read_record", arguments={}), read_record, record
+    )
+    assert record["ok"] is True and "hint" not in record and "recovery" not in record
+    assert seen["failures"] == 0
+    # The same status from the order itself is the order's failure.
+    order = Tool("trade_execute", "Trade", Contract, handler, financial=True)
+    refused: dict[str, Any] = {"ok": True, "status": "rejected", "code": "trade_approval_rejected"}
+    observe({}, ToolCall(id="o", name="trade_execute", arguments={}), order, refused)
+    assert refused["ok"] is False and refused["class"] == "permission"
+
+
+def test_a_failed_operation_is_not_an_ok_call_and_a_tools_own_words_are_kept() -> None:
+    order = Tool("trade_execute", "Trade", Contract, handler, financial=True)
+    failed: dict[str, Any] = {"ok": True, "status": "failed", "code": "volume_out_of_range"}
+    observe({}, ToolCall(id="o", name="trade_execute", arguments={}), order, failed)
+    assert failed["ok"] is False and failed["class"] == "input"
+    authored: dict[str, Any] = {
+        "ok": False,
+        "code": "symbol_not_found",
+        "class": "resolution",
+        "retryable": True,
+        "hint": "This account lists it as XAUUSDm.",
+    }
+    observe({}, ToolCall(id="s", name="market_quote", arguments={}), None, authored)
+    assert authored["retryable"] is True and authored["hint"].endswith("XAUUSDm.")

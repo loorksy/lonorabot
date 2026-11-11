@@ -101,7 +101,7 @@ async def main():
                     if message.role == "tool" and message.tool_call_id == "invalid-watch"
                 )
                 error = json.loads(observation.content)
-                assert error["code"] == "tool_arguments_invalid" and error["retryable"]
+                assert error["reason"] == "tool arguments invalid" and error["retryable"]
                 assert error["issues"] == [
                     {
                         "path": ["steps", 0],

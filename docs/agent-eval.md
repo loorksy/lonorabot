@@ -385,6 +385,20 @@ The live column was not run again: it needs a real model and spends tokens, and 
 behaviour that the later phases change (the completion check, promises, claims). It is run
 again for the final before/after report.
 
+### After phase 3a (the error contract)
+
+**Structural: 21 of 22 probes pass.** Three more flipped:
+
+| Scenario | Before | Now |
+|---|---|---|
+| X_unknown (a symbol the account does not have) | fail | pass: the nearest names are among `candidates`, each marked `similar` |
+| X_rate (the broker rate-limits) | fail | pass: a rate limit on a read is retried after a short wait and reported as retryable |
+| X_args (a size below the contract minimum) | fail | pass: nothing is sent; the refusal is of class `input` and carries the contract's limits |
+| X_owner (watches of another agent of the owner) | fail | fail: owner scope is phase 3d |
+
+From this phase the model reads a failed result in words: `code` reaches it as `reason`
+("symbol not found"), so the `internal_term` check of the live layer has one less source.
+
 ## Limits
 
 - **Voice.** The audio of [48] and [50] is not in the evidence. The mis-transcripts are the

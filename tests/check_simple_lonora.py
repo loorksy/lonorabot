@@ -775,9 +775,9 @@ class Acceptance:
         # The interrupted send comes back uncertain, never as sent or failed: either the
         # in-flight marker survived (tool_execution_uncertain) or the executor recorded the
         # broker result as ambiguous while the worker stopped.
-        assert uncertain.get("code") == "tool_execution_uncertain" or (
+        assert uncertain.get("reason") == "tool execution uncertain" or (
             uncertain.get("status") == "ambiguous"
-            and uncertain["recovery"]["next_action"] == "reconcile_before_any_resend"
+            and uncertain["recovery"]["next_action"] == "reconcile before any resend"
         ), uncertain
         again = json.loads(
             next(
@@ -1155,7 +1155,7 @@ class Acceptance:
             )
         )
         # Refused with the pause's own code before any approval card (Lonora is Ask me).
-        assert result.get("ok") is False and result.get("code") == "trading_restriction_active", (
+        assert result.get("ok") is False and result.get("reason") == "trading restriction active", (
             result
         )
         assert await self.count(TradeApprovalRow, TradeApprovalRow.run_id == refused.id) == 0
@@ -1984,7 +1984,7 @@ class Acceptance:
                 m.content for m in transcript if m.role == "tool" and m.tool_call_id == "j13-trade"
             )
         )
-        assert traded.get("ok") is False and traded.get("code") == "agent_analysis_only", traded
+        assert traded.get("ok") is False and traded.get("reason") == "agent analysis only", traded
         assert await self.positions(self.account) == before
         self.journey(name, 0)
 

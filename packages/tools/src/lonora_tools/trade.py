@@ -5,7 +5,7 @@ from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.trading_control import require_trading
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_binding import (
     agent_binding,
     require_financial_agent,
@@ -640,6 +640,57 @@ async def account_authorized_execution(
     }
 
 
+ORDER_SIZE_HINT = (
+    "This contract takes sizes from {minimum} to {maximum} in steps of {step}. Nothing "
+    "was sent. Do not choose another size for the owner: say the smallest size in one "
+    "plain line and ask, unless the owner or the signed mandate already gave a size that fits."
+)
+
+
+async def require_order_size(broker: Any, symbol: str, volume: Any) -> None:
+    """Refuse a new order whose size the contract cannot take, with the contract's limits.
+
+    The model then corrects the request itself instead of reporting a failed order. The
+    executor's own check still decides; when the specification cannot be read here, it
+    answers alone. Only a first attempt is checked (`never_recorded`).
+    """
+    try:
+        instrument = await broker.instrument(symbol)
+        size = Decimal(str(volume))
+    except Exception:
+        return
+    minimum, maximum, step = instrument.volume_min, instrument.volume_max, instrument.volume_step
+    if minimum <= size <= maximum and (size - minimum) % step == 0:
+        return
+    raise ToolRefusal(
+        "volume_out_of_range" if not minimum <= size <= maximum else "volume_step_mismatch",
+        details={
+            "class": "input",
+            "retryable": False,
+            "hint": ORDER_SIZE_HINT.format(minimum=minimum, maximum=maximum, step=step),
+            "limits": {
+                "volume_min": str(minimum),
+                "volume_max": str(maximum),
+                "volume_step": str(step),
+            },
+        },
+    )
+
+
+async def never_recorded(context: ToolContext, operation_id: str) -> bool:
+    """True while this call has left neither an approval card nor a journal entry.
+
+    A call that comes back after the owner's approval, after a restart or to reconcile an
+    unknown outcome is answered from its record, never by a fresh check.
+    """
+    approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
+    async with context.db.sessions() as session:
+        return (
+            await session.get(TradeApprovalRow, approval_id) is None
+            and await session.get(TradingJournalRow, operation_id) is None
+        )
+
+
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args = dict(args)
     args.pop("operation_id", None)
@@ -651,6 +702,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         await agent_binding(session, context.owner_id, context.agent_id)
         await require_lease(session, context.lease)
+    sized = None
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         # A new order names the catalogue's exact symbol. An exit or a change to an
@@ -660,7 +712,11 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         args["symbol"] = await (canonical_broker_symbol if managing else order_symbol)(
             broker, str(args["symbol"])
         )
+        if not managing and args.get("volume") is not None:
+            sized = broker
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
+    if sized is not None and await never_recorded(context, args["operation_id"]):
+        await require_order_size(sized, args["symbol"], args["volume"])
     return await approved_execution(context, [TradeRequest.model_validate(args)])
 
 

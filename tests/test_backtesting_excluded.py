@@ -291,7 +291,7 @@ async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes(
     assert turns == 2
     assert effects == ["market_strategy_research"]  # Only the old worker's attempt.
     inflight, pending = observed["legacy-inflight"], observed["legacy-pending"]
-    assert inflight["ok"] is False and inflight["code"] == "tool_execution_uncertain"
+    assert inflight["ok"] is False and inflight["reason"] == "tool execution uncertain"
     assert inflight["recovery"]["safe_to_retry"] is False
-    assert pending["ok"] is False and pending["code"] == "tool_not_allowed"
-    assert pending["recovery"]["category"] == "permission_denied"
+    assert pending["ok"] is False and pending["reason"] == "tool not allowed"
+    assert pending["recovery"]["category"] == "permission denied"

@@ -255,7 +255,7 @@ async def lonora_answers_from_the_records(
     )
     last = seen[-1][0]
     refused = result_of(last, "look")
-    assert refused["ok"] is False and refused["code"] == "supervision_required", refused
+    assert refused["ok"] is False and refused["reason"] == "supervision required", refused
     said = result_of(last, "said")
     assert said["results"] == [] and said["decisions"] == [], said
     print("PASS after the owner revokes the grant, Lonora cannot read the gold agent's work")

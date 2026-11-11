@@ -116,9 +116,12 @@ async def test_a_read_never_takes_a_look_alike_the_broker_prices_in_another_curr
         "retryable": False,
         "hint": NOT_LISTED,
         "requested_symbol": "gold",
-        "candidates": [],
+        # No match: the nearest names are candidates of their own kind, never a repeat.
+        "candidates": [
+            {"symbol": "XAUUSDT", "similar": True},
+            {"symbol": "XAUUSDm", "similar": True},
+        ],
         "next_actions": [{"tool": "market_symbols"}],
-        "similar_symbols": ["XAUUSDT", "XAUUSDm"],
     }
 
 
