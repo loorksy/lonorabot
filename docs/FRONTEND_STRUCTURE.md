@@ -60,11 +60,10 @@ apps/
 │       │   │   ├── primitives.tsx
 │       │   │   └── CollaborationMarker.tsx
 │       │   ├── call/
-│       │   │   ├── CallCard.tsx
-│       │   │   ├── VoiceChatCard.tsx
+│       │   │   ├── CallPill.tsx
+│       │   │   ├── CallWaveform.tsx
 │       │   │   ├── RealtimeVoice.tsx
-│       │   │   ├── Transcript.tsx
-│       │   │   └── VoiceStatus.tsx
+│       │   │   └── Transcript.tsx
 │       │   ├── integrations/
 │       │   │   └── IntegrationSetup.tsx
 │       │   ├── ArtifactFileCard.tsx
@@ -180,7 +179,8 @@ tests/
 | `components/ai/primitives.tsx` | عرض حالة التنفيذ والعمل الجاري والتحميل؛ يعتمد على حالة Run وأحداثه |
 | `components/ai/CollaborationMarker.tsx` | إظهار التنفيذ الفرعي والتعاون مع الفصل بين Child Bot وSubagent وPeer |
 | `components/ToolActivityDisclosure.tsx` | المصدر الوحيد لعرض مجموعات خطوات الأدوات ونتائجها والفشل والإلغاء؛ تستخدمه المحادثة بدل تكرار التجميع |
-| `components/call` | جلسة WebRTC وGPT-Live ونص الصوت وحالته وبطاقته؛ نفس الوكيل وThread والأدوات |
+| `components/call` | جلسة WebRTC وGPT-Live وصوتها وحبة المكالمة في رأس المحادثة؛ نفس الوكيل وThread والأدوات |
+| `shell/call/CallPages.tsx` | «المكالمة» (`/app/call`) وشريط المكالمة تحت الشريط العلوي و«مكالمة واردة» (`/app/incoming/:id`) وبدء المكالمة؛ المسار هو المكالمة المفتوحة وتركه يطويها، وبلا مزود صوت لا تُطلب مكالمة (Q58). المكالمة كلام مؤقت: كل صفقة تبقى ببطاقة موافقتها |
 | `components/integrations/IntegrationSetup.tsx` | إعداد التكاملات الموجودة وحفظ أسرارها على الخادم؛ لا ينشئ محاكاة OAuth أو نجاحًا محليًا |
 | `pages/Board.tsx` و`ActivityList.tsx` | فصل واجهة Tickets عن سجل Runs؛ تبقى خدمة البيانات مشتركة إذا احتاجت الشاشتان نفس البيانات |
 | `pages/SpaceSearch.tsx` | بحث Lonora الحقيقي وروابط نتائج تفتح الوكيل أو Thread أو المعرفة؛ الاسم يطابق حد البحث في القالب |

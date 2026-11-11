@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { brokerFixture } from "./broker-fixture.mjs";
 
-test("compact call survives navigation with its origin, real track mute and ordered logout", async ({
+test("the call screen survives navigation with its origin, real track mute and ordered logout", async ({
   page,
   context,
 }) => {
@@ -243,6 +243,8 @@ test("compact call survives navigation with its origin, real track mute and orde
       await route.fulfill({ json: approval });
     });
     await page.getByRole("button", { name: "Voice call", exact: true }).dblclick();
+    // The call screen is its own route (the reference's «المكالمة»).
+    await expect(page).toHaveURL(/\/app\/call$/);
     await expect(page.getByTestId("call-view")).toBeVisible();
     await expect.poll(() => calls.length).toBe(1);
     const call = page.getByTestId("call-view");
@@ -261,23 +263,30 @@ test("compact call survives navigation with its origin, real track mute and orde
     expect(calls[0].thread_id).toBe(history.id);
     expect(calls[0].thread_id).not.toBe(canonical.id);
     await expect.poll(() => page.evaluate(() => window.__voiceHarness.micCalls)).toBe(1);
-    await expect(page.locator(".call-status")).toHaveText("Listening");
+    await expect(page.locator(".call-status")).toHaveText("Listening to you");
     await page.evaluate(() => {
       window.__voiceHarness.remoteGain.gain.value = 0.25;
     });
     await expect(page.locator(".call-status")).toHaveText("Speaking");
+    // The wave follows the call's real levels.
     await expect
       .poll(() =>
         page
-          .locator(".call-waveform > span")
-          .evaluateAll((bars) => bars.some((bar) => Number.parseFloat(bar.style.height) > 5)),
+          .locator(".call-page .wave i")
+          .evaluateAll((bars) =>
+            bars.some(
+              (bar) =>
+                Number.parseFloat(/scaleY\(([\d.]+)\)/.exec(bar.style.transform)?.[1] ?? "0") > 0.4,
+            ),
+          ),
       )
       .toBeTruthy();
-    await page.getByRole("button", { name: "Mute microphone", exact: true }).click();
+    await call.getByRole("button", { name: "Mute", exact: true }).click();
+    await expect(page.locator(".call-status")).toHaveText("Microphone muted");
     expect(
       await page.evaluate(() => window.__voiceHarness.streams[0].getAudioTracks()[0].enabled),
     ).toBe(false);
-    await page.getByRole("button", { name: "Unmute microphone", exact: true }).click();
+    await call.getByRole("button", { name: "Unmute", exact: true }).click();
     expect(
       await page.evaluate(() => window.__voiceHarness.streams[0].getAudioTracks()[0].enabled),
     ).toBe(true);
@@ -301,37 +310,50 @@ test("compact call survives navigation with its origin, real track mute and orde
     await expect(page.locator(".call-name, .call-duration, .call-transcript")).toHaveCount(0);
     await page.waitForTimeout(2200);
     await expect(page.getByText("A unique spoken phrase.", { exact: true })).toHaveCount(0);
-    await page.screenshot({ path: ".runtime/rakazo-parity/voice-floating-card.png" });
-    // Voice settings are a section of the settings page; Back returns to the conversation,
-    // whose header folds the call into its pill.
-    await page.getByRole("button", { name: "Voice settings", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
-    await expect(page.locator(".settings-nav")).toBeVisible();
-    await page.goBack();
-    await expect(page.getByTestId("active-call-pill")).toBeVisible();
+    await page.screenshot({ path: ".runtime/rakazo-parity/voice-call-screen.png" });
+    // ⌄ folds the call back to the conversation it was opened from; its header keeps the pill.
+    await page.getByRole("button", { name: "Fold the call", exact: true }).click();
+    await expect(page).toHaveURL(`/app/${first.id}?thread=${history.id}`);
     await expect(page.locator(".chat-head").getByTestId("active-call-pill")).toBeVisible();
+    // The call's own chat has no strip.
+    await expect(page.locator(".call-strip")).toHaveCount(0);
     await page.getByTestId("active-call-pill").click();
-    await expect(page.getByTestId("call-view")).toBeVisible();
+    await expect(page).toHaveURL(/\/app\/call$/);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.getByRole("button", { name: "Minimize call", exact: true }).click();
+    await page.getByRole("button", { name: "Fold the call", exact: true }).click();
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.locator("#dialog").getByRole("button", { name: "Agent files", exact: true }).click();
-    // «الملفات» of this agent (UI phase 4b).
+    // «الملفات» of this agent (UI phase 4b), with the call strip under the top bar.
     await expect(page).toHaveURL(/\/app\/artifacts\?agent=[^&]+$/);
-    // The call strip of other screens is the calls phase; the call itself keeps running.
+    const strip = page.locator(".call-strip");
+    await expect(strip).toContainText(first.name);
+    await expect(strip).toContainText("In progress");
+    await strip.getByRole("button", { name: "Mute", exact: true }).click();
+    await expect(strip).toContainText("Muted");
+    expect(
+      await page.evaluate(() => window.__voiceHarness.streams[0].getAudioTracks()[0].enabled),
+    ).toBe(false);
+    await strip.getByRole("button", { name: "Unmute", exact: true }).click();
+    // Another agent's chat keeps the strip; its header opens the running call.
     await page.locator(`.desktop-list [data-inbox-agent-id="${other.id}"]`).click();
+    await expect(page.locator(".call-strip")).toContainText(first.name);
     await page.getByRole("button", { name: "Open active call", exact: true }).click();
     await expect(
       page.getByRole("region", { name: `Call with ${first.name}`, exact: true }),
     ).toBeVisible();
     expect(calls).toHaveLength(1);
     expect(closes).toHaveLength(0);
+    // The strip returns to the call; ending it on its screen returns to where it was opened.
+    await page.getByRole("button", { name: "Fold the call", exact: true }).click();
+    await expect(page).toHaveURL(`/app/${other.id}`);
     await page
-      .getByRole("button", { name: `Open conversation with ${first.name}`, exact: true })
+      .getByRole("button", { name: `Return to the call with ${first.name}`, exact: true })
       .click();
-    await expect(page).toHaveURL(`/app/${first.id}?thread=${history.id}`);
-    await page.getByRole("button", { name: "End call", exact: true }).click();
-    await expect(page.getByTestId("call-view")).not.toBeVisible();
+    await expect(page).toHaveURL(/\/app\/call$/);
+    await page.getByTestId("call-view").getByRole("button", { name: "End", exact: true }).click();
+    await expect(page).toHaveURL(`/app/${other.id}`);
+    await expect(page.locator("#toast")).toContainText("The call ended.");
+    await expect(page.locator(".call-strip")).toHaveCount(0);
     await expect.poll(() => closes.length).toBe(1);
     expect(
       await page.evaluate(() =>
@@ -340,6 +362,7 @@ test("compact call survives navigation with its origin, real track mute and orde
           .every((stream) => stream.getTracks().every((track) => track.readyState === "ended")),
       ),
     ).toBe(true);
+    await page.goto(`/app/${first.id}?thread=${history.id}`);
     await page.getByRole("button", { name: "Voice call", exact: true }).click();
     await expect.poll(() => calls.length).toBe(2);
     await page

@@ -20,6 +20,7 @@ import { IdentityPage } from "./agent/IdentityPage";
 import { RecoveryPage } from "./agent/RecoveryPage";
 import { scoped } from "./agent/scope";
 import { TradesPage } from "./agent/TradesPage";
+import { CallPage, IncomingPage } from "./call/CallPages";
 import { useShellData } from "./data";
 import "./domain/domain.css";
 import { FileEditPage, FilesPage } from "./domain/FilesPages";
@@ -166,6 +167,10 @@ export function pageTitle(page: Page): string {
       return t`Storage and data`;
     case "privacy":
       return t`Privacy and security`;
+    case "call":
+      return t({ message: "Call", context: "page title" });
+    case "incoming":
+      return t`Incoming call`;
     default:
       return t`Lab`;
   }
@@ -293,6 +298,8 @@ export function DetailPages({
         <Route path="/app/new-skill" element={<SkillPage create key={location.key} />} />
         <Route path="/app/file-edit" element={<FileEditPage key={location.key} />} />
         <Route path="/app/activity" element={<ActivityPage />} />
+        <Route path="/app/call" element={<CallPage />} />
+        <Route path="/app/incoming/:callId" element={<IncomingPage />} />
         <Route
           path="/app/new-agent"
           element={scoped(

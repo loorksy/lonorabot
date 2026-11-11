@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VoiceJoin } from "../../lib/voice";
+import "./call.css";
 /** Audio belongs to the call provider, independently of route/overlay presentation. */
 export function RealtimeVoice({ session }: { session: VoiceJoin }) {
   const container = useRef<HTMLDivElement>(null);
