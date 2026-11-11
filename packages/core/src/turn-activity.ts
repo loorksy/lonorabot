@@ -334,3 +334,22 @@ export function activityCallLabel(
     (family ? (family[call.effect ?? "read"] ?? family.change ?? family.read) : undefined);
   return (label ?? genericCall)[locale.toLowerCase().startsWith("ar") ? "ar" : "en"];
 }
+
+/**
+ * What picking a question's choice makes the agent do, in the activity line's own words:
+ * one label per kind of call, with its count when there are several. The registry ids
+ * stay out of it.
+ */
+export function choiceEffectsLabel(
+  effects: readonly { name: string; toolset: string; effect: "read" | "change"; count: number }[],
+  locale: string,
+): string {
+  const labels = new Map<string, number>();
+  for (const effect of effects) {
+    const label = activityCallLabel(effect, locale);
+    labels.set(label, (labels.get(label) ?? 0) + effect.count);
+  }
+  return [...labels]
+    .map(([label, count]) => (count > 1 ? `${label} ×${count}` : label))
+    .join(locale.toLowerCase().startsWith("ar") ? "، " : ", ");
+}

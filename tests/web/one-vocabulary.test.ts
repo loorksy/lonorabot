@@ -11,7 +11,7 @@ import {
   runStatusText,
 } from "../../packages/core/src/financial-boundary";
 import { peerOutcome } from "../../packages/core/src/peer-outcome";
-import { activityCallLabel } from "../../packages/core/src/turn-activity";
+import { activityCallLabel, choiceEffectsLabel } from "../../packages/core/src/turn-activity";
 
 const root = new URL("../../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
@@ -219,4 +219,15 @@ test("Arabic owner text names equity with one term", () => {
     assert.ok(!/msgid "Equity"\nmsgstr "(?!حقوق الملكية)/.test(text), "Equity translated twice");
   }
   assert.ok(sources.some((text) => text.includes("حقوق الملكية")));
+});
+
+test("a question's choice says what its pick does: one label per kind of call, with its count", () => {
+  const cancel = { name: "watch_cancel", toolset: "watch", effect: "change" as const, count: 2 };
+  const pause = { name: "watch_pause", toolset: "watch", effect: "change" as const, count: 1 };
+  const read = { name: "web_search", toolset: "research", effect: "read" as const, count: 1 };
+  // Two tools with one label are one line, counted together; the registry ids never show.
+  assert.equal(choiceEffectsLabel([cancel, pause], "en"), "Updating a market watch ×3");
+  assert.equal(choiceEffectsLabel([cancel, read], "ar"), "يحدّث مراقبة للسوق ×2، يبحث في المصادر");
+  assert.equal(choiceEffectsLabel([read], "en"), activityCallLabel(read, "en"));
+  assert.equal(choiceEffectsLabel([], "en"), "");
 });

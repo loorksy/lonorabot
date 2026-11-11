@@ -125,3 +125,36 @@ test("ordinary free text can answer a card without selecting or granting an opti
     await fixture.cleanup();
   }
 });
+
+test("a choice that was bound to calls says what its pick does, in the owner's words", async ({
+  page,
+  context,
+}) => {
+  const fixture = await setup(context, "ar");
+  try {
+    // The server sends what a pick does with the choice (phase 3c): two watch changes here.
+    const bound = (run) => {
+      for (const request of [run.input_request, ...(run.input_requests ?? [])].filter(Boolean))
+        request.choices[0].effects = [
+          { name: "watch_cancel", toolset: "watch", effect: "change", count: 2 },
+        ];
+      return run;
+    };
+    await page.route("**/api/runs?thread_id=*", async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: (await response.json()).map(bound) });
+    });
+    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
+    const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
+    const rows = card.locator(".opt-row");
+    await expect(rows.first().locator(".opt-does")).toHaveText("يحدّث مراقبة للسوق ×2");
+    // No registry name reaches the card, and a choice that changes nothing says nothing.
+    await expect(card).not.toContainText("watch_cancel");
+    await expect(rows.nth(1).locator(".opt-does")).toHaveCount(0);
+    await expect(rows.first().locator("span[dir=auto]")).toHaveText(
+      fixture.question.choices[0].label,
+    );
+  } finally {
+    await fixture.cleanup();
+  }
+});

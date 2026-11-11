@@ -13,12 +13,19 @@ export type ReplyStreamSnapshot = {
   /** Cumulative, server-validated complete frames; never a raw partial document. */
   rich_content?: RichContent | null;
 };
+/** What picking a choice makes the agent do: its calls, by tool, never their arguments. */
+export type ChoiceEffect = {
+  name: string;
+  toolset: string;
+  effect: "read" | "change";
+  count: number;
+};
 export type InputRequest = {
   id: string;
   run_id: string;
   message_id: string;
   question: string;
-  choices: { id: string; label: string }[];
+  choices: { id: string; label: string; effects?: ChoiceEffect[] }[];
   status: "pending" | "answered" | "cancelled";
   selected_choice_id: string | null;
   answer_message_id: string | null;

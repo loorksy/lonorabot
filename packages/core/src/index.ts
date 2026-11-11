@@ -238,6 +238,7 @@ export {
   type ActivityEffect,
   type ActivityPhase,
   activityCallLabel,
+  choiceEffectsLabel,
   projectRunEvents,
   turnActivity,
 } from "./turn-activity";

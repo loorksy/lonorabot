@@ -1,4 +1,5 @@
 import type { InputAnswer, InputRequest } from "@lonora/contracts";
+import { choiceEffectsLabel } from "@lonora/core";
 import { useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
@@ -13,7 +14,7 @@ export function ConversationQuestion({
   request: InputRequest;
   onAnswer: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
 }) {
-  const { rtl, t, errorText } = useSession();
+  const { rtl, t, errorText, locale } = useSession();
   const shell = useShellColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,16 +76,29 @@ export function ConversationQuestion({
             <Text style={{ color: shell.secondary, fontSize: 12 }}>
               {String.fromCharCode(65 + index)}
             </Text>
-            <Text
-              style={{
-                flex: 1,
-                color: shell.foreground,
-                fontSize: 16,
-                textAlign: rtl ? "right" : "left",
-              }}
-            >
-              {choice.label}
-            </Text>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={{
+                  color: shell.foreground,
+                  fontSize: 16,
+                  textAlign: rtl ? "right" : "left",
+                }}
+              >
+                {choice.label}
+              </Text>
+              {/* What the agent does on this pick, in the activity line's own words. */}
+              {choice.effects?.length ? (
+                <Text
+                  style={{
+                    color: shell.secondary,
+                    fontSize: 12,
+                    textAlign: rtl ? "right" : "left",
+                  }}
+                >
+                  {choiceEffectsLabel(choice.effects, locale)}
+                </Text>
+              ) : null}
+            </View>
             {request.selected_choice_id === choice.id && (
               <NativeSymbol name="check" size={18} color={shell.foreground} />
             )}

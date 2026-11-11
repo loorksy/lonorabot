@@ -5,6 +5,7 @@ import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
 import {
   type ActivityCall,
   activityCallLabel,
+  choiceEffectsLabel,
   financialBoundaryError,
   type OrderLineState,
   orderLineAction,
@@ -189,7 +190,15 @@ export function QuestionCard({
                   .finally(() => setBusy(false));
               }}
             >
-              <span dir="auto">{choice.label}</span>
+              <span className="opt-text">
+                <span dir="auto">{choice.label}</span>
+                {/* What the agent does on this pick, in the activity line's own words. */}
+                {choice.effects?.length ? (
+                  <small className="opt-does">
+                    {choiceEffectsLabel(choice.effects, i18n.locale)}
+                  </small>
+                ) : null}
+              </span>
               <Icon name="chev" />
             </button>
           ))}

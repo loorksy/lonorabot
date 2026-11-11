@@ -362,6 +362,16 @@
 .opt-row:hover:enabled {
   background: var(--hover);
 }
+.opt-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.opt-does {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
 .opt-row svg {
   flex: none;
   width: 14px;
