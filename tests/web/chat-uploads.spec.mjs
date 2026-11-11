@@ -74,3 +74,55 @@ test("an upload shows its ring in the tray, can be cancelled, and leaves the com
   await expect(done.getByRole("button", { name: "Remove report.txt" })).toBeVisible();
   await expect(tray.getByRole("progressbar")).toHaveCount(0);
 });
+
+test("a message sent while its file uploads carries the ring; cancelling withdraws it, finishing posts it", async ({
+  page,
+}) => {
+  await page.goto(`/app/${data.research.id}`);
+  let release = () => {};
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/artifacts/upload", async (route) => {
+    await held;
+    await route.continue().catch(() => {});
+  });
+  const posts = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/api\/threads\/[^/]+\/messages$/.test(request.url()))
+      posts.push(request.postDataJSON());
+  });
+  const input = page.locator('form input[type="file"]');
+  const tray = page.getByRole("list", { name: "Attachments" });
+  const mine = page.locator(".msg.mine");
+  const before = await mine.count();
+  await input.setInputFiles(report);
+  await expect(tray.locator(".att.file.uploading")).toBeVisible();
+  await page.getByRole("combobox").fill("The weekly report");
+  await page.keyboard.press("Enter");
+  // The composer is free at once; the file left the tray with the message, ring and all.
+  await expect(page.getByRole("combobox")).toHaveValue("");
+  await expect(tray).toHaveCount(0);
+  const chip = mine.last().locator(".file-chip.uploading");
+  await expect(chip.locator("strong")).toHaveText("report.txt");
+  await expect(chip.locator("small")).toHaveText("Uploading · 300 KB");
+  await expect(chip.getByRole("progressbar", { name: "Uploading report.txt" })).toBeVisible();
+  expect(posts).toEqual([]);
+  // Cancelled before it was up: the message was never posted and is gone.
+  await chip.getByRole("button", { name: "Cancel the upload" }).click();
+  await expect(mine).toHaveCount(before);
+  await expect(page.locator("#toast")).toHaveText("Upload cancelled");
+  expect(posts).toEqual([]);
+
+  // Sent again and left to finish: posted once, with the uploaded file.
+  await input.setInputFiles(report);
+  await page.getByRole("combobox").fill("The weekly report");
+  await page.keyboard.press("Enter");
+  await expect(mine.last().locator(".file-chip.uploading")).toBeVisible();
+  release();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].content).toBe("The weekly report");
+  expect(posts[0].attachment_ids).toHaveLength(1);
+  await expect(page.locator(".file-chip.uploading")).toHaveCount(0);
+  await expect(mine.last().locator(".file-chip strong")).toHaveText("report.txt");
+});

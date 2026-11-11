@@ -73,6 +73,8 @@ export type DraftUpload = {
   cancel: () => void;
   /** Taken by a sent message: the file no longer returns to the draft. */
   sent: boolean;
+  /** Set by the message that took the upload: called whenever its progress moves. */
+  moved?: () => void;
 };
 const uploads = new Map<string, DraftUpload[]>();
 const uploadListeners = new Map<string, Set<() => void>>();
@@ -105,7 +107,6 @@ export function trackDraftUpload(
   key: string,
   file: File,
   run: (progress: (p: number) => void, signal: AbortSignal) => Promise<Resource>,
-  moved: () => void = () => {},
 ): DraftUpload {
   const controller = new AbortController();
   const settled = () => {
@@ -128,7 +129,7 @@ export function trackDraftUpload(
       upload.p = p;
       // A new list, so a reader that compares lists sees the progress.
       if (!upload.sent) setUploads(key, [...draftUploads(key)]);
-      moved();
+      upload.moved?.();
     }, controller.signal).then(
       (row) => {
         settled();

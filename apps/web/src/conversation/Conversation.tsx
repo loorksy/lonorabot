@@ -359,8 +359,8 @@ export function Conversation({
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
-    (text, attachments, replyTo, address, extra) => {
-      thread.queue(text, attachments, replyTo, address, undefined, extra);
+    (text, attachments, replyTo, address, extra, uploads) => {
+      thread.queue(text, attachments, replyTo, address, undefined, extra, uploads);
     },
     [thread],
   );
@@ -500,6 +500,10 @@ export function Conversation({
     onReact: (message, emoji) => void react(message, emoji),
     onRetry: (nonce) => void thread.retry(nonce).catch(() => undefined),
     onDrop: (nonce) => thread.drop(nonce),
+    onCancelUpload: (nonce) => {
+      thread.cancelUploads(nonce);
+      toast(t`Upload cancelled`);
+    },
     onJump: (id) => {
       if (byId.has(id)) setJump(`${id}#${Date.now()}`);
       else toast(t`The original message is no longer available.`);
@@ -534,11 +538,13 @@ export function Conversation({
             <div className="pop-title">
               <Trans>The message was not sent</Trans>
             </div>
-            {item(
-              "refresh",
-              t`Retry`,
-              () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
-            )}
+            {/* Files that never arrived cannot be sent again: only «حذف» is left. */}
+            {!outgoing.uploading?.length &&
+              item(
+                "refresh",
+                t`Retry`,
+                () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
+              )}
             {item("trash", t`Delete`, () => thread.drop(outgoing.retry_nonce), true)}
           </>,
           t`Message options`,

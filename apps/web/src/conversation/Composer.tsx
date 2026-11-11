@@ -24,11 +24,13 @@ import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
 import { api, isRequestCancelled } from "../lib/api";
 import {
+  type DraftUpload,
   draftKey,
   draftUploads,
   observeDraftUploads,
   readComposerDraft,
   saveComposerDraft,
+  takeDraftUploads,
   trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
@@ -61,6 +63,8 @@ export type ComposerSend = (
     voice?: { artifact_id: string; duration: number; peaks: number[] };
     command?: MessageCommand;
   },
+  /** Files still uploading: the message carries them and is posted once they are up. */
+  uploads?: DraftUpload[],
 ) => void;
 
 /** The recorder's floating knob and lock live on <body>; they draw the reference's icons. */
@@ -379,7 +383,7 @@ export function Composer({
     [files.length, uploads.length, storageKey, threadId, toast, onUploaded],
   );
 
-  const canSend = Boolean(text.trim() || files.length) && !uploads.length;
+  const canSend = Boolean(text.trim() || files.length || uploads.length);
   const send = () => {
     if (!canSend) return;
     const sent = typedCommand?.option;
@@ -401,7 +405,7 @@ export function Composer({
       return;
     }
     const ids = files.map((file) => file.id);
-    const body = text.trim() || (ids.length ? t`Attached files` : "");
+    const body = text.trim() || (ids.length || uploads.length ? t`Attached files` : "");
     const message =
       sent?.command === "task" ||
       sent?.command === "search" ||
@@ -424,6 +428,8 @@ export function Composer({
           ...(editing ? { edited_from: editing.id } : {}),
           ...(message ? { command: message } : {}),
         },
+        // A file still uploading leaves the tray with the message: its ring is in the bubble.
+        takeDraftUploads(storageKey),
       );
     navigator.vibrate?.(6);
     setText("");
@@ -832,6 +838,7 @@ export function Composer({
                 item.cancel();
                 toast(t`Upload cancelled`);
               };
+              const kb = Math.max(1, Math.ceil(item.size / 1024));
               return item.preview ? (
                 // biome-ignore lint/a11y/useSemanticElements: one chip of the row
                 <div key={item.id} className="att image uploading" role="listitem">
@@ -844,7 +851,7 @@ export function Composer({
                   <UploadRing name={item.name} p={item.p} onCancel={cancel} />
                   <span className="att-n">
                     <b>{item.name}</b>
-                    <small>{t`Uploading · ${Math.max(1, Math.ceil(item.size / 1024))} KB`}</small>
+                    <small>{t`Uploading · ${kb} KB`}</small>
                   </span>
                 </div>
               );

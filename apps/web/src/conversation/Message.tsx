@@ -2,10 +2,16 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { submitMark } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useSyncExternalStore } from "react";
 import { SubmitMark } from "../components/genui";
 import type { Agent, Message as ApiMessage, Resource } from "../lib/api";
-import { isOutgoingMessage } from "../lib/outgoing-messages";
+import {
+  isOutgoingMessage,
+  type OutgoingMessage,
+  outgoingUploads,
+  outgoingUploadVersion,
+  subscribeOutgoingUploads,
+} from "../lib/outgoing-messages";
 import { CommandChip } from "./commands";
 import {
   type ConversationMessage,
@@ -19,6 +25,7 @@ import {
 } from "./context";
 import { GenUiPart, GenUiSubmitQuote, hasGenUi } from "./GenUiPart";
 import { TextBody } from "./Markdown";
+import { UploadRing } from "./UploadRing";
 import { VoiceNote, voiceFmt } from "./Voice";
 
 /* ONE Message component for every kind (reference msgMarkup, Desktop-37 3785-3801): text and
@@ -198,6 +205,42 @@ function Attachments({ ids, caption }: { ids: string[]; caption?: ReactNode }) {
         <FileChip key={id} id={id} artifact={artifact} />
       ))}
       {!images.length && caption}
+    </>
+  );
+}
+
+/* The files a sent message still waits for (reference uploadMarkup in a bubble, Desktop-37
+   5534-5560): the ring and its cancel while they upload. On a failed row they are files
+   that never arrived, and say so. A file row is not a button: there is nothing to open. */
+function PendingUploads({ message }: { message: OutgoingMessage }) {
+  const ctx = useConversation();
+  useSyncExternalStore(subscribeOutgoingUploads, outgoingUploadVersion);
+  const running = outgoingUploads(message.retry_nonce);
+  const cancel = () => ctx.onCancelUpload(message.retry_nonce);
+  return (
+    <>
+      {(message.uploading ?? []).map((file) => {
+        const upload = running.find((item) => item.id === file.id);
+        const kb = Math.max(1, Math.ceil(file.size / 1024));
+        return upload?.preview ? (
+          <span key={file.id} className="img-msg busy">
+            <img src={upload.preview} alt="" />
+            <UploadRing name={file.name} p={upload.p} onCancel={cancel} />
+          </span>
+        ) : (
+          <div key={file.id} className="file-chip uploading">
+            {upload ? (
+              <UploadRing name={file.name} p={upload.p} onCancel={cancel} />
+            ) : (
+              <Icon name="file" />
+            )}
+            <span>
+              <strong>{file.name}</strong>
+              <small>{upload ? t`Uploading · ${kb} KB` : t`Upload failed`}</small>
+            </span>
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -437,6 +480,13 @@ export function Message({
         {textNode}
       </>
     );
+    if (outgoing?.uploading?.length)
+      body = (
+        <>
+          <PendingUploads message={outgoing} />
+          {body}
+        </>
+      );
   }
   const mark = submitMark(message);
   const note = stopped ? (
@@ -616,15 +666,22 @@ export function Message({
           </span>
         )}
       </div>
-      {failed && outgoing && (
-        <button
-          type="button"
-          className="fail-note"
-          onClick={() => ctx.onRetry(outgoing.retry_nonce)}
-        >
-          <Trans>Not sent · tap to retry</Trans>
-        </button>
-      )}
+      {failed &&
+        outgoing &&
+        (outgoing.uploading?.length ? (
+          // Its files never arrived, so there is nothing to send again.
+          <span className="fail-note">
+            <Trans>The message was not sent</Trans>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="fail-note"
+            onClick={() => ctx.onRetry(outgoing.retry_nonce)}
+          >
+            <Trans>Not sent · tap to retry</Trans>
+          </button>
+        ))}
       <Reactions message={message} />
     </div>
   );

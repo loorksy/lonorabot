@@ -52,6 +52,8 @@ export type ConversationApi = {
   onReact: (message: Message, emoji: string | null) => void;
   onRetry: (nonce: string) => void;
   onDrop: (nonce: string) => void;
+  /** ✕ on the ring of a file still uploading in a sent bubble: the message is withdrawn. */
+  onCancelUpload: (nonce: string) => void;
   onJump: (messageId: string) => void;
   onOpenImage: (artifact: Resource) => void;
   onOpenFile: (artifact: Resource) => void;
