@@ -326,21 +326,23 @@ test.describe("phone shell (390×844, Arabic)", () => {
           top: element.scrollTop,
           rest: element.querySelector(".list-filters").offsetHeight,
           opacity: element.querySelector(".list-filters").style.opacity,
+          // The room to rest that way is the same on every visit.
+          room: element.querySelector("#chat-rows").style.minHeight,
         }));
       await nav.locator('button[data-root="chats"]').click();
       await expect(page).toHaveURL(/\/app$/);
       await expect.poll(async () => (await filters()).opacity).toBe("0");
-      const rest = (await filters()).rest;
+      const { rest, room } = await filters();
       await nav.locator('button[data-root="updates"]').click();
       await expect(page).toHaveURL(/\/app\/updates$/);
       await nav.locator('button[data-root="chats"]').click();
       await expect(page).toHaveURL(/\/app$/);
-      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0" });
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
       await page.locator("#chat-rows .row.thread").first().click();
       await expect(page.locator(".composer")).toBeVisible();
       await page.goBack();
       await expect(page).toHaveURL(/\/app$/);
-      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0" });
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
     } finally {
       fixture({ ...data, action: "cleanup" });
     }
@@ -414,7 +416,7 @@ async function settingsScrollRoundTrip(page) {
 }
 
 test.describe("desktop shell (1280×800, Arabic)", () => {
-  test("the settings page keeps its scroll across an inner page and back", async ({
+  test("the settings page keeps its scroll across an inner page and a rail round trip", async ({
     page,
     context,
   }) => {
@@ -423,6 +425,14 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await signIn(context, data);
       await page.setViewportSize({ width: 1280, height: 800 });
       await settingsScrollRoundTrip(page);
+      const rail = page.locator(".desktop-rail");
+      await rail.getByRole("button", { name: "المهام", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await rail.getByRole("button", { name: "الإعدادات", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect
+        .poll(() => page.locator("#view-scroll").evaluate((element) => element.scrollTop))
+        .toBe(300);
     } finally {
       fixture({ ...data, action: "cleanup" });
     }

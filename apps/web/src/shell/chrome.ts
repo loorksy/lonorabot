@@ -45,7 +45,8 @@ export function syncFilters(main: HTMLElement) {
       : "";
   filters.style.pointerEvents = v < 0.4 ? "none" : "";
 }
-/** Short lists get room to rest with the filters hidden, on every visit. */
+/** Short lists get room to rest with the filters hidden, on every visit. It reads the page's
+ * insets, so it runs again once the shell has measured them for the new page. */
 export function roomForFilters(main: HTMLElement) {
   const filters = listFilters(main);
   const rows = main.querySelector<HTMLElement>("#chat-rows");
@@ -102,7 +103,10 @@ export function syncEdge(main: HTMLElement, top: HTMLElement | null, options: Ed
 /** Where a freshly painted page is scrolled to (the real page and the pager's incoming page). */
 export function placeScroll(main: HTMLElement, viewKey: string) {
   const remembered = rememberedScroll(viewKey);
-  if (remembered !== undefined || !hideFiltersInitially(main)) main.scrollTop = remembered ?? 0;
+  if (remembered !== undefined) {
+    roomForFilters(main);
+    main.scrollTop = remembered;
+  } else if (!hideFiltersInitially(main)) main.scrollTop = 0;
   syncFilters(main);
   syncTitle(main);
 }
@@ -131,6 +135,7 @@ export function useScrollChrome({
     if (!h || !m) return;
     void viewKey;
     layoutOverlays(h);
+    roomForFilters(m);
     syncEdge(m, top.current, options);
     syncTitle(m);
     // The top bar is watched; the tab bar is not (as in the reference): its fold leaves the
