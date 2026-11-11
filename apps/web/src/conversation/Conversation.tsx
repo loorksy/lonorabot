@@ -159,6 +159,14 @@ export function Conversation({
   const [editing, setEditing] = useState<ApiMessage | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Map<string, MessageReaction[]>>(new Map());
+  // «عرض كنص» on a card message: kept for this visit, the card itself is untouched.
+  const [textIds, setTextIds] = useState<ReadonlySet<string>>(new Set());
+  const toggleText = (id: string) =>
+    setTextIds((old) => {
+      const next = new Set(old);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   const [stopped, setStopped] = useState<Set<string>>(new Set());
   const [jump, setJump] = useState<string | null>(jumpTo ? `${jumpTo}#arrival` : null);
   const [actionError, setActionError] = useState<unknown>();
@@ -268,7 +276,13 @@ export function Conversation({
   const activeRuns = stopTargets(runs, threadId);
   const streamingRows = runs
     .map((run) => ({ run, stream: streamForRun(run, streams[run.id]) }))
-    .filter(({ run, stream }) => streamVisible(run, stream, thread.messages))
+    // «بث الرد كلمة بكلمة» off: the reply lands whole. A stopped or failed one still
+    // shows what it has, and the run's own row shows the work meanwhile.
+    .filter(
+      ({ run, stream }) =>
+        streamVisible(run, stream, thread.messages) &&
+        (prefs.stream || stream?.phase !== "streaming"),
+    )
     .flatMap(({ run, stream }) => (stream ? [{ run, stream }] : []));
   const streaming = streamingRows.some(({ stream }) => stream.phase === "streaming");
   const working = activeRuns.some((run) => isWorking(run.status));
@@ -500,6 +514,7 @@ export function Conversation({
     onReact: (message, emoji) => void react(message, emoji),
     onRetry: (nonce) => void thread.retry(nonce).catch(() => undefined),
     onDrop: (nonce) => thread.drop(nonce),
+    textIds,
     onCancelUpload: (nonce) => {
       thread.cancelUploads(nonce);
       toast(t`Upload cancelled`);
@@ -567,6 +582,11 @@ export function Conversation({
           <div className="pop-sep" />
           {item("reply", t`Reply`, () => api_.onReply(message))}
           {!voicePart(message) && item("copy", t`Copy text`, () => void copy(message.content))}
+          {hasGenUi(message) &&
+            prefs.genui &&
+            (textIds.has(message.id)
+              ? item("grid", t`Show the interface`, () => toggleText(message.id))
+              : item("news", t`Show as text`, () => toggleText(message.id)))}
           {ownText && item("edit", t`Edit and resend`, () => api_.onEdit(message))}
           {!hasGenUi(message) &&
             !voicePart(message) &&

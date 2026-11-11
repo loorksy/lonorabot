@@ -317,6 +317,54 @@ async function probe(page) {
   );
 }
 
+test("A01: the card can be read as text, and the interface switches are honoured", async ({
+  page,
+  context,
+}) => {
+  const fixture = await open(page, context, { width: 1280, height: 800 });
+  try {
+    await background("stream", { ...fixture.input, delay: 0 });
+    const alert = card(page);
+    await expect(alert).not.toHaveAttribute("aria-busy", "true");
+    await expect(alert.getByText("لماذا هذه الواجهة؟")).toBeVisible();
+    const message = page.locator(".msg.theirs").last();
+    const menu = async () => {
+      await message.click({ button: "right" });
+      return page.locator(".msg-pop .pop-item");
+    };
+    // «عرض كنص» (reference openMsgMenu, Desktop-37 3885): the card's own text instead.
+    await (await menu()).filter({ hasText: "عرض كنص" }).click();
+    await expect(page.locator(".ux")).toHaveCount(0);
+    await expect(message).not.toHaveClass(/k-ui/);
+    await expect(message.locator(".bubble")).toContainText(/\S/);
+    // …and back to the card, which kept its state.
+    await (await menu()).filter({ hasText: "عرض الواجهة" }).click();
+    await expect(card(page)).toBeVisible();
+    await expect(message).toHaveClass(/k-ui/);
+
+    // «سبب اختيار الواجهة» off: the card stays, its why button goes.
+    await page.evaluate(() =>
+      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ genuiWhy: false })),
+    );
+    await page.reload();
+    await expect(card(page)).toBeVisible();
+    await expect(page.locator(".ux-why-b")).toHaveCount(0);
+
+    // «عناصر تفاعلية في الردود» off: every card is its text, and the menu offers no switch.
+    await page.evaluate(() =>
+      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ genui: false })),
+    );
+    await page.reload();
+    await expect(page.locator(".msg.theirs").last().locator(".bubble")).toContainText(/\S/);
+    await expect(page.locator(".ux")).toHaveCount(0);
+    const items = await menu();
+    await expect(items.filter({ hasText: "نسخ النص" })).toHaveCount(1);
+    await expect(items.filter({ hasText: /عرض كنص|عرض الواجهة/ })).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 for (const theme of ["dark", "light"]) {
   for (const [width, height] of [
     [390, 844],
