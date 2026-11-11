@@ -106,28 +106,28 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
     }
 
 
-async def require_tickets(
-    context: ToolContext, requests: list[TradeRequest], snapshot: dict[str, Any]
-) -> None:
-    """Refuse a first request for a ticket the account does not hold, with those it does.
+async def require_ticket(context: ToolContext, request: TradeRequest) -> None:
+    """Refuse a first request for a ticket the call named and the account does not hold.
 
-    The executor refuses it in any case; said here, before any card, the next call names
-    a real ticket. Nothing is put in the place of the ticket that was named, and a call
-    that already has a record is answered from it, never by this check.
+    The executor refuses it in any case; said here, before any card, with the tickets
+    the account does hold, the next call names a real one. Nothing is put in the place
+    of the ticket named. A call that already has a record is answered from it, never by
+    this check, and an account that cannot be read leaves the request to the executor.
     """
-    for request in requests:
-        if not (request.position_id or request.order_id) or snapshot.get(target_key(request)):
-            continue
-        if not await never_recorded(context, request.operation_id):
-            continue
-        try:
-            broker = await context.brokers.get(context.owner_id, request.account_id)
-            held = await (broker.positions() if request.position_id else broker.orders())
-        except Exception:
-            # The executor answers alone when the account cannot be read here.
-            return
-        kind = "position" if request.position_id else "order"
-        options = [
+    named = request.position_id or request.order_id
+    if not named or not await never_recorded(context, request.operation_id):
+        return
+    try:
+        broker = await context.brokers.get(context.owner_id, request.account_id)
+        held = await (broker.positions() if request.position_id else broker.orders())
+    except Exception:
+        return
+    if any(item.id == named for item in held):
+        return
+    kind = "position" if request.position_id else "order"
+    resolve(
+        request.symbol,
+        [
             Option(
                 item.id,
                 (item.symbol,),
@@ -137,15 +137,12 @@ async def require_tickets(
                 ),
             )
             for item in held
-        ]
-        resolve(
-            request.symbol,
-            options,
-            missing=kind + "_not_found",
-            argument=kind + "_id",
-            use="refuse",
-            listing="account_read",
-        )
+        ],
+        missing=kind + "_not_found",
+        argument=kind + "_id",
+        use="refuse",
+        listing="account_read",
+    )
 
 
 async def reviewed_contracts(
@@ -359,8 +356,14 @@ def halted_receipts(remaining: list[TradeRequest], after: TradeResult) -> list[d
 
 
 async def approved_execution(
-    context: ToolContext, requests: list[TradeRequest], *, gate_only: bool = False
+    context: ToolContext,
+    requests: list[TradeRequest],
+    *,
+    gate_only: bool = False,
+    named_ticket: bool = False,
 ) -> dict[str, Any]:
+    """``named_ticket``: the call itself named the ticket it manages (``trade_execute``).
+    A batch built from the account's own list never is: its exits are never held back."""
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     level = "analysis"
     provisional = False
@@ -397,11 +400,11 @@ async def approved_execution(
         # speech never spends standing authority: the owner's exact approval is the only
         # authority its operations are sent under.
         grants = []
+    if named_ticket and previous is None:
+        await require_ticket(context, requests[0])
     if grants:
         return await account_authorized_execution(context, authority_requests, grants)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
-    if previous is None and not gate_only:
-        await require_tickets(context, requests, initial_snapshot)
     contracts = await reviewed_contracts(context, requests) if previous is None else []
     adding = (
         await new_risk_requests(context, requests) if not gate_only and previous is None else []
@@ -646,7 +649,6 @@ async def account_authorized_execution(
 ) -> dict[str, Any]:
     """Standing authority uses the same executor, journal and independent verification."""
     expected = await management_snapshot(context, requests)
-    await require_tickets(context, requests, expected)
     results: list[dict[str, Any]] = []
     independent = independent_exits(requests)
     for index, (request, identifier) in enumerate(zip(requests, grants, strict=True)):
@@ -749,12 +751,12 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await agent_binding(session, context.owner_id, context.agent_id)
         await require_lease(session, context.lease)
     sized = None
+    managing = args.get("position_id") or args.get("order_id")
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         # A new order names the catalogue's exact symbol. An exit or a change to an
         # existing ticket is never held back by the catalogue: preflight requires the
         # ticket's own symbol.
-        managing = args.get("position_id") or args.get("order_id")
         args["symbol"] = await (canonical_broker_symbol if managing else order_symbol)(
             broker, str(args["symbol"])
         )
@@ -763,7 +765,9 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
     if sized is not None and await never_recorded(context, args["operation_id"]):
         await require_order_size(sized, args["symbol"], args["volume"])
-    return await approved_execution(context, [TradeRequest.model_validate(args)])
+    return await approved_execution(
+        context, [TradeRequest.model_validate(args)], named_ticket=bool(managing)
+    )
 
 
 async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
