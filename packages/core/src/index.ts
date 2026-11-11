@@ -78,6 +78,15 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  availableCommands,
+  COMMAND_ALIAS,
+  type CommandId,
+  type CommandOption,
+  commandQuery,
+  parseCommand,
+  rankCommands,
+} from "./composer-commands";
+export {
   guestCandidates,
   MAX_DIRECT_GUESTS,
   type MentionAddress,
@@ -119,6 +128,7 @@ export {
 } from "./inbox";
 export {
   callPart,
+  commandPart,
   pendingVoiceRich,
   validateAgentRichContent,
   voicePart,
