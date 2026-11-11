@@ -63,8 +63,45 @@ def test_a_failed_operation_inside_a_result_is_put_in_words_too() -> None:
     assert viewed["results"][1] == {"operation_id": "o2", "status": "confirmed", "code": None}
 
 
-def test_everything_that_did_not_fail_is_left_exactly_as_it_is() -> None:
-    read = tool({"ok": True, "code": "no_positions", "results": []})
-    said = ModelMessage(role="assistant", content='the tool said "ok": false and symbol_not_found')
-    broken = ModelMessage(role="tool", tool_call_id="x", content='not json "ok": false')
-    assert failure_view([read, said, broken]) == [read, said, broken]
+def test_a_reason_the_result_already_gives_is_kept_beside_the_codes_words() -> None:
+    closed = tool(
+        {
+            "ok": False,
+            "code": "tool_call_superseded",
+            "reason": "task_wait_requires_fresh_analysis_after_wake",
+        }
+    )
+    assert json.loads(failure_view([closed])[0].content) == {
+        "ok": False,
+        "reason": "tool call superseded: task wait requires fresh analysis after wake",
+    }
+
+
+def test_an_unknown_outcome_and_a_note_are_put_in_words_without_becoming_failures() -> None:
+    unknown = tool(
+        {
+            "status": "ambiguous",
+            "operation_id": "o1",
+            "recovery": {
+                "category": "ambiguous_mutation",
+                "next_action": "reconcile_before_any_resend",
+                "safe_to_retry": False,
+            },
+        }
+    )
+    note = tool({"ok": True, "code": "no_positions", "results": []})
+    seen, noted = (json.loads(m.content) for m in failure_view([unknown, note]))
+    # Not known is not failed: no reason and no ok are invented for it.
+    assert "reason" not in seen and "ok" not in seen and seen["status"] == "ambiguous"
+    assert seen["recovery"]["next_action"] == "reconcile before any resend"
+    assert noted == {"ok": True, "reason": "no positions", "results": []}
+
+
+def test_everything_else_is_left_exactly_as_it_is() -> None:
+    read = tool({"ok": True, "quote": {"bid": "1.1"}, "results": [{"code": None, "id": "o2"}]})
+    # A code that is not one of ours (a currency, a snippet from an outside tool) stays.
+    outside = tool({"ok": True, "code": "USD", "results": [{"code": "print(1)"}]})
+    said = ModelMessage(role="assistant", content='the tool said "code": "symbol_not_found"')
+    broken = ModelMessage(role="tool", tool_call_id="x", content='not json "code": "a_b"')
+    messages = [read, outside, said, broken]
+    assert failure_view(messages) == messages

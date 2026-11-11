@@ -162,8 +162,8 @@ async def main() -> None:
             result = last_tool_result(messages)
             if phase == 2:
                 assert (
-                    result["code"] == "tool_arguments_invalid"
-                    and result["recovery"]["category"] == "invalid_tool_arguments"
+                    result["reason"] == "tool arguments invalid"
+                    and result["recovery"]["category"] == "invalid tool arguments"
                 )
                 return reply(
                     ToolCall(id="schema", name="tool_environment", arguments={"tool_name": "probe"})
@@ -206,8 +206,8 @@ async def main() -> None:
             result = last_tool_result(messages)
             if phase == 5:
                 assert (
-                    result["code"] == "tool_route_exhausted"
-                    and result["recovery"]["next_action"] == "alternate_route"
+                    result["reason"] == "tool route exhausted"
+                    and result["recovery"]["next_action"] == "alternate route"
                 )
                 return reply(ToolCall(id="alternate", name="alternative", arguments={}))
             assert result["ok"]
@@ -275,10 +275,10 @@ async def main() -> None:
                 if phase == 2:
                     assert (
                         last_tool_result(messages)["recovery"]["next_action"]
-                        == "reconcile_before_any_resend"
+                        == "reconcile before any resend"
                     )
                 return reply(ToolCall(id=f"uncertain-{phase}", name="effect", arguments={}))
-            assert last_tool_result(messages)["code"] == "broker_result_ambiguous"
+            assert last_tool_result(messages)["reason"] == "broker result ambiguous"
             return reply()
 
         with patch.object(ctx.router, "complete", uncertain):
@@ -339,7 +339,7 @@ async def main() -> None:
                 return reply(ToolCall(id="interrupted-effect", name="unreceipted", arguments={}))
             result = last_tool_result(messages)
             assert (
-                result["code"] == "tool_execution_uncertain"
+                result["reason"] == "tool execution uncertain"
                 and not result["recovery"]["safe_to_retry"]
             )
             return reply()
@@ -392,7 +392,7 @@ async def main() -> None:
             if phase == 2:
                 assert (
                     result["result_omitted"]
-                    and result["recovery"]["next_action"] == "read_stored_result"
+                    and result["recovery"]["next_action"] == "read stored result"
                 )
                 return reply(
                     ToolCall(
@@ -607,7 +607,7 @@ async def main() -> None:
             nonlocal phase
             phase += 1
             result = last_tool_result(messages)
-            assert result["code"] in {"tool_execution_uncertain", "broker_result_ambiguous"}
+            assert result["reason"] in {"tool execution uncertain", "broker result ambiguous"}
             if phase == 1:
                 return reply(ToolCall(id="renamed-legacy", name="legacy_financial", arguments={}))
             return reply()

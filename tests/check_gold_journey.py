@@ -169,7 +169,7 @@ async def main() -> None:
             await execute_run(context, load_tools(), 120, 12)
         # Nothing the model was handed failed: it never saw a code or a reason to ask.
         assert len(observations) == 3 and all(item["ok"] is True for item in observations)
-        assert not any("code" in item for item in observations)
+        assert not any("code" in item or "reason" in item for item in observations)
         price, spec = (
             next(item for item in observations if "quote" in item),
             next(item for item in observations if "contract_size" in item),
@@ -278,10 +278,11 @@ async def main() -> None:
 
         with patch.object(context.router, "complete", order_model):
             await execute_run(context, load_tools(), 120, 12)
-        assert refusal["ok"] is False and refusal["code"] == "symbol_not_found"
+        # The model reads the failure in words; the Run record keeps the code.
+        assert refusal["ok"] is False and refusal["reason"] == "symbol not found"
         assert refusal["class"] == "resolution" and refusal["retryable"] is True
         assert refusal["next_actions"] == [{"repeat_with": {"symbol": GOLD}}]
-        assert refusal["recovery"]["next_action"] == "follow_hint"
+        assert refusal["recovery"]["next_action"] == "follow hint"
         assert refusal["hint"] == USE_THE_SYMBOL.format(symbol=GOLD)
         assert refusal["candidates"] == [
             {
