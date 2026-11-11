@@ -267,6 +267,12 @@ class MessageRow(Base):
     # Edit and resend (Q21): the original owner message this one replaces; both stay.
     edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
+    # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
+    # own words for any owner-words check.
+    origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
+    ui_submit: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    ui_state: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class MessageReactionRow(Base):
@@ -282,12 +288,6 @@ class MessageReactionRow(Base):
     reactor: Mapped[str] = mapped_column(String(36))
     emoji: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
-    # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
-    # own words for any owner-words check.
-    origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
-    ui_submit: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    ui_state: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class ThreadPrefsRow(Base):
