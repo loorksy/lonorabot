@@ -410,6 +410,13 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
       await expect(page).toHaveURL(new RegExp(`/app/${agent.id}`));
       const chat = page.url();
+      // The chat header keeps its own tight gap and padding, which leaves the title its room.
+      expect(
+        await page.locator("header.chat-head").evaluate((head) => {
+          const style = getComputedStyle(head);
+          return [style.columnGap, style.paddingInlineStart];
+        }),
+      ).toEqual(["2px", "6px"]);
       const chip = page.getByTestId("permission-chip");
       const menu = page.locator(".pop.mode-pop");
       const pages = menu.locator(".mp-pages");

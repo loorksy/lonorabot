@@ -221,7 +221,7 @@ msgstr "{sent, plural, one {أُرسلت رسالة واحدة كانت تنتظ
 msgid "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
 msgstr "{symbol} فقط: كل الإجراءات وصفقاتك أنت حتى الإلغاء؛ وتبقى حدود الحساب سارية"
 
-#: src/shell/ChatHeader.tsx:111
+#: src/shell/ChatHeader.tsx:110
 msgid "{typingName} is typing…"
 msgstr "{typingName} يكتب…"
 
@@ -448,7 +448,7 @@ msgstr "الإجراء"
 
 #: src/conversation/sheets/AgentSheet.tsx:91
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:120
+#: src/shell/ChatHeader.tsx:119
 msgid "Active"
 msgstr "نشط"
 
@@ -686,7 +686,7 @@ msgstr "ملفات الوكيل"
 msgid "Agent identity"
 msgstr "هوية الوكيل"
 
-#: src/shell/ChatHeader.tsx:103
+#: src/shell/ChatHeader.tsx:102
 #: src/shell/ChatMenu.tsx:207
 #: src/shell/pages.tsx:88
 msgid "Agent info"
@@ -1109,7 +1109,7 @@ msgstr "بانتظار المراجعة"
 
 #: src/conversation/PermissionMenu.tsx:361
 #: src/pages/shell/bot-panel.tsx:277
-#: src/shell/ChatHeader.tsx:125
+#: src/shell/ChatHeader.tsx:124
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:49
 #: src/shell/StatePage.tsx:74
@@ -1581,7 +1581,7 @@ msgstr "تجربة المحادثة"
 msgid "Chat list"
 msgstr "قائمة المحادثات"
 
-#: src/shell/ChatHeader.tsx:181
+#: src/shell/ChatHeader.tsx:179
 #: src/shell/ChatMenu.tsx:251
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
@@ -2079,7 +2079,7 @@ msgstr "جارٍ الاتصال"
 #~ msgid "Connecting microphone"
 #~ msgstr "جارٍ توصيل الميكروفون"
 
-#: src/shell/ChatHeader.tsx:108
+#: src/shell/ChatHeader.tsx:107
 msgid "Connecting…"
 msgstr "جارٍ الاتصال…"
 
@@ -3375,7 +3375,7 @@ msgstr "مجموعة"
 msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
-#: src/shell/ChatHeader.tsx:103
+#: src/shell/ChatHeader.tsx:102
 #: src/shell/ChatMenu.tsx:207
 msgid "Group info"
 msgstr "معلومات المجموعة"
@@ -3488,7 +3488,7 @@ msgstr "استيراد بيانات الحساب التجريبي"
 msgid "Imported skill"
 msgstr "مهارة مستوردة"
 
-#: src/shell/ChatHeader.tsx:146
+#: src/shell/ChatHeader.tsx:144
 msgid "In a call"
 msgstr "في مكالمة"
 
@@ -4356,7 +4356,7 @@ msgid "Mute notifications at night"
 msgstr "كتم الإشعارات ليلًا"
 
 #: src/shell/call/CallPages.tsx:371
-#: src/shell/ChatHeader.tsx:146
+#: src/shell/ChatHeader.tsx:144
 #: src/shell/lists/ThreadRow.tsx:199
 #: src/shell/lists/ThreadRow.tsx:199
 msgid "Muted"
@@ -5048,8 +5048,8 @@ msgstr "افتح «الأذونات» ثم «الكاميرا»."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "افتح «الأذونات» ثم «الميكروفون»."
 
-#: src/shell/ChatHeader.tsx:165
-#: src/shell/ChatHeader.tsx:166
+#: src/shell/ChatHeader.tsx:163
+#: src/shell/ChatHeader.tsx:164
 msgid "Open active call"
 msgstr "فتح المكالمة الحالية"
 
@@ -5315,7 +5315,7 @@ msgstr "إيقاف التسجيل مؤقتًا"
 #: src/conversation/Composer.tsx:548
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
-#: src/shell/ChatHeader.tsx:118
+#: src/shell/ChatHeader.tsx:117
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
 
@@ -8246,7 +8246,7 @@ msgstr "اكتب كلمة للبحث في المحادثات والرسائل و
 msgid "Typing"
 msgstr "يكتب"
 
-#: src/shell/ChatHeader.tsx:116
+#: src/shell/ChatHeader.tsx:115
 msgid "Typing…"
 msgstr "يكتب…"
 
@@ -8541,8 +8541,8 @@ msgstr "الرؤية"
 #~ msgid "Voice"
 #~ msgstr "الصوت"
 
-#: src/shell/ChatHeader.tsx:165
-#: src/shell/ChatHeader.tsx:166
+#: src/shell/ChatHeader.tsx:163
+#: src/shell/ChatHeader.tsx:164
 msgid "Voice call"
 msgstr "اتصال صوتي"
 
@@ -8635,7 +8635,7 @@ msgid "Waiting for the broker's answer…"
 msgstr "بانتظار رد الوسيط…"
 
 #: src/conversation/Message.tsx:69
-#: src/shell/ChatHeader.tsx:106
+#: src/shell/ChatHeader.tsx:105
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "بانتظار الشبكة…"

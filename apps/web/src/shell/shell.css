@@ -1023,8 +1023,9 @@ header.chats-header.search-active .header-search {
   scrollbar-width: none;
 }
 
-/* Chat header: name and presence (phase 3 owns the conversation itself) */
-.chat-head {
+/* Chat header: name and presence (phase 3 owns the conversation itself). Named with its
+   header so it outranks the shared header's gap and padding. */
+.topbar header.chat-head {
   gap: 2px;
   padding-inline: 6px;
 }

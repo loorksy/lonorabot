@@ -5,7 +5,6 @@ import { GroupAvatar, Icon } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
-import { PersonalAgentBadge } from "../components/ai/PersonalAgentBadge";
 import { useChatPrefs } from "../conversation/prefs";
 import {
   SafetyCapsule,
@@ -139,7 +138,6 @@ export function ChatHeader({
         <div className="chat-title">
           <button type="button" className="chat-name" onClick={onInfo} dir="auto">
             {name}
-            <PersonalAgentBadge agent={agent} />
           </button>
           {onThisCall ? (
             <span className={`presence oncall${voice.muted ? " muted" : ""}`}>

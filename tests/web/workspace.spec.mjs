@@ -639,7 +639,7 @@ test("cancelled durable task stays cancelled after reload and offers no completi
   await expect(page.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
 });
 
-test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gold role badge", async ({
+test("agents are never deleted from the UI (Q1) and the chat header carries no role badge", async ({
   page,
   context,
   workspace,
@@ -654,11 +654,12 @@ test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gol
       deletes.push(request.url());
   });
   await page.goto(`/app/${personal.id}`);
-  // The reference's list rows carry no role badge; the chat header keeps it.
+  // Lonora is told apart by its avatar alone: no role badge in the list or the chat header.
   await expect(page.locator(`.desktop-list [data-inbox-agent-id="${personal.id}"]`)).toBeVisible();
+  await expect(page.locator(".chat-head .chat-name")).toBeVisible();
   await expect(
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/agent\/[^/]+$/);
   await expect(page.locator("main .hero")).toBeVisible();

@@ -194,7 +194,12 @@ export function agentStatusLine(
   if (work?.kind === "searching") return text.searching;
   if (state.state === "action_required") return text.action_required;
   const watches = state.watches ?? [];
-  if (state.phase !== "monitoring" || !watches.length) return text[state.state];
+  if (state.phase !== "monitoring" || !watches.length) {
+    // The owner's words for an agent: busy on its own is «يحلّل», quiet is «نشط». A service
+    // problem keeps its own sentence: «نشط» would then be untrue.
+    if (state.state === "working") return text.analysing;
+    return state.state === "degraded" ? text.degraded : text.idle;
+  }
   const first = watches[0];
   if (!first) return text.monitoring;
   const subject = first.symbol ? isolate(first.symbol) : watchCondition(first, locale);

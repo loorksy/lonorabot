@@ -92,7 +92,7 @@ test("the status line uses the reference's own words", () => {
       { ...analysing, current_work: { ...analysing.current_work, kind: "other" } },
       "ar",
     ),
-    "يعمل",
+    "يحلّل",
   );
   assert.equal(agentStatusLine(watching, "ar", now), "يراقب ⁨XAUUSD⁩");
 });
@@ -127,6 +127,19 @@ test("the status line follows the reference priority, most urgent first", () => 
     current_work: { kind: "analysing", text: "", until: null, run_id: "r" },
   };
   assert.equal(agentStatusLine(working, "ar"), "يحلّل");
+});
+
+test("the status line keeps to the owner's words when the server names no kind of work", () => {
+  // A run with no named family is the agent busy on its own; queued work is a quiet agent.
+  const busy: AgentLiveState = { ...idle, state: "working", phase: "thinking" };
+  assert.equal(agentStatusLine(busy, "ar"), "يحلّل");
+  assert.equal(agentStatusLine(busy, "en"), "Analysing");
+  const queued: AgentLiveState = { ...idle, state: "waiting", phase: "queued" };
+  assert.equal(agentStatusLine(queued, "ar"), "نشط");
+  assert.equal(agentStatusLine(queued, "en"), agentStatusLine(idle, "en"));
+  // A service problem is said as it is, never as «نشط».
+  const unwell: AgentLiveState = { ...idle, state: "degraded" };
+  assert.notEqual(agentStatusLine(unwell, "ar"), "نشط");
 });
 
 function journal(status: Journal["status"], extra: Partial<Journal> = {}): Journal {

@@ -221,7 +221,7 @@ msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messa
 msgid "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
 msgstr "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
 
-#: src/shell/ChatHeader.tsx:111
+#: src/shell/ChatHeader.tsx:110
 msgid "{typingName} is typing…"
 msgstr "{typingName} is typing…"
 
@@ -448,7 +448,7 @@ msgstr "Action"
 
 #: src/conversation/sheets/AgentSheet.tsx:91
 #: src/lib/goal-status.ts:6
-#: src/shell/ChatHeader.tsx:120
+#: src/shell/ChatHeader.tsx:119
 msgid "Active"
 msgstr "Active"
 
@@ -686,7 +686,7 @@ msgstr "Agent files"
 msgid "Agent identity"
 msgstr "Agent identity"
 
-#: src/shell/ChatHeader.tsx:103
+#: src/shell/ChatHeader.tsx:102
 #: src/shell/ChatMenu.tsx:207
 #: src/shell/pages.tsx:88
 msgid "Agent info"
@@ -1109,7 +1109,7 @@ msgstr "Awaiting review"
 
 #: src/conversation/PermissionMenu.tsx:361
 #: src/pages/shell/bot-panel.tsx:277
-#: src/shell/ChatHeader.tsx:125
+#: src/shell/ChatHeader.tsx:124
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:49
 #: src/shell/StatePage.tsx:74
@@ -1581,7 +1581,7 @@ msgstr "Chat experience"
 msgid "Chat list"
 msgstr "Chat list"
 
-#: src/shell/ChatHeader.tsx:181
+#: src/shell/ChatHeader.tsx:179
 #: src/shell/ChatMenu.tsx:251
 msgid "Chat menu"
 msgstr "Chat menu"
@@ -2079,7 +2079,7 @@ msgstr "Connecting"
 #~ msgid "Connecting microphone"
 #~ msgstr "Connecting microphone"
 
-#: src/shell/ChatHeader.tsx:108
+#: src/shell/ChatHeader.tsx:107
 msgid "Connecting…"
 msgstr "Connecting…"
 
@@ -3381,7 +3381,7 @@ msgstr "Group"
 msgid "Group from the selected"
 msgstr "Group from the selected"
 
-#: src/shell/ChatHeader.tsx:103
+#: src/shell/ChatHeader.tsx:102
 #: src/shell/ChatMenu.tsx:207
 msgid "Group info"
 msgstr "Group info"
@@ -3494,7 +3494,7 @@ msgstr "Import the demo account data"
 msgid "Imported skill"
 msgstr "Imported skill"
 
-#: src/shell/ChatHeader.tsx:146
+#: src/shell/ChatHeader.tsx:144
 msgid "In a call"
 msgstr "In a call"
 
@@ -4362,7 +4362,7 @@ msgid "Mute notifications at night"
 msgstr "Mute notifications at night"
 
 #: src/shell/call/CallPages.tsx:371
-#: src/shell/ChatHeader.tsx:146
+#: src/shell/ChatHeader.tsx:144
 #: src/shell/lists/ThreadRow.tsx:199
 #: src/shell/lists/ThreadRow.tsx:199
 msgid "Muted"
@@ -5054,8 +5054,8 @@ msgstr "Open “Permissions”, then “Camera”."
 msgid "Open “Permissions”, then “Microphone”."
 msgstr "Open “Permissions”, then “Microphone”."
 
-#: src/shell/ChatHeader.tsx:165
-#: src/shell/ChatHeader.tsx:166
+#: src/shell/ChatHeader.tsx:163
+#: src/shell/ChatHeader.tsx:164
 msgid "Open active call"
 msgstr "Open active call"
 
@@ -5321,7 +5321,7 @@ msgstr "Pause recording"
 #: src/conversation/Composer.tsx:548
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
-#: src/shell/ChatHeader.tsx:118
+#: src/shell/ChatHeader.tsx:117
 msgid "Paused"
 msgstr "Paused"
 
@@ -8252,7 +8252,7 @@ msgstr "Type a word to search chats, messages, tasks and files."
 msgid "Typing"
 msgstr "Typing"
 
-#: src/shell/ChatHeader.tsx:116
+#: src/shell/ChatHeader.tsx:115
 msgid "Typing…"
 msgstr "Typing…"
 
@@ -8547,8 +8547,8 @@ msgstr "Vision"
 #~ msgid "Voice"
 #~ msgstr "Voice"
 
-#: src/shell/ChatHeader.tsx:165
-#: src/shell/ChatHeader.tsx:166
+#: src/shell/ChatHeader.tsx:163
+#: src/shell/ChatHeader.tsx:164
 msgid "Voice call"
 msgstr "Voice call"
 
@@ -8641,7 +8641,7 @@ msgid "Waiting for the broker's answer…"
 msgstr "Waiting for the broker's answer…"
 
 #: src/conversation/Message.tsx:69
-#: src/shell/ChatHeader.tsx:106
+#: src/shell/ChatHeader.tsx:105
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Waiting for the network…"
 msgstr "Waiting for the network…"
