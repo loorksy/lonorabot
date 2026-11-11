@@ -407,9 +407,9 @@ nav.tabbar.paging .active.unpeek {
   box-shadow:
     var(--hi),
     0 4px 14px rgba(0, 0, 0, 0.22);
-  /* Its width is set at once; the stretch while paging is a scaleX from the leading edge. */
-  transform-origin: 0 50%;
-  transition: transform 0.42s var(--spring);
+  transition:
+    transform 0.42s var(--spring),
+    width 0.32s var(--ease);
 }
 nav.tabbar.dragging .nav-lens {
   background: color-mix(in srgb, var(--text) 14%, transparent);

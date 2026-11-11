@@ -345,6 +345,56 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+
+  test("a tab change moves the lens once, straight to the new tab", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/app/updates");
+      const nav = page.locator("nav.tabbar");
+      await expect(nav.locator('button[data-root="updates"]')).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      for (const [from, to] of [
+        ["updates", "tasks"],
+        ["tasks", "updates"],
+        ["updates", "settings"],
+      ]) {
+        await expect(nav.locator(`button[data-root="${from}"]`)).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        await page.waitForTimeout(500);
+        const trace = await page.evaluate(async (to) => {
+          const nav = document.querySelector("nav.tabbar");
+          const lens = nav.querySelector(".nav-lens");
+          const target = nav.querySelector(`button[data-root="${to}"]`);
+          const left = () => lens.getBoundingClientRect().left;
+          const xs = [left()];
+          target.click();
+          const end = performance.now() + 1500;
+          while (performance.now() < end) {
+            await new Promise(requestAnimationFrame);
+            xs.push(left());
+          }
+          return { xs, goal: target.getBoundingClientRect().left };
+        }, to);
+        const { xs, goal } = trace;
+        expect(Math.abs(xs.at(-1) - goal)).toBeLessThan(1);
+        // Once the lens has reached the new tab it never leaves it again.
+        const arrived = xs.findIndex((x) => Math.abs(x - goal) < 2);
+        expect(arrived).toBeGreaterThan(0);
+        for (const x of xs.slice(arrived)) expect(Math.abs(x - goal)).toBeLessThan(6);
+        // On the way it only travels toward the new tab.
+        const dir = Math.sign(goal - xs[0]);
+        for (let i = 1; i < arrived; i++) expect((xs[i] - xs[i - 1]) * dir).toBeGreaterThan(-2);
+      }
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
 });
 
 /** Leave the settings page scrolled, open an inner page, come back: the list is where it was. */
