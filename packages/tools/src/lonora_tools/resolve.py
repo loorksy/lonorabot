@@ -101,6 +101,19 @@ def _matches(requested: str, options: Sequence[Option]) -> tuple[list[tuple[Opti
     return list(once.values()), exact
 
 
+def several(code: str, requested: str, argument: str, options: Sequence[Option]) -> NotResolved:
+    """The refusal for more than one item: the caller never chooses between them."""
+    return _refusal(
+        code,
+        requested,
+        argument,
+        hint=ASK_WHICH,
+        retryable=False,
+        next_actions=[{"ask_owner": "which_one"}],
+        candidates=[_shown(option) for option in options],
+    )
+
+
 def resolve(
     requested: str,
     options: Sequence[Option],
@@ -109,20 +122,25 @@ def resolve(
     argument: str,
     use: Use,
     listing: str | None = None,
-) -> tuple[str, dict[str, Any]]:
-    """The id ``requested`` stands for, and what to state in the result when it was a name.
+) -> tuple[str, dict[str, Any] | None]:
+    """The id ``requested`` stands for, and the note to state when it was a name.
 
     ``missing`` is the tool's own not-found code; ``listing`` is the tool that lists what
     exists, named in the refusal when nothing fits.
     """
     for option in options:
-        if option.id == requested:
-            return option.id, {}
+        # The same id whatever its letter case.
+        if option.id.casefold() == requested.strip().casefold():
+            return option.id, None
     found, exact = _matches(requested, options)
     if len(found) == 1 and (use == "any" or (use == "exact" and exact)):
         option, label = found[0]
-        stated = {"argument": argument, "requested": requested[:MAXIMUM_TEXT], "id": option.id}
-        return option.id, {"resolved": {**stated, "label": label[:MAXIMUM_TEXT]}}
+        return option.id, {
+            "argument": argument,
+            "requested": requested[:MAXIMUM_TEXT],
+            "id": option.id,
+            "label": label[:MAXIMUM_TEXT],
+        }
     if len(found) == 1:
         option = found[0][0]
         raise _refusal(
@@ -135,14 +153,11 @@ def resolve(
             candidates=[_shown(option)],
         )
     if found:
-        raise _refusal(
+        raise several(
             missing.removesuffix("_not_found") + "_ambiguous",
             requested,
             argument,
-            hint=ASK_WHICH,
-            retryable=False,
-            next_actions=[{"ask_owner": "which_one"}],
-            candidates=[_shown(option) for option, _ in found],
+            [option for option, _ in found],
         )
     words = {word for word in fold(requested).split() if len(word) >= MINIMUM_PARTIAL}
     near = [
@@ -160,3 +175,11 @@ def resolve(
         candidates=[_shown(option, similar=True) for option in near],
         existing=[] if near else [_shown(option) for option in options],
     )
+
+
+def stating(result: dict[str, Any], *notes: dict[str, Any] | None) -> dict[str, Any]:
+    """``result`` with what was taken from a name, so the model says which item it was."""
+    said = [note for note in notes if note]
+    if not said:
+        return result
+    return {**result, "resolved": [*result.get("resolved", []), *said]}

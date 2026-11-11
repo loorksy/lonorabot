@@ -1,7 +1,7 @@
 """One resolver: the id itself, one item that fits, several, none."""
 
 import pytest
-from lonora_tools.resolve import NotResolved, Option, resolve
+from lonora_tools.resolve import NotResolved, Option, resolve, stating
 
 WATCHES = [
     Option("w-1", ("EURUSD", "EURUSD above 1.10"), {"symbol": "EURUSD"}),
@@ -24,32 +24,25 @@ def refused(requested: str, options: list[Option], use: str) -> NotResolved:
 
 
 def test_an_id_is_itself_and_nothing_is_stated() -> None:
-    assert resolve("w-2", WATCHES, missing="x_not_found", argument="watch_id", use="refuse") == (
-        "w-2",
-        {},
-    )
+    found = resolve("w-2", WATCHES, missing="x_not_found", argument="watch_id", use="refuse")
+    assert found == ("w-2", None)
+    assert stating({"ok": True}, None) == {"ok": True}
 
 
 def test_a_read_uses_the_one_item_a_name_fits_and_says_so() -> None:
     # Arabic folds as the owner's search does: أ and ا, ة and ه, tashkeel.
-    found = resolve(
+    identifier, note = resolve(
         "الذَّهب فوق 4100", WATCHES, missing="x_not_found", argument="watch_id", use="any"
     )
-    assert found == (
-        "w-2",
-        {
-            "resolved": {
-                "argument": "watch_id",
-                "requested": "الذَّهب فوق 4100",
-                "id": "w-2",
-                "label": "الذهب فوق 4100",
-            }
-        },
-    )
-    assert (
-        resolve("eurusd abo", WATCHES, missing="x_not_found", argument="watch_id", use="any")[0]
-        == "w-1"
-    )
+    assert identifier == "w-2" and note == {
+        "argument": "watch_id",
+        "requested": "الذَّهب فوق 4100",
+        "id": "w-2",
+        "label": "الذهب فوق 4100",
+    }
+    assert stating({"cancelled": True}, note, None) == {"cancelled": True, "resolved": [note]}
+    partial = resolve("eurusd abo", WATCHES, missing="x_not_found", argument="watch_id", use="any")
+    assert partial[0] == "w-1"
 
 
 def test_a_stop_uses_only_an_exact_name_and_a_change_never_uses_a_name() -> None:
