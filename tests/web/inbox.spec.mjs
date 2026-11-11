@@ -284,7 +284,11 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
     releaseThreads();
     releaseMessages();
     releaseBackground();
-    // Logout intentionally invalidated this session; deletion may be refused.
-    // The isolated fixture database is dropped by the browser-test harness.
+    // Logout invalidated this session: the fixture's own cleanup signs in itself and
+    // deletes the agent bound to its account, so it never counts against the agent cap.
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...fixture, action: "cleanup" }),
+      encoding: "utf8",
+    });
   }
 });

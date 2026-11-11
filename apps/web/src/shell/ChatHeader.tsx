@@ -24,7 +24,6 @@ export function ChatHeader({
   agent,
   group,
   memberAgents,
-  agents,
   working,
   avatarState,
   net,
@@ -33,6 +32,7 @@ export function ChatHeader({
   onInfo,
   onCall,
   onMenu,
+  menuReady,
 }: {
   agent?: Agent;
   group?: Resource;
@@ -46,6 +46,8 @@ export function ChatHeader({
   onInfo: () => void;
   onCall: () => void;
   onMenu: () => void;
+  /** The agent or group the menu is built from has loaded. */
+  menuReady: boolean;
 }) {
   const name = group ? String(group.payload.name) : (agent?.name ?? "Lonora");
   const prefs = useChatPrefs();
@@ -147,7 +149,13 @@ export function ChatHeader({
             <Icon name="phone" />
           </button>
         )}
-        <button type="button" className="icon" aria-label={t`Chat menu`} onClick={onMenu}>
+        <button
+          type="button"
+          className="icon"
+          aria-label={t`Chat menu`}
+          disabled={!menuReady}
+          onClick={onMenu}
+        >
           <Icon name="more" />
         </button>
       </header>

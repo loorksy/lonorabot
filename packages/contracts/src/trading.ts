@@ -72,6 +72,9 @@ export type Trade = {
   price?: string;
   stop_loss?: string;
   take_profit?: string;
+  /** modify_position: remove the stop or the target (the server decides if that is allowed). */
+  clear_stop_loss?: boolean;
+  clear_take_profit?: boolean;
   position_id?: string;
   order_id?: string;
 };

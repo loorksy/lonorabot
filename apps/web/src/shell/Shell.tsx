@@ -679,6 +679,7 @@ function ShellBody() {
         else if (agent) void voice.start(agent, new URLSearchParams(location.search).get("thread"));
       }}
       onMenu={menu.openMenu}
+      menuReady={menu.ready}
     />
   ) : undefined;
   const mainClass = [

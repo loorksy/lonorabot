@@ -73,12 +73,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
     const panel = page.locator("#dialog");
+    // Q37: the reference's chart sheet draws the chart's candles as SVG.
     await expect(
-      panel
-        .locator(`[data-chart-id='${data.chart}']`)
-        .frameLocator(".chart-renderer iframe")
-        .locator("canvas")
-        .first(),
+      panel.locator(`[data-chart-id='${data.chart}'] svg.chart > g > rect`).first(),
     ).toBeVisible();
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
@@ -132,8 +129,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     expect(created.template).toBe("trading");
     expect(created.trading_symbol).toBe(data.symbol);
     expect(created.description).toBe("Review exposure before trading.");
-    await expect(page).toHaveURL(new RegExp(`/app/${created.id}$`));
-    await page.reload();
+    // The new agent lands on its own page (phase 4a); its conversation reloads as before.
+    await expect(page).toHaveURL(new RegExp(`/app/agent/${created.id}$`));
+    await page.goto(`/app/${created.id}`);
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
     await expect(

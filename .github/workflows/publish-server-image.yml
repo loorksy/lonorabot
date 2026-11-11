@@ -19,10 +19,17 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
             type=sha
+      - id: stamp
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # Stamped into /app/release.json, which `lonora update` reads before installing.
+          build-args: |
+            LONORA_VERSION=${{ github.ref_name }}
+            LONORA_GIT_SHA=${{ github.sha }}
+            LONORA_BUILT_AT=${{ steps.stamp.outputs.built_at }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

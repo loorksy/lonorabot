@@ -3,7 +3,6 @@ import { Trans } from "@lingui/react/macro";
 import { showsTradingControl } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback } from "react";
-import { ConversationCharts } from "../components/charts/ConversationCharts";
 import { TradingGoals } from "../components/goals/TradingGoals";
 import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
@@ -14,6 +13,7 @@ import { GroupSettings } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
 import { AgentSettings } from "../pages/shell/bot-settings";
 import { useClient } from "../providers/ClientProvider";
+import { useChartSheet } from "./agent/ChartSheet";
 import { useShellData } from "./data";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
@@ -88,37 +88,29 @@ export function useChatMenu({
       (agent.template === "trading" ||
         showsTradingControl({ role: agent.role, trading_account_id: agent.trading_account_id })),
   );
-  // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
+  // The chart sheet (chart.sheet, Q37): the agent's pair, or the chart an answer named.
+  const chartSheet = useChartSheet();
   const openChart = useCallback(
-    (chartId?: string) => {
-      const title = t`Chart`;
-      sheets.open({
-        id: "chart",
-        expand: true,
-        title,
-        label: title,
-        body: (
-          <div className="grow legacy-surface">
-            <ConversationCharts
-              key={agent?.id ?? group?.id}
-              preferredChartId={chartId}
-              agentId={agent?.id}
-              binding={
-                agent?.trading_account_id && agent.trading_symbol
-                  ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
-                  : undefined
-              }
-              threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
-              onOpenMarket={() => nav.go("/app/market")}
-            />
-          </div>
-        ),
-      });
-    },
-    [sheets, nav, agent, group],
+    (chartId?: string) =>
+      chartSheet(
+        agent?.trading_account_id && agent.trading_symbol
+          ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
+          : null,
+        {
+          agentId: agent?.id,
+          chartId,
+          threadId: group?.state?.thread_id ? String(group.state.thread_id) : undefined,
+        },
+      ),
+    [chartSheet, agent, group],
   );
+  // Every page is built from the loaded agent or group (a group's from its member agents),
+  // and the sheet keeps the body it opened with: before they arrive nothing opens, from the
+  // ⋮ button, the avatar or the name alike.
+  const ready = Boolean(agent || (group && !data.agentsLoading));
   const openPage = useCallback(
     (page: MenuPage, dir?: "fwd" | "back") => {
+      if (!ready) return;
       const title =
         page === "menu"
           ? t`Chat menu`
@@ -238,6 +230,7 @@ export function useChatMenu({
       memberAgents,
       refresh,
       openChart,
+      ready,
       prefs.agentStatus,
       statusSheet,
       trading,
@@ -245,6 +238,7 @@ export function useChatMenu({
     ],
   );
   return {
+    ready,
     openMenu: () => openPage("menu"),
     openInfo: () => openPage("info"),
     openChart,

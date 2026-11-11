@@ -62,6 +62,9 @@ export default defineConfig({
       NODE_ENV: mobile ? "production" : "development",
       LONORA_DATABASE_URL: database,
       LONORA_COOKIE_SECURE: "false",
+      // Every worker signs in from 127.0.0.1: the production limit (10/min per route) is for
+      // brute force, not for a test run.
+      LONORA_AUTH_RATE_LIMIT_PER_MINUTE: "10000",
       LONORA_ALLOWED_ORIGIN: baseURL,
       LONORA_WEB_ROOT: output,
       LONORA_CHART_RENDERER_ROOT: rendererOutput,

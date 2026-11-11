@@ -1,4 +1,5 @@
-# Optional private research services. Use with the production Compose file.
+# Optional private research services, off unless listed in LONORA_COMPOSE_OVERLAYS (they
+# add about 1.1 GB; leave them off on a shared host). Use with the production Compose file.
 # Only the gateway joins this bridge; browser/search have no database network,
 # application secrets, application volumes, or published host ports.
 services:
@@ -35,7 +36,8 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
       - /var/cache/searxng:size=64m,mode=1777
-    mem_limit: 512m
+    mem_limit: ${LONORA_SEARXNG_MEMORY:-384m}
+    cpus: ${LONORA_SEARXNG_CPUS:-0.25}
     pids_limit: 128
   browser:
     image: ${LONORA_IMAGE:-ghcr.io/loorksy/lonorabot:main}
@@ -58,7 +60,8 @@ services:
       retries: 10
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    mem_limit: 1g
+    mem_limit: ${LONORA_BROWSER_MEMORY:-768m}
+    cpus: ${LONORA_BROWSER_CPUS:-0.5}
     pids_limit: 256
 networks:
   research:
