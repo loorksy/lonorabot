@@ -15,10 +15,11 @@ from lonora_core.user_error import LonoraError
 from lonora_session.idempotency import stable_id
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from .events import emit
 from .runs import aware, failure_data, run_data
-from .schema import MessageRow, RunRow, TradeApprovalRow, TradingJournalRow
+from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
 from .transactions import owned_agent, owned_thread
 from .voice_provenance import carry_voice_handoff
 
@@ -146,3 +147,49 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         payload={"run": run_data(retry), "retry_of": row.id},
     )
     return retry
+
+
+async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRow]:
+    """Queue again every reply that failed only because no model was configured.
+
+    Called when the owner connects a provider or chooses a model. Each failed message
+    gets its retry, oldest first, so a conversation is answered in the order it was
+    written (a worker claims a conversation's Runs oldest first); the owner does not
+    have to find and tap every card. The same rules as the owner's own retry apply
+    (``retry_run``), and a reply that cannot be retried is left as it is. A failure the
+    conversation has moved past (a later message there was answered) stays history.
+    """
+    later = aliased(RunRow)
+    moved_on = (
+        select(later.id)
+        .where(
+            later.thread_id == RunRow.thread_id,
+            later.input_seq > RunRow.input_seq,
+            later.status == "completed",
+            later.trigger.in_(RETRYABLE_TRIGGERS),
+        )
+        .exists()
+    )
+    failed = list(
+        await session.scalars(
+            select(RunRow)
+            .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
+            .where(
+                ThreadRow.owner_id == owner_id,
+                RunRow.status == "failed",
+                RunRow.error_code == "model_not_configured",
+                RunRow.trigger.in_(RETRYABLE_TRIGGERS),
+                ~moved_on,
+            )
+            .order_by(RunRow.input_seq, RunRow.created_at)
+        )
+    )
+    retried: list[RunRow] = []
+    for row in failed:
+        if await session.get(RunRow, stable_id(row.id, "run-retry")) is not None:
+            continue
+        try:
+            retried.append(await retry_run(session, owner_id, row.id))
+        except LonoraError:
+            continue
+    return retried

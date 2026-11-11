@@ -46,6 +46,45 @@ for every Agent. The patterns are narrow for the same reason: a missing model
 needs the word "model" in the phrase, and bare "billing" or "authentication"
 is not enough.
 
+## No model configured is not an outage
+
+`model_not_configured` means there is nothing to ask: no route, no backup, no model
+the owner allowed, or no key for any of them. It is a state of the installation, not
+a provider failure, and it is never shown as one.
+
+- **A new installation answers.** When a text request has no candidate at all and a
+  provider key exists, the router chooses a model once and records it as the unified
+  route in `model_routing` (`lonora_providers/default_model.py`), so Settings show it
+  and the owner changes it there like their own choice. Providers are taken in registry
+  order; each one's own catalog is read (and stored), and the first family of
+  `PREFERRED_FAMILIES` that catalog lists is taken: the exact id, else its newest dated
+  snapshot. An id the provider does not list is never chosen, so a stale preference
+  chooses nothing rather than a model that does not exist. Speech routes, a
+  consultation's named models, and reads of the route (the model card, `model_list`)
+  never choose. An owner's own route, backup or allowed model is never replaced.
+- **Nothing to choose.** No key, or no listed family: the Run fails with
+  `model_not_configured`. The Web error card then reads «لم يُضبط نموذج بعد» with the
+  existing notice («اربط مزودًا واختر نموذجًا…») and one action that opens the model
+  settings, where the provider keys are; Mobile shows the same state in its Run line.
+  The outage card («النموذج غير متاح حاليًا») is for a provider that could not be reached.
+- **A provider that cannot be asked** while the default is being chosen is passed over
+  for the next one; if none gives a model, its own classified failure is raised, so an
+  outage backs off and retries like any other, and a rejected key reads as a rejected
+  key.
+- **What failed is answered.** When the owner saves a provider key, the global routes,
+  the backups or the allowed models, every conversational reply that failed with
+  `model_not_configured` and was not retried yet is queued again
+  (`run_retry.retry_unconfigured`), oldest message first, under the same rules as the
+  owner's own retry (never a Run with a financial operation or one that started other
+  work). The owner no longer has to find and tap each card: before, each failed message
+  needed its own tap, and a message whose retry had failed again stayed unanswered. A
+  failure the conversation has moved past (a later message there was answered) stays
+  history.
+- **Installing.** `scripts/install.sh` writes no provider key; keys arrive through
+  Settings, the environment (`LONORA_<PROVIDER>_API_KEY`) or the one-off import in
+  `docs/handoff/vps/import_secrets.py`, which now chooses the default as its last
+  provider step and prints it. Whichever way they arrive, the first request chooses.
+
 ## One request: retries, fallback and cooldown
 
 `GlobalModelRouter.complete` tries an ordered, de-duplicated chain of at most

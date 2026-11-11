@@ -25,6 +25,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_context import UNKNOWN_OUTPUT_TOKENS, ModelContextPolicy
 from lonora_contracts.model_routing import (
+    TEXT_CAPABILITIES,
     AgentModelRecord,
     Capability,
     ModelSelection,
@@ -44,6 +45,7 @@ from .context import (
     prepare_context,
 )
 from .credentials import ProviderCredentials
+from .default_model import choose_default_model
 from .registry import model_adapter
 from .resilience import (
     MAXIMUM_INLINE_WAIT_SECONDS,
@@ -137,6 +139,7 @@ class GlobalModelRouter:
         self.db, self.credentials, self.factory = db, credentials, factory
         self.sleep, self.jitter = sleep, jitter
         self.health = ProviderHealth(clock)
+        self.choosing = asyncio.Lock()
 
     async def route(
         self,
@@ -211,6 +214,39 @@ class GlobalModelRouter:
             raise LonoraError("model_not_configured", 409)
         return route
 
+    async def usable_route(
+        self,
+        capability: Capability,
+        *,
+        owner_id: str | None = None,
+        agent_id: str | None = None,
+        choices: Sequence[ModelSelection] | None = None,
+        run_choice: ModelSelection | None = None,
+    ) -> Route:
+        """``route`` for a request that is about to be made. When text work has no model
+        at all and a provider key exists, the default is chosen and recorded once
+        (``default_model``), so a new installation answers without a routing setting."""
+        try:
+            return await self.route(
+                capability,
+                owner_id=owner_id,
+                agent_id=agent_id,
+                choices=choices,
+                run_choice=run_choice,
+            )
+        except LonoraError as error:
+            if (
+                error.code != "model_not_configured"
+                or choices is not None
+                or capability not in TEXT_CAPABILITIES
+            ):
+                raise
+        async with self.choosing:
+            await choose_default_model(self.db, self.credentials, self.factory)
+        return await self.route(
+            capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
+        )
+
     async def context_limits(
         self,
         capability: Capability,
@@ -225,7 +261,7 @@ class GlobalModelRouter:
         Runtime compaction plans against these; every attempt, fallbacks included,
         is still admitted separately against its own window.
         """
-        route = await self.route(
+        route = await self.usable_route(
             capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
         )
         choice = route.choices[0]
@@ -258,7 +294,7 @@ class GlobalModelRouter:
         tightens admission after a provider-proven overflow.
         """
         started = monotonic()
-        route = await self.route(
+        route = await self.usable_route(
             capability,
             owner_id=owner_id,
             agent_id=agent_id,

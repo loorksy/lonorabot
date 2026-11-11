@@ -4,12 +4,20 @@ from lonora_contracts.model_backups import ModelBackups
 from lonora_contracts.model_context import ModelContextPolicy
 from lonora_contracts.model_routing import AllowedModels, RoutingPolicy
 from lonora_db.agent_models import added_models, routed_models, save_added_models
+from lonora_db.run_retry import retry_unconfigured
 from lonora_db.transactions import SettingsRepository
 from lonora_providers.routing_policy import read_policy, save_policy
 
 from ..middleware.auth import require_owner, runtime
 
 router = APIRouter(prefix="/settings/models")
+
+
+async def answer_unconfigured(request: Request, owner: OwnerIdentity) -> None:
+    """A model may be available now: the replies that failed only for lack of one are
+    queued again, in order, so no message of that time is left without an answer."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        await retry_unconfigured(session, owner.id)
 
 
 @router.get("")
@@ -22,6 +30,7 @@ async def write(
     request: Request, body: RoutingPolicy, owner: OwnerIdentity = Depends(require_owner)
 ) -> RoutingPolicy:
     await save_policy(runtime(request).db, body)
+    await answer_unconfigured(request, owner)
     return body
 
 
@@ -31,6 +40,7 @@ async def backups(
 ) -> ModelBackups:
     async with runtime(request).db.sessions() as session, session.begin():
         await SettingsRepository().put(session, "model_backups", body.model_dump(mode="json"))
+    await answer_unconfigured(request, owner)
     return body
 
 
@@ -78,4 +88,5 @@ async def write_allowed(
 ) -> dict[str, object]:
     async with runtime(request).db.sessions() as session, session.begin():
         await save_added_models(session, body)
+    await answer_unconfigured(request, owner)
     return await allowed_view(request)
