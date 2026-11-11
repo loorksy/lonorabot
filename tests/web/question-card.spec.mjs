@@ -55,6 +55,10 @@ for (const locale of ["en", "ar"]) {
       });
       await expect(option).toBeEnabled();
       expect((await card.boundingBox()).width).toBeGreaterThan(220);
+      // The mark at the end of a row is a small icon, never the size of the row.
+      const mark = await option.locator("svg").boundingBox();
+      expect([mark.width, mark.height]).toEqual([14, 14]);
+      expect((await option.boundingBox()).height).toBeLessThan(80);
       const response = page.waitForResponse(
         (result) =>
           result.request().method() === "POST" &&

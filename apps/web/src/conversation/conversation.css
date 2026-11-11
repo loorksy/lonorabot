@@ -335,6 +335,39 @@
 .mcard-actions .btn {
   flex: 1;
 }
+/* a question's answers: one bordered list, a small mark at the end of each row */
+.opt-list {
+  display: grid;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: start;
+}
+.opt-row:last-child {
+  border-bottom: 0;
+}
+.opt-row:hover:enabled {
+  background: var(--hover);
+}
+.opt-row svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--faint);
+}
 .mcard .badge {
   justify-self: start;
   margin-top: 4px;
