@@ -561,3 +561,22 @@
   padding-inline: 6px;
   font-weight: 500;
 }
+/* A reply's Markdown reads the reference palette (Desktop-37 1136-1150): mint links, a tinted
+   code chip and table head, the reference's lines and text. */
+.ui-lead {
+  --foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --border: var(--line);
+  --card: var(--surface);
+  --link: var(--accent-ink);
+  --legacy-muted: color-mix(in srgb, var(--text) 10%, transparent);
+  --legacy-accent: var(--hover);
+}
+.ui-lead .rk-chat-markdown :not(pre) > code {
+  border: 0;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.ui-lead .rk-chat-markdown th {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}

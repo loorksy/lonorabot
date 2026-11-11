@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 /* One palette: the reference's --muted, --accent and --primary mean the same thing on every
@@ -97,3 +98,55 @@ for (const theme of ["dark", "light"]) {
   });
 }
 
+for (const theme of ["dark", "light"]) {
+  test(`markdown in an agent's reply reads the reference palette (${theme})`, async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+    };
+    try {
+      await signIn(context, data, theme);
+      const response = await context.request.post("/api/agents", {
+        headers,
+        data: {
+          name: `Palette ${randomUUID()}`,
+          trading_account_id: data.account,
+          trading_symbol: data.symbol,
+        },
+      });
+      expect(response.status()).toBe(201);
+      await page.goto(`/app/${(await response.json()).id}`);
+      await expect(page.locator(".composer")).toBeVisible();
+      // The reply markup RichResponse renders for a text part (ChatMarkdown in .ui-lead).
+      const styles = await page.evaluate(() => {
+        const lead = document.createElement("div");
+        lead.className = "ui-lead";
+        lead.innerHTML = `<div class="rk-chat-markdown"><p><a href="#x">link</a> <code>code</code></p>
+          <table><thead><tr><th>head</th></tr></thead></table></div>
+          <i data-probe="ink" style="color: var(--accent-ink)"></i>
+          <i data-probe="chip" style="background: color-mix(in srgb, var(--text) 10%, transparent)"></i>
+          <i data-probe="head" style="background: color-mix(in srgb, var(--text) 6%, transparent)"></i>`;
+        document.querySelector(".composer").before(lead);
+        const css = (selector) => getComputedStyle(lead.querySelector(selector));
+        return {
+          link: css("a").color,
+          ink: css('[data-probe="ink"]').color,
+          code: css("code").backgroundColor,
+          codeBorder: css("code").borderTopStyle,
+          chip: css('[data-probe="chip"]').backgroundColor,
+          th: css("th").backgroundColor,
+          head: css('[data-probe="head"]').backgroundColor,
+        };
+      });
+      expect(styles.link).toBe(styles.ink);
+      expect(styles.code).toBe(styles.chip);
+      expect(styles.codeBorder).toBe("none");
+      expect(styles.th).toBe(styles.head);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+}
