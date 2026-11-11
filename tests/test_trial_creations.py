@@ -35,9 +35,10 @@ async def test_a_watch_or_a_routine_is_not_created_switched_off():
 
         async def count(row: Any) -> int:
             async with fixture.runtime.db.sessions() as session:
-                return await session.scalar(
+                total = await session.scalar(
                     select(func.count()).select_from(row).where(row.agent_id == agent["id"])
                 )
+                return total or 0
 
         watch = {"symbol": "XAUUSD", "condition": "above", "level": "2500", "prompt": "test"}
         for name, args, stop in (

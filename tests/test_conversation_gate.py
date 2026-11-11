@@ -181,7 +181,7 @@ def test_changes_that_all_failed_with_a_way_to_repeat_them_continue_the_turn():
         REPLY,
     ]
     assert not gate(started(), *partly).continue_turn
-    plain = {"ok": False, "code": "watch_not_found", "class": "resolution", "candidates": []}
+    plain: dict[str, Any] = {"ok": False, "code": "watch_not_found", "class": "resolution"}
     assert not gate(
         started(), OWNER, *exchange("watch_cancel", plain, watch_id="x"), REPLY
     ).continue_turn
@@ -273,19 +273,20 @@ def test_two_continuations_per_owner_message_then_the_reply_stands():
 
 
 def test_a_record_that_is_not_the_gates_own_is_refused_not_rebuilt():
-    for broken in ({}, {"version": 1, "attempts": 9, "fired": [], "exhausted": False}, "x"):
-        state = {**started(), CONVERSATION_KEY: broken}
+    records: list[Any] = [{}, {"version": 1, "attempts": 9, "fired": [], "exhausted": False}, "x"]
+    for broken in records:
+        state: dict[str, Any] = {**started(), CONVERSATION_KEY: broken}
         with pytest.raises(LonoraError, match="conversation_gate_state_invalid"):
             gate(state, OWNER, *exchange("market_quote", NOT_FOUND, symbol="gold"), REPLY)
 
 
 def test_no_notice_shows_a_failure_code_or_the_owners_words():
-    notices = []
+    notices: list[str] = []
     for transcript in (
         [OWNER, *exchange("market_quote", NOT_FOUND, symbol="gold"), REPLY],
         [OWNER, *exchange("watch_cancel", ONE_FITS, watch_id="ذهب"), REPLY],
     ):
-        notices.append(gate(started(), *transcript).nudge)
+        notices.append(gate(started(), *transcript).nudge or "")
     for notice in notices:
         assert "symbol_not_found" not in notice and "watch_not_found" not in notice
         assert "الذهب" not in notice and "ذهب" not in notice
