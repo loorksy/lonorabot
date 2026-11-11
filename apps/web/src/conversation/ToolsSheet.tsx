@@ -216,7 +216,7 @@ function ToolsBody({
           icon="plug"
           title={<Trans>Integrations</Trans>}
           sub={linked === null ? undefined : linkedText(linked)}
-          onClick={() => go("/app/settings?tab=integrations")}
+          onClick={() => go("/app/integrations")}
         />
         {!input.isGroup && (
           <>

@@ -327,10 +327,6 @@ export function SettingsRoot() {
           to="/app/integrations"
           value={linked ? t`${linked} linked` : undefined}
         />
-        {/* No page in the reference layout yet: these open the existing screens. */}
-        <NavRow icon="cpu" label={t`Global models`} to="/app/settings?tab=models" />
-        <NavRow icon="phone" label={t`Voice`} to="/app/settings?tab=voice" />
-        <NavRow icon="trend" label={t`Trading`} to="/app/settings?tab=trading" />
       </div>
       <div className="group">
         <NavRow icon="chart" label={t`Usage`} to="/app/usage" />
