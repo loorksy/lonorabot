@@ -165,15 +165,19 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function usePopover() {
+function usePopoverContext() {
   const value = useContext(Context);
   if (!value) throw new Error("popover_context_missing");
   return value;
 }
 
+export function usePopover(): Omit<Api, "page"> {
+  return usePopoverContext();
+}
+
 /** A second page inside the open popover: Back and Escape return from it to the first page. */
 export function usePopoverPage(open: boolean, onBack: () => void) {
-  const { page } = usePopover();
+  const { page } = usePopoverContext();
   const latest = useRef(onBack);
   latest.current = onBack;
   useOverlayHistory(open, onBack);

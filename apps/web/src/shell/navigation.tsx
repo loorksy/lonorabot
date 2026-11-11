@@ -15,8 +15,9 @@ import { parseRoute, type ShellRoute } from "./routes";
 import { useSheets } from "./sheets/SheetHost";
 
 /* Navigation model of the reference: every go() is a history entry; scroll is remembered per
-   entry; Back closes the popover menu first, then the sheet, then asks about unsaved edits, then pops. Dirty forms are
-   any main-page form marked data-form (never the composer); they clear on submit or discard. */
+   entry; Back closes the popover menu first, then the sheet, then asks about unsaved edits,
+   then pops. Dirty forms are any main-page form marked data-form (never the composer); they
+   clear on submit or discard. */
 let dirty = false;
 let allowLeave = false;
 let pendingNav: (() => void) | null = null;
