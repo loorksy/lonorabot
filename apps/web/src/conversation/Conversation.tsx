@@ -39,6 +39,7 @@ import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
 import { useShellData } from "../shell/data";
 import { usePopover } from "../shell/lists/Popover";
+import { useNetworkPhase } from "../shell/NetworkStrip";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
@@ -153,6 +154,14 @@ export function Conversation({
   const [stopped, setStopped] = useState<Set<string>>(new Set());
   const [jump, setJump] = useState<string | null>(jumpTo ? `${jumpTo}#arrival` : null);
   const [actionError, setActionError] = useState<unknown>();
+  // Offline, the header's network strip explains failed background reads; the owner's own
+  // action failing still shows.
+  const net = useNetworkPhase(connected);
+  const error =
+    actionError ??
+    (net === "off" || net === "connecting"
+      ? undefined
+      : (thread.error ?? approvals.error ?? ownerActions.error));
 
   useLayoutEffect(() => wallDefs(), []);
   // «عرض الطلب» / «حسم» in the AgentSheet: bring that card into view. A card that names
@@ -1082,10 +1091,19 @@ export function Conversation({
             </div>
           )}
         </GenuiHost>
-        {(thread.error ?? actionError ?? approvals.error ?? ownerActions.error) != null && (
-          <p className="fail-inline" role="alert">
-            {userError(thread.error ?? actionError ?? approvals.error ?? ownerActions.error)}
-          </p>
+        {error != null && (
+          <div className="msg theirs first k-error" data-chat-error="">
+            <div className="msg-line">
+              <div className="err-card" role="alert">
+                <div className="err-top">
+                  <span className="err-ic">
+                    <Icon name="alert" />
+                  </span>
+                  <strong>{userError(error)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       <div className={`float-date${floatDay ? " on" : ""}`} aria-hidden="true">
