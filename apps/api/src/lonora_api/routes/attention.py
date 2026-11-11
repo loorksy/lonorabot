@@ -1,11 +1,20 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.attention import AttentionPolicy, AttentionSeen
 from lonora_contracts.domain import utcnow
-from lonora_db.attention import acknowledge, acknowledge_all, attention_data, policy
+from lonora_db.attention import (
+    acknowledge,
+    acknowledge_all,
+    attention_data,
+    policy,
+    still_current,
+)
 from lonora_db.schema import AttentionRow, EffectReceiptRow
 from lonora_db.transactions import SettingsRepository
 from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import require_owner, runtime
 
@@ -24,40 +33,46 @@ async def audit(request: Request, owner: OwnerIdentity = Depends(require_owner))
         return [row.result for row in rows]
 
 
+async def shown(session: AsyncSession, owner_id: str, statuses: list[str]) -> list[dict[str, Any]]:
+    """What the owner is shown: within their policy, still valid, each fact once (newest)."""
+    settings = await policy(session, owner_id)
+    query = select(AttentionRow).where(
+        AttentionRow.owner_id == owner_id,
+        AttentionRow.status.in_(statuses),
+        or_(
+            AttentionRow.parameters["valid_until"].as_string().is_(None),
+            AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
+        ),
+        or_(
+            AttentionRow.importance != "opportunity",
+            AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
+        ),
+    )
+    if not settings.opportunities:
+        query = query.where(AttentionRow.importance != "opportunity")
+    if not settings.informational:
+        query = query.where(AttentionRow.importance != "informational")
+    rows: list[dict[str, Any]] = []
+    facts: set[tuple[str, str]] = set()
+    for row in await session.scalars(query.order_by(AttentionRow.updated_at.desc()).limit(50)):
+        if (row.code, row.coalesce_key) in facts:
+            continue
+        facts.add((row.code, row.coalesce_key))
+        if await still_current(session, row):
+            rows.append(attention_data(row))
+    return rows
+
+
 @router.get("/history")
 async def history(request: Request, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session:
-        rows = await session.scalars(
-            select(AttentionRow)
-            .where(AttentionRow.owner_id == owner.id)
-            .order_by(AttentionRow.updated_at.desc())
-            .limit(50)
-        )
-        return [attention_data(row) for row in rows]
+        return await shown(session, owner.id, ["pending", "ready", "seen"])
 
 
 @router.get("")
 async def inbox(request: Request, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session:
-        settings = await policy(session, owner.id)
-        query = select(AttentionRow).where(
-            AttentionRow.owner_id == owner.id,
-            AttentionRow.status.in_(["pending", "ready"]),
-            or_(
-                AttentionRow.parameters["valid_until"].as_string().is_(None),
-                AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
-            ),
-            or_(
-                AttentionRow.importance != "opportunity",
-                AttentionRow.parameters["valid_until"].as_string() > utcnow().isoformat(),
-            ),
-        )
-        if not settings.opportunities:
-            query = query.where(AttentionRow.importance != "opportunity")
-        if not settings.informational:
-            query = query.where(AttentionRow.importance != "informational")
-        rows = await session.scalars(query.order_by(AttentionRow.updated_at.desc()).limit(50))
-        return [attention_data(row) for row in rows]
+        return await shown(session, owner.id, ["pending", "ready"])
 
 
 @router.post("/seen")

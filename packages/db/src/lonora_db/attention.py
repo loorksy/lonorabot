@@ -115,6 +115,24 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     return False
 
 
+# The codes whose fact mandatory_current can check; any other item stays true as said.
+CHECKED_FACTS = frozenset(
+    {
+        "operation_uncertain",
+        "operation_unresolved",
+        "run_quarantined",
+        "emergency_stop",
+        "approval_required",
+        "broker_degraded",
+        "task_review",
+    }
+)
+
+
+async def still_current(session: AsyncSession, row: AttentionRow) -> bool:
+    return row.code not in CHECKED_FACTS or await mandatory_current(session, row)
+
+
 async def decide_attention(
     session: AsyncSession,
     event: EventRow,

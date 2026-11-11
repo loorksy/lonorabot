@@ -388,6 +388,76 @@ async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
 
 
 @pytest.mark.asyncio
+async def test_updates_alerts_show_each_current_fact_once():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import utcnow
+    from lonora_db.schema import AttentionRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Alerter")
+        thread = await fixture.conversation(agent)
+        now = utcnow()
+        await fixture.request(
+            "PUT", "/trading/controls", {"enabled": False, "emergency_stop": True}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            rows = {
+                # Two stops: the same fact, said twice.
+                "old-stop": ("critical", "emergency_stop", "seen", "stop", {}, 2),
+                "new-stop": ("critical", "emergency_stop", "ready", "stop", {}, 1),
+                "muted": ("informational", "task_completed", "ready", "muted", {}, 0),
+                "expired": (
+                    "opportunity",
+                    "setup_confirmed",
+                    "ready",
+                    "expired",
+                    {"valid_until": (now - timedelta(minutes=1)).isoformat()},
+                    0,
+                ),
+                "withdrawn": ("important_change", "goal_changed", "suppressed", "w", {}, 0),
+                "kept": ("important_change", "goal_changed", "seen", "kept", {}, 3),
+            }
+            ids = {}
+            for name, (importance, code, status, group, parameters, age) in rows.items():
+                row = AttentionRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    logical_key=f"{name}-{agent['id'][:8]}",
+                    coalesce_key=f"{group}-{agent['id'][:8]}",
+                    importance=importance,
+                    code=code,
+                    status=status,
+                    parameters=parameters,
+                    due_at=now,
+                    updated_at=now - timedelta(minutes=age),
+                )
+                session.add(row)
+                await session.flush()
+                ids[row.id] = name
+
+        async def shown(path: str) -> list[str]:
+            listed = cast(list[Any], await fixture.request("GET", path))
+            return [ids[row["id"]] for row in listed if row["id"] in ids]
+
+        assert await shown("/attention/history") == ["new-stop", "kept"]
+        assert await shown("/attention") == ["new-stop"]
+        # Once trading runs again, no row still says it is stopped.
+        await fixture.request(
+            "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
+        )
+        assert await shown("/attention/history") == ["kept"]
+        assert await shown("/attention") == []
+    finally:
+        await fixture.request(
+            "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
+        )
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_agent_text_files_upload_and_edit_but_other_files_do_not():
     database()
     from check_streaming import Fixture
