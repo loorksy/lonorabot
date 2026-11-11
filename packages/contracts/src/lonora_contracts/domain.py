@@ -112,7 +112,8 @@ class MessageCommand(Contract):
     """
 
     name: Literal["task", "search", "summary", "skill"]
-    argument: str = Field(default="", max_length=4000)
+    # As long as the message it is the end of.
+    argument: str = Field(default="", max_length=30000)
     skill_id: str | None = Field(default=None, max_length=36)
 
     @model_validator(mode="after")

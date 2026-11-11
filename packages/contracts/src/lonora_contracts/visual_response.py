@@ -461,7 +461,7 @@ class RichCommandPart(Contract):
 
     type: Literal["command"]
     name: Literal["task", "search", "summary", "skill"]
-    argument: str = Field(default="", max_length=4000)
+    argument: str = Field(default="", max_length=30000)
     skill_id: str | None = Field(default=None, max_length=36)
     skill_name: str | None = Field(default=None, max_length=80)
 

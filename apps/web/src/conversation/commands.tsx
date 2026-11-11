@@ -1,12 +1,19 @@
 import { t } from "@lingui/core/macro";
 import type { CommandPart } from "@lonora/contracts";
-import { availableCommands, COMMAND_ALIAS, type CommandId, type CommandOption } from "@lonora/core";
+import {
+  availableCommands,
+  COMMAND_ALIAS,
+  type CommandId,
+  type CommandOption,
+  foldSearch,
+} from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import type { Agent } from "../lib/api";
 import { useCallStarter } from "../shell/call/CallPages";
 import { domainApi } from "../shell/domain/api";
 import { useLoad } from "../shell/domain/hooks";
 import { useNavigation } from "../shell/navigation";
+import { useToast } from "../shell/Toast";
 
 /* The composer's / commands (reference commandOptions and runCommand, Desktop-37 5089-5104,
    5192-5199): the eight commands a chat offers, then the agent's enabled skills. «مهمة»,
@@ -67,6 +74,7 @@ export function useComposerCommands({
   wanted: boolean;
 }) {
   const nav = useNavigation();
+  const toast = useToast();
   const starter = useCallStarter();
   const skills = useLoad(
     agent && !isGroup && wanted ? () => domainApi.skills(agent.id) : null,
@@ -87,6 +95,12 @@ export function useComposerCommands({
     task: t`Task title`,
     search: t`What are you looking for?`,
   };
+  const taken = new Set(
+    (Object.keys(ICONS) as CommandId[]).flatMap((id) => [
+      foldSearch(commandName(id)),
+      COMMAND_ALIAS[id],
+    ]),
+  );
   const rows: CommandRow[] = [
     ...availableCommands({
       group: isGroup,
@@ -104,7 +118,8 @@ export function useComposerCommands({
       hint: hints[id],
     })),
     ...(skills.data ?? [])
-      .filter((row) => row.payload.enabled !== false)
+      // A skill named like a command would be sent as that command: it is not offered here.
+      .filter((row) => row.payload.enabled !== false && !taken.has(foldSearch(row.payload.name)))
       .map((row) => ({
         id: row.id,
         command: "skill" as const,
@@ -128,7 +143,12 @@ export function useComposerCommands({
     } else if (command === "permission") {
       if (isGroup) window.dispatchEvent(new CustomEvent("lonora:members-permissions"));
       else
-        requestAnimationFrame(() => form?.querySelector<HTMLButtonElement>(".mode-chip")?.click());
+        requestAnimationFrame(() => {
+          // The chip that opens something: the level's menu, or why there is no level yet.
+          const chip = form?.querySelector<HTMLButtonElement>("button.mode-chip, button.no-trade");
+          if (chip) chip.click();
+          else toast(t`The permission level is still loading`, { type: "warn" });
+        });
     } else if (command === "clear") window.dispatchEvent(new CustomEvent("lonora:clear-chat"));
   };
   return { rows, run };

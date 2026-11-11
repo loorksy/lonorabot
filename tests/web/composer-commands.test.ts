@@ -125,6 +125,11 @@ test("the command part is the server's: kept on an owner message, never on a rep
   assert.equal(validateAgentRichContent(rich), null);
   assert.equal(validateRichContent({ version: 1, parts: [{ ...part, name: "clear" }] }), null);
   assert.equal(validateRichContent({ version: 1, parts: [{ ...part, extra: 1 }] }), null);
+  // The text is counted in code points, as the server counts it.
+  const emoji = { ...part, argument: "😀".repeat(20000) };
+  assert.equal(validateRichContent({ version: 1, parts: [emoji] })?.parts.length, 1);
+  const over = { ...part, argument: "x".repeat(30001) };
+  assert.equal(validateRichContent({ version: 1, parts: [over] }), null);
   // A sending bubble draws the chip from its body.
   const pending = pendingVoiceRich({ command: { name: "task", argument: "راقب الذهب" } });
   assert.equal(commandPart({ rich_content: pending })?.name, "task");

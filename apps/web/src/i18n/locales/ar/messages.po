@@ -79,7 +79,7 @@ msgstr "{0} يكتب"
 #. placeholder {0}: (value / 1024).toFixed(1)
 #. placeholder {0}: Math.max(1, Math.ceil(Number(file.payload.size ?? 0) / 1024))
 #. placeholder {0}: kilobytes(row.payload.size)
-#: src/conversation/Composer.tsx:795
+#: src/conversation/Composer.tsx:796
 #: src/shell/domain/FilesPages.tsx:175
 #: src/shell/settings/DevicePages.tsx:109
 msgid "{0} KB"
@@ -242,7 +242,7 @@ msgstr "اقتراحات @"
 msgid "<0>{0}</0> tokens reused"
 msgstr "<0>{0}</0> توكن أُعيد استخدامها"
 
-#: src/conversation/Composer.tsx:621
+#: src/conversation/Composer.tsx:622
 msgid "<0>{name}</0>'s skills"
 msgstr "مهارات <0>{name}</0>"
 
@@ -755,8 +755,8 @@ msgstr "يقرأ الوكلاء الأخبار من هذه النطاقات فق
 msgid "Alert channel"
 msgstr "قناة التنبيه"
 
-#: src/conversation/Composer.tsx:329
-#: src/conversation/Composer.tsx:700
+#: src/conversation/Composer.tsx:330
+#: src/conversation/Composer.tsx:701
 msgid "all"
 msgstr "الكل"
 
@@ -929,7 +929,7 @@ msgstr "مساحة التطبيق في هذا المتصفح"
 msgid "Applies to every agent of this account"
 msgstr "تسري على كل وكلاء هذا الحساب"
 
-#: src/conversation/commands.tsx:115
+#: src/conversation/commands.tsx:130
 msgid "Apply it to what? (optional)"
 msgstr "على ماذا أطبّقها؟ (اختياري)"
 
@@ -1020,7 +1020,7 @@ msgstr "يمكن أن ينضم وكيلان آخران على الأكثر إل�
 #~ msgid "Attach file"
 #~ msgstr "إرفاق ملف"
 
-#: src/conversation/Composer.tsx:400
+#: src/conversation/Composer.tsx:401
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
@@ -1028,12 +1028,12 @@ msgstr "ملفات مرفقة"
 #~ msgid "Attachment"
 #~ msgstr "مرفق"
 
-#: src/conversation/Composer.tsx:776
+#: src/conversation/Composer.tsx:777
 msgid "Attachments"
 msgstr "المرفقات"
 
-#: src/conversation/Composer.tsx:964
-#: src/conversation/Composer.tsx:965
+#: src/conversation/Composer.tsx:966
+#: src/conversation/Composer.tsx:967
 msgid "Attachments and tools"
 msgstr "مرفقات وأدوات"
 
@@ -1228,7 +1228,7 @@ msgstr "رمز البوت"
 #~ msgid "Bring agents together in a group."
 #~ msgstr "اجمع الوكلاء في مجموعة."
 
-#: src/conversation/Composer.tsx:672
+#: src/conversation/Composer.tsx:673
 msgid "Bring an agent into the conversation"
 msgstr "إشراك وكيل في المحادثة"
 
@@ -1376,7 +1376,7 @@ msgstr "بايت"
 #~ msgid "Cached"
 #~ msgstr "من الذاكرة المؤقتة"
 
-#: src/conversation/commands.tsx:34
+#: src/conversation/commands.tsx:41
 msgctxt "slash command"
 msgid "call"
 msgstr "اتصال"
@@ -1467,11 +1467,11 @@ msgstr "إلغاء الهدف"
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
-#: src/conversation/Composer.tsx:761
+#: src/conversation/Composer.tsx:762
 msgid "Cancel the edit"
 msgstr "إلغاء التعديل"
 
-#: src/conversation/Composer.tsx:761
+#: src/conversation/Composer.tsx:762
 msgid "Cancel the reply"
 msgstr "إلغاء الرد"
 
@@ -1529,7 +1529,7 @@ msgstr "عدّل قيمة لحفظها."
 msgid "Change log"
 msgstr "سجل التغييرات"
 
-#: src/conversation/commands.tsx:83
+#: src/conversation/commands.tsx:91
 msgid "Change the agent's permissions"
 msgstr "غيّر صلاحيات الوكيل"
 
@@ -1567,7 +1567,7 @@ msgctxt "schedule details"
 msgid "Channel"
 msgstr "القناة"
 
-#: src/conversation/commands.tsx:33
+#: src/conversation/commands.tsx:40
 msgctxt "slash command"
 msgid "chart"
 msgstr "شارت"
@@ -1829,7 +1829,7 @@ msgstr "اختيار حساب التداول"
 msgid "Choose trading pair"
 msgstr "اختر زوج التداول"
 
-#: src/conversation/commands.tsx:36
+#: src/conversation/commands.tsx:43
 msgctxt "slash command"
 msgid "clear"
 msgstr "مسح"
@@ -1860,7 +1860,7 @@ msgstr "مسح الرسائل"
 msgid "Clear the messages?"
 msgstr "مسح الرسائل؟"
 
-#: src/conversation/commands.tsx:84
+#: src/conversation/commands.tsx:92
 msgid "Clear this conversation's messages"
 msgstr "امسح رسائل هذه المحادثة"
 
@@ -1880,7 +1880,7 @@ msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
 #: src/components/common/FilePreviewPanel.tsx:99
-#: src/conversation/Composer.tsx:723
+#: src/conversation/Composer.tsx:724
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:147
@@ -1981,8 +1981,8 @@ msgstr "اللون"
 msgid "Colour {color}"
 msgstr "لون {color}"
 
-#: src/conversation/Composer.tsx:604
-#: src/conversation/Composer.tsx:625
+#: src/conversation/Composer.tsx:605
+#: src/conversation/Composer.tsx:626
 msgctxt "composer list"
 msgid "Commands"
 msgstr "الأوامر"
@@ -2162,7 +2162,7 @@ msgstr "المحتوى"
 #~ msgid "Context panel"
 #~ msgstr "لوحة السياق"
 
-#: src/conversation/Composer.tsx:1454
+#: src/conversation/Composer.tsx:1456
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
@@ -2547,7 +2547,7 @@ msgstr "حذف المعلومة"
 msgid "Delete the list"
 msgstr "حذف القائمة"
 
-#: src/conversation/Composer.tsx:1427
+#: src/conversation/Composer.tsx:1429
 msgid "Delete the recording"
 msgstr "حذف التسجيل"
 
@@ -2637,27 +2637,27 @@ msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 #~ msgid "Diamond"
 #~ msgstr "معيّن"
 
-#: src/conversation/Composer.tsx:495
+#: src/conversation/Composer.tsx:496
 msgid "Dictation could not start."
 msgstr "تعذّر بدء الإملاء الصوتي."
 
-#: src/conversation/Composer.tsx:483
+#: src/conversation/Composer.tsx:484
 msgid "Dictation failed"
 msgstr "تعذّر الإملاء الصوتي"
 
-#: src/conversation/Composer.tsx:453
+#: src/conversation/Composer.tsx:454
 msgid "Dictation is not available here — hold the microphone to record a voice message."
 msgstr "الإملاء غير متاح هنا — اضغط مطولًا على الميكروفون لتسجيل رسالة صوتية."
 
-#: src/conversation/Composer.tsx:474
+#: src/conversation/Composer.tsx:475
 msgid "Dictation is not available in this browser; hold the microphone to record a voice message"
 msgstr "الإملاء غير متاح في هذا المتصفح؛ اضغط مطولًا لتسجيل رسالة صوتية"
 
-#: src/conversation/Composer.tsx:480
+#: src/conversation/Composer.tsx:481
 msgid "Dictation needs an internet connection"
 msgstr "الإملاء يحتاج اتصالًا بالإنترنت"
 
-#: src/conversation/Composer.tsx:1022
+#: src/conversation/Composer.tsx:1024
 msgid "Dictation, or hold to record a voice message"
 msgstr "إملاء صوتي، أو اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -2727,7 +2727,7 @@ msgstr "وضوح الرسومات"
 msgid "Dreamy"
 msgstr "حالم"
 
-#: src/conversation/Composer.tsx:1082
+#: src/conversation/Composer.tsx:1084
 msgid "Drop here to attach"
 msgstr "أفلت هنا للإرفاق"
 
@@ -2838,7 +2838,7 @@ msgstr "تعديل الحدود"
 msgid "Edit the list"
 msgstr "تعديل القائمة"
 
-#: src/conversation/Composer.tsx:748
+#: src/conversation/Composer.tsx:749
 msgid "Edit the message"
 msgstr "تعديل الرسالة"
 
@@ -3438,11 +3438,11 @@ msgstr "مجموعة من المحددين"
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
-#: src/conversation/Composer.tsx:670
+#: src/conversation/Composer.tsx:671
 msgid "Group members"
 msgstr "أعضاء المجموعة"
 
-#: src/conversation/commands.tsx:83
+#: src/conversation/commands.tsx:91
 msgid "Group members' permissions"
 msgstr "صلاحيات أعضاء المجموعة"
 
@@ -3496,11 +3496,11 @@ msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية.
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
-#: src/conversation/Composer.tsx:518
+#: src/conversation/Composer.tsx:519
 msgid "Hold the microphone to record, release to send."
 msgstr "اضغط مطولًا على الميكروفون للتسجيل، وأفلت للإرسال."
 
-#: src/conversation/Composer.tsx:1141
+#: src/conversation/Composer.tsx:1143
 msgid "Hold to record a voice message"
 msgstr "اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -3857,7 +3857,7 @@ msgstr "آخر الإجراءات"
 msgid "Laugh"
 msgstr "ضاحك"
 
-#: src/conversation/Composer.tsx:705
+#: src/conversation/Composer.tsx:706
 msgid "Lead"
 msgstr "القائد"
 
@@ -3980,7 +3980,7 @@ msgstr "عرض القائمة"
 msgid "Listening to you"
 msgstr "أستمع إليك"
 
-#: src/conversation/Composer.tsx:846
+#: src/conversation/Composer.tsx:847
 msgid "Listening… speak now"
 msgstr "أستمع إليك… تكلّم الآن"
 
@@ -4246,7 +4246,7 @@ msgstr "الذاكرة"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/conversation/Composer.tsx:605
+#: src/conversation/Composer.tsx:606
 #: src/shell/ShortcutsSheet.tsx:18
 msgid "Mention an agent"
 msgstr "الإشارة إلى وكيل"
@@ -4264,7 +4264,7 @@ msgctxt "reach mode"
 msgid "Message"
 msgstr "رسالة"
 
-#: src/conversation/Composer.tsx:846
+#: src/conversation/Composer.tsx:847
 msgid "Message {name}"
 msgstr "راسل {name}"
 
@@ -4272,7 +4272,7 @@ msgstr "راسل {name}"
 #~ msgid "Message {recipientName}"
 #~ msgstr "راسل {recipientName}"
 
-#: src/conversation/Composer.tsx:569
+#: src/conversation/Composer.tsx:570
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
@@ -4282,7 +4282,7 @@ msgstr "محرر الرسالة"
 msgid "Message options"
 msgstr "خيارات الرسالة"
 
-#: src/conversation/Composer.tsx:845
+#: src/conversation/Composer.tsx:846
 msgid "Message to {name}"
 msgstr "رسالة إلى {name}"
 
@@ -4404,7 +4404,7 @@ msgstr "جارٍ المراقبة"
 msgid "More"
 msgstr "المزيد"
 
-#: src/conversation/Composer.tsx:715
+#: src/conversation/Composer.tsx:716
 msgid "Move"
 msgstr "تنقّل"
 
@@ -4642,7 +4642,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/conversation/Composer.tsx:610
+#: src/conversation/Composer.tsx:611
 msgid "No command by that name"
 msgstr "لا يوجد أمر بهذا الاسم"
 
@@ -4724,7 +4724,7 @@ msgstr "لا توجد رموز مطابقة"
 msgid "No matching emojis"
 msgstr "لا توجد رموز مطابقة"
 
-#: src/conversation/Composer.tsx:478
+#: src/conversation/Composer.tsx:479
 msgid "No microphone was found on this device"
 msgstr "لم يُعثر على ميكروفون في هذا الجهاز"
 
@@ -5111,7 +5111,7 @@ msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل ت
 msgid "One step"
 msgstr "خطوة واحدة"
 
-#: src/conversation/commands.tsx:80
+#: src/conversation/commands.tsx:88
 #: src/conversation/ToolsSheet.tsx:167
 msgid "One time or repeating"
 msgstr "موعد واحد أو متكرر"
@@ -5185,7 +5185,7 @@ msgstr "سعر الفتح"
 msgid "Open risk limit"
 msgstr "حد المخاطرة المفتوحة"
 
-#: src/conversation/commands.tsx:81
+#: src/conversation/commands.tsx:89
 msgid "Open the {symbol} chart"
 msgstr "افتح شارت {symbol}"
 
@@ -5201,7 +5201,7 @@ msgstr "افتح محادثة الوكيل لتعديل صلاحياته."
 msgid "Open the group chat"
 msgstr "فتح محادثة المجموعة"
 
-#: src/conversation/commands.tsx:81
+#: src/conversation/commands.tsx:89
 msgid "Open the market chart"
 msgstr "افتح شارت السوق"
 
@@ -5404,7 +5404,7 @@ msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
-#: src/conversation/Composer.tsx:1454
+#: src/conversation/Composer.tsx:1456
 msgid "Pause recording"
 msgstr "إيقاف التسجيل مؤقتًا"
 
@@ -5412,7 +5412,7 @@ msgstr "إيقاف التسجيل مؤقتًا"
 #~ msgid "paused"
 #~ msgstr "موقوفة مؤقتًا"
 
-#: src/conversation/Composer.tsx:705
+#: src/conversation/Composer.tsx:706
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
 #: src/shell/ChatHeader.tsx:117
@@ -5504,7 +5504,7 @@ msgstr "الصلاحية غير معروفة"
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
-#: src/conversation/commands.tsx:35
+#: src/conversation/commands.tsx:42
 msgctxt "slash command"
 msgid "permissions"
 msgstr "صلاحيات"
@@ -5547,11 +5547,11 @@ msgstr "صورة، اضغط لعرضها"
 msgid "Photos"
 msgstr "صور"
 
-#: src/conversation/Composer.tsx:1085
+#: src/conversation/Composer.tsx:1087
 msgid "Photos and files up to 8 MB"
 msgstr "صور وملفات حتى 8 ميغابايت"
 
-#: src/conversation/Composer.tsx:719
+#: src/conversation/Composer.tsx:720
 msgid "Pick"
 msgstr "اختيار"
 
@@ -5901,7 +5901,7 @@ msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسي
 msgid "Recorded in Updates without any alert"
 msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
-#: src/conversation/Composer.tsx:1433
+#: src/conversation/Composer.tsx:1435
 msgid "Recording length"
 msgstr "مدة التسجيل"
 
@@ -5992,7 +5992,7 @@ msgstr "إزالة"
 msgid "Remove {0}"
 msgstr "إزالة {0}"
 
-#: src/conversation/Composer.tsx:802
+#: src/conversation/Composer.tsx:803
 msgid "Remove {label}"
 msgstr "إزالة {label}"
 
@@ -6042,7 +6042,7 @@ msgid "Reply"
 msgstr "رد"
 
 #. placeholder {0}: replyAgent?.name ?? "Lonora"
-#: src/conversation/Composer.tsx:753
+#: src/conversation/Composer.tsx:754
 msgid "Reply to {0}"
 msgstr "ردّ على {0}"
 
@@ -6051,7 +6051,7 @@ msgstr "ردّ على {0}"
 #~ msgid "Reply to an earlier message"
 #~ msgstr "رد على رسالة سابقة"
 
-#: src/conversation/Composer.tsx:751
+#: src/conversation/Composer.tsx:752
 msgid "Reply to your message"
 msgstr "ردّ على رسالتك"
 
@@ -6428,7 +6428,7 @@ msgstr "جارٍ الحفظ…"
 msgid "Scenario"
 msgstr "سيناريو"
 
-#: src/conversation/commands.tsx:32
+#: src/conversation/commands.tsx:39
 msgctxt "slash command"
 msgid "schedule"
 msgstr "جدولة"
@@ -6482,7 +6482,7 @@ msgstr "المهام المجدولة"
 msgid "Scratchpad"
 msgstr "مسودة العمل"
 
-#: src/conversation/commands.tsx:30
+#: src/conversation/commands.tsx:37
 msgctxt "slash command"
 msgid "search"
 msgstr "بحث"
@@ -6557,7 +6557,7 @@ msgstr "البحث في عمليات التنفيذ"
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
-#: src/conversation/commands.tsx:78
+#: src/conversation/commands.tsx:86
 msgid "Search the web, then answer with sources"
 msgstr "ابحث في الويب ثم أجب مع المصادر"
 
@@ -6624,7 +6624,7 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/conversation/Composer.tsx:1056
+#: src/conversation/Composer.tsx:1058
 msgid "Send"
 msgstr "إرسال"
 
@@ -6641,11 +6641,11 @@ msgstr "إرسال (Shift+Enter لسطر جديد)"
 msgid "Send the answer"
 msgstr "إرسال الإجابة"
 
-#: src/conversation/Composer.tsx:1055
+#: src/conversation/Composer.tsx:1057
 msgid "Send the message"
 msgstr "إرسال الرسالة"
 
-#: src/conversation/Composer.tsx:1475
+#: src/conversation/Composer.tsx:1477
 msgid "Send the voice message"
 msgstr "إرسال الرسالة الصوتية"
 
@@ -6876,7 +6876,7 @@ msgstr "منذ"
 msgid "Skeptical"
 msgstr "متشكك"
 
-#: src/conversation/commands.tsx:46
+#: src/conversation/commands.tsx:53
 msgctxt "slash command"
 msgid "skill"
 msgstr "مهارة"
@@ -6957,7 +6957,7 @@ msgstr "تخطي"
 msgid "Sleepy"
 msgstr "نعسان"
 
-#: src/conversation/Composer.tsx:1448
+#: src/conversation/Composer.tsx:1450
 msgid "Slide to cancel"
 msgstr "اسحب للإلغاء"
 
@@ -7042,7 +7042,7 @@ msgstr "ابدأ محادثة أو أضف مهمة لتظهر هنا."
 #~ msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 #~ msgstr "ابدأ محادثة. يحتفظ وكيلك بذاكرته ويواصل مهامه المجدولة هنا."
 
-#: src/conversation/commands.tsx:82
+#: src/conversation/commands.tsx:90
 msgid "Start a voice call with {name}"
 msgstr "ابدأ مكالمة صوتية مع {name}"
 
@@ -7079,7 +7079,7 @@ msgstr "الحالة: {text}"
 msgid "Still unknown"
 msgstr "لا تزال غير معروفة"
 
-#: src/conversation/Composer.tsx:1064
+#: src/conversation/Composer.tsx:1066
 #: src/pages/ActivityList.tsx:259
 msgid "Stop"
 msgstr "إيقاف"
@@ -7117,7 +7117,7 @@ msgstr "أمر إيقاف"
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
-#: src/conversation/Composer.tsx:1063
+#: src/conversation/Composer.tsx:1065
 msgid "Stop the reply"
 msgstr "إيقاف الرد"
 
@@ -7164,11 +7164,11 @@ msgstr "التخزين والبيانات"
 msgid "Suggested value 3%"
 msgstr "القيمة المقترحة 3%"
 
-#: src/conversation/commands.tsx:79
+#: src/conversation/commands.tsx:87
 msgid "Summarize this conversation"
 msgstr "لخّص هذه المحادثة"
 
-#: src/conversation/commands.tsx:31
+#: src/conversation/commands.tsx:38
 msgctxt "slash command"
 msgid "summary"
 msgstr "ملخص"
@@ -7286,11 +7286,11 @@ msgstr "اضغط زر المشاركة أسفل المتصفح."
 msgid "Tap to call back"
 msgstr "اضغط لمعاودة الاتصال"
 
-#: src/conversation/Composer.tsx:1138
+#: src/conversation/Composer.tsx:1140
 msgid "Tap to dictate"
 msgstr "اضغط للإملاء"
 
-#: src/conversation/Composer.tsx:1023
+#: src/conversation/Composer.tsx:1025
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
@@ -7303,7 +7303,7 @@ msgctxt "chart"
 msgid "Target"
 msgstr "هدف"
 
-#: src/conversation/commands.tsx:29
+#: src/conversation/commands.tsx:36
 msgctxt "slash command"
 msgid "task"
 msgstr "مهمة"
@@ -7359,7 +7359,7 @@ msgstr "أُوقفت المهمة مؤقتًا"
 msgid "Task resumed"
 msgstr "استُؤنفت المهمة"
 
-#: src/conversation/commands.tsx:87
+#: src/conversation/commands.tsx:95
 #: src/shell/domain/TasksPages.tsx:316
 msgid "Task title"
 msgstr "عنوان المهمة"
@@ -7670,7 +7670,7 @@ msgstr "لم تُرسل الرسالة. خيارات"
 msgid "The messages of {0} are hidden for you; the chats stay in the list."
 msgstr "تُحذف رسائل {0} من عندك فقط، وتبقى المحادثات في القائمة."
 
-#: src/conversation/Composer.tsx:517
+#: src/conversation/Composer.tsx:518
 msgid "The microphone is not available on this page."
 msgstr "الميكروفون غير متاح في هذه الصفحة."
 
@@ -7734,6 +7734,10 @@ msgstr "الرسالة الأصلية لم تعد متاحة."
 #: src/components/ErrorBoundary.tsx:12
 msgid "The page could not be displayed"
 msgstr "تعذر عرض الصفحة"
+
+#: src/conversation/commands.tsx:150
+msgid "The permission level is still loading"
+msgstr "مستوى الصلاحية ما زال يُحمَّل"
 
 #: src/shell/settings/UsagePage.tsx:86
 msgid "the previous seven days"
@@ -8377,7 +8381,7 @@ msgstr "تشغيل الوكيل"
 #~ msgid "Turn trading ON"
 #~ msgstr "تفعيل التداول"
 
-#: src/conversation/commands.tsx:77
+#: src/conversation/commands.tsx:85
 msgid "Turn your request into a task the agent follows"
 msgstr "حوّل طلبك إلى مهمة يتابعها الوكيل"
 
@@ -8540,7 +8544,7 @@ msgstr "بيانات وصفية غير موثقة"
 msgid "Up {pct}%"
 msgstr "ارتفاع {pct}%"
 
-#: src/conversation/Composer.tsx:358
+#: src/conversation/Composer.tsx:359
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
@@ -8616,11 +8620,11 @@ msgstr "استخدم الأسهم للتنقل بين الأعمدة."
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
-#: src/conversation/Composer.tsx:938
+#: src/conversation/Composer.tsx:940
 msgid "Use the suggestion (Tab)"
 msgstr "استخدم الاقتراح (Tab)"
 
-#: src/conversation/Composer.tsx:937
+#: src/conversation/Composer.tsx:939
 msgid "Use the suggestion: {suggestion}"
 msgstr "استخدم الاقتراح: {suggestion}"
 
@@ -8712,8 +8716,8 @@ msgstr "المكالمات الصوتية"
 msgid "Voice calls stop too."
 msgstr "وتتوقف المكالمات الصوتية أيضًا."
 
-#: src/conversation/Composer.tsx:1031
-#: src/conversation/Composer.tsx:1032
+#: src/conversation/Composer.tsx:1033
+#: src/conversation/Composer.tsx:1034
 msgid "Voice conversation"
 msgstr "محادثة صوتية"
 
@@ -8853,21 +8857,21 @@ msgstr "نجري تحسينات سريعة على الخدمة. محادثاتك
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر أو مصطلحًا مختلفًا."
 
-#: src/conversation/Composer.tsx:482
+#: src/conversation/Composer.tsx:483
 msgid "We heard nothing. Try again."
 msgstr "لم نسمع شيئًا. حاول مرة أخرى."
 
-#: src/conversation/Composer.tsx:1008
+#: src/conversation/Composer.tsx:1010
 #: src/conversation/ToolsSheet.tsx:210
 #: src/shell/domain/SkillsPages.tsx:22
 msgid "Web search"
 msgstr "البحث في الويب"
 
-#: src/conversation/Composer.tsx:1007
+#: src/conversation/Composer.tsx:1009
 msgid "Web search is on, tap to turn it off"
 msgstr "البحث في الويب مفعّل، اضغط لإيقافه"
 
-#: src/conversation/Composer.tsx:1011
+#: src/conversation/Composer.tsx:1013
 msgid "Web search turned off"
 msgstr "أُوقف البحث في الويب"
 
@@ -8889,7 +8893,7 @@ msgstr "أهلًا بعودتك."
 msgid "Welcome to Lonora"
 msgstr "مرحبًا بك في Lonora"
 
-#: src/conversation/commands.tsx:88
+#: src/conversation/commands.tsx:96
 msgid "What are you looking for?"
 msgstr "عمّ تبحث؟"
 
@@ -8979,7 +8983,7 @@ msgstr "قلق"
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 
-#: src/conversation/Composer.tsx:393
+#: src/conversation/Composer.tsx:394
 msgid "Write the task title after {slash}"
 msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 
@@ -8987,7 +8991,7 @@ msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
-#: src/conversation/Composer.tsx:394
+#: src/conversation/Composer.tsx:395
 msgid "Write what you are looking for after {slash}"
 msgstr "اكتب ما تبحث عنه بعد الأمر {slash}"
 

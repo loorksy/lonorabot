@@ -79,7 +79,7 @@ msgstr "{0} is typing"
 #. placeholder {0}: (value / 1024).toFixed(1)
 #. placeholder {0}: Math.max(1, Math.ceil(Number(file.payload.size ?? 0) / 1024))
 #. placeholder {0}: kilobytes(row.payload.size)
-#: src/conversation/Composer.tsx:795
+#: src/conversation/Composer.tsx:796
 #: src/shell/domain/FilesPages.tsx:175
 #: src/shell/settings/DevicePages.tsx:109
 msgid "{0} KB"
@@ -242,7 +242,7 @@ msgstr "@ suggestions"
 msgid "<0>{0}</0> tokens reused"
 msgstr "<0>{0}</0> tokens reused"
 
-#: src/conversation/Composer.tsx:621
+#: src/conversation/Composer.tsx:622
 msgid "<0>{name}</0>'s skills"
 msgstr "<0>{name}</0>'s skills"
 
@@ -755,8 +755,8 @@ msgstr "Agents read news from these domains only, and name the source and the ti
 msgid "Alert channel"
 msgstr "Alert channel"
 
-#: src/conversation/Composer.tsx:329
-#: src/conversation/Composer.tsx:700
+#: src/conversation/Composer.tsx:330
+#: src/conversation/Composer.tsx:701
 msgid "all"
 msgstr "all"
 
@@ -929,7 +929,7 @@ msgstr "App space in this browser"
 msgid "Applies to every agent of this account"
 msgstr "Applies to every agent of this account"
 
-#: src/conversation/commands.tsx:115
+#: src/conversation/commands.tsx:130
 msgid "Apply it to what? (optional)"
 msgstr "Apply it to what? (optional)"
 
@@ -1020,7 +1020,7 @@ msgstr "At most two other agents can join one message."
 #~ msgid "Attach file"
 #~ msgstr "Attach file"
 
-#: src/conversation/Composer.tsx:400
+#: src/conversation/Composer.tsx:401
 msgid "Attached files"
 msgstr "Attached files"
 
@@ -1028,12 +1028,12 @@ msgstr "Attached files"
 #~ msgid "Attachment"
 #~ msgstr "Attachment"
 
-#: src/conversation/Composer.tsx:776
+#: src/conversation/Composer.tsx:777
 msgid "Attachments"
 msgstr "Attachments"
 
-#: src/conversation/Composer.tsx:964
-#: src/conversation/Composer.tsx:965
+#: src/conversation/Composer.tsx:966
+#: src/conversation/Composer.tsx:967
 msgid "Attachments and tools"
 msgstr "Attachments and tools"
 
@@ -1228,7 +1228,7 @@ msgstr "Bot token"
 #~ msgid "Bring agents together in a group."
 #~ msgstr "Bring agents together in a group."
 
-#: src/conversation/Composer.tsx:672
+#: src/conversation/Composer.tsx:673
 msgid "Bring an agent into the conversation"
 msgstr "Bring an agent into the conversation"
 
@@ -1376,7 +1376,7 @@ msgstr "bytes"
 #~ msgid "Cached"
 #~ msgstr "Cached"
 
-#: src/conversation/commands.tsx:34
+#: src/conversation/commands.tsx:41
 msgctxt "slash command"
 msgid "call"
 msgstr "call"
@@ -1467,11 +1467,11 @@ msgstr "Cancel goal"
 msgid "Cancel order"
 msgstr "Cancel order"
 
-#: src/conversation/Composer.tsx:761
+#: src/conversation/Composer.tsx:762
 msgid "Cancel the edit"
 msgstr "Cancel the edit"
 
-#: src/conversation/Composer.tsx:761
+#: src/conversation/Composer.tsx:762
 msgid "Cancel the reply"
 msgstr "Cancel the reply"
 
@@ -1529,7 +1529,7 @@ msgstr "Change a value to save it."
 msgid "Change log"
 msgstr "Change log"
 
-#: src/conversation/commands.tsx:83
+#: src/conversation/commands.tsx:91
 msgid "Change the agent's permissions"
 msgstr "Change the agent's permissions"
 
@@ -1567,7 +1567,7 @@ msgctxt "schedule details"
 msgid "Channel"
 msgstr "Channel"
 
-#: src/conversation/commands.tsx:33
+#: src/conversation/commands.tsx:40
 msgctxt "slash command"
 msgid "chart"
 msgstr "chart"
@@ -1829,7 +1829,7 @@ msgstr "Choose the trading account"
 msgid "Choose trading pair"
 msgstr "Choose trading pair"
 
-#: src/conversation/commands.tsx:36
+#: src/conversation/commands.tsx:43
 msgctxt "slash command"
 msgid "clear"
 msgstr "clear"
@@ -1860,7 +1860,7 @@ msgstr "Clear the messages"
 msgid "Clear the messages?"
 msgstr "Clear the messages?"
 
-#: src/conversation/commands.tsx:84
+#: src/conversation/commands.tsx:92
 msgid "Clear this conversation's messages"
 msgstr "Clear this conversation's messages"
 
@@ -1880,7 +1880,7 @@ msgstr "Click the install icon in the address bar."
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
 #: src/components/common/FilePreviewPanel.tsx:99
-#: src/conversation/Composer.tsx:723
+#: src/conversation/Composer.tsx:724
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:147
@@ -1981,8 +1981,8 @@ msgstr "Colour"
 msgid "Colour {color}"
 msgstr "Colour {color}"
 
-#: src/conversation/Composer.tsx:604
-#: src/conversation/Composer.tsx:625
+#: src/conversation/Composer.tsx:605
+#: src/conversation/Composer.tsx:626
 msgctxt "composer list"
 msgid "Commands"
 msgstr "Commands"
@@ -2162,7 +2162,7 @@ msgstr "Content"
 #~ msgid "Context panel"
 #~ msgstr "Context panel"
 
-#: src/conversation/Composer.tsx:1454
+#: src/conversation/Composer.tsx:1456
 msgid "Continue recording"
 msgstr "Continue recording"
 
@@ -2547,7 +2547,7 @@ msgstr "Delete the fact"
 msgid "Delete the list"
 msgstr "Delete the list"
 
-#: src/conversation/Composer.tsx:1427
+#: src/conversation/Composer.tsx:1429
 msgid "Delete the recording"
 msgstr "Delete the recording"
 
@@ -2637,27 +2637,27 @@ msgstr "Device verification failed. No authority was granted."
 #~ msgid "Diamond"
 #~ msgstr "Diamond"
 
-#: src/conversation/Composer.tsx:495
+#: src/conversation/Composer.tsx:496
 msgid "Dictation could not start."
 msgstr "Dictation could not start."
 
-#: src/conversation/Composer.tsx:483
+#: src/conversation/Composer.tsx:484
 msgid "Dictation failed"
 msgstr "Dictation failed"
 
-#: src/conversation/Composer.tsx:453
+#: src/conversation/Composer.tsx:454
 msgid "Dictation is not available here — hold the microphone to record a voice message."
 msgstr "Dictation is not available here — hold the microphone to record a voice message."
 
-#: src/conversation/Composer.tsx:474
+#: src/conversation/Composer.tsx:475
 msgid "Dictation is not available in this browser; hold the microphone to record a voice message"
 msgstr "Dictation is not available in this browser; hold the microphone to record a voice message"
 
-#: src/conversation/Composer.tsx:480
+#: src/conversation/Composer.tsx:481
 msgid "Dictation needs an internet connection"
 msgstr "Dictation needs an internet connection"
 
-#: src/conversation/Composer.tsx:1022
+#: src/conversation/Composer.tsx:1024
 msgid "Dictation, or hold to record a voice message"
 msgstr "Dictation, or hold to record a voice message"
 
@@ -2727,7 +2727,7 @@ msgstr "Drawing clarity"
 msgid "Dreamy"
 msgstr "Dreamy"
 
-#: src/conversation/Composer.tsx:1082
+#: src/conversation/Composer.tsx:1084
 msgid "Drop here to attach"
 msgstr "Drop here to attach"
 
@@ -2838,7 +2838,7 @@ msgstr "Edit the limits"
 msgid "Edit the list"
 msgstr "Edit the list"
 
-#: src/conversation/Composer.tsx:748
+#: src/conversation/Composer.tsx:749
 msgid "Edit the message"
 msgstr "Edit the message"
 
@@ -3444,11 +3444,11 @@ msgstr "Group from the selected"
 msgid "Group info"
 msgstr "Group info"
 
-#: src/conversation/Composer.tsx:670
+#: src/conversation/Composer.tsx:671
 msgid "Group members"
 msgstr "Group members"
 
-#: src/conversation/commands.tsx:83
+#: src/conversation/commands.tsx:91
 msgid "Group members' permissions"
 msgstr "Group members' permissions"
 
@@ -3502,11 +3502,11 @@ msgstr "Historical broker candles timed out. Retry the chart refresh."
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
-#: src/conversation/Composer.tsx:518
+#: src/conversation/Composer.tsx:519
 msgid "Hold the microphone to record, release to send."
 msgstr "Hold the microphone to record, release to send."
 
-#: src/conversation/Composer.tsx:1141
+#: src/conversation/Composer.tsx:1143
 msgid "Hold to record a voice message"
 msgstr "Hold to record a voice message"
 
@@ -3863,7 +3863,7 @@ msgstr "Latest actions"
 msgid "Laugh"
 msgstr "Laugh"
 
-#: src/conversation/Composer.tsx:705
+#: src/conversation/Composer.tsx:706
 msgid "Lead"
 msgstr "Lead"
 
@@ -3986,7 +3986,7 @@ msgstr "List view"
 msgid "Listening to you"
 msgstr "Listening to you"
 
-#: src/conversation/Composer.tsx:846
+#: src/conversation/Composer.tsx:847
 msgid "Listening… speak now"
 msgstr "Listening… speak now"
 
@@ -4252,7 +4252,7 @@ msgstr "Memory"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "Mention agents with @name. Without a mention, the first member responds."
 
-#: src/conversation/Composer.tsx:605
+#: src/conversation/Composer.tsx:606
 #: src/shell/ShortcutsSheet.tsx:18
 msgid "Mention an agent"
 msgstr "Mention an agent"
@@ -4270,7 +4270,7 @@ msgctxt "reach mode"
 msgid "Message"
 msgstr "Message"
 
-#: src/conversation/Composer.tsx:846
+#: src/conversation/Composer.tsx:847
 msgid "Message {name}"
 msgstr "Message {name}"
 
@@ -4278,7 +4278,7 @@ msgstr "Message {name}"
 #~ msgid "Message {recipientName}"
 #~ msgstr "Message {recipientName}"
 
-#: src/conversation/Composer.tsx:569
+#: src/conversation/Composer.tsx:570
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -4288,7 +4288,7 @@ msgstr "Message composer"
 msgid "Message options"
 msgstr "Message options"
 
-#: src/conversation/Composer.tsx:845
+#: src/conversation/Composer.tsx:846
 msgid "Message to {name}"
 msgstr "Message to {name}"
 
@@ -4410,7 +4410,7 @@ msgstr "Monitoring"
 msgid "More"
 msgstr "More"
 
-#: src/conversation/Composer.tsx:715
+#: src/conversation/Composer.tsx:716
 msgid "Move"
 msgstr "Move"
 
@@ -4648,7 +4648,7 @@ msgstr "No chats in «{0}» yet."
 msgid "No chats."
 msgstr "No chats."
 
-#: src/conversation/Composer.tsx:610
+#: src/conversation/Composer.tsx:611
 msgid "No command by that name"
 msgstr "No command by that name"
 
@@ -4730,7 +4730,7 @@ msgstr "No matching broker symbols"
 msgid "No matching emojis"
 msgstr "No matching emojis"
 
-#: src/conversation/Composer.tsx:478
+#: src/conversation/Composer.tsx:479
 msgid "No microphone was found on this device"
 msgstr "No microphone was found on this device"
 
@@ -5117,7 +5117,7 @@ msgstr "One profile all your agents read. Every change is logged with its author
 msgid "One step"
 msgstr "One step"
 
-#: src/conversation/commands.tsx:80
+#: src/conversation/commands.tsx:88
 #: src/conversation/ToolsSheet.tsx:167
 msgid "One time or repeating"
 msgstr "One time or repeating"
@@ -5191,7 +5191,7 @@ msgstr "Open price"
 msgid "Open risk limit"
 msgstr "Open risk limit"
 
-#: src/conversation/commands.tsx:81
+#: src/conversation/commands.tsx:89
 msgid "Open the {symbol} chart"
 msgstr "Open the {symbol} chart"
 
@@ -5207,7 +5207,7 @@ msgstr "Open the agent's chat to change its permissions."
 msgid "Open the group chat"
 msgstr "Open the group chat"
 
-#: src/conversation/commands.tsx:81
+#: src/conversation/commands.tsx:89
 msgid "Open the market chart"
 msgstr "Open the market chart"
 
@@ -5410,7 +5410,7 @@ msgstr "Pause agent and scheduled work"
 msgid "Pause for now"
 msgstr "Pause for now"
 
-#: src/conversation/Composer.tsx:1454
+#: src/conversation/Composer.tsx:1456
 msgid "Pause recording"
 msgstr "Pause recording"
 
@@ -5418,7 +5418,7 @@ msgstr "Pause recording"
 #~ msgid "paused"
 #~ msgstr "paused"
 
-#: src/conversation/Composer.tsx:705
+#: src/conversation/Composer.tsx:706
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
 #: src/shell/ChatHeader.tsx:117
@@ -5510,7 +5510,7 @@ msgstr "Permission unknown"
 msgid "Permission: {0}"
 msgstr "Permission: {0}"
 
-#: src/conversation/commands.tsx:35
+#: src/conversation/commands.tsx:42
 msgctxt "slash command"
 msgid "permissions"
 msgstr "permissions"
@@ -5553,11 +5553,11 @@ msgstr "Photo, tap to view"
 msgid "Photos"
 msgstr "Photos"
 
-#: src/conversation/Composer.tsx:1085
+#: src/conversation/Composer.tsx:1087
 msgid "Photos and files up to 8 MB"
 msgstr "Photos and files up to 8 MB"
 
-#: src/conversation/Composer.tsx:719
+#: src/conversation/Composer.tsx:720
 msgid "Pick"
 msgstr "Pick"
 
@@ -5907,7 +5907,7 @@ msgstr "Recorded from your statement, not broker confirmation"
 msgid "Recorded in Updates without any alert"
 msgstr "Recorded in Updates without any alert"
 
-#: src/conversation/Composer.tsx:1433
+#: src/conversation/Composer.tsx:1435
 msgid "Recording length"
 msgstr "Recording length"
 
@@ -5998,7 +5998,7 @@ msgstr "Remove"
 msgid "Remove {0}"
 msgstr "Remove {0}"
 
-#: src/conversation/Composer.tsx:802
+#: src/conversation/Composer.tsx:803
 msgid "Remove {label}"
 msgstr "Remove {label}"
 
@@ -6048,7 +6048,7 @@ msgid "Reply"
 msgstr "Reply"
 
 #. placeholder {0}: replyAgent?.name ?? "Lonora"
-#: src/conversation/Composer.tsx:753
+#: src/conversation/Composer.tsx:754
 msgid "Reply to {0}"
 msgstr "Reply to {0}"
 
@@ -6057,7 +6057,7 @@ msgstr "Reply to {0}"
 #~ msgid "Reply to an earlier message"
 #~ msgstr "Reply to an earlier message"
 
-#: src/conversation/Composer.tsx:751
+#: src/conversation/Composer.tsx:752
 msgid "Reply to your message"
 msgstr "Reply to your message"
 
@@ -6434,7 +6434,7 @@ msgstr "Saving…"
 msgid "Scenario"
 msgstr "Scenario"
 
-#: src/conversation/commands.tsx:32
+#: src/conversation/commands.tsx:39
 msgctxt "slash command"
 msgid "schedule"
 msgstr "schedule"
@@ -6488,7 +6488,7 @@ msgstr "Scheduled tasks"
 msgid "Scratchpad"
 msgstr "Scratchpad"
 
-#: src/conversation/commands.tsx:30
+#: src/conversation/commands.tsx:37
 msgctxt "slash command"
 msgid "search"
 msgstr "search"
@@ -6563,7 +6563,7 @@ msgstr "Search runs"
 msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 msgstr "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 
-#: src/conversation/commands.tsx:78
+#: src/conversation/commands.tsx:86
 msgid "Search the web, then answer with sources"
 msgstr "Search the web, then answer with sources"
 
@@ -6630,7 +6630,7 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
-#: src/conversation/Composer.tsx:1056
+#: src/conversation/Composer.tsx:1058
 msgid "Send"
 msgstr "Send"
 
@@ -6647,11 +6647,11 @@ msgstr "Send (Shift+Enter for a new line)"
 msgid "Send the answer"
 msgstr "Send the answer"
 
-#: src/conversation/Composer.tsx:1055
+#: src/conversation/Composer.tsx:1057
 msgid "Send the message"
 msgstr "Send the message"
 
-#: src/conversation/Composer.tsx:1475
+#: src/conversation/Composer.tsx:1477
 msgid "Send the voice message"
 msgstr "Send the voice message"
 
@@ -6882,7 +6882,7 @@ msgstr "Since"
 msgid "Skeptical"
 msgstr "Skeptical"
 
-#: src/conversation/commands.tsx:46
+#: src/conversation/commands.tsx:53
 msgctxt "slash command"
 msgid "skill"
 msgstr "skill"
@@ -6963,7 +6963,7 @@ msgstr "Skip"
 msgid "Sleepy"
 msgstr "Sleepy"
 
-#: src/conversation/Composer.tsx:1448
+#: src/conversation/Composer.tsx:1450
 msgid "Slide to cancel"
 msgstr "Slide to cancel"
 
@@ -7048,7 +7048,7 @@ msgstr "Start a chat or add a task for it to appear here."
 #~ msgid "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 #~ msgstr "Start a conversation. Your agent keeps its memory and continues scheduled work here."
 
-#: src/conversation/commands.tsx:82
+#: src/conversation/commands.tsx:90
 msgid "Start a voice call with {name}"
 msgstr "Start a voice call with {name}"
 
@@ -7085,7 +7085,7 @@ msgstr "Status: {text}"
 msgid "Still unknown"
 msgstr "Still unknown"
 
-#: src/conversation/Composer.tsx:1064
+#: src/conversation/Composer.tsx:1066
 #: src/pages/ActivityList.tsx:259
 msgid "Stop"
 msgstr "Stop"
@@ -7123,7 +7123,7 @@ msgstr "Stop order"
 msgid "Stop the agent"
 msgstr "Stop the agent"
 
-#: src/conversation/Composer.tsx:1063
+#: src/conversation/Composer.tsx:1065
 msgid "Stop the reply"
 msgstr "Stop the reply"
 
@@ -7170,11 +7170,11 @@ msgstr "Storage and data"
 msgid "Suggested value 3%"
 msgstr "Suggested value 3%"
 
-#: src/conversation/commands.tsx:79
+#: src/conversation/commands.tsx:87
 msgid "Summarize this conversation"
 msgstr "Summarize this conversation"
 
-#: src/conversation/commands.tsx:31
+#: src/conversation/commands.tsx:38
 msgctxt "slash command"
 msgid "summary"
 msgstr "summary"
@@ -7292,11 +7292,11 @@ msgstr "Tap the share button at the bottom of the browser."
 msgid "Tap to call back"
 msgstr "Tap to call back"
 
-#: src/conversation/Composer.tsx:1138
+#: src/conversation/Composer.tsx:1140
 msgid "Tap to dictate"
 msgstr "Tap to dictate"
 
-#: src/conversation/Composer.tsx:1023
+#: src/conversation/Composer.tsx:1025
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
@@ -7309,7 +7309,7 @@ msgctxt "chart"
 msgid "Target"
 msgstr "Target"
 
-#: src/conversation/commands.tsx:29
+#: src/conversation/commands.tsx:36
 msgctxt "slash command"
 msgid "task"
 msgstr "task"
@@ -7365,7 +7365,7 @@ msgstr "Task paused"
 msgid "Task resumed"
 msgstr "Task resumed"
 
-#: src/conversation/commands.tsx:87
+#: src/conversation/commands.tsx:95
 #: src/shell/domain/TasksPages.tsx:316
 msgid "Task title"
 msgstr "Task title"
@@ -7676,7 +7676,7 @@ msgstr "The message was not sent. Options"
 msgid "The messages of {0} are hidden for you; the chats stay in the list."
 msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 
-#: src/conversation/Composer.tsx:517
+#: src/conversation/Composer.tsx:518
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
@@ -7740,6 +7740,10 @@ msgstr "The original message is no longer available."
 #: src/components/ErrorBoundary.tsx:12
 msgid "The page could not be displayed"
 msgstr "The page could not be displayed"
+
+#: src/conversation/commands.tsx:150
+msgid "The permission level is still loading"
+msgstr "The permission level is still loading"
 
 #: src/shell/settings/UsagePage.tsx:86
 msgid "the previous seven days"
@@ -8383,7 +8387,7 @@ msgstr "Turn the agent on"
 #~ msgid "Turn trading ON"
 #~ msgstr "Turn trading ON"
 
-#: src/conversation/commands.tsx:77
+#: src/conversation/commands.tsx:85
 msgid "Turn your request into a task the agent follows"
 msgstr "Turn your request into a task the agent follows"
 
@@ -8546,7 +8550,7 @@ msgstr "Unverified metadata"
 msgid "Up {pct}%"
 msgstr "Up {pct}%"
 
-#: src/conversation/Composer.tsx:358
+#: src/conversation/Composer.tsx:359
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "Up to 6 photos and files, 8 MB each"
 
@@ -8622,11 +8626,11 @@ msgstr "Use the arrows to move between the columns."
 msgid "Use the configured secure website for device authentication."
 msgstr "Use the configured secure website for device authentication."
 
-#: src/conversation/Composer.tsx:938
+#: src/conversation/Composer.tsx:940
 msgid "Use the suggestion (Tab)"
 msgstr "Use the suggestion (Tab)"
 
-#: src/conversation/Composer.tsx:937
+#: src/conversation/Composer.tsx:939
 msgid "Use the suggestion: {suggestion}"
 msgstr "Use the suggestion: {suggestion}"
 
@@ -8718,8 +8722,8 @@ msgstr "Voice calls"
 msgid "Voice calls stop too."
 msgstr "Voice calls stop too."
 
-#: src/conversation/Composer.tsx:1031
-#: src/conversation/Composer.tsx:1032
+#: src/conversation/Composer.tsx:1033
+#: src/conversation/Composer.tsx:1034
 msgid "Voice conversation"
 msgstr "Voice conversation"
 
@@ -8859,21 +8863,21 @@ msgstr "We are making quick improvements to the service. Your chats are saved an
 msgid "We found no results for «{q}». Try a shorter word or a different term."
 msgstr "We found no results for «{q}». Try a shorter word or a different term."
 
-#: src/conversation/Composer.tsx:482
+#: src/conversation/Composer.tsx:483
 msgid "We heard nothing. Try again."
 msgstr "We heard nothing. Try again."
 
-#: src/conversation/Composer.tsx:1008
+#: src/conversation/Composer.tsx:1010
 #: src/conversation/ToolsSheet.tsx:210
 #: src/shell/domain/SkillsPages.tsx:22
 msgid "Web search"
 msgstr "Web search"
 
-#: src/conversation/Composer.tsx:1007
+#: src/conversation/Composer.tsx:1009
 msgid "Web search is on, tap to turn it off"
 msgstr "Web search is on, tap to turn it off"
 
-#: src/conversation/Composer.tsx:1011
+#: src/conversation/Composer.tsx:1013
 msgid "Web search turned off"
 msgstr "Web search turned off"
 
@@ -8895,7 +8899,7 @@ msgstr "Welcome back."
 msgid "Welcome to Lonora"
 msgstr "Welcome to Lonora"
 
-#: src/conversation/commands.tsx:88
+#: src/conversation/commands.tsx:96
 msgid "What are you looking for?"
 msgstr "What are you looking for?"
 
@@ -8985,7 +8989,7 @@ msgstr "Worried"
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
-#: src/conversation/Composer.tsx:393
+#: src/conversation/Composer.tsx:394
 msgid "Write the task title after {slash}"
 msgstr "Write the task title after {slash}"
 
@@ -8993,7 +8997,7 @@ msgstr "Write the task title after {slash}"
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
-#: src/conversation/Composer.tsx:394
+#: src/conversation/Composer.tsx:395
 msgid "Write what you are looking for after {slash}"
 msgstr "Write what you are looking for after {slash}"
 

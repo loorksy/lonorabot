@@ -576,7 +576,8 @@ export function validateRichContent(value: unknown): RichContent | null {
           !fieldsOnly(part, ["type", "name", "argument", "skill_id", "skill_name"]) ||
           !literal(part.name, ["task", "search", "summary", "skill"]) ||
           typeof part.argument !== "string" ||
-          part.argument.length > 4000 ||
+          // Code points, as the server counts them.
+          [...part.argument].length > 30000 ||
           !text(part.skill_id) ||
           !text(part.skill_name)
         )

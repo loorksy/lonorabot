@@ -18,6 +18,7 @@ from lonora_contracts.domain import MessageCommand, MessageCreate
 from lonora_db.rich_response import server_rich_content, validated_rich_content
 from lonora_tools.loader import load_tools
 from pydantic import ValidationError
+from test_task_runtime import task_db as task_db
 
 SEARCH = {"name": "search", "argument": "أسعار الذهب"}
 
@@ -49,6 +50,16 @@ def test_a_command_message_is_plain_text_that_ends_with_its_argument():
     ):
         with pytest.raises(ValidationError, match="message_command_invalid"):
             MessageCreate.model_validate(bad)
+
+
+def test_a_command_takes_text_as_long_as_the_message_it_ends():
+    long = ("ذهب " * 2000).strip()  # More than a short field holds, less than a message.
+    sent = MessageCreate.model_validate(
+        {"content": "/task " + long, "command": {"name": "task", "argument": long}}
+    )
+    assert sent.command is not None and len(sent.command.argument) == len(long) > 4000
+    part = {"type": "command", "name": "task", "argument": long}
+    assert server_rich_content(part)["parts"][0]["argument"] == long
 
 
 def test_only_the_server_writes_the_command_part():
@@ -224,3 +235,43 @@ async def test_a_group_takes_search_but_not_a_task_or_a_skill():
         assert [run["agent_id"] for run in sent.json()["runs"]] == [lead["id"]]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_command_sent_while_the_reply_is_running_still_says_what_was_asked(
+    task_db: Any, monkeypatch: pytest.MonkeyPatch
+):
+    """The message steers the running Run: the turn reads the same paragraph, after the
+    owner's own words."""
+    from lonora_adapter_kit.types import ModelReply
+    from lonora_agent.executor import execute_run
+    from lonora_agent.runtime_notices import is_owner_message, is_runtime_notice
+    from lonora_db.messages import send_message
+    from lonora_tools.registry import ToolRegistry
+    from test_tool_loop_execution import Script, conversation_run, saved_run
+
+    async def no_skill_refresh(*_: Any, **__: Any) -> None:
+        return None
+
+    context = await conversation_run(task_db)
+    db, owner, _, thread = task_db
+    async with db.sessions() as session, session.begin():
+        steered = await send_message(
+            session,
+            owner,
+            thread,
+            MessageCreate.model_validate(
+                {"content": "/search btc etf", "command": {"name": "search", "argument": "btc etf"}}
+            ),
+        )
+        assert steered["run_ids"] == [context.lease.run_id]
+    monkeypatch.setattr("lonora_agent.tool_loop.refresh_skill_context", no_skill_refresh)
+    model = Script(ModelReply(text="Searched."))
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, ToolRegistry([]), 120, 8)
+    assert (await saved_run(context)).status == "completed"
+    first, _ = model.requests[0]
+    said = next(i for i, item in enumerate(first) if item.content == "/search btc etf")
+    assert is_owner_message(first[said])
+    assert is_runtime_notice(first[said + 1])
+    assert "is the /search command" in first[said + 1].content

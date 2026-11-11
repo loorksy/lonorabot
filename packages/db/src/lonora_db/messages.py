@@ -5,6 +5,7 @@ from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import TERMINAL, is_conversational
 from lonora_core.user_error import LonoraError
+from pydantic import ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -414,7 +415,11 @@ async def send_message(
             }
         )
     if request.command:
-        rich_content = server_rich_content(await command_part(session, thread, request.command))
+        try:
+            rich_content = server_rich_content(await command_part(session, thread, request.command))
+        except ValidationError as error:
+            # Text the display document cannot hold is refused, never a server error.
+            raise LonoraError("message_command_invalid", 422) from error
     if request.edited_from:
         await supersede(session, owner_id, thread_id, request.edited_from)
     message = MessageRow(
