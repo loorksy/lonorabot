@@ -278,7 +278,7 @@ main.detail.bare {
   padding-top: calc(var(--top-h, 0px) + 62px);
 }
 main.page-enter {
-  animation: enter 0.22s var(--ease) both;
+  animation: enter 0.22s var(--ease) backwards;
 }
 @keyframes enter {
   from {
