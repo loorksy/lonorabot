@@ -652,7 +652,7 @@ async def require_order_size(broker: Any, symbol: str, volume: Any) -> None:
 
     The model then corrects the request itself instead of reporting a failed order. The
     executor's own check still decides; when the specification cannot be read here, it
-    answers alone.
+    answers alone. Only a first attempt is checked (`never_recorded`).
     """
     try:
         instrument = await broker.instrument(symbol)
@@ -677,6 +677,20 @@ async def require_order_size(broker: Any, symbol: str, volume: Any) -> None:
     )
 
 
+async def never_recorded(context: ToolContext, operation_id: str) -> bool:
+    """True while this call has left neither an approval card nor a journal entry.
+
+    A call that comes back after the owner's approval, after a restart or to reconcile an
+    unknown outcome is answered from its record, never by a fresh check.
+    """
+    approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
+    async with context.db.sessions() as session:
+        return (
+            await session.get(TradeApprovalRow, approval_id) is None
+            and await session.get(TradingJournalRow, operation_id) is None
+        )
+
+
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args = dict(args)
     args.pop("operation_id", None)
@@ -688,6 +702,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         await agent_binding(session, context.owner_id, context.agent_id)
         await require_lease(session, context.lease)
+    sized = None
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         # A new order names the catalogue's exact symbol. An exit or a change to an
@@ -698,8 +713,10 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             broker, str(args["symbol"])
         )
         if not managing and args.get("volume") is not None:
-            await require_order_size(broker, args["symbol"], args["volume"])
+            sized = broker
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
+    if sized is not None and await never_recorded(context, args["operation_id"]):
+        await require_order_size(sized, args["symbol"], args["volume"])
     return await approved_execution(context, [TradeRequest.model_validate(args)])
 
 

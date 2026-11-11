@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_streaming import Fixture, ScriptedRouter
@@ -16,6 +16,7 @@ from lonora_agent.executor import execute_run
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_core.user_error import ToolRefusal
 from lonora_db.schema import TradingAccountRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
@@ -468,6 +469,9 @@ async def main():
                 "volume": "0.15",
             },
         )
+        # The executor refuses a wrong size on its own, without the tool's early check.
+        early_size_check = patch("lonora_tools.trade.require_order_size", AsyncMock())
+        early_size_check.start()
         proposal = await registry.execute(peer_call, peer_context)
         await fixture.request(
             "POST",
@@ -531,6 +535,41 @@ async def main():
             outcome = await registry.execute(financial_call, isolated)
             assert outcome["status"] == "failed" and outcome["code"] == expected
         assert await broker.snapshot() == before
+        early_size_check.stop()
+        # With it, a size the contract cannot take is refused before any card, with the limits.
+        listed = f"/trading/approvals?thread_id={thread['id']}"
+        cards = len(await fixture.request("GET", listed))
+        for volume, expected in (
+            ("0.15", "volume_step_mismatch"),
+            ("0.01", "volume_out_of_range"),
+            ("11", "volume_out_of_range"),
+        ):
+            try:
+                await registry.execute(
+                    ToolCall(
+                        id="early-" + volume,
+                        name="trade_execute",
+                        arguments={
+                            "account_id": connection_id,
+                            "symbol": symbol,
+                            "action": "buy",
+                            "volume": volume,
+                        },
+                    ),
+                    isolated,
+                )
+            except ToolRefusal as refused:
+                assert refused.code == expected and refused.details["retryable"] is False
+                assert refused.details["limits"] == {
+                    "volume_min": "0.1",
+                    "volume_max": "10",
+                    "volume_step": "0.1",
+                }
+            else:
+                raise AssertionError("a size the contract cannot take raised a card")
+        assert len(await fixture.request("GET", listed)) == cards
+        assert await broker.snapshot() == before
+        print("PASS a size the contract cannot take is refused before any card, with its limits")
         history = await registry.execute(
             ToolCall(
                 id="history",

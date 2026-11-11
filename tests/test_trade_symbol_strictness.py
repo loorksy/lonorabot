@@ -30,10 +30,10 @@ class Context:
     owner_id, agent_id, call_id = "owner", "agent", "call"
     lease = SimpleNamespace(run_id="run")
 
-    def __init__(self, positions: list[Position], symbols: Any = None):
+    def __init__(self, positions: list[Position], symbols: Any = None, recorded: Any = None):
         @asynccontextmanager
         async def sessions():
-            yield SimpleNamespace(get=AsyncMock(return_value=None))
+            yield SimpleNamespace(get=AsyncMock(return_value=recorded))
 
         self.db = SimpleNamespace(sessions=sessions)
         broker = SimpleNamespace(
@@ -146,3 +146,14 @@ async def test_only_a_new_order_has_its_size_checked_before_the_executor() -> No
     # A partial close names its ticket: an exit is never held back here.
     closing = {**order, "action": "close_position", "position_id": "7"}
     assert [r.volume for r in await sent(trade.execute, context, closing)] == [Decimal("0.001")]
+
+
+@pytest.mark.asyncio
+async def test_a_call_that_already_has_a_record_is_never_checked_again() -> None:
+    """After approval, a restart or an unknown outcome the record answers, not a new check."""
+    context = Context([], recorded=SimpleNamespace(status="approved"))
+    broker = await context.brokers.get("owner", "account")
+    broker.instrument = contract(minimum="1").instrument
+    order = {"account_id": "account", "symbol": "XAUUSDm", "action": "buy", "volume": "0.01"}
+    assert [r.volume for r in await sent(trade.execute, context, order)] == [Decimal("0.01")]
+    broker.instrument.assert_not_awaited()
