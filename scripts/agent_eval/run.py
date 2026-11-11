@@ -1,21 +1,26 @@
-"""Live acceptance run: the scenario bank on a real model, the real tools, a fake broker.
+"""The acceptance run: the scenario bank on the real tools and a fake broker.
 
-Each scenario runs as the owner's Personal Agent through Lonora's own path (prompt assembly,
-model router, provider adapter, tool loop: ``execute_run`` with the worker's production lease
-and round limits) on its own copy of a disposable PostgreSQL database. Unlike genui_eval,
-every tool handler is the real one, so the scenario's effects are real rows and real calls on
-the fake MetaApi terminal of broker.py. No broker is reached and no order exists outside this
+``--live`` runs each scenario as the owner's Personal Agent through Lonora's own path
+(prompt assembly, model router, provider adapter, tool loop: ``execute_run`` with the worker's
+production lease and round limits) on a real model, each on its own copy of a disposable
+PostgreSQL database. It follows genui_eval and reuses its runner machinery, but every tool
+handler is the real one, so a scenario's effects are real rows and real calls on the fake
+MetaApi terminal of broker.py. No broker is reached and no order exists outside this
 process. The provider key is never read here: the stored credential is the placeholder
 ``proxy-injected`` and the network proxy adds the real key for api.openai.com.
 
+``--probe`` uses no model: it sends each scenario's ideal tool calls through the loop's own
+dispatch and classification in the scenario's seeded state (the structural layer).
+
     LONORA_DATABASE_URL=postgresql+asyncpg://.../agent_eval_test \\
     .venv/bin/python scripts/agent_eval/run.py --live [--scenarios M09,M34] [--baseline]
+    .venv/bin/python scripts/agent_eval/run.py --probe [--json] [--baseline]
 
-Writes one scrubbed JSON line per scenario. A full run is a recording,
-tests/fixtures/agent_eval/recordings/<model>-<YYYYMMDD>.jsonl (with --baseline it is
-recordings/baseline.jsonl, the "before" column the CI replay holds strictly); chosen scenarios
-are a probe and stay in .runtime/agent_eval/. Prints the scorer's verdict per scenario.
-Refuses to run without --live: every run spends real model tokens.
+A live run writes one scrubbed JSON line per scenario. A full run is a recording,
+tests/fixtures/agent_eval/recordings/<model>-<YYYYMMDD>.jsonl; chosen scenarios are a partial
+run and stay in .runtime/agent_eval/. With --baseline a full run is recordings/baseline.jsonl
+and the verdicts are written to BASELINE.json, the list the test suite holds strictly.
+Refuses to call a model without --live: every live run spends real model tokens.
 """
 
 import argparse

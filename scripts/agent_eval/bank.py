@@ -10,7 +10,6 @@ fake MetaApi terminal of broker.py. Nothing here reaches a broker or carries a c
 
 import importlib
 import json
-import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -35,7 +34,6 @@ CONVERSATION = FIXTURES / "conversation.json"
 ACCOUNT = "agent-eval-demo"
 # The owner of the conversation: Arabic profile, no reply language chosen (as on production).
 PROFILE = "الاسم: المالك\nأتداول الذهب واليورو دولار على حساب Exness تجريبي."
-PASSWORD = "ci-only-owner-password"  # test-only; tests/device_fixture.py enrolls with it
 ALL_ACTIONS = [
     "buy",
     "sell",
@@ -119,7 +117,8 @@ async def seed(api: Any, model: str) -> dict[str, str]:
     """The template database: the owner, his model, the demo account and a signed full mandate.
 
     ``api`` is genui_eval's in-process ``Api`` on a migrated disposable database, called
-    inside ``broker.installed``.
+    inside ``broker.installed`` with LONORA_UI_TEST_PASSWORD set to the owner's password
+    (the scripted authenticator enrolls with it).
     """
     sys.path.insert(0, str(ROOT / "tests"))
     # The scripted test authenticator of the test suite signs the mandate.
@@ -147,7 +146,6 @@ async def seed(api: Any, model: str) -> dict[str, str]:
     await save_controls(api.runtime.db, TradingControl(enabled=True))
     lonora = next(a for a in await api.request("GET", "/agents") if a["role"] == "personal")
     thread = await api.request("POST", f"/agents/{lonora['id']}/conversation", {})
-    os.environ.setdefault("LONORA_UI_TEST_PASSWORD", PASSWORD)
     device = await device_type.enroll(api)
     proposal = await api.request(
         "POST",
