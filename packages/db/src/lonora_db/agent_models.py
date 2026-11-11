@@ -30,10 +30,11 @@ from lonora_contracts.model_routing import (
 from lonora_core.model_routing import model_match_score, text_routes
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import SettingRow
+from .schema import AgentRow, SettingRow
 from .transactions import SettingsRepository, owned_agent
 
 ALLOWED_KEY = "model_allowed"
@@ -108,6 +109,27 @@ async def allowed_models(session: AsyncSession) -> list[ModelSelection]:
         if selection not in chosen:
             chosen.append(selection)
     return chosen
+
+
+async def provider_in_use(session: AsyncSession, owner_id: str, provider: str) -> bool:
+    """Whether anything would still ask this provider for a model: a global route (the voice
+    routes too), a backup, an allowed model, or one Agent's own choice."""
+    try:
+        routing = RoutingPolicy.model_validate(
+            await SettingsRepository().get(session, "model_routing")
+        )
+    except ValidationError:
+        routing = RoutingPolicy()
+    chosen: list[ModelSelection | None] = [
+        routing.unified,
+        *routing.routes.values(),
+        *await allowed_models(session),
+    ]
+    for agent_id in await session.scalars(select(AgentRow.id).where(AgentRow.owner_id == owner_id)):
+        record = await agent_model_preference(session, owner_id, agent_id)
+        if record:
+            chosen += [record.preference.primary, *record.preference.fallbacks]
+    return any(selection is not None and selection.provider == provider for selection in chosen)
 
 
 async def save_added_models(session: AsyncSession, value: AllowedModels) -> AllowedModels:
