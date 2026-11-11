@@ -28,6 +28,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useThreads } from "../hooks/useThreads";
 import type { Agent, Message as ApiMessage, Resource, Run } from "../lib/api";
 import { api, isRequestCancelled } from "../lib/api";
+import { stickToLatest } from "../lib/chat-scroll";
 import { draftKey, readComposerDraft } from "../lib/composer-drafts";
 import { failedReplies } from "../lib/failed-replies";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
@@ -615,6 +616,7 @@ export function Conversation({
   const scroll = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  const anchored = useRef(0);
   const previous = useRef({ first: "", last: "", height: 0, count: 0 });
   const [far, setFar] = useState(false);
   const [fresh, setFresh] = useState(0);
@@ -630,10 +632,19 @@ export function Conversation({
     const first = rows[0]?.id ?? "";
     const last = rows.at(-1)?.id ?? "";
     const old = previous.current;
-    if (old.first && first !== old.first && last === old.last)
+    if (old.first && first !== old.first && last === old.last) {
       el.scrollTop += el.scrollHeight - old.height;
-    else if (following.current) el.scrollTop = el.scrollHeight;
-    else if (answers > old.count && old.count) setFresh((n) => n + (answers - old.count));
+      if (!following.current) anchored.current = 0;
+    } else {
+      stickToLatest(
+        el,
+        following,
+        anchored,
+        nearConversationBottom(el.scrollHeight, el.clientHeight, el.scrollTop),
+      );
+      if (!following.current && answers > old.count && old.count)
+        setFresh((n) => n + (answers - old.count));
+    }
     previous.current = { first, last, height: el.scrollHeight, count: answers };
   }, [rows, answers]);
   // The message column mounts once the first page arrives (before that the empty state).
@@ -645,7 +656,12 @@ export function Conversation({
     const observer = new ResizeObserver(() => {
       const el = scroll.current;
       if (!el) return;
-      if (following.current) el.scrollTop = el.scrollHeight;
+      stickToLatest(
+        el,
+        following,
+        anchored,
+        nearConversationBottom(el.scrollHeight, el.clientHeight, el.scrollTop),
+      );
       previous.current.height = el.scrollHeight;
     });
     observer.observe(target);
@@ -706,6 +722,8 @@ export function Conversation({
   // try: re-observing never fires a tight loop of failing reads.
   const olderFailed = useRef(false);
   const canPage = hasOlder && thread.messages.length >= CHAT_PAGE;
+  const loadOlder = useRef(thread.older);
+  loadOlder.current = thread.older;
   useEffect(() => {
     const node = sentinel.current;
     const root = scroll.current;
@@ -719,10 +737,11 @@ export function Conversation({
         if (loadingOlder || olderFailed.current) return;
         setLoadingOlder(true);
         following.current = false;
+        anchored.current = 0;
         // The page's own count says whether older history remains; a failed read leaves
         // paging on, so the sentinel tries again once it leaves and comes back into view.
-        void thread
-          .older()
+        void loadOlder
+          .current()
           .then((read) => {
             if (read === 0) setHasOlder(false);
           })
@@ -735,7 +754,7 @@ export function Conversation({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [canPage, loadingOlder, thread]);
+  }, [canPage, loadingOlder]);
 
   /* ---- render */
   const locale = document.documentElement.lang || "ar";
@@ -1018,6 +1037,7 @@ export function Conversation({
           const el = event.currentTarget;
           const near = nearConversationBottom(el.scrollHeight, el.clientHeight, el.scrollTop);
           following.current = near;
+          if (near) anchored.current = el.scrollTop;
           const isFar = el.scrollHeight - el.clientHeight - el.scrollTop > 260;
           setFar(isFar);
           if (!isFar) setFresh(0);
