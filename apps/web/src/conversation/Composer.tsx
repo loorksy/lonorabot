@@ -536,6 +536,15 @@ export function Composer({
     if (micTip && micBusy) setMicTip(false);
   }, [micTip, micBusy]);
 
+  // The list fills the room between the chat's header and the composer, within the
+  // reference's bounds (assistPaint: 150 to 340).
+  const assist = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!assistOpen || !assist.current || !form.current) return;
+    const head = document.querySelector(".chat-head")?.getBoundingClientRect().bottom ?? 0;
+    const room = form.current.getBoundingClientRect().top - head - 28;
+    assist.current.style.setProperty("--as-max", `${Math.min(340, Math.max(150, room))}px`);
+  }, [assistOpen]);
   const replyTarget = editing ?? reply;
   // Where the mirror's ordinary text starts: after a typed command.
   const shown = typedCommand?.end ?? 0;
@@ -595,7 +604,7 @@ export function Composer({
       }}
     >
       {assistOpen && (
-        <div className="assist" data-type={commandOpen ? "command" : "mention"}>
+        <div className="assist" ref={assist} data-type={commandOpen ? "command" : "mention"}>
           <div
             className="as-list"
             role="listbox"
