@@ -94,7 +94,9 @@ executing. Changing a Goal still requires the Goal's own thread.
   same conversation or Task (the same stored payload), returns that watch
   (`deduplicated: true`) instead of adding a second one: a model that asks again after
   a worker restart, or a later wake that re-arms what is armed, keeps one watch. A
-  changed condition, or a watch that was cancelled or has fired, is a new watch.
+  changed condition, or a watch that was cancelled or has fired, is a new watch. With
+  or without a key, a watch that no longer watches (expired, or its confirmation
+  expired) is never the one returned: the request gets a new watch.
 - `owner_notify` keeps one alert per Agent and `dedupe_key`.
 
 ## Reading without walls

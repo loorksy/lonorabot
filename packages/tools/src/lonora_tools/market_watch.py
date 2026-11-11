@@ -11,7 +11,9 @@ from lonora_db.market_watches import (
     WatchAction,
     control_watch,
     steered_watch,
+    stop_watch,
     update_watch,
+    watch_active,
 )
 from lonora_db.notice_cards import raise_watch_changed
 from lonora_db.owner_actions import lock_owner_actions
@@ -38,7 +40,7 @@ async def keyed_watch(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
             {"key": "watch-dedupe:" + context.agent_id + ":" + key},
         )
-    return await session.scalar(
+    row = await session.scalar(
         select(MarketWatchRow)
         .where(
             MarketWatchRow.owner_id == context.owner_id,
@@ -50,6 +52,8 @@ async def keyed_watch(
         .limit(1)
         .with_for_update()
     )
+    # An expired watch is enabled and will never fire: the request gets a new one.
+    return row if row is not None and watch_active(row) else None
 
 
 async def identical_watch(
@@ -82,7 +86,7 @@ async def identical_watch(
         .limit(50)
         .with_for_update()
     ):
-        if row.payload == stored and row.state.get("task_id") == task_id:
+        if row.payload == stored and row.state.get("task_id") == task_id and watch_active(row):
             return row
     return None
 
@@ -113,8 +117,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             ):
                 return {**resource_data(existing), "deduplicated": True}
             # A changed condition replaces the live watch for this key, never adds one.
-            existing.payload = {**existing.payload, "enabled": False}
-            existing.state = {**existing.state, "code": "watch_replaced"}
+            stop_watch(existing, "watch_replaced")
             existing.version += 1
             existing.updated_at = utcnow()
             session.add(

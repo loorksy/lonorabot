@@ -215,6 +215,7 @@ async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> Accou
 
 async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) -> None:
     """Stop only this grant's existing Task; preserve all broker journal effects."""
+    from .market_watches import settle_task_watches
     from .tasks import finish_task
 
     task = await session.get(
@@ -225,3 +226,4 @@ async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) 
     )
     if task and task.owner_id == row.owner_id and task.agent_id == row.agent_id:
         finish_task(session, task, "cancelled")
+        await settle_task_watches(session, task)
