@@ -156,7 +156,7 @@ test("the call button follows Q58 when no voice provider is configured", async (
   const sheet = page.locator("#dialog");
   await expect(sheet).toContainText("Calls are not set up");
   await sheet.getByRole("button", { name: "Open voice settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+  await expect(page).toHaveURL(/\/app\/provider\/openai$/);
 });
 
 test("trades: the owner's own close goes through the executor; the order log shows states", async ({

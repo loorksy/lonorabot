@@ -1,3 +1,4 @@
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type {
@@ -8,10 +9,13 @@ import type {
   Resource,
   TrustedSource,
 } from "@lonora/contracts";
+import { tradingSafetyText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type FormEvent, useState } from "react";
 import { api } from "../../lib/api";
+import { readControls, resumeTrading, stopNewTrading, tradingStopped } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
+import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
 import { useSheets } from "../sheets/SheetHost";
@@ -38,13 +42,17 @@ const levelText = (server: CapabilityServer) => {
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). */
+   owner (Q53). Ours: the global brake under the trading accounts, and «النماذج» (routing) and the
+   voice-call readiness under AI. */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
+  const { revision, refresh } = useClient();
   const accounts = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
+  const controls = useLoad(readControls, [revision]);
   const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
+  const voice = useLoad(() => api.get<{ transport_configured: boolean }>("/voice/status"), []);
   const report = useLoad(() => api.get<CapabilityReport>("/capabilities"), []);
   const caps = report.value;
   const act = async (run: () => Promise<unknown>, done?: string) => {
@@ -446,6 +454,44 @@ export function IntegrationsPage() {
     });
   };
 
+  /* The one brake (Q14): stops new risk for every agent and manual orders; exits stay allowed. */
+  const safety = tradingSafetyText(i18n.locale);
+  const stopped = controls.value ? tradingStopped(controls.value) : null;
+  const brakeSheet = (stop: boolean) => {
+    const title = stop ? safety.stop : safety.resume;
+    sheets.open({
+      id: "brake",
+      title,
+      label: title,
+      body: (
+        <>
+          <p>{stop ? safety.stopHint : safety.resumeHint}</p>
+          <div className="actions">
+            <button type="button" className="btn outline" onClick={() => sheets.close()}>
+              <Trans>Cancel</Trans>
+            </button>
+            <button
+              type="button"
+              className={`btn ${stop ? "danger" : "primary"}`}
+              onClick={() => {
+                sheets.close(true);
+                void act(
+                  async () => {
+                    controls.set(await (stop ? stopNewTrading() : resumeTrading()));
+                    refresh();
+                  },
+                  stop ? t`Trading stopped · closing is still allowed` : t`Trading resumed`,
+                );
+              }}
+            >
+              {title}
+            </button>
+          </div>
+        </>
+      ),
+    });
+  };
+
   const linked = accounts.value ?? [];
   const domains = (caps?.trusted_sources ?? []).filter(
     (item) => item.kind === "feed_domain" && item.active,
@@ -466,30 +512,54 @@ export function IntegrationsPage() {
       <h3>
         <Trans>Trading accounts</Trans>
       </h3>
-      {linked.length > 0 && (
-        <div className="group">
-          {linked.map((row) => {
-            const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
-            return (
-              <NavRow
-                key={row.id}
-                icon={
-                  <span className="row-icon">
-                    <Icon name="trend" />
-                  </span>
-                }
-                label={<span className="ltr">{row.payload.account_id}</span>}
-                sub={
-                  row.payload.provider === "simulation"
-                    ? t`Demo · ${agentsCount(count)}`
-                    : `MetaApi · ${agentsCount(count)}`
-                }
-                to={`/app/broker-account/${row.id}`}
-              />
-            );
-          })}
-        </div>
-      )}
+      <div className="group">
+        {linked.map((row) => {
+          const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
+          return (
+            <NavRow
+              key={row.id}
+              icon={
+                <span className="row-icon">
+                  <Icon name="trend" />
+                </span>
+              }
+              label={<span className="ltr">{row.payload.account_id}</span>}
+              sub={
+                row.payload.provider === "simulation"
+                  ? t`Demo · ${agentsCount(count)}`
+                  : `MetaApi · ${agentsCount(count)}`
+              }
+              to={`/app/broker-account/${row.id}`}
+            />
+          );
+        })}
+        <button
+          type="button"
+          className="row"
+          data-testid="trading-brake"
+          disabled={stopped == null}
+          onClick={() => brakeSheet(!stopped)}
+        >
+          <span className="row-icon">
+            <Icon name="power" />
+          </span>
+          <span className="body">
+            <strong>{safety.title}</strong>
+            <small role="status">
+              {stopped == null
+                ? controls.error != null
+                  ? userError(controls.error)
+                  : safety.loading
+                : stopped
+                  ? safety.stopped
+                  : safety.running}
+            </small>
+          </span>
+          <span className="chevron">
+            <Icon name="chev" />
+          </span>
+        </button>
+      </div>
       <BrokerLinkButton first={!linked.length} />
       <h3>
         <Trans>Artificial intelligence</Trans>
@@ -500,6 +570,18 @@ export function IntegrationsPage() {
           label={t`Model providers`}
           to="/app/providers"
           value={configured ? String(configured) : t`Not added yet`}
+        />
+        <NavRow icon="nodes" label={t`Models`} to="/app/models" />
+        <NavRow
+          icon="phone"
+          label={t`Voice calls`}
+          to="/app/provider/openai"
+          value={
+            voice.value &&
+            (voice.value.transport_configured
+              ? t({ message: "Ready", context: "voice calls" })
+              : t`Needs an OpenAI key`)
+          }
         />
       </div>
       <h3>
