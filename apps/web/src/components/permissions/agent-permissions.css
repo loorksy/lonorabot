@@ -223,7 +223,7 @@
 }
 .permission-authority-list button[aria-pressed="true"] {
   background: var(--lonora-surface, var(--legacy-muted));
-  border-color: var(--ring, #8b7aff);
+  border-color: var(--ring);
 }
 .permission-authority-list strong,
 .permission-authority-list small {
@@ -311,7 +311,7 @@
 .permission-trigger:focus-visible,
 .permission-options button:focus-visible,
 .permission-groups summary:focus-visible {
-  outline: 2px solid var(--ring, #8b7aff);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 .permission-inline-buttons {
@@ -596,7 +596,7 @@
 
 .permission-level-select:focus-visible,
 .permission-level-switch:focus-visible {
-  outline: 2px solid var(--ring, #8b7aff);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 .agent-permissions {
