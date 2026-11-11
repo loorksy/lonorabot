@@ -1,0 +1,9 @@
+[Unit]
+Description=Lonora encrypted backup (database, artifacts, configuration)
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lonora
+ExecStart=/opt/lonora/infra/compose/lonora backup
+UMask=0077

@@ -1,4 +1,4 @@
-# Install a matching lonora-backup.service invoking /opt/lonora/infra/compose/backup-prod.sh.
+# Runs lonora-backup.service (infra/systemd/lonora-backup.service); install.sh installs both.
 [Unit]
 Description=Daily Lonora backup
 [Timer]

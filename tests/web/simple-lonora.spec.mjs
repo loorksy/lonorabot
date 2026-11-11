@@ -106,6 +106,10 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
         data: { enabled, emergency_stop: false },
       });
 
+    // An agent's own creation is capped at 20 active agents per owner: agents earlier
+    // specs left active must not use up the room this one needs (they are paused).
+    python(["tests/browser_agents.py"], { action: "headroom", needed: 1 });
+
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
@@ -116,7 +120,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       symbol: data.symbol,
       name,
     });
-    expect(created.status).toBe("completed");
+    expect(created.status, `creation run ${created.error_code}`).toBe("completed");
     gold = created.agent;
     expect(gold).toBeTruthy();
     // One creation card (Undo) and one grant card; nothing else to answer.

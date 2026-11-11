@@ -1,0 +1,7 @@
+# Direct mode: Caddy owns ports 80 and 443 and gets the TLS certificate for LONORA_DOMAIN.
+services:
+  caddy:
+    ports: ["80:80", "443:443"]
+    environment:
+      LONORA_SITE_ADDRESS: ${LONORA_DOMAIN:?set public domain}
+      LONORA_TRUSTED_PROXIES: 127.0.0.1/32
