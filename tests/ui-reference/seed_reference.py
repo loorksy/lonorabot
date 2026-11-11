@@ -160,7 +160,7 @@ def candles() -> list[dict[str, str]]:
     """Five-minute XAUUSD bars along the reference's demo formula, ending 10:00 UTC today."""
     end = datetime.now(UTC).replace(hour=10, minute=0, second=0, microsecond=0)
     close = [2355 - (145 - j * 2.2 + math.sin(j * 1.7) * 18) / 10 for j in range(-60, 30)]
-    rows = []
+    rows: list[dict[str, str]] = []
     for index in range(1, len(close)):
         o, c = close[index - 1], close[index]
         rows.append(

@@ -112,7 +112,7 @@ def agent_operations(owner: str, account: str, agent: str) -> list[TradingJourna
     ]
 
 
-def cookies(fixture: Fixture) -> list[dict[str, str]]:
+def cookies(fixture: Fixture) -> list[dict[str, str | None]]:
     return [{"name": cookie.name, "value": cookie.value} for cookie in fixture.client.cookies.jar]
 
 
