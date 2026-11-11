@@ -1,16 +1,19 @@
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentPermissionLevel, PermissionState } from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback, useState } from "react";
 import type { Agent } from "../lib/api";
+import { domainApi } from "../shell/domain/api";
+import { useLoad } from "../shell/domain/hooks";
 import { useNavigation } from "../shell/navigation";
+import { useLinkedCount } from "../shell/settings/SettingsRoot";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { LEVEL_ICON, levelName } from "./PermissionMenu";
 
 /* «إضافة إلى المحادثة» (reference toolsSheet, Desktop-37 4978-5009): tiles ملفات · صور · كاميرا;
-   مهمة جديدة · جدولة · رسالة صوتية; الصلاحية · الشارت; البحث في الويب (switch) · التكاملات ·
-   المهارات · المعرفة. A Claude-style bar sheet. */
+   مهمة جديدة · جدولة; الصلاحية · الشارت; البحث في الويب (switch) · التكاملات · المهارات ·
+   المعرفة, each with its count. A Claude-style bar sheet. */
 export type ToolsInput = {
   agent?: Agent;
   isGroup: boolean;
@@ -21,8 +24,38 @@ export type ToolsInput = {
   onWebSearch: (on: boolean) => Promise<void> | void;
   onFiles: () => void;
   onPhotos: (camera: boolean) => void;
-  onVoiceNote: () => void;
 };
+
+const linkedText = (count: number) =>
+  count === 0
+    ? t({ message: "Not linked", context: "integrations" })
+    : plural(count, {
+        one: "one linked",
+        two: "two linked",
+        few: "# linked",
+        many: "# linked",
+        other: "# linked",
+      });
+const skillsText = (count: number) =>
+  count === 0
+    ? t`No skills enabled`
+    : plural(count, {
+        one: "one skill enabled",
+        two: "two skills enabled",
+        few: "# skills enabled",
+        many: "# skills enabled",
+        other: "# skills enabled",
+      });
+const knowledgeText = (count: number) =>
+  count === 0
+    ? t({ message: "Empty", context: "knowledge" })
+    : plural(count, {
+        one: "one item",
+        two: "two items",
+        few: "# items",
+        many: "# items",
+        other: "# items",
+      });
 
 function AddRow({
   icon,
@@ -76,7 +109,15 @@ function ToolsBody({
     close();
     nav.go(path);
   };
-  const agentPath = input.agent ? `/app/${encodeURIComponent(input.agent.id)}` : "/app";
+  const agentId = input.agent && !input.isGroup ? input.agent.id : null;
+  const agentQuery = agentId ? `?agent=${encodeURIComponent(agentId)}` : "";
+  // Each count shows once read, never a guessed zero.
+  const linked = useLinkedCount();
+  const skills = useLoad(agentId ? () => domainApi.skills(agentId) : null, `skills:${agentId}`);
+  const knowledge = useLoad(
+    agentId ? () => domainApi.knowledge(agentId) : null,
+    `knowledge:${agentId}`,
+  );
   return (
     <>
       <div className="add-tiles">
@@ -112,21 +153,13 @@ function ToolsBody({
           icon="task"
           title={<Trans>New task</Trans>}
           sub={<Trans>The agent follows it until it is done</Trans>}
-          onClick={() => go("/app/tasks?new=1")}
+          onClick={() => go(`/app/new-task${agentQuery}`)}
         />
         <AddRow
           icon="clock"
           title={t({ message: "Schedule", context: "add to the conversation" })}
           sub={<Trans>One time or repeating</Trans>}
-          onClick={() => go("/app/routines")}
-        />
-        <AddRow
-          icon="mic"
-          title={<Trans>Voice message</Trans>}
-          onClick={() => {
-            close();
-            input.onVoiceNote();
-          }}
+          onClick={() => go(`/app/new-schedule${agentQuery}`)}
         />
       </div>
       <div className="add-group">
@@ -182,6 +215,7 @@ function ToolsBody({
         <AddRow
           icon="plug"
           title={<Trans>Integrations</Trans>}
+          sub={linked === null ? undefined : linkedText(linked)}
           onClick={() => go("/app/settings?tab=integrations")}
         />
         {!input.isGroup && (
@@ -189,16 +223,16 @@ function ToolsBody({
             <AddRow
               icon="bolt"
               title={<Trans>Skills</Trans>}
-              onClick={() => go(`${agentPath}?settings=skills`)}
+              sub={
+                skills.data && skillsText(skills.data.filter((row) => row.payload.enabled).length)
+              }
+              onClick={() => go(`/app/skills${agentQuery}`)}
             />
             <AddRow
               icon="book"
               title={<Trans>Knowledge</Trans>}
-              onClick={() =>
-                go(
-                  `/app/knowledge${input.agent ? `?agent=${encodeURIComponent(input.agent.id)}` : ""}`,
-                )
-              }
+              sub={knowledge.data && knowledgeText(knowledge.data.length)}
+              onClick={() => go(`/app/knowledge${agentQuery}`)}
             />
           </>
         )}

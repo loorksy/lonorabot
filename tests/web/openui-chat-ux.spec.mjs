@@ -251,9 +251,14 @@ test("M6: leaving the chat while recording releases the microphone and sends not
       sends.push(path);
   });
   await page.goto(`/app/${conversation.agent.id}`);
-  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Voice message" }).click();
-  await expect(page.locator(".vrec-bar")).toBeVisible();
+  // Hold the mic, then slide up to lock the recording.
+  const mic = await page.locator(".composer .mic").boundingBox();
+  await page.mouse.move(mic.x + mic.width / 2, mic.y + mic.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  await page.mouse.move(mic.x + mic.width / 2, mic.y + mic.height / 2 - 100, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.locator(".vrec-bar.locked")).toBeVisible();
   await page.waitForTimeout(600);
   // Leave the conversation (the composer unmounts, as a thread switch does).
   await page
@@ -264,6 +269,35 @@ test("M6: leaving the chat while recording releases the microphone and sends not
   await expect.poll(() => page.evaluate(() => window.__micStopped)).toBeGreaterThan(0);
   await page.waitForTimeout(1500);
   expect(sends).toEqual([]);
+});
+
+test("the + sheet: rows with their counts, each opening this agent's own page", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const id = conversation.agent.id;
+  await page.goto(`/app/${id}`);
+  const sheet = page.locator("#dialog");
+  const open = async (name) => {
+    await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+    await sheet.getByRole("button", { name }).click();
+  };
+  await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+  // The mic's long press records a voice message: the sheet has no second way in.
+  await expect(sheet.getByRole("button", { name: "Voice message" })).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: /^Integrations/ })).toContainText(/linked/);
+  await expect(sheet.getByRole("button", { name: /^Skills/ })).toContainText(/skill/);
+  await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toContainText("Empty");
+  await page.keyboard.press("Escape");
+  await open(/^Skills/);
+  await expect(page).toHaveURL(new RegExp(`/app/skills\\?agent=${id}$`));
+  await page.goto(`/app/${id}`);
+  await open(/^Schedule/);
+  await expect(page).toHaveURL(new RegExp(`/app/new-schedule\\?agent=${id}$`));
+  await page.goto(`/app/${id}`);
+  await open(/^New task/);
+  await expect(page).toHaveURL(new RegExp(`/app/new-task\\?agent=${id}$`));
 });
 
 test("M10: older history keeps paging page after page, and a failed read does not end it", async ({

@@ -753,7 +753,6 @@ export function Composer({
                   input.onchange = () => void upload(Array.from(input.files ?? []));
                   input.click();
                 },
-                onVoiceNote: () => recorder.startLocked(),
               })
             }
           >
@@ -1016,7 +1015,7 @@ function useVoiceRecorder({
     }
     r.raf = requestAnimationFrame(tick);
   };
-  const begin = async (startLocked: boolean, mic?: HTMLElement) => {
+  const begin = async (mic: HTMLElement) => {
     const media = navigator.mediaDevices;
     if (
       !(media && "getUserMedia" in media && "MediaRecorder" in window && window.isSecureContext)
@@ -1036,25 +1035,23 @@ function useVoiceRecorder({
     } as NonNullable<typeof rec.current>;
     rec.current = r;
     setActive(true);
-    setLocked(startLocked);
-    if (!startLocked && mic) {
-      const b = mic.getBoundingClientRect();
-      const cx = b.left + b.width / 2;
-      const cy = b.top + b.height / 2;
-      const k = document.createElement("div");
-      k.className = "vrec-knob";
-      k.style.left = `${cx}px`;
-      k.style.top = `${cy}px`;
-      k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
-      const l = document.createElement("div");
-      l.className = "vrec-lock";
-      l.style.left = `${cx}px`;
-      l.style.top = `${cy - 136}px`;
-      l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
-      document.body.append(k, l);
-      knob.current = k;
-      lock.current = l;
-    }
+    setLocked(false);
+    const b = mic.getBoundingClientRect();
+    const cx = b.left + b.width / 2;
+    const cy = b.top + b.height / 2;
+    const k = document.createElement("div");
+    k.className = "vrec-knob";
+    k.style.left = `${cx}px`;
+    k.style.top = `${cy}px`;
+    k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
+    const l = document.createElement("div");
+    l.className = "vrec-lock";
+    l.style.left = `${cx}px`;
+    l.style.top = `${cy - 136}px`;
+    l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
+    document.body.append(k, l);
+    knob.current = k;
+    lock.current = l;
     requestAnimationFrame(() => {
       setEntered(true);
       knob.current?.classList.add("in");
@@ -1199,7 +1196,6 @@ function useVoiceRecorder({
     active,
     in: entered,
     bar,
-    startLocked: () => void begin(true),
     micHandlers: (onTap: () => void) => ({
       onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
         if (event.button > 0 || rec.current) return;
@@ -1211,7 +1207,7 @@ function useVoiceRecorder({
           recording: false,
           timer: window.setTimeout(() => {
             if (press.current) press.current.recording = true;
-            void begin(false, target);
+            void begin(target);
           }, VOICE.hold),
         };
         try {
