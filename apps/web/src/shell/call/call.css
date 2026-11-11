@@ -174,3 +174,164 @@
     font-size: var(--fs-lg);
   }
 }
+
+/* The call folded into its own chat header (reference callPill). The hang-up sits where
+   the call button was; the wave and mute grow out of it once. */
+.chat-head .presence.oncall {
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.chat-head .presence.oncall.muted {
+  color: var(--muted);
+}
+.chat-head .call-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  margin: 0;
+  padding: 4px;
+  flex: none;
+  min-inline-size: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 12%, var(--fill));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.chat-head .call-pill > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.chat-head .call-pill.enter {
+  animation: cp-in 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.12) both;
+}
+@keyframes cp-in {
+  from {
+    clip-path: inset(0 calc(100% - 40px) 0 0 round 20px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 20px);
+  }
+}
+.chat-head .call-pill.enter > * {
+  animation: cp-fade 0.34s 0.12s var(--ease) both;
+}
+@keyframes cp-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+.chat-head .cp-wave {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 32px;
+  border-radius: var(--r-pill);
+}
+.chat-head .cp-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+}
+.chat-head .cp-bars i {
+  width: 3px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--accent-ink);
+  animation: cp-bar 1.05s ease-in-out infinite;
+}
+.chat-head .cp-bars i:nth-child(2) {
+  animation-duration: 0.86s;
+  animation-delay: -0.32s;
+}
+.chat-head .cp-bars i:nth-child(3) {
+  animation-duration: 1.2s;
+  animation-delay: -0.6s;
+}
+.chat-head .cp-bars i:nth-child(4) {
+  animation-duration: 0.94s;
+  animation-delay: -0.15s;
+}
+.chat-head .cp-bars i:nth-child(5) {
+  animation-duration: 1.12s;
+  animation-delay: -0.45s;
+}
+@keyframes cp-bar {
+  0%,
+  100% {
+    height: 5px;
+  }
+  30% {
+    height: 18px;
+  }
+  55% {
+    height: 9px;
+  }
+  75% {
+    height: 15px;
+  }
+}
+.chat-head .cp-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--text);
+}
+.chat-head .cp-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.chat-head .cp-end {
+  background: linear-gradient(180deg, #f0605f, var(--danger-fill));
+  color: #fff;
+}
+.chat-head .cp-end svg {
+  transform: rotate(135deg);
+}
+.chat-head .call-pill.enter > .cp-end {
+  animation: none;
+}
+.chat-head .call-pill.muted {
+  background: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--glass-line);
+}
+.chat-head .call-pill.muted .cp-bars i {
+  animation: none;
+  height: 4px;
+  background: var(--faint);
+}
+.chat-head .call-pill.muted .cp-mute {
+  background: color-mix(in srgb, var(--danger-fill) 18%, var(--fill));
+  color: var(--red);
+}
+.chat-head .call-back {
+  animation: cp-back 0.42s cubic-bezier(0.2, 0.9, 0.25, 1.3) both;
+}
+@keyframes cp-back {
+  from {
+    transform: scale(0.6) rotate(-35deg);
+    opacity: 0;
+  }
+}
+.chat-head button[aria-disabled="true"] {
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-head .call-pill.enter,
+  .chat-head .call-pill.enter > *,
+  .chat-head .call-back {
+    animation: none;
+  }
+  .chat-head .cp-bars i {
+    animation: none;
+    height: 10px;
+  }
+}

@@ -304,6 +304,55 @@ export function CallPage() {
   );
 }
 
+/** The call folded into its own chat: the header's call button grows into hang up, mute
+    and the wave. Tapping the wave returns to the call screen. */
+export function CallCapsule() {
+  const voice = useVoice();
+  if (!voice.target) return null;
+  return (
+    <fieldset className={`call-pill enter${voice.muted ? " muted" : ""}`}>
+      <legend className="sr-only">{t`Ongoing call`}</legend>
+      <button
+        type="button"
+        className="cp-wave"
+        data-testid="active-call-pill"
+        aria-label={t`Return to the call`}
+        title={t`Return to the call`}
+        onClick={voice.expand}
+      >
+        <span className="cp-bars" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+      </button>
+      <button
+        type="button"
+        className="cp-btn cp-mute"
+        aria-pressed={voice.muted}
+        aria-label={voice.muted ? t`Unmute` : t({ message: "Mute", context: "call" })}
+        title={voice.muted ? t`Unmute` : t({ message: "Mute", context: "call" })}
+        disabled={!voice.session || voice.ending}
+        onClick={voice.toggleMute}
+      >
+        <Icon name={voice.muted ? "micOff" : "mic"} />
+      </button>
+      <button
+        type="button"
+        className="cp-btn cp-end"
+        aria-label={t`End the call`}
+        title={t`End the call`}
+        disabled={voice.ending}
+        onClick={() => void voice.stop().catch(() => undefined)}
+      >
+        <Icon name="phone" />
+      </button>
+    </fieldset>
+  );
+}
+
 /** The call strip under the top bar on every screen but the call and its own chat. */
 export function CallStrip({ hidden }: { hidden: boolean }) {
   const voice = useVoice();

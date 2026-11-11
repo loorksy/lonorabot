@@ -19,16 +19,17 @@ Web only: no backend change and no migration (reserved id 0059 unused). No PR is
   Removed the floating `CallCard`, `VoiceChatCard`, `VoiceStatus`; trimmed `components/call/call.css`.
 - Docs: `docs/FRONTEND_STRUCTURE.md`, `docs/ui-reference/CAPABILITY_MAP.md` call rows.
 
+## Finished after the conversation header landed
+- **call.capsule**: `CallCapsule` in `ChatHeader.tsx` replaces the call button on that agent's chat
+  (wave · mute · hang up). The wave keeps `data-testid="active-call-pill"` and opens the call
+  screen. `CallPill.tsx` is gone. Other screens keep `CallStrip`.
+- **Q58 disabled look**: the header call button uses `aria-disabled` when `/voice/status` says the
+  provider is missing, and a tap still opens `useCallStarter().notConfigured`.
+- Calling a different agent while a call is up opens the running call (`useCallStarter.start`).
+  No extra toast.
+
 ## Open
-1. **call.capsule** — needs `apps/web/src/shell/ChatHeader.tsx` (owned by T2's PR #51; build it after
-   #51 merges). Reference `callPill()` at `docs/ui-reference/Lonora-Desktop-37.html:3583`: the call
-   button grows once in place (clip-path 0.5 s) into [hang up · mute · wave]; tap the wave → the call
-   screen. It replaces `apps/web/src/components/call/CallPill.tsx`.
-2. **Q58 disabled look** of the header call button, also in `ChatHeader.tsx`: use `aria-disabled`
-   so a tap still shows the warning (`useCallStarter().notConfigured`).
-3. Decide the reference toast «أنه المكالمة الحالية أولاً.» when calling another agent during a call;
-   today the header reads "Open active call" and opens the running call (`useCallStarter.start`).
-4. Open the PR into main and run the final gate once: `pytest tests -q` on a fresh `*_test` DB;
+1. Open the PR into main and run the final gate once: `pytest tests -q` on a fresh `*_test` DB;
    `pnpm lint`, `pnpm check`, `pnpm build`, `pnpm --filter @lonora/web i18n`; the full Playwright web suite.
 
 ## Last test runs (fresh `_ci` DB, `LONORA_UI_TEST_BROWSER_PATH=/usr/bin/google-chrome`)

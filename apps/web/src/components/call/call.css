@@ -22,42 +22,7 @@
   background: var(--call-color, var(--foreground));
   transition: height 80ms linear;
 }
-.call-header-pill {
-  display: flex;
-  flex-shrink: 1;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  max-width: 230px;
-  height: 36px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  padding: 5px 9px 5px 5px;
-  background: var(--muted);
-  color: var(--foreground);
-}
-.call-mini-avatar {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-}
-.call-mini-avatar .lonora-agent-avatar {
-  width: 24px;
-  height: 24px;
-}
-.call-header-pill .compact {
-  width: 32px;
-  height: 22px;
-  gap: 1px;
-  flex-shrink: 0;
-}
-.call-header-pill .compact > span {
-  width: 2px;
-}
 @media (max-width: 767px) {
-  .call-header-pill {
-    max-width: 150px;
-  }
   .call-waveform {
     gap: 1.5px;
   }
