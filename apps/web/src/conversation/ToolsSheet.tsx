@@ -182,7 +182,7 @@ function ToolsBody({
         <AddRow
           icon="plug"
           title={<Trans>Integrations</Trans>}
-          onClick={() => go("/app/settings?tab=integrations")}
+          onClick={() => go("/app/integrations")}
         />
         {!input.isGroup && (
           <>

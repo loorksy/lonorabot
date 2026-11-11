@@ -26,7 +26,7 @@ const ROUTES: Record<string, string> = {
   tasks: "/app/tasks",
   agents: "/app/agents",
   files: "/app/artifacts",
-  usage: "/app/settings?tab=usage",
+  usage: "/app/usage",
 };
 const STALE_MS = 120_000;
 

@@ -2044,7 +2044,7 @@ msgstr "Content"
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:1025
+#: src/conversation/Conversation.tsx:1024
 #: src/shell/settings/ModelsPage.tsx:18
 msgid "Conversation"
 msgstr "Conversation"
@@ -3210,11 +3210,11 @@ msgstr "Global routing"
 #~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
 #~ msgstr "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
 
-#: src/conversation/Conversation.tsx:1098
+#: src/conversation/Conversation.tsx:1097
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:1098
+#: src/conversation/Conversation.tsx:1097
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -3289,7 +3289,7 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/conversation/Conversation.tsx:1176
+#: src/conversation/Conversation.tsx:1175
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -3715,6 +3715,7 @@ msgctxt "knowledge"
 msgid "Link"
 msgstr "Link"
 
+#: src/components/trading/BrokerPairPicker.tsx:153
 #: src/shell/settings/ConnectionPages.tsx:248
 #: src/shell/settings/IntegrationsPage.tsx:780
 msgid "Link a trading account"
@@ -3824,7 +3825,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:1064
+#: src/conversation/Conversation.tsx:1063
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -4923,10 +4924,6 @@ msgstr "Open the profile"
 #: src/conversation/ChatPrefsPage.tsx:27
 msgid "Open the steps automatically"
 msgstr "Open the steps automatically"
-
-#: src/components/trading/BrokerPairPicker.tsx:153
-msgid "Open trading settings"
-msgstr "Open trading settings"
 
 #: src/shell/agent/AgentPage.tsx:164
 msgid "Open voice settings"
@@ -7813,7 +7810,7 @@ msgstr "Tools that could move money are refused: {0}"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:862
+#: src/conversation/Conversation.tsx:861
 msgid "Trade order"
 msgstr "Trade order"
 
@@ -8447,7 +8444,7 @@ msgstr "What happened at the broker"
 msgid "What is needed"
 msgstr "What is needed"
 
-#: src/conversation/Conversation.tsx:1182
+#: src/conversation/Conversation.tsx:1181
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -8524,7 +8521,7 @@ msgstr "Worried"
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
-#: src/conversation/Conversation.tsx:1180
+#: src/conversation/Conversation.tsx:1179
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 

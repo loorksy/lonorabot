@@ -2044,7 +2044,7 @@ msgstr "المحتوى"
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
-#: src/conversation/Conversation.tsx:1025
+#: src/conversation/Conversation.tsx:1024
 #: src/shell/settings/ModelsPage.tsx:18
 msgid "Conversation"
 msgstr "المحادثة"
@@ -3204,11 +3204,11 @@ msgstr "التوجيه العالمي"
 #~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
 #~ msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
 
-#: src/conversation/Conversation.tsx:1098
+#: src/conversation/Conversation.tsx:1097
 msgid "Go to the latest messages"
 msgstr "الانتقال إلى آخر الرسائل"
 
-#: src/conversation/Conversation.tsx:1098
+#: src/conversation/Conversation.tsx:1097
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
@@ -3283,7 +3283,7 @@ msgstr "المجموعات"
 msgid "Happy"
 msgstr "سعيد"
 
-#: src/conversation/Conversation.tsx:1176
+#: src/conversation/Conversation.tsx:1175
 msgid "Hello {ownerName}"
 msgstr "مرحبًا {ownerName}"
 
@@ -3709,6 +3709,7 @@ msgctxt "knowledge"
 msgid "Link"
 msgstr "رابط"
 
+#: src/components/trading/BrokerPairPicker.tsx:153
 #: src/shell/settings/ConnectionPages.tsx:248
 #: src/shell/settings/IntegrationsPage.tsx:780
 msgid "Link a trading account"
@@ -3818,7 +3819,7 @@ msgstr "جارٍ تحميل الشارت…"
 #~ msgid "Loading group…"
 #~ msgstr "جارٍ تحميل المجموعة…"
 
-#: src/conversation/Conversation.tsx:1064
+#: src/conversation/Conversation.tsx:1063
 msgid "Loading older messages"
 msgstr "جارٍ تحميل الرسائل الأقدم"
 
@@ -4917,10 +4918,6 @@ msgstr "فتح الملف الشخصي"
 #: src/conversation/ChatPrefsPage.tsx:27
 msgid "Open the steps automatically"
 msgstr "فتح الخطوات تلقائيًا"
-
-#: src/components/trading/BrokerPairPicker.tsx:153
-msgid "Open trading settings"
-msgstr "فتح إعدادات التداول"
 
 #: src/shell/agent/AgentPage.tsx:164
 msgid "Open voice settings"
@@ -7807,7 +7804,7 @@ msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/conversation/Conversation.tsx:862
+#: src/conversation/Conversation.tsx:861
 msgid "Trade order"
 msgstr "أمر تداول"
 
@@ -8441,7 +8438,7 @@ msgstr "ما الذي حدث لدى الوسيط"
 msgid "What is needed"
 msgstr "المطلوب"
 
-#: src/conversation/Conversation.tsx:1182
+#: src/conversation/Conversation.tsx:1181
 msgid "What shall we do today with {name}?"
 msgstr "ماذا سنفعل اليوم مع {name}؟"
 
@@ -8518,7 +8515,7 @@ msgstr "قلق"
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 
-#: src/conversation/Conversation.tsx:1180
+#: src/conversation/Conversation.tsx:1179
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
