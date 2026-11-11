@@ -56,6 +56,10 @@ ORDER_ARGUMENT_CODES = frozenset(
         "price_tick_mismatch",
         "position_volume_exceeded",
         "position_remaining_volume_invalid",
+        # A size request the account or its currency cannot answer as asked.
+        "position_sizing_below_minimum",
+        "position_sizing_account_mismatch",
+        "position_sizing_currency_mismatch",
     }
 )
 
@@ -104,6 +108,46 @@ UNSENT_HINT = (
 )
 
 
+# A refusal classify() does not name, by the class the tool itself gave it.
+CLASS_CATEGORIES: dict[str, tuple[FailureCategory, str]] = {
+    "input": ("invalid_tool_arguments", "correct_arguments"),
+    "resolution": ("not_found", "inspect_existing_state"),
+    "connection": ("temporary_unavailable", "inspect_health"),
+    "permission": ("permission_denied", "respect_scope"),
+}
+
+
+def _by_status(code: str, status: int) -> tuple[FailureCategory, str] | None:
+    """The category of a refusal classify() does not name, from the status its tool raised.
+
+    Only the families that hold for nearly every code of a status are read this way; a
+    state conflict (most of 409) says nothing a model can act on and stays as it was.
+    """
+    if code.endswith("_unavailable") or code.startswith("mcp_schema_"):
+        # The source's own trouble, whatever status carried it.
+        return None
+    if status in {401, 403}:
+        # An action that failed in the browser is not a rule.
+        return None if code == "browser_action_failed" else ("permission_denied", "respect_scope")
+    if status in {400, 413, 422}:
+        return "invalid_tool_arguments", "correct_arguments"
+    if status != 409:
+        return None
+    if code.endswith("_confirmation_required"):
+        return "authorization_required", "request_owner_authorization"
+    if code.endswith("_reconciliation_required"):
+        return "health_blocked", "wait_for_authoritative_recovery"
+    if code.startswith(("account_authority_", "work_paused")) or code.endswith(
+        ("_forbidden", "_paused")
+    ):
+        # The mandate's own terms, or a pause someone set. A count that is full
+        # (helpers, pins, retries) is not a rule and stays as it was.
+        return "permission_denied", "respect_scope"
+    if code.endswith(("_wrong_side", "_stops_level")):
+        return "invalid_tool_arguments", "correct_arguments"
+    return None
+
+
 def error_class(code: str, category: str) -> str:
     """input | resolution | connection | permission | provider | internal."""
     if category in ERROR_CLASSES:
@@ -111,7 +155,7 @@ def error_class(code: str, category: str) -> str:
     return "provider" if code.startswith("broker_") else "internal"
 
 
-def classify(code: str, tool: Tool | None) -> dict[str, Any]:
+def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[str, Any]:
     category: FailureCategory = "terminal_domain_failure"
     action = "alternate_route"
     if code == "tool_arguments_invalid":
@@ -130,6 +174,7 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         category, action = "stale_state", "refresh_evidence"
     elif code in {
         "approval_required",
+        "trade_approval_required",
         "device_registration_required",
         "device_authorization_required",
     }:
@@ -150,6 +195,16 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         # Supervision never silences the owner's entry point or sheds its own oversight.
         "supervision_personal_agent",
         "supervision_revoke_own_oversight",
+        # The owner or a supervisor paused this agent.
+        "agent_paused",
+        # One Run creates so many agents and no more.
+        "agent_create_run_limit",
+        # Rules that no corrected argument gets past.
+        "trusted_source_write_blocked",
+        "ui_submit_disabled",
+        "memory_authority_claim_refused",
+        "restriction_owner_manual_agent_conflict",
+        "collaboration_guest_limit",
     }:
         category, action = "permission_denied", "respect_scope"
     elif code.startswith("risk_"):
@@ -174,6 +229,8 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         "emergency_stop",
     }:
         category, action = "health_blocked", "wait_for_authoritative_recovery"
+    elif status is not None and not code.startswith("broker_"):
+        category, action = _by_status(code, status) or (category, action)
     return ToolRecovery(
         category=category,
         next_action=action,
@@ -231,6 +288,8 @@ def observe(
         cast(dict[str, Any], nested_value) if isinstance(nested_value, dict) else {}
     )
     code = str(result.get("code") or nested.get("code") or "tool_failed")
+    # The status a refusal was raised with (tool_dispatch) is read here and goes no further.
+    status = result.pop("http_status", None)
     # A handler's own sentence of guidance is the hint; `recovery` is the runtime's block.
     authored = result.get("recovery")
     if isinstance(authored, str):
@@ -296,7 +355,19 @@ def observe(
     env["recent"] = [*env.get("recent", []), record][-12:]
     env["phase"] = "recovering" if failed else "working"
     if failed:
-        recovery = classify("broker_result_ambiguous" if uncertain else code, tool)
+        recovery = classify(
+            "broker_result_ambiguous" if uncertain else code,
+            tool,
+            None if uncertain or not isinstance(status, int) else status,
+        )
+        if recovery["category"] == "terminal_domain_failure":
+            # The class a tool wrote decides what its refusal means.
+            authored_class = result.get("class")
+            if isinstance(authored_class, str) and authored_class in CLASS_CATEGORIES:
+                recovery["category"], recovery["next_action"] = CLASS_CATEGORIES[authored_class]
+        if recovery["category"] == "not_found" and result.get("candidates"):
+            # The result names what exists: the next call is in it.
+            recovery["next_action"] = "follow_hint"
         recovery["attempt"] = failures
         if failures >= 3 and recovery["safe_to_retry"]:
             recovery["safe_to_retry"] = False

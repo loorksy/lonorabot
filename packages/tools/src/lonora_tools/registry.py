@@ -52,6 +52,7 @@ from .base import AvailabilityCheck, ExposureProfile, Tool, ToolScope, eager_for
 from .context import ToolContext
 from .environment import BridgeInput, EnvironmentInput
 from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
+from .resolve import stating
 from .restrictions import mark_external_content
 from .schema import validate_arguments
 from .tool_discovery import MAX_SEARCH_RESULTS, search_definitions
@@ -512,10 +513,10 @@ class ToolRegistry:
         return result
 
     async def dispatch(self, tool: Tool, call: ToolCall, context: ToolContext) -> dict[str, Any]:
-        arguments = await prepare_market_arguments(
-            context, call.name, dict(call.arguments), tool.input_type
+        arguments, named = await prepare_market_arguments(
+            context, call.name, dict(call.arguments), tool.input_type, read=tool.read_only
         )
         arguments = validate_arguments(tool.input_type, arguments)
         arguments = await guard_market_tool(context, call.name, arguments, read=tool.read_only)
         result = await tool.handler(context.for_call(call.id), arguments)
-        return await scope_market_result(context, call.name, result, arguments)
+        return stating(await scope_market_result(context, call.name, result, arguments), named)

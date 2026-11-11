@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool
 from .context import ToolContext
 from .memory import Empty
+from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
 
 
@@ -50,15 +51,50 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return {"routines": [routine_data(row) for row in rows]}
 
 
+async def named_routine(
+    session: AsyncSession, context: ToolContext, requested: str, *, enabling: bool
+) -> tuple[str, dict[str, Any] | None]:
+    """The routine a call named by its id, or the agent's own routine by its title.
+
+    Only switching one off takes the routine whose title is exactly that; switching one
+    on starts scheduled work again, so it is refused with the routine instead.
+    """
+    found = await session.get(RoutineRow, requested)
+    if found is not None and found.owner_id == context.owner_id:
+        return requested, None
+    rows = await session.scalars(
+        select(RoutineRow).where(
+            RoutineRow.owner_id == context.owner_id,
+            RoutineRow.agent_id == context.agent_id,
+            RoutineRow.enabled.is_(not enabling),
+        )
+    )
+    options = [
+        Option(row.id, (row.title or "", row.prompt[:80]), {"title": row.title or row.prompt[:80]})
+        for row in rows
+    ]
+    return resolve(
+        requested,
+        options,
+        missing="routine_not_found",
+        argument="routine_id",
+        use="refuse" if enabling else "exact",
+        listing="routine_list",
+    )
+
+
 async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
+        routine_id, named = await named_routine(
+            session, context, args["routine_id"], enabling=args["enabled"]
+        )
         # A routine never changes agent, so an unlocked read routes the call.
-        found = await session.get(RoutineRow, args["routine_id"])
+        found = await session.get(RoutineRow, routine_id)
         if found is not None and found.owner_id == context.owner_id:
             if found.agent_id != context.agent_id:
                 return await supervised_toggle(context, session, found, args["enabled"])
         run = await require_lease(session, context.lease, lock=True)
-        row = await owned_routine(session, context.owner_id, args["routine_id"])
+        row = await owned_routine(session, context.owner_id, routine_id)
         if row.agent_id != context.agent_id:
             raise LonoraError("routine_not_found", 404)
         if args["enabled"]:
@@ -74,7 +110,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         row.enabled = args["enabled"]
         # Tainted work that revives or toggles a routine taints it (GENUI_PLAN §8.5).
         await taint_row_from(session, run, "routine", row.id)
-        return routine_data(row)
+        return stating(routine_data(row), named)
 
 
 async def supervised_toggle(

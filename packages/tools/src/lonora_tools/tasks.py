@@ -7,9 +7,11 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import TicketRow
 from lonora_db.tasks import control_task, create_task, get_task, snapshot
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
 
 
@@ -38,10 +40,44 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         return await snapshot(session, row)
 
 
+async def named_task(
+    session: AsyncSession, context: ToolContext, requested: str
+) -> tuple[str, dict[str, Any] | None]:
+    """The task a read named by its id, or the agent's own task by its title."""
+    found = await session.get(TicketRow, requested)
+    if found is not None and found.owner_id == context.owner_id:
+        return requested, None
+    rows = await session.scalars(
+        select(TicketRow)
+        .where(TicketRow.owner_id == context.owner_id, TicketRow.agent_id == context.agent_id)
+        .order_by(TicketRow.updated_at.desc())
+        .limit(200)
+    )
+    options = [
+        Option(
+            row.id,
+            (str(row.payload.get("title") or ""),),
+            {"title": row.payload.get("title"), "status": row.state["task"].get("status")},
+        )
+        for row in rows
+        if row.state.get("task")
+    ]
+    return resolve(
+        requested,
+        options,
+        missing="task_not_found",
+        argument="task_id",
+        use="any",
+        listing="task_inspect",
+    )
+
+
 async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
+        named = None
         if args.get("task_id"):
-            rows = [await get_task(session, context.owner_id, args["task_id"])]
+            task_id, named = await named_task(session, context, args["task_id"])
+            rows = [await get_task(session, context.owner_id, task_id)]
         else:
             rows = list(
                 await session.scalars(
@@ -56,7 +92,8 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             )
         if any(row.agent_id != context.agent_id for row in rows):
             raise LonoraError("task_agent_mismatch", 403)
-        return {"tasks": [await snapshot(session, row) for row in rows if row.state.get("task")]}
+        tasks = [await snapshot(session, row) for row in rows if row.state.get("task")]
+        return stating({"tasks": tasks}, named)
 
 
 async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

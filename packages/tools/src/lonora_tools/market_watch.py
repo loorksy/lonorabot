@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .memory import Empty
+from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
 
 
@@ -161,7 +162,8 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 class WatchReference(Contract):
-    watch_id: str = Field(min_length=1, max_length=36)
+    # An id, or the name the owner gives the watch (its symbol, condition or prompt).
+    watch_id: str = Field(min_length=1, max_length=120)
 
 
 class WatchUpdate(WatchReference):
@@ -172,9 +174,59 @@ class WatchUpdate(WatchReference):
     level: Decimal | None = Field(default=None, description="New price or indicator level.")
 
 
+def _applies(row: MarketWatchRow, action: str) -> bool:
+    """Whether a watch is one the action can still do something to."""
+    paused = not row.payload.get("enabled", True) and row.state.get("code") == "watch_paused"
+    if action == "resume":
+        return not row.payload.get("enabled", True)
+    return watch_active(row) or (paused and action != "pause")
+
+
+async def named_watch(
+    session: AsyncSession, context: ToolContext, requested: str, action: str
+) -> tuple[str, dict[str, Any] | None]:
+    """The agent's own watch a call named by its id, or by its symbol or condition.
+
+    Only a cancel or a pause takes the one watch whose name is exactly that: it stops a
+    wake and is undone by a resume. A resume or a change is refused with the watch, so
+    nothing is switched back on or rewritten by a guess.
+    """
+    row = await session.get(MarketWatchRow, requested)
+    if row is not None and row.owner_id == context.owner_id and row.agent_id == context.agent_id:
+        return requested, None
+    options = [
+        Option(
+            item.id,
+            (
+                str(item.payload.get("symbol") or ""),
+                " ".join(
+                    str(item.payload.get(key) or "") for key in ("symbol", "condition", "level")
+                ),
+                str(item.payload.get("prompt") or "")[:80],
+            ),
+            {
+                key: item.payload[key]
+                for key in ("symbol", "kind", "condition", "level", "enabled", "expires_at")
+                if item.payload.get(key) not in (None, "")
+            },
+        )
+        for item in await MarketWatchRepository().list(session, context.owner_id, context.agent_id)
+        if isinstance(item, MarketWatchRow) and _applies(item, action)
+    ]
+    return resolve(
+        requested,
+        options,
+        missing="market_watches_not_found",
+        argument="watch_id",
+        use="exact" if action in {"cancel", "pause"} else "refuse",
+        listing="watch_list",
+    )
+
+
 async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease, lock=True)
+        watch_id, named = await named_watch(session, context, watch_id, action)
         row = await control_watch(
             session,
             context.owner_id,
@@ -185,10 +237,13 @@ async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dic
         )
         # Tainted work that resumes or steers a watch taints it (GENUI_PLAN §8.5).
         await taint_row_from(session, run, "watch", row.id)
-        return {
-            **resource_data(row),
-            "undo": "watch_resume" if action != "resume" else "watch_pause",
-        }
+        return stating(
+            {
+                **resource_data(row),
+                "undo": "watch_resume" if action != "resume" else "watch_pause",
+            },
+            named,
+        )
 
 
 async def cancel(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -209,12 +264,13 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run = await require_lease(session, context.lease, lock=True)
         # The owner's cards before the watch: the order the notice's Undo takes them in.
         await lock_owner_actions(session, context.owner_id)
-        before = await steered_watch(session, context.owner_id, params.watch_id, context.agent_id)
+        watch_id, _ = await named_watch(session, context, params.watch_id, "update")
+        before = await steered_watch(session, context.owner_id, watch_id, context.agent_id)
         previous, version = before.payload.get("expires_at"), before.version
         row = await update_watch(
             session,
             context.owner_id,
-            params.watch_id,
+            watch_id,
             agent_id=context.agent_id,
             expires_at=params.expires_at,
             clear_expiry=params.clear_expiry,

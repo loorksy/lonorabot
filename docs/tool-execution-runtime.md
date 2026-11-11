@@ -261,6 +261,47 @@ model never read; the gates, the scorer and the logs still read the codes in the
 The background summary and the context sections that list earlier failures still read
 the record and are not covered by this view.
 
+**Where the class comes from.** `classify()` names the codes it knows. For a refusal it
+does not name, `tool_dispatch` passes the status the tool raised (`http_status`, read and
+removed by `observe`): forbidden is `permission`, an invalid request is `input`, and four
+families of conflict say what they are (a confirmation or a reconciliation that is
+required, the mandate's own terms or a pause, an order on the wrong side). Any other conflict stays as it
+was: a state conflict says nothing a model can act on, and a count that is full (helpers,
+pins, retries) is not a rule of the owner's. A `broker_` code keeps its class, and a
+named code never changes with its status. A class the tool wrote itself
+(`ToolRefusal.details`) decides the category, the next step and the hint together, and a
+not-found result that carries `candidates` points at them (`follow_hint`).
+
+## Names in place of ids
+
+An id argument also takes what the owner calls the thing. `lonora_tools.resolve.resolve`
+answers one of four ways from the list the calling tool already has, so nothing outside
+the caller's reach is ever offered: the id itself; the one item a name fits; several
+(`<kind>_ambiguous`, never chosen between); none (`<kind>_not_found` with the nearest
+names, or what exists). Names fold as the owner's search does (`lonora_core.search_fold`).
+What a name may do depends on the call:
+
+| Call | One item fits |
+|---|---|
+| A read (`use="any"`) | It is used, and the result says so under `reference_resolution`. |
+| A stop of the caller's own item (`use="exact"`) | Used only when the name is exactly its name. |
+| Anything else (`use="refuse"`) | Refused with the item and `next_actions: [{repeat_with: {<argument>: <id>}}]`. |
+
+| Reference | Where | Named by | Acts on a name |
+|---|---|---|---|
+| Account | `market_binding.named_account`, before validation, for every market tool | account number, account name, broker | reads only; an order, a watch, a goal or a grant is refused with the account |
+| No account named | `prepare_market_arguments`, for an agent with no market of its own and a tool that requires one | | the agent's own, its one signed, or the owner's only account as before; with several and none of those, `broker_sessions_ambiguous` with the accounts |
+| Position or order ticket | `trade.require_ticket`, only for a ticket `trade_execute` itself named | its symbol | never: the refusal lists the tickets; first attempt only; a batch built from the account's own list is never checked |
+| Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
+| Routine | `routine.named_routine` | title, prompt | switching off on an exact title; switching on never |
+| Task | `tasks.named_task` | title | `task_inspect` only |
+| Agent | `supervision.named_agent` | name, among this agent and those it supervises now | `agent_inspect` only; `agent_control` never |
+
+A change is never pointed at something the call did not name, an exit is never held back
+by a resolver (a ticket is only checked for existing, on a first attempt, and a failed
+read leaves the request to the executor), and nothing new wakes an agent: switching a
+watch or a routine back on always needs its id.
+
 ## Dispatch deadlines
 
 `ToolRegistry.execute` wraps the handler in a per-tool deadline:

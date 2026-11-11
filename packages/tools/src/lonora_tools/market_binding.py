@@ -9,6 +9,7 @@ from lonora_db.agent_binding import (
     require_financial_agent,
     same_binding,
 )
+from lonora_db.broker_sessions import BrokerSessionRepository, current_broker_identity
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AccountAuthorityRow,
@@ -22,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .context import ToolContext
+from .resolve import Option, resolve, several
 
 MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "goal_", "account_")
 # Reading records and narrowing admission need no financial authority: any agent may
@@ -111,23 +113,90 @@ async def default_account(session: AsyncSession, owner_id: str, agent: AgentRow)
     return None
 
 
+def _login(value: object) -> str:
+    """An account number as the broker identity keys it: no padding, no spaces."""
+    text = str(value or "").strip()
+    return str(int(text)) if text.isascii() and text.isdigit() else text
+
+
+async def account_options(session: AsyncSession, owner_id: str) -> list[Option]:
+    """The owner's accounts as he names them: the account number, its name, the broker."""
+    options: list[Option] = []
+    for row in await BrokerSessionRepository().list(session, owner_id):
+        identity = current_broker_identity(row) or {}
+        named = {key: str(identity.get(key) or "").strip() for key in ("name", "broker")}
+        login = _login(identity.get("login"))
+        options.append(
+            Option(
+                row.id,
+                tuple(text for text in (login, named["name"], named["broker"]) if text),
+                {
+                    key: value
+                    for key, value in {"broker": named["broker"], "login": login}.items()
+                    if value
+                },
+            )
+        )
+    return options
+
+
+async def named_account(
+    session: AsyncSession, owner_id: str, args: dict[str, Any], *, read: bool
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """``args`` with an account the call named in the owner's words put as its id.
+
+    Only a read takes the one account that fits; anything else is refused with it, so an
+    order, a watch or a grant is never pointed at an account the call did not name.
+    """
+    requested = args.get("account_id")
+    if not isinstance(requested, str) or not requested.strip():
+        return args, None
+    row = await session.get(BrokerSessionRow, requested)
+    if row is not None and row.owner_id == owner_id:
+        return args, None
+    account_id, note = resolve(
+        _login(requested),
+        await account_options(session, owner_id),
+        missing="broker_sessions_not_found",
+        argument="account_id",
+        use="any" if read else "refuse",
+        listing="list_accounts",
+    )
+    return {**args, "account_id": account_id}, note
+
+
 async def prepare_market_arguments(
-    context: ToolContext, name: str, args: dict[str, Any], model: type[BaseModel]
-) -> dict[str, Any]:
+    context: ToolContext,
+    name: str,
+    args: dict[str, Any],
+    model: type[BaseModel],
+    *,
+    read: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The call's arguments completed from the agent's market, and the note to state when
+    an account was taken from the owner's words for it."""
     if not market_tool(name):
-        return args
+        return args, None
     async with context.db.sessions() as session:
+        args, note = await named_account(session, context.owner_id, args, read=read)
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if not agent.trading_account_id or not agent.trading_symbol:
             field = model.model_fields.get("account_id")
             if field is None or not field.is_required() or args.get("account_id"):
-                return args
+                return args, note
             account_id = await default_account(session, context.owner_id, agent)
-            return args if account_id is None else {**args, "account_id": account_id}
+            if account_id is not None:
+                return {**args, "account_id": account_id}, note
+            accounts = await account_options(session, context.owner_id)
+            if len(accounts) > 1:
+                # Several accounts and the call named none: never a choice between them.
+                raise several("broker_sessions_ambiguous", "", "account_id", accounts)
+            return args, note
         aligned = args if flexible_scope(agent) else align_payload(agent, args)
         if not isinstance(aligned, dict):
-            return args
-        return fill_bound_fields(agent, cast(dict[str, Any], aligned), set(model.model_fields))
+            return args, note
+        filled = fill_bound_fields(agent, cast(dict[str, Any], aligned), set(model.model_fields))
+        return filled, note
 
 
 async def guard_market_tool(
