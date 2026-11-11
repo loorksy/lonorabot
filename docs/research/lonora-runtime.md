@@ -832,7 +832,7 @@ The same 23 native tools, including `market_snapshot`, `trade_execute`, `watch_c
 5. **`classify`: CONFIRMED.** `packages/agent-runtime/src/lonora_agent/environment.py:80-81`; `classify(code, tool)` (`packages/agent-runtime/src/lonora_agent/environment.py:35`) gets no arguments or catalog; both [10] results gave the same object (`packages/agent-runtime/src/lonora_agent/environment.py:89-93`).
 8. **Tools exist and were unused: CONFIRMED WITH REFINEMENT.** Every row of the brief holds (`packages/contracts/src/lonora_contracts/trading.py:18-29`; `packages/tools/src/lonora_tools/trade.py:752-784`; `packages/tools/src/lonora_tools/market_watch.py:245-259`). Refinements: `watch_create` and `trade_execute` were native in every run after the mandate, so visibility is not the cause for [35] or [40]; one position also closes through `close_position`; the wake path closes under the delegation. The trace digest's remark that no trade-modify tool was native is wrong (`packages/contracts/src/lonora_contracts/trading.py:26`, `packages/tools/src/lonora_tools/trade.py:754`). UNSURE: whether a real model would choose `watch_create` for [40].
 
-#### Causes the owner did not list (from these notes)
+#### Causes the owner did not list
 
 - Strict versus lenient `canonical_broker_symbol`; three codes for one condition (`symbol_not_found`, `broker_symbol_not_found`, `broker_account_not_found`).
 - `market_symbols` not eager (`packages/tools/src/lonora_tools/market.py:97-105`); market chapter absent on a run's first turn (`packages/agent-runtime/src/lonora_agent/skills/system_policy.py:134-140`).
@@ -933,7 +933,7 @@ Real defects: the model can create dead watches (`enabled: false`; a key does no
 
 No reply check removes them: «registry names are intentionally not private» (`packages/core/src/lonora_core/public_reply.py:40-41`); SCRIPTED P8 stores such a reply.
 
-#### Causes the owner did not list (from these notes)
+#### Causes the owner did not list
 
 1. The card option «ألغِ المهمة بالكامل» (`cancel_watch`) was the model's own and merges Task and watch.
 2. Nothing ties a mutating call to the open request: `watch_create` is native, mutating and replay-safe (`packages/tools/src/lonora_tools/market_watch.py:237-244`).
@@ -1035,7 +1035,7 @@ Dead code: `packages/voice/src/lonora_voice/transcription.py:8-11` passes no lan
 
 Nine `GET /api/agents/<id>/super-bot` 404s, 10:50-10:53: no route and no caller on main (`apps/api/src/lonora_api/app.py:153-156`); both existed at `876c96d` (`apps/api/src/lonora_api/routes/device_authority.py` at `876c96d`, line 133). Probably an old cached client (UNSURE).
 
-#### Causes the owner did not list (from these notes)
+#### Causes the owner did not list
 
 1. The `trading` line that settles [24]/[35] and the Task's lot-size text never reach a chat run (`packages/agent-runtime/resources/system/lonora.md:337`).
 2. Identical trade calls replay one operation under a notice calling them separate effects (`packages/agent-runtime/src/lonora_agent/tool_guardrails.py:117-121`); nothing holds an open request such as [30].
@@ -1796,7 +1796,7 @@ Dropped: 0 journeys (none NOT REPRODUCED). Dropped sub-claims: J5.9 `stop_loss_w
 
 #### J6
 
-**LIVE probe: yes.** the provider and model production used, dummy key via the environment proxy. 11 runs, concurrency 1, about 350,000 input and 1,200 output tokens; each prompt re-run once by the checker. REAL: app, PostgreSQL, loop, registry, a real `MetaApiBroker` over a FAKE SDK (gold only as `XAUUSDm`). Unlike production: 22 native tools, no history or mandate. One sample is not a rate.
+**LIVE probe: yes.** The provider and model production used, dummy key via the environment proxy. 11 runs, concurrency 1, about 350,000 input and 1,200 output tokens; each prompt re-run once by the checker. REAL: app, PostgreSQL, loop, registry, a real `MetaApiBroker` over a FAKE SDK (gold only as `XAUUSDm`). Unlike production: 22 native tools, no history or mandate. One sample is not a rate.
 
 **J6.1.** Reproduced in 5 of 5 gold runs.
 - L6 «طيب شو وضع الذهب» (4 requests): `list_accounts {}`; `market_snapshot {"symbol": "XAUUSD", ...}` -> `{"ok": false, "code": "symbol_not_found", "recovery": {"category": "not_found", "next_action": "inspect_existing_state", "safe_to_retry": false, "schema_tool": "tool_environment"}}`; `market_instrument {"symbol": "XAUUSD"}` -> `{"ok": false, "code": "broker_account_not_found", ...same recovery}`. Reply: «ما قدرت أقرأ الذهب من هذا الاتصال الحالي؛ رمز XAUUSD ما ظهر، وحتى قراءة مواصفات/حالة الحساب رجعت غير متاحة على هذا المسار. ... إذا بدك، أقدر أتحقق لك الآن من الرمز الصحيح للذهب ...»
@@ -1835,13 +1835,13 @@ Citations hold at 9f5b1da. SCRIPTED = real runtime functions fed hand-written ca
 - **`docs/lonora-specs/AGENT_HARNESS_SOURCE_REVIEW.md:11-17`.** Typed stop gate, two nudges, prose never proof: implemented, Task runs only (`packages/agent-runtime/src/lonora_agent/stop_gates.py:41`, `:95-96`, `:154-155`). Exhaustion as failure: partly (attention request). The document covers continuous Tasks (`docs/lonora-specs/AGENT_HARNESS_SOURCE_REVIEW.md:5-9`) and is silent on chat runs, so the «أراقبه» replies in runs 8114abdd, 6e4aa88f, 7e7da121, ddae66ad, e343c96a and fb1d4b5a fell outside every check (trace-guards line 585). It forbids prose as proof, not a check that requires evidence when a reply claims monitoring.
 - **`docs/lonora-specs/NANOBOT_PARITY_AND_RELIABILITY_PLAN.md` R06.** Direct execution (`docs/lonora-specs/NANOBOT_PARITY_AND_RELIABILITY_PLAN.md:126`): not implemented, prompt text only. Stable codes (`docs/lonora-specs/NANOBOT_PARITY_AND_RELIABILITY_PLAN.md:132`): Web yes, chat reply no (`apps/web/src/lib/user_error.ts:150-157`). Clarify only when needed (`docs/lonora-specs/NANOBOT_PARITY_AND_RELIABILITY_PLAN.md:133`): stated, not enforced, worded inconsistently.
 - **ADR 0001 (`docs/architecture/decisions/0001-agent-first-evolution.md`).** No second runtime or authority (`docs/architecture/decisions/0001-agent-first-evolution.md:17`): holds, guards are adaptations inside the runtime (`packages/agent-runtime/src/lonora_agent/stop_gates.py:1-29`; `docs/lonora-specs/AGENT_HARNESS_SOURCE_REVIEW.md:20-21`). Approvals, journals and reconciliation stay authoritative (`docs/architecture/decisions/0001-agent-first-evolution.md:21`): holds (`packages/agent-runtime/src/lonora_agent/environment.py:50-55`, `:70-73`). Late transcript handoff creates no financial work (`docs/architecture/decisions/0001-agent-first-evolution.md:19`): not examined here (UNSURE); the production voice failure (Turkish gibberish, empty `reply_language`) is not the late-handoff case.
-- **MANDATE_EXECUTION_PLAN.md.** Not covered by these notes.
+- **MANDATE_EXECUTION_PLAN.md.** Its items were not compared one by one with the code in this study; the trading census (appendix C) covers the mechanisms it describes.
 
 #### Coverage limits
 
-- No real model was run; production databases were not reproduced (the export of runs and offered tools awaited owner approval).
-- Message numbers [24], [37], [39] were not re-verified.
-- `tool_route_exhausted` blocked-route behaviour (`packages/agent-runtime/src/lonora_agent/tool_dispatch.py:70-80`) was never run (UNSURE).
+- Live evidence is small: 11 runs of one model at concurrency 1 against a fake broker. Everything else is scripted model turns on the real runtime, which shows what the harness returns and lets through, not what a model would choose.
+- The production export has tool arguments and result bodies for seven runs only, and no request bodies; section 11.2 lists what that leaves open.
+- The web and mobile clients were read, not rendered: display findings (option icons, captions, error cards) rest on the component and stylesheet code.
 - Unexamined: group-thread modules (`packages/agent-runtime/src/lonora_agent/context/group.py`, `packages/agent-runtime/src/lonora_agent/collaboration/groups.py`, `packages/agent-runtime/src/lonora_agent/collaboration/mentions.py`, `packages/agent-runtime/src/lonora_agent/collaboration/participation.py`); `packages/automation` scheduling and service; parity-plan sections other than R06.
 - The nanobot and rakazo capability columns are outside this audit.
 
