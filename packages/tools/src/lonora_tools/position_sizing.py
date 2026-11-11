@@ -7,12 +7,14 @@ from lonora_trading.position_sizing import position_size
 
 from .base import Tool
 from .context import ToolContext
+from .symbols import order_symbol
 
 
 async def size(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     request = PositionSizingRequest.model_validate(args)
     # An estimate is a read: any owned account and symbol (the broker lookup checks ownership).
     broker = await context.brokers.get(context.owner_id, request.account_id)
+    request = request.model_copy(update={"symbol": await order_symbol(broker, request.symbol)})
     return (await position_size(broker, request)).model_dump(mode="json")
 
 

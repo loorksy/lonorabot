@@ -116,8 +116,11 @@ async def evidence_state(
                 codes.append("thesis_watch_invalidated")
             if lifecycle == "expired":
                 codes.append("thesis_watch_expired")
-            if lifecycle != "confirmed" or (
-                valid_until and now >= datetime.fromisoformat(valid_until)
+            # A stopped watch observes nothing: what it last confirmed is not evidence.
+            if (
+                lifecycle != "confirmed"
+                or not watch.payload.get("enabled", True)
+                or (valid_until and now >= datetime.fromisoformat(valid_until))
             ):
                 codes.append("thesis_watch_unconfirmed")
             if watch.state.get("evaluation_status") == "suspended_health":

@@ -453,3 +453,36 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
         )
     assert len(history) == 2 and history[0].content == "old context"
     assert complete.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_bold_written_with_a_space_inside_reaches_the_owner_as_bold(
+    model_boundary: tuple[list[tuple[str, dict[str, Any]]], AsyncMock],
+):
+    published, _ = model_boundary
+    written = "الذهب الآن عند **4049.73 / 4049.97**، والسبريد ** 0.24**. الرمز `** x**`"
+
+    async def complete(_capability: Any, _messages: Any, _tools: Any, **kwargs: Any):
+        selection = ModelSelection(provider="openai", model="offline")
+        await kwargs["on_attempt"](selection)
+        await kwargs["on_delta"](written)
+        return ModelReply(text=written), selection
+
+    reply, _ = await model_runtime.model_turn(
+        model_context(complete),
+        [ModelMessage(role="user", content="شو وضع الذهب")],
+        [],
+        Capability.CONVERSATION,
+    )
+    assert reply.text == "الذهب الآن عند **4049.73 / 4049.97**، والسبريد  **0.24**. الرمز `** x**`"
+    final_turn = next(
+        data["turn_id"] for kind, data in reversed(published) if kind == "run.reply_started"
+    )
+    assert (
+        "".join(
+            data["text"]
+            for kind, data in published
+            if kind == "run.delta" and data["turn_id"] == final_turn
+        )
+        == reply.text
+    )

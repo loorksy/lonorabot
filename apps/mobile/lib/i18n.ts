@@ -592,6 +592,10 @@ export const labels = {
     "اضبط توجيه النماذج من الإعدادات العامة في الويب.",
     "Configure model routing in the Web settings.",
   ],
+  model_not_configured: [
+    "لم يُضبط نموذج بعد. اربط مزودًا واختر نموذجًا من إعدادات النماذج في الويب.",
+    "No model is set up yet. Connect a provider and choose a model in the Web model settings.",
+  ],
   model_access_denied: [
     "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود.",
     "This API key cannot use the selected model. Choose another model or check the provider account’s model access.",

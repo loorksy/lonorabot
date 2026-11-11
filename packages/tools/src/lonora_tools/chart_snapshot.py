@@ -15,6 +15,7 @@ from pydantic import Field, model_validator
 from .artifacts import store_artifact
 from .base import Tool, eager_for
 from .context import ToolContext
+from .symbols import read_symbol
 
 
 class SnapshotInput(Contract):
@@ -174,18 +175,22 @@ async def snapshot(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
             receipt_state={"chart_snapshot": descriptor},
         )
         return snapshot_result(artifact, descriptor)
+    # A read: a name or code resolves to the account's own symbol, stated in the result.
+    symbol, _ = await read_symbol(
+        await context.brokers.get(context.owner_id, args["account_id"]), args["symbol"]
+    )
     provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
-    candles = await provider.candles(args["symbol"], args["timeframe"], args["limit"])
+    candles = await provider.candles(symbol, args["timeframe"], args["limit"])
     if any(candle.timeframe != args["timeframe"] for candle in candles):
         raise LonoraError("broker_candles_mismatch", 502)
-    image = svg_snapshot(args["symbol"], candles)
+    image = svg_snapshot(symbol, candles)
     content = png_snapshot(image) if image_format == "png" else image.encode()
     descriptor = {
         "source": "broker_candles",
         "format": image_format,
         "request": source_request(args),
         "account_id": args["account_id"],
-        "symbol": args["symbol"],
+        "symbol": symbol,
         "timeframe": args["timeframe"],
         "last_candle_at": candles[-1].time.isoformat(),
         "captured_at": utcnow().isoformat(),
@@ -193,7 +198,7 @@ async def snapshot(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     # Candle.time identifies the bar; it is not a quote/source observation timestamp.
     artifact = await store_artifact(
         context,
-        args["symbol"] + "." + image_format,
+        symbol + "." + image_format,
         content,
         media_type,
         receipt_state={"chart_snapshot": descriptor},

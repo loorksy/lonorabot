@@ -10,7 +10,7 @@ signal, a ranking or an order. They live in `packages/tools/src/lonora_tools/mar
 
 | Tool | Effect | Purpose |
 | --- | --- | --- |
-| `market_snapshot` | read-only | Compact multi-timeframe facts for one exact symbol |
+| `market_snapshot` | read-only | Compact multi-timeframe facts for one instrument on one account |
 | `market_sessions` | read-only | DST-correct FX session clock plus broker trading hours |
 | `economic_calendar_read` | read-only | Events from the owner's configured calendar sources |
 | `market_candles_to_workspace` | workspace write, receipt-replayed | Bars as CSV in the Agent's analytical workspace |
@@ -151,6 +151,56 @@ The financial executor independently asserts the binding of every leased request
 and preflight requires a position's or order's symbol to equal the request's symbol,
 so reading another account or symbol cannot widen execution. Signed grants,
 approvals, restrictions and risk limits are untouched.
+
+## Instrument resolution
+
+The owner says «الذهب», the model says `XAUUSD`, and the account lists `XAUUSDm`. Which
+symbol a request names is decided by code, never by the model:
+
+- `lonora_market.instruments.catalogue_matches` is the one rule. A request is a broker
+  symbol, a canonical code or a common name (`lonora_contracts.instrument_names`, English
+  and Arabic). A catalogue name matches when it is the exact name, the same name in
+  another letter case, or the code wrapped in a broker affix: a separator on either
+  side (`XAUUSD.r`, `XAUUSD.pro`, `XAUUSD#`, `XAUUSD_i`, `#XAUUSD`, `m.XAUUSD`) or a short
+  lowercase suffix (`XAUUSDm`, `XAUUSDc`). Letters or digits that extend the code
+  (`XAUUSDT`, `US300`) are another instrument. A broker that lists gold as `GOLD` is
+  found by the English word when the code is not listed. There is no per-broker list.
+- `contradicts` is the broker's own check: a match whose reported base and quote
+  currency are not the pair the code names is dropped.
+- **Reads** (`market_instrument`, `market_quote`, `market_candles`, `market_snapshot`,
+  `market_structure`, `market_sessions`, `market_candles_to_workspace`,
+  `chart_indicator`, the candle-only `chart_snapshot`) call `lonora_tools.symbols.read_symbol`. They use the account's
+  symbol and state it: the result carries `symbol_resolution` (`requested`, `symbol`)
+  whenever the request named it another way. When several contracts match, the read
+  uses the first (shortest name) and lists the others with a note that an order needs
+  the owner's choice. The catalogue is cached per account (per broker adapter, five
+  minutes) and read again on a miss.
+- **Orders, closes, sizing, grants and restrictions** (`trade_execute`,
+  `trade_close_positions`, `market_position_size`, grant drafts,
+  `trade_restriction_create`) name a symbol the catalogue lists exactly, letter case
+  aside (`order_symbol`, `canonical_broker_symbol`, `restriction_symbol`). They are
+  never resolved to another symbol (an exit or a change to an existing ticket is not
+  checked against the catalogue at all: preflight requires the ticket's own symbol, and
+  a failed or shortened listing never holds back a close), so resolution cannot move an order to another
+  instrument or widen what a grant, a restriction or an agent's binding covers: those
+  still compare the exact symbol.
+- **A request that is not listed** fails with `symbol_not_found` (no match, or exactly
+  one: `hint` names it and tells the model to repeat the call) or `symbol_ambiguous`
+  (several contracts: `hint` tells the model to ask the owner which, in plain words).
+  The result carries `requested_symbol`, `candidates` (each with the broker's
+  description, category path, contract size, currencies and minimum volume),
+  `similar_symbols` when nothing matches, and `hint`. `tool_dispatch` forwards these
+  beside the code, so the model continues in the same run.
+- The approval card's data carries `contracts` (the broker's specification of each
+  requested symbol, read when the card is made) and the grant card's facts carry
+  `grant.contracts` (kept in the account's state when the grant is drafted). Both are
+  additive fields.
+- MetaApi: a 404 from a symbol read on a connected account is `symbol_not_found`; only
+  a message about the account itself is `broker_account_not_found`.
+
+`tests/test_instrument_resolution.py`, `tests/test_market_symbol_resolution.py`,
+`tests/test_trade_symbol_strictness.py`, `tests/test_metaapi_unknown_symbol.py` and the behaviour case
+`tests/check_gold_journey.py` («كيف وضع الذهب؟» on a suffixed account) cover it.
 
 ## Verification
 

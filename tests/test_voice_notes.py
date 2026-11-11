@@ -215,6 +215,17 @@ async def settle(fixture: Any, credentials: Credentials) -> int:
     )
 
 
+def test_the_transcription_language_is_the_owners_not_the_providers_guess():
+    from lonora_voice.voice_notes import language_hint
+
+    assert language_hint("en", ["شو وضع الذهب"]) == "en"
+    assert language_hint(None, ["شو وضع الذهب", "ياريت", "XAUUSDM"]) == "ar"
+    assert language_hint("", ["راقبه بس صار ربح 100 دولار سكره"]) == "ar"
+    # Latin letters do not name a language, and an empty conversation says nothing.
+    assert language_hint(None, ["how is gold", "ok"]) is None
+    assert language_hint(None, []) is None
+
+
 @pytest.mark.asyncio
 async def test_a_voice_note_is_transcribed_before_the_agent_answers():
     database()

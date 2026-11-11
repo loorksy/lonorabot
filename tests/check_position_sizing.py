@@ -116,7 +116,7 @@ async def main() -> None:
 
         for symbol, overrides, code in (
             (symbols[0], {"currency": "USD"}, "position_sizing_currency_mismatch"),
-            ("not-a-broker-symbol", {}, "broker_instrument_unavailable"),
+            ("not-a-broker-symbol", {}, "symbol_not_found"),
         ):
             try:
                 await run(symbol, **overrides)

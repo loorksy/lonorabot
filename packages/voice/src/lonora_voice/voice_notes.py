@@ -2,13 +2,14 @@
 
 The audio is read from the artifact store, sent to OpenAI's transcription endpoint
 with the owner's provider credentials (the owner's OpenAI STT route first, then
-gpt-4o-mini-transcribe, then whisper-1; Arabic language hint), and the result is
+gpt-4o-mini-transcribe, then whisper-1; the language hint is ``language_hint``), and the result is
 settled by ``lonora_db.voice_notes.settle_voice_note``, which then admits the Agent's
 Run. No credentials, a missing file or a provider failure settles it as failed.
 No transaction is held during the provider call.
 """
 
 import logging
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,6 +30,21 @@ from sqlalchemy import select
 log = logging.getLogger("lonora.voice_notes")
 
 MODELS = ("gpt-4o-mini-transcribe", "whisper-1")
+CONVERSATION_MESSAGES = 10
+_ARABIC = re.compile(r"[\u0600-\u06ff]")
+_LATIN = re.compile(r"[A-Za-z]")
+
+
+def language_hint(chosen: str | None, written: list[str]) -> str | None:
+    """The transcription language: the owner's chosen reply language, else the language
+    the owner writes this conversation in. Only when neither is known does the provider
+    detect it, and a short Arabic note is then easily heard as another language."""
+    if chosen:
+        return chosen
+    text = " ".join(written)
+    arabic, latin = len(_ARABIC.findall(text)), len(_LATIN.findall(text))
+    # Latin letters do not say which language; Arabic script does.
+    return "ar" if arabic > latin else None
 
 
 async def transcription_models(db: Database) -> list[str]:
@@ -52,10 +68,27 @@ async def transcribe_note(
         message = await session.get(MessageRow, message_id)
         voice = voice_part(message.rich_content) if message else None
         artifact = await session.get(ArtifactRow, str(voice["artifact_id"])) if voice else None
-        # The owner's chosen language is the hint; without one the provider detects it.
-        language = await session.scalar(
+        chosen = await session.scalar(
             select(OwnerProfileRow.reply_language).where(OwnerProfileRow.owner_id == owner_id)
         )
+        written = (
+            list(
+                await session.scalars(
+                    select(MessageRow.content)
+                    .where(
+                        MessageRow.thread_id == message.thread_id,
+                        MessageRow.role == "user",
+                        MessageRow.origin == "owner",
+                        MessageRow.id != message.id,
+                    )
+                    .order_by(MessageRow.created_at.desc())
+                    .limit(CONVERSATION_MESSAGES)
+                )
+            )
+            if message is not None and not chosen
+            else []
+        )
+        language = language_hint(chosen, written)
     if artifact is None or artifact.owner_id != owner_id:
         return None
     media_type = str(artifact.payload.get("media_type", "")).split(";")[0].strip().lower()

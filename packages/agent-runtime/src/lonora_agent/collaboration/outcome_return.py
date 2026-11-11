@@ -114,6 +114,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 if ticket.state.get("task"):
                     from typing import Literal
 
+                    from lonora_db.market_watches import settle_task_watches
                     from lonora_db.tasks import finish_task, task_state
 
                     finish_task(
@@ -121,6 +122,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         ticket,
                         cast(Literal["completed", "failed", "cancelled"], child.status),
                     )
+                    await settle_task_watches(session, ticket)
                     task = task_state(ticket)
                     origin = await session.get(
                         ThreadRow, task.origin_thread_id, with_for_update=True

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .market_watches import settle_task_watches
 from .runs import create_run, inherited_authority, require_lease
 from .schema import BoardRow, EventRow, RunRow, TicketRow, TradeApprovalRow
 from .threads import create_thread
@@ -465,6 +466,7 @@ async def control_task(
             if request.action == "cancel":
                 await cancel_task_approvals(session, failed_run.id)
         save_task(session, row, owner_completed(state) if complete else state)
+        await settle_task_watches(session, row)
         return row
     if state.status == "failed" and request.action == "cancel":
         row = await get_task(session, owner_id, row.id, lock=True)
@@ -475,6 +477,7 @@ async def control_task(
         if state.failure:
             state.failure.next_retry_at = None
         save_task(session, row, state)
+        await settle_task_watches(session, row)
         return row
     if state.status in {"completed", "failed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
@@ -551,6 +554,7 @@ async def control_task(
                 approval.status = "cancelled"
                 approval_event(session, approval)
     save_task(session, row, owner_completed(state) if complete else state)
+    await settle_task_watches(session, row)
     return row
 
 
@@ -595,6 +599,7 @@ async def complete_task(
         for run in await task_runs(session, row):
             await cancel_task_approvals(session, run.id)
         save_task(session, row, state)
+        await settle_task_watches(session, row)
         return row
     return await control_task(
         session,

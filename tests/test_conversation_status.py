@@ -341,10 +341,9 @@ async def test_a_reply_to_an_edited_message_is_never_retried():
     fixture = await Fixture().open()
     try:
         thread, run_id = await conversation_run(fixture, "اشترِ 0.1 ذهب")
+        listed = await fixture.request("GET", f"/threads/{thread['id']}/messages")
         original = next(
-            row
-            for row in await fixture.request("GET", f"/threads/{thread['id']}/messages")
-            if row["role"] == "user"
+            row for row in cast("list[dict[str, Any]]", listed) if row["role"] == "user"
         )
         await failed(fixture, run_id, "model_provider_unavailable")
         await fixture.request(
