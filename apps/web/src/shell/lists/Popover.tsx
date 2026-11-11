@@ -23,6 +23,7 @@ type Pop = {
   serial: number;
   cls?: string;
   above?: boolean;
+  match?: boolean;
   onClose?: () => void;
 };
 type Api = {
@@ -30,7 +31,7 @@ type Api = {
     anchor: HTMLElement,
     body: ReactNode,
     label: string,
-    extra?: { cls?: string; above?: boolean; onClose?: () => void },
+    extra?: { cls?: string; above?: boolean; match?: boolean; onClose?: () => void },
   ) => void;
   close: () => void;
   back: () => boolean;
@@ -68,6 +69,7 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
     shown.current = pop;
     const el = element.current;
     if (!pop || !el) return;
+    if (pop.match) el.style.minWidth = `${Math.round(pop.anchor.getBoundingClientRect().width)}px`;
     const r = pop.anchor.getBoundingClientRect();
     const w = el.offsetWidth;
     const h = el.offsetHeight;

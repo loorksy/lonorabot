@@ -150,6 +150,7 @@ function PrefsRow() {
               ))}
             </>,
             t`Interface language`,
+            { cls: "lang-pop", match: true },
           )
         }
       >
