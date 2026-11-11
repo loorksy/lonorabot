@@ -31,6 +31,7 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from collections.abc import Mapping
 
 from lonora_adapter_kit.types import ToolDefinition
 
@@ -42,25 +43,40 @@ def tokens(text: str) -> list[str]:
 
 
 def search_definitions(
-    definitions: list[ToolDefinition], query: str, limit: int = MAX_SEARCH_RESULTS
+    definitions: list[ToolDefinition],
+    query: str,
+    limit: int = MAX_SEARCH_RESULTS,
+    terms: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Rank only the supplied permitted catalog; this is discovery, not routing."""
+    """Rank only the supplied permitted catalog; this is discovery, not routing.
+
+    ``terms`` are each tool's everyday words (``Tool.search_terms``), searched like its
+    description."""
     query_tokens = set(tokens(query))
     limit = min(MAX_SEARCH_RESULTS, max(0, limit))
     if not query_tokens or not definitions or not limit:
         return []
     corpus = [
         tokens(
-            " ".join((item.name, item.description, *item.parameters.get("properties", {}).keys()))
+            " ".join(
+                (
+                    item.name,
+                    item.description,
+                    (terms or {}).get(item.name, ""),
+                    *item.parameters.get("properties", {}).keys(),
+                )
+            )
         )
         for item in definitions
     ]
     frequencies = Counter(token for document in corpus for token in set(document))
     average_length = sum(map(len, corpus)) / len(corpus)
-    # A missing distinctive term must not produce unrelated tools merely because
-    # generic verbs match. Exact registered names are always discoverable.
-    gate = min(query_tokens, key=lambda token: (frequencies[token], token))
+    # The rarest word the catalog knows must match, so generic verbs alone do not
+    # produce unrelated tools. A word the catalog never uses cannot be the gate: it
+    # would empty every search that contains it. Exact registered names are always
+    # discoverable.
     answerable = {token for token in query_tokens if frequencies[token]}
+    gate = min(answerable, key=lambda token: (frequencies[token], token), default="")
     minimum_coverage = math.ceil(len(answerable) / 2) if len(answerable) >= 4 else 1
     ranked: list[tuple[float, str]] = []
     for definition, document in zip(definitions, corpus, strict=True):
