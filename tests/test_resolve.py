@@ -40,7 +40,10 @@ def test_a_read_uses_the_one_item_a_name_fits_and_says_so() -> None:
         "id": "w-2",
         "label": "الذهب فوق 4100",
     }
-    assert stating({"cancelled": True}, note, None) == {"cancelled": True, "resolved": [note]}
+    assert stating({"cancelled": True}, note, None) == {
+        "cancelled": True,
+        "reference_resolution": [note],
+    }
     partial = resolve("eurusd abo", WATCHES, missing="x_not_found", argument="watch_id", use="any")
     assert partial[0] == "w-1"
 

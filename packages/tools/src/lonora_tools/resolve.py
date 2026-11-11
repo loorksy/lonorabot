@@ -187,4 +187,4 @@ def stating(result: dict[str, Any], *notes: dict[str, Any] | None) -> dict[str, 
     said = [note for note in notes if note]
     if not said:
         return result
-    return {**result, "resolved": [*result.get("resolved", []), *said]}
+    return {**result, "reference_resolution": [*result.get("reference_resolution", []), *said]}

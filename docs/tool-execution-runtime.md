@@ -282,7 +282,7 @@ What a name may do depends on the call:
 
 | Call | One item fits |
 |---|---|
-| A read (`use="any"`) | It is used, and the result says so under `resolved`. |
+| A read (`use="any"`) | It is used, and the result says so under `reference_resolution`. |
 | A stop of the caller's own item (`use="exact"`) | Used only when the name is exactly its name. |
 | Anything else (`use="refuse"`) | Refused with the item and `next_actions: [{repeat_with: {<argument>: <id>}}]`. |
 
