@@ -1,6 +1,7 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { ActivityCode, ActivityEntry, AttentionNotification } from "@lonora/contracts";
+import { attentionAlwaysShows } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -12,12 +13,13 @@ import { useShellData } from "../data";
 import { clockTime } from "../lists/ThreadRow";
 import { useNavigation } from "../navigation";
 import { recoveryPath } from "../routes";
-import { SkRows } from "../Skeleton";
+import { SkHead, SkPage, SkRows } from "../Skeleton";
+import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
 import { routineTitle, scheduleFacts, useScheduleDetails } from "./SchedulesPages";
-import { Empty } from "./ui";
+import { Empty, ValueRow } from "./ui";
 
 function activityTitle(code: ActivityCode): string {
   switch (code) {
@@ -101,7 +103,12 @@ export function ActivityPage() {
   const feed = useLoad(() => domainApi.activity(), "activity");
   const [more, setMore] = useState<ActivityEntry[]>([]);
   const [next, setNext] = useState<number | null | undefined>();
-  if (feed.loading && !feed.data) return <SkRows count={5} />;
+  if (feed.loading && !feed.data)
+    return (
+      <SkPage>
+        <SkRows count={9} icon group />
+      </SkPage>
+    );
   if (feed.error != null && !feed.data) return <p role="alert">{userError(feed.error)}</p>;
   const items = [...(feed.data?.items ?? []), ...more];
   const cursor = next === undefined ? feed.data?.next_before : next;
@@ -134,13 +141,11 @@ export function ActivityPage() {
   );
 }
 
-const unread = (item: AttentionNotification) =>
-  item.status === "pending" || item.status === "ready";
-
 /** «المستجدات»: stories, «التنبيهات», «المواعيد القادمة», «آخر الإجراءات». */
 export function UpdatesPage() {
   const data = useShellData();
   const nav = useNavigation();
+  const sheets = useSheets();
   const toast = useToast();
   const attention = useAttention();
   const labels = useAttentionLabels();
@@ -151,38 +156,86 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
+  if ([notes, routines, feed].some((load) => load.data === undefined && load.error == null))
+    return (
+      <SkPage>
+        <SkHead width={24} />
+        <SkRows count={2} size={40} group />
+        <SkHead width={20} />
+        <SkRows count={5} icon group />
+      </SkPage>
+    );
   const upcoming = (routines.data ?? []).filter((row) => row.enabled && !row.goal_id);
   const ring = (agentId: string) =>
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
     upcoming.some((row) => row.agent_id === agentId);
   const list = notes.data ?? [];
-  const unreadCount = list.filter(unread).length;
+  // The tab dot's own list: a row is unread while it is still among the open items.
+  const unread = (item: AttentionNotification) =>
+    attention.items.some((open) => open.id === item.id);
+  // «تحديد الكل كمقروء» leaves critical and action_required items to the owner's own look.
+  const markable = list.some((item) => unread(item) && !attentionAlwaysShows(item.importance));
   const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name ?? "";
   const readAll = async () => {
     try {
       await domainApi.seenAll();
-      notes.reload();
       attention.refresh();
     } catch (cause) {
       toast(userError(cause), { type: "error" });
     }
   };
-  const openNote = async (item: AttentionNotification) => {
-    if (unread(item)) {
-      notes.set((rows) =>
-        rows?.map((row) => (row.id === item.id ? { ...row, status: "seen" } : row)),
-      );
-      void attention.seen(item.id).catch(() => notes.reload());
-    }
+  const detail = (item: AttentionNotification) =>
+    item.parameters.summary ? (
+      <span dir="auto" data-testid="attention-summary">
+        {item.parameters.summary}
+      </span>
+    ) : (
+      <>
+        <bdi>{agentName(item.agent_id)}</bdi>
+        {item.parameters.symbol ? (
+          <>
+            {" · "}
+            <bdi>{item.parameters.symbol}</bdi>
+          </>
+        ) : null}
+      </>
+    );
+  const openNote = (item: AttentionNotification) => {
+    if (unread(item))
+      attention.seen(item.id).catch((cause) => toast(userError(cause), { type: "error" }));
     // A group's notification opens the group conversation, as the inbox did.
     // A broker outage opens the recovery page for its account (recovery.page).
-    nav.go(
+    const target =
       item.code === "broker_degraded"
         ? recoveryPath(item.parameters.account_id)
         : item.parameters.group_id
           ? `/app/g/${item.parameters.group_id}`
-          : `/app/${item.agent_id}?thread=${item.thread_id}`,
-    );
+          : `/app/${item.agent_id}?thread=${item.thread_id}`;
+    sheets.open({
+      id: "notification-details",
+      title: labels[item.code],
+      label: labels[item.code],
+      body: (
+        <>
+          <p>{detail(item)}</p>
+          <ValueRow label={t`Time`} value={<span className="ltr">{when(item.created_at)}</span>} />
+          <button
+            type="button"
+            className="btn full"
+            onClick={() => {
+              sheets.close();
+              nav.go(target);
+            }}
+          >
+            {item.code === "broker_degraded" ? (
+              <Trans>Review the connection</Trans>
+            ) : (
+              <Trans>Open conversation</Trans>
+            )}
+          </button>
+        </>
+      ),
+    });
   };
   const acts = (feed.data?.items ?? []).slice(0, 4);
   return (
@@ -210,15 +263,17 @@ export function UpdatesPage() {
         <h3>
           <Trans context="updates section">Notifications</Trans>
         </h3>
-        {unreadCount > 0 && (
+        {markable && (
           <button type="button" className="link" onClick={() => void readAll()}>
             <Trans>Mark all as read</Trans>
           </button>
         )}
       </div>
       <div className="group">
-        {notes.loading && !notes.data ? (
-          <SkRows count={2} />
+        {notes.error != null && !notes.data ? (
+          <p className="pad small" role="alert">
+            {userError(notes.error)}
+          </p>
         ) : list.length ? (
           list.map((item) => (
             <button
@@ -226,28 +281,22 @@ export function UpdatesPage() {
               type="button"
               className={`row ${unread(item) ? "unread" : ""}`.trim()}
               data-attention-id={item.id}
-              onClick={() => void openNote(item)}
+              onClick={() => openNote(item)}
             >
               <span className="row-icon">
                 <Icon name="bell" />
               </span>
               <span className="body">
                 <strong>{labels[item.code]}</strong>
-                {item.parameters.summary ? (
-                  <small dir="auto" data-testid="attention-summary">
-                    {item.parameters.summary}
-                  </small>
-                ) : (
+                <small>{detail(item)}</small>
+                {unread(item) && attentionAlwaysShows(item.importance) ? (
                   <small>
-                    <bdi>{agentName(item.agent_id)}</bdi>
-                    {item.parameters.symbol ? (
-                      <>
-                        {" · "}
-                        <bdi>{item.parameters.symbol}</bdi>
-                      </>
-                    ) : null}
+                    <Trans>Needs your action</Trans>
                   </small>
-                )}
+                ) : null}
+              </span>
+              <span className="value">
+                <span className="ltr">{when(item.created_at)}</span>
               </span>
               {unread(item) && <span className="dot" role="img" aria-label={t`Unread`} />}
             </button>
@@ -264,7 +313,11 @@ export function UpdatesPage() {
         </h3>
       </div>
       <div className="group">
-        {upcoming.length ? (
+        {routines.error != null && !routines.data ? (
+          <p className="pad small" role="alert">
+            {userError(routines.error)}
+          </p>
+        ) : upcoming.length ? (
           upcoming.map((routine) => {
             const agent = data.agents.find((row) => row.id === routine.agent_id);
             const facts = scheduleFacts(routine);
@@ -306,7 +359,11 @@ export function UpdatesPage() {
         </h3>
       </div>
       <div className="group">
-        {acts.length ? (
+        {feed.error != null && !feed.data ? (
+          <p className="pad small" role="alert">
+            {userError(feed.error)}
+          </p>
+        ) : acts.length ? (
           <>
             {acts.map((entry) => (
               <ActivityRow key={entry.id} entry={entry} boxed />

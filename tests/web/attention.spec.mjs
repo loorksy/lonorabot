@@ -37,6 +37,10 @@ test("durable notification is shared across views and stays read after reload", 
   const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
   await expect(alert.getByText("New trading stopped", { exact: true })).toBeVisible();
   await expect(alert.locator(".dot")).toHaveCount(1);
+  // The stop was raised twice (read, resumed, stopped again): one row says it once.
+  await expect(page.locator("[data-attention-id]", { hasText: "New trading stopped" })).toHaveCount(
+    1,
+  );
   // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
   const uncertain = page.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
   await expect(
@@ -48,13 +52,19 @@ test("durable notification is shared across views and stays read after reload", 
   await expect(uncertain.getByText(fixture.agent.name, { exact: true })).toBeVisible();
   await page.reload();
   await expect(alert.locator(".dot")).toHaveCount(1);
+  // Tapping it opens its details; the sheet's button opens the conversation.
   await uncertain.click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("XAUUSD", { exact: true })).toBeVisible();
+  await sheet.getByRole("button", { name: "Open conversation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
   await page.goto("/app/updates");
   await expect(uncertain.locator(".dot")).toHaveCount(0);
-  // «تحديد الكل كمقروء»: the plain update is read, the critical stop stays unread (Q4).
+  // «تحديد الكل كمقروء»: the plain update is read, the critical stop stays unread (Q4)
+  // and says why; with nothing left it can mark, the link goes.
   const info = page.locator(`[data-attention-id="${fixture.informational.id}"]`);
   await expect(info.locator(".dot")).toHaveCount(1);
+  await expect(alert.getByText("Needs your action", { exact: true })).toBeVisible();
   const seenAll = page.waitForResponse((response) =>
     response.url().endsWith("/api/attention/seen-all"),
   );
@@ -62,6 +72,7 @@ test("durable notification is shared across views and stays read after reload", 
   expect((await seenAll).ok()).toBeTruthy();
   await expect(info.locator(".dot")).toHaveCount(0);
   await expect(alert.locator(".dot")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Mark all as read", exact: true })).toHaveCount(0);
   const open = (await (await context.request.get("/api/attention")).json()).map((row) => row.id);
   expect(open).toContain(fixture.notification.id);
   expect(open).not.toContain(fixture.informational.id);
