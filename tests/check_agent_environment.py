@@ -207,7 +207,7 @@ async def main() -> None:
             if phase == 5:
                 assert (
                     result["reason"] == "tool route exhausted"
-                    and result["recovery"]["next_action"] == "alternate route"
+                    and result["recovery"]["next_action"] == "alternate route or wait"
                 )
                 return reply(ToolCall(id="alternate", name="alternative", arguments={}))
             assert result["ok"]

@@ -629,7 +629,9 @@ async def wait_supersedes_proposed_mutation(f: Fixture) -> None:
             return reply, selection
         assert any("<runtime_wake>" in message.content for message in messages)
         if phase == 3:
-            assert observation(messages, "stale-proposed-entry")["reason"] == "tool call superseded"
+            assert observation(messages, "stale-proposed-entry")["reason"] == (
+                "tool call superseded: task wait requires fresh analysis after wake"
+            )
             return inspect("discover-quote", "market_quote")
         if phase == 4:
             return response(
