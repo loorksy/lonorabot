@@ -4806,3 +4806,24 @@ span.no-trade {
 .composer.is-streaming.has-text .send {
   display: grid !important;
 }
+
+/* A card's send quotes its card: the sparkle sits on the title's line (Desktop-37, review U5). */
+.ux-quote {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 6px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+.ux-quote svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+article[data-ui-mark="superseded"] {
+  color: var(--muted);
+  opacity: 0.7;
+}

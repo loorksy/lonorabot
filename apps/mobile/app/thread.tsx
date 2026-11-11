@@ -25,6 +25,7 @@ import {
   seedStream,
   stopTargets,
   streamForRun,
+  submitMark,
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
@@ -686,6 +687,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) setUploading(false);
     }
   };
+  // Stop cancels every cancellable Run of the thread, a queued card submission included,
+  // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
   const stopActive = async () => {
     if (!id) return;
     const active = stopTargets(runs, id);
@@ -983,6 +986,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       />
                     ) : null}
                     <MessageBubble
+                      mark={submitMark(message)}
                       onChartLink={(value) => {
                         try {
                           const url = new URL(value, server);

@@ -5,6 +5,8 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.message_preview import model_content
+from lonora_db.genui_submit import NEVER_RAN_NOTE, never_ran, submit_status
+from lonora_db.owner_words import submit_hidden
 from lonora_db.schema import AgentRow, MessageRow, RunRow
 from lonora_tools.runtime_control import WaitInput
 from pydantic import ValidationError
@@ -12,6 +14,23 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 HISTORY_WINDOW = 100
+
+
+def card_words(row: MessageRow, run: RunRow | None) -> str:
+    """Card words are labelled as such, never as the owner's own (§8.4); the submission a
+    Run answers carries its validated data as ``<ui_submit>``, marked as data (§3.7)."""
+    if row.origin == "ui_follow_up":
+        return "[owner_via_card]\n" + row.content
+    if row.origin != "ui_submit":
+        return row.content
+    submit = row.ui_submit or {}
+    title = str(submit.get("card_title", ""))[:40].replace('"', "'").replace("<", "‹")
+    text = f"[owner_via_card «{title}»]\n" + row.content
+    if run is not None and submit.get("run_id") == run.id:
+        data = json.dumps(submit.get("data", {}), ensure_ascii=False).replace("<", "\\u003c")
+        intent = str(submit.get("intent", ""))
+        text += f'\n<ui_submit card="{title}" intent="{intent}">{data}</ui_submit>'
+    return text
 
 
 @dataclass(frozen=True)
@@ -86,6 +105,7 @@ async def history_context(
     input_seq: int,
     summary_seq: int = 0,
     agent_id: str | None = None,
+    run: RunRow | None = None,
 ) -> list[ModelMessage]:
     rows = (
         await session.scalars(
@@ -164,7 +184,18 @@ async def history_context(
     messages: list[ModelMessage] = []
     for row in reversed(rows):
         peer = bool(agent_id and row.agent_id and row.agent_id != agent_id)
-        text = model_content(row.content, row.rich_content)
+        if row.origin == "ui_submit" and await submit_hidden(session, row, run):
+            # Rules V and N (GENUI_PLAN §8.2): a submission another Run has not finished is
+            # not shown at all; one whose Run never started leaves only a note, never its
+            # bubble, intent, data or values.
+            if never_ran(row.ui_submit, await submit_status(session, row)):
+                messages.append(ModelMessage(role="user", content="[" + NEVER_RAN_NOTE + "]"))
+            continue
+        text = (
+            card_words(row, run)
+            if row.origin in {"ui_submit", "ui_follow_up"}
+            else model_content(row.content, row.rich_content)
+        )
         content = (
             "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + text
             if peer

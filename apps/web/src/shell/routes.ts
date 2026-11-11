@@ -30,6 +30,9 @@ export const PAGES = [
   "new-group",
   "owner",
   "lab",
+  // Phase 6: «المكالمة» and «مكالمة واردة» (/app/incoming/:callId).
+  "call",
+  "incoming",
   // Phase 5: settings pages (the reference's route names).
   "accessibility",
   "chat-prefs",
@@ -70,6 +73,7 @@ const ALIASES: Readonly<Record<string, string>> = {
  * identity form and trades, the group page; the rest take `?agent=` / `?item=`. */
 const ITEM_PAGES = new Set<string>([
   "artifacts",
+  "incoming",
   "communication",
   "broker-account",
   "usage-detail",

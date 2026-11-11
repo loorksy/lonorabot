@@ -28,7 +28,10 @@ export function MessageBubble({
   grouped = false,
   reply,
   onReply,
+  mark = null,
 }: {
+  /** Rule N on a card's send that never ran (GENUI_PLAN §8.2), from core `submitMark`. */
+  mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;
   agent?: Agent;
@@ -165,6 +168,11 @@ export function MessageBubble({
           </Text>
         ) : null))
       )}
+      {mark ? (
+        <Text testID="ui-submit-mark" style={{ color: shell.secondary, fontSize: 12 }}>
+          {t(mark === "superseded" ? "uiSubmitEdited" : "uiSubmitNotRun")}
+        </Text>
+      ) : null}
       {isOutgoingMessage(message) ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: shell.secondary, fontSize: 12 }}>

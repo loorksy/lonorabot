@@ -1,0 +1,9 @@
+{"v":2,"kind":"form","title":"تنبيه سعر","sub":"يصلك عند تحقق الشرط","icon":"bell","mode":"observed"}
+{"facts":{"xau":{"call":"c1","path":"/bid"},"xag":{"call":"c2","path":"/bid"},"eur":{"call":"c3","path":"/bid"}},"state":{"symbol":"XAUUSD","dir":"above","price":2400},"calc":{"cur":"@Pick($symbol,'XAUUSD',@Fact('xau'),'XAGUSD',@Fact('xag'),@Fact('eur'))","dp":"@Pick($symbol,'EURUSD',4,2)","gap":"($price-$cur)/$cur*100","hit":"($dir=='above'&&$price<=$cur)||($dir=='below'&&$price>=$cur)"}}
+{"type":"Segmented","bind":"symbol","label":"الأصل","options":[{"value":"XAUUSD","label":"الذهب","also":{"price":2400}},{"value":"XAGUSD","label":"الفضة","also":{"price":null}},{"value":"EURUSD","label":"اليورو","also":{"price":null}}]}
+{"type":"Segmented","bind":"dir","label":"الشرط","options":[{"value":"above","label":"يصعد فوق"},{"value":"below","label":"يهبط تحت"}]}
+{"type":"Number","bind":"price","label":"السعر المستهدف","hint":"الآن {@Fmt($cur,$dp)}","suffix":"$","required":true}
+{"type":"Text","tone":"muted","size":"sm","when":"$price&&!$hit","text":"يبعد **{@Pct(@Abs($gap),2)}** عن السعر الحالي"}
+{"type":"Note","tone":"warn","when":"$price&&$hit","text":"الشرط متحقق الآن؛ سيصلك التنبيه فور إنشائه."}
+{"type":"Button","label":"إنشاء التنبيه","style":"primary","icon":"bell","full":true,"disabled":"!$price","action":{"do":"send","intent":"alert.create","data":{"symbol":"$symbol","dir":"$dir","price":"$price"}}}
+{"why":"التنبيه يحتاج أصلًا واتجاهًا وسعرًا. نموذج قصير يجمعها مرة واحدة ويمنع الأخطاء، بدل ثلاثة أسئلة متتالية.","fallback":"أستطيع إنشاء التنبيه. أرسل الأصل والاتجاه والسعر، مثل: «نبّهني إذا صعد الذهب فوق 2400»، وسأراقبه وأرسل لك إشعارًا عند تحققه."}

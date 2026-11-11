@@ -103,6 +103,11 @@ export {
   operationStatusText,
   runStatusText,
 } from "./financial-boundary";
+export { display as genuiDisplay, environment, evaluate, renderTemplate } from "./genui/expr";
+export { DASH as GENUI_DASH } from "./genui/functions";
+export { parseCardNumber } from "./genui/input";
+export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
+export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {
   archivedSummary,
   inboxUnread,

@@ -49,6 +49,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
+from lonora_db.owner_words import visible_to_recall
 from lonora_db.schema import AgentRow, EventRow, GroupRow, MessageRow, ThreadRow
 from lonora_db.supervision import supervised_ids
 from lonora_db.trading_decisions import DECISION_KIND
@@ -202,8 +203,13 @@ def excerpt(content: str, query: str) -> tuple[str, bool]:
     return ("…" if start else "") + piece + "…", True
 
 
-def _author(scope: HistoryScope, role: str, agent_id: str | None) -> dict[str, Any]:
+def _author(
+    scope: HistoryScope, role: str, agent_id: str | None, origin: str | None = "owner"
+) -> dict[str, Any]:
     if role == "user" and agent_id is None:
+        # Card words are never «the owner said» (GENUI_PLAN §8.4).
+        if origin in {"ui_submit", "ui_follow_up"}:
+            return {"author": "owner_via_card"}
         return {"author": "owner"}
     if agent_id == scope.agent_id:
         return {"author": "self", "author_agent_id": agent_id}
@@ -227,6 +233,7 @@ def supervised_label(scope: HistoryScope, agent_id: str | None) -> dict[str, Any
 
 
 MESSAGE_COLUMNS = (
+    MessageRow.origin,
     MessageRow.id,
     MessageRow.thread_id,
     MessageRow.seq,
@@ -243,7 +250,7 @@ def _message(scope: HistoryScope, row: Any, body: str, truncated: bool) -> dict[
         "seq": row.seq,
         "message_id": row.id,
         "role": row.role,
-        **_author(scope, row.role, row.agent_id),
+        **_author(scope, row.role, row.agent_id, getattr(row, "origin", "owner")),
         "created_at": row.created_at.isoformat(),
         "text": body,
         **({"truncated": True} if truncated else {}),
@@ -329,7 +336,11 @@ def full_text_statement(
     # shares the question's words comes before one that shares only the symbol.
     rank = func.ts_rank_cd(vector, any_word_query(terms) if terms else wanted)
     all_words = vector.op("@@")(every)
-    where: list[ColumnElement[bool]] = [scope.threads(), vector.op("@@")(wanted)]
+    where: list[ColumnElement[bool]] = [
+        scope.threads(),
+        vector.op("@@")(wanted),
+        visible_to_recall(),
+    ]
     if thread_id is not None:
         where.append(ThreadRow.id == thread_id)
     return (
@@ -365,8 +376,9 @@ def recent_messages(scope: HistoryScope, thread_id: str | None, *, vector: bool)
             MessageRow.agent_id,
             MessageRow.created_at,
             MessageRow.content,
+            MessageRow.origin,
         )
-        .where(MessageRow.thread_id == scoped.c.id)
+        .where(MessageRow.thread_id == scoped.c.id, visible_to_recall())
         .order_by(MessageRow.seq.desc())
         .limit(RECENT_WINDOW)
         .lateral("newest")
@@ -392,6 +404,7 @@ def recent_messages(scope: HistoryScope, thread_id: str | None, *, vector: bool)
 
 def _window_columns(recent: Subquery) -> list[Any]:
     return [
+        recent.c.origin,
         recent.c.id,
         recent.c.thread_id,
         recent.c.seq,
@@ -459,6 +472,7 @@ def _literal_statement(
     where: list[ColumnElement[bool]] = [
         scope.threads(),
         or_(*(MessageRow.content.icontains(term, autoescape=True) for term in wanted)),
+        visible_to_recall(),
     ]
     if thread_id is not None:
         where.append(ThreadRow.id == thread_id)
@@ -736,6 +750,7 @@ async def scroll(
                     MessageRow.thread_id == thread.id,
                     MessageRow.seq >= around_seq - radius,
                     MessageRow.seq <= around_seq + radius,
+                    visible_to_recall(),
                 )
                 .order_by(MessageRow.seq)
             )
@@ -759,7 +774,11 @@ async def read(
         (
             await session.execute(
                 select(*MESSAGE_COLUMNS)
-                .where(MessageRow.thread_id == thread.id, MessageRow.seq > after_seq)
+                .where(
+                    MessageRow.thread_id == thread.id,
+                    MessageRow.seq > after_seq,
+                    visible_to_recall(),
+                )
                 .order_by(MessageRow.seq)
                 .limit(limit + 1)
             )

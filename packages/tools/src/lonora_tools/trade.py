@@ -157,6 +157,8 @@ async def owner_spoke_since(session: AsyncSession, row: TradeApprovalRow) -> boo
             .where(
                 MessageRow.thread_id == row.thread_id,
                 MessageRow.role == "user",
+                # A card submission is not the owner speaking after a rejected trade card.
+                MessageRow.origin == "owner",
                 MessageRow.created_at > row.updated_at,
             )
             .limit(1)

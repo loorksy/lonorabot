@@ -84,6 +84,33 @@ def append_rich_partial(
     return stream
 
 
+def interrupted_cards(rich: Any, phase: str) -> Any:
+    """A v2 card still building when its turn ends is never left a skeleton (review E2).
+    On Stop it keeps the blocks built so far, marked ``cut``; with none built, or when the
+    turn failed (not the owner's Stop), its fallback text stands in for it."""
+    if not isinstance(rich, dict):
+        return rich
+    content = cast(dict[str, Any], rich)
+    if not isinstance(content.get("parts"), list):
+        return content
+    parts: list[Any] = []
+    for part in cast(list[Any], content["parts"]):
+        item = cast(dict[str, Any], part) if isinstance(part, dict) else None
+        if item is None or item.get("type") != "ui" or not item.get("building"):
+            parts.append(part)
+            continue
+        value: Any = item.get("document")
+        document = cast(dict[str, Any], value) if isinstance(value, dict) else {}
+        blocks: Any = document.get("blocks")
+        built = len(cast(list[Any], blocks)) if isinstance(blocks, list) else 0
+        fallback: Any = document.get("fallback")
+        if phase == "cancelled" and built:
+            parts.append({"type": "ui", "document": document, "cut": built})
+        elif isinstance(fallback, str) and fallback.strip():
+            parts.append({"type": "text", "text": fallback})
+    return {**content, "parts": parts}
+
+
 def settle_stream(
     row: RunRow,
     phase: str,
@@ -104,7 +131,7 @@ def settle_stream(
         if compiled is not None:
             stream["rich_content"] = compiled
     elif phase in {"cancelled", "failed"}:
-        compiled = validated_rich_content(stream.get("rich_content"))
+        compiled = validated_rich_content(interrupted_cards(stream.get("rich_content"), phase))
         if compiled is not None:
             stream["rich_content"] = compiled
         else:

@@ -349,4 +349,8 @@ def consumed(message: dict[str, Any], started_seq: int, steered: set[str]) -> bo
     """Two accent ticks: the agent's run started on this owner message. None for other roles."""
     if message["role"] != "user":
         return None
+    if message.get("origin") == "ui_submit":
+        # Rule T: a card submission's ticks follow its own Run, not the thread's window.
+        submit: dict[str, Any] = message.get("ui_submit") or {}
+        return bool(submit.get("started_at"))
     return int(message["seq"]) <= started_seq or message["id"] in steered

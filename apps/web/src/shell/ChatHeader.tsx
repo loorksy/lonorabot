@@ -2,11 +2,10 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { type AvatarStateId, showsTradingControl } from "@lonora/core";
 import { GroupAvatar, Icon } from "@lonora/ui-web";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { PersonalAgentBadge } from "../components/ai/PersonalAgentBadge";
-import { CallPill } from "../components/call/CallPill";
 import { useChatPrefs } from "../conversation/prefs";
 import {
   SafetyCapsule,
@@ -14,7 +13,10 @@ import {
   StatusLine,
   useAgentSheet,
 } from "../conversation/sheets/AgentSheet";
+import { useVoice } from "../hooks/useVoice";
 import type { Agent, Resource } from "../lib/api";
+import { useRead } from "./agent/shared";
+import { CallCapsule, useCallClock, useCallStarter } from "./call/CallPages";
 import { useShellData } from "./data";
 import type { NetPhase } from "./NetworkStrip";
 
@@ -88,7 +90,19 @@ export function ChatHeader({
       { replace: true },
     );
   }, [wanted, agent?.id]);
-  const statusOn = Boolean(agent && prefs.agentStatus && !working && net === "on");
+  const voice = useVoice();
+  const starter = useCallStarter();
+  const readiness = useRead<{ transport_configured: boolean }>(agent ? "/voice/status" : null);
+  const unready = Boolean(readiness.value && !readiness.value.transport_configured);
+  const onThisCall = Boolean(agent && voice.target?.agentId === agent.id);
+  const clock = useCallClock(onThisCall ? voice.startedAt : null);
+  const wasOnCall = useRef(false);
+  const [callReturned, setCallReturned] = useState(false);
+  useEffect(() => {
+    if (wasOnCall.current && !onThisCall) setCallReturned(true);
+    wasOnCall.current = onThisCall;
+  }, [onThisCall]);
+  const statusOn = Boolean(agent && prefs.agentStatus && !working && net === "on" && !onThisCall);
   const infoLabel = group ? t`Group info` : t`Agent info`;
   const presence =
     net === "off" ? (
@@ -130,24 +144,39 @@ export function ChatHeader({
             {name}
             <PersonalAgentBadge agent={agent} />
           </button>
-          {statusOn && agent ? (
+          {onThisCall ? (
+            <span className={`presence oncall${voice.muted ? " muted" : ""}`}>
+              {voice.muted ? <Trans>Muted</Trans> : <Trans>In a call</Trans>}
+              {" · "}
+              <span className="ltr" data-clock>
+                {clock}
+              </span>
+            </span>
+          ) : statusOn && agent ? (
             <StatusLine agent={agent} onOpen={openSheet} />
           ) : (
             <span className={`presence${working || typingName ? " typing" : ""}`}>{presence}</span>
           )}
         </div>
-        <CallPill />
-        {agent && (
-          <button
-            type="button"
-            className="icon"
-            aria-label={voiceActive ? t`Open active call` : t`Voice call`}
-            title={voiceActive ? t`Open active call` : t`Voice call`}
-            disabled={Boolean(agent.paused && !voiceActive)}
-            onClick={onCall}
-          >
-            <Icon name="phone" />
-          </button>
+        {onThisCall ? (
+          <CallCapsule />
+        ) : (
+          agent && (
+            <button
+              type="button"
+              className={`icon${callReturned ? " call-back" : ""}`}
+              aria-label={voiceActive ? t`Open active call` : t`Voice call`}
+              title={voiceActive ? t`Open active call` : t`Voice call`}
+              aria-disabled={unready ? true : undefined}
+              disabled={Boolean(agent.paused && !voiceActive)}
+              onClick={() => {
+                if (unready) starter.notConfigured();
+                else onCall();
+              }}
+            >
+              <Icon name="phone" />
+            </button>
+          )
         )}
         <button
           type="button"

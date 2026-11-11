@@ -10,6 +10,7 @@ from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.memory import memory_view
+from lonora_db.owner_words import visible_to_recall
 from lonora_db.schema import AgentRow, IntegrationRow, MemoryRow, MessageRow, ThreadRow
 from lonora_memory.sessions import (
     HISTORY_AUTHORITY,
@@ -72,7 +73,12 @@ async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -
             await session.execute(
                 select(MessageRow, ThreadRow.agent_id)
                 .join(ThreadRow, ThreadRow.id == MessageRow.thread_id)
-                .where(scope.threads(), MessageRow.content.icontains(query, autoescape=True))
+                .where(
+                    scope.threads(),
+                    MessageRow.content.icontains(query, autoescape=True),
+                    # Rules V and N: a card's send another Run has not finished is hidden.
+                    visible_to_recall(),
+                )
                 .order_by(MessageRow.created_at.desc())
                 .limit(30)
             )
@@ -108,7 +114,10 @@ async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -
                     "id": m.id,
                     "thread_id": m.thread_id,
                     "seq": m.seq,
-                    "role": m.role,
+                    # Card words are never «the owner said» (GENUI_PLAN §8.4).
+                    "role": "owner_via_card"
+                    if m.role == "user" and m.origin in {"ui_submit", "ui_follow_up"}
+                    else m.role,
                     "created_at": m.created_at.isoformat(),
                     "content": m.content[:1600],
                     **supervised_label(scope, thread_agent),

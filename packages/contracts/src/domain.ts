@@ -1,3 +1,4 @@
+import type { UiLock, UiState, UiSubmitInput, UiSubmitRecord } from "./genui";
 import type { AgentTemplate } from "./owner-actions";
 import type { RichContent } from "./visual-response";
 
@@ -58,6 +59,8 @@ export type MessageCreate = {
   mention_all?: boolean;
   collaboration_session_id?: string | null;
   input_answer?: InputAnswer | null;
+  /** A generated card's send. The server composes the bubble; content is ignored. */
+  ui_submit?: UiSubmitInput | null;
   /** Edit and resend (Q21): the owner's own text message this one replaces. */
   edited_from?: string | null;
   voice?: VoiceNote | null;
@@ -86,6 +89,14 @@ export type Message = {
   /** The newer message whose `edited_from` is this one: render this one as superseded. */
   superseded_by?: string | null;
   created_at: string;
+  /** Who wrote it: the owner, a card's send (text composed by the server) or a v1 tap. */
+  origin?: "owner" | "ui_submit" | "ui_follow_up";
+  ui_submit?: UiSubmitRecord | null;
+  ui_state?: UiState | null;
+  /** Derived on read: the locking submission per card part. */
+  ui_lock?: Record<string, UiLock>;
+  /** Rule N on read: «مُعدّلة» or «لم يُنفَّذ». */
+  ui_mark?: "superseded" | "not_run" | null;
 };
 export type Resource<T = Payload> = {
   id: string;
