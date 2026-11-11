@@ -542,6 +542,7 @@ export function Conversation({
           {ownText && item("edit", t`Edit and resend`, () => api_.onEdit(message))}
           {!hasGenUi(message) &&
             !voicePart(message) &&
+            !message.attachment_ids.length &&
             item("task", t`Turn into a task`, () => void toTask(message))}
         </>,
         t`Message options`,
