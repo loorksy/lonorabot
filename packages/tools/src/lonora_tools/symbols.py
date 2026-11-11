@@ -17,13 +17,20 @@ from weakref import WeakKeyDictionary
 
 from lonora_contracts.market import Instrument
 from lonora_core.user_error import LonoraError
-from lonora_market.instruments import catalogue_matches, contradicts, instrument_codes
+from lonora_market.instruments import catalogue_matches, confirms, contradicts, instrument_codes
 
 MAXIMUM_CANDIDATES = 8
+MAXIMUM_TEXT = 240
 CATALOGUE_SECONDS = 300
 USE_THE_SYMBOL = (
     "This account lists the instrument as {symbol}. Repeat the call with that exact "
     "symbol now; do not ask the owner for a symbol name."
+)
+CHECK_THE_SYMBOL = (
+    "The account's only matching name is {symbol}; the broker's currencies do not "
+    "confirm it. If its description is the instrument meant, repeat the call with that "
+    "exact symbol; if not, say plainly that it is not offered. Do not ask the owner "
+    "for a symbol name."
 )
 ASK_WHICH_CONTRACT = (
     "Several different contracts on this account match. Never choose one for an order, "
@@ -32,8 +39,9 @@ ASK_WHICH_CONTRACT = (
     "names; then repeat the call with the chosen exact symbol."
 )
 NOT_LISTED = (
-    "This account lists no symbol for that instrument. market_symbols returns the "
-    "account's catalogue; if the instrument is not offered, say so plainly."
+    "No symbol on this account is confirmed for that instrument. similar_symbols are "
+    "its nearest names (market_instrument describes one) and market_symbols returns "
+    "the catalogue; if the instrument is not offered, say so plainly."
 )
 SEVERAL_FOR_A_READ = (
     "Several contracts match on this account and this read used the first. Before any "
@@ -50,7 +58,7 @@ class SymbolNotResolved(LonoraError):
         self.candidates = candidates
         self.names = names
         self.details: dict[str, Any] = {
-            "requested_symbol": requested,
+            "requested_symbol": requested[:MAXIMUM_TEXT],
             "candidates": [{"symbol": name} for name in candidates[:MAXIMUM_CANDIDATES]],
             "next": _next_step(candidates),
         }
@@ -97,7 +105,11 @@ def _facts(name: str, instrument: Instrument | None) -> dict[str, Any]:
             "volume_step",
         },
     )
-    return {key: value for key, value in facts.items() if value not in (None, "")}
+    return {
+        key: value[:MAXIMUM_TEXT] if isinstance(value, str) else value
+        for key, value in facts.items()
+        if value not in (None, "")
+    }
 
 
 async def _verified(
@@ -127,6 +139,8 @@ async def _described(broker: Any, error: SymbolNotResolved) -> SymbolNotResolved
     verified = await _verified(broker, error.requested, error.candidates)
     described = SymbolNotResolved(error.requested, [name for name, _ in verified], error.names)
     described.details["candidates"] = [_facts(name, instrument) for name, instrument in verified]
+    if len(verified) == 1 and not confirms(instrument_codes(error.requested)[0], verified[0][1]):
+        described.details["next"] = CHECK_THE_SYMBOL.format(symbol=verified[0][0])
     return described
 
 
@@ -221,7 +235,7 @@ async def _resolved(broker: Any, requested: str) -> tuple[str, dict[str, Any]]:
     catalogue = await _catalogue(broker)
     known = catalogue.resolved.get(requested)
     if known is not None:
-        return known
+        return known[0], {"symbol_resolution": dict(known[1]["symbol_resolution"])}
     matches = catalogue_matches(catalogue.names, requested)
     if not matches and catalogue.read_at < started:
         # A miss on a cached catalogue: the broker may have listed it since.
@@ -236,11 +250,14 @@ async def _resolved(broker: Any, requested: str) -> tuple[str, dict[str, Any]]:
         raise SymbolNotResolved(requested, [], catalogue.names)
     symbol = verified[0][0]
     resolution: dict[str, Any] = {"requested": requested, "symbol": symbol}
+    if verified[0][1] is not None and verified[0][1].description:
+        # The broker's own words for it, so a wrong match is visible at once.
+        resolution["description"] = verified[0][1].description[:MAXIMUM_TEXT]
     if len(verified) > 1:
         resolution["other_matches"] = [_facts(name, item) for name, item in verified[1:]]
         resolution["note"] = SEVERAL_FOR_A_READ
     catalogue.resolved[requested] = symbol, {"symbol_resolution": resolution}
-    return catalogue.resolved[requested]
+    return symbol, {"symbol_resolution": dict(resolution)}
 
 
 async def read_symbol(
@@ -254,7 +271,10 @@ async def read_symbol(
     """
     try:
         return await _resolved(broker, requested)
-    except SymbolNotResolved:
+    except SymbolNotResolved as error:
+        if not require_exists and not error.names:
+            # An empty listing confirms nothing: the broker answers for the symbol.
+            return requested, {}
         raise
     except Exception:
         if require_exists:

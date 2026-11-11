@@ -435,8 +435,9 @@ class MetaApiBroker:
                     await self.invalidate("rpc", rpc)
                     if attempt == 0:
                         continue
-                # The only argument a read takes is the symbol it asks about.
-                raise self.diagnose(error, "symbol" if args else "rpc") from error
+                raise self.diagnose(
+                    error, "symbol" if method.startswith("get_symbol_") else "rpc"
+                ) from error
         raise LonoraError("broker_connection_unavailable", 502)
 
     def synchronized_terminal(self) -> Any:

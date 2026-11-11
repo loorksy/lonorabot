@@ -4,7 +4,12 @@ from decimal import Decimal
 
 import pytest
 from lonora_contracts.market import Instrument
-from lonora_market.instruments import catalogue_matches, contradicts, instrument_codes
+from lonora_market.instruments import (
+    catalogue_matches,
+    confirms,
+    contradicts,
+    instrument_codes,
+)
 
 
 def spec(symbol: str, base: str | None = None, quote: str | None = None) -> Instrument:
@@ -90,3 +95,9 @@ def test_the_brokers_own_currencies_reject_a_look_alike() -> None:
     # Unreported currencies, and codes that are not a currency pair, prove nothing.
     assert not contradicts("XAUUSD", spec("XAUUSDm"))
     assert not contradicts("US30", spec("US30.cash", "USD", "USD"))
+    # A CFD quoted and margined in dollars says nothing about its underlying.
+    assert not contradicts("XAUUSD", spec("XAUUSDm", "USD", "USD"))
+    assert not contradicts("EURUSD", spec("EURUSD.r", "EUR ", "USD"))
+    assert confirms("XAUUSD", spec("XAUUSDm", "XAU", "USD"))
+    assert not confirms("XAUUSD", spec("XAUUSDm", "USD", "USD"))
+    assert not confirms("XAUUSD", None)

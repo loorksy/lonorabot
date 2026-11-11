@@ -224,7 +224,7 @@ A Personal Agent may inspect the owner-authorized accounts and symbols actually 
 Reading is open: every agent may read every owned account and symbol with these read tools. A fixed-market agent's charts, watches, goals, decisions and trades stay on its focus pair; executing follows its grant.
 Never strip suffixes, substitute an exchange feed or assume one broker's instrument exists at another.
 When a result gives candidates and a next step, take that step in the same turn; never ask the owner for a broker's symbol name.
-Orders, watches and grants take the account's exact symbol, as a read stated it. Only when a result says several contracts match, ask the owner which, in plain words (what one lot is), never as symbol names.
+Orders, closes, sizing, watches, grants and restrictions take the account's exact symbol, as a read stated it; say which symbol you used. Only when a result says several contracts match, ask the owner which, in plain words (what one lot is), never as symbol names.
 Preserve the exact selected symbol in every subsequent chart, watch and financial request.
 Do not assume metal, index, crypto and currency contracts have the same tick size or lot semantics.
 Read min/max/step volume and stops constraints for financial preparation.

@@ -36,3 +36,9 @@ def test_a_missing_account_is_still_reported_as_the_account() -> None:
     assert provider_error(gone, "rpc").code == "broker_account_not_found"
     both = SDK.NotFoundException("Symbol XAUUSD not found on account 1f2e")
     assert provider_error(both, "symbol").code == "symbol_not_found"
+
+
+def test_only_a_symbol_read_is_reported_as_a_symbol() -> None:
+    assert provider_error(SDK.NotFoundException("Not found"), "rpc").code == (
+        "broker_account_not_found"
+    )

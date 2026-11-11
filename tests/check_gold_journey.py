@@ -188,9 +188,17 @@ async def main() -> None:
             next(item for item in observations if "contract_size" in item),
         )
         assert price["symbol"] == GOLD and price["quote"]["bid"] == "4108.20"
-        assert price["symbol_resolution"] == {"requested": "XAUUSD", "symbol": GOLD}
+        assert price["symbol_resolution"] == {
+            "requested": "XAUUSD",
+            "symbol": GOLD,
+            "description": "Gold vs US Dollar",
+        }
         assert spec["symbol"] == GOLD and spec["contract_size"] == "100"
-        assert spec["symbol_resolution"] == {"requested": "الذهب", "symbol": GOLD}
+        assert spec["symbol_resolution"] == {
+            "requested": "الذهب",
+            "symbol": GOLD,
+            "description": "Gold vs US Dollar",
+        }
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(RunRow, run["id"])
             assert row and row.status == "completed" and row.result

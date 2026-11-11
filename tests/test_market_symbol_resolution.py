@@ -10,6 +10,7 @@ from lonora_contracts.market import Instrument
 from lonora_core.user_error import LonoraError
 from lonora_tools.symbols import (
     ASK_WHICH_CONTRACT,
+    CHECK_THE_SYMBOL,
     NOT_LISTED,
     SEVERAL_FOR_A_READ,
     USE_THE_SYMBOL,
@@ -94,7 +95,14 @@ REQUESTS = ["XAUUSD", "xauusd", "gold", "الذهب", "XAU/USD", "XAU", "USD", "
 async def test_a_read_resolves_to_the_accounts_own_symbol_and_states_it(requested: str) -> None:
     symbol, stated = await read_symbol(Account(EXNESS), requested, require_exists=True)
     assert symbol == "XAUUSDm"
-    assert stated == {"symbol_resolution": {"requested": requested, "symbol": "XAUUSDm"}}
+    assert stated == {
+        "symbol_resolution": {
+            "requested": requested,
+            "symbol": "XAUUSDm",
+            "description": "Gold vs US Dollar",
+        }
+    }
+    stated["symbol_resolution"]["symbol"] = "changed by a caller"
     assert await read_symbol(Account(EXNESS), "xauusdM", require_exists=True) == ("XAUUSDm", {})
 
 
@@ -202,3 +210,24 @@ async def test_an_order_never_chooses_between_two_contracts(
 async def test_an_unreadable_catalogue_leaves_an_order_symbol_to_the_executor() -> None:
     broker = SimpleNamespace(symbols=AsyncMock(side_effect=LonoraError("broker_timeout", 504)))
     assert await order_symbol(broker, "XAUUSD") == "XAUUSD"
+
+
+@pytest.mark.asyncio
+async def test_a_single_match_the_broker_does_not_confirm_is_offered_not_asserted() -> None:
+    # An index, and a CFD the broker margins and quotes in dollars: nothing confirms it.
+    for specs, requested, listed in (
+        ({"US30.Y": ("USD", "USD")}, "US30", "US30.Y"),
+        ({"XAUUSDm": ("USD", "USD")}, "XAUUSD", "XAUUSDm"),
+    ):
+        account: Specs = dict(specs)
+        with pytest.raises(SymbolNotResolved) as failure:
+            await order_symbol(Account(account), requested)
+        assert failure.value.details["next"] == CHECK_THE_SYMBOL.format(symbol=listed)
+        assert (await read_symbol(Account(account), requested))[0] == listed
+
+
+@pytest.mark.asyncio
+async def test_an_empty_listing_leaves_a_lenient_read_to_the_broker() -> None:
+    assert await read_symbol(Account({}), "XAUUSD") == ("XAUUSD", {})
+    with pytest.raises(SymbolNotResolved):
+        await read_symbol(Account({}), "XAUUSD", require_exists=True)

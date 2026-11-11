@@ -88,11 +88,22 @@ def catalogue_matches(names: list[object], requested: str) -> list[str]:
     return []
 
 
+def _pair(instrument: Instrument | None) -> str | None:
+    """The currency pair the broker reports, when it reports one. The same currency on
+    both sides (a CFD quoted and margined in dollars) says nothing about the underlying."""
+    if instrument is None or not instrument.base_currency or not instrument.profit_currency:
+        return None
+    base, quote = instrument.base_currency.strip(), instrument.profit_currency.strip()
+    return None if base.casefold() == quote.casefold() else (base + quote).casefold()
+
+
 def contradicts(code: str, instrument: Instrument) -> bool:
     """Whether the broker's own base and quote currency show that ``instrument`` is not
     the currency pair ``code``. Unreported currencies and non-pair codes prove nothing."""
-    if len(code) != 6 or not code.isalpha():
-        return False
-    if not instrument.base_currency or not instrument.profit_currency:
-        return False
-    return (instrument.base_currency + instrument.profit_currency).casefold() != code.casefold()
+    pair = _pair(instrument)
+    return len(code) == 6 and code.isalpha() and pair is not None and pair != code.casefold()
+
+
+def confirms(code: str, instrument: Instrument | None) -> bool:
+    """Whether the broker's own base and quote currency are the pair ``code`` names."""
+    return _pair(instrument) == code.casefold()
