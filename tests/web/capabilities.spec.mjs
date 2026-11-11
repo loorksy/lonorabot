@@ -60,7 +60,12 @@ const copy = {
     trust: "Trust",
     trusted: "Trusted.",
     domains: "News domains",
-    undoVersion: "Undo this version",
+    agentMade: "Created by an agent",
+    disable: "Disable",
+    enable: "Enable",
+    restore: (version) => `Restore to version ${version}`,
+    undo: "Undo",
+    blockVersion: "Block this version",
   },
   ar: {
     connectTitle: "ربط بحث Brave",
@@ -70,7 +75,12 @@ const copy = {
     trust: "ثقة",
     trusted: "صار موثوقًا.",
     domains: "نطاقات الأخبار",
-    undoVersion: "التراجع عن هذا الإصدار",
+    agentMade: "أنشأها وكيل",
+    disable: "تعطيل",
+    enable: "تفعيل",
+    restore: (version) => `الرجوع إلى الإصدار ${version}`,
+    undo: "تراجع",
+    blockVersion: "حظر هذا الإصدار",
   },
 };
 
@@ -145,9 +155,40 @@ for (const locale of ["en", "ar"])
       await page.keyboard.press("Escape");
       const written = page.locator(".cap-skill").filter({ hasText: skill });
       await expect(written).toBeVisible();
-      await written.getByRole("button", { name: text.undoVersion }).click();
+      await expect(written.locator("small")).toContainText(text.agentMade);
+      // Its row switches it off and on again.
+      await written.getByRole("button", { name: text.disable, exact: true }).click();
       await expect(written).toHaveClass(/off/);
-      await expect(written.getByRole("button", { name: text.undoVersion })).toHaveCount(0);
+      await written.getByRole("button", { name: text.enable, exact: true }).click();
+      await expect(written).not.toHaveClass(/off/);
+      // A skill saved twice goes back to its earlier version from its row, and that is undone
+      // from the toast.
+      const plan = `plan-${suffix}`;
+      const first = await (
+        await context.request.post("/api/skills", {
+          headers,
+          data: { agent_id: seeded.agent, payload: { name: plan, content: "First." } },
+        })
+      ).json();
+      await context.request.put(`/api/skills/${first.id}`, {
+        headers,
+        data: { version: first.version, payload: { name: plan, content: "Second." } },
+      });
+      const content = async () =>
+        (await (await context.request.get(`/api/skills/${first.id}`)).json()).payload.content;
+      await page.reload();
+      const saved = page.locator(".cap-skill").filter({ hasText: plan });
+      await saved.getByRole("button", { name: text.restore(1) }).click();
+      await expect(saved.getByRole("button", { name: text.restore(2) })).toBeVisible();
+      expect(await content()).toBe("First.");
+      await page.locator("#toast").getByRole("button", { name: text.undo }).click();
+      await expect(saved.getByRole("button", { name: text.restore(3) })).toBeVisible();
+      expect(await content()).toBe("Second.");
+      // Blocking denies the written skill's exact version: it stops loading, with no way back
+      // from this row.
+      await written.getByRole("button", { name: text.blockVersion }).click();
+      await expect(written).toHaveClass(/off/);
+      await expect(written.getByRole("button")).toHaveCount(0);
       const catalog = await (
         await context.request.get(`/api/agents/${seeded.agent}/skills/catalog/${skill}`)
       ).json();

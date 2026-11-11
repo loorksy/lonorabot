@@ -187,25 +187,36 @@ export function SkillsPage() {
   );
 }
 
+/** «الرجوع إلى الإصدار N»: restores it and offers «تراجع», which restores the version left. */
+export async function restoreSkillVersion(
+  row: { id: string; version: number },
+  version: number,
+  toast: ReturnType<typeof useToast>,
+  onRestored: (row: Resource<AgentSkill>) => void,
+) {
+  const restored = await domainApi.restoreSkill(row.id, version, row.version);
+  onRestored(restored);
+  toast(t`Skill restored to version ${version}`, {
+    action: {
+      label: t`Undo`,
+      run: () =>
+        void domainApi
+          .restoreSkill(row.id, row.version, restored.version)
+          .then(onRestored)
+          .catch((cause) => toast(userError(cause), { type: "error" })),
+    },
+  });
+}
+
 /** «سجل الإصدارات» and «الرجوع إلى الإصدار N» with تراجع. */
 export function useSkillHistory(onRestored: (row: Resource<AgentSkill>) => void) {
   const sheets = useSheets();
   const toast = useToast();
   const restore = async (row: Resource<AgentSkill>, version: number) => {
-    const left = row.version;
     try {
-      const restored = await domainApi.restoreSkill(row.id, version, row.version);
-      onRestored(restored);
-      sheets.close();
-      toast(t`Skill restored to version ${version}`, {
-        action: {
-          label: t`Undo`,
-          run: () =>
-            void domainApi
-              .restoreSkill(row.id, left, restored.version)
-              .then(onRestored)
-              .catch((cause) => toast(userError(cause), { type: "error" })),
-        },
+      await restoreSkillVersion(row, version, toast, (restored) => {
+        onRestored(restored);
+        sheets.close();
       });
     } catch (cause) {
       toast(userError(cause), { type: "error" });

@@ -18,6 +18,8 @@ import { readControls, resumeTrading, stopNewTrading, tradingStopped } from "../
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
+import { domainApi } from "../domain/api";
+import { restoreSkillVersion } from "../domain/SkillsPages";
 import { useNavigation } from "../navigation";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
@@ -741,35 +743,85 @@ export function IntegrationsPage() {
                 <Icon name="bolt" />
               </span>
               <span className="body">
-                <strong className="ltr">{skill.skill_id}</strong>
+                <strong>
+                  {skill.title ? (
+                    <bdi>{skill.title}</bdi>
+                  ) : (
+                    <span className="ltr">{skill.skill_id}</span>
+                  )}
+                </strong>
                 <small>
-                  {skill.provenance === "bundled" ? t`Built-in` : (skill.repository ?? t`Owner`)}
+                  {skill.provenance === "bundled"
+                    ? t`Built-in`
+                    : skill.provenance === "agent_authored"
+                      ? t`Created by an agent`
+                      : (skill.repository ?? t`Owner`)}
                   {skill.version ? ` · ${t`version ${skill.version}`}` : ""}
                   {skill.agent_name ? ` · ${skill.agent_name}` : ""}
                 </small>
-                {skill.can_undo && !skill.undone && skill.agent_id && skill.version && (
+                {!skill.undone && (
                   <span className="wt-acts">
-                    <button
-                      type="button"
-                      className="btn sm outline"
-                      onClick={() =>
-                        void act(async () => {
-                          const controls = await api.get<{ revision: number }>(
-                            `/agents/${skill.agent_id}/skills/revocations`,
-                          );
-                          await api.post(`/agents/${skill.agent_id}/skills/revocations`, {
-                            skill_id: skill.skill_id,
-                            version: skill.version,
-                            expected_revision: controls.revision,
-                          });
-                        }, t`The skill version is undone`)
-                      }
-                    >
-                      <Icon name="undo" />
-                      <span>
-                        <Trans>Undo this version</Trans>
-                      </span>
-                    </button>
+                    {/* An installed package is switched on again only through its package. */}
+                    {(skill.enabled || skill.provenance !== "external") && (
+                      <button
+                        type="button"
+                        className="btn sm outline"
+                        onClick={() =>
+                          void act(
+                            async () => {
+                              const row = await domainApi.skill(skill.resource_id);
+                              await domainApi.saveSkill(row, {
+                                ...row.payload,
+                                enabled: !skill.enabled,
+                              });
+                            },
+                            skill.enabled ? t`Skill disabled` : t`Skill enabled`,
+                          )
+                        }
+                      >
+                        {skill.enabled ? t`Disable` : t`Enable`}
+                      </button>
+                    )}
+                    {skill.previous_version != null && (
+                      <button
+                        type="button"
+                        className="btn sm outline"
+                        onClick={() => {
+                          const previous = skill.previous_version;
+                          if (previous == null) return;
+                          void domainApi
+                            .skill(skill.resource_id)
+                            .then((row) => restoreSkillVersion(row, previous, toast, report.reload))
+                            .catch((error) => toast(userError(error), { type: "error" }));
+                        }}
+                      >
+                        <Icon name="undo" />
+                        <span>
+                          <Trans>Restore to version {skill.previous_version}</Trans>
+                        </span>
+                      </button>
+                    )}
+                    {/* Blocking denies this exact version for good; it is not a restore. */}
+                    {skill.can_undo && skill.agent_id && skill.version && (
+                      <button
+                        type="button"
+                        className="btn sm outline"
+                        onClick={() =>
+                          void act(async () => {
+                            const controls = await api.get<{ revision: number }>(
+                              `/agents/${skill.agent_id}/skills/revocations`,
+                            );
+                            await api.post(`/agents/${skill.agent_id}/skills/revocations`, {
+                              skill_id: skill.skill_id,
+                              version: skill.version,
+                              expected_revision: controls.revision,
+                            });
+                          }, t`The skill version is undone`)
+                        }
+                      >
+                        <Trans>Block this version</Trans>
+                      </button>
+                    )}
                   </span>
                 )}
               </span>
