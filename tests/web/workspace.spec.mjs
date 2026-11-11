@@ -154,7 +154,7 @@ test("recoverable task failure shows authoritative review and resumes the same R
   await page.goto(`/app/${agent.id}`);
   // A task that needs the owner opens from ⋮ «الحالة والأمان» (the AgentSheet).
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Status and safety" }).click();
   const live = page.locator("#dialog").getByTestId("agent-live-state");
   await expect(live).toHaveAttribute("data-state", "action_required");
   const row = page.locator(`#dialog [data-task-id="${task.id}"]`);
@@ -233,8 +233,7 @@ test("task form, task page and profile creation remain usable under StrictMode a
   await expect(page).not.toHaveURL(/\/app\/new-task/);
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page.locator("#dialog")).toHaveAttribute("open", "");
-  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   await page.getByRole("button", { name: "New chat", exact: true }).first().click();
   await page
     .locator("#dialog")
@@ -301,11 +300,8 @@ test("tablet and Arabic phone layouts preserve navigation and unknown-route reco
   await page.setViewportSize({ width: 800, height: 900 });
   await page.goto(`/app/${agent.id}`);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  const panel = page.locator("#dialog");
-  await expect(panel).toHaveAttribute("open", "");
-  expect((await panel.boundingBox()).width).toBeGreaterThan(350);
-  await page.keyboard.press("Escape");
-  await expect(panel).not.toHaveAttribute("open", "");
+  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+  await page.goBack();
   expect((await page.getByTestId("transcript").boundingBox()).width).toBeGreaterThan(350);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
@@ -421,10 +417,9 @@ test("knowledge and recurring trading work use durable API edits", async ({
   workspace,
 }) => {
   const { agent, prefix, remember, headers } = workspace;
-  await page.goto(`/app/${agent.id}`);
-  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Knowledge", exact: true }).click();
-  const panel = page.locator("#dialog");
+  await page.goto(`/app/memory?agent=${agent.id}`);
+  const panel = page.locator("main");
+  await panel.getByLabel("Agent", { exact: true }).selectOption(agent.id);
   await panel.getByRole("button", { name: "Skills", exact: true }).click();
   const skillForm = panel.locator(".skill-create");
   await skillForm.locator("summary", { hasText: "Add owner instructions" }).click();
@@ -661,7 +656,8 @@ test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gol
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Name" })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/agent\/[^/]+$/);
+  await expect(page.locator("main .hero")).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
 
   await page.goto(`/app/${agent.id}`);
@@ -670,7 +666,8 @@ test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gol
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Name" })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/agent\/[^/]+$/);
+  await expect(page.locator("main .hero")).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
   expect(deletes).toEqual([]);
   expect(

@@ -154,6 +154,18 @@ export function Composer({
     saveComposerDraft(storageKey, { text, files, mentions: committed.current, reply });
   }, [storageKey, text, files, reply]);
   useEffect(() => () => saveComposerDraft(storageKey, current.current), [storageKey]);
+  // «مسح المحادثة» also drops the draft and the reply-to.
+  useEffect(() => {
+    const cleared = (event: Event) => {
+      if ((event as CustomEvent<{ threadId: string }>).detail?.threadId !== threadId) return;
+      setText("");
+      setFiles([]);
+      committed.current = [];
+      onClearReply();
+    };
+    window.addEventListener("lonora:chat-cleared", cleared);
+    return () => window.removeEventListener("lonora:chat-cleared", cleared);
+  }, [threadId, onClearReply]);
   useEffect(
     () =>
       observeDraftUploads(storageKey, () => {
@@ -772,6 +784,7 @@ export function Composer({
               tools.open({
                 agent,
                 isGroup,
+                groupLead,
                 trading,
                 // Another agent's level is never shown while this one's loads.
                 permission: permission?.agent_id === agent?.id ? permission : null,

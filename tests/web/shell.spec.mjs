@@ -259,8 +259,10 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(page).toHaveURL(new RegExp(`/app/${agent.id}`));
       await expect(page.locator(".chat-head .chat-name")).toContainText(agent.name);
       await page.getByRole("button", { name: "قائمة المحادثة", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "قائمة المحادثة");
-      await dialog.getByRole("button", { name: "الشارت", exact: true }).click();
+      await page
+        .getByRole("menu", { name: "قائمة المحادثة" })
+        .getByRole("menuitem", { name: "الشارت" })
+        .click();
       await expect(dialog).toHaveClass(/expandable/);
       // The chart sheet names the pair when the agent has one (chart.sheet, Q37).
       await expect(dialog).toHaveAttribute("aria-label", `الشارت ${agent.trading_symbol}`);
@@ -276,16 +278,12 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(dialog).not.toHaveClass(/expanded/);
       await page.keyboard.press("Escape");
       await expect(dialog).not.toHaveAttribute("open", "");
-      // The in-sheet pages: a menu row slides a page in with ← back to the menu.
+      // «معلومات الوكيل» opens the agent page; Back returns to the chat.
       await page.getByRole("button", { name: "قائمة المحادثة", exact: true }).click();
-      await dialog.getByRole("button", { name: "معلومات الوكيل", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "معلومات الوكيل");
-      await expect(dialog.locator(".sheet-page")).toHaveClass(/go-fwd/);
-      await dialog.getByRole("button", { name: "رجوع", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "قائمة المحادثة");
-      await expect(dialog.locator(".sheet-page")).toHaveClass(/go-back/);
-      await page.keyboard.press("Escape");
-      await expect(dialog).not.toHaveAttribute("open", "");
+      await page.getByRole("menuitem", { name: "معلومات الوكيل" }).click();
+      await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+      await page.getByRole("button", { name: "رجوع", exact: true }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
       // Back from the chat returns to the list.
       await page.getByRole("button", { name: "رجوع", exact: true }).click();
       await expect(page).toHaveURL(/\/app$/);

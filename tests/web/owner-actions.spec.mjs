@@ -462,7 +462,7 @@ for (const locale of ["en", "ar"])
       // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
       await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
       await page
-        .getByRole("button", {
+        .getByRole("menuitem", {
           name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
         })
         .click();

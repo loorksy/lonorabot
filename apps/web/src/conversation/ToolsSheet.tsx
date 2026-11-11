@@ -17,6 +17,8 @@ import { LEVEL_ICON, levelName } from "./PermissionMenu";
 export type ToolsInput = {
   agent?: Agent;
   isGroup: boolean;
+  /** A group's lead (or first member): the new task's preselected agent. */
+  groupLead?: string;
   trading: boolean;
   permission: PermissionState | null;
   permissionFailed?: boolean;
@@ -153,7 +155,11 @@ function ToolsBody({
           icon="task"
           title={<Trans>New task</Trans>}
           sub={<Trans>The agent follows it until it is done</Trans>}
-          onClick={() => go(`/app/new-task${agentQuery}`)}
+          onClick={() => {
+            // A group's new task starts with its lead agent.
+            const taskAgent = agentId ?? input.groupLead;
+            go(`/app/new-task${taskAgent ? `?agent=${encodeURIComponent(taskAgent)}` : ""}`);
+          }}
         />
         <AddRow
           icon="clock"

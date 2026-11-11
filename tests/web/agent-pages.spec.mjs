@@ -258,7 +258,7 @@ test("trades: the owner's own close goes through the executor; the order log sho
 test("the chart sheet draws the broker's candles for the agent's pair (Q37)", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const sheet = page.locator("#dialog");
   await expect(sheet).toHaveClass(/expandable/);
   await sheet.getByRole("tab", { name: "15m" }).click();
@@ -638,7 +638,7 @@ test("the card shows the last action: a refused close, then a modify that went t
 test("the chart sheet follows a new chart on its pair without reopening", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
@@ -689,7 +689,7 @@ test("a streamed scene update re-reads only that scene; a chart moved off the pa
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toHaveAttribute("data-chart-id", chart.id);
   await body.getByRole("tab", { name: "15m" }).click();
@@ -768,7 +768,7 @@ test("after a failed chart list, the agent's next scene update lists again", asy
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect.poll(() => failed).toBe(true);
