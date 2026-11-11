@@ -242,11 +242,11 @@ msgstr "7 أيام"
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
-#: src/shell/settings/NotifyPages.tsx:151
+#: src/shell/settings/NotifyPages.tsx:173
 msgid "A bar at the top of the screen when a reply arrives in another conversation"
 msgstr "شريط أعلى الشاشة عند وصول رد في محادثة أخرى"
 
-#: src/shell/settings/NotifyPages.tsx:300
+#: src/shell/settings/NotifyPages.tsx:354
 msgid "A call rings this device · registered for the passkey"
 msgstr "تصل المكالمة إلى هذا الجهاز · مسجَّل لمفتاح المرور"
 
@@ -282,7 +282,7 @@ msgstr "سُجّلت إجابة مختلفة مسبقًا."
 msgid "A list named «{name}» already exists"
 msgstr "توجد قائمة باسم «{name}»"
 
-#: src/shell/settings/NotifyPages.tsx:30
+#: src/shell/settings/NotifyPages.tsx:31
 msgid "A message in the agent's conversation with an alert"
 msgstr "رسالة في محادثة الوكيل مع تنبيه"
 
@@ -302,7 +302,7 @@ msgstr "يتوفر إصدار جديد"
 msgid "A removed agent"
 msgstr "وكيل محذوف"
 
-#: src/shell/settings/NotifyPages.tsx:188
+#: src/shell/settings/NotifyPages.tsx:210
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
@@ -454,7 +454,7 @@ msgstr "النشاط"
 msgid "Activity log"
 msgstr "سجل الإجراءات"
 
-#: src/shell/settings/NotifyPages.tsx:20
+#: src/shell/settings/NotifyPages.tsx:21
 msgid "Activity log only"
 msgstr "سجل النشاط فقط"
 
@@ -636,7 +636,7 @@ msgstr "الوكيل"
 msgid "Agent call"
 msgstr "مكالمة الوكيل"
 
-#: src/shell/settings/NotifyPages.tsx:382
+#: src/shell/settings/NotifyPages.tsx:436
 msgid "Agent calls"
 msgstr "مكالمات الوكيل"
 
@@ -803,15 +803,15 @@ msgstr "أمستردام"
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
 
-#: src/shell/settings/NotifyPages.tsx:24
+#: src/shell/settings/NotifyPages.tsx:25
 msgid "An alert on your device"
 msgstr "تنبيه على جهازك"
 
-#: src/shell/settings/NotifyPages.tsx:166
+#: src/shell/settings/NotifyPages.tsx:188
 msgid "An alert when an agent confirms an opportunity"
 msgstr "تنبيه عندما يؤكد وكيل فرصة"
 
-#: src/shell/settings/NotifyPages.tsx:249
+#: src/shell/settings/NotifyPages.tsx:271
 msgid "An unconfirmed operation or a restriction on your account"
 msgstr "عملية غير مؤكَّدة أو قيد على حسابك"
 
@@ -1351,7 +1351,7 @@ msgctxt "page title"
 msgid "Call"
 msgstr "المكالمة"
 
-#: src/shell/settings/NotifyPages.tsx:35
+#: src/shell/settings/NotifyPages.tsx:36
 msgctxt "reach mode"
 msgid "Call"
 msgstr "مكالمة"
@@ -2310,7 +2310,7 @@ msgstr "حد الخسارة اليومي"
 msgid "Daily loss limit {0}"
 msgstr "حد الخسارة اليومي {0}"
 
-#: src/shell/settings/NotifyPages.tsx:392
+#: src/shell/settings/NotifyPages.tsx:446
 msgid "Daily notification limit"
 msgstr "حد الإشعارات اليومي"
 
@@ -2505,8 +2505,8 @@ msgstr "حالة الوكيل التفصيلية"
 msgid "Determined"
 msgstr "مصمم"
 
-#: src/shell/settings/NotifyPages.tsx:260
-#: src/shell/settings/NotifyPages.tsx:278
+#: src/shell/settings/NotifyPages.tsx:283
+#: src/shell/settings/NotifyPages.tsx:332
 msgid "Device"
 msgstr "الجهاز"
 
@@ -3150,7 +3150,7 @@ msgstr "طعام وشراب"
 msgid "For example: Work, Friends"
 msgstr "مثال: العمل، الأصدقاء"
 
-#: src/shell/settings/NotifyPages.tsx:36
+#: src/shell/settings/NotifyPages.tsx:37
 msgid "For urgent matters: the agent calls you"
 msgstr "للأمور العاجلة: يتصل بك الوكيل"
 
@@ -3173,17 +3173,17 @@ msgstr "الهامش المتاح"
 
 #: src/pages/ActivityList.tsx:116
 #: src/pages/ActivityList.tsx:119
-#: src/shell/settings/NotifyPages.tsx:215
+#: src/shell/settings/NotifyPages.tsx:237
 msgid "From"
 msgstr "من"
 
 #. placeholder {0}: clock(policy?.quiet_start_minute)
 #. placeholder {1}: clock(policy?.quiet_end_minute)
-#: src/shell/settings/NotifyPages.tsx:202
+#: src/shell/settings/NotifyPages.tsx:224
 msgid "From {0} to {1}"
 msgstr "من {0} إلى {1}"
 
-#: src/shell/settings/NotifyPages.tsx:203
+#: src/shell/settings/NotifyPages.tsx:225
 msgid "From 22:00 to 08:00"
 msgstr "من 22:00 إلى 08:00"
 
@@ -3369,8 +3369,8 @@ msgid "Hour"
 msgstr "الساعة"
 
 #: src/pages/Knowledge.tsx:88
-#: src/shell/settings/NotifyPages.tsx:104
-#: src/shell/settings/NotifyPages.tsx:106
+#: src/shell/settings/NotifyPages.tsx:126
+#: src/shell/settings/NotifyPages.tsx:128
 msgid "How to reach you"
 msgstr "طريقة التواصل"
 
@@ -3430,11 +3430,11 @@ msgstr "قيد التنفيذ"
 msgid "In the app"
 msgstr "داخل التطبيق"
 
-#: src/shell/settings/NotifyPages.tsx:377
+#: src/shell/settings/NotifyPages.tsx:431
 msgid "In-app messages"
 msgstr "رسائل داخل التطبيق"
 
-#: src/shell/settings/NotifyPages.tsx:150
+#: src/shell/settings/NotifyPages.tsx:172
 msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
 
@@ -4098,7 +4098,7 @@ msgstr "الإشارة إلى وكيل"
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/shell/settings/NotifyPages.tsx:29
+#: src/shell/settings/NotifyPages.tsx:30
 msgctxt "reach mode"
 msgid "Message"
 msgstr "رسالة"
@@ -4252,7 +4252,7 @@ msgstr "كتم"
 msgid "Mute notifications"
 msgstr "كتم الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:199
+#: src/shell/settings/NotifyPages.tsx:221
 msgid "Mute notifications at night"
 msgstr "كتم الإشعارات ليلًا"
 
@@ -4514,7 +4514,7 @@ msgstr "لا يوجد اتصال بالإنترنت"
 #: src/conversation/sheets/LimitsSheet.tsx:129
 #: src/conversation/sheets/LimitsSheet.tsx:188
 #: src/conversation/sheets/LimitsSheet.tsx:224
-#: src/shell/settings/NotifyPages.tsx:401
+#: src/shell/settings/NotifyPages.tsx:455
 msgid "No limit"
 msgstr "دون حد"
 
@@ -4769,7 +4769,7 @@ msgstr "لا شيء بعد."
 #~ msgid "Notification"
 #~ msgstr "إشعار"
 
-#: src/shell/settings/NotifyPages.tsx:23
+#: src/shell/settings/NotifyPages.tsx:24
 msgctxt "reach mode"
 msgid "Notification"
 msgstr "إشعار"
@@ -4781,7 +4781,7 @@ msgstr "طريقة الإشعار"
 #: src/components/ai/AttentionInbox.tsx:70
 #: src/components/ai/AttentionInbox.tsx:72
 #: src/shell/settings/DevicePages.tsx:299
-#: src/shell/settings/NotifyPages.tsx:146
+#: src/shell/settings/NotifyPages.tsx:168
 msgid "Notifications"
 msgstr "الإشعارات"
 
@@ -4799,11 +4799,11 @@ msgstr "الإشعارات والتواصل"
 msgid "Notifications muted"
 msgstr "كُتمت الإشعارات"
 
-#: src/shell/settings/NotifyPages.tsx:324
+#: src/shell/settings/NotifyPages.tsx:378
 msgid "Notifications off"
 msgstr "الإشعارات متوقفة"
 
-#: src/shell/settings/NotifyPages.tsx:324
+#: src/shell/settings/NotifyPages.tsx:378
 msgid "Notifications on"
 msgstr "الإشعارات مفعّلة"
 
@@ -4812,7 +4812,7 @@ msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
 #: src/components/ai/AttentionInbox.tsx:103
-#: src/shell/settings/NotifyPages.tsx:165
+#: src/shell/settings/NotifyPages.tsx:187
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
 
@@ -5127,6 +5127,7 @@ msgid "Partly filled"
 msgstr "منفَّذ جزئيًا"
 
 #: src/shell/settings/AuthFlow.tsx:213
+#: src/shell/settings/NotifyPages.tsx:314
 msgid "Password"
 msgstr "كلمة المرور"
 
@@ -5224,7 +5225,7 @@ msgstr "أمر معلّق"
 msgid "Pending orders"
 msgstr "الأوامر المعلقة"
 
-#: src/shell/settings/NotifyPages.tsx:315
+#: src/shell/settings/NotifyPages.tsx:369
 msgid "Per agent"
 msgstr "لكل وكيل"
 
@@ -5515,15 +5516,15 @@ msgstr "في الانتظار"
 msgid "Quick reaction"
 msgstr "تفاعل سريع"
 
-#: src/shell/settings/NotifyPages.tsx:195
+#: src/shell/settings/NotifyPages.tsx:217
 msgid "Quiet hours"
 msgstr "ساعات الهدوء"
 
-#: src/shell/settings/NotifyPages.tsx:388
+#: src/shell/settings/NotifyPages.tsx:442
 msgid "Quiet hours are in Settings ← Notifications and contact."
 msgstr "ساعات الهدوء من الإعدادات ← الإشعارات والتواصل."
 
-#: src/shell/settings/NotifyPages.tsx:93
+#: src/shell/settings/NotifyPages.tsx:115
 msgid "Quiet hours must start and end at different times."
 msgstr "يجب أن تبدأ ساعات الهدوء وتنتهي في وقتين مختلفين."
 
@@ -5651,7 +5652,7 @@ msgstr "تسجيل التسوية"
 msgid "Recorded from your statement, not broker confirmation"
 msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسيط"
 
-#: src/shell/settings/NotifyPages.tsx:20
+#: src/shell/settings/NotifyPages.tsx:21
 msgid "Recorded in Updates without any alert"
 msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
@@ -5693,13 +5694,13 @@ msgstr "المنطقة"
 msgid "Register a passkey before activating this request."
 msgstr "سجّل مفتاح مرور قبل تفعيل هذا الطلب."
 
-#: src/shell/settings/NotifyPages.tsx:43
+#: src/shell/settings/NotifyPages.tsx:44
 msgid "Register a passkey on this device so a call can reach you"
 msgstr "سجّل مفتاح مرور على هذا الجهاز ليصلك الاتصال"
 
-#: src/components/trading/SuperBotCards.tsx:412
-#~ msgid "Register this device"
-#~ msgstr "تسجيل هذا الجهاز"
+#: src/shell/settings/NotifyPages.tsx:325
+msgid "Register this device"
+msgstr "تسجيل هذا الجهاز"
 
 #: src/components/skills/shared.ts:59
 msgid "Regression"
@@ -6084,7 +6085,7 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #: src/shell/domain/GoalsKnowledgePages.tsx:103
 #: src/shell/domain/GoalsKnowledgePages.tsx:211
 #: src/shell/settings/IntegrationsPage.tsx:442
-#: src/shell/settings/NotifyPages.tsx:417
+#: src/shell/settings/NotifyPages.tsx:471
 #: src/shell/settings/OwnerPage.tsx:244
 msgid "Save"
 msgstr "حفظ"
@@ -6142,8 +6143,8 @@ msgstr "الحفظ بمفتاح المرور"
 #: src/pages/ModelRoutingSettings.tsx:161
 #: src/shell/agent/IdentityPage.tsx:135
 #: src/shell/settings/ConnectionPages.tsx:639
-#: src/shell/settings/NotifyPages.tsx:354
-#: src/shell/settings/NotifyPages.tsx:364
+#: src/shell/settings/NotifyPages.tsx:408
+#: src/shell/settings/NotifyPages.tsx:418
 #: src/shell/settings/OwnerPage.tsx:114
 #: src/shell/settings/OwnerPage.tsx:134
 msgid "Saved"
@@ -6540,7 +6541,7 @@ msgstr "عرض الطلب"
 msgid "Show the shortcuts"
 msgstr "عرض الاختصارات"
 
-#: src/shell/settings/NotifyPages.tsx:158
+#: src/shell/settings/NotifyPages.tsx:180
 msgid "Show the start of the message in the notification"
 msgstr "إظهار بداية الرسالة في الإشعار"
 
@@ -6704,7 +6705,7 @@ msgstr "مبتسم"
 msgid "Smileys & people"
 msgstr "وجوه ضاحكة وأشخاص"
 
-#: src/shell/settings/NotifyPages.tsx:187
+#: src/shell/settings/NotifyPages.tsx:209
 msgid "Sounds"
 msgstr "الأصوات"
 
@@ -7100,7 +7101,7 @@ msgstr "المهام المفوّضة المؤقتة"
 msgid "Test the connection"
 msgstr "اختبار الاتصال"
 
-#: src/shell/settings/NotifyPages.tsx:157
+#: src/shell/settings/NotifyPages.tsx:179
 msgid "Text preview"
 msgstr "معاينة النص"
 
@@ -7639,6 +7640,7 @@ msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
 #: src/conversation/sheets/LimitsSheet.tsx:269
+#: src/shell/settings/NotifyPages.tsx:303
 msgid "This browser cannot use a passkey."
 msgstr "لا يدعم هذا المتصفح مفتاح المرور."
 
@@ -7667,9 +7669,13 @@ msgstr "لا يوجد زوج لهذه المحادثة لعرضه. اطلب شا
 #~ msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 #~ msgstr "هذه المحادثة أكبر من الحد المتاح. اختصر التعليمات أو قلّل المرفقات أو ابدأ محادثة جديدة."
 
-#: src/shell/settings/NotifyPages.tsx:270
+#: src/shell/settings/NotifyPages.tsx:300
 msgid "This device"
 msgstr "هذا الجهاز"
+
+#: src/shell/settings/NotifyPages.tsx:105
+msgid "This device is registered"
+msgstr "سُجِّل هذا الجهاز"
 
 #: src/lib/user_error.ts:151
 msgid "This exact symbol is not available from your broker."
@@ -7834,7 +7840,7 @@ msgstr "العنوان"
 
 #: src/pages/ActivityList.tsx:125
 #: src/pages/ActivityList.tsx:128
-#: src/shell/settings/NotifyPages.tsx:228
+#: src/shell/settings/NotifyPages.tsx:250
 msgid "To"
 msgstr "إلى"
 
@@ -8241,11 +8247,11 @@ msgstr "رفع ملف"
 msgid "Uploading…"
 msgstr "جارٍ الرفع…"
 
-#: src/shell/settings/NotifyPages.tsx:412
+#: src/shell/settings/NotifyPages.tsx:466
 msgid "Urgent alerts always arrive and do not count."
 msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتسب."
 
-#: src/shell/settings/NotifyPages.tsx:246
+#: src/shell/settings/NotifyPages.tsx:268
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 

@@ -1259,6 +1259,10 @@ html.theme-vt::view-transition-group(ts-thumb) {
   width: 44px;
   height: 44px;
 }
+.group .enroll {
+  flex-direction: column;
+  align-items: stretch;
+}
 .reach-opt.on {
   background: color-mix(in srgb, var(--text) 5%, transparent);
 }

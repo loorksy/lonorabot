@@ -169,7 +169,7 @@ export function OwnerPage() {
   };
   const zoneList = zones();
   const name = ownerDisplayName(
-    profile && { ...profile, name: form.name, address: form.address },
+    profile && { ...profile, name: form.name.trim(), address: form.address.trim() },
     data.owner,
   );
   return (

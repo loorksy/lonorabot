@@ -172,12 +172,26 @@ test("one name and initial everywhere, the reference's zones, an enabled Save an
   await expect(page.getByText("تم الحفظ")).toBeVisible();
   expect(writes).toEqual([]);
   await name.fill("Ahmed");
+  // A blank form of address is no address: the initial stays the name's.
+  await page.getByLabel("طريقة المخاطبة", { exact: true }).fill(" ");
+  await expect(page.locator(".hero .avatar")).toHaveText("A");
   await page.getByLabel("طريقة المخاطبة", { exact: true }).fill("أبو سامي");
   await expect(page.locator(".hero .avatar")).toHaveText("أ");
   await save.click();
   await expect(page.locator(".desktop-rail .avatar.initial")).toHaveText("أ");
   await page.goto("/app");
   await expect(page.locator(".welcome h2")).toHaveText("مرحبًا أبو سامي");
+  // A new agent's empty chat: its avatar at 88px over the same greeting.
+  const made = await context.request.post("/api/agents/create", {
+    headers: owner.headers,
+    data: { name: `Empty ${randomUUID().slice(0, 6)}`, template: "general" },
+  });
+  expect(made.status()).toBe(201);
+  await page.goto(`/app/${(await made.json()).id}`);
+  await expect(page.locator(".chat-empty h2")).toHaveText("مرحبًا أبو سامي");
+  expect((await page.locator(".chat-empty > .lonora-agent-avatar").boundingBox())?.width).toBe(88);
+  await page.goto("/app/accessibility");
+  await expect(page.getByRole("heading", { name: "حجم النص · افتراضي" })).toBeVisible();
   await page.goto("/app/settings");
   await expect(page.getByRole("button", { name: /أبو سامي/ })).toBeVisible();
   await expect(page.locator(".settings-version")).toHaveText(
@@ -194,10 +208,80 @@ test("one name and initial everywhere, the reference's zones, an enabled Save an
   await expect(page.getByText("سجّل مفتاح مرور على هذا الجهاز ليصلك الاتصال")).toBeVisible();
   await page.getByRole("radio", { name: /^مكالمة/ }).click();
   await expect(page.locator(".t-msg").getByText(/^سجّل مفتاح مرور/)).toBeVisible();
-  expect(
-    (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
-  ).toBe("message");
+  expect((await (await context.request.get("/api/voice/incoming/policy")).json()).channel).toBe(
+    "message",
+  );
   expect(owner.agent.id).toBeTruthy();
+});
+
+test("quiet hours turned off log only the struck window", async ({ page, context, owner }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  for (const [start, end] of [
+    [22, 8],
+    [null, null],
+  ]) {
+    const put = await context.request.put("/api/owner/preferences", {
+      headers: owner.headers,
+      data: { reach_me: { channel: "message", quiet_start_hour: start, quiet_end_hour: end } },
+    });
+    expect(put.ok()).toBeTruthy();
+  }
+  await page.goto("/app/owner");
+  const off = page.locator(".pf-log .row").filter({ hasText: "ساعات الهدوء" }).first();
+  await expect(off.locator("del")).toHaveText("22:00 – 08:00");
+  await expect(off.locator("ins")).toHaveCount(0);
+});
+
+/* With no passkey device, «هذا الجهاز» opens the one-time registration; then «مكالمة» saves. */
+test("the device row registers this device so a call can be chosen", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await page.goto("/app/notify-settings");
+  await page.getByRole("radio", { name: /^Call/ }).click();
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill(process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password");
+  await page.getByRole("button", { name: "Register this device", exact: true }).click();
+  const device = page.getByRole("radiogroup", { name: "Device" }).getByRole("radio");
+  await expect(device).toHaveCount(1);
+  const [registered] = (await (await context.request.get("/api/owner/profile")).json()).devices;
+  try {
+    await page.getByRole("radio", { name: /^Call/ }).click();
+    await expect
+      .poll(
+        async () =>
+          (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
+      )
+      .toBe("call");
+    await expect(device).toHaveAttribute("aria-checked", "true");
+  } finally {
+    await context.request.put("/api/owner/preferences", {
+      headers: owner.headers,
+      data: { reach_me: { channel: "message", quiet_start_hour: null, quiet_end_hour: null } },
+    });
+    await context.request.delete(`/api/auth/devices/${registered.id}`, { headers: owner.headers });
+  }
 });
 
 test("the Knowledge panel's profile link closes the chat menu and opens the profile page", async ({

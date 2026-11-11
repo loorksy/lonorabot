@@ -1,9 +1,10 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentDeliveryRules, IncomingCallPolicy } from "@lonora/contracts";
+import type { AgentDeliveryRules, DeviceChallenge, IncomingCallPolicy } from "@lonora/contracts";
+import { accountAuthorityLabels, webDeviceProof, webDeviceSupported } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -87,6 +88,27 @@ export function NotifyPage() {
       setBusy(false);
     }
   };
+  const [enroll, setEnroll] = useState(false);
+  /** The same one-time passkey registration the grant card runs, here so a call has a device. */
+  const register = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const password = String(new FormData(event.currentTarget).get("password"));
+    setBusy(true);
+    try {
+      const challenge = await api.post<DeviceChallenge>("/auth/devices/enrollment", {
+        password,
+        name: accountAuthorityLabels[i18n.locale === "ar" ? "ar" : "en"].device,
+      });
+      await api.post("/auth/devices/enrollment/verify", await webDeviceProof(challenge, true));
+      setProfile(await api.get<OwnerProfile>("/owner/profile"));
+      setEnroll(false);
+      toast(t`This device is registered`, { type: "success" });
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
   const quiet = policy?.quiet_start_minute != null && policy.quiet_end_minute != null;
   const setWindow = (start: number | null, end: number | null) => {
     if (start != null && start === end)
@@ -115,16 +137,16 @@ export function NotifyPage() {
               aria-checked={on}
               disabled={!policy || busy}
               className={`row reach-opt${on ? " on" : ""}`}
-              onClick={() =>
-                value !== "call"
-                  ? save({ channel: value })
-                  : profile?.devices[0]
-                    ? save({
-                        channel: value,
-                        device_id: policy?.device_id ?? profile.devices[0].id,
-                      })
-                    : toast(noDevice(), { type: "warn" })
-              }
+              onClick={() => {
+                if (value !== "call") return save({ channel: value });
+                if (profile?.devices[0])
+                  return save({
+                    channel: value,
+                    device_id: policy?.device_id ?? profile.devices[0].id,
+                  });
+                toast(noDevice(), { type: "warn" });
+                setEnroll(true);
+              }}
             >
               <span className="row-icon">
                 <Icon name={icon} />
@@ -256,12 +278,20 @@ export function NotifyPage() {
           </>
         )}
       </div>
-      <h3>
-        <Trans>Device</Trans>
-      </h3>
+      {profile && (
+        <h3>
+          <Trans>Device</Trans>
+        </h3>
+      )}
       {profile && !profile.devices.length ? (
         <div className="group">
-          <div className="row">
+          <button
+            type="button"
+            className="row"
+            aria-expanded={enroll}
+            disabled={!webDeviceSupported()}
+            onClick={() => setEnroll(!enroll)}
+          >
             <span className="row-icon">
               <Icon name="device" />
             </span>
@@ -269,9 +299,33 @@ export function NotifyPage() {
               <strong>
                 <Trans>This device</Trans>
               </strong>
-              <small>{noDevice()}</small>
+              <small>
+                {webDeviceSupported() ? noDevice() : t`This browser cannot use a passkey.`}
+              </small>
             </span>
-          </div>
+            <span className="chevron">
+              <Icon name="chev" />
+            </span>
+          </button>
+          {enroll && (
+            <form className="row enroll" onSubmit={register}>
+              <label className="field">
+                <span>
+                  <Trans>Password</Trans>
+                </span>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  dir="ltr"
+                />
+              </label>
+              <button type="submit" className="btn primary" disabled={busy}>
+                <Trans>Register this device</Trans>
+              </button>
+            </form>
+          )}
         </div>
       ) : (
         profile && (
