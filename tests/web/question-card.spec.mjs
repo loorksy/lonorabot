@@ -62,9 +62,10 @@ for (const locale of ["en", "ar"]) {
       );
       await option.click();
       expect((await response).ok()).toBeTruthy();
-      await expect(option).toHaveAttribute("aria-pressed", "true");
-      await expect(option).toBeDisabled();
-      await expect(card.getByRole("button")).toHaveCount(2);
+      // Answered: the rows give way to one check badge with the choice (reference 3770).
+      const badge = card.locator(".badge");
+      await expect(badge).toHaveText(fixture.question.choices[0].label);
+      await expect(card.getByRole("button")).toHaveCount(0);
       expect(submissions).toHaveLength(1);
       expect(submissions[0].input_answer).toEqual({
         run_id: fixture.run.id,
@@ -91,10 +92,8 @@ for (const locale of ["en", "ar"]) {
         journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
       ).toHaveLength(0);
       await page.reload();
-      await expect(
-        card.getByRole("button", { name: fixture.question.choices[0].label, exact: false }),
-      ).toHaveAttribute("aria-pressed", "true");
-      await expect(card.getByRole("button").first()).toBeDisabled();
+      await expect(badge).toHaveText(fixture.question.choices[0].label);
+      await expect(card.locator(".opt-list")).toHaveCount(0);
     } finally {
       await fixture.cleanup();
     }
@@ -113,7 +112,8 @@ test("ordinary free text can answer a card without selecting or granting an opti
     const composer = page.locator("textarea");
     await composer.fill("Please compare both scenarios first");
     await composer.press("Enter");
-    await expect(card.getByRole("button").first()).toBeDisabled();
+    await expect(card.locator(".badge")).toHaveText("Please compare both scenarios first");
+    await expect(card.locator(".opt-list")).toHaveCount(0);
     const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
     expect(current.input_request.status).toBe("answered");
     expect(current.input_request.selected_choice_id).toBeNull();
