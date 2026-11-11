@@ -1,0 +1,221 @@
+{
+ "live": {
+  "recording": "recordings/baseline.jsonl",
+  "model": "openai/gpt-5.4-mini",
+  "recorded": "2026-11-11",
+  "expected": {
+   "M09": [
+    "call:gold_analysis",
+    "claims_inability",
+    "reply:price"
+   ],
+   "M11": [
+    "call:gold_analysis",
+    "reply:price",
+    "unbacked_claim"
+   ],
+   "M13": [
+    "call:gold_analysis",
+    "reply:price"
+   ],
+   "M15": [],
+   "M17": [],
+   "M28": [],
+   "M23": [
+    "call:trade_execute",
+    "claims_inability",
+    "reply:states_volume",
+    "state:positions"
+   ],
+   "M30": [
+    "claims_inability",
+    "plan_card_or_execution"
+   ],
+   "M34": [
+    "call:trade_execute",
+    "reply:lines",
+    "state:positions"
+   ],
+   "M36": [
+    "exit_plan_armed",
+    "reply:lines",
+    "unbacked_claim"
+   ],
+   "M38": [
+    "exit_plan_armed",
+    "reply:lines"
+   ],
+   "M40": [
+    "close_at_100_armed",
+    "unbacked_claim"
+   ],
+   "M42": [
+    "close_at_100_armed",
+    "unbacked_claim"
+   ],
+   "M46": [
+    "close_at_100_armed",
+    "unbacked_claim"
+   ],
+   "M52": [
+    "close_at_100_armed",
+    "reply:lines"
+   ],
+   "M54": [
+    "close_at_100_armed",
+    "unbacked_claim"
+   ],
+   "M56": [
+    "call:live_read",
+    "reply:watched_pair",
+    "unbacked_claim"
+   ],
+   "M58": [],
+   "M62": [
+    "call:watch_cancel",
+    "state:eurusd_watch_cancelled"
+   ],
+   "M64": [
+    "internal_term",
+    "reply:lists_other_agents_watch"
+   ],
+   "M68": [
+    "call:watch_cancel",
+    "no_trial_resource",
+    "order:watch_cancel>watch_list",
+    "state:all_watches_cancelled"
+   ],
+   "M70": [
+    "call:watch_cancel",
+    "no_trial_resource",
+    "order:watch_cancel>watch_list",
+    "state:all_watches_cancelled"
+   ],
+   "M72": [
+    "call:watch_cancel",
+    "claims_inability",
+    "no_trial_resource",
+    "order:watch_cancel>watch_list",
+    "reply:lines",
+    "state:all_watches_cancelled",
+    "unbacked_claim"
+   ],
+   "M74": [
+    "call:watch_cancel",
+    "internal_term",
+    "order:watch_cancel>watch_list",
+    "reply:lines",
+    "state:all_watches_cancelled"
+   ],
+   "M76": [
+    "call:watch_cancel",
+    "no_trial_resource",
+    "order:watch_cancel>watch_list",
+    "reply:lines",
+    "state:all_watches_cancelled"
+   ],
+   "M78": [
+    "open_request_resumed_or_mentioned"
+   ],
+   "M80": [
+    "open_request_resumed_or_mentioned"
+   ],
+   "M48": [
+    "language",
+    "voice_heard_in_arabic"
+   ],
+   "M50": [
+    "voice_heard_in_arabic"
+   ],
+   "G01": [],
+   "X_c": [
+    "call:gold_analysis",
+    "claims_inability",
+    "internal_term",
+    "reply:price"
+   ],
+   "X_pro": [
+    "call:gold_analysis",
+    "claims_inability",
+    "internal_term",
+    "reply:price"
+   ],
+   "X_gold": [
+    "call:gold_analysis",
+    "claims_inability",
+    "reply:price"
+   ],
+   "X_code": [
+    "call:gold_analysis",
+    "claims_inability",
+    "reply:price"
+   ],
+   "X_alias": [],
+   "X_unknown": [
+    "card"
+   ],
+   "X_drop": [],
+   "X_rate": [],
+   "X_args": [],
+   "X_permission": [
+    "claims_inability",
+    "permission_card"
+   ]
+  }
+ },
+ "structural": {
+  "expected": {
+   "M09": [
+    "call:gold_analysis"
+   ],
+   "M13": [],
+   "M28": [],
+   "M34": [],
+   "M40": [],
+   "M62": [
+    "state:eurusd_watch_cancelled"
+   ],
+   "M64": [
+    "lists_every_watch_of_the_owner"
+   ],
+   "M68": [
+    "call:watch_cancel",
+    "state:all_watches_cancelled"
+   ],
+   "M74": [
+    "finds_the_cancel_tool"
+   ],
+   "M50": [
+    "voice_heard_in_arabic"
+   ],
+   "X_c": [
+    "call:gold_analysis"
+   ],
+   "X_pro": [
+    "call:gold_analysis"
+   ],
+   "X_gold": [
+    "call:gold_analysis"
+   ],
+   "X_code": [
+    "call:gold_analysis"
+   ],
+   "X_alias": [
+    "call:gold_read"
+   ],
+   "X_unknown": [
+    "refusal:candidates"
+   ],
+   "X_drop": [
+    "refusal:connection_retryable"
+   ],
+   "X_rate": [
+    "refusal:retryable"
+   ],
+   "X_args": [
+    "refusal:input"
+   ],
+   "X_permission": []
+  }
+ }
+}
