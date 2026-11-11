@@ -14,6 +14,7 @@ import {
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
 import { api } from "../lib/api";
@@ -115,6 +116,7 @@ export function Composer({
   const caret = useRef(0);
   const field = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
+  const micButton = useRef<HTMLButtonElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dictation = useRef<{ stop: () => void } | null>(null);
@@ -405,6 +407,22 @@ export function Composer({
     onUnavailable: () => toast(t`The microphone is not available on this page.`, { type: "warn" }),
     onShort: () => toast(t`Hold the microphone to record, release to send.`),
   });
+
+  /* ---- the one-time hint above the mic: a tap dictates, a hold records a voice message */
+  const [micTip, setMicTip] = useState(false);
+  const hideMicTip = useCallback(() => setMicTip(false), []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MIC_TIP) === "1") return;
+    } catch {
+      return;
+    }
+    const timer = setTimeout(() => setMicTip(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (assistOpen || recorder.active) setMicTip(false);
+  }, [assistOpen, recorder.active]);
 
   const trading = agent
     ? agent.template === "trading" ||
@@ -800,6 +818,7 @@ export function Composer({
           )}
           <span className="grow" />
           <button
+            ref={micButton}
             type="button"
             className="icon cbtn mic"
             aria-label={t`Dictation, or hold to record a voice message`}
@@ -870,7 +889,59 @@ export function Composer({
           </div>
         </div>
       )}
+      {micTip && micButton.current && <MicTip mic={micButton.current} onDone={hideMicTip} />}
     </form>
+  );
+}
+
+const MIC_TIP = "lonora.tips.mic";
+
+/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again. */
+function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
+  const tip = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(MIC_TIP, "1");
+    } catch {
+      // shown for this page only
+    }
+    const el = tip.current;
+    const card = mic.closest(".composer-card");
+    if (!el || !card) return;
+    const m = mic.getBoundingClientRect();
+    const cx = m.left + m.width / 2;
+    const left = Math.max(12, Math.min(innerWidth - 12 - el.offsetWidth, cx - el.offsetWidth / 2));
+    el.style.left = `${left}px`;
+    el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
+    el.style.setProperty("--ax", `${cx - left}px`);
+    const frame = requestAnimationFrame(() => setShow(true));
+    let gone = 0;
+    const off = () => {
+      document.removeEventListener("pointerdown", off, true);
+      setShow(false);
+      gone = window.setTimeout(onDone, 260);
+    };
+    document.addEventListener("pointerdown", off, true);
+    const timer = setTimeout(off, 5200);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      clearTimeout(gone);
+      document.removeEventListener("pointerdown", off, true);
+    };
+  }, [mic, onDone]);
+  return createPortal(
+    <div ref={tip} className={`mic-tip${show ? " show" : ""}`} role="status">
+      <strong>
+        <Icon name="mic" />
+        <Trans>Tap to dictate</Trans>
+      </strong>
+      <span>
+        <Trans>Hold to record a voice message</Trans>
+      </span>
+    </div>,
+    mic.closest(".app-shell") ?? document.body,
   );
 }
 

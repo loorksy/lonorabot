@@ -321,6 +321,25 @@ test("the @ list: the role in words, full-width rows, and a picked name drawn as
   await expect(page.locator(".ta-mirror mark")).toHaveText(`@${lonora.name}`);
 });
 
+test("the mic hint shows once above the mic, goes on the first press and never comes back", async ({
+  page,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  await page.goto(`/app/${conversation.agent.id}`);
+  const tip = page.locator(".mic-tip");
+  await expect(tip).toHaveClass(/show/);
+  await expect(tip).toContainText("Tap to dictate");
+  await expect(tip).toContainText("Hold to record a voice message");
+  const [box, mic] = [await tip.boundingBox(), await page.locator(".composer .mic").boundingBox()];
+  expect(box.y + box.height).toBeLessThan(mic.y);
+  await page.getByRole("combobox").click();
+  await expect(tip).toHaveCount(0);
+  await page.reload();
+  await page.waitForTimeout(1500);
+  await expect(tip).toHaveCount(0);
+});
+
 test("M10: older history keeps paging page after page, and a failed read does not end it", async ({
   page,
   conversation,
