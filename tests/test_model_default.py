@@ -279,6 +279,26 @@ async def test_a_failure_the_conversation_moved_past_is_not_answered_late(
 
 
 @pytest.mark.asyncio
+async def test_an_agent_trading_on_its_own_is_not_answered_late_by_itself(
+    task_db: tuple[Database, str, str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A late instruction to an agent holding a signed grant could move money unasked:
+    its failed reply keeps its card, and the owner's own retry still works."""
+    from lonora_db import run_retry
+
+    db, owner, agent, thread = task_db
+    late = await failed(db, thread, agent, 1)
+
+    async def granted(session: object, owner_id: str) -> set[str]:
+        return {agent}
+
+    monkeypatch.setattr(run_retry, "agents_on_their_own", granted)
+    async with db.sessions() as session, session.begin():
+        assert await retry_unconfigured(session, owner) == []
+        assert (await run_retry.retry_run(session, owner, late)).status == "queued"
+
+
+@pytest.mark.asyncio
 async def test_custom_routes_are_never_filled_in_and_a_fruitless_search_is_not_repeated(
     router_db: Database,
 ) -> None:

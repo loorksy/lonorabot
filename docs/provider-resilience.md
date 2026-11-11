@@ -84,7 +84,9 @@ a provider failure, and it is never shown as one.
   needed its own tap, and a message whose retry had failed again stayed unanswered. A
   failure the conversation has moved past (a later message there was answered or is
   being answered) stays history, and so does an older one: an instruction from days ago
-  is not carried out because a key was saved.
+  is not carried out because a key was saved. A reply of an agent that holds a signed
+  grant in force is never queued this way: a late instruction to it could move money
+  without a card, so it waits for the owner's own retry.
 - **Installing.** `scripts/install.sh` writes no provider key; keys arrive through
   Settings, the environment (`LONORA_<PROVIDER>_API_KEY`) or the one-off import in
   `docs/handoff/vps/import_secrets.py`, which now chooses the default as its last

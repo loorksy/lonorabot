@@ -17,6 +17,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from .agent_on_its_own import agents_on_their_own
 from .events import emit
 from .runs import aware, failure_data, run_data
 from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
@@ -163,7 +164,9 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
     (``retry_run``), and a reply that cannot be retried is left as it is. A failure the
     conversation has moved past (a later message there was answered or is being
     answered) stays history, and so does an old one: an instruction from days ago is
-    not carried out today because a key was saved.
+    not carried out today because a key was saved. An agent that trades on its own
+    under a signed grant would carry a late instruction out without asking, so its
+    unanswered messages wait for the owner's own retry.
     """
     later = aliased(RunRow)
     moved_on = (
@@ -191,8 +194,11 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
             .order_by(RunRow.input_seq, RunRow.created_at)
         )
     )
+    on_their_own = await agents_on_their_own(session, owner_id) if failed else set[str]()
     retried: list[RunRow] = []
     for row in failed:
+        if row.agent_id in on_their_own:
+            continue
         if await session.get(RunRow, stable_id(row.id, "run-retry")) is not None:
             continue
         try:
