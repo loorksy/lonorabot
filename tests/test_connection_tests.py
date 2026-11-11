@@ -29,15 +29,19 @@ class FakeAdapter:
         self.closed = True
 
 
+def fake_adapter(provider: str, key: str) -> FakeAdapter:
+    return FakeAdapter(key)
+
+
 @pytest.mark.asyncio
-async def test_provider_test_lists_models_without_storing_the_key(monkeypatch):
+async def test_provider_test_lists_models_without_storing_the_key(monkeypatch: pytest.MonkeyPatch):
     database()
     from check_streaming import Fixture
     from lonora_api.routes import connection_tests
     from lonora_db.schema import SecretRow
     from sqlalchemy import func, select
 
-    monkeypatch.setattr(connection_tests, "model_adapter", lambda provider, key: FakeAdapter(key))
+    monkeypatch.setattr(connection_tests, "model_adapter", fake_adapter)
     fixture = await Fixture().open()
     try:
         async with fixture.runtime.db.sessions() as session:
@@ -59,7 +63,7 @@ async def test_provider_test_lists_models_without_storing_the_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dry_runs_are_owner_only_and_bounded(monkeypatch):
+async def test_dry_runs_are_owner_only_and_bounded(monkeypatch: pytest.MonkeyPatch):
     database()
     import asyncio
 
@@ -73,7 +77,11 @@ async def test_dry_runs_are_owner_only_and_bounded(monkeypatch):
             return []
 
     monkeypatch.setattr(connection_tests, "TIMEOUT_SECONDS", 0.2)
-    monkeypatch.setattr(connection_tests, "model_adapter", lambda provider, key: Slow(key))
+
+    def slow_adapter(provider: str, key: str) -> FakeAdapter:
+        return Slow(key)
+
+    monkeypatch.setattr(connection_tests, "model_adapter", slow_adapter)
     fixture = await Fixture().open()
     try:
         anonymous = httpx.AsyncClient(

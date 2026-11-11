@@ -5,12 +5,15 @@ action_required item always shows (Q4), and nothing here grants any authority.
 """
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import pytest
 from lonora_contracts.agent_delivery import AgentDeliveryRules
 from pydantic import ValidationError
+
+if TYPE_CHECKING:
+    from lonora_contracts.attention import NotifyImportance
 
 
 def test_rules_default_to_the_owner_wide_policy():
@@ -28,7 +31,9 @@ def database() -> None:
         pytest.skip("The delivery rules use the real migrated PostgreSQL schema.")
 
 
-async def _notify(fixture: Any, agent: dict[str, Any], thread: dict[str, Any], importance: str):
+async def _notify(
+    fixture: Any, agent: dict[str, Any], thread: dict[str, Any], importance: "NotifyImportance"
+):
     from lonora_contracts.attention import OwnerNotifyRequest
     from lonora_db.attention import notify_owner
 
@@ -270,7 +275,7 @@ async def test_owner_notify_tells_the_agent_when_its_daily_limit_kept_the_alert_
             f"/api/agents/{agent['id']}/notifications", json={"daily_limit": 1}
         )
         thread = await fixture.conversation(agent)
-        results = []
+        results: list[dict[str, Any]] = []
         for _ in range(2):
             run = await fixture.run(agent, thread)
             context = await fixture.lease(run)

@@ -102,7 +102,9 @@ async def scripted_turn(
     monkeypatch.setattr("lonora_agent.public_stream.monotonic", lambda: 0.0)
     published = AsyncMock()
 
-    async def images(_context: Any, messages: list[ModelMessage]):
+    async def images(
+        _context: Any, messages: list[ModelMessage]
+    ) -> tuple[list[ModelMessage], dict[str, Any]]:
         return messages, {}
 
     monkeypatch.setattr(model_runtime, "refresh_routing_context", AsyncMock())
@@ -346,9 +348,11 @@ async def test_web_search_option_is_persisted_projected_and_read_by_the_agent(
         assert "switched on web search for this chat" in system
         assert "<suggested_reply>" in system
         # A trading identity's profiles leave web_search out; the chat option preselects it.
-        monkeypatch.setattr(
-            "lonora_agent.tool_exposure.run_profiles", lambda *_a, **_k: ["core", "market"]
-        )
+
+        def trading_profiles(*_a: object, **_k: object) -> list[str]:
+            return ["core", "market"]
+
+        monkeypatch.setattr("lonora_agent.tool_exposure.run_profiles", trading_profiles)
         registry = load_tools()
         monkeypatch.setattr(registry, "availability", AsyncMock(return_value={}))
         exposure = await ensure_exposure(

@@ -10,6 +10,7 @@ Regenerate with ``LONORA_WRITE_FIXTURES=1``.
 import json
 import os
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -39,10 +40,18 @@ def row(request: TradeRequest, result: TradeResult) -> dict[str, Any]:
 
 def rows() -> dict[str, Any]:
     blocked = TradeRequest(
-        operation_id="op-not-sent", account_id="acct", action="buy", symbol="XAUUSD", volume="0.1"
+        operation_id="op-not-sent",
+        account_id="acct",
+        action="buy",
+        symbol="XAUUSD",
+        volume=Decimal("0.1"),
     )
     rejected = TradeRequest(
-        operation_id="op-rejected", account_id="acct", action="sell", symbol="XAUUSD", volume="0.2"
+        operation_id="op-rejected",
+        account_id="acct",
+        action="sell",
+        symbol="XAUUSD",
+        volume=Decimal("0.2"),
     )
     return {
         # The money boundary stopped it (a daily loss limit): never sent to the broker.
