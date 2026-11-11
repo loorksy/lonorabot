@@ -25,13 +25,14 @@ class SupervisionCreate(Contract):
 
 
 class AgentInspectInput(Contract):
-    agent_id: str = Field(min_length=1, max_length=36)
+    # An id, or the agent's name (agent names run to 80 characters).
+    agent_id: str = Field(min_length=1, max_length=80)
     section: InspectSection = "overview"
     page: int = Field(default=0, ge=0, le=50)
 
 
 class AgentControlInput(Contract):
-    agent_id: str = Field(min_length=1, max_length=36)
+    agent_id: str = Field(min_length=1, max_length=80)
     action: ControlAction
     target: ControlTarget = "agent"
     target_id: str | None = Field(default=None, min_length=1, max_length=36)

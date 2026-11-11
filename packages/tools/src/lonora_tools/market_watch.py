@@ -162,7 +162,8 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 class WatchReference(Contract):
-    watch_id: str = Field(min_length=1, max_length=36)
+    # An id, or the name the owner gives the watch (its symbol, condition or prompt).
+    watch_id: str = Field(min_length=1, max_length=120)
 
 
 class WatchUpdate(WatchReference):

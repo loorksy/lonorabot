@@ -265,9 +265,10 @@ the record and are not covered by this view.
 does not name, `tool_dispatch` passes the status the tool raised (`http_status`, read and
 removed by `observe`): forbidden is `permission`, an invalid request is `input`, and four
 families of conflict say what they are (a confirmation or a reconciliation that is
-required, a limit or a pause, an order on the wrong side). Any other conflict stays as it
-was: a state conflict says nothing a model can act on. A `broker_` code keeps its class,
-and a named code never changes with its status. A class the tool wrote itself
+required, the mandate's own terms or a pause, an order on the wrong side). Any other conflict stays as it
+was: a state conflict says nothing a model can act on, and a count that is full (helpers,
+pins, retries) is not a rule of the owner's. A `broker_` code keeps its class, and a
+named code never changes with its status. A class the tool wrote itself
 (`ToolRefusal.details`) decides the category, the next step and the hint together, and a
 not-found result that carries `candidates` points at them (`follow_hint`).
 
@@ -289,8 +290,8 @@ What a name may do depends on the call:
 | Reference | Where | Named by | Acts on a name |
 |---|---|---|---|
 | Account | `market_binding.named_account`, before validation, for every market tool | account number, account name, broker | reads only; an order, a watch, a goal or a grant is refused with the account |
-| Several accounts, none named | `prepare_market_arguments` | | never: `broker_sessions_ambiguous` with the accounts |
-| Position or order ticket | `trade.require_tickets`, from the account read the tool already makes | its symbol | never: the refusal lists the tickets; first attempt only |
+| No account named | `prepare_market_arguments`, for an agent with no market of its own and a tool that requires one | | the agent's own, its one signed, or the owner's only account as before; with several and none of those, `broker_sessions_ambiguous` with the accounts |
+| Position or order ticket | `trade.require_ticket`, only for a ticket `trade_execute` itself named | its symbol | never: the refusal lists the tickets; first attempt only; a batch built from the account's own list is never checked |
 | Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
 | Routine | `routine.named_routine` | title, prompt | switching off on an exact title; switching on never |
 | Task | `tasks.named_task` | title | `task_inspect` only |
