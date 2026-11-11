@@ -52,7 +52,7 @@ body input[type="checkbox"][data-lonora-switch]::before {
   transition: transform 160ms ease;
 }
 body input[type="checkbox"][data-lonora-switch]:checked {
-  background: #8d7bff;
+  background: var(--accent);
 }
 body input[type="checkbox"][data-lonora-switch]:checked::before {
   transform: translateX(18px);

@@ -86,15 +86,8 @@
     box-shadow 160ms ease;
 }
 .permission-options .permission-level-option[data-selected="true"] {
-  border-color: #8d7bff;
-  background: linear-gradient(
-    105deg,
-    color-mix(in srgb, #8d7bff 16%, var(--lonora-surface, var(--legacy-muted))),
-    color-mix(in srgb, #6d5ce7 8%, var(--lonora-surface, var(--legacy-muted)))
-  );
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, #8d7bff 45%, transparent),
-    0 8px 26px color-mix(in srgb, #6d5ce7 22%, transparent);
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
 }
 .permission-options .permission-level-select {
   display: flex;
@@ -131,12 +124,9 @@
     0 5px 16px color-mix(in srgb, black 20%, transparent);
 }
 .permission-options .permission-level-option[data-selected="true"] .permission-level-icon {
-  color: #e7e2ff;
-  border-color: color-mix(in srgb, #b2a8ff 62%, transparent);
-  background: radial-gradient(circle at 35% 25%, #b0a3ff, #5b48cc 75%);
-  box-shadow:
-    inset 0 1px 1px rgb(255 255 255 / 36%),
-    0 0 22px rgb(121 101 255 / 48%);
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .permission-options .permission-level-copy {
   flex: 1;

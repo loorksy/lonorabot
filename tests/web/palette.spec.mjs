@@ -66,7 +66,7 @@ function contrasts(elements) {
 }
 
 for (const theme of ["dark", "light"]) {
-  test(`the old knowledge screen's tab labels are readable (${theme})`, async ({
+  test(`the old knowledge screen reads the reference palette (${theme})`, async ({
     page,
     context,
   }) => {
@@ -78,8 +78,22 @@ for (const theme of ["dark", "light"]) {
       await expect(tabs.first()).toBeVisible();
       for (const { text, ratio } of await tabs.evaluateAll(contrasts))
         expect(ratio, `«${text}»`).toBeGreaterThanOrEqual(4.5);
+      // An old screen's switch turns the reference's mint when on, like the shell's.
+      const [on, accent] = await page.locator(".legacy-surface").evaluate((surface) => {
+        const input = Object.assign(document.createElement("input"), {
+          type: "checkbox",
+          checked: true,
+        });
+        input.dataset.lonoraSwitch = "true";
+        const probe = document.createElement("i");
+        probe.style.background = "var(--accent)";
+        surface.append(input, probe);
+        return [input, probe].map((el) => getComputedStyle(el).backgroundColor);
+      });
+      expect(on).toBe(accent);
     } finally {
       fixture({ ...data, action: "cleanup" });
     }
   });
 }
+
