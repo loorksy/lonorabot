@@ -475,6 +475,32 @@ test.describe("phone with touch (390×844, Arabic)", () => {
 });
 
 test.describe("desktop shell (1280×800, Arabic)", () => {
+  test("a window narrowed to the phone layout takes the open permission menu with it", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const menu = page.locator(".pop.mode-pop");
+      await page.getByTestId("permission-chip").click();
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await page.setViewportSize({ width: 700, height: 700 });
+      await expect(menu).toHaveCount(0);
+      await expect(page.locator(".mp-scrim")).toHaveCount(0);
+      await expect(page.getByTestId("permission-chip")).toHaveAttribute("aria-expanded", "false");
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
   test("the press that dismisses the list menu does not open the row beneath", async ({
     page,
     context,

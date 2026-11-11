@@ -61,7 +61,12 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
   const page = useRef<(() => void) | null>(null);
   const close = useCallback(() => {
     const current = shown.current;
-    if (current?.morph) setLeaving(current);
+    if (current?.morph) {
+      // The folding menu is inert: focus goes back to its button instead of being lost.
+      if (element.current?.contains(document.activeElement))
+        current.anchor.focus({ preventScroll: true });
+      setLeaving(current);
+    }
     setPop(null);
   }, []);
   const open = useCallback<Api["open"]>(
@@ -70,7 +75,9 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       if (shown.current?.anchor === anchor && anchor.matches("[aria-haspopup]")) return close();
       serial.current += 1;
       setLeaving(null);
-      setPop({ anchor, body, label, serial: serial.current, ...extra });
+      // Only a composer can form a menu; anywhere else it is a plain popover.
+      const forms = extra?.morph === true && anchor.closest(".composer-card") !== null;
+      setPop({ anchor, body, label, serial: serial.current, ...extra, morph: forms });
     },
     [close],
   );
@@ -98,8 +105,10 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
     };
   }, [view, close, back]);
   useEffect(() => {
-    if (leaving)
-      morph.current?.close(() => setLeaving((current) => (current === leaving ? null : current)));
+    if (!leaving) return;
+    const gone = () => setLeaving((current) => (current === leaving ? null : current));
+    if (morph.current) morph.current.close(gone);
+    else gone();
   }, [leaving]);
   useLayoutEffect(() => {
     shown.current = pop;

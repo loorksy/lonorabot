@@ -339,8 +339,9 @@ export function morphOpen(
     }
     unfold(s.ty);
   };
-  inn.addEventListener("pointerup", release, { signal });
-  inn.addEventListener("pointercancel", release, { signal });
+  // On the window: a finger lifted outside the panel before the drag was decided still ends it.
+  window.addEventListener("pointerup", release, { signal });
+  window.addEventListener("pointercancel", release, { signal });
   // The press that ends a drag does not also choose the row under it.
   el.addEventListener(
     "click",
@@ -360,12 +361,17 @@ export function morphOpen(
     { signal, capture: true },
   );
   // The composer moves (keyboard, rotation): a settled panel follows; a moving one re-measures.
+  // A composer replaced by a new layout takes the menu with it.
   const follow = () => {
-    if (el.classList.contains("settled")) settle();
+    if (!card.isConnected) on.fold();
+    else if (el.classList.contains("settled")) settle();
     else dirty = true;
   };
   window.addEventListener("resize", follow, { signal });
   window.visualViewport?.addEventListener("resize", follow, { signal });
+  // A layout that swaps the composer reports no resize of its own; the card leaving the page does.
+  const watch = new ResizeObserver(follow);
+  watch.observe(card);
 
   const lit = requestAnimationFrame(() => scrim.classList.add("on"));
   card.classList.add("mp-open");
@@ -388,6 +394,7 @@ export function morphOpen(
     /** Folds back into the composer (or fades), then calls done. */
     close(done: () => void) {
       listen.abort();
+      watch.disconnect();
       cancelAnimationFrame(lit);
       card.classList.remove("mp-open");
       scrim.classList.remove("on");
@@ -405,6 +412,7 @@ export function morphOpen(
     },
     destroy() {
       listen.abort();
+      watch.disconnect();
       cancelAnimationFrame(lit);
       cancelAnimationFrame(raf);
       clearTimeout(timer);
