@@ -12,6 +12,8 @@ import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.executor import execute_run
 from lonora_agent.uncertain_outcome import (
+    CHANGE_AR,
+    CHANGE_EN,
     LINE_AR,
     LINE_EN,
     MAXIMUM_PARTS,
@@ -19,6 +21,7 @@ from lonora_agent.uncertain_outcome import (
     appended_parts,
     record_request_start,
     uncertain_operations,
+    unconfirmed_change,
 )
 from lonora_contracts.model_routing import ModelSelection
 from lonora_tools.base import Tool
@@ -147,6 +150,40 @@ def test_other_tools_and_earlier_requests_are_not_read() -> None:
     fresh: dict[str, Any] = {}
     record_request_start(fresh, "user", messages)
     assert not lined(fresh, messages)
+
+
+def test_an_interrupted_change_that_is_not_a_trade_gets_its_own_line() -> None:
+    cut = {"ok": False, "code": "tool_execution_uncertain"}
+    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"))
+    assert not lined(state, messages) and unconfirmed_change(state, messages)
+    messages.append(ModelMessage(role="assistant", content="أنشأت المراقبة."))
+    # It promises no check: nothing reconciles a change that is not a trade.
+    assert append_uncertain_line(state, messages, "أنشأت المراقبة.") == (
+        "أنشأت المراقبة.\n\n" + CHANGE_AR
+    )
+    state, messages = request(EN, exchange("watch_create", "w1", cut, level="2400"))
+    assert append_uncertain_line(state, messages, "Created.").endswith(CHANGE_EN)
+    # The same call succeeding later settles it; a later failure of it does not.
+    done = exchange("watch_create", "w2", {"ok": True, "id": "w"}, level="2400")
+    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), done)
+    assert not unconfirmed_change(state, messages)
+    failed = exchange("watch_create", "w2", {"ok": False, "code": "watch_limit"}, level="2400")
+    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), failed)
+    assert unconfirmed_change(state, messages)
+    other = exchange("watch_create", "w2", {"ok": True, "id": "w"}, level="2500")
+    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), other)
+    assert unconfirmed_change(state, messages)
+    # An uncertain trade keeps the trade's line, and a wake gets none.
+    state, messages = request(
+        AR,
+        exchange("watch_create", "w1", cut, level="2400"),
+        exchange("trade_execute", "c1", AMBIGUOUS, action="buy"),
+    )
+    assert append_uncertain_line(state, messages, "تم.").endswith(LINE_AR)
+    state, messages = request(
+        "wake", exchange("watch_create", "w1", cut, level="2400"), trigger="broker_event"
+    )
+    assert not unconfirmed_change(state, messages)
 
 
 @pytest.mark.parametrize(

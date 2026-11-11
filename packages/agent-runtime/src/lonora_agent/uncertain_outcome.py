@@ -1,4 +1,4 @@
-"""One appended line when an owner-started request leaves a financial outcome uncertain.
+"""One appended line when an owner-started request leaves an outcome uncertain.
 
 Structured results only: no wording of the owner or the model is read. At the end of a
 Run the owner started by typing, every financial effect call of the request is checked
@@ -6,7 +6,8 @@ Run the owner started by typing, every financial effect call of the request is c
 step's nested and deduplicated result and the reconciliation of the same operation).
 If an operation's latest result is still uncertain, one line in the conversation
 language says the outcome is not confirmed, is being checked and will not be resent.
-The reply and its card are never replaced.
+A change that is not a trade and ended interrupted gets its own line, which promises no
+check. The reply and its card are never replaced.
 """
 
 import json
@@ -35,6 +36,10 @@ UNCERTAIN = frozenset(
 MAXIMUM_PARTS = 24
 LINE_AR = "نتيجة العملية غير مؤكدة بعد؛ أتحقق منها ولن أعيد إرسالها."
 LINE_EN = "The outcome is not confirmed yet; I am checking it and will not resend it."
+# A change that is not a trade is not reconciled by anything: only what is known is said.
+INTERRUPTED = "tool_execution_uncertain"
+CHANGE_AR = "أحد الإجراءات لم يتأكد تنفيذه: قد يكون نُفّذ وقد لا يكون."
+CHANGE_EN = "One action is not confirmed: it may or may not have taken effect."
 
 
 def record_request_start(state: dict[str, Any], trigger: str, messages: list[ModelMessage]) -> None:
@@ -112,10 +117,47 @@ def uncertain_operations(state: dict[str, Any], messages: list[ModelMessage]) ->
     return {key for key, uncertain in latest.items() if uncertain}
 
 
+def unconfirmed_change(state: dict[str, Any], messages: list[ModelMessage]) -> bool:
+    """Whether a change of this request, other than a trade, was interrupted and never settled.
+
+    Only a change can end interrupted (a read is repeated). The same call succeeding
+    later settles it; a later failure says nothing about the first attempt.
+    """
+    start = state.get(_START_KEY)
+    if state.get(_STARTED_KEY) is not True or type(start) is not int:
+        return False
+    calls = {
+        call.id: call
+        for message in messages
+        for call in message.tool_calls
+        if call.name not in FINANCIAL_EFFECTS
+    }
+    open_: dict[str, bool] = {}
+    for message in messages[max(start, 0) :]:
+        call = calls.get(message.tool_call_id or "") if message.role == "tool" else None
+        if call is None:
+            continue
+        try:
+            raw: Any = json.loads(message.content)
+        except ValueError:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        result = cast(dict[str, Any], raw)
+        key = call.name + json.dumps(call.arguments, sort_keys=True, ensure_ascii=False)
+        open_[key] = result.get("code") == INTERRUPTED or (
+            open_.get(key, False) and result.get("ok") is False
+        )
+    return any(open_.values())
+
+
 def uncertain_line(state: dict[str, Any], messages: list[ModelMessage]) -> str | None:
-    if not uncertain_operations(state, messages):
-        return None
-    return LINE_AR if prefers_arabic(messages) else LINE_EN
+    arabic = prefers_arabic(messages)
+    if uncertain_operations(state, messages):
+        return LINE_AR if arabic else LINE_EN
+    if unconfirmed_change(state, messages):
+        return CHANGE_AR if arabic else CHANGE_EN
+    return None
 
 
 def appended_parts(parts: list[Any], line: str) -> list[Any]:

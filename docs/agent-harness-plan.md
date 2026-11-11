@@ -107,6 +107,19 @@ out as separate legs, each with its own operation id from the plan and the leg n
 confirmation gives the numbers; otherwise it is one card. The rule that the same call in one Run
 replays one operation is not loosened.
 
+**D13. The gate continues a turn; it never issues a call.** The first plan had the loop repeat a
+read by itself when its failure named one candidate. No read produces such a failure: a read uses
+the one item that fits and says so (#64). So the recovery of phase 3b is a notice that names the
+untaken step, and the model takes it. This costs one model round where a repeat would cost none,
+keeps the tool-call protocol untouched, and means nothing is ever sent that the model did not ask
+for. A found tool that is a change is raised only as "call it if the owner asked for it", and a
+found tool that moves money is never raised.
+
+Two things the first plan put in phase 3b cannot be decided from structure and are not in it. A
+reply that only offers ("shall I set an alert?") makes no call, so there is nothing to read until
+the offer is a record: phase 3c. A watch or routine created with a placeholder prompt is free text:
+only `enabled: false` is refused.
+
 Already settled by the decisions above: the reply gates the brief asks for are the structural checks
 and exact lookups of D2, not wording vetoes; a short consent or a 👍 carries out an offer that is a
 read or inside the mandate, while an offer of money outside the mandate is a card whose own button is
@@ -250,8 +263,8 @@ flip, and `bash scripts/build.sh` passes before it opens.
 |---|---|---|---|
 | 3a (merged, #62) | The error contract for every error: class, whether to repeat and a truthful hint; a handler's own guidance is kept instead of overwritten; D1; an order size the contract cannot take is refused before any card | `tool_dispatch.py`, `environment.py`, `failure_view.py`, `symbols.py`, `trade.py` | X_unknown, X_rate, X_args (structural): done |
 | 3a-2 | One resolver for accounts, agents, watches, tasks, routines and positions; the durable symbol map; single-candidate reads repeat inside the tool; the class of a refusal comes from the tool, not from the spelling of its code | new `lonora_tools/resolve.py`, `symbols.py`, raising tools | new resolver probes |
-| 3b | The conversation gate; the effect check for "done" and promises; no trial calls; a found tool must be used; a call to a tool that exists but is not offered says how to reach it; the policy lines that decide behaviour are loaded before the first call of their domain | `stop_gates.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `market_watch.py`, `routine.py` | M36, M40, M42, M46, M52, M54, M62, M68, M76 (live) |
-| 3c | The offer record and its obligation; the open-request record; a Task that needs the owner asks in the owner's chat; a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M68-M80 (live) |
+| 3b | The conversation gate (D13): a named read left untaken, a found tool left unused, changes that all failed; a wrong tool name and an empty search say what exists; no creation switched off as a trial; an interrupted change that is not a trade is reported as unconfirmed; the market and trading chapters are read before the first call; a promise to watch needs a saved watch (policy text) | `conversation_gate.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `registry.py`, `market_watch.py`, `routine.py`, `system_policy.py` | the `trial_side_effect` check of M62, M68, M76 and X_owner; `claims_inability` where the tool was one call away (live) |
+| 3c | The offer record and its obligation; the open-request record; a Task that needs the owner asks in the owner's chat; a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M40, M42, M46, M52, M54, M62, M68-M80 (live) |
 | 3d | Owner scope for the personal assistant; the owner-wide reads | `market_watch.py`, `tasks.py`, `routine.py`, `trading_goal.py`, `supervision.py` | X_owner (structural), M62-M76 (live) |
 | 3e | The 45 actions with no tool: tools and cards as in 5.3 | `lonora_tools/*`, `owner_actions.py`, `capability_cards.py`, client cards | new parity probes, one per action |
 | 3f | The reply guard by exact lookup; the provenance of numbers; the reply's language (Arabic when the profile names none); state tools return owner-ready labels; the guidance to present broker, login and server is removed; the failed-run card uses the sentence of its own code | `public_reply.py`, `model_runtime.py`, voice upload | M64, M70, M74 internal_term; M28, M56, M58 live read; M50 language (live) |

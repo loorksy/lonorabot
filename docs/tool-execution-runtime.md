@@ -168,6 +168,23 @@ remaining name sets that cannot import the registry (`FINANCIAL_CALLS`,
 `FINANCIAL_REPLAY_TOOLS`, `CHECKPOINT_TOOLS`, skill `CAPABILITY_TOOLS`) are
 checked against registry metadata by `tests/test_capability_exposure.py`.
 
+### What the surface answers when nothing fits
+
+- A name no tool has is a wrong name, not a rule. A direct call, a bridged call and an
+  exact `tool_environment` lookup all answer `tool_call_target_unknown` with class
+  `resolution`, the tool the name was meant to be when only its letter case differs, and
+  `tool_environment` as the next step. A tool that exists but is outside the Run's scope
+  stays `tool_not_allowed`, a permission refusal.
+- A search that matches nothing answers `found: false`, a note that this is not an
+  ability being missing, and `permitted_names`: every tool the Run may use.
+- `watch_create` and `routine_create` refuse `enabled: false`
+  (`create_disabled_refused`): nothing is created to try a tool. A replayed call is still
+  answered from its row, and the owner's routes, goals and the evaluator still store
+  disabled rows. The refusal names no next call.
+- The `market` and `trading` policy chapters are read before the first call of an agent
+  that is offered a tool of those domains, after the chapters its recent calls selected
+  and inside the same three-chapter limit.
+
 ## Concurrent reads, serial effects
 
 Each assistant tool-call block is split into ordered segments (adapted from
@@ -458,11 +475,55 @@ work without declared steps has nothing that proves completion and goes to
 owner attention. `complete_run` still refuses incomplete steps and unsaved
 continuous work, so unfinished work is never marked completed.
 
+## The end of a conversation turn
+
+A Task has declared steps; a conversation has none, so a reply could end the owner's
+request with one named step left untaken. `conversation_gate.py` checks a text reply of a
+Run the owner started by typing (`owner_started`; a Task Run and every wake are never
+checked) and continues the turn in three cases, read from the request's own calls and
+results:
+
+| Condition | What was seen | What the notice asks |
+|---|---|---|
+| `read_step_not_taken` | The last call failed with class `resolution`, listed nothing that exists, and named exactly one read-only tool to call next, which the request never called | Take that step and answer from it, or say plainly what was not done |
+| `found_tool_unused` | `tool_environment` returned exactly one available tool, and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
+| `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
+
+The gate reads call names, arguments and result fields only. It never reads what the owner
+or the model wrote, never issues a call, and its notices carry tool names but no failure
+code. It holds the reply, whatever else the request contains, when the request made any
+financial call, when any result is a permission refusal, needs the owner's authorization,
+hit a risk or health block, has an unknown outcome, was stopped by a guardrail or spent
+its retries, and when the last owner-side message is a wake. A found tool that is
+financial is never raised.
+
+It continues at most twice per owner message (`MAXIMUM_STOP_NUDGES`); a new owner message,
+a wake or an attention resume starts a new budget. One fact is raised once: a reply that
+keeps its answer after the notice stands. When the budget is spent the reply is returned
+as it is; a conversation is never turned into an owner-attention request. Every
+continuation is recorded in the Run's state:
+
+```json
+{"conversation_gate": {"version": 1, "attempts": 1, "exhausted": false,
+  "fired": [{"condition": "read_step_not_taken", "tool": "market_quote", "call_id": "..."}]}}
+```
+
+A malformed record fails the Run with `conversation_gate_state_invalid` instead of being
+rebuilt. The limit report (`finish_turn`) and a reply with no call are not checked: the
+second needs the record of what was offered, which is the next phase.
+
+One line may still be appended to the reply (`uncertain_outcome.py`). An uncertain trade
+gets the line that says it is being checked and will not be resent. A change that is not
+a trade and ended `tool_execution_uncertain` gets its own line, which says only that it
+may or may not have taken effect: nothing reconciles such a change, so no check is
+promised. The same call succeeding later in the request settles it.
+
 ## Runtime notices
 
 Provider adapters hoist every system message into one prefix, so runtime
 nudges are never appended as mid-run `role=system` text. A notice (completion
-check, empty answer, budget warning, guardrail guidance, final report request)
+check, conversation check, empty answer, budget warning, guardrail guidance, final
+report request)
 is attached to the latest tool result as `runtime_notice`, or appended as a
 trailing `user` message with `context_origin="tool_observation"` and a
 `<runtime_notice>` JSON body. Context governance keeps it bound to the block

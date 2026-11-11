@@ -33,6 +33,7 @@ from lonora_tools.base import Tool
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import MODULES, load_tools
 from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
+from test_system_policy import unseeded
 
 REMOVED_TOOLS = ("market_strategy_research", "market_research_history")
 BACKTEST_TERMS = re.compile(
@@ -132,7 +133,7 @@ def test_old_history_with_a_removed_tool_call_loads_no_stale_guidance():
         ),
         ModelMessage(role="tool", tool_call_id="old", content='{"mode":"historical_research"}'),
     ]
-    result = apply_operating_policy(history, load_tools().definitions())
+    result = apply_operating_policy(history, unseeded())
     assert not any(DOMAIN_MARKER in message.content for message in result)
     assert result[-3:] == history  # The recorded exchange itself is preserved unchanged.
 
