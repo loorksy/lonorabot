@@ -25,7 +25,8 @@ import {
   ValueRow,
 } from "./ui";
 
-type Filter = "active" | "scheduled" | "done";
+const FILTERS = ["active", "scheduled", "done"] as const;
+type Filter = (typeof FILTERS)[number];
 const TERMINAL = new Set<TaskView["status"]>(["completed", "cancelled", "failed"]);
 
 /** The reference's four task words for the server's statuses. */
@@ -50,8 +51,19 @@ const isDone = (task: TaskView) => task.status === "completed" || task.status ==
 export function TasksPage() {
   const data = useShellData();
   const nav = useNavigation();
-  const [params] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>("active");
+  // The tab is in the address, so Back returns to the tab the owner was on.
+  const [params, setParams] = useSearchParams();
+  const filter = FILTERS.find((key) => key === params.get("tab")) ?? "active";
+  const choose = (key: Filter) =>
+    setParams(
+      (old) => {
+        const next = new URLSearchParams(old);
+        if (key === "active") next.delete("tab");
+        else next.set("tab", key);
+        return next;
+      },
+      { replace: true },
+    );
   const tasks = useLoad(() => domainApi.tasks(), "tasks");
   useEffect(() => {
     if (params.get("new") === "1") nav.go("/app/new-task", { replace: true });
@@ -75,7 +87,7 @@ export function TasksPage() {
             role="tab"
             aria-selected={filter === key}
             className={filter === key ? "active" : ""}
-            onClick={() => setFilter(key)}
+            onClick={() => choose(key)}
           >
             {label}
           </button>

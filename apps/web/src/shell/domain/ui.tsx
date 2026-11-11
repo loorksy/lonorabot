@@ -310,6 +310,7 @@ export function FormPage({
   name,
   submit,
   busy,
+  disabled,
   extra,
   onSubmit,
   children,
@@ -317,6 +318,8 @@ export function FormPage({
   name: string;
   submit: ReactNode;
   busy?: boolean;
+  /** Nothing can be saved as the form stands (the form itself says why). */
+  disabled?: boolean;
   extra?: ReactNode;
   onSubmit: (data: FormData, form: HTMLFormElement) => void;
   children: ReactNode;
@@ -335,7 +338,7 @@ export function FormPage({
       {children}
       <div className="actions">
         {extra}
-        <button type="submit" className="btn primary" disabled={busy} aria-busy={busy}>
+        <button type="submit" className="btn primary" disabled={busy || disabled} aria-busy={busy}>
           {submit}
         </button>
       </div>

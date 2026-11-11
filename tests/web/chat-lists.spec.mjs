@@ -409,6 +409,56 @@ test("unified search: categories with counts, the latest query only, and the jum
   await expect(page.locator(".desktop-list .thread[data-key]").first()).toBeVisible();
 });
 
+test("a task, a note and a text file found by search each open their own page", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const agent = fixture.agents[0].id;
+  const hit = (category, id, extra = {}) => ({
+    category,
+    id,
+    title: `${category} ${id}`,
+    snippet: "found",
+    created_at: null,
+    agent_id: agent,
+    ...extra,
+  });
+  const results = {
+    tasks: [hit("tasks", "task-1")],
+    knowledge: [hit("knowledge", "note-1", { kind: "note" })],
+    files: [
+      hit("files", "file-1", { title: "plan.md", media_type: "text/markdown" }),
+      hit("files", "file-2", { title: "chart.png", media_type: "image/png" }),
+    ],
+  };
+  await page.route("**/api/search?*", (route) =>
+    route.fulfill({
+      json: {
+        q: "found",
+        category: null,
+        limit: 20,
+        offset: 0,
+        counts: { tasks: 1, knowledge: 1, files: 2 },
+        results,
+      },
+    }),
+  );
+  const field = page.locator("#desktop-search");
+  const open = async (category, index, url) => {
+    await page.goto("/app");
+    await field.fill("found");
+    await page.locator(`#search-results [data-search-hit='${category}']`).nth(index).click();
+    await expect(page).toHaveURL(url);
+  };
+  await open("tasks", 0, /\/app\/tasks\/task-1$/);
+  await open("knowledge", 0, new RegExp(`/app/knowledge-edit\\?agent=${agent}&item=note-1$`));
+  await open("files", 0, new RegExp(`/app/file-edit\\?item=file-1&agent=${agent}$`));
+  // A file that is not text has no page in «الملفات»: it keeps its viewer.
+  await open("files", 1, /\/app\/artifacts\/file-2$/);
+});
+
 test("a message hit from an agent's other conversation opens that conversation", async ({
   page,
   context,

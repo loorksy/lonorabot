@@ -130,9 +130,38 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   const routines = await call("GET", `/routines?agent_id=${agent.id}`);
   expect(routines.map((row) => row.title).sort()).toEqual([`${prefix} brief`, `${prefix} once`]);
-  // A general agent has no account: no conditional type is offered.
-  await page.goto(`/app/new-schedule?agent=${agent.id}`);
-  await expect(page.locator('select[name="type"] option[value="condition"]')).toHaveCount(0);
+  // «عند تحقق شرط» is always offered. With no trading agent on an account, the form says
+  // what is missing and cannot be saved.
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    const rows = await response.json();
+    return route.fulfill({ response, json: rows.filter((row) => !row.trading_account_id) });
+  });
+  await page.goto(`/app/new-schedule?agent=${agent.id}&kind=condition`);
+  form = page.locator('form[data-form="schedule"]');
+  await expect(form.locator('select[name="type"]')).toHaveValue("condition");
+  await expect(form.getByLabel("Condition — for the conditional alert")).toBeVisible();
+  await expect(form).toContainText("Conditional alerts need a trading agent linked to an account.");
+  await expect(form.getByRole("button", { name: "Save schedule", exact: true })).toBeDisabled();
+  await form.getByRole("button", { name: "Link a trading account", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/broker$/);
+  // The Tasks tab is in the address: Back from another page returns to it.
+  await page.goto("/app/tasks");
+  await page.getByRole("tab", { name: "Scheduled", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks\?tab=scheduled$/);
+  await page.goto(`/app/routines?agent=${agent.id}`);
+  await page.goBack();
+  await expect(page.getByRole("tab", { name: "Scheduled", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Active", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/tasks$/);
+  await page.goto("/app/tasks?tab=unknown");
+  await expect(page.getByRole("tab", { name: "Active", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 /** Marks a one-shot as fired («نُفّذت»): its time passed, it ran and switched itself off. */
@@ -349,6 +378,79 @@ test("goals: a trading agent lists its plans with their titles and a cancelled p
     await page.goto(`/app/goals?agent=${agent.id}`);
     await expect(page.getByRole("button", { name: /Open plan/ })).toContainText("نشط");
     await expect(page.getByRole("button", { name: /Cancelled plan/ })).toContainText("ملغى");
+  } finally {
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ ...data, action: "cleanup" }),
+      encoding: "utf8",
+    });
+  }
+});
+
+test("a conditional alert is saved for a trading agent and waits in Tasks and in Updates", async ({
+  page,
+  context,
+}) => {
+  const data = JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
+      input: JSON.stringify({ action: "init" }),
+      encoding: "utf8",
+    }),
+  );
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  let agent;
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Alerts ${randomUUID().slice(0, 8)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const title = `Tell me ${randomUUID().slice(0, 6)}`;
+    await page.goto(`/app/new-schedule?agent=${agent.id}&kind=condition`);
+    const form = page.locator('form[data-form="schedule"]');
+    await expect(form.locator('select[name="agent"]')).toHaveValue(agent.id);
+    await form.getByLabel("Task", { exact: true }).fill(title);
+    await form.getByLabel("Condition — for the conditional alert").fill("above 2350");
+    const posted = saved(page, "POST", /^\/api\/watches$/);
+    await form.getByRole("button", { name: "Save schedule", exact: true }).click();
+    const watch = await (await posted).json();
+    expect(watch.payload).toMatchObject({
+      kind: "price",
+      account_id: data.account,
+      symbol: data.symbol,
+      condition: "above",
+      level: "2350",
+      prompt: title,
+    });
+    // It waits with the schedules, for every agent together and under «Upcoming».
+    await page.goto("/app/updates");
+    await expect(page.locator(".row", { hasText: title })).toContainText("above 2350");
+    await page.goto("/app/tasks?tab=scheduled");
+    const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));
+    await toggle.click();
+    expect((await control).request().postDataJSON()).toEqual({ action: "pause" });
+    // Switched off, it is no longer upcoming.
+    await page.goto("/app/updates");
+    await expect(page.getByText("Upcoming", { exact: true })).toBeVisible();
+    await expect(page.locator(".row", { hasText: title })).toHaveCount(0);
   } finally {
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
