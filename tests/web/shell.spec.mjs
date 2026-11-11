@@ -355,6 +355,40 @@ test.describe("phone shell (390×844, Arabic)", () => {
 });
 
 test.describe("desktop shell (1280×800, Arabic)", () => {
+  test("the press that dismisses the list menu does not open the row beneath", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/app");
+      const more = page.locator(".desktop-list [aria-haspopup=menu]");
+      const menu = page.locator(".pop[role=menu]");
+      const row = page.locator(`.desktop-list [data-inbox-agent-id="${trading.agent.id}"]`);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await more.click();
+      await expect(menu).toHaveCount(0);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await row.click();
+      await expect(menu).toHaveCount(0);
+      await expect(page).toHaveURL(/\/app$/);
+      await row.click();
+      await expect(page).toHaveURL(new RegExp(`/app/${trading.agent.id}`));
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+
   for (const theme of ["dark", "light"]) {
     test(`rail, list pane, welcome and the solid header (${theme})`, async ({ page, context }) => {
       const data = fixture({ action: "init", empty: true });

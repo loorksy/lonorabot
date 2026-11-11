@@ -14,7 +14,7 @@ import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 
 /* The reference's popover menu (openPop): glass, fixed beside its anchor (below unless it
    does not fit), the first item focused; a press outside, a scroll, a resize or Escape
-   closes it. One at a time. It takes one
+   closes it, and the press that closes it does nothing else. One at a time. It takes one
    history layer: Back and Escape return from a second page (usePopoverPage), else close. */
 type Pop = {
   anchor: HTMLElement;
@@ -106,6 +106,20 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       const target = event.target as Node | null;
       if (element.current?.contains(target) || pop.anchor.contains(target)) return;
       close();
+      // The click that follows this press only dismisses: it must not reach the row beneath.
+      const swallow = (click: Event) => {
+        click.preventDefault();
+        click.stopPropagation();
+      };
+      const release = () => {
+        document.removeEventListener("click", swallow, true);
+        document.removeEventListener("pointerup", settle, true);
+        document.removeEventListener("pointercancel", release, true);
+      };
+      const settle = () => setTimeout(release);
+      document.addEventListener("click", swallow, { capture: true, once: true });
+      document.addEventListener("pointerup", settle, { capture: true, once: true });
+      document.addEventListener("pointercancel", release, { capture: true, once: true });
     };
     const scrolled = (event: Event) => {
       if (!element.current?.contains(event.target as Node | null)) close();
