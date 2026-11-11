@@ -212,7 +212,8 @@ reason, creator and `revoked_at`.
 
 The symbol is stored in the broker's spelling. When the broker's symbol catalog can be
 read it must list the symbol (a case-only difference is resolved), otherwise creation
-fails with `symbol_not_found` or `symbol_ambiguous` so the agent or owner corrects it: a
+fails with `symbol_not_found` or `symbol_ambiguous` (with the account's real candidates
+and the next call, `docs/market-analysis.md`) so the agent or owner corrects it: a
 restriction on a spelling the broker does not use would never match a trade. Only when
 the catalog cannot be read (broker unavailable, failed or empty listing) is the symbol
 kept as given and recorded with `symbol_verified: false`, visible in listings and the

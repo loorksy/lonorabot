@@ -1,0 +1,1804 @@
+{
+ "states": {
+  "position": {
+   "positions": [
+    {
+     "base": "XAUUSD",
+     "side": "buy",
+     "volume": "0.01",
+     "price": "4050.819"
+    }
+   ],
+   "bids": {
+    "XAUUSD": "4051.349"
+   }
+  },
+  "task_watch": {
+   "watches": [
+    {
+     "owner": "task",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
+    }
+   ],
+   "task": "waiting"
+  },
+  "placeholders": {
+   "watches": [
+    {
+     "owner": "task",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "above",
+     "level": "1.2",
+     "prompt": "placeholder"
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "prompt": "placeholder"
+    }
+   ],
+   "task": "waiting"
+  },
+  "task_cancelled": {
+   "task": "cancelled"
+  },
+  "cancel_test": {
+   "watches": [
+    {
+     "owner": "task",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "above",
+     "level": "1.2",
+     "prompt": "placeholder"
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "prompt": "placeholder"
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "prompt": "cancel-test",
+     "enabled": false,
+     "dedupe_key": "cancel-test-1"
+    }
+   ],
+   "task": "cancelled"
+  }
+ },
+ "checks": {
+  "gold_analysis": [
+   {
+    "call": [
+     "market_snapshot",
+     "market_structure",
+     "market_candles"
+    ],
+    "result": {
+     "symbol": "$XAUUSD"
+    },
+    "name": "call:gold_analysis"
+   },
+   {
+    "reply": "mentions",
+    "name": "reply:price",
+    "words": [
+     "4049",
+     "4050"
+    ]
+   },
+   {
+    "reply": "no_question"
+   },
+   {
+    "status": "completed"
+   }
+  ],
+  "tp_sl_on_position": [
+   {
+    "call": "trade_execute",
+    "with": {
+     "action": "modify_position",
+     "take_profit": {
+      "near": 4052.82
+     },
+     "stop_loss": {
+      "near": 4049.82
+     }
+    }
+   },
+   {
+    "state": "positions",
+    "where": {
+     "takeProfit": {
+      "near": 4052.82
+     },
+     "stopLoss": {
+      "near": 4049.82
+     }
+    },
+    "count": 1
+   },
+   {
+    "reply": "lines",
+    "max": 1
+   }
+  ],
+  "exit_plan_armed": [
+   {
+    "any": [
+     [
+      {
+       "state": "positions",
+       "where": {
+        "takeProfit": {
+         "near": 4052.82
+        },
+        "stopLoss": {
+         "near": 4049.82
+        }
+       },
+       "count": 1
+      }
+     ],
+     [
+      {
+       "state": "watches",
+       "where": {
+        "kind": {
+         "in": [
+          "position",
+          "account"
+         ]
+        },
+        "metric": "profit",
+        "condition": {
+         "in": [
+          "above",
+          "cross_above"
+         ]
+        },
+        "level": {
+         "near": 2
+        },
+        "enabled": true
+       }
+      },
+      {
+       "state": "watches",
+       "where": {
+        "kind": {
+         "in": [
+          "position",
+          "account"
+         ]
+        },
+        "metric": "profit",
+        "condition": {
+         "in": [
+          "below",
+          "cross_below"
+         ]
+        },
+        "level": {
+         "near": -1
+        },
+        "enabled": true
+       }
+      }
+     ]
+    ],
+    "name": "exit_plan_armed"
+   },
+   {
+    "state": "positions",
+    "count": 1,
+    "name": "state:position_still_open"
+   },
+   {
+    "reply": "lines",
+    "max": 1
+   }
+  ],
+  "close_at_100": [
+   {
+    "any": [
+     [
+      {
+       "state": "watches",
+       "where": {
+        "kind": {
+         "in": [
+          "position",
+          "account"
+         ]
+        },
+        "metric": "profit",
+        "condition": {
+         "in": [
+          "above",
+          "cross_above"
+         ]
+        },
+        "level": {
+         "near": 100,
+         "tolerance": 0.5
+        },
+        "enabled": true
+       }
+      }
+     ],
+     [
+      {
+       "state": "positions",
+       "where": {
+        "takeProfit": {
+         "near": 4150.82
+        }
+       },
+       "count": 1
+      }
+     ]
+    ],
+    "name": "close_at_100_armed"
+   },
+   {
+    "state": "positions",
+    "count": 1,
+    "name": "state:position_still_open"
+   },
+   {
+    "reply": "lines",
+    "max": 1
+   }
+  ],
+  "watches_deleted": [
+   {
+    "call": "watch_cancel",
+    "times": 3
+   },
+   {
+    "after": [
+     "watch_cancel",
+     "watch_list"
+    ]
+   },
+   {
+    "state": "watches",
+    "where": {
+     "code": "watch_cancelled"
+    },
+    "count": 3,
+    "name": "state:all_watches_cancelled"
+   },
+   {
+    "no_call": "watch_create",
+    "name": "no_trial_resource"
+   },
+   {
+    "reply": "lines",
+    "max": 1
+   }
+  ],
+  "open_request_kept": [
+   {
+    "any": [
+     [
+      {
+       "state": "watches",
+       "where": {
+        "enabled": true
+       },
+       "count": 0
+      }
+     ],
+     [
+      {
+       "reply": "mentions",
+       "words": [
+        "حذف المتابعات",
+        "حذف كل المتابعات",
+        "إلغاء المتابعات",
+        "مسح المتابعات",
+        "المتابعات الثلاث",
+        "طلب الحذف",
+        "EURUSD"
+       ]
+      }
+     ]
+    ],
+    "name": "open_request_resumed_or_mentioned"
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "M09",
+   "source": "[9]→[10]",
+   "group": "A",
+   "title": "The owner asks how gold is doing: one reply with an analysis of the account's gold symbol, no question.",
+   "turn": 9,
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "الذهب"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M11",
+   "source": "[11]→[12]",
+   "group": "A",
+   "title": "«ضع حرف m» right after XAUUSD failed: the agent reads XAUUSDm and answers, it does not ask what was meant.",
+   "turn": 11,
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ]
+  },
+  {
+   "id": "M13",
+   "source": "[13]→[14]",
+   "group": "A",
+   "title": "The owner had to type the symbol himself: the answer is the gold analysis he asked for, not the contract specification.",
+   "turn": 13,
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "XAUUSDM"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M15",
+   "source": "[15]→[16]",
+   "group": "B",
+   "title": "«ياريت» after the offer to fetch price and direction: the offer is executed.",
+   "turn": 15,
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles",
+    "market_quote"
+   ],
+   "expect": [
+    {
+     "call": [
+      "market_snapshot",
+      "market_structure",
+      "market_candles",
+      "market_quote"
+     ],
+     "result": {
+      "symbol": "$XAUUSD"
+     },
+     "name": "call:gold_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:price",
+     "words": [
+      "4049",
+      "4050"
+     ]
+    },
+    {
+     "reply": "no_question"
+    }
+   ]
+  },
+  {
+   "id": "M17",
+   "source": "[17]→[18]",
+   "group": "B",
+   "title": "«ياريت» after the offer of a buy/sell/wait reading: the reading is given.",
+   "turn": 17,
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    {
+     "call": [
+      "market_snapshot",
+      "market_structure",
+      "market_candles",
+      "market_quote"
+     ],
+     "result": {
+      "symbol": "$XAUUSD"
+     },
+     "name": "call:gold_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:verdict",
+     "words": [
+      "شراء",
+      "بيع",
+      "انتظار"
+     ]
+    },
+    {
+     "reply": "no_question"
+    }
+   ]
+  },
+  {
+   "id": "M28",
+   "source": "[28]→[29]",
+   "group": "B",
+   "title": "«شو وضعه» about the open position: a live read, not the last known value.",
+   "turn": 28,
+   "state": [
+    "position",
+    {
+     "bids": {
+      "XAUUSD": "4051.299"
+     }
+    },
+    "task_watch"
+   ],
+   "tools": [
+    "account_read"
+   ],
+   "expect": [
+    {
+     "call": "account_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:live_profit",
+     "words": [
+      "0.48"
+     ]
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "account_read",
+      "arguments": {
+       "account_id": "$account"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M23",
+   "source": "[23]→[24]",
+   "group": "D",
+   "title": "«خذ صفقة شراء» under the signed full mandate: executed with the mandate's default size, and the size is stated.",
+   "turn": 23,
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "trade_execute"
+   ],
+   "expect": [
+    {
+     "call": "trade_execute",
+     "with": {
+      "action": "buy",
+      "symbol": "$XAUUSD"
+     }
+    },
+    {
+     "state": "positions",
+     "where": {
+      "symbol": "$XAUUSD",
+      "type": "POSITION_TYPE_BUY"
+     },
+     "count": 1
+    },
+    {
+     "reply": "states_volume"
+    }
+   ]
+  },
+  {
+   "id": "M30",
+   "source": "[30]→[31]",
+   "group": "D",
+   "title": "«خذ 10 صفقات… وقفهم»: a plan with numbers in one card, or execution inside the mandate. Never a refusal.",
+   "turn": 30,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "wait_for_input",
+    "trade_execute"
+   ],
+   "expect": [
+    {
+     "any": [
+      [
+       {
+        "card": {
+         "numbers": true
+        }
+       }
+      ],
+      [
+       {
+        "call": "trade_execute",
+        "with": {
+         "action": "buy"
+        }
+       }
+      ]
+     ],
+     "name": "plan_card_or_execution"
+    }
+   ]
+  },
+  {
+   "id": "M34",
+   "source": "[34]→[35]",
+   "group": "D",
+   "title": "Target +2 USD and loss -1 USD: the open position gets take-profit 4052.82 and stop-loss 4049.82 (from the contract size), with one confirmation line.",
+   "turn": 34,
+   "state": [
+    "position",
+    {
+     "bids": {
+      "XAUUSD": "4051.792"
+     }
+    },
+    "task_watch"
+   ],
+   "tools": [
+    "trade_execute"
+   ],
+   "expect": [
+    "tp_sl_on_position"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "trade_execute",
+      "arguments": {
+       "action": "modify_position",
+       "account_id": "$account",
+       "symbol": "$XAUUSD",
+       "position_id": "$position",
+       "take_profit": "4052.82",
+       "stop_loss": "4049.82"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M36",
+   "source": "[36]→[37]",
+   "group": "C",
+   "title": "«طيب» after the offer of a conditional close order: the +2/-1 exit is really armed.",
+   "turn": 36,
+   "state": [
+    "position",
+    {
+     "bids": {
+      "XAUUSD": "4051.955"
+     }
+    },
+    "task_watch"
+   ],
+   "tools": [
+    "trade_execute",
+    "watch_create"
+   ],
+   "expect": [
+    "exit_plan_armed"
+   ]
+  },
+  {
+   "id": "M38",
+   "source": "[38]→[39]",
+   "group": "C",
+   "title": "«تمام» after «أتابعه لك وأغلقه عند +2 أو -1»: the exit is really armed.",
+   "turn": 38,
+   "state": [
+    "position",
+    {
+     "bids": {
+      "XAUUSD": "4051.379"
+     }
+    },
+    "task_watch"
+   ],
+   "tools": [
+    "trade_execute",
+    "watch_create"
+   ],
+   "expect": [
+    "exit_plan_armed"
+   ]
+  },
+  {
+   "id": "M40",
+   "source": "[40]→[41]",
+   "group": "C",
+   "title": "«راقبه بس صار ربح 100 دولار سكره»: a watch on the position (profit at or above 100 closes it) or take-profit 4150.82, with one confirmation line.",
+   "turn": 40,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_create",
+    "trade_execute"
+   ],
+   "expect": [
+    "close_at_100"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_create",
+      "arguments": {
+       "kind": "position",
+       "account_id": "$account",
+       "symbol": "$XAUUSD",
+       "position_id": "$position",
+       "metric": "profit",
+       "condition": "above",
+       "level": "100",
+       "prompt": "ربح المركز وصل 100 دولار: أغلقه الآن."
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M42",
+   "source": "[42]→[43]",
+   "group": "C",
+   "title": "«تمام» after the offer to put the position under a watch until +100 USD: the watch exists.",
+   "turn": 42,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_create",
+    "trade_execute"
+   ],
+   "expect": [
+    "close_at_100"
+   ]
+  },
+  {
+   "id": "M46",
+   "source": "[46]→[47]",
+   "group": "C",
+   "title": "«لا انو تابعه»: the standing condition exists after the turn.",
+   "turn": 46,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_create",
+    "trade_execute"
+   ],
+   "expect": [
+    "close_at_100"
+   ]
+  },
+  {
+   "id": "M52",
+   "source": "[52]→[53]",
+   "group": "C",
+   "title": "«لا لا بس وصلت 100 سكره», the third time: the standing condition exists after the turn.",
+   "turn": 52,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_create",
+    "trade_execute"
+   ],
+   "expect": [
+    "close_at_100"
+   ]
+  },
+  {
+   "id": "M54",
+   "source": "[54]→[55]",
+   "group": "C",
+   "title": "«طيب» after «أتابعه لك حتى يصل للهدف»: the standing condition exists after the turn.",
+   "turn": 54,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_create",
+    "trade_execute"
+   ],
+   "expect": [
+    "close_at_100"
+   ]
+  },
+  {
+   "id": "M56",
+   "source": "[56]→[57]",
+   "group": "C",
+   "title": "«اي زوج عم تراقب ؟»: answered from the live watches (EURUSDm), not from a claim.",
+   "turn": 56,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_list",
+    "agent_inspect"
+   ],
+   "expect": [
+    {
+     "call": [
+      "watch_list",
+      "agent_inspect"
+     ],
+     "name": "call:live_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:watched_pair",
+     "words": [
+      "EURUSD"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "M58",
+   "source": "[58]→[59]",
+   "group": "F",
+   "title": "«و المهمة الشغالة على اي زوج ؟»: the answer names the pair and shows no internal state.",
+   "turn": 58,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_list",
+    "agent_inspect"
+   ],
+   "expect": [
+    {
+     "call": [
+      "watch_list",
+      "agent_inspect"
+     ],
+     "name": "call:live_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:watched_pair",
+     "words": [
+      "EURUSD"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "M62",
+   "source": "[62]→[63]",
+   "group": "C",
+   "title": "«ألغِ المهمة بالكامل» chosen on the card: the EURUSDm watch is really cancelled, and nothing is created instead.",
+   "turn": 62,
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "watch_cancel"
+   ],
+   "expect": [
+    {
+     "call": "watch_cancel"
+    },
+    {
+     "state": "watches",
+     "where": {
+      "enabled": true
+     },
+     "count": 0,
+     "name": "state:eurusd_watch_cancelled"
+    },
+    {
+     "no_call": "watch_create",
+     "name": "no_trial_resource"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch0"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "M64",
+   "source": "[64]→[65]",
+   "group": "F",
+   "title": "«شو المهام الموجودة الان»: every watch is listed from a live read, with no internal state or resource name.",
+   "turn": 64,
+   "state": [
+    "position",
+    "placeholders"
+   ],
+   "tools": [
+    "watch_list",
+    "agent_inspect"
+   ],
+   "expect": [
+    {
+     "call": [
+      "watch_list",
+      "agent_inspect"
+     ],
+     "name": "call:live_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:lists_first_level",
+     "words": [
+      "1.11305"
+     ]
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:lists_second_level",
+     "words": [
+      "1.2"
+     ]
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_list",
+      "arguments": {}
+     }
+    ],
+    "expect": [
+     {
+      "call": "watch_list",
+      "result": {
+       "watches": {
+        "length": 3
+       }
+      },
+      "name": "lists_every_watch"
+     }
+    ]
+   }
+  },
+  {
+   "id": "M68",
+   "source": "[68]→[69]",
+   "group": "C",
+   "title": "The owner chose deletion on the card: watch_cancel for every watch, a check with watch_list, one line.",
+   "turn": 68,
+   "state": [
+    "position",
+    "placeholders"
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted",
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 0,
+     "name": "state:account_task_kept"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch0"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch1"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch2"
+      }
+     },
+     {
+      "tool": "watch_list",
+      "arguments": {}
+     }
+    ]
+   }
+  },
+  {
+   "id": "M70",
+   "source": "[70]→[71]",
+   "group": "C",
+   "title": "«؟» after «سأحذف» with nothing done: the deletion is carried out.",
+   "turn": 70,
+   "state": [
+    "position",
+    "placeholders"
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted",
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 0,
+     "name": "state:account_task_kept"
+    }
+   ]
+  },
+  {
+   "id": "M72",
+   "source": "[72]→[73]",
+   "group": "C",
+   "title": "«ليش ماتقدر»: the deletion is carried out; the guard is not explained to the owner.",
+   "turn": 72,
+   "state": [
+    "position",
+    "placeholders",
+    "task_cancelled"
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted"
+   ]
+  },
+  {
+   "id": "M74",
+   "source": "[74]→[75]",
+   "group": "C",
+   "title": "«شوف ادواتك»: the agent finds its cancel tool and deletes; no tool name reaches the owner.",
+   "turn": 74,
+   "state": [
+    "position",
+    "placeholders",
+    "task_cancelled"
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "tool_environment",
+      "arguments": {
+       "query": "حذف المتابعات"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "call": "tool_environment",
+      "result": {
+       "contains": "watch_cancel"
+      },
+      "name": "finds_the_cancel_tool"
+     }
+    ]
+   }
+  },
+  {
+   "id": "M76",
+   "source": "[76]→[77]",
+   "group": "C",
+   "title": "«جرب» after the offer to try the cancel tool: the watches are cancelled and nothing is created as a trial.",
+   "turn": 76,
+   "state": [
+    "position",
+    "placeholders",
+    "task_cancelled"
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted"
+   ]
+  },
+  {
+   "id": "M78",
+   "source": "[78]→[79]",
+   "group": "C",
+   "title": "«مرحبا» while the deletion is still not done: the open request is resumed or mentioned.",
+   "turn": 78,
+   "state": [
+    "position",
+    "cancel_test"
+   ],
+   "tools": [
+    "watch_cancel"
+   ],
+   "expect": [
+    "open_request_kept"
+   ]
+  },
+  {
+   "id": "M80",
+   "source": "[80]→[81]",
+   "group": "C",
+   "title": "«ماذا تستطيع أن تفعل؟» while the deletion is still not done: the open request is resumed or mentioned.",
+   "turn": 80,
+   "state": [
+    "position",
+    "cancel_test"
+   ],
+   "tools": [
+    "watch_cancel"
+   ],
+   "expect": [
+    "open_request_kept"
+   ]
+  },
+  {
+   "id": "M48",
+   "source": "[48]→[49]",
+   "group": "E",
+   "title": "A 7-second Arabic voice note: the reply is in Arabic and does not ask the owner to type.",
+   "turn": 48,
+   "voice": {
+    "heard": "تمام خليك متابعه",
+    "misheard": "ımuz lazım birasta"
+   },
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "wait_for_input"
+   ],
+   "expect": [
+    {
+     "heard": "تمام خليك متابعه",
+     "name": "voice_heard_in_arabic"
+    }
+   ]
+  },
+  {
+   "id": "M50",
+   "source": "[50]→[51]",
+   "group": "E",
+   "title": "A 5-second Arabic voice note: the reply is in Arabic.",
+   "turn": 50,
+   "voice": {
+    "heard": "قصدي بس يوصل الربح مية دولار سكره",
+    "misheard": "Bu korkuluklar nasıl hakkında"
+   },
+   "state": [
+    "position",
+    "task_watch"
+   ],
+   "tools": [
+    "wait_for_input"
+   ],
+   "expect": [
+    {
+     "heard": "قصدي بس يوصل الربح مية دولار سكره",
+     "name": "voice_heard_in_arabic"
+    }
+   ],
+   "probe": {
+    "calls": [],
+    "expect": [
+     {
+      "heard": "قصدي بس يوصل الربح مية دولار سكره",
+      "name": "voice_heard_in_arabic"
+     }
+    ]
+   }
+  },
+  {
+   "id": "G01",
+   "source": "[1]→[2]",
+   "group": "G",
+   "title": "«مرحبا» on a fresh install (a provider credential saved, no model chosen): the owner still gets a reply.",
+   "turn": 1,
+   "state": [
+    {
+     "model_routing": "unset"
+    }
+   ],
+   "tools": [
+    "wait_for_input"
+   ],
+   "expect": [
+    {
+     "status": "completed"
+    },
+    {
+     "reply": "present"
+    }
+   ]
+  },
+  {
+   "id": "X_c",
+   "source": "extra",
+   "group": "A",
+   "title": "«شو وضع الذهب» on an account that names gold XAUUSDc: the same one-reply analysis.",
+   "message": "طيب شو وضع الذهب",
+   "variant": "c",
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "الذهب"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_pro",
+   "source": "extra",
+   "group": "A",
+   "title": "«شو وضع الذهب» on an account that names gold XAUUSD.pro: the same one-reply analysis.",
+   "message": "طيب شو وضع الذهب",
+   "variant": "pro",
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "الذهب"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_gold",
+   "source": "extra",
+   "group": "A",
+   "title": "«شو وضع الذهب» on an account that names gold GOLD: the same one-reply analysis.",
+   "message": "طيب شو وضع الذهب",
+   "variant": "gold",
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "الذهب"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_code",
+   "source": "extra",
+   "group": "A",
+   "title": "The owner types the bare code XAUUSD on the XAUUSDm account: resolved silently.",
+   "message": "شو وضع XAUUSD",
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_snapshot",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "XAUUSD"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_alias",
+   "source": "extra",
+   "group": "A",
+   "title": "The owner says GOLD on the XAUUSDm account: resolved silently.",
+   "message": "كم سعر GOLD هلق",
+   "state": [],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles",
+    "market_quote"
+   ],
+   "expect": [
+    {
+     "call": [
+      "market_snapshot",
+      "market_structure",
+      "market_candles",
+      "market_quote"
+     ],
+     "result": {
+      "symbol": "$XAUUSD"
+     },
+     "name": "call:gold_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:price",
+     "words": [
+      "4049",
+      "4050"
+     ]
+    },
+    {
+     "reply": "no_question"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_quote",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "GOLD"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_unknown",
+   "source": "extra",
+   "group": "A",
+   "title": "A symbol the account does not have (XAUEUR): one card with the nearest candidates.",
+   "message": "شو وضع XAUEUR",
+   "state": [],
+   "tools": [
+    "wait_for_input",
+    "market_symbols"
+   ],
+   "expect": [
+    {
+     "card": {
+      "mentions": [
+       "$XAUUSD",
+       "$EURUSD"
+      ]
+     }
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_quote",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "XAUEUR"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "call": "market_quote",
+      "ok": false,
+      "result": {
+       "candidates": {
+        "contains": "$XAUUSD"
+       }
+      },
+      "name": "refusal:candidates"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_drop",
+   "source": "extra",
+   "group": "A",
+   "title": "The broker connection drops in the middle of the turn: the agent recovers and answers, with no code.",
+   "message": "طيب شو وضع الذهب",
+   "state": [
+    {
+     "faults": [
+      {
+       "kind": "connection_drop",
+       "after": 4,
+       "times": 2
+      }
+     ]
+    }
+   ],
+   "tools": [
+    "market_snapshot",
+    "market_structure",
+    "market_candles"
+   ],
+   "expect": [
+    "gold_analysis"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "market_quote",
+      "arguments": {
+       "account_id": "$account",
+       "symbol": "$XAUUSD"
+      }
+     }
+    ],
+    "state": {
+     "faults": [
+      {
+       "kind": "connection_drop",
+       "times": 9
+      }
+     ]
+    },
+    "expect": [
+     {
+      "call": "market_quote",
+      "ok": false,
+      "result": {
+       "class": "connection",
+       "retryable": true
+      },
+      "name": "refusal:connection_retryable"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_rate",
+   "source": "extra",
+   "group": "B",
+   "title": "The broker rate-limits the first reads: the agent recovers and reads live, with no code.",
+   "message": "شو وضعه",
+   "history_until": 27,
+   "state": [
+    "position",
+    {
+     "bids": {
+      "XAUUSD": "4051.299"
+     },
+     "faults": [
+      {
+       "kind": "rate_limit",
+       "after": 0,
+       "times": 2
+      }
+     ]
+    }
+   ],
+   "tools": [
+    "account_read"
+   ],
+   "expect": [
+    {
+     "call": "account_read"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:live_profit",
+     "words": [
+      "0.48"
+     ]
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "account_read",
+      "arguments": {
+       "account_id": "$account"
+      }
+     }
+    ],
+    "state": {
+     "faults": [
+      {
+       "kind": "rate_limit",
+       "times": 9
+      }
+     ]
+    },
+    "expect": [
+     {
+      "call": "account_read",
+      "ok": false,
+      "result": {
+       "retryable": true
+      },
+      "name": "refusal:retryable"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_args",
+   "source": "extra",
+   "group": "D",
+   "title": "A size below the contract minimum (0.001): no «تم», no code; the minimum is named.",
+   "message": "خذ صفقة شراء ذهب بحجم 0.001",
+   "state": [],
+   "tools": [],
+   "expect": [
+    {
+     "state": "positions",
+     "where": {
+      "volume": 0.001
+     },
+     "count": 0,
+     "name": "state:no_invalid_position"
+    },
+    {
+     "reply": "mentions",
+     "name": "reply:names_minimum",
+     "words": [
+      "0.01"
+     ]
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "trade_execute",
+      "arguments": {
+       "action": "buy",
+       "account_id": "$account",
+       "symbol": "$XAUUSD",
+       "volume": "0.001"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "call": "trade_execute",
+      "ok": false,
+      "result": {
+       "class": "input"
+      },
+      "name": "refusal:input"
+     },
+     {
+      "state": "positions",
+      "count": 0,
+      "name": "state:nothing_executed"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_permission",
+   "source": "extra",
+   "group": "D",
+   "title": "A buy with no signed mandate: nothing is executed and the permission is requested with a card.",
+   "message": "خذ صفقة شراء ذهب بحجم 0.01",
+   "state": [
+    {
+     "mandate": "none"
+    }
+   ],
+   "tools": [
+    "owner_action_propose",
+    "trade_execute"
+   ],
+   "expect": [
+    {
+     "state": "positions",
+     "count": 0,
+     "name": "state:nothing_executed"
+    },
+    {
+     "any": [
+      [
+       {
+        "call": "owner_action_propose"
+       }
+      ],
+      [
+       {
+        "waits": "trade_execute"
+       }
+      ]
+     ],
+     "name": "permission_card"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "trade_execute",
+      "arguments": {
+       "action": "buy",
+       "account_id": "$account",
+       "symbol": "$XAUUSD",
+       "volume": "0.01"
+      }
+     }
+    ],
+    "expect": [
+     {
+      "state": "positions",
+      "count": 0,
+      "name": "state:nothing_executed"
+     },
+     {
+      "any": [
+       [
+        {
+         "waits": "trade_execute"
+        }
+       ],
+       [
+        {
+         "call": "trade_execute",
+         "ok": false,
+         "result": {
+          "class": "permission"
+         }
+        }
+       ]
+      ],
+      "name": "refusal:permission"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_owner",
+   "source": "extra",
+   "group": "C",
+   "title": "The watches belong to another agent of the owner: the Personal Agent still lists and cancels every one of them.",
+   "message": "احذف كل المتابعات",
+   "state": [
+    {
+     "watches": [
+      {
+       "owner": "other",
+       "symbol": "$EURUSD",
+       "condition": "below",
+       "level": "1.11305",
+       "prompt": "EURUSDm level"
+      },
+      {
+       "owner": "other",
+       "symbol": "$EURUSD",
+       "condition": "above",
+       "level": "1.2",
+       "prompt": "EURUSDm level"
+      },
+      {
+       "owner": "lonora",
+       "symbol": "$EURUSD",
+       "condition": "below",
+       "level": "1.11305",
+       "prompt": "placeholder"
+      }
+     ]
+    }
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch0"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch1"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch2"
+      }
+     },
+     {
+      "tool": "watch_list",
+      "arguments": {}
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_task",
+   "source": "extra",
+   "group": "C",
+   "title": "Cancelling the account Task also stops the watch it created.",
+   "message": "ألغِ مهمة إدارة حساب التداول بالكامل",
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "task_control"
+   ],
+   "expect": [
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 1,
+     "name": "state:task_cancelled"
+    },
+    {
+     "state": "watches",
+     "where": {
+      "of_task": true,
+      "enabled": true
+     },
+     "count": 0,
+     "name": "state:task_watch_stopped"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "task_control",
+      "arguments": {
+       "task_id": "$task",
+       "action": "cancel",
+       "expected_version": "$task_version"
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

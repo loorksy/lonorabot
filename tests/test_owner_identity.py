@@ -2,6 +2,7 @@
 field by field, restorable, and other preferences stay as they are."""
 
 import os
+from typing import Any, cast
 
 import pytest
 
@@ -24,7 +25,7 @@ async def test_name_and_address_save_log_and_restore():
         assert saved["reach_me"]["channel"] == before["reach_me"]["channel"]
         await fixture.request("PUT", "/owner/preferences", {"name": "أحمد سالم"})
         revisions = await fixture.request("GET", "/owner/profile/revisions?limit=5")
-        latest = revisions[0]
+        latest = cast("list[dict[str, Any]]", revisions)[0]
         fields = {item["field"]: item for item in latest["changes"]}
         assert fields["name"] == {"field": "name", "before": "أحمد", "after": "أحمد سالم"}
         assert "address" not in fields

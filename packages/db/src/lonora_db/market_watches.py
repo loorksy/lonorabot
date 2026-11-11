@@ -6,10 +6,11 @@ from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.market_watch import Watch
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import IntegrationRow, MarketWatchRow
+from .schema import IntegrationRow, MarketWatchRow, TicketRow
 from .threads import create_thread
 from .trading_goals import owned_goal, planned_step
 from .transactions import ResourceRepository, ResourceRow, owned_agent, owned_thread
@@ -97,6 +98,18 @@ WatchAction = Literal["cancel", "pause", "resume"]
 STOP_CODES = {"cancel": "watch_cancelled", "pause": "watch_paused"}
 
 
+def stop_watch(row: MarketWatchRow, code: str) -> None:
+    """Switch a watch off and record why. Its evaluation fields go with it: a stored
+    ``evaluation_status: active`` or a coming ``next_check`` reads as a live watch."""
+    state = {
+        key: value
+        for key, value in row.state.items()
+        if key not in {"evaluation_status", "next_check"}
+    }
+    row.payload = {**row.payload, "enabled": False}
+    row.state = {**state, "code": code}
+
+
 def watch_active(row: MarketWatchRow, now: datetime | None = None) -> bool:
     """Enabled, not expired and not past its expiry: it is watching right now."""
     if not row.payload.get("enabled", True) or row.state.get("lifecycle") == "expired":
@@ -173,8 +186,7 @@ async def control_watch(
         code = STOP_CODES[action]
         if not row.payload.get("enabled", True) and row.state.get("code") == code:
             return row
-        row.payload = {**row.payload, "enabled": False}
-        row.state = {**row.state, "code": code}
+        stop_watch(row, code)
         _changed(session, row, by)
         return row
     if watch_active(row):
@@ -182,6 +194,10 @@ async def control_watch(
     expires = row.payload.get("expires_at")
     if expires and datetime.fromisoformat(str(expires)) <= utcnow():
         raise LonoraError("watch_expired", 409)
+    task = await session.get(TicketRow, row.state.get("task_id") or "")
+    if task is not None and task_ended(task):
+        # It could only poll: its Task is over, so it would stop itself when it fired.
+        raise LonoraError("watch_task_ended", 409)
     state = {key: value for key, value in row.state.items() if key != "code"}
     if state.get("lifecycle") == "expired":
         state["lifecycle"] = "pending"
@@ -190,6 +206,41 @@ async def control_watch(
     row.state = state
     _changed(session, row, by)
     return row
+
+
+def task_ended(task: TicketRow) -> bool:
+    """Cancelled or completed, or the owner asked for either while a worker holds the Run."""
+    state: dict[str, Any] = task.state.get("task", {})
+    return state.get("status") in {"cancelled", "completed"} or state.get("control_requested") in {
+        "cancel",
+        "complete",
+    }
+
+
+async def settle_task_watches(session: AsyncSession, task: TicketRow) -> None:
+    """Stop the watches a Task's Runs created once the Task is cancelled or completed.
+
+    The owner's request counts from the moment it is made, also while a worker still
+    holds the Run: a watch can wake an Agent that holds a signed mandate, so a Task the
+    owner ended leaves no trigger behind. A watch already paused or cancelled is settled
+    too, so it cannot be resumed into a Task that is over (``control_watch``). A paused
+    or failed Task keeps its watches (it resumes); another Task's and the conversation's
+    watches are not this Task's.
+    """
+    if not task_ended(task):
+        return
+    for row in await session.scalars(
+        select(MarketWatchRow)
+        .where(
+            MarketWatchRow.owner_id == task.owner_id,
+            MarketWatchRow.state["task_id"].as_string() == task.id,
+        )
+        .order_by(MarketWatchRow.id)
+        .with_for_update()
+    ):
+        if row.payload.get("enabled", True) or row.state.get("code") != "task_terminal":
+            stop_watch(row, "task_terminal")
+            _changed(session, row, "task")
 
 
 async def update_watch(

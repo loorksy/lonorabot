@@ -122,5 +122,6 @@ def tools() -> list[Tool]:
             "Apply a contextual task pause/resume/cancel/plan revision with optimistic version checking. Completed steps cannot be rewritten. Pause/cancel occurs at a safe tool boundary.",
             TaskControl,
             control,
+            search_terms="delete remove cancel stop clear erase suspend حذف احذف امسح مسح ألغ ألغِ الغ إلغاء الغاء أوقف وقف ايقاف إيقاف شيل ازل أزل إزالة علق task tasks job jobs مهمة المهمة مهام المهام",
         ),
     ]

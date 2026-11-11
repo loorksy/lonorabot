@@ -149,10 +149,15 @@ def visual_nodes(node: VisualNode) -> list[VisualNode]:
 
 
 def visual_documents(answer: MessageRow) -> list[VisualDocument]:
+    """The reply's native visual documents (the journeys here are the v1 component tree)."""
     if answer.rich_content is None:
         return []
     rich = RichContent.model_validate(answer.rich_content)
-    return [part.document for part in rich.parts if part.type == "ui"]
+    return [
+        part.document
+        for part in rich.parts
+        if part.type == "ui" and isinstance(part.document, VisualDocument)
+    ]
 
 
 def assert_visual_journey(

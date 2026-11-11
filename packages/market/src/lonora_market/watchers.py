@@ -21,6 +21,7 @@ from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.market_snapshots import snapshot_id
+from lonora_db.market_watches import stop_watch
 from lonora_db.runs import create_run
 from lonora_db.schema import (
     AgentRow,
@@ -60,8 +61,7 @@ async def disable_watch(session: AsyncSession, watch_id: str) -> bool:
     """Quarantine: a watch that keeps failing is disabled until it is re-enabled."""
     row = await session.get(MarketWatchRow, watch_id, with_for_update=True)
     if row is not None:
-        row.payload = {**row.payload, "enabled": False}
-        row.state = {**row.state, "code": "watch_quarantined"}
+        stop_watch(row, "watch_quarantined")
         row.version += 1
     return True
 
@@ -658,10 +658,9 @@ async def check_watch(
                 if task_run_id and (
                     task_run is None or task_run.status in {"completed", "failed", "cancelled"}
                 ):
-                    row.payload = {**row.payload, "enabled": False}
-                    row.version += 1
-                    state["code"] = "task_terminal"
                     row.state = state
+                    stop_watch(row, "task_terminal")
+                    row.version += 1
                     return triggered
                 if task_run is not None:
                     # A tainted watch resumes its Task tainted (GENUI_PLAN §8.5); a new

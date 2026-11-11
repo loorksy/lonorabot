@@ -116,5 +116,6 @@ def tools() -> list[Tool]:
             "Pause or resume one of your own routines, or one of an agent you supervise.",
             RoutineToggle,
             toggle,
+            search_terms="stop disable schedule scheduled حذف احذف امسح مسح ألغ ألغِ الغ إلغاء الغاء أوقف وقف ايقاف إيقاف شيل ازل أزل إزالة جدول الجدول مجدول المجدولة روتين الروتين",
         ),
     ]
