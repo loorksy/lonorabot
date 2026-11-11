@@ -309,15 +309,15 @@ test.describe("phone shell (390×844, Arabic)", () => {
       const main = page.locator("#view-scroll");
       const nav = page.locator("nav.tabbar");
       await main.evaluate((element) => {
-        element.scrollTop = 250;
+        element.scrollTop = 120;
       });
-      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(120);
       await nav.locator('button[data-root="tasks"]').click();
       await expect(page).toHaveURL(/\/app\/tasks$/);
       await expect.poll(() => page.locator(".pager-ghost").count()).toBe(0);
       await nav.locator('button[data-root="settings"]').click();
       await expect(page).toHaveURL(/\/app\/settings$/);
-      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(120);
       // The chat list rests past its filters, and stays so after a round trip or a chat.
       const filters = () =>
         main.evaluate((element) => ({
@@ -703,20 +703,21 @@ test.describe("phone with touch (390×844, Arabic)", () => {
   });
 });
 
-/** Leave the settings page scrolled, open an inner page, come back: the list is where it was. */
+/** Leave the settings page scrolled, open an inner page, come back: the list is where it was.
+    The positions stay within the short list's travel on a phone. */
 async function settingsScrollRoundTrip(page) {
   await page.goto("/app/settings");
   const main = page.locator("#view-scroll");
   await expect(page.getByText("الإشعارات والتواصل")).toBeVisible();
   await main.evaluate((element) => {
-    element.scrollTop = 300;
+    element.scrollTop = 160;
   });
-  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(160);
   await page.getByText("الإشعارات والتواصل").click();
   await expect(page).toHaveURL(/\/app\/notify-settings$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/app\/settings$/);
-  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(160);
 }
 
 test.describe("desktop shell (1280×800, Arabic)", () => {
@@ -796,7 +797,7 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await expect(page).toHaveURL(/\/app\/settings$/);
       await expect
         .poll(() => page.locator("#view-scroll").evaluate((element) => element.scrollTop))
-        .toBe(300);
+        .toBe(160);
     } finally {
       fixture({ ...data, action: "cleanup" });
     }

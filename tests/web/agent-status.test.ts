@@ -310,7 +310,7 @@ test("the quota card follows Q22: no spend cap to raise, the provider's own quot
   const { readFileSync } = await import("node:fs");
   const cards = readFileSync("apps/web/src/conversation/Cards.tsx", "utf8");
   assert.doesNotMatch(cards, /Edit the limit`|Raise the limit|usage limit/);
-  assert.match(cards, /family === "quota" \? t`View usage`/);
+  assert.match(cards, /family === "quota"\s+\? t`View usage`/);
 });
 
 test("R1/R2: the executor's own rows: a never-sent order is Requested → Blocked; no «try again» on money", async () => {
