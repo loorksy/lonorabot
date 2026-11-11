@@ -37,13 +37,13 @@ from typing import Any, ClassVar, cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.environment import observe
 from lonora_agent.executor import execute_run
 from lonora_agent.tool_dispatch import dispatch_call
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import MessageRow, RunRow
+from lonora_providers.registry import model_adapter
 from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -160,24 +160,22 @@ async def send(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> str:
         return run.id
 
 
-def failing_factory(factory: Any, failures: int) -> Any:
-    """The model provider is unavailable for the first ``failures`` requests of the turn."""
-    left = [failures]
+class AnyModel(genui.RecordingAdapter):
+    """The recording adapter for a turn whose model the product chooses itself."""
 
-    def build(provider: str, secret: str) -> Any:
-        adapter = factory(provider, secret)
-        complete = adapter.complete
+    async def complete(self, model: str, *args: Any, **kwargs: Any) -> Any:
+        self.model = model
+        return await super().complete(model, *args, **kwargs)
 
-        async def failing(*args: Any, **kwargs: Any) -> Any:
-            if left[0] > 0:
-                left[0] -= 1
-                raise ModelProviderError(FailureReason.OVERLOADED, http_status=503)
-            return await complete(*args, **kwargs)
 
-        adapter.complete = failing
-        return adapter
+def recording_factory(model: str | None, log: list[dict[str, Any]], origin: float) -> Any:
+    if model is not None:
+        return genui.recording_factory(model, log, origin)
 
-    return build
+    def factory(provider: str, secret: str) -> Any:
+        return AnyModel(model_adapter(provider, secret), "", log, origin)
+
+    return factory
 
 
 async def probe(
@@ -220,7 +218,7 @@ async def run_case(
         started = time.monotonic()
         try:
             await api.login()
-            watches = await bank.prepare(api, ids, scenario)
+            names = await bank.prepare(api, ids, scenario)
             bank.arm(fake, scenario, probe=model is None)
             started = time.monotonic()
             run_id = await send(api, ids, scenario)
@@ -235,8 +233,7 @@ async def run_case(
                 )
 
             if model is None:
-                names = {"$account": ids["account_id"], "$position": str(fake.tickets)}
-                names.update({f"$watch{n}": watch for n, watch in enumerate(watches)})
+                names |= {"$account": ids["account_id"], "$position": str(fake.tickets)}
                 steps = json.loads(
                     re.sub(
                         r"\$\w+",
@@ -247,9 +244,9 @@ async def run_case(
                 await probe(await leased(), registry, calls, steps)
                 status = "probe"
             else:
-                factory = genui.recording_factory(model, log, started)
-                faults = scenario["state"].get("model_faults", 0)
-                factory = failing_factory(factory, faults) if faults else factory
+                # With no routing saved the product picks the model: record whichever it is.
+                chosen = None if scenario["state"].get("model_routing") == "unset" else model
+                factory = recording_factory(chosen, log, started)
                 async with asyncio.timeout(genui.CASE_SECONDS):
                     # The loop requeues a turn for a read retry; the worker picks it up again.
                     for _ in range(WORKER_PICKUPS):

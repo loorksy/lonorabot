@@ -104,6 +104,13 @@ OFFER = re.compile(
     r"|\bif\s+you\s+(?:want|like|wish|prefer)\b|\bwould\s+you\s+like\b",
     re.I,
 )
+# What a "done" says was done, and what a promise says will stand.
+REMOVAL = re.compile(
+    r"لغ[يا]|إلغاء|الغاء|حذف|زيل|زلت|مسح|غلق|إغلاق|سك[ّ]?ر|وق[ّ]?ف|إيقاف|cancel|delet|remov|clos|stop",
+    re.I,
+)
+WATCHING = re.compile(r"تابع|راقب|نب[ّ]?ه|خبر|بل[ّ]?غ|ستصلك|watch|monitor|track|alert|notif", re.I)
+STOPS = frozenset({"cancel", "close", "pause", "toggle", "control", "silence"})
 # A statement about the past (history read from the account) claims no effect of this turn.
 PAST = re.compile(
     rf"(?<!{AR})(?:أمس|امس|البارحة|سابق[اً]*|منذ|قبل\s+(?:قليل|ساعة|يوم))(?!{AR})|\byesterday\b"
@@ -307,15 +314,45 @@ def statements(text: str) -> Iterator[str]:
         yield sentence[: offer.start()] if offer else sentence
 
 
-def claims(text: str) -> list[str]:
-    """Every "done" and every promise the reply states."""
-    found: list[str] = []
+def claims(text: str) -> list[tuple[str, str]]:
+    """Every "done" and every promise the reply states, with the kind of effect it needs:
+    "removal" (cancelled, deleted, closed), "watching" (a standing trigger) or "any"."""
+    found: list[tuple[str, str]] = []
     for sentence in statements(text):
         done = None if PAST.search(sentence) else DONE.search(sentence)
-        match = done or PROMISE.search(sentence)
-        if match:
-            found.append(match[0].strip())
+        promise = PROMISE.search(sentence)
+        if done:
+            # What was done is the verb itself or the noun right after «تم».
+            said = sentence[done.start() : done.end() + 16]
+            found.append((done[0].strip(), "removal" if REMOVAL.search(said) else "any"))
+        elif promise:
+            found.append((promise[0].strip(), "watching" if WATCHING.search(promise[0]) else "any"))
     return found
+
+
+def removals(record: Mapping[str, Any]) -> list[str]:
+    """The successful effects that cancel, stop or close something: by the tool's own name,
+    or a trade action that closes or cancels."""
+    return [
+        call["tool"]
+        for call in record["tool_calls"]
+        if succeeded(call)
+        and (
+            STOPS & set(call["tool"].split("_"))
+            or str(call["arguments"].get("action", "")).split("_")[0] in STOPS
+        )
+    ]
+
+
+def triggers(record: Mapping[str, Any]) -> list[str]:
+    """The successful effects that leave something standing after the turn: a created
+    watch, routine or goal, a started Task, or an order at the broker."""
+    tools = load_tools().tools
+    return [
+        name
+        for name in effects(record)
+        if tools[name].financial or name.endswith(("_create", "_start"))
+    ]
 
 
 def effects(record: Mapping[str, Any]) -> list[str]:
@@ -357,10 +394,26 @@ def conditions(scenario: Mapping[str, Any], record: Mapping[str, Any]) -> dict[s
     inability = INABILITY.search(text)
     if inability and any(name in known.tools for name in scenario["tools"]):
         failed["claims_inability"] = inability[0]
-    if not effects(record):
-        stated = claims("\n".join(record["replies"]))
-        if stated:
-            failed["unbacked_claim"] = ", ".join(stated)
+    done, stated = effects(record), claims("\n".join(record["replies"]))
+    if stated and not done:
+        failed["unbacked_claim"] = ", ".join(claim for claim, _ in stated)
+    elif stated:
+        # An effect ran, but not the one the reply states.
+        wrong = [claim for claim, kind in stated if kind == "removal" and not removals(record)]
+        if wrong:
+            failed["mismatched_claim"] = ", ".join(wrong) + " (ran: " + ", ".join(done) + ")"
+        idle = [claim for claim, kind in stated if kind == "watching" and not triggers(record)]
+        if idle:
+            failed["promise_without_trigger"] = ", ".join(idle) + " (ran: " + ", ".join(done) + ")"
+    trial = [
+        call["tool"]
+        for call in record["tool_calls"]
+        if succeeded(call)
+        and call["tool"].endswith("_create")
+        and call["arguments"].get("enabled") is False
+    ]
+    if trial:
+        failed["trial_side_effect"] = ", ".join(trial) + " created switched off"
     if not in_language(text, language):
         failed["language"] = "not " + language
     return failed

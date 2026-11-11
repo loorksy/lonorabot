@@ -19,11 +19,18 @@ from lonora_contracts.domain import AgentCreate, ThreadCreate
 from lonora_contracts.trading import TradingControl
 from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
-from lonora_db.schema import MarketWatchRow, MessageRow, RunRow, ThreadRow, TicketRow
-from lonora_db.tasks import request_task_attention
+from lonora_db.schema import (
+    MarketWatchRow,
+    MessageRow,
+    RunRow,
+    SettingRow,
+    ThreadRow,
+    TicketRow,
+)
+from lonora_db.tasks import finish_task, request_task_attention
 from lonora_db.threads import create_thread
 from lonora_trading.controls import save_controls
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from . import broker
 
@@ -97,7 +104,9 @@ def load(path: Path = SCENARIOS) -> dict[str, dict[str, Any]]:
 def terminal(scenario: dict[str, Any]) -> broker.FakeTerminal:
     """The scenario's demo account before the owner's message."""
     state = scenario["state"]
-    fake = broker.FakeTerminal(account_id=ACCOUNT, variant=scenario.get("variant", "m"))
+    fake = broker.FakeTerminal(
+        account_id=ACCOUNT, variant=scenario.get("variant", "m"), balance=Decimal("13944.57")
+    )
     for base, bid in state.get("bids", {}).items():
         fake.bids[broker.broker_symbol(base, fake.variant)] = Decimal(bid)
     for position in state.get("positions", []):
@@ -162,21 +171,7 @@ async def seed(api: Any, model: str) -> dict[str, str]:
         },
     )
     grant = await device.sign_grant(api, proposal)
-    async with api.runtime.db.sessions() as session, session.begin():
-        euro = await create_agent(
-            session,
-            api.owner,
-            AgentCreate(
-                name="وكيل اليورو",
-                template="trading",
-                trading_account_id=account["id"],
-                trading_symbol=broker.broker_symbol("EURUSD", "m"),
-            ),
-        )
-        euro_thread = await create_thread(session, api.owner, ThreadCreate(agent_id=euro.id))
-        ids = {"euro_id": euro.id, "euro_thread_id": euro_thread.id}
     return {
-        **ids,
         "account_id": account["id"],
         "lonora_id": lonora["id"],
         "thread_id": thread["id"],
@@ -184,18 +179,54 @@ async def seed(api: Any, model: str) -> dict[str, str]:
     }
 
 
-async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> list[str]:
-    """One scenario's own state on its copy of the template: mandate, watches, task, turns.
+async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> dict[str, str]:
+    """One scenario's own state on its copy of the template: mandate, model routing, the
+    account Task, watches and earlier turns.
 
-    Returns the ids of the watches it created, in the scenario's order.
+    Returns what a probe may name: ``$task``, ``$task_version`` and ``$watch0``, ``$watch1``
+    ... in the scenario's order.
     """
     state = scenario["state"]
-    watches: list[str] = []
     if state.get("mandate", "full") == "none":
         await api.request("POST", f"/account-authorities/{ids['grant_id']}/revoke", {})
     async with api.runtime.db.sessions() as session, session.begin():
-        for watch in state.get("watches", []):
-            owner = watch["owner"]
+        if state.get("model_routing") == "unset":
+            # A fresh install: a provider credential is saved and no model was chosen.
+            await session.execute(
+                delete(SettingRow).where(SettingRow.key.in_(["model_routing", "model_allowed"]))
+            )
+        # The account-management Task the signed mandate started (production: «إدارة حساب
+        # التداول»), with its own conversation.
+        task = await session.scalar(
+            select(TicketRow).where(TicketRow.owner_id == api.owner).with_for_update()
+        )
+        assert task is not None
+        if state.get("task") == "waiting":
+            run = await session.get(RunRow, task.payload["run_id"])
+            assert run is not None
+            await request_task_attention(session, run, "agent_eval_seed")
+        elif state.get("task") == "cancelled":
+            finish_task(session, task, "cancelled")
+        threads = {
+            "lonora": (ids["lonora_id"], ids["thread_id"]),
+            "task": (ids["lonora_id"], task.thread_id),
+        }
+        names = {"$task": task.id, "$task_version": str(task.version)}
+        for number, watch in enumerate(state.get("watches", [])):
+            if watch["owner"] == "other" and "other" not in threads:
+                other = await create_agent(
+                    session,
+                    api.owner,
+                    AgentCreate(
+                        name="وكيل اليورو",
+                        template="trading",
+                        trading_account_id=ids["account_id"],
+                        trading_symbol=watch["symbol"],
+                    ),
+                )
+                thread = await create_thread(session, api.owner, ThreadCreate(agent_id=other.id))
+                threads["other"] = (other.id, thread.id)
+            agent_id, thread_id = threads[watch["owner"]]
             row = await MarketWatchRepository().create(
                 session,
                 api.owner,
@@ -203,17 +234,12 @@ async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> li
                     "account_id": ids["account_id"],
                     **{k: v for k, v in watch.items() if k != "owner"},
                 },
-                agent_id=ids[owner + "_id"],
-                thread_id=ids["thread_id" if owner == "lonora" else owner + "_thread_id"],
+                agent_id=agent_id,
+                thread_id=thread_id,
             )
-            watches.append(row.id)
-        if state.get("task_waiting"):
-            # The account-management Task the signed mandate started, waiting for the owner.
-            task = await session.scalar(select(TicketRow).where(TicketRow.owner_id == api.owner))
-            assert task is not None
-            run = await session.get(RunRow, task.payload["run_id"])
-            assert run is not None
-            await request_task_attention(session, run, "agent_eval_seed")
+            if watch["owner"] == "task":
+                row.state = {**row.state, "task_id": task.id, "task_run_id": task.payload["run_id"]}
+            names[f"$watch{number}"] = row.id
         thread = await session.get(ThreadRow, ids["thread_id"], with_for_update=True)
         assert thread is not None
         for turn in state["history"]:
@@ -227,17 +253,17 @@ async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> li
                 )
             )
             thread.next_seq += 1
-    return watches
+    return names
 
 
 async def state_after(api: Any, ids: dict[str, str], fake: broker.FakeTerminal) -> dict[str, Any]:
     """What exists after the turn: the account, every watch of the owner and every task."""
-    owners = {ids["lonora_id"]: "lonora", ids["euro_id"]: "euro"}
     async with api.runtime.db.sessions() as session:
         watches = [
             {
                 **{k: v for k, v in row.payload.items() if v is not None},
-                "owner": owners.get(row.agent_id or "", "other"),
+                "owner": "lonora" if row.agent_id == ids["lonora_id"] else "other",
+                "of_task": "task_id" in row.state,
                 "code": row.state.get("code"),
             }
             for row in await session.scalars(

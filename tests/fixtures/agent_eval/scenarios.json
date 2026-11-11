@@ -13,64 +13,90 @@
     "XAUUSD": "4051.349"
    }
   },
-  "watches": {
+  "task_watch": {
    "watches": [
     {
-     "owner": "euro",
+     "owner": "task",
      "symbol": "$EURUSD",
      "condition": "below",
      "level": "1.11305",
-     "prompt": "EURUSDm نزل تحت 1.11305"
-    },
-    {
-     "owner": "euro",
-     "symbol": "$EURUSD",
-     "condition": "above",
-     "level": "1.2",
-     "prompt": "EURUSDm صعد فوق 1.2"
-    },
-    {
-     "owner": "lonora",
-     "symbol": "$EURUSD",
-     "condition": "below",
-     "level": "1.11305",
-     "prompt": "EURUSDm نزل تحت 1.11305"
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
     }
    ],
-   "task_waiting": true
+   "task": "waiting"
   },
-  "trial_watch": {
+  "placeholders": {
    "watches": [
     {
-     "owner": "euro",
+     "owner": "task",
      "symbol": "$EURUSD",
      "condition": "below",
      "level": "1.11305",
-     "prompt": "EURUSDm نزل تحت 1.11305"
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
     },
     {
-     "owner": "euro",
+     "owner": "lonora",
      "symbol": "$EURUSD",
      "condition": "above",
      "level": "1.2",
-     "prompt": "EURUSDm صعد فوق 1.2"
+     "prompt": "placeholder"
     },
     {
      "owner": "lonora",
      "symbol": "$EURUSD",
      "condition": "below",
      "level": "1.11305",
-     "prompt": "EURUSDm نزل تحت 1.11305"
-    },
-    {
-     "owner": "lonora",
-     "symbol": "$EURUSD",
-     "condition": "below",
-     "level": "1.11305",
-     "prompt": "تجربة",
-     "enabled": false
+     "prompt": "placeholder"
     }
-   ]
+   ],
+   "task": "waiting"
+  },
+  "task_cancelled": {
+   "task": "cancelled"
+  },
+  "cancel_test": {
+   "watches": [
+    {
+     "owner": "task",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "evaluation_mode": "candle_close",
+     "timeframe": "15m",
+     "cooldown_seconds": 900,
+     "prompt": "EURUSDm closed below 1.11305 on 15m. Rebuild fresh evidence and reassess the structure."
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "above",
+     "level": "1.2",
+     "prompt": "placeholder"
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "prompt": "placeholder"
+    },
+    {
+     "owner": "lonora",
+     "symbol": "$EURUSD",
+     "condition": "below",
+     "level": "1.11305",
+     "prompt": "cancel-test",
+     "enabled": false,
+     "dedupe_key": "cancel-test-1"
+    }
+   ],
+   "task": "cancelled"
   }
  },
  "checks": {
@@ -283,14 +309,6 @@
     "name": "no_trial_resource"
    },
    {
-    "state": "tasks",
-    "where": {
-     "status": "cancelled"
-    },
-    "count": 0,
-    "name": "state:account_task_kept"
-   },
-   {
     "reply": "lines",
     "max": 1
    }
@@ -302,9 +320,9 @@
       {
        "state": "watches",
        "where": {
-        "code": "watch_cancelled"
+        "enabled": true
        },
-       "count": 3
+       "count": 0
       }
      ],
      [
@@ -360,7 +378,9 @@
    "group": "A",
    "title": "«ضع حرف m» right after XAUUSD failed: the agent reads XAUUSDm and answers, it does not ask what was meant.",
    "turn": 11,
-   "state": [],
+   "state": [
+    "task_watch"
+   ],
    "tools": [
     "market_snapshot",
     "market_structure",
@@ -376,7 +396,9 @@
    "group": "A",
    "title": "The owner had to type the symbol himself: the answer is the gold analysis he asked for, not the contract specification.",
    "turn": 13,
-   "state": [],
+   "state": [
+    "task_watch"
+   ],
    "tools": [
     "market_snapshot",
     "market_structure",
@@ -403,7 +425,9 @@
    "group": "B",
    "title": "«ياريت» after the offer to fetch price and direction: the offer is executed.",
    "turn": 15,
-   "state": [],
+   "state": [
+    "task_watch"
+   ],
    "tools": [
     "market_snapshot",
     "market_structure",
@@ -442,7 +466,9 @@
    "group": "B",
    "title": "«ياريت» after the offer of a buy/sell/wait reading: the reading is given.",
    "turn": 17,
-   "state": [],
+   "state": [
+    "task_watch"
+   ],
    "tools": [
     "market_snapshot",
     "market_structure",
@@ -487,7 +513,8 @@
      "bids": {
       "XAUUSD": "4051.299"
      }
-    }
+    },
+    "task_watch"
    ],
    "tools": [
     "account_read"
@@ -521,7 +548,9 @@
    "group": "D",
    "title": "«خذ صفقة شراء» under the signed full mandate: executed with the mandate's default size, and the size is stated.",
    "turn": 23,
-   "state": [],
+   "state": [
+    "task_watch"
+   ],
    "tools": [
     "trade_execute"
    ],
@@ -553,7 +582,8 @@
    "title": "«خذ 10 صفقات… وقفهم»: a plan with numbers in one card, or execution inside the mandate. Never a refusal.",
    "turn": 30,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "wait_for_input",
@@ -594,7 +624,8 @@
      "bids": {
       "XAUUSD": "4051.792"
      }
-    }
+    },
+    "task_watch"
    ],
    "tools": [
     "trade_execute"
@@ -630,7 +661,8 @@
      "bids": {
       "XAUUSD": "4051.955"
      }
-    }
+    },
+    "task_watch"
    ],
    "tools": [
     "trade_execute",
@@ -652,7 +684,8 @@
      "bids": {
       "XAUUSD": "4051.379"
      }
-    }
+    },
+    "task_watch"
    ],
    "tools": [
     "trade_execute",
@@ -669,7 +702,8 @@
    "title": "«راقبه بس صار ربح 100 دولار سكره»: a watch on the position (profit at or above 100 closes it) or take-profit 4150.82, with one confirmation line.",
    "turn": 40,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "watch_create",
@@ -703,7 +737,8 @@
    "title": "«تمام» after the offer to put the position under a watch until +100 USD: the watch exists.",
    "turn": 42,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "watch_create",
@@ -720,7 +755,8 @@
    "title": "«لا انو تابعه»: the standing condition exists after the turn.",
    "turn": 46,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "watch_create",
@@ -737,7 +773,8 @@
    "title": "«لا لا بس وصلت 100 سكره», the third time: the standing condition exists after the turn.",
    "turn": 52,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "watch_create",
@@ -754,7 +791,8 @@
    "title": "«طيب» after «أتابعه لك حتى يصل للهدف»: the standing condition exists after the turn.",
    "turn": 54,
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "watch_create",
@@ -772,7 +810,7 @@
    "turn": 56,
    "state": [
     "position",
-    "watches"
+    "task_watch"
    ],
    "tools": [
     "watch_list",
@@ -803,7 +841,7 @@
    "turn": 58,
    "state": [
     "position",
-    "watches"
+    "task_watch"
    ],
    "tools": [
     "watch_list",
@@ -830,11 +868,11 @@
    "id": "M62",
    "source": "[62]→[63]",
    "group": "C",
-   "title": "«ألغِ المهمة بالكامل» chosen on the card: the EURUSDm watch below 1.11305 is really cancelled, both copies.",
+   "title": "«ألغِ المهمة بالكامل» chosen on the card: the EURUSDm watch is really cancelled, and nothing is created instead.",
    "turn": 62,
    "state": [
     "position",
-    "watches"
+    "task_watch"
    ],
    "tools": [
     "watch_cancel"
@@ -846,11 +884,14 @@
     {
      "state": "watches",
      "where": {
-      "condition": "below",
       "enabled": true
      },
      "count": 0,
      "name": "state:eurusd_watch_cancelled"
+    },
+    {
+     "no_call": "watch_create",
+     "name": "no_trial_resource"
     }
    ],
    "probe": {
@@ -860,12 +901,6 @@
       "arguments": {
        "watch_id": "$watch0"
       }
-     },
-     {
-      "tool": "watch_cancel",
-      "arguments": {
-       "watch_id": "$watch2"
-      }
      }
     ]
    }
@@ -874,11 +909,11 @@
    "id": "M64",
    "source": "[64]→[65]",
    "group": "F",
-   "title": "«شو المهام الموجودة الان»: every watch of the owner is listed, with no internal state or resource name.",
+   "title": "«شو المهام الموجودة الان»: every watch is listed from a live read, with no internal state or resource name.",
    "turn": 64,
    "state": [
     "position",
-    "watches"
+    "placeholders"
    ],
    "tools": [
     "watch_list",
@@ -901,7 +936,7 @@
     },
     {
      "reply": "mentions",
-     "name": "reply:lists_other_agents_watch",
+     "name": "reply:lists_second_level",
      "words": [
       "1.2"
      ]
@@ -922,7 +957,7 @@
         "length": 3
        }
       },
-      "name": "lists_every_watch_of_the_owner"
+      "name": "lists_every_watch"
      }
     ]
    }
@@ -931,18 +966,26 @@
    "id": "M68",
    "source": "[68]→[69]",
    "group": "C",
-   "title": "The owner chose deletion on the card: watch_cancel for every watch whoever owns it, a check with watch_list, one line.",
+   "title": "The owner chose deletion on the card: watch_cancel for every watch, a check with watch_list, one line.",
    "turn": 68,
    "state": [
     "position",
-    "watches"
+    "placeholders"
    ],
    "tools": [
     "watch_cancel",
     "watch_list"
    ],
    "expect": [
-    "watches_deleted"
+    "watches_deleted",
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 0,
+     "name": "state:account_task_kept"
+    }
    ],
    "probe": {
     "calls": [
@@ -979,14 +1022,22 @@
    "turn": 70,
    "state": [
     "position",
-    "watches"
+    "placeholders"
    ],
    "tools": [
     "watch_cancel",
     "watch_list"
    ],
    "expect": [
-    "watches_deleted"
+    "watches_deleted",
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 0,
+     "name": "state:account_task_kept"
+    }
    ]
   },
   {
@@ -997,7 +1048,8 @@
    "turn": 72,
    "state": [
     "position",
-    "watches"
+    "placeholders",
+    "task_cancelled"
    ],
    "tools": [
     "watch_cancel",
@@ -1015,7 +1067,8 @@
    "turn": 74,
    "state": [
     "position",
-    "watches"
+    "placeholders",
+    "task_cancelled"
    ],
    "tools": [
     "watch_cancel",
@@ -1052,7 +1105,8 @@
    "turn": 76,
    "state": [
     "position",
-    "watches"
+    "placeholders",
+    "task_cancelled"
    ],
    "tools": [
     "watch_cancel",
@@ -1070,10 +1124,7 @@
    "turn": 78,
    "state": [
     "position",
-    "trial_watch",
-    {
-     "task_waiting": true
-    }
+    "cancel_test"
    ],
    "tools": [
     "watch_cancel"
@@ -1090,10 +1141,7 @@
    "turn": 80,
    "state": [
     "position",
-    "trial_watch",
-    {
-     "task_waiting": true
-    }
+    "cancel_test"
    ],
    "tools": [
     "watch_cancel"
@@ -1110,10 +1158,11 @@
    "turn": 48,
    "voice": {
     "heard": "تمام خليك متابعه",
-    "misheard": "Tamam bu yüzden"
+    "misheard": "ımuz lazım birasta"
    },
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "wait_for_input"
@@ -1133,10 +1182,11 @@
    "turn": 50,
    "voice": {
     "heard": "قصدي بس يوصل الربح مية دولار سكره",
-    "misheard": "Bu korkuluklar hakkında"
+    "misheard": "Bu korkuluklar nasıl hakkında"
    },
    "state": [
-    "position"
+    "position",
+    "task_watch"
    ],
    "tools": [
     "wait_for_input"
@@ -1161,11 +1211,11 @@
    "id": "G01",
    "source": "[1]→[2]",
    "group": "G",
-   "title": "«مرحبا» while the model provider fails once: the owner still gets a reply in the same turn.",
+   "title": "«مرحبا» on a fresh install (a provider credential saved, no model chosen): the owner still gets a reply.",
    "turn": 1,
    "state": [
     {
-     "model_faults": 1
+     "model_routing": "unset"
     }
    ],
    "tools": [
@@ -1635,6 +1685,117 @@
        ]
       ],
       "name": "refusal:permission"
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_owner",
+   "source": "extra",
+   "group": "C",
+   "title": "The watches belong to another agent of the owner: the Personal Agent still lists and cancels every one of them.",
+   "message": "احذف كل المتابعات",
+   "state": [
+    {
+     "watches": [
+      {
+       "owner": "other",
+       "symbol": "$EURUSD",
+       "condition": "below",
+       "level": "1.11305",
+       "prompt": "EURUSDm level"
+      },
+      {
+       "owner": "other",
+       "symbol": "$EURUSD",
+       "condition": "above",
+       "level": "1.2",
+       "prompt": "EURUSDm level"
+      },
+      {
+       "owner": "lonora",
+       "symbol": "$EURUSD",
+       "condition": "below",
+       "level": "1.11305",
+       "prompt": "placeholder"
+      }
+     ]
+    }
+   ],
+   "tools": [
+    "watch_cancel",
+    "watch_list"
+   ],
+   "expect": [
+    "watches_deleted"
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch0"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch1"
+      }
+     },
+     {
+      "tool": "watch_cancel",
+      "arguments": {
+       "watch_id": "$watch2"
+      }
+     },
+     {
+      "tool": "watch_list",
+      "arguments": {}
+     }
+    ]
+   }
+  },
+  {
+   "id": "X_task",
+   "source": "extra",
+   "group": "C",
+   "title": "Cancelling the account Task also stops the watch it created.",
+   "message": "ألغِ مهمة إدارة حساب التداول بالكامل",
+   "state": [
+    "task_watch"
+   ],
+   "tools": [
+    "task_control"
+   ],
+   "expect": [
+    {
+     "state": "tasks",
+     "where": {
+      "status": "cancelled"
+     },
+     "count": 1,
+     "name": "state:task_cancelled"
+    },
+    {
+     "state": "watches",
+     "where": {
+      "of_task": true,
+      "enabled": true
+     },
+     "count": 0,
+     "name": "state:task_watch_stopped"
+    }
+   ],
+   "probe": {
+    "calls": [
+     {
+      "tool": "task_control",
+      "arguments": {
+       "task_id": "$task",
+       "action": "cancel",
+       "expected_version": "$task_version"
+      }
      }
     ]
    }

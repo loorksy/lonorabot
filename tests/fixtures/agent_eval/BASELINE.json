@@ -4,21 +4,15 @@
   "model": "openai/gpt-5.4-mini",
   "recorded": "2026-11-11",
   "expected": {
-   "M09": [
-    "call:gold_analysis",
-    "claims_inability",
-    "reply:price"
-   ],
+   "M09": [],
    "M11": [
     "call:gold_analysis",
-    "reply:price",
-    "unbacked_claim"
-   ],
-   "M13": [
-    "call:gold_analysis",
     "reply:price"
    ],
-   "M15": [],
+   "M13": [],
+   "M15": [
+    "reply:no_question"
+   ],
    "M17": [],
    "M28": [],
    "M23": [
@@ -38,7 +32,6 @@
    ],
    "M36": [
     "exit_plan_armed",
-    "reply:lines",
     "unbacked_claim"
    ],
    "M38": [
@@ -47,15 +40,15 @@
    ],
    "M40": [
     "close_at_100_armed",
+    "reply:lines",
     "unbacked_claim"
    ],
    "M42": [
-    "close_at_100_armed",
-    "unbacked_claim"
+    "close_at_100_armed"
    ],
    "M46": [
     "close_at_100_armed",
-    "unbacked_claim"
+    "reply:lines"
    ],
    "M52": [
     "close_at_100_armed",
@@ -70,35 +63,40 @@
     "reply:watched_pair",
     "unbacked_claim"
    ],
-   "M58": [],
+   "M58": [
+    "call:live_read",
+    "reply:watched_pair"
+   ],
    "M62": [
     "call:watch_cancel",
-    "state:eurusd_watch_cancelled"
+    "mismatched_claim",
+    "no_trial_resource",
+    "state:eurusd_watch_cancelled",
+    "trial_side_effect"
    ],
    "M64": [
-    "internal_term",
-    "reply:lists_other_agents_watch"
+    "internal_term"
    ],
    "M68": [
-    "call:watch_cancel",
-    "no_trial_resource",
-    "order:watch_cancel>watch_list",
-    "state:all_watches_cancelled"
-   ],
-   "M70": [
-    "call:watch_cancel",
-    "no_trial_resource",
-    "order:watch_cancel>watch_list",
-    "state:all_watches_cancelled"
-   ],
-   "M72": [
     "call:watch_cancel",
     "claims_inability",
     "no_trial_resource",
     "order:watch_cancel>watch_list",
     "reply:lines",
     "state:all_watches_cancelled",
-    "unbacked_claim"
+    "trial_side_effect"
+   ],
+   "M70": [
+    "call:watch_cancel",
+    "internal_term",
+    "order:watch_cancel>watch_list",
+    "reply:lines",
+    "state:all_watches_cancelled"
+   ],
+   "M72": [
+    "call:watch_cancel",
+    "order:watch_cancel>watch_list",
+    "state:all_watches_cancelled"
    ],
    "M74": [
     "call:watch_cancel",
@@ -109,57 +107,79 @@
    ],
    "M76": [
     "call:watch_cancel",
+    "internal_term",
     "no_trial_resource",
     "order:watch_cancel>watch_list",
     "reply:lines",
-    "state:all_watches_cancelled"
+    "state:all_watches_cancelled",
+    "trial_side_effect"
    ],
    "M78": [
     "open_request_resumed_or_mentioned"
    ],
-   "M80": [
-    "open_request_resumed_or_mentioned"
-   ],
+   "M80": [],
    "M48": [
-    "language",
     "voice_heard_in_arabic"
    ],
    "M50": [
+    "language",
     "voice_heard_in_arabic"
    ],
-   "G01": [],
+   "G01": [
+    "reply:present",
+    "status:completed"
+   ],
    "X_c": [
     "call:gold_analysis",
     "claims_inability",
-    "internal_term",
     "reply:price"
    ],
-   "X_pro": [
-    "call:gold_analysis",
-    "claims_inability",
-    "internal_term",
-    "reply:price"
-   ],
-   "X_gold": [
-    "call:gold_analysis",
-    "claims_inability",
-    "reply:price"
-   ],
+   "X_pro": [],
+   "X_gold": [],
    "X_code": [
     "call:gold_analysis",
     "claims_inability",
     "reply:price"
    ],
-   "X_alias": [],
-   "X_unknown": [
-    "card"
-   ],
-   "X_drop": [],
-   "X_rate": [],
-   "X_args": [],
-   "X_permission": [
+   "X_alias": [
+    "call:gold_read",
     "claims_inability",
+    "internal_term",
+    "reply:price"
+   ],
+   "X_unknown": [
+    "card",
+    "claims_inability"
+   ],
+   "X_drop": [
+    "call:gold_analysis",
+    "reply:no_question",
+    "reply:price",
+    "status:completed"
+   ],
+   "X_rate": [
+    "call:account_read",
+    "claims_inability",
+    "internal_term",
+    "reply:live_profit"
+   ],
+   "X_args": [
+    "reply:names_minimum"
+   ],
+   "X_permission": [
     "permission_card"
+   ],
+   "X_owner": [
+    "call:watch_cancel",
+    "mismatched_claim",
+    "no_trial_resource",
+    "order:watch_cancel>watch_list",
+    "state:all_watches_cancelled",
+    "trial_side_effect"
+   ],
+   "X_task": [
+    "state:task_cancelled",
+    "state:task_watch_stopped"
    ]
   }
  },
@@ -172,16 +192,9 @@
    "M28": [],
    "M34": [],
    "M40": [],
-   "M62": [
-    "state:eurusd_watch_cancelled"
-   ],
-   "M64": [
-    "lists_every_watch_of_the_owner"
-   ],
-   "M68": [
-    "call:watch_cancel",
-    "state:all_watches_cancelled"
-   ],
+   "M62": [],
+   "M64": [],
+   "M68": [],
    "M74": [
     "finds_the_cancel_tool"
    ],
@@ -215,7 +228,14 @@
    "X_args": [
     "refusal:input"
    ],
-   "X_permission": []
+   "X_permission": [],
+   "X_owner": [
+    "call:watch_cancel",
+    "state:all_watches_cancelled"
+   ],
+   "X_task": [
+    "state:task_watch_stopped"
+   ]
   }
  }
 }

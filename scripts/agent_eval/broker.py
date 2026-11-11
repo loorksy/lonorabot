@@ -26,7 +26,6 @@ from lonora_contracts.market import Candle, Quote
 from lonora_core.user_error import LonoraError
 
 Variant = Literal["m", "c", "pro", "gold"]
-VARIANTS: tuple[Variant, ...] = ("m", "c", "pro", "gold")
 TIMEFRAMES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440, "1w": 10080}
 # base symbol: description, digits, contract size, bid, spread, base and profit currency.
 # Gold is the price of the owner's conversation ([18]); EURUSD sits between his watch levels.
@@ -40,7 +39,7 @@ MARKETS: dict[str, tuple[str, int, int, str, str, str, str]] = {
     "USOIL": ("Crude Oil", 3, 1000, "61.420", "0.030", "USOIL", "USD"),
 }
 METALS = {"XAUUSD": "GOLD", "XAGUSD": "SILVER"}
-Fault = Literal["rate_limit", "connection_drop", "account_not_found"]
+Fault = Literal["rate_limit", "connection_drop"]
 
 
 def broker_symbol(base: str, variant: Variant) -> str:
@@ -128,8 +127,6 @@ class FakeTerminal:
                     "You have used all your account CPU credits for this period",
                     {"type": "LIMIT_ACCOUNT_SUBSCRIPTIONS_PER_USER", "recommendedRetryTime": None},
                 )
-            if fault["kind"] == "account_not_found":
-                raise self.unknown_account()
             raise ConnectionError("MetaApi websocket client disconnected from the trading server")
 
     def unknown_account(self) -> Exception:
@@ -199,7 +196,7 @@ class FakeTerminal:
             login="50000001",
             server="Exness-MT5Trial16",
             broker="Exness Technologies Ltd",
-            name="Demo",
+            name="Standard",
             version=5,
             get_historical_candles=self.get_historical_candles,
         )
@@ -294,7 +291,7 @@ class FakeTerminal:
             "currency": "USD",
             "server": "Exness-MT5Trial16",
             "login": "50000001",
-            "name": "Demo",
+            "name": "Standard",
             "platform": "mt5",
             "balance": float(self.balance),
             "equity": float(equity),

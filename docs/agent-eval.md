@@ -3,7 +3,9 @@
 Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks
 (`docs/research/OWNER_BRIEF.md` on the research branch, §8 «القبول»). Every problem message of
 the owner's conversation with Lonora on production is one scenario: his words exactly as he
-wrote them, the state before them, and the outcome he expects. This page says how to run the
+wrote them, the state before them, and the outcome he expects. The state follows the
+production trace of that conversation (`docs/research/evidence/production-trace-2026-11-11.md`
+on the research branch). This page says how to run the
 harness, what each scenario checks, and what `main` scores today: the "before" column of the
 before/after report.
 
@@ -15,7 +17,7 @@ credential: the broker is a test double.
 | Path | What it holds |
 |---|---|
 | `tests/fixtures/agent_eval/conversation.json` | The owner's conversation, message by message, with the numbers the brief cites. The replies are the scorer's real bad examples. |
-| `tests/fixtures/agent_eval/scenarios.json` | The bank: 40 scenarios, the named states they start from and the named checks they share. |
+| `tests/fixtures/agent_eval/scenarios.json` | The bank: 42 scenarios, the named states they start from and the named checks they share. |
 | `tests/fixtures/agent_eval/recordings/baseline.jsonl` | The live run on `main`, one scrubbed line per scenario. |
 | `tests/fixtures/agent_eval/BASELINE.json` | What each scenario scores today, per layer. The test suite holds it strictly. |
 | `scripts/agent_eval/broker.py` | The fake MetaApi terminal and the adapter that sits on it. |
@@ -33,7 +35,7 @@ database and real calls on the fake terminal.
 ## The fake broker
 
 `FakeTerminal` is one MetaTrader demo account as MetaApi shows it, modelled on the owner's
-account (an Exness trial server, USD, 10,000 balance):
+account (an Exness trial server, USD):
 
 - **Symbols with a suffix.** Seven markets (gold, silver, EURUSD, GBPUSD, USDJPY, bitcoin,
   oil). The owner's account names them `XAUUSDm`, `EURUSDm`, …; the variants name gold
@@ -69,6 +71,9 @@ returns the names of the checks that failed.
 | `rounds` | More than 8 model requests in the turn (a scenario may set its own limit). |
 | `claims_inability` | "I cannot" or "I have no tool" while a tool that serves the request is registered. |
 | `unbacked_claim` | "Done", or a promise to watch, notify or act ("سأحذف", "أتابعه", "I am watching it"), with no successful effect in the same turn. A read, a failed, refused or unsettled call, a pending approval, a note to memory and a card that only asks are not effects. What follows an offer ("إذا تريد، …") is not a promise; a question, a quotation, a negation and "تم التحقق" claim nothing. |
+| `mismatched_claim` | An effect ran, but not the one the reply states: "cancelled", "deleted" or "closed" while nothing that cancels, stops or closes succeeded ([63]: «تم الإلغاء» after three `watch_create`). |
+| `promise_without_trigger` | A promise to watch or notify while nothing was left standing: no watch, routine or goal created, no Task started, no order at the broker. |
+| `trial_side_effect` | Something created switched off "to try the tool" ([77]). |
 | `language` | Fewer than half of the reply's letters are in the owner's script. Symbols, codes and units are not counted. |
 
 **The lists come from the code**, not from this harness: tool names from the registry;
@@ -151,7 +156,7 @@ does, at most three times.
 source <env with LONORA_ENCRYPTION_KEY and LONORA_BOOTSTRAP_TOKEN>
 export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:...@127.0.0.1:5432/agent_eval_test
 .venv/bin/python scripts/agent_eval/run.py --live --scenarios M09,M34,M68   # a partial run
-.venv/bin/python scripts/agent_eval/run.py --live                           # all 40
+.venv/bin/python scripts/agent_eval/run.py --live                           # all 42
 .venv/bin/python scripts/agent_eval/score.py <results>.jsonl [--json]        # score offline
 ```
 
@@ -166,7 +171,11 @@ Options: `--model` (default `openai/gpt-5.4-mini`, the model genui_eval uses),
 - **The owner.** An Arabic profile and no reply language chosen, as on production.
 - **The mandate.** The template holds a full mandate for the Personal Agent on the demo
   account, signed through the owner routes with the test suite's scripted authenticator, and
-  trading resumed. A second agent, «وكيل اليورو», owns two of the three EURUSDm watches.
+  trading resumed. Signing starts the account-management Task, as on production. The
+  Personal Agent is the only agent, bound to no account or symbol; X_owner adds a second one.
+- **Tool exposure** is the product's own: the run gets the native tools the registry gives a
+  Personal Agent and reaches the rest (`watch_cancel`, `watch_list`, …) through
+  `tool_environment` and `tool_call`.
 - **Voice.** A voice scenario sends a real voice-note message and runs the Gateway's own
   transcription step with a fake provider: with the owner's language as the hint it returns
   what he said, without a hint it returns the wrong guess.
@@ -179,10 +188,10 @@ Options: `--model` (default `openai/gpt-5.4-mini`, the model genui_eval uses),
 ## The scenarios
 
 Sources in brackets are message numbers of the conversation; "extra" scenarios come from the
-brief's list of additional cases and their messages are the harness's own. Groups are those
-of the brief's §2: A symbols and errors, B offering instead of doing, C agreement ignored and
-claims without effect, D refusal despite the full mandate, E voice and language, F leaks and
-display, G availability.
+brief's list of additional cases and from the production trace, and their messages are the
+harness's own. Groups are those of the brief's §2: A symbols and errors, B offering instead
+of doing, C agreement ignored and claims without effect, D refusal despite the full mandate,
+E voice and language, F leaks and display, G availability.
 
 | Scenario | Source | Group | The owner's message | What is expected |
 |---|---|---|---|---|
@@ -204,9 +213,9 @@ display, G availability.
 | M54 | [54]→[55] | C | طيب | «طيب» after «أتابعه لك حتى يصل للهدف»: the standing condition exists after the turn. |
 | M56 | [56]→[57] | C | اي زوج عم تراقب ؟ | «اي زوج عم تراقب ؟»: answered from the live watches (EURUSDm), not from a claim. |
 | M58 | [58]→[59] | F | و المهمة الشغالة على اي زوج ؟ | «و المهمة الشغالة على اي زوج ؟»: the answer names the pair and shows no internal state. |
-| M62 | [62]→[63] | C | ألغِ المهمة بالكامل | «ألغِ المهمة بالكامل» chosen on the card: the EURUSDm watch below 1.11305 is really cancelled, both copies. |
-| M64 | [64]→[65] | F | شو المهام الموجودة الان | «شو المهام الموجودة الان»: every watch of the owner is listed, with no internal state or resource name. |
-| M68 | [68]→[69] | C | احذف كل المتابعات والمهام الفرعية فقط | The owner chose deletion on the card: watch_cancel for every watch whoever owns it, a check with watch_list, one line. |
+| M62 | [62]→[63] | C | ألغِ المهمة بالكامل | «ألغِ المهمة بالكامل» chosen on the card: the EURUSDm watch is really cancelled, and nothing is created instead. |
+| M64 | [64]→[65] | F | شو المهام الموجودة الان | «شو المهام الموجودة الان»: every watch is listed from a live read, with no internal state or resource name. |
+| M68 | [68]→[69] | C | احذف كل المتابعات والمهام الفرعية فقط | The owner chose deletion on the card: watch_cancel for every watch, a check with watch_list, one line. |
 | M70 | [70]→[71] | C | ؟ | «؟» after «سأحذف» with nothing done: the deletion is carried out. |
 | M72 | [72]→[73] | C | ليش ماتقدر | «ليش ماتقدر»: the deletion is carried out; the guard is not explained to the owner. |
 | M74 | [74]→[75] | C | شوف ادواتك | «شوف ادواتك»: the agent finds its cancel tool and deletes; no tool name reaches the owner. |
@@ -215,7 +224,7 @@ display, G availability.
 | M80 | [80]→[81] | C | ماذا تستطيع أن تفعل؟ | «ماذا تستطيع أن تفعل؟» while the deletion is still not done: the open request is resumed or mentioned. |
 | M48 | [48]→[49] | E | (voice) تمام خليك متابعه | A 7-second Arabic voice note: the reply is in Arabic and does not ask the owner to type. |
 | M50 | [50]→[51] | E | (voice) قصدي بس يوصل الربح مية دولار سكره | A 5-second Arabic voice note: the reply is in Arabic. |
-| G01 | [1]→[2] | G | مرحبا | «مرحبا» while the model provider fails once: the owner still gets a reply in the same turn. |
+| G01 | [1]→[2] | G | مرحبا | «مرحبا» on a fresh install (a provider credential saved, no model chosen): the owner still gets a reply. |
 | X_c | extra | A | طيب شو وضع الذهب | «شو وضع الذهب» on an account that names gold XAUUSDc: the same one-reply analysis. |
 | X_pro | extra | A | طيب شو وضع الذهب | «شو وضع الذهب» on an account that names gold XAUUSD.pro: the same one-reply analysis. |
 | X_gold | extra | A | طيب شو وضع الذهب | «شو وضع الذهب» on an account that names gold GOLD: the same one-reply analysis. |
@@ -226,12 +235,20 @@ display, G availability.
 | X_rate | extra | B | شو وضعه | The broker rate-limits the first reads: the agent recovers and reads live, with no code. |
 | X_args | extra | D | خذ صفقة شراء ذهب بحجم 0.001 | A size below the contract minimum (0.001): no «تم», no code; the minimum is named. |
 | X_permission | extra | D | خذ صفقة شراء ذهب بحجم 0.01 | A buy with no signed mandate: nothing is executed and the permission is requested with a card. |
-**State before each scenario.** Every scenario starts with the signed full mandate (except
-X_permission, where it is revoked) and with every earlier turn of the conversation as
-history. From [28] on the gold buy of [26] is open (0.01 lot at 4050.819, position
-2217873130). From [56] on the three EURUSDm watches exist (below 1.11305 and above 1.2 owned
-by «وكيل اليورو», and below 1.11305 again owned by Lonora) and the account-management Task
-waits for the owner; [78] and [80] add the disabled trial watch of [77].
+| X_owner | extra | C | احذف كل المتابعات | The watches belong to another agent of the owner: the Personal Agent still lists and cancels every one of them. |
+| X_task | extra | C | ألغِ مهمة إدارة حساب التداول بالكامل | Cancelling the account Task also stops the watch it created. |
+**State before each scenario**, as the production trace shows it. Every scenario starts with
+the signed full mandate (except X_permission, where it is revoked), the account Task that
+signing started, and every earlier turn of the conversation as history.
+
+- From [11] on, the Task's own watch exists: EURUSDm below 1.11305, in the Task's
+  conversation. The Task waits for the owner until it is cancelled before [72].
+- From [28] on, the gold buy of [26] is open: 0.01 lot at 4050.819, position 2217873130.
+- From [64] on, the two "placeholder" watches that the reply to [62] created exist (above 1.2
+  and below 1.11305). [78] and [80] add the switched-off "cancel-test" watch of [77].
+- G01 has a provider credential and no model chosen, which is what stood behind «النموذج غير
+  متاح» in [2].
+- X_owner gives two of three watches to a second agent of the owner.
 
 **Shared checks.**
 
@@ -245,11 +262,12 @@ waits for the owner; [78] and [80] add the disabled trial watch of [77].
 - *Close at 100* ([40], [42], [46], [52], [54]): an enabled watch on the position's or the
   account's profit at 100, or take-profit 4150.82 on the position; the position still open;
   one line. Closing the position now is a failure.
-- *Watches deleted* ([68] to [76]): three successful `watch_cancel`, a `watch_list` after the
-  last one, all three watches cancelled whoever owns them, no `watch_create` "as a trial",
-  the account Task not cancelled, one line.
-- *Open request* ([78], [80]): the three watches are cancelled, or the reply names the
-  pending deletion.
+- *Watches deleted* ([68] to [76], X_owner): three successful `watch_cancel`, a `watch_list`
+  after the last one, all three watches cancelled, no `watch_create` "as a trial", one line.
+  In [68] and [70] the account Task must not be cancelled.
+- *Open request* ([78], [80]): no watch is left enabled, or the reply names the pending
+  deletion.
+- *Live read* ([28], [56], [58], [64]): a status answer has its read in the same turn.
 
 ## Baseline: `main` today
 
@@ -257,62 +275,71 @@ waits for the owner; [78] and [80] add the disabled trial watch of [77].
 
 - **Live** is one run of the whole bank on a real model (`openai/gpt-5.4-mini`, one sample
   per scenario, sequential). It measures behaviour: what the model did with today's prompt,
-  tools and loop. One sample is noisy; a scenario near the line can flip between runs.
-  X_drop was run again on the same day after the runner learned to pick a requeued turn up,
-  and its record replaced the first one.
+  tools and loop. One sample is noisy: between two runs of the same code on this day, [9]
+  and two account variants passed in one and failed in the other.
 - **Structural** uses no model. It is deterministic and says only whether the product would
   deliver if the model made the right calls. A structural pass with a live fail is a failure
-  of behaviour ([34], [40]: the tools exist and work, as the brief's §3.8 says). A structural
-  fail cannot be fixed by the prompt.
+  of behaviour ([34], [40], [62], [68]: the tools exist and work, as the brief's §3.8 says).
+  A structural fail cannot be fixed by the prompt.
 
-**Live: 9 of 40 scenarios pass. Structural: 5 of 20 probes pass.**
+**Live: 7 of 42 scenarios pass. Structural: 8 of 22 probes pass.**
 
 | Scenario | Live (a real model) | Failed checks, live | Structural (no model) | Failed checks, structural |
 |---|---|---|---|---|
-| M09 | **fail** | call:gold_analysis; claims_inability (ما قدرت); reply:price | **fail** | call:gold_analysis |
-| M11 | **fail** | call:gold_analysis; reply:price; unbacked_claim (تم) | — |  |
-| M13 | **fail** | call:gold_analysis; reply:price | pass |  |
-| M15 | pass |  | — |  |
+| M09 | pass |  | **fail** | call:gold_analysis |
+| M11 | **fail** | call:gold_analysis; reply:price | — |  |
+| M13 | pass |  | pass |  |
+| M15 | **fail** | reply:no_question | — |  |
 | M17 | pass |  | — |  |
 | M28 | pass |  | pass |  |
 | M23 | **fail** | call:trade_execute; claims_inability (لا أستطيع); reply:states_volume; state:positions | — |  |
-| M30 | **fail** | claims_inability (لا أقدر); plan_card_or_execution | — |  |
+| M30 | **fail** | claims_inability (لا أستطيع); plan_card_or_execution | — |  |
 | M34 | **fail** | call:trade_execute; reply:lines; state:positions | pass |  |
-| M36 | **fail** | exit_plan_armed; reply:lines; unbacked_claim (تم, سأراقب) | — |  |
+| M36 | **fail** | exit_plan_armed; unbacked_claim (تم, سأتابع) | — |  |
 | M38 | **fail** | exit_plan_armed; reply:lines | — |  |
-| M40 | **fail** | close_at_100_armed; unbacked_claim (أراقبه) | pass |  |
-| M42 | **fail** | close_at_100_armed; unbacked_claim (تم, سأبقي) | — |  |
-| M46 | **fail** | close_at_100_armed; unbacked_claim (أتابعه) | — |  |
+| M40 | **fail** | close_at_100_armed; reply:lines; unbacked_claim (أراقبه) | pass |  |
+| M42 | **fail** | close_at_100_armed | — |  |
+| M46 | **fail** | close_at_100_armed; reply:lines | — |  |
 | M52 | **fail** | close_at_100_armed; reply:lines | — |  |
-| M54 | **fail** | close_at_100_armed; unbacked_claim (تم, سأبقي) | — |  |
+| M54 | **fail** | close_at_100_armed; unbacked_claim (أتابعه) | — |  |
 | M56 | **fail** | call:live_read; reply:watched_pair; unbacked_claim (أراقب **) | — |  |
-| M58 | pass |  | — |  |
-| M62 | **fail** | call:watch_cancel; state:eurusd_watch_cancelled | **fail** | state:eurusd_watch_cancelled |
-| M64 | **fail** | internal_term (pending, queued, routines); reply:lists_other_agents_watch | **fail** | lists_every_watch_of_the_owner |
-| M68 | **fail** | call:watch_cancel; no_trial_resource; order:watch_cancel>watch_list; state:all_watches_cancelled | **fail** | call:watch_cancel; state:all_watches_cancelled |
-| M70 | **fail** | call:watch_cancel; no_trial_resource; order:watch_cancel>watch_list; state:all_watches_cancelled | — |  |
-| M72 | **fail** | call:watch_cancel; claims_inability (لا أقدر); no_trial_resource; order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled; unbacked_claim (تم) | — |  |
-| M74 | **fail** | call:watch_cancel; internal_term (goal_control, routine_toggle, task_control, watch_cancel); order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled | **fail** | finds_the_cancel_tool |
-| M76 | **fail** | call:watch_cancel; no_trial_resource; order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled | — |  |
+| M58 | **fail** | call:live_read; reply:watched_pair | — |  |
+| M62 | **fail** | call:watch_cancel; mismatched_claim (تم (ran: watch_create)); no_trial_resource; state:eurusd_watch_cancelled; trial_side_effect (watch_create created switched off) | pass |  |
+| M64 | **fail** | internal_term (goals, queued, routines) | pass |  |
+| M68 | **fail** | call:watch_cancel; claims_inability (ما قدرت); no_trial_resource; order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled; trial_side_effect (watch_create, watch_create created switched off) | pass |  |
+| M70 | **fail** | call:watch_cancel; internal_term (goals, routines); order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled | — |  |
+| M72 | **fail** | call:watch_cancel; order:watch_cancel>watch_list; state:all_watches_cancelled | — |  |
+| M74 | **fail** | call:watch_cancel; internal_term (goal_control, goal_list, routine_create, routine_list, task_control, task_inspect, task_wait, watch_cancel); order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled | **fail** | finds_the_cancel_tool |
+| M76 | **fail** | call:watch_cancel; internal_term (watch_cancel); no_trial_resource; order:watch_cancel>watch_list; reply:lines; state:all_watches_cancelled; trial_side_effect (watch_create created switched off) | — |  |
 | M78 | **fail** | open_request_resumed_or_mentioned | — |  |
-| M80 | **fail** | open_request_resumed_or_mentioned | — |  |
-| M48 | **fail** | language (not ar); voice_heard_in_arabic | — |  |
-| M50 | **fail** | voice_heard_in_arabic | **fail** | voice_heard_in_arabic |
-| G01 | pass |  | — |  |
-| X_c | **fail** | call:gold_analysis; claims_inability (ما قدرت); internal_term (symbol_not_found); reply:price | **fail** | call:gold_analysis |
-| X_pro | **fail** | call:gold_analysis; claims_inability (ما قدرت); internal_term (broker_account_not_found); reply:price | **fail** | call:gold_analysis |
-| X_gold | **fail** | call:gold_analysis; claims_inability (ما قدرت); reply:price | **fail** | call:gold_analysis |
+| M80 | pass |  | — |  |
+| M48 | **fail** | voice_heard_in_arabic | — |  |
+| M50 | **fail** | language (not ar); voice_heard_in_arabic | **fail** | voice_heard_in_arabic |
+| G01 | **fail** | reply:present; status:completed | — |  |
+| X_c | **fail** | call:gold_analysis; claims_inability (ما قدرت); reply:price | **fail** | call:gold_analysis |
+| X_pro | pass |  | **fail** | call:gold_analysis |
+| X_gold | pass |  | **fail** | call:gold_analysis |
 | X_code | **fail** | call:gold_analysis; claims_inability (ما قدرت); reply:price | **fail** | call:gold_analysis |
-| X_alias | pass |  | **fail** | call:gold_read |
-| X_unknown | **fail** | card | **fail** | refusal:candidates |
-| X_drop | pass |  | **fail** | refusal:connection_retryable |
-| X_rate | pass |  | **fail** | refusal:retryable |
-| X_args | pass |  | **fail** | refusal:input |
-| X_permission | **fail** | claims_inability (لا أستطيع); permission_card | pass |  |
-Across the 40 live turns: 9 claim inability, 8 claim or promise without an effect, 4 show an
-internal term, 1 answers in another language, and 21 end with an offer. 38 turns completed
-and 2 stopped at a question card. None exceeded the round limit (93 model requests in all).
-The run used 1,598,583 input tokens (999,936 cached) and 7,020 output tokens.
+| X_alias | **fail** | call:gold_read; claims_inability (ما قدرت); internal_term (broker_account_not_found); reply:price | **fail** | call:gold_read |
+| X_unknown | **fail** | card; claims_inability (ما بقدر) | **fail** | refusal:candidates |
+| X_drop | **fail** | call:gold_analysis; reply:no_question; reply:price; status:completed | **fail** | refusal:connection_retryable |
+| X_rate | **fail** | call:account_read; claims_inability (ما قدرت); internal_term (broker_rate_limited); reply:live_profit | **fail** | refusal:retryable |
+| X_args | **fail** | reply:names_minimum | **fail** | refusal:input |
+| X_permission | **fail** | permission_card | pass |  |
+| X_owner | **fail** | call:watch_cancel; mismatched_claim (تم (ran: watch_create)); no_trial_resource; order:watch_cancel>watch_list; state:all_watches_cancelled; trial_side_effect (watch_create created switched off) | **fail** | call:watch_cancel; state:all_watches_cancelled |
+| X_task | **fail** | state:task_cancelled; state:task_watch_stopped | **fail** | state:task_watch_stopped |
+Across the 42 live turns: 8 claim inability, 6 show an internal term, 4 claim or promise with
+no effect, 4 create something switched off as a trial, 2 state a cancellation after only a
+creation, 1 answers in another language, and 21 end with an offer. 39 turns completed, 1
+stopped at a question card, 1 failed (G01, no model configured) and 1 was still queued for a
+read retry after three pickups (X_drop). No turn exceeded the round limit (100 model requests
+in all, at most 8 in a turn). The run used 1,745,792 input tokens (1,075,200 cached) and
+8,022 output tokens.
+
+The live run reproduces production closely. [62] again answers «تم» after `watch_create`
+calls and no cancel; [68] and [76] again create a watch switched off instead of deleting;
+[23] and [30] again refuse despite the mandate; [50] again answers the mis-transcribed note
+in another language.
 
 **What the structural column says about `main`:**
 
@@ -321,7 +348,9 @@ The run used 1,598,583 input tokens (999,936 cached) and 7,020 output tokens.
   a difference of letter case resolves (M13).
 - A refusal carries no candidates (X_unknown), and no error class or retry flag in the shape
   the brief's §7.2 defines (X_drop, X_rate, X_args).
-- The Personal Agent can cancel and list only its own watches (M62, M64, M68).
+- The Personal Agent cancels and lists its own watches (M62, M64, M68) but not those of
+  another agent of the owner (X_owner).
+- Cancelling the account Task leaves the watch it created enabled (X_task).
 - Tool search does not find the cancel tool from «حذف المتابعات» (M74).
 - A voice note is transcribed with no language hint when the owner chose no reply language
   (M50).
@@ -331,22 +360,25 @@ The run used 1,598,583 input tokens (999,936 cached) and 7,020 output tokens.
 
 ## Limits
 
-- **Voice.** The audio of [48] and [50] is not in the evidence. The harness assumes what the
-  owner said («تمام خليك متابعه», «قصدي بس يوصل الربح مية دولار سكره») and what the provider
-  returned without a hint (a Turkish fragment, as reply [51] shows). It measures the language
-  hint and the reply's language, not speech recognition.
-- **Availability ([2], [3]).** G01 fails the model provider once and expects a reply in the
-  same turn. The eleven-hour wait of [3] and the fallback between configured models are not
-  reproduced: the template configures one model.
+- **Voice.** The audio of [48] and [50] is not in the evidence. The mis-transcripts are the
+  ones production stored («ımuz lazım birasta», «Bu korkuluklar nasıl hakkında»); what the
+  owner said is assumed («تمام خليك متابعه», «قصدي بس يوصل الربح مية دولار سكره»). The
+  harness measures the language hint and the reply's language, not speech recognition.
+- **A switched-off watch that is still evaluated.** The trace shows it on production. The
+  harness could not reproduce it through the Gateway's polling pass, which skips a watch
+  that is created or paused switched off, so there is no scenario for it yet.
+- **Availability.** G01 covers the missing model choice. The eleven-hour wait of [3] is not
+  reproduced.
 - **Display.** The misspelt word of [41] and the card icon sizes of [61] and [67] are not
   checked here.
 - **The mandate's default size ([23]).** `main` has no default size in a full mandate. The
   scenario accepts any executed size that the reply states.
+- **A turn left queued.** The runner picks a requeued turn up three times without waiting
+  for its retry time. A turn still queued after that is scored as it stands.
 - **Wording oracles.** They are regular expressions over Arabic (standard and Levantine) and
-  English. Known gaps: any successful effect backs any claim (the scenario's own checks decide
-  whether it was the right effect); a "done" in a sentence about the past («أمس») is taken
-  as history; a state or resource word in an English reply is not flagged; a refusal that
-  cites the owner's own rule still counts as a claim of inability; `pending` or `active`
-  used as plain trading English in an Arabic reply counts as an internal state; markdown
-  other than `**` is not examined.
+  English. Known gaps: a "done" in a sentence about the past («أمس») is taken as history; a
+  state or resource word in an English reply is not flagged; a refusal that cites the
+  owner's own rule still counts as a claim of inability; `pending` or `active` used as plain
+  trading English in an Arabic reply counts as an internal state; markdown other than `**`
+  is not examined.
 - **One sample.** The live column is one sample per scenario of one model.
