@@ -108,7 +108,7 @@ test("a message turned into a task leaves a durable «Task created» card that o
     const card = page.locator("[data-task-id]");
     await expect(card).toHaveCount(1);
     await expect(card.getByText("Task created", { exact: true })).toBeVisible();
-    await expect(card.getByText(LONG, { exact: true })).toBeVisible();
+    await expect(card.locator("strong")).toHaveText(LONG.slice(0, 160));
     const id = await card.getAttribute("data-task-id");
     await page.reload();
     await expect(page.locator(`[data-task-id="${id}"]`)).toBeVisible();
