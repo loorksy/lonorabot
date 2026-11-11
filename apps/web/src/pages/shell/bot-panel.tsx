@@ -20,7 +20,8 @@ type Template = Exclude<AgentTemplate, "supervisor">;
    step 2 names the agent and its role (and the pair for a trading agent). The agent is created
    through POST /api/agents/create, the same input and service as the agent_create tool, so the
    template is persisted and the ladder starts where the template says. «الإشراف على وكلاء
-   آخرين» is a capability on any template: the agents it supervises go in `supervises`. */
+   آخرين» is a capability on any template: the agents it supervises go in `supervises`, at
+   least one, since the capability is stored as those grants. */
 export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => void }) {
   const [template, setTemplate] = useState<Template>("general");
   const [step, setStep] = useState<"template" | "details">("template");
@@ -282,6 +283,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
             busy ||
             !name.trim() ||
             !role.trim() ||
+            (supervise && !supervises.length) ||
             (trading && (!pair.trading_account_id || !pair.trading_symbol))
           }
         >

@@ -217,11 +217,38 @@ async def test_an_agents_watch_extension_has_one_use_undo_the_owners_extend_has_
         assert await expiry() == start + timedelta(hours=3)
         shown = await cards(fixture, thread["id"])
         assert len(notices()) == 2
+        # Its toast Undo: the earlier expiry back, only at the revision that extend left.
+        before = (start + timedelta(hours=1)).isoformat()
+        stale_body = {
+            "action": "restore",
+            "expires_at": before,
+            "revision": extended["version"] - 1,
+        }
+        status, stale = await raw(fixture, "POST", f"/watches/{watch['id']}/control", stale_body)
+        assert status == 409 and "watch_changed_again" in str(stale), stale
+        status, restored = await raw(
+            fixture,
+            "POST",
+            f"/watches/{watch['id']}/control",
+            {"action": "restore", "expires_at": before, "revision": extended["version"]},
+        )
+        assert status == 200 and restored["version"] == extended["version"] + 1, restored
+        assert await expiry() == start + timedelta(hours=1)
+        status, _ = await raw(
+            fixture,
+            "POST",
+            f"/watches/{watch['id']}/control",
+            {"action": "restore", "expires_at": before, "revision": extended["version"]},
+        )
+        assert status == 409
         for body in (
             {"action": "extend"},
             {"action": "extend", "hours": 0},
             {"action": "extend", "hours": 25},
             {"action": "pause", "hours": 2},
+            {"action": "restore", "expires_at": before},
+            {"action": "restore", "revision": 1},
+            {"action": "cancel", "expires_at": before, "revision": 1},
         ):
             status, _ = await raw(fixture, "POST", f"/watches/{watch['id']}/control", body)
             assert status == 422, body

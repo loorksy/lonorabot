@@ -41,7 +41,7 @@ from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import or_, select, text
+from sqlalchemy import exists, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
@@ -284,7 +284,9 @@ def grant_data(row: SupervisionGrantRow, names: dict[str, str]) -> dict[str, Any
 
 
 async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) -> dict[str, Any]:
-    """The active grants around one agent: whom it supervises and who supervises it."""
+    """The active grants around one agent: whom it supervises and who supervises it, and
+    whether it has ever held a grant as supervisor (revoked grants stay on record), which
+    keeps its «يشرف على» section after its last supervisee is removed."""
     await owned_agent(session, owner_id, agent_id)
     rows = list(
         await session.scalars(
@@ -304,8 +306,17 @@ async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) 
         owner_id,
         {row.supervisor_agent_id for row in rows} | {row.supervised_agent_id for row in rows},
     )
+    ever_supervisor = await session.scalar(
+        select(
+            exists().where(
+                SupervisionGrantRow.owner_id == owner_id,
+                SupervisionGrantRow.supervisor_agent_id == agent_id,
+            )
+        )
+    )
     return {
         "agent_id": agent_id,
+        "ever_supervisor": bool(ever_supervisor),
         "supervises": [
             grant_data(row, names) for row in rows if row.supervisor_agent_id == agent_id
         ],
