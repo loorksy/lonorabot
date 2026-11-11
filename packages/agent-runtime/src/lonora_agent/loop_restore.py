@@ -25,6 +25,7 @@ from .tool_block import supersede_wait_siblings
 from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
+from .uncertain_outcome import record_request_start
 
 
 async def restore_checkpoint(
@@ -53,6 +54,8 @@ async def restore_checkpoint(
     if not messages:
         messages = await build_context(context, registry)
         state["instruction_skill_ids"] = await selected_skill_ids(context)
+    # Whether the owner started this Run, for the uncertain-outcome line.
+    record_request_start(state, run.trigger, messages)
     # Chosen once per Run and frozen in the checkpoint: the native tools array
     # is identical on every model turn, so discovery never invalidates the
     # reusable prompt prefix. Exposure is presentation, never authority.
