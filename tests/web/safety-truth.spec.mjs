@@ -488,7 +488,14 @@ test("M11: an amount limit saves in the account's own currency, prefilled from t
     // Daily loss is an amount: «استعادة» sets it, the currency comes from the account.
     await sheet.locator(".oa-lim").first().getByRole("button", { name: "Restore" }).click();
     await expect(sheet.locator('input[name="currency"]')).toHaveValue("USD");
+    const saved = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        new URL(response.url()).pathname === path &&
+        response.ok(),
+    );
     await sheet.getByRole("button", { name: "Save", exact: true }).click();
+    await saved;
     await expect.poll(() => puts.length).toBe(1);
     expect(puts[0].risk.currency).toBe("USD");
     const after = await (await context.request.get(path)).json();
