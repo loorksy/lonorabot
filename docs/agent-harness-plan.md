@@ -9,7 +9,7 @@ Nothing here rewrites the runtime. Every item names the module it extends.
 
 ## 1. Where things stand
 
-`main` at `792d30d`, 2026-11-11.
+`main` at `20ab760`, 2026-11-11.
 
 | Merged | What it changed |
 |---|---|
@@ -17,10 +17,19 @@ Nothing here rewrites the runtime. Every item names the module it extends.
 | #60, phase 0 | An instrument is resolved from the account's own symbol list (names in Arabic and English, broker affixes); orders name the listed symbol exactly and a refusal carries the candidates and the next call; a symbol's 404 is not reported as a missing account; tool search finds a tool from everyday Arabic and English words; error results carry `class` and `retryable`; a call that names no account means the agent's one account; voice notes are transcribed in the owner's language; bold markers; the question card's rows. |
 | #57 | A default model is chosen once when a key exists and no routing; a reply that failed for lack of a model is answered when one is connected (never for an agent holding a signed grant); a cancelled or completed Task stops its watches; `watch_list`, `watch_cancel` and `trade_close_positions` are offered beside their creators. |
 | #58 | The acceptance harness: 42 scenarios from the owner's conversation, a fake MetaApi terminal, a deterministic scorer. |
+| #61, phase 1 | The three research reports and the evidence they cite. |
 
-Measured by the harness, structural layer (no model): 8 of 22 probes passed before, 18 of 22 now. The
-four that fail are in phase 3a and 3d below. The live layer (a real model) scored 7 of 42 before the
-fixes; it is run again for the final report, because the later phases are what change behaviour.
+Measured by the harness, structural layer (no model): 8 of 22 probes passed before, 18 of 22 on
+`main`, 21 of 22 on the phase 3a branch. The one left is owner scope, phase 3d. The live layer (a real
+model) scored 7 of 42 before the fixes; it is run again for the final report, because the later
+phases are what change behaviour.
+
+The runtime audit (`docs/research/lonora-runtime.md`) was finished after the first draft of this
+plan. It confirms the order below and ranks the causes the same way: first, nothing holds a chat run
+to the owner's request (26 of 36 replies end in an offer; phases 3b and 3c); second, a failed tool
+call was a dead end for the model (phase 3a). Its citations are at `9f5b1da`, before #57, #59 and
+#60: where it says "nothing is fixed on main", the gold failure, the model default, the watch
+lifecycle and the visibility of the cancel tools have since been merged.
 
 ## 2. Decisions
 
@@ -67,6 +76,42 @@ safe part, and no failure in the evidence needed it.
 
 **D8. Nothing is copied from nanobot or rakazo.** Ideas are re-implemented in Lonora's modules;
 `THIRD_PARTY_NOTICES.md` does not change.
+
+The runtime audit left seven questions for the owner. Under the instruction to decide without
+asking, and with the brief as the newest word where older documents disagree with it:
+
+**D9. Under a signed mandate a missing size is the contract's smallest size, and the confirmation
+says so.** The brief asks for a default from the mandate; three older documents say none is chosen.
+The smallest size the contract takes is the one value that is safe without a judgment, and every
+executor and risk check still applies to it. A size or a risk rule the mandate carries wins over it.
+A size the owner did state and the contract cannot take is not a missing size: the agent says the
+smallest size in one line and asks (phase 3a already refuses it with the limits). Without a mandate
+nothing changes: the approval card carries the proposed size.
+
+**D10. A target on an open position is set at the broker when it is a price.** "Close at +X" and
+"stop at -Y" become the position's take profit and stop loss through `modify_position`, computed
+from the contract size and the volume; they hold while the server is down, and setting a protection
+is the safe direction. A condition that is not a price level (a time, an indicator, another symbol)
+is a watch whose wake acts inside the mandate, as it can today; outside the mandate the woken Run
+raises the card.
+
+**D11. An action that can leave an open position with less protection is the risky direction.**
+This refines D5. Cancelling a Task or a watch that manages the exit of a position still open is a
+card that names the protection that ends; the same cancel with no open position behind it is direct.
+Stopping all new trades is always direct.
+
+**D12. Several orders from one sentence are one plan.** The plan states the count, the size of
+each, the total exposure and the exit. Inside a mandate whose limits cover the total it is carried
+out as separate legs, each with its own operation id from the plan and the leg number, and the
+confirmation gives the numbers; otherwise it is one card. The rule that the same call in one Run
+replays one operation is not loosened.
+
+Already settled by the decisions above: the reply gates the brief asks for are the structural checks
+and exact lookups of D2, not wording vetoes; a short consent or a 👍 carries out an offer that is a
+read or inside the mandate, while an offer of money outside the mandate is a card whose own button is
+the approval (D3), and an offer stays open for the owner's next message only. Not changed: replies
+and critical alerts still reach the Telegram chat the owner connected himself; the agent has no tool
+to send anything outside the app (owner decision Q53).
 
 ## 3. Gaps, ordered by their effect on the owner
 
@@ -202,16 +247,17 @@ flip, and `bash scripts/build.sh` passes before it opens.
 
 | PR | Scope | Main files | Must flip |
 |---|---|---|---|
-| 3a | The error contract for every error; D1; one resolver for accounts, agents, watches, tasks and positions; the durable symbol map; single-candidate reads repeat inside the tool | `tool_dispatch.py`, `environment.py`, `symbols.py`, new `lonora_tools/resolve.py`, raising tools | X_unknown, X_rate, X_args (structural) |
-| 3b | The conversation gate; the effect check for "done" and promises; no trial calls; a found tool must be used | `stop_gates.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `market_watch.py`, `routine.py` | M36, M40, M42, M46, M52, M54, M62, M68, M76 (live) |
-| 3c | The offer record and its obligation; the open-request record | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M68-M80 (live) |
+| 3a | The error contract for every error: class, whether to repeat and a truthful hint; a handler's own guidance is kept instead of overwritten; D1; an order size the contract cannot take is refused before any card | `tool_dispatch.py`, `environment.py`, `failure_view.py`, `symbols.py`, `trade.py` | X_unknown, X_rate, X_args (structural) |
+| 3a-2 | One resolver for accounts, agents, watches, tasks, routines and positions; the durable symbol map; single-candidate reads repeat inside the tool; the class of a refusal comes from the tool, not from the spelling of its code | new `lonora_tools/resolve.py`, `symbols.py`, raising tools | new resolver probes |
+| 3b | The conversation gate; the effect check for "done" and promises; no trial calls; a found tool must be used; a call to a tool that exists but is not offered says how to reach it; the policy lines that decide behaviour are loaded before the first call of their domain | `stop_gates.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `market_watch.py`, `routine.py` | M36, M40, M42, M46, M52, M54, M62, M68, M76 (live) |
+| 3c | The offer record and its obligation; the open-request record; a Task that needs the owner asks in the owner's chat; a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M68-M80 (live) |
 | 3d | Owner scope for the personal assistant; the owner-wide reads | `market_watch.py`, `tasks.py`, `routine.py`, `trading_goal.py`, `supervision.py` | X_owner (structural), M62-M76 (live) |
 | 3e | The 45 actions with no tool: tools and cards as in 5.3 | `lonora_tools/*`, `owner_actions.py`, `capability_cards.py`, client cards | new parity probes, one per action |
-| 3f | The reply guard by exact lookup; the provenance of numbers; the reply's language | `public_reply.py`, `model_runtime.py`, voice upload | M64, M70, M74 internal_term; M28, M56, M58 live read; M50 language (live) |
-| 3g | Mandate defaults and the plan card; the policy text for "answer the question asked" | `trade.py`, `account_authority.py`, `owner_actions.py`, `resources/system/lonora.md` | M11, M23, M30, M34 (live) |
+| 3f | The reply guard by exact lookup; the provenance of numbers; the reply's language (Arabic when the profile names none); state tools return owner-ready labels; the guidance to present broker, login and server is removed; the failed-run card uses the sentence of its own code | `public_reply.py`, `model_runtime.py`, voice upload | M64, M70, M74 internal_term; M28, M56, M58 live read; M50 language (live) |
+| 3g | Mandate defaults (D9), targets at the broker (D10) and the plan (D12); the notice about repeated calls corrected for financial tools; the policy text for "answer the question asked" | `trade.py`, `account_authority.py`, `owner_actions.py`, `resources/system/lonora.md` | M11, M23, M30, M34 (live) |
 | Final | The live evaluation on a real model; the same conversation on the demo account; the before and after report | `scripts/agent_eval`, `docs/agent-eval.md` | all 42 |
 
-Order: 3a, 3b, 3c, 3d, 3f, 3e, 3g. 3e is the largest and does not block the others.
+Order: 3a, 3a-2, 3b, 3c, 3d, 3f, 3e, 3g. 3e is the largest and does not block the others.
 
 ## 7. Rules that hold in every pull request
 
