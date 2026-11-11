@@ -23,7 +23,7 @@ const standalone = () =>
   Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 
 /** The integrations count of the root row: linked accounts, configured providers, MCP servers. */
-function useLinkedCount() {
+export function useLinkedCount() {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
     let live = true;

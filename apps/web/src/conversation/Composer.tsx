@@ -7,12 +7,14 @@ import {
   type MentionRange,
   mentionAddress,
   mentionCandidates,
+  mentionSegments,
   mentionQuery as readMentionQuery,
   rebaseMentions,
   showsTradingControl,
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
 import { api } from "../lib/api";
@@ -28,6 +30,7 @@ import {
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
+import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
 import { speakerColor } from "./context";
@@ -112,6 +115,8 @@ export function Composer({
   const committed = useRef<MentionRange[]>(initial.current.mentions);
   const caret = useRef(0);
   const field = useRef<HTMLTextAreaElement>(null);
+  const mirror = useRef<HTMLDivElement>(null);
+  const micButton = useRef<HTMLButtonElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dictation = useRef<{ stop: () => void } | null>(null);
@@ -403,6 +408,22 @@ export function Composer({
     onShort: () => toast(t`Hold the microphone to record, release to send.`),
   });
 
+  /* ---- the one-time hint above the mic: a tap dictates, a hold records a voice message */
+  const [micTip, setMicTip] = useState(false);
+  const hideMicTip = useCallback(() => setMicTip(false), []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MIC_TIP) === "1") return;
+    } catch {
+      return;
+    }
+    const timer = setTimeout(() => setMicTip(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (assistOpen || recorder.active) setMicTip(false);
+  }, [assistOpen, recorder.active]);
+
   const trading = agent
     ? agent.template === "trading" ||
       showsTradingControl({
@@ -505,10 +526,10 @@ export function Composer({
                   </span>
                 )}
                 <span className="as-body">
-                  <span className="as-t">
+                  <strong>
                     <span dir="auto">@{row ? row.name : t`all`}</span>
-                  </span>
-                  {row && <small>{row.description || row.role}</small>}
+                  </strong>
+                  {row && agentRole(row) && <small>{agentRole(row)}</small>}
                 </span>
                 {row && (row.id === groupLead || row.paused) && (
                   <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
@@ -619,7 +640,17 @@ export function Composer({
           </div>
         )}
         <div className="ta-wrap">
-          <div className="ta-mirror" aria-hidden="true" />
+          <div className="ta-mirror" aria-hidden="true" ref={mirror}>
+            {mentionSegments(text, committed.current).map((part, index) =>
+              part.mark ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the segments of one text, in order
+                <mark key={index}>{part.text}</mark>
+              ) : (
+                part.text
+              ),
+            )}
+            {"\u200b"}
+          </div>
           <textarea
             ref={field}
             name="message"
@@ -635,6 +666,9 @@ export function Composer({
             aria-activedescendant={assistOpen ? `assist-${threadId}-${active}` : undefined}
             value={text}
             onChange={(event) => update(event.target.value, event.target.selectionStart)}
+            onScroll={(event) => {
+              if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
+            }}
             onSelect={(event) => {
               caret.current = event.currentTarget.selectionStart;
               setMention(readMentionQuery(text.slice(0, caret.current)));
@@ -753,7 +787,6 @@ export function Composer({
                   input.onchange = () => void upload(Array.from(input.files ?? []));
                   input.click();
                 },
-                onVoiceNote: () => recorder.startLocked(),
               })
             }
           >
@@ -785,6 +818,7 @@ export function Composer({
           )}
           <span className="grow" />
           <button
+            ref={micButton}
             type="button"
             className="icon cbtn mic"
             aria-label={t`Dictation, or hold to record a voice message`}
@@ -855,7 +889,59 @@ export function Composer({
           </div>
         </div>
       )}
+      {micTip && micButton.current && <MicTip mic={micButton.current} onDone={hideMicTip} />}
     </form>
+  );
+}
+
+const MIC_TIP = "lonora.tips.mic";
+
+/** Above the mic, its arrow on the mic; gone on any press or after 5.2s, and never shown again. */
+function MicTip({ mic, onDone }: { mic: HTMLElement; onDone: () => void }) {
+  const tip = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  useLayoutEffect(() => {
+    try {
+      localStorage.setItem(MIC_TIP, "1");
+    } catch {
+      // shown for this page only
+    }
+    const el = tip.current;
+    const card = mic.closest(".composer-card");
+    if (!el || !card) return;
+    const m = mic.getBoundingClientRect();
+    const cx = m.left + m.width / 2;
+    const left = Math.max(12, Math.min(innerWidth - 12 - el.offsetWidth, cx - el.offsetWidth / 2));
+    el.style.left = `${left}px`;
+    el.style.bottom = `${innerHeight - card.getBoundingClientRect().top + 12}px`;
+    el.style.setProperty("--ax", `${cx - left}px`);
+    const frame = requestAnimationFrame(() => setShow(true));
+    let gone = 0;
+    const off = () => {
+      document.removeEventListener("pointerdown", off, true);
+      setShow(false);
+      gone = window.setTimeout(onDone, 260);
+    };
+    document.addEventListener("pointerdown", off, true);
+    const timer = setTimeout(off, 5200);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      clearTimeout(gone);
+      document.removeEventListener("pointerdown", off, true);
+    };
+  }, [mic, onDone]);
+  return createPortal(
+    <div ref={tip} className={`mic-tip${show ? " show" : ""}`} role="status">
+      <strong>
+        <Icon name="mic" />
+        <Trans>Tap to dictate</Trans>
+      </strong>
+      <span>
+        <Trans>Hold to record a voice message</Trans>
+      </span>
+    </div>,
+    mic.closest(".app-shell") ?? document.body,
   );
 }
 
@@ -1016,7 +1102,7 @@ function useVoiceRecorder({
     }
     r.raf = requestAnimationFrame(tick);
   };
-  const begin = async (startLocked: boolean, mic?: HTMLElement) => {
+  const begin = async (mic: HTMLElement) => {
     const media = navigator.mediaDevices;
     if (
       !(media && "getUserMedia" in media && "MediaRecorder" in window && window.isSecureContext)
@@ -1036,25 +1122,23 @@ function useVoiceRecorder({
     } as NonNullable<typeof rec.current>;
     rec.current = r;
     setActive(true);
-    setLocked(startLocked);
-    if (!startLocked && mic) {
-      const b = mic.getBoundingClientRect();
-      const cx = b.left + b.width / 2;
-      const cy = b.top + b.height / 2;
-      const k = document.createElement("div");
-      k.className = "vrec-knob";
-      k.style.left = `${cx}px`;
-      k.style.top = `${cy}px`;
-      k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
-      const l = document.createElement("div");
-      l.className = "vrec-lock";
-      l.style.left = `${cx}px`;
-      l.style.top = `${cy - 136}px`;
-      l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
-      document.body.append(k, l);
-      knob.current = k;
-      lock.current = l;
-    }
+    setLocked(false);
+    const b = mic.getBoundingClientRect();
+    const cx = b.left + b.width / 2;
+    const cy = b.top + b.height / 2;
+    const k = document.createElement("div");
+    k.className = "vrec-knob";
+    k.style.left = `${cx}px`;
+    k.style.top = `${cy}px`;
+    k.innerHTML = `<span class="vring"></span><span class="vk">${svg("mic")}</span>`;
+    const l = document.createElement("div");
+    l.className = "vrec-lock";
+    l.style.left = `${cx}px`;
+    l.style.top = `${cy - 136}px`;
+    l.innerHTML = `${svg("lock")}<span class="vl-up">${svg("up")}</span>`;
+    document.body.append(k, l);
+    knob.current = k;
+    lock.current = l;
     requestAnimationFrame(() => {
       setEntered(true);
       knob.current?.classList.add("in");
@@ -1199,7 +1283,6 @@ function useVoiceRecorder({
     active,
     in: entered,
     bar,
-    startLocked: () => void begin(true),
     micHandlers: (onTap: () => void) => ({
       onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
         if (event.button > 0 || rec.current) return;
@@ -1211,7 +1294,7 @@ function useVoiceRecorder({
           recording: false,
           timer: window.setTimeout(() => {
             if (press.current) press.current.recording = true;
-            void begin(false, target);
+            void begin(target);
           }, VOICE.hold),
         };
         try {
