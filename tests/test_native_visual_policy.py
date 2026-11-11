@@ -26,6 +26,7 @@ from lonora_agent.skills.visual_policy import (
 from lonora_contracts.visual_response import ALLOWED, OPERATORS, VisualDocument
 from lonora_core.user_error import LonoraError
 from lonora_tools.loader import load_tools
+from test_system_policy import unseeded
 
 
 def test_compact_vocabulary_is_loaded_before_mutable_owner_context():
@@ -55,7 +56,7 @@ def test_ordinary_and_resumed_requests_keep_single_current_vocabulary():
         + VISUAL_END
         + "\nOwner preferences remain intact",
     )
-    tools = load_tools().definitions()
+    tools = unseeded()
     current = apply_operating_policy([old, owner], tools)
     assert "obsolete grammar" not in current[0].content
     assert "obsolete grammar" in old.content

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
+from .market_watch import created_to_run
 from .memory import Empty
 from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
@@ -27,6 +28,11 @@ class RoutineToggle(Contract):
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run, _thread = await locked_run_thread(session, context.lease)
+        if (
+            args.get("enabled") is False
+            and await session.get(RoutineRow, context.resource_id) is None
+        ):
+            raise created_to_run("routine", "routine_toggle")
         row = await create_routine(
             session,
             context.owner_id,

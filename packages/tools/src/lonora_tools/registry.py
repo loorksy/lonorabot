@@ -45,7 +45,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ToolCall, ToolDefinition
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.runs import require_lease
 
 from .base import AvailabilityCheck, ExposureProfile, Tool, ToolScope, eager_for, run_scope
@@ -101,6 +101,14 @@ INVOCATION = (
     "Call a tool marked invoke=direct by its own name. Call any other tool with tool_call "
     '{"name": <exact name>, "arguments": {...matching its input_schema}}. Both paths run the '
     "same validation, permission, approval, receipt and financial checks."
+)
+UNKNOWN_TOOL = (
+    "No tool has exactly this name: names are exact and case-sensitive. Look the ability up "
+    "with tool_environment before saying it is missing."
+)
+NO_MATCH = (
+    "No tool matched these words. That does not mean the ability is missing: every tool this "
+    "Run may use is named in permitted_names. Inspect the one that fits by its exact tool_name."
 )
 CORE = eager_for("core")
 
@@ -221,6 +229,23 @@ class ToolRegistry:
     def resolve_calls(self, calls: Sequence[ToolCall]) -> list[ToolCall]:
         return [self.resolve_call(call) for call in calls]
 
+    def unknown(self, name: str) -> ToolRefusal:
+        """The refusal for a name no tool has: a wrong name, not a rule to respect."""
+        wanted = name.strip().casefold()
+        return ToolRefusal(
+            "tool_call_target_unknown",
+            404,
+            details={
+                "class": "resolution",
+                "retryable": False,
+                "hint": UNKNOWN_TOOL,
+                "candidates": [
+                    {"name": known} for known in self.tools if known.casefold() == wanted
+                ],
+                "next_actions": [{"tool": INSPECTOR}],
+            },
+        )
+
     async def unresolved_bridge(self, _: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
         """Only calls resolve_call could not unwrap reach this; it never dispatches."""
         name = arguments["name"]
@@ -230,7 +255,7 @@ class ToolRegistry:
             # A known target that bypassed reply-intake resolution must not run
             # here: that would skip the loop's per-call effect boundaries.
             raise LonoraError("tool_call_unresolved", 409)
-        raise LonoraError("tool_call_target_unknown", 404)
+        raise self.unknown(name)
 
     async def availability(
         self, context: ToolContext, tools: Iterable[Tool] | None = None
@@ -361,7 +386,12 @@ class ToolRegistry:
         if name:
             tool = next((tool for tool in allowed if tool.name == name), None)
             if tool is None:
-                raise LonoraError("tool_not_allowed", 403)
+                # A tool outside this Run's scope is a rule; a name no tool has is not.
+                raise (
+                    LonoraError("tool_not_allowed", 403)
+                    if name in self.tools
+                    else self.unknown(name)
+                )
             unavailable = await self.availability(context, [tool])
             return {
                 "tool": self.describe(tool, native, unavailable),
@@ -397,6 +427,17 @@ class ToolRegistry:
                 "next_offset": None,
                 "invocation": INVOCATION,
                 "execution_authorized": False,
+                # Nothing matched the words: that is not an ability being missing.
+                **(
+                    {}
+                    if entries
+                    else {
+                        "found": False,
+                        "note": NO_MATCH,
+                        "permitted_names": [tool.name for tool in allowed],
+                        "next_actions": [{"tool": INSPECTOR}],
+                    }
+                ),
             }
         page = allowed[offset : offset + limit]
         unavailable = await self.availability(context, page)
@@ -489,7 +530,7 @@ class ToolRegistry:
     ) -> dict[str, Any]:
         tool = self.tools.get(call.name)
         if tool is None:
-            raise LonoraError("tool_not_allowed", 403)
+            raise self.unknown(call.name)
         if tool.financial and scope != "full":
             raise LonoraError("observe_only_execution_forbidden", 403)
         if not tool.permitted(scope):

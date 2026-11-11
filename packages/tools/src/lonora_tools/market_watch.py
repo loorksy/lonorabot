@@ -5,6 +5,7 @@ from typing import Any
 
 from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.market_watch import Watch
+from lonora_core.user_error import ToolRefusal
 from lonora_db.genui_taint import taint_row_from
 from lonora_db.market_watches import (
     MarketWatchRepository,
@@ -92,12 +93,28 @@ async def identical_watch(
     return None
 
 
+def created_to_run(kind: str, stop: str) -> ToolRefusal:
+    """The refusal for creating a watch or a routine switched off: nothing is made to try."""
+    return ToolRefusal(
+        "create_disabled_refused",
+        400,
+        details={
+            "class": "input",
+            "retryable": False,
+            "hint": f"A {kind} is created to run: create it enabled, and only when the owner "
+            f"asked for it. To stop one that exists, use {stop}.",
+        },
+    )
+
+
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease, lock=True)
         row = await session.get(MarketWatchRepository.row_type, context.resource_id)
         if row is not None:
             return resource_data(row)
+        if args.get("enabled") is False:
+            raise created_to_run("watch", "watch_pause")
         # A wake's watch belongs to the Agent's conversation, like one set up in chat;
         # a Task's watch stays with the Task's own work.
         thread_id = (

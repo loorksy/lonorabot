@@ -36,6 +36,7 @@ SOFTWARE.
 import json
 import logging
 from collections.abc import Awaitable, Callable, Collection
+from functools import partial
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
@@ -60,6 +61,7 @@ from .context_engine import (
     resolve_limits,
 )
 from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limit
+from .conversation_gate import conversation_stop_gate
 from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
@@ -606,6 +608,13 @@ async def execute_tool_loop(
             },
             save,
             outcome_line=True,
+            # Continuing is offered only while another round can still run a call:
+            # at the limit the reply stands instead of becoming a limit report.
+            conversation_gate=partial(
+                conversation_stop_gate, state, messages, registry, policy_tools
+            )
+            if final_limit - int(state["rounds"]) - 1 > 0
+            else None,
         )
         if outcome is not None:
             return outcome

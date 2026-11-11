@@ -663,7 +663,8 @@ async def main() -> None:
                 context,
             )
         except LonoraError as error:
-            assert error.code == "tool_not_allowed"
+            # No such tool exists for an Agent: lifting is the owner's alone.
+            assert error.code == "tool_call_target_unknown"
         else:
             raise AssertionError("An agent must not lift a restriction")
         lifted = await fixture.request(

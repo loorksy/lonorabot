@@ -63,7 +63,7 @@ Data written while the engine existed is inert:
 - A checkpointed call to either removed tool name gets the same outcome as a
   call to any unknown tool. If it was still pending, the Run tool loop does its
   usual checkpoint work (receipt lookup, Skill authority check, in-flight
-  marker), then the registry refuses it with `tool_not_allowed`; no handler,
+  marker), then the registry refuses it with `tool_call_target_unknown`; no handler,
   broker or file access happens. If it was in flight when the upgrade
   interrupted its Run, the resumed loop cannot tell what it did and reports
   `tool_execution_uncertain`, recording the route as ambiguous

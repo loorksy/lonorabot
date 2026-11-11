@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from lonora_adapter_kit.types import ToolCall, ToolDefinition
 from lonora_contracts.domain import Contract
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_tools.base import HELPER_EFFECTS, ExposureProfile, Tool, ToolScope, eager_for
 from lonora_tools.context import ToolContext
 from lonora_tools.environment import EnvironmentInput
@@ -324,12 +324,23 @@ async def test_discovery_does_not_execute_aliases_or_invent_missing_capabilities
     catalog = registry()
     result = await inspect(catalog, {"query": "MARKET_QUOTE"})
     assert [tool["name"] for tool in result["tools"]] == ["market_quote"]
-    with pytest.raises(LonoraError, match="tool_not_allowed"):
+    # A name no tool has is a wrong name, with the tool it was meant to be: never a rule.
+    with pytest.raises(ToolRefusal, match="tool_call_target_unknown") as unknown:
         await catalog.execute(
             ToolCall(id="alias", name="MARKET_QUOTE", arguments={}), cast(ToolContext, None)
         )
-    # Words the catalog never uses invent nothing, and no longer empty a search either.
-    assert (await inspect(catalog, {"query": "quantum-xylophone"}))["tools"] == []
+    assert unknown.value.details["class"] == "resolution"
+    assert unknown.value.details["candidates"] == [{"name": "market_quote"}]
+    assert unknown.value.details["next_actions"] == [{"tool": "tool_environment"}]
+    with pytest.raises(ToolRefusal, match="tool_call_target_unknown") as invented:
+        await inspect(catalog, {"tool_name": "quantum_xylophone"})
+    assert invented.value.details["candidates"] == []
+    # Words the catalog never uses invent nothing, and the empty answer says what exists.
+    nothing = await inspect(catalog, {"query": "quantum-xylophone"})
+    assert nothing["tools"] == [] and nothing["found"] is False
+    assert "market_quote" in nothing["permitted_names"]
+    assert nothing["next_actions"] == [{"tool": "tool_environment"}]
+    assert "found" not in await inspect(catalog, {"query": "MARKET_QUOTE"})
     found = await inspect(catalog, {"query": "market quantum-xylophone"})
     assert "market_quote" in [tool["name"] for tool in found["tools"]]
     assert (await inspect(catalog, {"query": "   "}))["tools"] == []
