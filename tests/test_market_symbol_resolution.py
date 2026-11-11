@@ -100,8 +100,12 @@ async def test_a_read_resolves_to_the_accounts_own_symbol_and_states_it(requeste
             "requested": requested,
             "symbol": "XAUUSDm",
             "description": "Gold vs US Dollar",
+            # The broker's own currencies are this pair's: the account may remember it.
+            "confirmed": True,
         }
     }
+    unreported = (await read_symbol(Account({"XAUUSDm": (None, None)}), requested))[1]
+    assert "confirmed" not in unreported["symbol_resolution"]
     stated["symbol_resolution"]["symbol"] = "changed by a caller"
     assert await read_symbol(Account(EXNESS), "xauusdM", require_exists=True) == ("XAUUSDm", {})
 

@@ -51,10 +51,16 @@ from lonora_db.runs import require_lease
 from .base import AvailabilityCheck, ExposureProfile, Tool, ToolScope, eager_for, run_scope
 from .context import ToolContext
 from .environment import BridgeInput, EnvironmentInput
-from .market_binding import guard_market_tool, prepare_market_arguments, scope_market_result
+from .market_binding import (
+    guard_market_tool,
+    market_tool,
+    prepare_market_arguments,
+    scope_market_result,
+)
 from .resolve import stating
 from .restrictions import mark_external_content
 from .schema import validate_arguments
+from .symbols import remember_resolution
 from .tool_discovery import MAX_SEARCH_RESULTS, search_definitions
 
 log = logging.getLogger("lonora.tools")
@@ -519,4 +525,6 @@ class ToolRegistry:
         arguments = validate_arguments(tool.input_type, arguments)
         arguments = await guard_market_tool(context, call.name, arguments, read=tool.read_only)
         result = await tool.handler(context.for_call(call.id), arguments)
+        if tool.read_only and market_tool(call.name):
+            await remember_resolution(context.db, context.owner_id, arguments, result)
         return stating(await scope_market_result(context, call.name, result, arguments), named)
