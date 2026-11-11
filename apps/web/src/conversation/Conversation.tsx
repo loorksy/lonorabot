@@ -34,7 +34,7 @@ import { draftKey, readComposerDraft } from "../lib/composer-drafts";
 import { failedReplies } from "../lib/failed-replies";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
 import { streamForRun } from "../lib/response_streaming";
-import { activityTimeline, streamVisible } from "../lib/stream-timeline";
+import { activityTimeline, stepsSeconds, streamVisible } from "../lib/stream-timeline";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
 import { useShellData } from "../shell/data";
@@ -941,7 +941,7 @@ export function Conversation({
               <Steps
                 calls={calls}
                 running={!stream.text}
-                seconds={0}
+                seconds={stream.text ? stepsSeconds(run, calls) : 0}
                 defaultOpen={prefs.stepsOpen}
               />
             ) : undefined
@@ -981,7 +981,7 @@ export function Conversation({
             <Steps
               calls={doneCalls}
               running={false}
-              seconds={done?.seconds ?? 0}
+              seconds={done ? stepsSeconds(done.run, doneCalls) || done.seconds : 0}
               defaultOpen={prefs.stepsOpen}
             />
           ) : undefined
