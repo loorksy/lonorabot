@@ -190,7 +190,9 @@ def _found_tool_unused(
         if call.name != INSPECTOR or result is None or result.get("ok") is False:
             continue
         listed = cast(list[Any], result["tools"]) if isinstance(result.get("tools"), list) else []
-        entry: Any = result.get("tool") or (listed[0] if len(listed) == 1 else None)
+        # One row of a longer listing is a page, not the one tool a lookup found.
+        only = listed[0] if len(listed) == 1 and result.get("total") == 1 else None
+        entry: Any = result.get("tool") or only
         if not isinstance(entry, dict):
             continue
         name = cast(dict[str, Any], entry).get("name")

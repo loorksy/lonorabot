@@ -163,21 +163,19 @@ def test_an_interrupted_change_that_is_not_a_trade_gets_its_own_line() -> None:
     )
     state, messages = request(EN, exchange("watch_create", "w1", cut, level="2400"))
     assert append_uncertain_line(state, messages, "Created.").endswith(CHANGE_EN)
-    # The same call succeeding later settles it; a later failure of it does not.
-    done = exchange("watch_create", "w2", {"ok": True, "id": "w"}, level="2400")
-    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), done)
-    assert not unconfirmed_change(state, messages)
-    failed = exchange("watch_create", "w2", {"ok": False, "code": "watch_limit"}, level="2400")
-    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), failed)
-    assert unconfirmed_change(state, messages)
-    other = exchange("watch_create", "w2", {"ok": True, "id": "w"}, level="2500")
-    state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), other)
-    assert unconfirmed_change(state, messages)
+    # Once any call followed, a read may have shown the change: the reply is the model's.
+    for later in (
+        exchange("watch_list", "r1", {"ok": True, "watches": [{"id": "w"}]}),
+        exchange("watch_create", "w2", {"ok": False, "code": "broker_result_ambiguous"}),
+    ):
+        state, messages = request(AR, exchange("watch_create", "w1", cut, level="2400"), later)
+        assert not unconfirmed_change(state, messages)
+        assert append_uncertain_line(state, messages, "المراقبة قائمة.") == "المراقبة قائمة."
     # An uncertain trade keeps the trade's line, and a wake gets none.
     state, messages = request(
         AR,
-        exchange("watch_create", "w1", cut, level="2400"),
         exchange("trade_execute", "c1", AMBIGUOUS, action="buy"),
+        exchange("watch_create", "w1", cut, level="2400"),
     )
     assert append_uncertain_line(state, messages, "تم.").endswith(LINE_AR)
     state, messages = request(

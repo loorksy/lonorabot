@@ -17,6 +17,7 @@ from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.runtime_notices import NO_ANSWER, is_runtime_notice
 from lonora_agent.tool_loop import execute_tool_loop
+from lonora_agent.uncertain_outcome import CHANGE_EN
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease, RunRequest
@@ -620,6 +621,19 @@ async def test_a_reply_that_keeps_its_answer_after_the_check_stands(
     assert len(model.requests) == 3
     assert run.execution_state["conversation_gate"]["attempts"] == 1
 
+    # On the last round that can run a call the reply stands: no notice, no limit report.
+    context = await conversation_run(task_db)
+    model = Script(
+        ModelReply(text="", tool_calls=calls(("q1", "fixture_quote", 1))),
+        ModelReply(text="I cannot reach gold."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 3)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "I cannot reach gold."
+    assert len(model.requests) == 2 and "conversation_gate" not in run.execution_state
+    assert run.execution_state.get("exit_reason") is None
+
 
 async def task_run(fixture: Fixture, request: TaskCreate) -> tuple[ToolContext, str]:
     db, owner, agent, thread = fixture
@@ -1114,7 +1128,11 @@ async def test_owner_steering_never_calls_an_interrupted_mutation_superseded(
     # Never started: superseded by the owner's new request.
     assert observed["w2"]["code"] == "tool_call_superseded"
     assert not any(item["call_id"] == "w2" for item in routes.values())
-    assert run.status == "completed" and run.result == "Checked.", (run.status, run.error_code)
+    # The reply says only "Checked.": the runtime adds what it knows about the first note.
+    assert run.status == "completed" and run.result == "Checked.\n\n" + CHANGE_EN, (
+        run.status,
+        run.error_code,
+    )
 
 
 @pytest.mark.asyncio

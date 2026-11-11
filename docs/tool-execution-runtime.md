@@ -486,7 +486,7 @@ results:
 | Condition | What was seen | What the notice asks |
 |---|---|---|
 | `read_step_not_taken` | The last call failed with class `resolution`, listed nothing that exists, and named exactly one read-only tool to call next, which the request never called | Take that step and answer from it, or say plainly what was not done |
-| `found_tool_unused` | `tool_environment` returned exactly one available tool, and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
+| `found_tool_unused` | `tool_environment` returned exactly one available tool (an exact lookup, or a search with one match; never one row of a longer listing), and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
 | `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
 
 The gate reads call names, arguments and result fields only. It never reads what the owner
@@ -497,7 +497,9 @@ hit a risk or health block, has an unknown outcome, was stopped by a guardrail o
 its retries, and when the last owner-side message is a wake. A found tool that is
 financial is never raised.
 
-It continues at most twice per owner message (`MAXIMUM_STOP_NUDGES`); a new owner message,
+It is not consulted on the last round that can still run a call: there the reply stands
+instead of becoming a limit report. It continues at most twice per owner message
+(`MAXIMUM_STOP_NUDGES`); a new owner message,
 a wake or an attention resume starts a new budget. One fact is raised once: a reply that
 keeps its answer after the notice stands. When the budget is spent the reply is returned
 as it is; a conversation is never turned into an owner-attention request. Every
@@ -514,9 +516,10 @@ second needs the record of what was offered, which is the next phase.
 
 One line may still be appended to the reply (`uncertain_outcome.py`). An uncertain trade
 gets the line that says it is being checked and will not be resent. A change that is not
-a trade and ended `tool_execution_uncertain` gets its own line, which says only that it
-may or may not have taken effect: nothing reconciles such a change, so no check is
-promised. The same call succeeding later in the request settles it.
+a trade and ended `tool_execution_uncertain` in the request's last calls gets its own
+line, which says only that it may or may not have taken effect: nothing reconciles such a
+change, so no check is promised. Once any call followed it the line is not added: a read
+may have shown whether the change took effect, and the reply is the model's to word.
 
 ## Runtime notices
 

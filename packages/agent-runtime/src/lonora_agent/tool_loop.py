@@ -608,9 +608,13 @@ async def execute_tool_loop(
             },
             save,
             outcome_line=True,
+            # Continuing is offered only while another round can still run a call:
+            # at the limit the reply stands instead of becoming a limit report.
             conversation_gate=partial(
                 conversation_stop_gate, state, messages, registry, policy_tools
-            ),
+            )
+            if final_limit - int(state["rounds"]) - 1 > 0
+            else None,
         )
         if outcome is not None:
             return outcome

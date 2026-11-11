@@ -129,6 +129,11 @@ def test_one_found_tool_that_was_never_called_continues_the_turn():
     verdict = gate(started(), OWNER, *exchange("tool_environment", found, query="price"), REPLY)
     assert verdict.continue_turn and "market_quote" in verdict.nudge
     assert "call it now" in verdict.nudge
+    # One row of a longer listing is a page of it, not the tool a lookup found.
+    page = {**found, "total": 41, "next_offset": None}
+    assert not gate(
+        started(), OWNER, *exchange("tool_environment", page, offset=40), REPLY
+    ).continue_turn
     inspected = {"ok": True, "tool": {"name": "watch_list", "available": True}}
     assert gate(
         started(), OWNER, *exchange("tool_environment", inspected, tool_name="watch_list"), REPLY
@@ -141,7 +146,7 @@ def test_one_found_tool_that_was_never_called_continues_the_turn():
         REPLY,
     ]
     assert not gate(started(), *used).continue_turn
-    off = {"ok": True, "tools": [{"name": "market_quote", "available": False}]}
+    off = {"ok": True, "tools": [{"name": "market_quote", "available": False}], "total": 1}
     assert not gate(
         started(), OWNER, *exchange("tool_environment", off, query="p"), REPLY
     ).continue_turn
@@ -152,13 +157,13 @@ def test_one_found_tool_that_was_never_called_continues_the_turn():
 
 
 def test_a_found_change_is_the_owners_to_ask_for_and_a_found_trade_is_never_raised():
-    change = {"ok": True, "tools": [{"name": "watch_create", "available": True}]}
+    change = {"ok": True, "tools": [{"name": "watch_create", "available": True}], "total": 1}
     verdict = gate(started(), OWNER, *exchange("tool_environment", change, query="watch"), REPLY)
     assert verdict.continue_turn
     assert "If the owner only asked about it, your answer stands." in verdict.nudge
     assert "call it now" not in verdict.nudge
     for name in ("trade_execute", "trade_close_positions", "goal_step_execute"):
-        money = {"ok": True, "tools": [{"name": name, "available": True}]}
+        money = {"ok": True, "tools": [{"name": name, "available": True}], "total": 1}
         assert not gate(
             started(), OWNER, *exchange("tool_environment", money, query="close"), REPLY
         ).continue_turn
@@ -200,6 +205,14 @@ def test_changes_that_all_failed_with_a_way_to_repeat_them_continue_the_turn():
         ),
         exchange("watch_list", {"ok": False, "code": "x", "recovery": {"retry_exhausted": True}}),
         exchange("watch_list", {"ok": False, "code": "guardrail_blocked", "executed": False}),
+        exchange(
+            "watch_create",
+            {
+                "ok": False,
+                "code": "tool_execution_uncertain",
+                "recovery": {"category": "ambiguous_mutation"},
+            },
+        ),
         exchange("trade_execute", {"ok": True, "status": "filled"}, symbol="XAUUSDm"),
         exchange("trade_close_positions", {"ok": False, "code": "trade_approval_rejected"}),
     ],
@@ -211,6 +224,13 @@ def test_a_rule_a_trade_or_a_spent_retry_anywhere_in_the_request_holds_the_reply
     state = started()
     assert not gate(state, *transcript).continue_turn
     assert CONVERSATION_KEY not in state
+
+
+def test_a_step_is_raised_only_for_a_tool_this_run_may_use():
+    transcript = [OWNER, *exchange("market_quote", NOT_FOUND, symbol="gold"), REPLY]
+    narrowed = PERMITTED - {"market_symbols"}
+    assert not conversation_stop_gate(started(), transcript, REGISTRY, narrowed).continue_turn
+    assert conversation_stop_gate(started(), transcript, REGISTRY, PERMITTED).continue_turn
 
 
 def test_an_uncertain_financial_outcome_holds_the_reply():
@@ -238,7 +258,7 @@ def test_two_continuations_per_owner_message_then_the_reply_stands():
     assert gate(state, *first).continue_turn
     second = [*first, *exchange("watch_cancel", ONE_FITS, watch_id="ذهب"), REPLY]
     assert gate(state, *second).continue_turn
-    found = {"ok": True, "tools": [{"name": "watch_list", "available": True}]}
+    found = {"ok": True, "tools": [{"name": "watch_list", "available": True}], "total": 1}
     third = [OWNER, *exchange("tool_environment", found, query="watch"), REPLY]
     assert state[CONVERSATION_KEY]["attempts"] == 2
     assert not gate(state, *third).continue_turn
