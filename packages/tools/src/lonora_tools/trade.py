@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .resolve import Option, resolve
 from .symbols import canonical_broker_symbol, order_symbol
 
 # Results whose operation reached, or may have reached, the broker: never asked twice.
@@ -103,6 +104,48 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
         key: material_state(target) if target else None
         for key, target in (await management_targets(context, requests)).items()
     }
+
+
+async def require_tickets(
+    context: ToolContext, requests: list[TradeRequest], snapshot: dict[str, Any]
+) -> None:
+    """Refuse a first request for a ticket the account does not hold, with those it does.
+
+    The executor refuses it in any case; said here, before any card, the next call names
+    a real ticket. Nothing is put in the place of the ticket that was named, and a call
+    that already has a record is answered from it, never by this check.
+    """
+    for request in requests:
+        if not (request.position_id or request.order_id) or snapshot.get(target_key(request)):
+            continue
+        if not await never_recorded(context, request.operation_id):
+            continue
+        try:
+            broker = await context.brokers.get(context.owner_id, request.account_id)
+            held = await (broker.positions() if request.position_id else broker.orders())
+        except Exception:
+            # The executor answers alone when the account cannot be read here.
+            return
+        kind = "position" if request.position_id else "order"
+        options = [
+            Option(
+                item.id,
+                (item.symbol,),
+                item.model_dump(
+                    mode="json",
+                    include={"symbol", "side", "volume", "open_price", "price", "profit"},
+                ),
+            )
+            for item in held
+        ]
+        resolve(
+            request.symbol,
+            options,
+            missing=kind + "_not_found",
+            argument=kind + "_id",
+            use="refuse",
+            listing="account_read",
+        )
 
 
 async def reviewed_contracts(
@@ -357,6 +400,8 @@ async def approved_execution(
     if grants:
         return await account_authorized_execution(context, authority_requests, grants)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
+    if previous is None and not gate_only:
+        await require_tickets(context, requests, initial_snapshot)
     contracts = await reviewed_contracts(context, requests) if previous is None else []
     adding = (
         await new_risk_requests(context, requests) if not gate_only and previous is None else []
@@ -601,6 +646,7 @@ async def account_authorized_execution(
 ) -> dict[str, Any]:
     """Standing authority uses the same executor, journal and independent verification."""
     expected = await management_snapshot(context, requests)
+    await require_tickets(context, requests, expected)
     results: list[dict[str, Any]] = []
     independent = independent_exits(requests)
     for index, (request, identifier) in enumerate(zip(requests, grants, strict=True)):

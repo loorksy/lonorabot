@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -157,3 +157,71 @@ async def test_a_call_that_already_has_a_record_is_never_checked_again() -> None
     order = {"account_id": "account", "symbol": "XAUUSDm", "action": "buy", "volume": "0.01"}
     assert [r.volume for r in await sent(trade.execute, context, order)] == [Decimal("0.01")]
     broker.instrument.assert_not_awaited()
+
+
+def managing(position_id: str, symbol: str = "XAUUSDm", **extra: Any) -> TradeRequest:
+    return TradeRequest(
+        operation_id="op-" + position_id,
+        account_id="account",
+        symbol=symbol,
+        action="close_position",
+        position_id=position_id,
+        **extra,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_ticket_the_account_does_not_hold_is_refused_with_those_it_does() -> None:
+    from lonora_tools.resolve import NotResolved
+
+    context = Context([position("7", "XAUUSDm"), position("8", "EURUSDm")])
+    request = managing("wrong")
+    with pytest.raises(NotResolved) as one:
+        await trade.require_tickets(
+            cast(Any, context), [request], {trade.target_key(request): None}
+        )
+    assert one.value.code == "position_not_found" and one.value.details["retryable"] is True
+    assert one.value.details["candidates"] == [
+        {
+            "id": "7",
+            "label": "XAUUSDm",
+            "symbol": "XAUUSDm",
+            "side": "buy",
+            "volume": "0.01",
+            "open_price": "4100",
+            "profit": "0",
+        }
+    ]
+    # The next call names the real ticket; nothing was put in the place of the one named.
+    assert one.value.details["next_actions"] == [{"repeat_with": {"position_id": "7"}}]
+    two = Context([position("7", "XAUUSDm"), position("9", "XAUUSDm")])
+    with pytest.raises(NotResolved) as several:
+        await trade.require_tickets(cast(Any, two), [request], {trade.target_key(request): None})
+    assert several.value.code == "position_ambiguous"
+    assert [item["id"] for item in several.value.details["candidates"]] == ["7", "9"]
+    other = managing("wrong", "GBPUSDm")
+    with pytest.raises(NotResolved) as none:
+        await trade.require_tickets(cast(Any, context), [other], {trade.target_key(other): None})
+    assert none.value.details["candidates"] == []
+    assert [item["id"] for item in none.value.details["existing"]] == ["7", "8"]
+
+
+@pytest.mark.asyncio
+async def test_a_held_ticket_a_recorded_call_and_an_unreadable_account_are_never_checked() -> None:
+    request = managing("7")
+    held = Context([position("7", "XAUUSDm")])
+    broker = await held.brokers.get("owner", "account")
+    await trade.require_tickets(
+        cast(Any, held), [request], {trade.target_key(request): {"volume": "0.01"}}
+    )
+    broker.positions.assert_not_awaited()
+    # After approval, a restart or an unknown outcome the record answers: the position
+    # may be gone because the first attempt closed it.
+    gone = managing("closed-already")
+    recorded = Context([], recorded=SimpleNamespace(status="completed"))
+    await trade.require_tickets(cast(Any, recorded), [gone], {trade.target_key(gone): None})
+    unreadable = Context([])
+    (await unreadable.brokers.get("owner", "account")).positions = AsyncMock(
+        side_effect=ConnectionError()
+    )
+    await trade.require_tickets(cast(Any, unreadable), [gone], {trade.target_key(gone): None})
