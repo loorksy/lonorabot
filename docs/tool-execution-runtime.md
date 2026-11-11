@@ -302,6 +302,30 @@ by a resolver (a ticket is only checked for existing, on a first attempt, and a 
 read leaves the request to the executor), and nothing new wakes an agent: switching a
 watch or a routine back on always needs its id.
 
+## What an account's reads taught
+
+A read that resolves the owner's word to one of the account's symbols states it
+(`symbol_resolution`), and marks it `confirmed` when the broker's own base and quote
+currency are the pair the word names. `symbols.remember_resolution`, called by the
+registry after a market read, keeps a confirmed single match with the account:
+`BrokerSessionRow.state["symbol_map"]`, the folded word, the symbol, the broker's
+description and the time (`lonora_db.broker_sessions.learn_symbol`). It is a note in the
+row's state, merged under the row's lock like every other writer of it: the connection's
+version does not change, so nothing is reconnected and no send is fenced out, and no
+event is emitted, so nothing is woken.
+
+What is kept is forgotten when it stops being true: a later read that finds several
+contracts for the word removes it; the map is stamped with the broker identity (login,
+server, platform) and is empty once the connection points at another account; an entry
+is not shown after `SYMBOL_MAP_DAYS`; fifty entries are kept, the newest.
+
+The next Run is shown it before its first call, in the sheddable context section
+`account_symbols` (`context/account_symbols.py`, trust `historical_observation`): the
+agent's own account for an agent with a market of its own, else the owner's accounts. It
+informs and nothing more. An order still names a symbol the live catalogue lists exactly
+(`order_symbol`), and the section tells the agent to read the word once before an order
+on it, because what an account lists can change.
+
 ## Dispatch deadlines
 
 `ToolRegistry.execute` wraps the handler in a per-tool deadline:

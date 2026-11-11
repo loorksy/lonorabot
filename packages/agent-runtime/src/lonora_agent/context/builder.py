@@ -25,6 +25,7 @@ from ..context_engine import resolve_limits
 from ..progress import progress
 from ..runtime_notices import is_owner_message
 from ..skills.loader import load_constitution, load_prompt
+from .account_symbols import account_symbols_context
 from .attachments import attachment_parts
 from .decisions import decision_context
 from .environment import operational_context
@@ -247,6 +248,15 @@ async def build_context(
                 "historical_observation",
                 evidence.observations,
                 55,
+            ),
+            ContextSection(
+                "account_symbols",
+                "earlier_reads",
+                "historical_observation",
+                await timed(
+                    "account_symbols", account_symbols_context(session, context.owner_id, agent)
+                ),
+                54,
             ),
             # Third-party content keeps the untrusted label it had as a tool result.
             ContextSection(

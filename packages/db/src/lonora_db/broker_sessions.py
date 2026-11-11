@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from lonora_contracts.broker import BrokerConnection
+from lonora_contracts.domain import utcnow
+from lonora_core.search_fold import fold
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +31,79 @@ def current_broker_identity(row: ResourceRow) -> dict[str, Any] | None:
         return None
     identity = cast(dict[str, Any], value)
     return identity if identity.get("connection_version") == row.version else None
+
+
+# What reads of an account learned about its symbols: kept with the connection, shown to
+# the agent before its first call, never consulted by an order.
+SYMBOL_MAP_ENTRIES = 50
+SYMBOL_MAP_DAYS = 30
+SYMBOL_MAP_KEY = 40
+
+
+def account_symbols(row: ResourceRow, now: datetime | None = None) -> dict[str, dict[str, Any]]:
+    """The owner's words for instruments and the symbols this account lists for them.
+
+    Empty once the account behind the connection is another one (another login, server
+    or platform), and an entry older than ``SYMBOL_MAP_DAYS`` is not shown: the list an
+    account offers changes.
+    """
+    stored = row.state.get("symbol_map")
+    identity = current_broker_identity(row)
+    key = broker_identity_key(identity) if identity else None
+    if not isinstance(stored, dict) or key is None:
+        return {}
+    kept = cast(dict[str, Any], stored)
+    if kept.get("identity") != list(key) or not isinstance(kept.get("entries"), dict):
+        return {}
+    cutoff = ((now or utcnow()) - timedelta(days=SYMBOL_MAP_DAYS)).isoformat()
+    return {
+        word: cast(dict[str, Any], entry)
+        for word, entry in cast(dict[str, Any], kept["entries"]).items()
+        if isinstance(entry, dict) and str(cast(dict[str, Any], entry).get("at", "")) >= cutoff
+    }
+
+
+async def learn_symbol(
+    session: AsyncSession,
+    owner_id: str,
+    account_id: str,
+    requested: str,
+    symbol: str | None,
+    description: str = "",
+    *,
+    unless: str | None = None,
+) -> None:
+    """Keep that this account lists ``requested`` as ``symbol``, or forget it (``None``;
+    with ``unless``, only when it is kept as another symbol than that one).
+
+    Written under the row's lock and merged into its state like every other writer of
+    it. The connection's version is not touched and no event is emitted: nothing is
+    reconnected, no send is fenced out and no agent is woken by a note.
+    """
+    word = fold(requested)[:SYMBOL_MAP_KEY]
+    seen = await session.get(BrokerSessionRow, account_id)
+    if not word or seen is None or seen.owner_id != owner_id:
+        return
+    kept = account_symbols(seen).get(word, {}).get("symbol")
+    if kept == symbol or (unless is not None and kept == unless):
+        return
+    row = await session.get(
+        BrokerSessionRow, account_id, with_for_update=True, populate_existing=True
+    )
+    identity = current_broker_identity(row) if row is not None else None
+    key = broker_identity_key(identity) if identity else None
+    if row is None or key is None:
+        return
+    entries = account_symbols(row)
+    entries.pop(word, None)
+    if symbol is not None:
+        entry = {"symbol": symbol, "at": utcnow().isoformat()}
+        entries[word] = {**entry, "description": description[:240]} if description else entry
+    newest = sorted(entries.items(), key=lambda item: str(item[1].get("at", "")), reverse=True)
+    row.state = {
+        **row.state,
+        "symbol_map": {"identity": list(key), "entries": dict(newest[:SYMBOL_MAP_ENTRIES])},
+    }
 
 
 class BrokerSessionRepository(ResourceRepository):
