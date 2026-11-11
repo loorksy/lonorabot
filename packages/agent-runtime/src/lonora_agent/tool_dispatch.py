@@ -110,7 +110,12 @@ async def dispatch_call(
     except LonoraError as error:
         if error.code in {"stale_lease", "skill_continuation_unavailable"}:
             raise
-        error_result: dict[str, Any] = {"ok": False, "code": error.code}
+        # The status says what kind of refusal this is; observe() reads and removes it.
+        error_result: dict[str, Any] = {
+            "ok": False,
+            "code": error.code,
+            "http_status": error.status,
+        }
         if isinstance(error, ToolArgumentsError):
             error_result["issues"] = error.issues
             error_result["retryable"] = True

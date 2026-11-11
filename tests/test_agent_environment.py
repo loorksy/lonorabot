@@ -215,6 +215,78 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
     assert note["hint"] == sentence and "recovery" not in note
 
 
+@pytest.mark.parametrize(
+    ("code", "status", "expected_class", "action"),
+    [
+        # Not named by classify(): the status its tool raised says what kind of refusal it is.
+        ("mcp_tool_not_authorized", 403, "permission", "respect_scope"),
+        ("memory_edit_no_match", 422, "input", "correct_arguments"),
+        ("invalid_cron", 400, "input", "correct_arguments"),
+        ("goal_trade_confirmation_required", 409, "permission", "request_owner_authorization"),
+        ("goal_reconciliation_required", 409, "provider", "wait_for_authoritative_recovery"),
+        ("account_authority_volume_limit", 409, "permission", "respect_scope"),
+        ("work_paused_by_owner", 409, "permission", "respect_scope"),
+        ("pending_price_wrong_side", 409, "input", "correct_arguments"),
+        # A state conflict says nothing a model can act on: it stays as it was.
+        ("task_not_running", 409, "internal", "alternate_route"),
+        ("operation_status_transition_invalid", 409, "internal", "alternate_route"),
+        ("quote_unavailable", 404, "internal", "alternate_route"),
+        ("browser_action_failed", 403, "internal", "alternate_route"),
+        ("position_sizing_economics_unavailable", 409, "internal", "alternate_route"),
+        ("mcp_schema_invalid", 422, "internal", "alternate_route"),
+        # A broker's own refusal stays the provider's, whatever its status.
+        ("broker_disabled", 409, "provider", "alternate_route"),
+        ("broker_endpoint_forbidden", 403, "provider", "alternate_route"),
+        # Named codes never change with their status.
+        ("trading_restriction_active", 409, "permission", "respect_scope"),
+        ("emergency_stop", 409, "provider", "wait_for_authoritative_recovery"),
+        ("model_not_configured", 409, "provider", "inspect_authorized_alternative"),
+        ("position_volume_exceeded", 409, "input", "correct_arguments"),
+        ("task_run_not_found", 409, "resolution", "inspect_existing_state"),
+        # Rules that a corrected argument does not get past, and the owner's budgets.
+        ("trusted_source_write_blocked", 422, "permission", "respect_scope"),
+        ("owner_action_limit", 429, "permission", "respect_scope"),
+        ("agent_paused", 409, "permission", "respect_scope"),
+        ("trade_approval_required", 403, "permission", "request_owner_authorization"),
+    ],
+)
+def test_a_refusal_is_classed_by_what_its_tool_said_not_by_how_its_code_is_spelt(
+    code: str, status: int, expected_class: str, action: str
+) -> None:
+    refused: dict[str, Any] = {"ok": False, "code": code, "http_status": status}
+    observe({}, ToolCall(id="c", name="some_tool", arguments={}), None, refused)
+    assert (refused["class"], refused["recovery"]["next_action"]) == (expected_class, action)
+    # The status is read by the runtime and goes no further.
+    assert "http_status" not in refused
+    if expected_class == "permission":
+        assert "another" in refused["hint"]
+
+
+def test_the_class_a_tool_wrote_decides_what_its_refusal_means() -> None:
+    authored: dict[str, Any] = {
+        "ok": False,
+        "code": "routine_title_taken",
+        "class": "input",
+        "hint": "Another routine has that title. Choose a different one.",
+    }
+    observe({}, ToolCall(id="a", name="routine_create", arguments={}), None, authored)
+    assert authored["recovery"]["category"] == "invalid_tool_arguments"
+    assert authored["recovery"]["next_action"] == "correct_arguments"
+    assert authored["hint"].startswith("Another routine")
+    listed: dict[str, Any] = {
+        "ok": False,
+        "code": "market_watches_not_found",
+        "class": "resolution",
+        "candidates": [{"id": "w1", "label": "EURUSD above 1.10"}],
+    }
+    observe({}, ToolCall(id="w", name="watch_cancel", arguments={}), None, listed)
+    # The result names what exists, so the next call is in it.
+    assert listed["recovery"]["next_action"] == "follow_hint"
+    bare: dict[str, Any] = {"ok": False, "code": "market_watches_not_found"}
+    observe({}, ToolCall(id="b", name="watch_cancel", arguments={}), None, bare)
+    assert bare["recovery"]["next_action"] == "inspect_existing_state"
+
+
 def test_a_general_hint_never_says_more_than_is_known() -> None:
     order = Tool("trade_execute", "Trade", Contract, handler, financial=True)
     unknown: dict[str, Any] = {"ok": True, "status": "ambiguous"}
