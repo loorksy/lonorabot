@@ -152,7 +152,7 @@ Isolated rerun, this VM, after the suite: `tests/web/agent-permissions.spec.mjs:
 
 ### #43, worktree `/tmp/lonora-wt/pr43`
 
-The worktree is now `399e5220`. `/tmp/pr43-pytest2.log` is timestamped 15:52Z, and `399e5220` is 15:53:17Z, so that log is from just before the second docs commit. Both docs commits touch only `docs/operations.md`.
+When those logs were inspected, `/tmp/lonora-wt/pr43` was at `399e5220`. `/tmp/pr43-pytest2.log` is timestamped 15:52Z, and `399e5220` is 15:53:17Z, so that log is from just before the second docs commit. Both docs commits touch only `docs/operations.md`. Committing this report checked that worktree out onto `ccr-9c66a289-3283wb`, then returned it to `ops/install-update-backup`. The pytest tree was not edited.
 
 - `/tmp/pr43-pytest.log`: **1959 passed, 11 skipped, 151 errors**. The errors shown are setup failures: `Task checks require an explicit disposable *_test PostgreSQL database`.
 - `/tmp/pr43-pytest2.log`: **1 failed, 2109 passed, 11 skipped**. Failure: `tests/test_thread_preferences.py::test_keep_archived_off_returns_an_archived_chat_on_a_new_message` (`entry["archived"]` stayed `True` at `tests/test_thread_preferences.py:320`). No later pytest log shows this test passing. A green rerun is **not verified**. Whether it fails on main is **not verified**.
