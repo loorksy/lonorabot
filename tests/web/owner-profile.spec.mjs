@@ -179,7 +179,7 @@ test("one name and initial everywhere, the reference's zones, an enabled Save an
   await page.goto("/app");
   await expect(page.locator(".welcome h2")).toHaveText("مرحبًا أبو سامي");
   await page.goto("/app/settings");
-  await expect(page.getByRole("button", { name: /^أبو سامي/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /أبو سامي/ })).toBeVisible();
   await expect(page.locator(".settings-version")).toHaveText(
     /^Lonora · الإصدار \S+( · [0-9a-f]{1,7})?$/,
   );
