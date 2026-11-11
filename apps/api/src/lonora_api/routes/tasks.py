@@ -15,14 +15,22 @@ router = APIRouter(prefix="/tasks")
 
 @router.get("")
 async def list_tasks(
-    request: Request, agent_id: str | None = None, owner: OwnerIdentity = Depends(require_owner)
+    request: Request,
+    agent_id: str | None = None,
+    thread_id: str | None = None,
+    owner: OwnerIdentity = Depends(require_owner),
 ) -> list[dict[str, Any]]:
-    """One agent's 20 latest Tasks, or (no agent) the owner's 100 latest for «المهام»."""
+    """One agent's 20 latest Tasks, or (no agent) the owner's 100 latest for «المهام»;
+    with `thread_id`, only those created from that conversation (its «أُنشئت مهمة» cards)."""
     async with runtime(request).db.sessions() as session:
         query = select(TicketRow).where(TicketRow.owner_id == owner.id)
         if agent_id:
             await owned_agent(session, owner.id, agent_id)
             query = query.where(TicketRow.agent_id == agent_id)
+        if thread_id:
+            query = query.where(
+                TicketRow.state["task"]["origin_thread_id"].as_string() == thread_id
+            )
         rows = await session.scalars(
             query.order_by(TicketRow.updated_at.desc()).limit(20 if agent_id else 100)
         )

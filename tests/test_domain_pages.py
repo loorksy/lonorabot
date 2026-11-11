@@ -156,6 +156,30 @@ async def test_owner_completion_stops_the_work_and_reads_completed():
 
 
 @pytest.mark.asyncio
+async def test_a_conversation_lists_the_tasks_created_from_it():
+    """«أُنشئت مهمة · عرض المهمة»: the card is read back from the server after a reload."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Planner")
+        thread = await fixture.conversation(agent)
+        other = await fixture.conversation(await fixture.agent("Other"))
+        task = await fixture.request(
+            "POST",
+            f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}",
+            {"title": "Weekly report", "description": "Summarise the week"},
+        )
+        assert datetime.fromisoformat(task["created_at"]).tzinfo is not None
+        here = cast(list[Any], await fixture.request("GET", f"/tasks?thread_id={thread['id']}"))
+        assert [(row["id"], row["title"]) for row in here] == [(task["id"], "Weekly report")]
+        assert await fixture.request("GET", f"/tasks?thread_id={other['id']}") == []
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_a_running_task_completes_at_its_next_checkpoint():
     database()
     from check_streaming import Fixture

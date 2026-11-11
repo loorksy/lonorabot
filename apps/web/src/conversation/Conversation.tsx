@@ -34,11 +34,13 @@ import { draftKey, readComposerDraft } from "../lib/composer-drafts";
 import { failedReplies } from "../lib/failed-replies";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
 import { streamForRun } from "../lib/response_streaming";
-import { activityTimeline, streamVisible } from "../lib/stream-timeline";
+import { activityTimeline, stepsSeconds, streamVisible } from "../lib/stream-timeline";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
 import { useShellData } from "../shell/data";
+import type { TaskView } from "../shell/domain/api";
 import { usePopover } from "../shell/lists/Popover";
+import { useNetworkPhase } from "../shell/NetworkStrip";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
@@ -51,6 +53,7 @@ import {
   peersByMessage,
   QuestionCard,
   Steps,
+  TaskCard,
 } from "./Cards";
 import { Composer, type ComposerSend } from "./Composer";
 import {
@@ -100,7 +103,8 @@ type Row =
   | { kind: "message"; id: string; message: ConversationMessage }
   | { kind: "approval"; id: string; approval: TradeApproval; at: string }
   | { kind: "owner_action"; id: string; action: OwnerAction; at: string }
-  | { kind: "order"; id: string; journal: Journal; at: string };
+  | { kind: "order"; id: string; journal: Journal; at: string }
+  | { kind: "task"; id: string; task: TaskView; at: string };
 
 export function Conversation({
   threadId,
@@ -141,6 +145,7 @@ export function Conversation({
   const ownerActions = useOwnerActions(threadId);
   const [artifacts, setArtifacts] = useState<Resource[]>([]);
   const [journal, setJournal] = useState<Journal[]>([]);
+  const [tasks, setTasks] = useState<TaskView[]>([]);
   const [collaboration, setCollaboration] = useState<Resource | null>(null);
   const [peers, setPeers] = useState<Resource[]>([]);
   const [preview, setPreview] = useState<Resource | null>(null);
@@ -153,6 +158,14 @@ export function Conversation({
   const [stopped, setStopped] = useState<Set<string>>(new Set());
   const [jump, setJump] = useState<string | null>(jumpTo ? `${jumpTo}#arrival` : null);
   const [actionError, setActionError] = useState<unknown>();
+  // Offline, the header's network strip explains failed background reads; the owner's own
+  // action failing still shows.
+  const net = useNetworkPhase(connected);
+  const error =
+    actionError ??
+    (net === "off" || net === "connecting"
+      ? undefined
+      : (thread.error ?? approvals.error ?? ownerActions.error));
 
   useLayoutEffect(() => wallDefs(), []);
   // «عرض الطلب» / «حسم» in the AgentSheet: bring that card into view. A card that names
@@ -186,6 +199,10 @@ export function Conversation({
           ),
       )
       .catch(() => live && setJournal([]));
+    void api
+      .get<TaskView[]>(`/tasks?thread_id=${encodeURIComponent(threadId)}`)
+      .then((rows) => live && setTasks(rows))
+      .catch(() => undefined);
     void api
       .get<Resource[]>(`/peer-messages?thread_id=${encodeURIComponent(threadId)}`)
       .then((rows) => live && setPeers(rows))
@@ -300,7 +317,7 @@ export function Conversation({
     return out;
   }, [runs]);
 
-  /* ---- the rows: messages, approvals, owner cards and order lines in server order */
+  /* ---- the rows: messages, approvals, owner cards, order lines and task cards in server order */
   const rows: Row[] = useMemo(() => {
     const items = conversationTimeline(messages, approvals.rows, ownerActions.rows);
     const out: Row[] = items.map((item) =>
@@ -310,23 +327,31 @@ export function Conversation({
           ? { kind: "approval", id: item.id, approval: item.approval, at: item.approval.created_at }
           : { kind: "owner_action", id: item.id, action: item.action, at: item.action.created_at },
     );
+    const after = (at: string) =>
+      out.findIndex(
+        (item) => item.kind === "message" && Date.parse(item.message.created_at) > Date.parse(at),
+      );
+    const place = (line: Row, index: number) =>
+      index < 0 ? out.push(line) : out.splice(index, 0, line);
     // Order lines sit at their anchor (WP-F journal thread_id/timeline_seq).
     for (const row of journal) {
       const seq = (row as Journal & { timeline_seq?: number | null }).timeline_seq;
       const at = row.submitted_at ?? row.updated_at;
-      const index =
+      place(
+        { kind: "order", id: `order:${row.operation_id}`, journal: row, at },
         seq != null
           ? out.findIndex((item) => item.kind === "message" && item.message.seq > seq)
-          : out.findIndex(
-              (item) =>
-                item.kind === "message" && Date.parse(item.message.created_at) > Date.parse(at),
-            );
-      const line: Row = { kind: "order", id: `order:${row.operation_id}`, journal: row, at };
-      if (index < 0) out.push(line);
-      else out.splice(index, 0, line);
+          : after(at),
+      );
     }
+    // «أُنشئت مهمة»: a Task created from this conversation, at its creation time.
+    for (const task of tasks)
+      place(
+        { kind: "task", id: `task:${task.id}`, task, at: task.created_at },
+        after(task.created_at),
+      );
     return out;
-  }, [messages, approvals.rows, ownerActions.rows, journal]);
+  }, [messages, approvals.rows, ownerActions.rows, journal, tasks]);
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
@@ -390,11 +415,11 @@ export function Conversation({
     async (message: ApiMessage) => {
       const owner = message.agent_id ?? agentId ?? agents[0]?.id;
       try {
-        await api.post(
+        const task = await api.post<TaskView>(
           `/tasks?agent_id=${encodeURIComponent(owner ?? "")}&thread_id=${encodeURIComponent(threadId)}`,
           { title: message.content.slice(0, 160) || t`Task`, description: message.content },
         );
-        toast(t`Task created`, { type: "success" });
+        setTasks((old) => [...old.filter((row) => row.id !== task.id), task]);
       } catch (error) {
         toast(userError(error), { type: "error" });
       }
@@ -533,6 +558,7 @@ export function Conversation({
           {ownText && item("edit", t`Edit and resend`, () => api_.onEdit(message))}
           {!hasGenUi(message) &&
             !voicePart(message) &&
+            !message.attachment_ids.length &&
             item("task", t`Turn into a task`, () => void toTask(message))}
         </>,
         t`Message options`,
@@ -839,6 +865,18 @@ export function Conversation({
       );
       return;
     }
+    if (row.kind === "task") {
+      body.push(
+        <Message
+          key={row.id}
+          message={cardMessage(row.id, row.task.agent_id, row.at, threadId)}
+          previous={prev}
+          cardKind="card"
+          card={<TaskCard task={row.task} onOpen={() => nav.go(`/app/tasks/${row.task.id}`)} />}
+        />,
+      );
+      return;
+    }
     if (row.kind === "order") {
       body.push(
         <Message
@@ -941,7 +979,7 @@ export function Conversation({
               <Steps
                 calls={calls}
                 running={!stream.text}
-                seconds={0}
+                seconds={stream.text ? stepsSeconds(run, calls) : 0}
                 defaultOpen={prefs.stepsOpen}
               />
             ) : undefined
@@ -981,7 +1019,7 @@ export function Conversation({
             <Steps
               calls={doneCalls}
               running={false}
-              seconds={done?.seconds ?? 0}
+              seconds={done ? stepsSeconds(done.run, doneCalls) || done.seconds : 0}
               defaultOpen={prefs.stepsOpen}
             />
           ) : undefined
@@ -1082,10 +1120,17 @@ export function Conversation({
             </div>
           )}
         </GenuiHost>
-        {(thread.error ?? actionError ?? approvals.error ?? ownerActions.error) != null && (
-          <p className="fail-inline" role="alert">
-            {userError(thread.error ?? actionError ?? approvals.error ?? ownerActions.error)}
-          </p>
+        {error != null && (
+          <div className="msg theirs first k-error" data-chat-error="">
+            <div className="err-card" role="alert">
+              <div className="err-top">
+                <span className="err-ic">
+                  <Icon name="alert" />
+                </span>
+                <strong>{userError(error)}</strong>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       <div className={`float-date${floatDay ? " on" : ""}`} aria-hidden="true">
