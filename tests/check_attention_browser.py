@@ -36,6 +36,20 @@ async def main():
             alert = next(row for row in notifications if row["code"] == "emergency_stop")
             print(json.dumps({"notification": alert, "cookies": cookies(fixture)}))
             return
+        # The owner read that stop, trading resumed and stopped again: the same fact twice.
+        first = next(
+            row
+            for row in (await fixture.client.get("/api/attention")).json()
+            if row["code"] == "emergency_stop"
+        )
+        await fixture.request("POST", "/attention/seen", {"notification_id": first["id"]})
+        for stopped in (False, True):
+            await fixture.request(
+                "PUT", "/trading/controls", {"enabled": not stopped, "emergency_stop": stopped}
+            )
+            await attention_tick(
+                fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
+            )
         # An operation still uncertain after the watchdog's threshold reaches the owner
         # once, in the conversation of the agent that placed it. The agent is created
         # directly (not cleaned up): its uncertain trade rightly refuses its deletion.

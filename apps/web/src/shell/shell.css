@@ -1735,6 +1735,32 @@ html[dir="ltr"] .sheet-page.go-back {
   justify-content: center;
   margin: 2px 0 6px;
 }
+.sk-h3 {
+  margin: 14px 6px 2px;
+}
+.sk-h3 .sk-line {
+  height: 10px;
+}
+.sk-group {
+  margin: 8px 0 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--hi);
+}
+.sk-row.in-group {
+  min-height: 60px;
+  padding: 10px 14px;
+}
+.sk-row.in-group + .sk-row.in-group {
+  border-top: 1px solid var(--line);
+}
+.sk-ic {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+}
 
 /* Pager: pages travel as cards over a darker stage */
 #app.paging {

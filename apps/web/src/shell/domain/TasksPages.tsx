@@ -6,7 +6,7 @@ import { api, type Thread } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
-import { SkRows } from "../Skeleton";
+import { SkPage, SkRows } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi, type TaskView } from "./api";
@@ -93,7 +93,9 @@ export function TasksPage() {
           </button>
         </>
       ) : tasks.loading && !tasks.data ? (
-        <SkRows count={4} />
+        <SkPage>
+          <SkRows count={7} icon group />
+        </SkPage>
       ) : tasks.error != null && !tasks.data ? (
         <p role="alert">{userError(tasks.error)}</p>
       ) : (
@@ -137,7 +139,12 @@ export function TaskPage() {
   const loaded = useLoad(() => domainApi.task(taskId), `task:${taskId}`);
   const [busy, setBusy] = useState(false);
   const task = loaded.data;
-  if (loaded.loading && !task) return <SkRows count={3} />;
+  if (loaded.loading && !task)
+    return (
+      <SkPage>
+        <SkRows count={3} icon group />
+      </SkPage>
+    );
   if (!task) return <Empty>{t`The task no longer exists.`}</Empty>;
   const agent = data.agents.find((row) => row.id === task.agent_id);
   const act = async (run: () => Promise<TaskView>, done?: string) => {
