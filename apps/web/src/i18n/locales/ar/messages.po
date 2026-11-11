@@ -365,12 +365,12 @@ msgctxt "order state"
 msgid "Accepted by the broker"
 msgstr "مقبول لدى الوسيط"
 
-#: src/shell/settings/ConnectionPages.tsx:900
+#: src/shell/settings/ConnectionPages.tsx:902
 msgid "Access token"
 msgstr "رمز الوصول"
 
 #: src/shell/settings/ConnectionPages.tsx:76
-#: src/shell/settings/ConnectionPages.tsx:906
+#: src/shell/settings/ConnectionPages.tsx:908
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
@@ -582,7 +582,7 @@ msgstr "إضافة MCP"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/shell/settings/ConnectionPages.tsx:945
+#: src/shell/settings/ConnectionPages.tsx:947
 msgid "Add the server"
 msgstr "إضافة الخادم"
 
@@ -1023,7 +1023,7 @@ msgstr "مرفقات وأدوات"
 msgid "Audio output"
 msgstr "مخرج الصوت"
 
-#: src/shell/settings/ConnectionPages.tsx:892
+#: src/shell/settings/ConnectionPages.tsx:894
 msgid "Authentication"
 msgstr "المصادقة"
 
@@ -2074,7 +2074,7 @@ msgid "Connection restored"
 msgstr "عاد الاتصال"
 
 #: src/components/trading/BrokerConnection.tsx:47
-#: src/shell/settings/ConnectionPages.tsx:876
+#: src/shell/settings/ConnectionPages.tsx:878
 msgid "Connection type"
 msgstr "نوع الاتصال"
 
@@ -2861,7 +2861,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/shell/settings/ConnectionPages.tsx:835
+#: src/shell/settings/ConnectionPages.tsx:837
 #: src/shell/settings/IntegrationsPage.tsx:290
 msgid "Enter a link that starts with https://"
 msgstr "أدخل رابطًا يبدأ بـ https://"
@@ -2875,7 +2875,7 @@ msgid "Enter a valid domain like example.com"
 msgstr "أدخل نطاقًا صحيحًا مثل example.com"
 
 #: src/shell/settings/ConnectionPages.tsx:103
-#: src/shell/settings/ConnectionPages.tsx:837
+#: src/shell/settings/ConnectionPages.tsx:839
 msgid "Enter the access token"
 msgstr "أدخل رمز الوصول"
 
@@ -2910,7 +2910,7 @@ msgstr "أدخل رمز القفل"
 msgid "Enter the role."
 msgstr "أدخل الدور."
 
-#: src/shell/settings/ConnectionPages.tsx:833
+#: src/shell/settings/ConnectionPages.tsx:835
 msgid "Enter the server name"
 msgstr "أدخل اسم الخادم"
 
@@ -4516,7 +4516,7 @@ msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على 
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/shell/settings/ConnectionPages.tsx:899
+#: src/shell/settings/ConnectionPages.tsx:901
 msgid "No authentication"
 msgstr "بدون مصادقة"
 
@@ -5841,7 +5841,7 @@ msgstr "مرفوض"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/shell/settings/ConnectionPages.tsx:939
+#: src/shell/settings/ConnectionPages.tsx:941
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
@@ -5962,7 +5962,7 @@ msgstr "البحث المعمق"
 msgid "Research agent"
 msgstr "وكيل بحث"
 
-#: src/shell/settings/ConnectionPages.tsx:874
+#: src/shell/settings/ConnectionPages.tsx:876
 msgid "Research tools"
 msgstr "أدوات الأبحاث"
 
@@ -6246,7 +6246,7 @@ msgstr "حفظ القائمة"
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
-#: src/shell/settings/ConnectionPages.tsx:810
+#: src/shell/settings/ConnectionPages.tsx:812
 msgid "Save the settings"
 msgstr "حفظ الإعدادات"
 
@@ -6528,11 +6528,11 @@ msgstr "مُرسَل"
 msgid "Sent to {0}"
 msgstr "أُرسل إلى {0}"
 
-#: src/shell/settings/ConnectionPages.tsx:879
+#: src/shell/settings/ConnectionPages.tsx:881
 msgid "Server address"
 msgstr "عنوان الخادم"
 
-#: src/shell/settings/ConnectionPages.tsx:872
+#: src/shell/settings/ConnectionPages.tsx:874
 msgid "Server name"
 msgstr "اسم الخادم"
 
@@ -7214,8 +7214,8 @@ msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
 #: src/shell/settings/ConnectionPages.tsx:200
-#: src/shell/settings/ConnectionPages.tsx:806
-#: src/shell/settings/ConnectionPages.tsx:936
+#: src/shell/settings/ConnectionPages.tsx:808
+#: src/shell/settings/ConnectionPages.tsx:938
 msgid "Test the connection"
 msgstr "اختبار الاتصال"
 
@@ -7382,11 +7382,11 @@ msgstr "الرمزان غير متطابقين. اختر رمزًا جديدًا
 msgid "The connection works"
 msgstr "الاتصال يعمل"
 
-#: src/shell/settings/ConnectionPages.tsx:798
+#: src/shell/settings/ConnectionPages.tsx:800
 msgid "The connection works · {count} models available"
 msgstr "الاتصال يعمل · {count} نموذجًا متاحًا"
 
-#: src/shell/settings/ConnectionPages.tsx:928
+#: src/shell/settings/ConnectionPages.tsx:930
 msgid "The connection works · {count} tools"
 msgstr "الاتصال يعمل · {count} أداة"
 
@@ -7625,7 +7625,7 @@ msgstr "يُحذف سجل الدردشات في المجموعات المحدد�
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من الإعدادات."
 
-#: src/shell/settings/ConnectionPages.tsx:861
+#: src/shell/settings/ConnectionPages.tsx:863
 msgid "The server is added"
 msgstr "أُضيف الخادم"
 

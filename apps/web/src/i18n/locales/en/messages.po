@@ -365,12 +365,12 @@ msgctxt "order state"
 msgid "Accepted by the broker"
 msgstr "Accepted by the broker"
 
-#: src/shell/settings/ConnectionPages.tsx:900
+#: src/shell/settings/ConnectionPages.tsx:902
 msgid "Access token"
 msgstr "Access token"
 
 #: src/shell/settings/ConnectionPages.tsx:76
-#: src/shell/settings/ConnectionPages.tsx:906
+#: src/shell/settings/ConnectionPages.tsx:908
 msgid "Access token — stored encrypted, never shown again"
 msgstr "Access token — stored encrypted, never shown again"
 
@@ -582,7 +582,7 @@ msgstr "Add MCP"
 msgid "Add owner instructions"
 msgstr "Add owner instructions"
 
-#: src/shell/settings/ConnectionPages.tsx:945
+#: src/shell/settings/ConnectionPages.tsx:947
 msgid "Add the server"
 msgstr "Add the server"
 
@@ -1023,7 +1023,7 @@ msgstr "Attachments and tools"
 msgid "Audio output"
 msgstr "Audio output"
 
-#: src/shell/settings/ConnectionPages.tsx:892
+#: src/shell/settings/ConnectionPages.tsx:894
 msgid "Authentication"
 msgstr "Authentication"
 
@@ -2074,7 +2074,7 @@ msgid "Connection restored"
 msgstr "Connection restored"
 
 #: src/components/trading/BrokerConnection.tsx:47
-#: src/shell/settings/ConnectionPages.tsx:876
+#: src/shell/settings/ConnectionPages.tsx:878
 msgid "Connection type"
 msgstr "Connection type"
 
@@ -2861,7 +2861,7 @@ msgstr "End the call"
 msgid "Ending call"
 msgstr "Ending call"
 
-#: src/shell/settings/ConnectionPages.tsx:835
+#: src/shell/settings/ConnectionPages.tsx:837
 #: src/shell/settings/IntegrationsPage.tsx:290
 msgid "Enter a link that starts with https://"
 msgstr "Enter a link that starts with https://"
@@ -2875,7 +2875,7 @@ msgid "Enter a valid domain like example.com"
 msgstr "Enter a valid domain like example.com"
 
 #: src/shell/settings/ConnectionPages.tsx:103
-#: src/shell/settings/ConnectionPages.tsx:837
+#: src/shell/settings/ConnectionPages.tsx:839
 msgid "Enter the access token"
 msgstr "Enter the access token"
 
@@ -2910,7 +2910,7 @@ msgstr "Enter the lock code"
 msgid "Enter the role."
 msgstr "Enter the role."
 
-#: src/shell/settings/ConnectionPages.tsx:833
+#: src/shell/settings/ConnectionPages.tsx:835
 msgid "Enter the server name"
 msgstr "Enter the server name"
 
@@ -4522,7 +4522,7 @@ msgstr "No archived chats. Press and hold a chat in the list, then choose «Arch
 msgid "No artifacts found."
 msgstr "No artifacts found."
 
-#: src/shell/settings/ConnectionPages.tsx:899
+#: src/shell/settings/ConnectionPages.tsx:901
 msgid "No authentication"
 msgstr "No authentication"
 
@@ -5847,7 +5847,7 @@ msgstr "Rejected"
 msgid "Reload"
 msgstr "Reload"
 
-#: src/shell/settings/ConnectionPages.tsx:939
+#: src/shell/settings/ConnectionPages.tsx:941
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "Remote servers only. You review and approve its tools before any agent uses them."
 
@@ -5968,7 +5968,7 @@ msgstr "Research"
 msgid "Research agent"
 msgstr "Research agent"
 
-#: src/shell/settings/ConnectionPages.tsx:874
+#: src/shell/settings/ConnectionPages.tsx:876
 msgid "Research tools"
 msgstr "Research tools"
 
@@ -6252,7 +6252,7 @@ msgstr "Save the list"
 msgid "Save the list · {count}"
 msgstr "Save the list · {count}"
 
-#: src/shell/settings/ConnectionPages.tsx:810
+#: src/shell/settings/ConnectionPages.tsx:812
 msgid "Save the settings"
 msgstr "Save the settings"
 
@@ -6534,11 +6534,11 @@ msgstr "Sent"
 msgid "Sent to {0}"
 msgstr "Sent to {0}"
 
-#: src/shell/settings/ConnectionPages.tsx:879
+#: src/shell/settings/ConnectionPages.tsx:881
 msgid "Server address"
 msgstr "Server address"
 
-#: src/shell/settings/ConnectionPages.tsx:872
+#: src/shell/settings/ConnectionPages.tsx:874
 msgid "Server name"
 msgstr "Server name"
 
@@ -7220,8 +7220,8 @@ msgid "Temporary delegated tasks"
 msgstr "Temporary delegated tasks"
 
 #: src/shell/settings/ConnectionPages.tsx:200
-#: src/shell/settings/ConnectionPages.tsx:806
-#: src/shell/settings/ConnectionPages.tsx:936
+#: src/shell/settings/ConnectionPages.tsx:808
+#: src/shell/settings/ConnectionPages.tsx:938
 msgid "Test the connection"
 msgstr "Test the connection"
 
@@ -7388,11 +7388,11 @@ msgstr "The codes do not match. Choose a new code"
 msgid "The connection works"
 msgstr "The connection works"
 
-#: src/shell/settings/ConnectionPages.tsx:798
+#: src/shell/settings/ConnectionPages.tsx:800
 msgid "The connection works · {count} models available"
 msgstr "The connection works · {count} models available"
 
-#: src/shell/settings/ConnectionPages.tsx:928
+#: src/shell/settings/ConnectionPages.tsx:930
 msgid "The connection works · {count} tools"
 msgstr "The connection works · {count} tools"
 
@@ -7631,7 +7631,7 @@ msgstr "The selected groups' chat history is hidden for you. The groups stay wit
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "The selected model is not available from this provider. Choose another model in Settings."
 
-#: src/shell/settings/ConnectionPages.tsx:861
+#: src/shell/settings/ConnectionPages.tsx:863
 msgid "The server is added"
 msgstr "The server is added"
 
