@@ -23,7 +23,7 @@ follow Lonora's theme root (`apps/web/src/hooks/useTheme.ts` sets `document.docu
 | --- | --- |
 | `:root` | `:root, [data-theme="dark"]` |
 | `body.light` | `[data-theme="light"]` |
-| `body.hc` / `body.light.hc` | `[data-contrast="high"]` / `[data-theme="light"][data-contrast="high"]` |
+| `body.hc` / `body.light.hc` | `body.hc` / `[data-theme="light"] body.hc` |
 
 Names the reference states as literals and this package names (everything else is 1:1):
 

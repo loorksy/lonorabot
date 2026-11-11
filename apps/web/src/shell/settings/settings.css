@@ -1415,23 +1415,7 @@ html.theme-vt::view-transition-group(ts-thumb) {
 .oa-warn {
   color: var(--amber);
 }
-/* ---- a11y switches 1295-1298 (body.light → [data-theme="light"] body) */
-body.hc {
-  --muted: #c9cdd5;
-  --faint: #aeb3bd;
-  --line: #3a3d46;
-  --line-strong: #5a5e6a;
-  --glass: var(--surface);
-  --glass-bar: var(--surface);
-  --glass-card: var(--raised);
-  --glass-pop: var(--raised);
-}
-[data-theme="light"] body.hc {
-  --muted: #3b3f48;
-  --faint: #4f535c;
-  --line: #b9b5aa;
-  --line-strong: #8f8b80;
-}
+/* ---- a11y switches 1295-1298: the high-contrast tokens come from @lonora/ui-tokens */
 body.hc .bubble {
   border: 1px solid var(--line-strong);
 }

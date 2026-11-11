@@ -6,7 +6,7 @@ type Tokens = Readonly<Record<string, string | number>>;
 
 const DARK = ':root,\n[data-theme="dark"]';
 const LIGHT = '[data-theme="light"]';
-const HC = '[data-contrast="high"]';
+const HC = "body.hc";
 
 const vars = (tokens: Tokens, prefix = "", unit = "") =>
   Object.entries(tokens).map(([name, value]) => `--${prefix}${name}: ${value}${unit};`);
@@ -63,7 +63,7 @@ const referenceCss = file(
     `@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {\n${opaque("  ")}\n}`,
     `@media (prefers-reduced-transparency: reduce) {\n${opaque("  ")}\n}`,
     block(HC, vars(reference.highContrast.dark)),
-    block(`${LIGHT}${HC}`, vars(reference.highContrast.light)),
+    block(`${LIGHT} ${HC}`, vars(reference.highContrast.light)),
   ],
 );
 
