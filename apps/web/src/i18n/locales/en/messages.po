@@ -165,7 +165,7 @@ msgstr "{kb} KB"
 msgid "{label}. Tap to call back"
 msgstr "{label}. Tap to call back"
 
-#: src/shell/settings/SettingsRoot.tsx:357
+#: src/shell/settings/SettingsRoot.tsx:367
 msgid "{linked} linked"
 msgstr "{linked} linked"
 
@@ -383,7 +383,7 @@ msgid "Access token — stored encrypted, never shown again"
 msgstr "Access token — stored encrypted, never shown again"
 
 #: src/shell/pages.tsx:140
-#: src/shell/settings/SettingsRoot.tsx:344
+#: src/shell/settings/SettingsRoot.tsx:354
 msgid "Accessibility"
 msgstr "Accessibility"
 
@@ -678,7 +678,7 @@ msgstr "Agent collaboration"
 msgid "Agent created"
 msgstr "Agent created"
 
-#: src/shell/ChatMenu.tsx:239
+#: src/shell/ChatMenu.tsx:241
 msgid "Agent files"
 msgstr "Agent files"
 
@@ -687,7 +687,7 @@ msgid "Agent identity"
 msgstr "Agent identity"
 
 #: src/shell/ChatHeader.tsx:102
-#: src/shell/ChatMenu.tsx:207
+#: src/shell/ChatMenu.tsx:209
 #: src/shell/pages.tsx:88
 msgid "Agent info"
 msgstr "Agent info"
@@ -720,6 +720,7 @@ msgstr "Agent template"
 #~ msgstr "Agent workspace"
 
 #: src/conversation/ChatPrefsPage.tsx:35
+#: src/conversation/sheets/WallSheet.tsx:24
 #: src/shell/AgentsPage.tsx:18
 #: src/shell/domain/UpdatesPages.tsx:271
 #: src/shell/lists/ChatList.tsx:185
@@ -1408,6 +1409,10 @@ msgstr "Calling an agent needs a voice provider. Add one in the voice settings."
 msgid "Calls are not set up"
 msgstr "Calls are not set up"
 
+#: src/conversation/sheets/WallSheet.tsx:26
+msgid "Calm"
+msgstr "Calm"
+
 #: src/conversation/ToolsSheet.tsx:134
 msgid "Camera"
 msgstr "Camera"
@@ -1427,7 +1432,7 @@ msgstr "Camera not allowed"
 #: src/shell/agent/AvatarSheet.tsx:132
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/call/CallPages.tsx:422
-#: src/shell/ChatMenu.tsx:159
+#: src/shell/ChatMenu.tsx:161
 #: src/shell/domain/FilesPages.tsx:63
 #: src/shell/domain/SchedulesPages.tsx:70
 #: src/shell/domain/TasksPages.tsx:187
@@ -1436,7 +1441,7 @@ msgstr "Camera not allowed"
 #: src/shell/settings/ConnectionPages.tsx:271
 #: src/shell/settings/ConnectionPages.tsx:580
 #: src/shell/settings/IntegrationsPage.tsx:474
-#: src/shell/settings/SettingsRoot.tsx:314
+#: src/shell/settings/SettingsRoot.tsx:318
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -1550,7 +1555,7 @@ msgstr "Channel"
 #: src/shell/agent/ChartSheet.tsx:501
 #: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/agent/ChartSheet.tsx:507
-#: src/shell/ChatMenu.tsx:213
+#: src/shell/ChatMenu.tsx:215
 msgid "Chart"
 msgstr "Chart"
 
@@ -1572,8 +1577,14 @@ msgstr "Chart could not be displayed."
 msgid "Chat"
 msgstr "Chat"
 
+#: src/conversation/sheets/WallSheet.tsx:111
+#: src/shell/ChatMenu.tsx:247
+#: src/shell/settings/SettingsRoot.tsx:349
+msgid "Chat background"
+msgstr "Chat background"
+
 #: src/shell/pages.tsx:142
-#: src/shell/settings/SettingsRoot.tsx:343
+#: src/shell/settings/SettingsRoot.tsx:353
 msgid "Chat experience"
 msgstr "Chat experience"
 
@@ -1582,7 +1593,7 @@ msgid "Chat list"
 msgstr "Chat list"
 
 #: src/shell/ChatHeader.tsx:179
-#: src/shell/ChatMenu.tsx:251
+#: src/shell/ChatMenu.tsx:258
 msgid "Chat menu"
 msgstr "Chat menu"
 
@@ -1658,11 +1669,11 @@ msgstr "Checking with the broker"
 msgid "Choose “Allow”, then come back and try again."
 msgstr "Choose “Allow”, then come back and try again."
 
-#: src/shell/settings/SettingsRoot.tsx:225
+#: src/shell/settings/SettingsRoot.tsx:227
 msgid "Choose «Add to Home Screen»."
 msgstr "Choose «Add to Home Screen»."
 
-#: src/shell/settings/SettingsRoot.tsx:231
+#: src/shell/settings/SettingsRoot.tsx:233
 msgid "Choose «Install app» or «Add to Home screen»."
 msgstr "Choose «Install app» or «Add to Home screen»."
 
@@ -1796,7 +1807,7 @@ msgstr "Choose the trading account"
 msgid "Choose trading pair"
 msgstr "Choose trading pair"
 
-#: src/shell/ChatMenu.tsx:178
+#: src/shell/ChatMenu.tsx:180
 #: src/shell/lists/Selection.tsx:99
 msgid "Clear"
 msgstr "Clear"
@@ -1809,8 +1820,8 @@ msgstr "Clear search"
 msgid "Clear search and close"
 msgstr "Clear search and close"
 
-#: src/shell/ChatMenu.tsx:141
-#: src/shell/ChatMenu.tsx:247
+#: src/shell/ChatMenu.tsx:143
+#: src/shell/ChatMenu.tsx:254
 msgid "Clear the chat"
 msgstr "Clear the chat"
 
@@ -1822,11 +1833,16 @@ msgstr "Clear the messages"
 msgid "Clear the messages?"
 msgstr "Clear the messages?"
 
+#: src/conversation/sheets/WallSheet.tsx:33
+msgctxt "wallpaper"
+msgid "Clearer"
+msgstr "Clearer"
+
 #: src/shell/settings/DevicePages.tsx:88
 msgid "Clearer text and borders, opaque backgrounds"
 msgstr "Clearer text and borders, opaque backgrounds"
 
-#: src/shell/settings/SettingsRoot.tsx:235
+#: src/shell/settings/SettingsRoot.tsx:237
 msgid "Click the install icon in the address bar."
 msgstr "Click the install icon in the address bar."
 
@@ -2026,7 +2042,7 @@ msgstr "Configure an OpenAI credential with GPT-Live access to start a voice cal
 msgid "Confirm deletion"
 msgstr "Confirm deletion"
 
-#: src/shell/settings/SettingsRoot.tsx:232
+#: src/shell/settings/SettingsRoot.tsx:234
 msgid "Confirm the installation."
 msgstr "Confirm the installation."
 
@@ -2113,7 +2129,7 @@ msgstr "Content"
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:1063
+#: src/conversation/Conversation.tsx:1067
 #: src/shell/settings/ModelsPage.tsx:18
 msgid "Conversation"
 msgstr "Conversation"
@@ -2143,7 +2159,7 @@ msgstr "Coordinator"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
-#: src/conversation/Conversation.tsx:408
+#: src/conversation/Conversation.tsx:410
 msgid "Copied"
 msgstr "Copied"
 
@@ -2164,7 +2180,7 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/conversation/Conversation.tsx:558
+#: src/conversation/Conversation.tsx:560
 msgid "Copy text"
 msgstr "Copy text"
 
@@ -2180,7 +2196,7 @@ msgstr "Cost · {window}"
 msgid "Cost per hour today"
 msgstr "Cost per hour today"
 
-#: src/conversation/Conversation.tsx:410
+#: src/conversation/Conversation.tsx:412
 msgid "Could not copy"
 msgstr "Could not copy"
 
@@ -2376,7 +2392,7 @@ msgstr "Damascus"
 #~ msgid "Dark"
 #~ msgstr "Dark"
 
-#: src/shell/settings/SettingsRoot.tsx:193
+#: src/shell/settings/SettingsRoot.tsx:195
 msgid "Dark mode"
 msgstr "Dark mode"
 
@@ -2441,7 +2457,7 @@ msgstr "Delegation changed"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:539
+#: src/conversation/Conversation.tsx:541
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2665,6 +2681,11 @@ msgstr "Download this file to view it"
 msgid "Drafts and unsent messages"
 msgstr "Drafts and unsent messages"
 
+#: src/conversation/sheets/WallSheet.tsx:83
+#: src/conversation/sheets/WallSheet.tsx:85
+msgid "Drawing clarity"
+msgstr "Drawing clarity"
+
 #: src/shell/agent/AvatarSheet.tsx:31
 msgid "Dreamy"
 msgstr "Dreamy"
@@ -2719,7 +2740,7 @@ msgstr "Economic calendar feed"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/conversation/Conversation.tsx:559
+#: src/conversation/Conversation.tsx:561
 msgid "Edit and resend"
 msgstr "Edit and resend"
 
@@ -3128,7 +3149,7 @@ msgstr "File name"
 #: src/shell/lists/UnifiedSearch.tsx:320
 #: src/shell/lists/UnifiedSearch.tsx:327
 #: src/shell/pages.tsx:98
-#: src/shell/settings/SettingsRoot.tsx:363
+#: src/shell/settings/SettingsRoot.tsx:373
 msgid "Files"
 msgstr "Files"
 
@@ -3269,7 +3290,7 @@ msgstr "From 22:00 to 08:00"
 msgid "From the cache"
 msgstr "From the cache"
 
-#: src/conversation/Conversation.tsx:514
+#: src/conversation/Conversation.tsx:516
 msgid "From the conversation"
 msgstr "From the conversation"
 
@@ -3285,7 +3306,7 @@ msgstr "Full mandate"
 msgid "Full screen"
 msgstr "Full screen"
 
-#: src/shell/ChatMenu.tsx:37
+#: src/shell/ChatMenu.tsx:38
 msgid "Gathers and summarises information · no permissions"
 msgstr "Gathers and summarises information · no permissions"
 
@@ -3335,11 +3356,11 @@ msgstr "Global routing"
 #~ msgid "Global trading settings"
 #~ msgstr "Global trading settings"
 
-#: src/conversation/Conversation.tsx:1138
+#: src/conversation/Conversation.tsx:1142
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:1138
+#: src/conversation/Conversation.tsx:1142
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -3382,7 +3403,7 @@ msgid "Group from the selected"
 msgstr "Group from the selected"
 
 #: src/shell/ChatHeader.tsx:102
-#: src/shell/ChatMenu.tsx:207
+#: src/shell/ChatMenu.tsx:209
 msgid "Group info"
 msgstr "Group info"
 
@@ -3416,7 +3437,7 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/conversation/Conversation.tsx:1226
+#: src/conversation/Conversation.tsx:1230
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -3564,15 +3585,15 @@ msgstr "Indicators and drawings"
 msgid "Input {input}% · output {0}%"
 msgstr "Input {input}% · output {0}%"
 
-#: src/shell/settings/SettingsRoot.tsx:239
+#: src/shell/settings/SettingsRoot.tsx:241
 msgid "Install Lonora"
 msgstr "Install Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:263
+#: src/shell/settings/SettingsRoot.tsx:265
 msgid "Install now"
 msgstr "Install now"
 
-#: src/shell/settings/SettingsRoot.tsx:377
+#: src/shell/settings/SettingsRoot.tsx:387
 msgid "Install the app"
 msgstr "Install the app"
 
@@ -3603,7 +3624,7 @@ msgstr "Instructions"
 
 #: src/conversation/ToolsSheet.tsx:223
 #: src/shell/pages.tsx:148
-#: src/shell/settings/SettingsRoot.tsx:355
+#: src/shell/settings/SettingsRoot.tsx:365
 msgid "Integrations"
 msgstr "Integrations"
 
@@ -3615,13 +3636,13 @@ msgstr "Interactive interface"
 msgid "Interface"
 msgstr "Interface"
 
-#: src/shell/settings/SettingsRoot.tsx:157
-#: src/shell/settings/SettingsRoot.tsx:179
+#: src/shell/settings/SettingsRoot.tsx:159
+#: src/shell/settings/SettingsRoot.tsx:181
 msgid "Interface language"
 msgstr "Interface language"
 
 #. placeholder {0}: current.name
-#: src/shell/settings/SettingsRoot.tsx:151
+#: src/shell/settings/SettingsRoot.tsx:153
 msgid "Interface language: {0}"
 msgstr "Interface language: {0}"
 
@@ -3654,7 +3675,7 @@ msgstr "It does not supervise any agent now."
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "It gathers information and summarises it, and needs no permissions."
 
-#: src/shell/settings/SettingsRoot.tsx:237
+#: src/shell/settings/SettingsRoot.tsx:239
 msgid "It opens in its own window like any app."
 msgstr "It opens in its own window like any app."
 
@@ -3716,7 +3737,7 @@ msgstr "Key saved · never shown again"
 msgid "Keyboard"
 msgstr "Keyboard"
 
-#: src/shell/settings/SettingsRoot.tsx:390
+#: src/shell/settings/SettingsRoot.tsx:400
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
@@ -3825,6 +3846,11 @@ msgstr "Lift"
 #: src/pages/LocalSettings.tsx:36
 #~ msgid "Light"
 #~ msgstr "Light"
+
+#: src/conversation/sheets/WallSheet.tsx:31
+msgctxt "wallpaper"
+msgid "Light"
+msgstr "Light"
 
 #: src/conversation/Cards.tsx:341
 msgid "Limit at"
@@ -3958,7 +3984,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:1097
+#: src/conversation/Conversation.tsx:1101
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -3987,7 +4013,7 @@ msgstr "Loading preview…"
 msgid "Loading…"
 msgstr "Loading…"
 
-#: src/shell/settings/SettingsRoot.tsx:370
+#: src/shell/settings/SettingsRoot.tsx:380
 msgid "Lock on"
 msgstr "Lock on"
 
@@ -4000,15 +4026,16 @@ msgstr "Lock the app with a code"
 msgid "Long-term memory"
 msgstr "Long-term memory"
 
+#: src/conversation/sheets/WallSheet.tsx:23
 #: src/shell/settings/UsagePage.tsx:568
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:421
+#: src/shell/settings/SettingsRoot.tsx:431
 msgid "Lonora · version {version}"
 msgstr "Lonora · version {version}"
 
-#: src/shell/settings/SettingsRoot.tsx:417
+#: src/shell/settings/SettingsRoot.tsx:427
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · version {version} · <0>{build}</0>"
 
@@ -4092,6 +4119,7 @@ msgctxt "chats"
 msgid "Mark as unread"
 msgstr "Mark as unread"
 
+#: src/conversation/sheets/WallSheet.tsx:25
 #: src/pages/Market.tsx:23
 #: src/shell/pages.tsx:102
 msgid "Market"
@@ -4153,6 +4181,11 @@ msgstr "MCP server · {0}"
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 
+#: src/conversation/sheets/WallSheet.tsx:32
+msgctxt "wallpaper"
+msgid "Medium"
+msgstr "Medium"
+
 #: src/conversation/PermissionMenu.tsx:79
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:86
@@ -4162,7 +4195,7 @@ msgid "Members"
 msgstr "Members"
 
 #: src/conversation/ToolsSheet.tsx:175
-#: src/shell/ChatMenu.tsx:111
+#: src/shell/ChatMenu.tsx:113
 msgid "Members' permissions"
 msgstr "Members' permissions"
 
@@ -4208,8 +4241,8 @@ msgstr "Message {name}"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/conversation/Conversation.tsx:541
-#: src/conversation/Conversation.tsx:565
+#: src/conversation/Conversation.tsx:543
+#: src/conversation/Conversation.tsx:567
 #: src/conversation/Message.tsx:567
 msgid "Message options"
 msgstr "Message options"
@@ -4439,7 +4472,7 @@ msgid "New request"
 msgstr "New request"
 
 #: src/conversation/ToolsSheet.tsx:156
-#: src/shell/ChatMenu.tsx:233
+#: src/shell/ChatMenu.tsx:235
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "New task"
@@ -4847,6 +4880,11 @@ msgctxt "skill tool"
 msgid "None"
 msgstr "None"
 
+#: src/conversation/sheets/WallSheet.tsx:27
+msgctxt "wallpaper"
+msgid "None"
+msgstr "None"
+
 #: src/shell/settings/IntegrationsPage.tsx:586
 msgid "Not added yet"
 msgstr "Not added yet"
@@ -4934,7 +4972,7 @@ msgid "Notifications"
 msgstr "Notifications"
 
 #: src/shell/pages.tsx:144
-#: src/shell/settings/SettingsRoot.tsx:349
+#: src/shell/settings/SettingsRoot.tsx:359
 msgid "Notifications and contact"
 msgstr "Notifications and contact"
 
@@ -4982,7 +5020,7 @@ msgid "of the total cost"
 msgstr "of the total cost"
 
 #: src/shell/PermissionSheet.tsx:48
-#: src/shell/settings/SettingsRoot.tsx:275
+#: src/shell/settings/SettingsRoot.tsx:277
 msgid "OK"
 msgstr "OK"
 
@@ -5082,7 +5120,7 @@ msgstr "Open conversation"
 #~ msgid "Open conversation with {name}"
 #~ msgstr "Open conversation with {name}"
 
-#: src/shell/settings/SettingsRoot.tsx:251
+#: src/shell/settings/SettingsRoot.tsx:253
 msgid "Open Lonora straight from your home screen, in a full window."
 msgstr "Open Lonora straight from your home screen, in a full window."
 
@@ -5107,11 +5145,11 @@ msgstr "Open price"
 msgid "Open risk limit"
 msgstr "Open risk limit"
 
-#: src/shell/settings/SettingsRoot.tsx:230
+#: src/shell/settings/SettingsRoot.tsx:232
 msgid "Open the ⋮ menu of the browser."
 msgstr "Open the ⋮ menu of the browser."
 
-#: src/shell/ChatMenu.tsx:119
+#: src/shell/ChatMenu.tsx:121
 msgid "Open the agent's chat to change its permissions."
 msgstr "Open the agent's chat to change its permissions."
 
@@ -5175,7 +5213,7 @@ msgstr "Operation resolved"
 msgid "Operations awaiting confirmation"
 msgstr "Operations awaiting confirmation"
 
-#: src/shell/settings/SettingsRoot.tsx:236
+#: src/shell/settings/SettingsRoot.tsx:238
 msgid "Or open the browser menu and choose «Install Lonora»."
 msgstr "Or open the browser menu and choose «Install Lonora»."
 
@@ -5444,7 +5482,7 @@ msgstr "Personal Agent"
 msgid "Phone notification"
 msgstr "Phone notification"
 
-#: src/conversation/Conversation.tsx:508
+#: src/conversation/Conversation.tsx:510
 msgid "Photo"
 msgstr "Photo"
 
@@ -5580,7 +5618,7 @@ msgid "Price zone"
 msgstr "Price zone"
 
 #: src/shell/pages.tsx:168
-#: src/shell/settings/SettingsRoot.tsx:368
+#: src/shell/settings/SettingsRoot.tsx:378
 msgid "Privacy and security"
 msgstr "Privacy and security"
 
@@ -5601,7 +5639,7 @@ msgctxt "owner"
 msgid "Profile"
 msgstr "Profile"
 
-#: src/shell/settings/SettingsRoot.tsx:337
+#: src/shell/settings/SettingsRoot.tsx:341
 msgid "Profile · shared by all your agents"
 msgstr "Profile · shared by all your agents"
 
@@ -5660,8 +5698,8 @@ msgctxt "task state"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/conversation/Conversation.tsx:434
-#: src/conversation/Conversation.tsx:571
+#: src/conversation/Conversation.tsx:436
+#: src/conversation/Conversation.tsx:573
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
@@ -5685,7 +5723,7 @@ msgstr "Raising or removing a limit needs the passkey."
 msgid "Ray"
 msgstr "Ray"
 
-#: src/conversation/Conversation.tsx:440
+#: src/conversation/Conversation.tsx:442
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
@@ -5693,8 +5731,8 @@ msgstr "React {emoji}"
 msgid "React to the message"
 msgstr "React to the message"
 
-#: src/conversation/Conversation.tsx:582
-#: src/conversation/Conversation.tsx:616
+#: src/conversation/Conversation.tsx:584
+#: src/conversation/Conversation.tsx:618
 msgid "Reactions"
 msgstr "Reactions"
 
@@ -5945,7 +5983,7 @@ msgstr "Repeat"
 msgid "Replies"
 msgstr "Replies"
 
-#: src/conversation/Conversation.tsx:557
+#: src/conversation/Conversation.tsx:559
 #: src/shell/lists/HeadsUp.tsx:253
 msgid "Reply"
 msgstr "Reply"
@@ -6117,7 +6155,7 @@ msgid "Retried. The state updates when the broker answers."
 msgstr "Retried. The state updates when the broker answers."
 
 #: src/conversation/Cards.tsx:128
-#: src/conversation/Conversation.tsx:536
+#: src/conversation/Conversation.tsx:538
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -6720,12 +6758,12 @@ msgstr "Sign in"
 #~ msgid "Sign in to your persistent workspace"
 #~ msgstr "Sign in to your persistent workspace"
 
-#: src/shell/settings/SettingsRoot.tsx:324
-#: src/shell/settings/SettingsRoot.tsx:404
+#: src/shell/settings/SettingsRoot.tsx:328
+#: src/shell/settings/SettingsRoot.tsx:414
 msgid "Sign out"
 msgstr "Sign out"
 
-#: src/shell/settings/SettingsRoot.tsx:302
+#: src/shell/settings/SettingsRoot.tsx:306
 msgid "Sign out?"
 msgstr "Sign out?"
 
@@ -6738,7 +6776,7 @@ msgid "Signals"
 msgstr "Signals"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:407
+#: src/shell/settings/SettingsRoot.tsx:417
 msgid "Signed in as <0>{0}</0>"
 msgstr "Signed in as <0>{0}</0>"
 
@@ -6953,7 +6991,7 @@ msgid "Status"
 msgstr "Status"
 
 #: src/conversation/sheets/AgentSheet.tsx:670
-#: src/shell/ChatMenu.tsx:220
+#: src/shell/ChatMenu.tsx:222
 msgid "Status and safety"
 msgstr "Status and safety"
 
@@ -7038,7 +7076,7 @@ msgid "Stopped at its work limit"
 msgstr "Stopped at its work limit"
 
 #: src/shell/pages.tsx:166
-#: src/shell/settings/SettingsRoot.tsx:362
+#: src/shell/settings/SettingsRoot.tsx:372
 msgid "Storage and data"
 msgstr "Storage and data"
 
@@ -7147,7 +7185,7 @@ msgstr "Take profit"
 msgid "Take profit · optional"
 msgstr "Take profit · optional"
 
-#: src/shell/settings/SettingsRoot.tsx:226
+#: src/shell/settings/SettingsRoot.tsx:228
 msgid "Tap «Add»."
 msgstr "Tap «Add»."
 
@@ -7155,7 +7193,7 @@ msgstr "Tap «Add»."
 msgid "Tap the lock icon next to the site address."
 msgstr "Tap the lock icon next to the site address."
 
-#: src/shell/settings/SettingsRoot.tsx:224
+#: src/shell/settings/SettingsRoot.tsx:226
 msgid "Tap the share button at the bottom of the browser."
 msgstr "Tap the share button at the bottom of the browser."
 
@@ -7171,7 +7209,7 @@ msgstr "Tap to dictate"
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
-#: src/conversation/Conversation.tsx:602
+#: src/conversation/Conversation.tsx:604
 msgid "Tap to remove"
 msgstr "Tap to remove"
 
@@ -7180,7 +7218,7 @@ msgctxt "chart"
 msgid "Target"
 msgstr "Target"
 
-#: src/conversation/Conversation.tsx:421
+#: src/conversation/Conversation.tsx:423
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/shell/domain/SchedulesPages.tsx:498
@@ -7518,12 +7556,12 @@ msgstr "The list of agents while you write"
 msgid "The market"
 msgstr "The market"
 
-#: src/conversation/Conversation.tsx:253
-#: src/conversation/Conversation.tsx:256
+#: src/conversation/Conversation.tsx:255
+#: src/conversation/Conversation.tsx:258
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
-#: src/conversation/Conversation.tsx:532
+#: src/conversation/Conversation.tsx:534
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
@@ -7592,7 +7630,7 @@ msgstr "The new schema is approved"
 msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
-#: src/conversation/Conversation.tsx:502
+#: src/conversation/Conversation.tsx:504
 #: src/conversation/Message.tsx:126
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
@@ -7827,11 +7865,11 @@ msgstr "This call has ended."
 msgid "This chart is no longer available."
 msgstr "This chart is no longer available."
 
-#: src/shell/ChatMenu.tsx:154
+#: src/shell/ChatMenu.tsx:156
 msgid "This chat's messages are hidden for you. The agent and its record stay."
 msgstr "This chat's messages are hidden for you. The agent and its record stay."
 
-#: src/shell/ChatMenu.tsx:150
+#: src/shell/ChatMenu.tsx:152
 msgid "This chat's messages are hidden for you. The group stays with its members."
 msgstr "This chat's messages are hidden for you. The group stays with its members."
 
@@ -8039,7 +8077,7 @@ msgstr "To do"
 #~ msgid "To:"
 #~ msgstr "To:"
 
-#: src/conversation/Conversation.tsx:92
+#: src/conversation/Conversation.tsx:93
 #: src/pages/Artifacts.tsx:235
 #: src/shell/settings/UsagePage.tsx:85
 #: src/shell/settings/UsagePage.tsx:234
@@ -8094,7 +8132,7 @@ msgstr "Tools that could move money are refused: {0}"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:900
+#: src/conversation/Conversation.tsx:902
 msgid "Trade order"
 msgstr "Trade order"
 
@@ -8227,7 +8265,7 @@ msgstr "Trusted"
 msgid "Try again"
 msgstr "Try again"
 
-#: src/conversation/Conversation.tsx:563
+#: src/conversation/Conversation.tsx:565
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
@@ -8443,7 +8481,7 @@ msgstr "Urgent alerts always arrive and do not count."
 msgid "Urgent always arrives"
 msgstr "Urgent always arrives"
 
-#: src/shell/settings/SettingsRoot.tsx:361
+#: src/shell/settings/SettingsRoot.tsx:371
 msgid "Usage"
 msgstr "Usage"
 
@@ -8664,6 +8702,10 @@ msgstr "Waiting for your reply"
 msgid "Waiting to send"
 msgstr "Waiting to send"
 
+#: src/conversation/sheets/WallSheet.tsx:44
+msgid "Wallpaper pattern"
+msgstr "Wallpaper pattern"
+
 #: src/shell/agent/shared.tsx:77
 #~ msgid "Watch"
 #~ msgstr "Watch"
@@ -8694,7 +8736,7 @@ msgstr "Watch source"
 
 #: src/conversation/sheets/AgentSheet.tsx:364
 #: src/shell/agent/AgentPage.tsx:329
-#: src/shell/ChatMenu.tsx:227
+#: src/shell/ChatMenu.tsx:229
 msgid "Watches"
 msgstr "Watches"
 
@@ -8755,7 +8797,7 @@ msgstr "What happened at the broker"
 msgid "What is needed"
 msgstr "What is needed"
 
-#: src/conversation/Conversation.tsx:1232
+#: src/conversation/Conversation.tsx:1236
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -8833,7 +8875,7 @@ msgstr "Worried"
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
-#: src/conversation/Conversation.tsx:1230
+#: src/conversation/Conversation.tsx:1234
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
@@ -8858,14 +8900,14 @@ msgstr "Wrong code"
 msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
-#: src/conversation/Conversation.tsx:93
+#: src/conversation/Conversation.tsx:94
 #: src/shell/settings/OwnerPage.tsx:36
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:599
+#: src/conversation/Conversation.tsx:601
 #: src/conversation/Message.tsx:121
 #: src/conversation/Message.tsx:140
 #: src/shell/lists/UnifiedSearch.tsx:153
@@ -8926,7 +8968,7 @@ msgstr "You stopped the reply before the interface was complete"
 msgid "You will lose the unsaved edits."
 msgstr "You will lose the unsaved edits."
 
-#: src/shell/settings/SettingsRoot.tsx:310
+#: src/shell/settings/SettingsRoot.tsx:314
 msgid "You will need to sign in again. Your conversations stay saved in Lonora."
 msgstr "You will need to sign in again. Your conversations stay saved in Lonora."
 

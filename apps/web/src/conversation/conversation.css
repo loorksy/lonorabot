@@ -4769,6 +4769,96 @@ span.no-trade {
   opacity: var(--wa, 0.1);
   contain: strict;
 }
+/* reference 850-851: the layer fades in with the page that opens the chat, never on a change */
+main.page-enter > .chat-wall {
+  animation: wall-in 0.3s var(--ease) both;
+}
+@keyframes wall-in {
+  from {
+    opacity: 0;
+  }
+}
+/* reference 853-865: «خلفية المحادثة», the pattern cards and their preview */
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 10px;
+  margin: 4px 0 18px;
+}
+.wall-opt {
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  padding: 0;
+  color: var(--text);
+}
+.wall-prev {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 10px 8px;
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: var(--hi);
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s var(--spring);
+}
+.wall-prev .wall-art {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+.wall-opt:active .wall-prev {
+  transform: scale(0.97);
+}
+.wall-opt.on .wall-prev {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 2px var(--accent-ink),
+    var(--hi);
+}
+.wb {
+  position: relative;
+  display: block;
+  width: 64%;
+  height: 12px;
+  border-radius: var(--r-tail);
+  background: var(--bubble-in);
+}
+.wb.out {
+  align-self: flex-end;
+  width: 50%;
+  background: var(--bubble-out);
+}
+.wb.short {
+  width: 40%;
+}
+.wall-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.wall-name svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-ink);
+}
+@media (min-width: 900px) {
+  .wall-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
 /* reference 603-604: the desktop composer */
 @media (min-width: 900px) {
   .desktop-content .composer {

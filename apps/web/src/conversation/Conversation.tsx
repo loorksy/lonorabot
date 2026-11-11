@@ -43,6 +43,7 @@ import type { TaskView } from "../shell/domain/api";
 import { usePopover } from "../shell/lists/Popover";
 import { useNetworkPhase } from "../shell/NetworkStrip";
 import { useNavigation } from "../shell/navigation";
+import { useDevicePref } from "../shell/settings/device-prefs";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
 import {
@@ -69,7 +70,7 @@ import { hasGenUi } from "./GenUiPart";
 import { mentionPattern } from "./Markdown";
 import { type LiveReply, Message, TypingBubble } from "./Message";
 import { useChatPrefs } from "./prefs";
-import { WALL_LEVELS, wallDefs } from "./wallpaper";
+import { WALL_DEFAULTS, wallAlpha, wallDefs, wallState } from "./wallpaper";
 import "./conversation.css";
 
 /* The conversation (reference chatPage/messages, Desktop-37 3726-3820, 5601-5621): day pills in
@@ -137,6 +138,7 @@ export function Conversation({
   const thread = useThreads(undefined, threadId, knownRuns, hiddenBefore);
   const { owner, events, revision, streams, seedStreams, connected, refresh } = useClient();
   const { theme } = useTheme();
+  const wall = wallState(useDevicePref("wall", WALL_DEFAULTS)[0]);
   const prefs = useChatPrefs();
   const toast = useToast();
   const popover = usePopover();
@@ -1046,14 +1048,16 @@ export function Conversation({
   const name = conversationName ?? agent?.name ?? "";
   return (
     <ConversationContext.Provider value={api_}>
-      <svg
-        className="chat-wall"
-        style={{ "--wa": WALL_LEVELS.light.a[theme === "light" ? 1 : 0] } as React.CSSProperties}
-        aria-hidden="true"
-        focusable="false"
-      >
-        <rect width="100%" height="100%" fill="url(#lw-p-lonora)" />
-      </svg>
+      {wall.id !== "none" && (
+        <svg
+          className="chat-wall"
+          style={{ "--wa": wallAlpha(wall.level, theme) } as React.CSSProperties}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <rect width="100%" height="100%" fill={`url(#lw-p-${wall.id})`} />
+        </svg>
+      )}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: a real scroll by the owner shows the floating day */}
       {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the scroller is the named conversation */}
       <div

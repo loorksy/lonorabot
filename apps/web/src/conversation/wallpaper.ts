@@ -68,7 +68,6 @@ const WF = {
 };
 const WALLS = {
   lonora: {
-    name: "Lonora",
     icons: [
       "logo",
       "calendar",
@@ -100,7 +99,6 @@ const WALLS = {
     ],
   },
   agents: {
-    name: "الوكلاء",
     icons: [
       "robot",
       "chip",
@@ -124,7 +122,6 @@ const WALLS = {
     ],
   },
   market: {
-    name: "السوق",
     icons: [
       "candles",
       "chartUp",
@@ -145,14 +142,14 @@ const WALLS = {
       "magnifier",
     ],
   },
-  calm: { name: "هادئ", icons: [] },
-  none: { name: "بدون", icons: [] },
+  calm: { icons: [] },
+  none: { icons: [] },
 };
 /* layer opacity per level, [dark, light] */
 const WALL_LV = {
-  light: { name: "خفيفة", a: [0.1, 0.085] },
-  mid: { name: "متوسطة", a: [0.15, 0.12] },
-  strong: { name: "أوضح", a: [0.21, 0.17] },
+  light: { a: [0.1, 0.085] },
+  mid: { a: [0.15, 0.12] },
+  strong: { a: [0.21, 0.17] },
 };
 function wallRand(seed: number) {
   let s = seed >>> 0;
@@ -268,7 +265,29 @@ function wallPattern(id: WallId) {
 }
 /* The sprite is built once and lives outside #app, so re-renders only redraw one <rect>. */
 export type WallId = keyof typeof WALLS;
-export const WALL_LEVELS = WALL_LV;
+export type WallLevel = keyof typeof WALL_LV;
+/** The patterns and the levels in the reference's order. */
+export const WALL_IDS = Object.keys(WALLS) as WallId[];
+export const WALL_LEVEL_IDS = Object.keys(WALL_LV) as WallLevel[];
+export type WallPref = { id: WallId; level: WallLevel };
+export const WALL_DEFAULTS: WallPref = { id: "lonora", level: "light" };
+/** The stored choice with anything unknown replaced, each field on its own (reference wallState). */
+export function wallState(pref: { id?: unknown; level?: unknown }): WallPref {
+  return {
+    id: WALL_IDS.includes(pref.id as WallId) ? (pref.id as WallId) : WALL_DEFAULTS.id,
+    level: WALL_LEVEL_IDS.includes(pref.level as WallLevel)
+      ? (pref.level as WallLevel)
+      : WALL_DEFAULTS.level,
+  };
+}
+/** The layer's opacity for a level in a theme (reference wallAlpha). */
+export function wallAlpha(level: WallLevel, theme: "dark" | "light") {
+  return WALL_LV[level].a[theme === "light" ? 1 : 0];
+}
+/** The preview card draws the pattern stronger so a small card shows it, up to a ceiling. */
+export function wallPreviewAlpha(level: WallLevel, theme: "dark" | "light") {
+  return Math.min(0.5, wallAlpha(level, theme) * 2.3);
+}
 /** Builds the sprite once, outside the app root. */
 export function wallDefs() {
   if (document.getElementById("lw-defs")) return;

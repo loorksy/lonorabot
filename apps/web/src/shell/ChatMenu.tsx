@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
+import { useWallSheet } from "../conversation/sheets/WallSheet";
 import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
 import type { Agent, Resource } from "../lib/api";
 import { useChartSheet } from "./agent/ChartSheet";
@@ -80,6 +81,7 @@ export function useChatMenu({
     window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
   );
   const watchesSheet = useWatchesSheet(nav.go);
+  const openWall = useWallSheet();
   // Lonora (the personal agent) trades too (Q19): its chat has the capsule and the sheet's
   // trading section like any trading agent's.
   const trading = Boolean(
@@ -240,6 +242,11 @@ export function useChatMenu({
               onSelect={() => nav.go(`/app/artifacts?agent=${agent.id}`)}
             />
           )}
+          <PopItem
+            icon="image"
+            label={<Trans>Chat background</Trans>}
+            onSelect={fromAnchor(openWall)}
+          />
           <PopSep />
           <PopItem
             icon="trash"
@@ -264,6 +271,7 @@ export function useChatMenu({
       openChart,
       statusSheet,
       watchesSheet,
+      openWall,
       confirmClear,
     ],
   );

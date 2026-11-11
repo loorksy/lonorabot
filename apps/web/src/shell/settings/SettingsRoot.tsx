@@ -4,6 +4,8 @@ import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { useWallSheet, wallName } from "../../conversation/sheets/WallSheet";
+import { WALL_DEFAULTS, wallState } from "../../conversation/wallpaper";
 import { useTheme } from "../../hooks/useTheme";
 import { activateLocale } from "../../i18n/config";
 import { api, isRequestCancelled } from "../../lib/api";
@@ -297,6 +299,8 @@ export function SettingsRoot() {
   const version = served?.version;
   const build = served?.build?.slice(0, 7);
   const [lock] = useDevicePref<LockPrefs>("lock", LOCK_DEFAULTS);
+  const [wall] = useDevicePref("wall", WALL_DEFAULTS);
+  const openWall = useWallSheet();
   const name = ownerDisplayName(profile, data.owner);
   const confirmSignOut = () => {
     const title = t`Sign out?`;
@@ -340,6 +344,12 @@ export function SettingsRoot() {
       </div>
       <div className="group">
         <PrefsRow />
+        <NavRow
+          icon="image"
+          label={t`Chat background`}
+          value={wallName(wallState(wall).id)}
+          onClick={openWall}
+        />
         <NavRow icon="chat" label={t`Chat experience`} to="/app/chat-prefs" />
         <NavRow icon="eye" label={t`Accessibility`} to="/app/accessibility" />
       </div>
