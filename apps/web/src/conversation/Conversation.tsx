@@ -1122,14 +1122,12 @@ export function Conversation({
         </GenuiHost>
         {error != null && (
           <div className="msg theirs first k-error" data-chat-error="">
-            <div className="msg-line">
-              <div className="err-card" role="alert">
-                <div className="err-top">
-                  <span className="err-ic">
-                    <Icon name="alert" />
-                  </span>
-                  <strong>{userError(error)}</strong>
-                </div>
+            <div className="err-card" role="alert">
+              <div className="err-top">
+                <span className="err-ic">
+                  <Icon name="alert" />
+                </span>
+                <strong>{userError(error)}</strong>
               </div>
             </div>
           </div>
