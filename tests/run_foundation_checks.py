@@ -89,6 +89,7 @@ CHECKS = (
     "check_goal_call_identity.py",
     "check_agent_model_choice.py",
     "check_simple_lonora.py",
+    "check_gold_journey.py",
 )
 
 

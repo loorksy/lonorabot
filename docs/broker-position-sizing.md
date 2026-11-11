@@ -4,7 +4,10 @@
 broker reader. It fetches one account, exact instrument and current quote. The
 account ID and broker-native currency must match; cent account labels remain cent
 units. A specialist retains its immutable symbol/account binding. There is no
-default instrument, currency, volume or stop.
+default instrument, currency, volume or stop. The symbol must be one the account's
+catalogue lists exactly (letter case aside); a name or code that is not listed fails
+with the account's real candidates instead of being sized on another symbol
+(`docs/market-analysis.md`, Instrument resolution).
 
 The pinned MetaApi SDK 29.1.1 calculates position P&L as price distance divided by
 `tickSize`, multiplied by `profitTickValue` or `lossTickValue`, then volume. Its

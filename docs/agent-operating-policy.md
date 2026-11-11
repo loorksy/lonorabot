@@ -70,6 +70,10 @@ The mandatory policy requires concise result-first replies in the owner's
 language, a single useful next suggestion, truthful evidence/status and no
 narration of internal cards, tools, skills, runs, events or API plumbing.
 Broker identity/tickets and financial outcomes remain useful public facts.
+Result codes are internal: a reply says what one means in the owner's words. The
+agent names an instrument the way the owner did; market reads resolve it to the
+account's own symbol (`docs/market-analysis.md`, Instrument resolution), and the owner
+is never asked for a broker's symbol name.
 Ordinary clarification can include generated question-specific choices and a
 free-text answer; it cannot replace the real financial confirmation controls.
 
