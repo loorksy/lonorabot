@@ -306,18 +306,18 @@ async def remember_resolution(
 ) -> None:
     """Keep for the account what a read just learned about one of its symbols.
 
-    Only a single match the broker's own currencies confirm is kept; a read that finds
+    Only a single match the broker's own currencies confirm is kept. A read that finds
     several contracts for the word makes the account forget it, so a later order is asked
-    which. Never part of the call: a failure here changes no result.
+    which, and so does a read that resolves it to another symbol than the one kept. Never
+    part of the call: a failure here changes no result.
     """
     resolution = result.get("symbol_resolution")
     account_id = arguments.get("account_id")
     if not isinstance(resolution, dict) or not isinstance(account_id, str):
         return
     stated = cast(dict[str, Any], resolution)
-    several = bool(stated.get("other_matches"))
-    if not several and not stated.get("confirmed"):
-        return
+    symbol = str(stated.get("symbol") or "")
+    keep = bool(stated.get("confirmed")) and not stated.get("other_matches")
     try:
         async with db.sessions() as session, session.begin():
             await learn_symbol(
@@ -325,8 +325,10 @@ async def remember_resolution(
                 owner_id,
                 account_id,
                 str(stated.get("requested") or ""),
-                None if several else str(stated.get("symbol") or ""),
+                symbol if keep else None,
                 str(stated.get("description") or ""),
+                # An unconfirmed read of the same symbol proves nothing against it.
+                unless=None if keep or stated.get("other_matches") else symbol,
             )
     except Exception as error:
         log.warning("symbol_map_write_failed type=%s", type(error).__name__)

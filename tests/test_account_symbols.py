@@ -119,6 +119,14 @@ async def test_only_a_single_confirmed_read_is_remembered(task_db: Fixture) -> N
     confirmed = {"symbol_resolution": {**resolution, "confirmed": True}}
     await remember_resolution(db, owner, arguments, confirmed)
     assert account_symbols(await stored(db, gold))["gold"]["symbol"] == "XAUUSDm"
+    # An unconfirmed read of the same symbol proves nothing against what is kept...
+    await remember_resolution(db, owner, arguments, {"symbol_resolution": resolution})
+    assert account_symbols(await stored(db, gold))["gold"]["symbol"] == "XAUUSDm"
+    # ...a read that resolves the word to another symbol does.
+    moved = {"symbol_resolution": {**resolution, "symbol": "GOLD"}}
+    await remember_resolution(db, owner, arguments, moved)
+    assert account_symbols(await stored(db, gold)) == {}
+    await remember_resolution(db, owner, arguments, confirmed)
     several = {**resolution, "confirmed": True, "other_matches": [{"symbol": "XAUUSDc"}]}
     await remember_resolution(db, owner, arguments, {"symbol_resolution": several})
     assert account_symbols(await stored(db, gold)) == {}
@@ -153,3 +161,11 @@ async def test_the_agent_is_shown_what_its_accounts_list_before_its_first_call(
         row.trading_account_id = other
         focused = await account_symbols_context(session, owner, row)
         assert "EURUSD.r" in focused and "XAUUSDm" not in focused
+    # Its own account is shown however many newer accounts the owner has connected.
+    for _ in range(11):
+        await account(db, owner)
+    async with db.sessions() as session:
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        row.trading_account_id = other
+        assert "EURUSD.r" in await account_symbols_context(session, owner, row)

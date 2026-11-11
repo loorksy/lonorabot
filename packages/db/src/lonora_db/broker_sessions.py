@@ -70,8 +70,11 @@ async def learn_symbol(
     requested: str,
     symbol: str | None,
     description: str = "",
+    *,
+    unless: str | None = None,
 ) -> None:
-    """Keep that this account lists ``requested`` as ``symbol``, or forget it (``None``).
+    """Keep that this account lists ``requested`` as ``symbol``, or forget it (``None``;
+    with ``unless``, only when it is kept as another symbol than that one).
 
     Written under the row's lock and merged into its state like every other writer of
     it. The connection's version is not touched and no event is emitted: nothing is
@@ -81,7 +84,8 @@ async def learn_symbol(
     seen = await session.get(BrokerSessionRow, account_id)
     if not word or seen is None or seen.owner_id != owner_id:
         return
-    if account_symbols(seen).get(word, {}).get("symbol") == symbol:
+    kept = account_symbols(seen).get(word, {}).get("symbol")
+    if kept == symbol or (unless is not None and kept == unless):
         return
     row = await session.get(
         BrokerSessionRow, account_id, with_for_update=True, populate_existing=True

@@ -26,10 +26,10 @@ NOTE = (
 async def account_symbols_context(session: AsyncSession, owner_id: str, agent: AgentRow) -> str:
     """The section body, or nothing when no account has learned a symbol yet."""
     lines: list[str] = []
-    for row in (await BrokerSessionRepository().list(session, owner_id))[:ACCOUNTS]:
-        if agent.trading_account_id and row.id != agent.trading_account_id:
-            # A fixed or focused agent is shown its own account only.
-            continue
+    rows = await BrokerSessionRepository().list(session, owner_id)
+    # An agent with a market of its own is shown that account only, however many exist.
+    own = [row for row in rows if row.id == agent.trading_account_id]
+    for row in own if agent.trading_account_id else rows[:ACCOUNTS]:
         newest = sorted(
             account_symbols(row).items(), key=lambda item: str(item[1].get("at", "")), reverse=True
         )

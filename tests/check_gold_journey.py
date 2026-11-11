@@ -179,12 +179,14 @@ async def main() -> None:
             "requested": "XAUUSD",
             "symbol": GOLD,
             "description": "Gold vs US Dollar",
+            "confirmed": True,
         }
         assert spec["symbol"] == GOLD and spec["contract_size"] == "100"
         assert spec["symbol_resolution"] == {
             "requested": "الذهب",
             "symbol": GOLD,
             "description": "Gold vs US Dollar",
+            "confirmed": True,
         }
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(RunRow, run["id"])
