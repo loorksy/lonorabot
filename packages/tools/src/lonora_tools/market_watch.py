@@ -103,7 +103,6 @@ def created_to_run(kind: str, stop: str) -> ToolRefusal:
             "retryable": False,
             "hint": f"A {kind} is created to run: create it enabled, and only when the owner "
             f"asked for it. To stop one that exists, use {stop}.",
-            "next_actions": [{"tool": stop}],
         },
     )
 

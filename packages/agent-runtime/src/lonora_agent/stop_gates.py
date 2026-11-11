@@ -41,6 +41,8 @@ from lonora_tools.context import ToolContext
 MAXIMUM_STOP_NUDGES = 2
 _STATE_KEY = "continuous_stop_gate"
 _COMPLETION_KEY = "task_completion_gate"
+# The record of lonora_agent.conversation_gate: one bounded budget per owner message.
+CONVERSATION_KEY = "conversation_gate"
 
 CONTINUOUS_NUDGE = (
     "This responsibility is continuous. A text answer does not complete it or save "
@@ -67,6 +69,7 @@ def reset_stop_gate(state: dict[str, Any]) -> None:
     """Only real external wake/owner input starts another bounded review epoch."""
     state.pop(_STATE_KEY, None)
     state.pop(_COMPLETION_KEY, None)
+    state.pop(CONVERSATION_KEY, None)
 
 
 def _steps_nudge(steps: Sequence[tuple[str, str]]) -> str:

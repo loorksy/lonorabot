@@ -18,7 +18,7 @@ from .runtime_notices import (
     is_owner_message,
     prefers_arabic,
 )
-from .stop_gates import task_progress, task_stop_gate
+from .stop_gates import StopGateVerdict, task_progress, task_stop_gate
 from .uncertain_outcome import append_uncertain_line
 
 
@@ -161,11 +161,14 @@ async def final_answer(
     save: Callable[[], Awaitable[None]],
     *,
     outcome_line: bool = False,
+    conversation_gate: Callable[[], StopGateVerdict] | None = None,
 ) -> LoopOutcome | None:
-    """Apply the bounded task stop gates; ``None`` means the turn continues.
+    """Apply the bounded stop gates; ``None`` means the turn continues.
 
     With ``outcome_line``, a reply that ends an owner-started request with an uncertain
     financial outcome gets one appended line; its text and card are kept.
+    ``conversation_gate`` is the check of a text reply in a conversation: once its two
+    continuations are spent the reply stands, since ending a turn is always allowed.
     """
     verdict = await task_stop_gate(context, state)
     if verdict.continue_turn:
@@ -176,6 +179,12 @@ async def final_answer(
         return await request_owner_attention(
             context, state, messages, verdict.exhausted, text or latest_answer(messages), save
         )
+    if conversation_gate is not None:
+        held = conversation_gate()
+        if held.continue_turn:
+            append_notice(messages, "conversation_check", held.nudge or "")
+            await save()
+            return None
     if outcome_line:
         updated = append_uncertain_line(state, messages, text)
         if updated != text:

@@ -51,7 +51,9 @@ async def test_a_watch_or_a_routine_is_not_created_switched_off():
             with pytest.raises(ToolRefusal, match="create_disabled_refused") as refused:
                 await tools[name].handler(context, args)
             assert refused.value.details["class"] == "input"
-            assert refused.value.details["next_actions"] == [{"tool": stop}]
+            # The refusal names no next call: the turn is not pushed toward a change.
+            assert stop in refused.value.details["hint"]
+            assert "next_actions" not in refused.value.details
         assert await count(MarketWatchRow) == 0 and await count(RoutineRow) == 0
         # Created to run, it is created.
         made = await tools["routine_create"].handler(
