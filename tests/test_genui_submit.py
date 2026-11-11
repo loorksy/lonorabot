@@ -533,6 +533,10 @@ def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
         "packages/db/src/lonora_db/messages.py": "nonce backfill",
         "packages/db/src/lonora_db/conversation_locale.py": "reply language evidence only",
         "packages/db/src/lonora_db/steering.py": "pending-steering existence, not words",
+        # The id of the message a run answers, to refuse retry after an edit. Not its words.
+        "packages/db/src/lonora_db/run_retry.py": "edited-source existence, not words",
+        # The id of the message this turn answers, so a reaction can land. Not its words.
+        "packages/tools/src/lonora_tools/message.py": "reaction target id, not owner words",
         "packages/agent-runtime/src/lonora_agent/context/skills.py": "reads origin",
         "packages/memory/src/lonora_memory/conversation.py": "reads origin",
         "packages/tools/src/lonora_tools/trade.py": "reads origin",
