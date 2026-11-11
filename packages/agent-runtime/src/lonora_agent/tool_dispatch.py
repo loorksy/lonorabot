@@ -11,6 +11,7 @@ from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.schema import ToolArgumentsError
+from lonora_tools.symbols import SymbolNotResolved
 from lonora_tools.tool_results import stored_result
 
 from .environment import blocked_route, environment_state
@@ -114,6 +115,9 @@ async def dispatch_call(
         if isinstance(error, ToolArgumentsError):
             error_result["issues"] = error.issues
             error_result["retryable"] = True
+        if isinstance(error, SymbolNotResolved):
+            # The account's real candidates and the next call: the model continues itself.
+            error_result.update(error.details)
         result = error_result
     except (TimeoutError, ConnectionError) as error:
         result = {

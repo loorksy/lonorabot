@@ -9,7 +9,7 @@ from pydantic import Field
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .symbols import canonical_broker_symbol
+from .symbols import read_symbol
 
 
 class AccountInput(Contract):
@@ -44,8 +44,8 @@ async def symbols(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def instrument(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
-    symbol = await canonical_broker_symbol(broker, args["symbol"])
-    return (await broker.instrument(symbol)).model_dump(mode="json")
+    symbol, stated = await read_symbol(broker, args["symbol"])
+    return {**(await broker.instrument(symbol)).model_dump(mode="json"), **stated}
 
 
 async def instruments(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -55,30 +55,31 @@ async def instruments(context: ToolContext, args: dict[str, Any]) -> dict[str, A
 
 async def quote(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
-    symbol = await canonical_broker_symbol(broker, args["symbol"])
+    symbol, stated = await read_symbol(broker, args["symbol"])
     provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
-    return (await provider.quote(symbol)).model_dump(mode="json")
+    return {**(await provider.quote(symbol)).model_dump(mode="json"), **stated}
 
 
 async def candles(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
-    symbol = await canonical_broker_symbol(broker, args["symbol"])
+    symbol, stated = await read_symbol(broker, args["symbol"])
     provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
     return {
         "candles": [
             c.model_dump(mode="json")
             for c in await provider.candles(symbol, args["timeframe"], args["limit"])
-        ]
+        ],
+        **stated,
     }
 
 
 async def structure(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     timeframe = validate_timeframe(args["timeframe"])
     broker = await context.brokers.get(context.owner_id, args["account_id"])
-    symbol = await canonical_broker_symbol(broker, args["symbol"], require_exists=True)
+    symbol, stated = await read_symbol(broker, args["symbol"], require_exists=True)
     provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
     series = await provider.candles(symbol, timeframe, args["limit"])
-    return analyze_structure(
+    return stated | analyze_structure(
         series,
         account_id=args["account_id"],
         symbol=symbol,
