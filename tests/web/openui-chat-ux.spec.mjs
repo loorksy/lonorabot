@@ -392,7 +392,10 @@ test("S8: Lonora's chat has the trading and safety section like any trading agen
   // The menu is built when it opens: wait until the agent is loaded.
   await expect(page.getByTestId("permission-chip")).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: "Watches" })).toBeVisible();
+  // «المراقبات» needs a linked account (reference: a trader with an account).
+  await expect(page.getByRole("menuitem", { name: "Watches" })).toHaveCount(
+    lonora.trading_account_id ? 1 : 0,
+  );
   await page.getByRole("menuitem", { name: "Status and safety" }).click();
   await expect(page.getByRole("heading", { name: "Trading and safety" })).toBeVisible();
   await expect(page.getByTestId("agent-mode-line")).toBeVisible();

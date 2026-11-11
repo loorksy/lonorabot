@@ -419,6 +419,7 @@ test("knowledge and recurring trading work use durable API edits", async ({
   const { agent, prefix, remember, headers } = workspace;
   await page.goto(`/app/memory?agent=${agent.id}`);
   const panel = page.locator("main");
+  await panel.getByLabel("Agent", { exact: true }).selectOption(agent.id);
   await panel.getByRole("button", { name: "Skills", exact: true }).click();
   const skillForm = panel.locator(".skill-create");
   await skillForm.locator("summary", { hasText: "Add owner instructions" }).click();

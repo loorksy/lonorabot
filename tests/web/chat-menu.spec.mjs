@@ -70,6 +70,13 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
   expect(box.y - (anchor.y + anchor.height)).toBeLessThan(12);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+  // A sheet opened from the menu gives focus back to ⋮ when it closes.
+  await button.click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
+  await expect(page.locator("#dialog")).toHaveAttribute("open", "");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
+  await expect(button).toBeFocused();
 
   // A research agent has no chart, no watches; a group has no agent files.
   await page.goto(`/app/${data.research.id}`);

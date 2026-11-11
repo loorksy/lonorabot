@@ -27,8 +27,12 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     );
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${data.agent}`);
-    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Chart" }).click();
+    // A research agent has no «الشارت» in its menu (reference chartOk): its conversation's
+    // chart opens the way an answer's chart does.
+    await expect(page.getByTestId("transcript")).toBeVisible();
+    const openChart = () =>
+      page.evaluate(() => window.dispatchEvent(new CustomEvent("lonora:open-chart")));
+    await openChart();
     const sheet = page.locator("#dialog");
     await expect(sheet).toHaveClass(/expandable/);
     // The conversation has no pair: its latest chart, on that chart's own timeframe, drawn
@@ -48,11 +52,7 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     await expect.poll(async () => (await sheet.boundingBox()).height).toBeGreaterThan(800);
     await page.keyboard.press("Escape");
     await expect(sheet).not.toHaveAttribute("open", "");
-    // The dialog gives focus back to the button that opened it.
-    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeFocused();
-    await menu.click();
-    await page.getByRole("menuitem", { name: "Chart" }).click();
+    await openChart();
     await expect(candles.first()).toBeVisible();
     await sheet.getByRole("button", { name: "Close", exact: true }).click();
     await expect(sheet).not.toHaveAttribute("open", "");
