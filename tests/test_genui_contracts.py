@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from lonora_contracts.genui import CardError, UiDocument, parse_lines
@@ -161,7 +162,7 @@ def test_alert_create_bubble_uses_the_server_names() -> None:
         {"symbol": "XAUUSD", "account_id": "a", "dir": "above", "price": 1, "text": "buy"},
     ],
 )
-def test_alert_data_is_bounded(data: dict) -> None:
+def test_alert_data_is_bounded(data: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         validate_data(REGISTRY["alert.create"], data)
 

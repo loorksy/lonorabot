@@ -10,6 +10,7 @@ it with MetaApi, and is created disabled so the owner turns it on.
 import asyncio
 import json
 import sys
+from typing import Any
 
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_api.env import Settings
@@ -23,10 +24,8 @@ from lonora_trading import connections
 from sqlalchemy import select
 
 
-async def main(path: str) -> int:
-    with open(path) as handle:
-        data = json.load(handle)
-    settings = Settings()
+async def main(data: dict[str, Any]) -> int:
+    settings = Settings()  # pyright: ignore[reportCallIssue]
     key = settings.encryption_key.get_secret_value()
     cipher = SecretCipher(key)
     db = Database.connect(settings.database_url)
@@ -35,10 +34,13 @@ async def main(path: str) -> int:
         async with db.sessions() as session:
             owners = list((await session.scalars(select(OwnerRow.id))).all())
         if len(owners) != 1:
-            print(f"STOP: expected exactly one owner account, found {len(owners)}. Create the owner account first.")
+            print(
+                f"STOP: expected exactly one owner account, found {len(owners)}. Create the owner account first."
+            )
             return 2
         store = EncryptedSecretStore(db, key, owners[0])
-        rows = {row["id"]: row for row in data.get("secrets") or []}
+        secrets: list[dict[str, Any]] = data.get("secrets") or []
+        rows: dict[str, dict[str, Any]] = {row["id"]: row for row in secrets}
         for row in rows.values():
             label = f"{row['scope']}/{row['name']}"
             if row["scope"] != "provider":
@@ -52,8 +54,9 @@ async def main(path: str) -> int:
             except LonoraError as error:
                 failed += 1
                 print(f"FAILED {label}: {error.code}")
-        used = set()
-        for payload in data.get("brokers") or []:
+        used: set[str] = set()
+        brokers: list[dict[str, Any]] = data.get("brokers") or []
+        for payload in brokers:
             secret = rows.get(payload.get("secret_id") or "")
             account = str(payload.get("account_id") or "")
             label = f"broker {payload.get('provider')} account {account[:8]}..."
@@ -84,4 +87,6 @@ async def main(path: str) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main(sys.argv[1])))
+    with open(sys.argv[1]) as handle:
+        export = json.load(handle)
+    sys.exit(asyncio.run(main(export)))

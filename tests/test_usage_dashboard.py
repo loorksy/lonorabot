@@ -29,13 +29,13 @@ UNKNOWN = ("openai", "gpt-9-imaginary", 10, 10, 0)
 
 
 @pytest.fixture(autouse=True)
-def openai_test_price(monkeypatch):
+def openai_test_price(monkeypatch: pytest.MonkeyPatch) -> None:
     """The production table has no unverified OpenAI prices; these tests use a test-only
     OpenAI row to exercise the provider that counts cached tokens inside its input."""
     from lonora_core import model_pricing
 
     monkeypatch.setitem(
-        model_pricing._PRICES,
+        model_pricing._PRICES,  # pyright: ignore[reportPrivateUsage]
         "openai",
         {"gpt-4o": model_pricing.ModelPrice(2.50, 1.25, 10.00)},
     )
