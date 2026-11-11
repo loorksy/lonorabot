@@ -202,6 +202,15 @@ test("archive leaves the list with an undo; the archived page keeps its setting"
   await toolbar(page).getByRole("button", { name: "Archive", exact: true }).click();
   const toast = page.locator("#toast");
   await expect(toast).toContainText("one chat archived");
+  // The toast stays centred once its pop-in ends.
+  await expect
+    .poll(() =>
+      toast.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return Math.round(box.left + box.width / 2 - window.innerWidth / 2);
+      }),
+    )
+    .toBe(0);
   await expect(desktopRow(page, key(gamma))).toHaveCount(0);
   await expect(page.locator(".desktop-list .archive-row")).toBeVisible();
   await toast.getByRole("button", { name: "Undo" }).click();

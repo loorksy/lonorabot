@@ -354,6 +354,37 @@ test.describe("phone shell (390×844, Arabic)", () => {
   });
 });
 
+test.describe("phone with touch (390×844, Arabic)", () => {
+  test.use({ hasTouch: true });
+  test("the tap that dismisses the chip menu does not also go back", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const back = page.locator(".chat-back");
+      await chip.tap();
+      await expect(menu).toBeVisible();
+      await back.tap();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      await back.tap();
+      await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
 test.describe("desktop shell (1280×800, Arabic)", () => {
   test("the press that dismisses the list menu does not open the row beneath", async ({
     page,

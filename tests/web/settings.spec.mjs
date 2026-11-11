@@ -54,6 +54,21 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
         .first()
         .evaluate((node) => getComputedStyle(node).paddingInlineStart),
     ).toBe("14px");
+    // The language menu opens at its pill's width, aligned with it (the reference's openPop match).
+    const pill = page.locator(".lang-select");
+    await pill.click();
+    const langMenu = page.locator(".pop.lang-pop");
+    await expect(langMenu).toBeVisible();
+    const pillBox = await pill.boundingBox();
+    // Polled: the menu's pop-in scales it for a moment.
+    await expect
+      .poll(async () => {
+        const box = await langMenu.boundingBox();
+        return Math.abs(box.width - pillBox.width) < 1 && Math.abs(box.x - pillBox.x) < 1;
+      })
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(langMenu).toHaveCount(0);
     await page.getByRole("button", { name: /^Notifications and contact/ }).click();
     await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
     // No browser notification permission until a push channel exists (Q10).
