@@ -318,6 +318,7 @@
 .empty svg {
   width: 32px;
   height: 32px;
+  margin-inline: auto;
   margin-bottom: 12px;
 }
 .list-empty .btn {

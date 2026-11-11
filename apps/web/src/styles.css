@@ -6,6 +6,8 @@
 @import "./pages/shell/shell.css";
 @import "./theme.overrides.css";
 @source "../../../packages/ui-web/src";
+/* `outline` is the reference's button modifier (.btn.outline), not Tailwind's utility. */
+@source not inline("outline");
 :root {
   --lonora-surface: var(--background);
   --lonora-panel: var(--card);

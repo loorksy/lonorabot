@@ -769,6 +769,13 @@ button.row:hover {
   font-weight: 700;
   box-shadow: var(--hi);
 }
+.avatar.big {
+  width: 88px;
+  height: 88px;
+}
+.avatar.initial.big {
+  font-size: var(--fs-xl);
+}
 .avatar.icon-av {
   background: linear-gradient(180deg, var(--fill-2), var(--fill));
   color: var(--text);
@@ -1413,6 +1420,7 @@ html[dir="ltr"] .sheet-page.go-back {
   padding-inline-start: 34px;
   border-radius: var(--r-md);
   background: var(--add-card);
+  list-style: decimal;
   line-height: 2;
   font-size: var(--fs-sm);
 }

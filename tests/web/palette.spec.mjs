@@ -150,3 +150,68 @@ for (const theme of ["dark", "light"]) {
     }
   });
 }
+
+test("shell pages carry the reference's base, button, empty, avatar and step rules", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, "dark");
+    await page.goto("/app/agents");
+    // The page body is the reference's: --bg, --text and the system font at 16/1.6.
+    const body = await page.evaluate(() => {
+      const probe = document.createElement("i");
+      probe.style.cssText = "background: var(--bg); color: var(--text)";
+      document.body.append(probe);
+      const [b, p] = [document.body, probe].map((el) => getComputedStyle(el));
+      return {
+        bg: [b.backgroundColor, p.backgroundColor],
+        color: [b.color, p.color],
+        font: b.fontFamily,
+        size: b.fontSize,
+      };
+    });
+    expect(body.bg[0]).toBe(body.bg[1]);
+    expect(body.color[0]).toBe(body.color[1]);
+    expect(body.font).toMatch(/^system-ui/);
+    expect(body.size).toBe("16px");
+    // An outline button has only its grey border; keyboard focus still draws the ring.
+    const outline = page.locator(".btn.outline").first();
+    await expect(outline).toBeVisible();
+    expect(await outline.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
+    await page.keyboard.press("Shift");
+    await outline.focus();
+    expect(await outline.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
+    // The empty state's icon sits centred above its sentence.
+    await page.goto("/app/goals");
+    const icon = page.locator(".empty svg").first();
+    await expect(icon).toBeVisible();
+    const [svg, box] = await icon.evaluate((el) =>
+      [el, el.closest(".empty")].map((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.x + rect.width / 2;
+      }),
+    );
+    expect(Math.abs(svg - box)).toBeLessThan(1);
+    // The profile hero shows the large 88px initial.
+    await page.goto("/app/owner");
+    const avatar = page.locator(".avatar.big").first();
+    await expect(avatar).toBeVisible();
+    expect(await avatar.evaluate((el) => el.getBoundingClientRect().width)).toBe(88);
+    // The install steps are numbered.
+    await page.goto("/app/settings");
+    await page.getByRole("button", { name: "تثبيت التطبيق" }).click();
+    const steps = page.locator(".perm-steps");
+    await expect(steps).toBeVisible();
+    expect(await steps.evaluate((el) => getComputedStyle(el).listStyleType)).toBe("decimal");
+    // The sign-in heading is bold.
+    await context.clearCookies();
+    await page.goto("/app");
+    const heading = page.locator("#auth h1").first();
+    await expect(heading).toBeVisible();
+    expect(await heading.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("700");
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
