@@ -6,7 +6,14 @@
  * counts the moment it is written; a chat with no visible message sorts last), then the
  * agents before the groups as the server lists them. Nothing here is stored or fetched.
  */
-import type { Agent, AttentionImportance, ChatList, InboxEntry, Resource } from "@lonora/contracts";
+import type {
+  Agent,
+  AttentionImportance,
+  ChatList,
+  InboxEntry,
+  Message,
+  Resource,
+} from "@lonora/contracts";
 import { inboxUnread, isUnread } from "./inbox";
 
 /** The built-in filters of the list, then the owner's lists as `list:<id>`. */
@@ -202,7 +209,14 @@ export const groupDraftName = (names: readonly string[]) =>
  * waits in it and stays «failed» with a manual retry under the same client_nonce.
  */
 export function isPlainOutgoing(body: Readonly<Record<string, unknown>>): boolean {
-  return body.input_answer == null;
+  // An edit cancels the original's run (Q21): it stays «failed» with a manual retry.
+  // A card submit and a voice note are never auto-flushed: only plain owner text is (Q6).
+  return (
+    body.input_answer == null &&
+    body.edited_from == null &&
+    body.ui_submit == null &&
+    body.voice == null
+  );
 }
 
 /**
@@ -245,3 +259,25 @@ export function inQuietHours(policy: QuietHours | null | undefined, now: Date): 
 }
 export const attentionAlwaysShows = (importance: AttentionImportance) =>
   importance === "critical" || importance === "action_required";
+
+/** A live message event merged over the copy already read. ``message.created`` carries the
+    message as it was admitted: what changed since (``superseded_by``, ``consumed``,
+    ``reactions``) comes from the refetched copy. ``message.updated`` is the newer projection,
+    keeping ``consumed`` when it does not carry one. */
+export function mergeLiveMessage(
+  current: Message | undefined,
+  kind: string,
+  payload: Record<string, unknown>,
+): Message {
+  const next = payload as unknown as Message;
+  if (!current) return next;
+  const kept = <K extends keyof Message>(keys: K[]) =>
+    Object.fromEntries(
+      keys
+        .filter((key) => current[key] !== undefined && current[key] !== null)
+        .map((key) => [key, current[key]]),
+    ) as Partial<Message>;
+  if (kind === "message.created")
+    return { ...next, ...kept(["superseded_by", "consumed", "reactions"] as (keyof Message)[]) };
+  return { ...kept(["consumed"] as (keyof Message)[]), ...next } as Message;
+}

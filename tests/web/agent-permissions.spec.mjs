@@ -75,7 +75,7 @@ async function setup(context, locale = "en", theme = "dark") {
     },
     async open(page, value = selected) {
       await page.goto(`/app/${value.agent.id}?thread=${value.thread.id}`);
-      await expect(page.getByTestId("permission-selector")).toBeVisible();
+      await expect(page.getByTestId("permission-chip")).toBeVisible();
     },
     async cleanup() {
       for (const id of created.reverse())
@@ -85,7 +85,21 @@ async function setup(context, locale = "en", theme = "dark") {
   };
 }
 
+/* The full permission flow (review, editor, signing) lives in the agent's info panel; the
+   conversation's chip is the reference's ladder (see the layouts test). */
+async function legacy(page) {
+  if (await page.getByTestId("permission-selector").count()) return;
+  await page.locator(".chat-head .head-avatar").click();
+  await page
+    .locator("details.tpl-profile-advanced > summary", {
+      hasText: /^(Agent Permissions|صلاحيات الوكيل)$/,
+    })
+    .click();
+  await expect(page.getByTestId("permission-selector")).toBeVisible();
+}
+
 async function choose(page, level) {
+  await legacy(page);
   await page.getByTestId("permission-selector").click();
   await expect(page.getByTestId("permission-options")).toBeVisible();
   await page.getByTestId(`permission-option-${level}`).click();
@@ -175,6 +189,7 @@ for (const locale of ["en", "ar"])
     });
     try {
       await state.open(page, granted);
+      await legacy(page);
       const trigger = page.getByTestId("permission-selector");
       await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
         "data-permission-icon",
@@ -254,7 +269,7 @@ const layouts = [
 ];
 
 for (const layout of layouts) {
-  test(`${layout.label}: composer permissions preserve draft and unsigned scope without overflow`, async ({
+  test(`${layout.label}: the composer's permission chip keeps the draft and opens the mandate sheet`, async ({
     page,
     context,
   }) => {
@@ -266,119 +281,36 @@ for (const layout of layouts) {
     try {
       await state.open(page);
       expect((await state.state()).effective_level).toBe("analysis");
-      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-        "data-level",
-        "analysis",
-      );
-      const trigger = page.getByTestId("permission-selector");
-      const bar = page.getByTestId("composer-bar");
-      // Permission is part of the input pill, immediately beside attachment +.
-      await expect(bar.getByTestId("permission-selector")).toBeVisible();
+      const chip = page.getByTestId("permission-chip");
+      await expect(chip).toHaveAttribute("data-level", "analysis");
+      // The chip sits in the composer row right after +, as in the reference.
       expect(
-        await trigger.evaluate((element) =>
-          element
-            .closest(".agent-permissions")
-            .previousElementSibling?.classList.contains("template-attach-button"),
+        await chip.evaluate((element) =>
+          element.previousElementSibling?.classList.contains("cbtn"),
         ),
       ).toBeTruthy();
-      await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
-        "data-permission-icon",
-        "analysis",
-      );
-      const compact = layout.width < 768 || layout.height <= 500;
-      if (compact) {
-        await expect(trigger.locator(".permission-trigger-label")).toBeHidden();
-        await expect(trigger.locator(".permission-trigger-chevron")).toBeHidden();
-        expect((await trigger.boundingBox()).width).toBeLessThanOrEqual(34);
-      } else {
-        await expect(trigger.locator(".permission-trigger-label")).toBeVisible();
-        await expect(trigger.locator(".permission-trigger-label")).toHaveText(
-          layout.locale === "ar" ? "لا يتداول" : "No trading",
-        );
-      }
-      const buttonBox = await trigger.boundingBox();
-      const attachBox = await bar.locator(".template-attach-button").boundingBox();
-      expect(Math.abs(buttonBox.y - attachBox.y)).toBeLessThan(3);
+      await expect(chip).toContainText(layout.locale === "ar" ? "دون تنفيذ" : "No execution");
       await noOverflow(page);
-      if (layout.width === 1440) {
-        await trigger.focus();
-        await trigger.press("Enter");
-        await expect(page.getByTestId("permission-options")).toBeVisible();
-        await page.keyboard.press("Escape");
-        await expect(page.getByTestId("permission-options")).toBeHidden();
-        await expect(trigger).toBeFocused();
-      }
-      const composer = page.getByRole("combobox", {
-        name: layout.locale === "ar" ? "الرسالة" : "Message",
-        exact: true,
-      });
       const draft = "Keep my trading question unsent — احفظ المسودة";
-      await composer.fill(draft);
-      await page.getByTestId("permission-selector").click();
-      const options = page.getByTestId("permission-options");
-      await expect(options.getByRole("switch")).toHaveCount(0);
-      for (const level of ["analysis", "supervised", "autonomous"]) {
-        await expect(options.getByTestId(`permission-option-${level}`)).toBeVisible();
-        await expect(options.getByTestId(`permission-option-icon-${level}`)).toBeVisible();
-        await expect(
-          options.getByTestId(`permission-option-icon-${level}`).locator("svg"),
-        ).toBeVisible();
-      }
-      await expect(options.getByTestId("permission-advanced")).toHaveCount(0);
-      await options.getByTestId("permission-option-supervised").click();
+      await page.locator(".composer textarea").fill(draft);
+      await chip.click();
+      const menu = page.locator(".pop.mode-pop");
+      await expect(menu).toBeVisible();
+      for (const level of ["analysis", "supervised", "autonomous"])
+        await expect(menu.getByTestId(`mode-option-${level}`)).toBeVisible();
+      await menu.getByTestId("mode-option-supervised").click();
       await expect.poll(async () => (await state.state()).effective_level).toBe("supervised");
-      await expect(trigger.locator("[data-permission-icon]")).toHaveAttribute(
-        "data-permission-icon",
-        "supervised",
-      );
-      await expect(trigger).toHaveAccessibleName(
-        layout.locale === "ar" ? "صلاحيات الوكيل: يسألني أولًا" : "Agent Permissions: Ask me",
-      );
-      await expect(composer).toHaveValue(draft);
+      await expect(chip).toHaveAttribute("data-level", "supervised");
+      await expect(page.locator(".composer textarea")).toHaveValue(draft);
       await page.reload();
-      await expect(composer).toHaveValue(draft);
-      await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-        "data-level",
-        "supervised",
-      );
-      const surface = await editor(page);
-      await expect(surface.getByTestId("permission-header-agent")).toHaveText(state.agent.name);
-      await expect(surface.getByTestId("permission-summary-agent")).toHaveText(state.agent.name);
-      const pending = await state.state();
-      expect(pending.effective_level).toBe("supervised");
-      expect(pending.requested_level).toBe("autonomous");
-      expect(pending.pending_authority.status).toBe("pending");
-      expect(pending.active_authorities).toEqual([]);
-      for (const group of ["scope", "actions", "limits", "duration"])
-        await expect(surface.getByTestId(`permission-group-${group}`)).toHaveJSProperty(
-          "open",
-          false,
-        );
-      await surface.getByTestId("permission-group-scope").locator("summary").click();
-      await expect(surface.getByTestId("permission-group-scope")).toContainText(state.data.symbol);
-      await surface.getByTestId("permission-group-limits").locator("summary").click();
-      const limit = surface.getByTestId("permission-limit-maximum_order_volume");
-      await limit.fill("0.05");
-      await surface.getByTestId("permission-group-limits").locator("summary").click();
-      await surface.getByTestId("permission-group-limits").locator("summary").click();
-      await expect(limit).toHaveValue("0.05");
-      await noOverflow(page);
-      if (layout.width === 1440) {
-        await expect(surface.locator(".permission-summary")).toContainText("0.05");
-        await page.screenshot({ path: ".runtime/permission-qa-web-desktop-editor.png" });
-      }
-      const continueButton = surface.getByTestId("permission-review-continue");
-      await expect(continueButton).toBeEnabled();
-      await continueButton.click();
-      await expect(page.getByTestId("permission-review")).toContainText("0.05");
-      await expect(
-        page.getByTestId("permission-review").getByTestId("permission-header-agent"),
-      ).toHaveText(state.agent.name);
-      await expect(
-        page.getByTestId("permission-review").getByTestId("permission-summary-agent"),
-      ).toHaveText(state.agent.name);
-      if (layout.locale === "ar" && layout.width === 390)
-        await page.screenshot({ path: ".runtime/permission-qa-web-mobile-ar-review.png" });
+      await expect(page.locator(".composer textarea")).toHaveValue(draft);
+      await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "supervised");
+      // «تنفيذ مفوَّض» opens the mandate sheet; nothing changes before a signature.
+      await page.getByTestId("permission-chip").click();
+      await page.locator(".pop.mode-pop").getByTestId("mode-option-autonomous").click();
+      const sheet = page.locator("#dialog .act-grant_authority");
+      await expect(sheet).toBeVisible();
+      expect(await sheet.getByRole("radio").count()).toBeGreaterThanOrEqual(7);
       await noOverflow(page);
       expect((await state.state()).effective_level).toBe("supervised");
       expect(errors).toEqual([]);
@@ -472,10 +404,7 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
     await state.open(page);
     const observer = await context.newPage();
     await state.open(observer);
-    await expect(observer.getByTestId("permission-effective")).toHaveAttribute(
-      "data-level",
-      "analysis",
-    );
+    await expect(observer.getByTestId("permission-chip")).toHaveAttribute("data-level", "analysis");
     // WebAuthn requires the signing document to be the active tab. Keep the
     // second tab as an observer without moving the signing flow to the background.
     await page.bringToFront();
@@ -552,11 +481,8 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
     await review.getByTestId("permission-sign").click();
     expect((await verification).ok()).toBeTruthy();
     await expect.poll(async () => (await state.state()).effective_level).toBe("autonomous");
-    await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-      "data-level",
-      "autonomous",
-    );
-    await expect(observer.getByTestId("permission-effective")).toHaveAttribute(
+    await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "autonomous");
+    await expect(observer.getByTestId("permission-chip")).toHaveAttribute(
       "data-level",
       "autonomous",
     );
@@ -573,7 +499,7 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
     expect(downgraded.pending_authority).toBeNull();
     expect(downgraded.customization.limits.maximum_order_volume).toBe("0.05");
     expect(downgraded.customization.duration).toBe("12h");
-    await expect(observer.getByTestId("permission-effective")).toHaveAttribute(
+    await expect(observer.getByTestId("permission-chip")).toHaveAttribute(
       "data-level",
       "supervised",
     );
@@ -583,15 +509,9 @@ test("customized scope signs through actual virtual WebAuthn, then downgrade rev
     );
     const other = await state.createAgent();
     await state.open(page, other);
-    await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-      "data-level",
-      "analysis",
-    );
+    await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "analysis");
     await state.open(page);
-    await expect(page.getByTestId("permission-effective")).toHaveAttribute(
-      "data-level",
-      "supervised",
-    );
+    await expect(page.getByTestId("permission-chip")).toHaveAttribute("data-level", "supervised");
     await choose(page, "autonomous");
     await expect(page.getByTestId("permission-review")).toBeVisible();
     await expect.poll(async () => (await state.state()).pending_authority?.status).toBe("pending");

@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useEvents } from "../hooks/useEvents";
 import type { Owner } from "../lib/auth";
 import { AttentionProvider } from "./AttentionProvider";
@@ -37,6 +45,9 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
       window.removeEventListener("online", reconcile);
     };
   }, []);
+  // Stable across events. A new function here retriggers the outbox flush on every
+  // live event, which resends a message whose HTTP response was lost.
+  const refresh = useCallback(() => setManual((value) => value + 1), []);
   const value = useMemo(
     () => ({
       owner,
@@ -45,9 +56,9 @@ export function ClientProvider({ owner, children }: { owner: Owner; children: Re
       seedStreams,
       connected,
       revision: manual + tick + revision,
-      refresh: () => setManual((v) => v + 1),
+      refresh,
     }),
-    [owner, events, streams, seedStreams, connected, manual, tick, revision],
+    [owner, events, streams, seedStreams, connected, manual, tick, revision, refresh],
   );
   return (
     <Context.Provider value={value}>

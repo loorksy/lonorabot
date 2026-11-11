@@ -14,6 +14,7 @@ from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_delivery import delivery_rules
 from lonora_db.attention import mandatory_current
+from lonora_db.call_log import log_call
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.owner_profile import (
@@ -95,6 +96,21 @@ def changed(session: AsyncSession, row: VoiceSessionRow, status: str) -> None:
         thread_id=row.thread_id,
         payload=call_data(row),
     )
+
+
+async def ended(session: AsyncSession, row: VoiceSessionRow, status: str) -> None:
+    """A call that stops ringing; a declined or missed one is logged in the conversation."""
+    changed(session, row, status)
+    if status in {"rejected", "missed"} and row.agent_id:
+        await log_call(
+            session,
+            row.owner_id,
+            row.agent_id,
+            row.id,
+            direction="incoming",
+            duration_seconds=0,
+            missed=True,
+        )
 
 
 async def current_attention(session: AsyncSession, row: VoiceSessionRow) -> AttentionRow:
@@ -210,7 +226,7 @@ async def request_call(
     for row in rows:
         if row.payload.get("mode") == MODE and row.payload.get("status") in ACTIVE:
             if datetime.fromisoformat(row.payload["expires_at"]) <= now:
-                changed(session, row, "missed")
+                await ended(session, row, "missed")
             else:
                 raise LonoraError("incoming_call_already_active", 409)
         elif row.payload.get("mode") == "gpt_live" and row.payload.get("status") in {
@@ -275,14 +291,14 @@ async def transition(
     if row.payload["status"] not in ACTIVE:
         return row
     if datetime.fromisoformat(row.payload["expires_at"]) <= utcnow():
-        changed(session, row, "missed")
+        await ended(session, row, "missed")
         return row
     if action == "accept":
         await require_current_consent(session, row)
         if row.payload["status"] == "ringing":
             changed(session, row, "accepted")
     elif action in {"reject", "cancel"}:
-        changed(session, row, "rejected" if action == "reject" else "cancelled")
+        await ended(session, row, "rejected" if action == "reject" else "cancelled")
     else:
         raise LonoraError("incoming_call_action_invalid", 422)
     return row
@@ -316,7 +332,7 @@ async def incoming_tick(
                 continue
             now = utcnow()
             if datetime.fromisoformat(row.payload["expires_at"]) <= now:
-                changed(session, row, "missed")
+                await ended(session, row, "missed")
                 continue
             try:
                 await require_current_consent(session, row)
@@ -349,7 +365,7 @@ async def incoming_tick(
             if row.payload["status"] not in ACTIVE:
                 continue
             if datetime.fromisoformat(row.payload["expires_at"]) <= utcnow():
-                changed(session, row, "missed")
+                await ended(session, row, "missed")
                 continue
             try:
                 await require_current_consent(session, row)

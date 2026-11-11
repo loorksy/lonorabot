@@ -186,6 +186,7 @@ def selection_metadata(
         "stream_timings": reply.provider_metadata.get("stream_timings", {}),
         "visual_errors": reply.provider_metadata.get("visual_errors", []),
         "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
+        "suggested_reply": reply.provider_metadata.get("suggested_reply"),
     }
 
 

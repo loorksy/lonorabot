@@ -71,14 +71,15 @@ test("message appears before delayed POST and slow runs, survives navigation, th
     await page.goto("/app");
     await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
     const content = "صباح الخير — تظهر الرسالة فورًا";
-    await page.getByRole("combobox", { name: "الرسالة", exact: true }).fill(content);
-    await page.getByRole("button", { name: "إرسال", exact: true }).click();
-    const pending = page.locator("article[data-delivery='sending']");
+    await page.locator(".composer textarea").fill(content);
+    await page.locator(".composer .send").click();
+    const pending = page.locator(".msg[data-delivery='sending']");
     await expect(pending).toContainText(content, { timeout: 1000 });
     await expect(pending).toHaveCount(1);
-    await expect(page.getByRole("combobox", { name: "الرسالة", exact: true })).toHaveValue("");
+    await expect(page.locator(".composer textarea")).toHaveValue("");
     await expect(pending.locator("time")).toHaveCount(0);
-    await expect(pending.getByRole("status")).toHaveText("جارٍ الإرسال…");
+    // Waiting to send: the clock instead of the ticks (reference ticks()).
+    await expect(pending.locator(".ticks.wait")).toBeVisible();
     await expect(page.locator("[data-stream-run-id]")).toHaveCount(0);
 
     await page.goBack();
@@ -88,7 +89,7 @@ test("message appears before delayed POST and slow runs, survives navigation, th
     post.resolve();
     await committed.promise;
     await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
     // The independent Run request is deliberately still unresolved here.
     expect(saved.run_ids).toHaveLength(1);
@@ -120,15 +121,15 @@ test("failed pending bubble retries the same receipt while preserving a newer dr
   });
   try {
     await page.goto(`/app/${agent.id}`);
-    const composer = page.getByRole("combobox", { name: "Message", exact: true });
+    const composer = page.locator(".composer textarea");
     const content = "Retry this exact message";
     await composer.fill(content);
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    const failed = page.locator("article[data-delivery='failed']");
+    await page.locator(".composer .send").click();
+    const failed = page.locator(".msg[data-delivery='failed']");
     await expect(failed).toContainText(content);
     await composer.fill("Keep my newer unsent draft");
-    await failed.getByRole("button", { name: "Retry", exact: true }).click();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await failed.locator(".fail-note").click();
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
     await expect(composer).toHaveValue("Keep my newer unsent draft");
     expect(nonces).toHaveLength(2);
@@ -160,13 +161,13 @@ test("SSE acknowledgement replaces pending text before its HTTP response returns
   try {
     await page.goto(`/app/${agent.id}`);
     const content = "Confirmed by the live event";
-    await page.getByRole("combobox", { name: "Message", exact: true }).fill(content);
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer textarea").fill(content);
+    await page.locator(".composer .send").click();
     await committed.promise;
     await expect(page.locator(`[data-message-id="${saved.message.id}"]`)).toContainText(content);
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     responseGate.resolve();
-    await expect(page.getByRole("combobox", { name: "Message", exact: true })).toHaveValue("");
+    await expect(page.locator(".composer textarea")).toHaveValue("");
     await expect(page.getByTestId("transcript").getByText(content, { exact: true })).toHaveCount(1);
   } finally {
     responseGate.resolve();
@@ -183,7 +184,7 @@ test("drafts stay with their conversation across switches and reload", async ({
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
   try {
     await page.goto(`/app/${a.agent.id}`);
-    const field = page.getByRole("combobox", { name: "Message", exact: true });
+    const field = page.locator(".composer textarea");
     await field.fill("Unsent draft A");
     await page.locator(`.desktop-list [data-inbox-agent-id="${b.agent.id}"]`).click();
     await expect(field).toHaveValue("");
@@ -217,9 +218,9 @@ test("failed outbox survives reload without auto-resubmitting and retries the or
   });
   try {
     await page.goto(`/app/${agent.id}`);
-    const field = page.getByRole("combobox", { name: "Message", exact: true });
+    const field = page.locator(".composer textarea");
     await field.fill("Recover this receipt");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     await expect(field).toHaveValue("");
     await expect(page.locator('[data-delivery="failed"]')).toContainText("Recover this receipt");
     await field.fill("A newer draft is separate");
@@ -228,8 +229,8 @@ test("failed outbox survives reload without auto-resubmitting and retries the or
     await expect(page.locator('[data-delivery="failed"]')).toHaveCount(1);
     expect(nonces).toHaveLength(1);
     fail = false;
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await page.locator(".fail-note").click();
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     await expect(
       page.getByTestId("transcript").getByText("Recover this receipt", { exact: true }),
     ).toHaveCount(1);
@@ -256,24 +257,20 @@ test("concurrent optimistic messages keep submission order as earlier acknowledg
   });
   try {
     await page.goto(`/app/${agent.id}`);
-    const field = page.getByRole("combobox", { name: "Message", exact: true });
+    const field = page.locator(".composer textarea");
     await field.fill("First queued message");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     await expect(field).toHaveValue("");
     await field.fill("Second queued message");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(2);
+    await page.locator(".composer .send").click();
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(2);
     first.resolve();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(1);
-    const order = await page
-      .locator(".template-message.user .template-user-text")
-      .allTextContents();
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(1);
+    const order = await page.locator(".msg.mine .bubble .text").allTextContents();
     expect(order).toEqual(["First queued message", "Second queued message"]);
     second.resolve();
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
-    expect(
-      await page.locator(".template-message.user .template-user-text").allTextContents(),
-    ).toEqual(order);
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
+    expect(await page.locator(".msg.mine .bubble .text").allTextContents()).toEqual(order);
   } finally {
     first.resolve();
     second.resolve();
@@ -291,7 +288,7 @@ test("local enqueue failure preserves the submitted draft", async ({ page, conte
   });
   try {
     await page.goto(`/app/${agent.id}`);
-    const field = page.getByRole("combobox", { name: "Message", exact: true });
+    const field = page.locator(".composer textarea");
     await field.fill("Keep this draft if local acceptance fails");
     await page.evaluate(() => {
       window.__uuid = crypto.randomUUID.bind(crypto);
@@ -299,14 +296,14 @@ test("local enqueue failure preserves the submitted draft", async ({ page, conte
         throw Error("Controlled local queue failure");
       };
     });
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     await expect(field).toHaveValue("Keep this draft if local acceptance fails");
-    await expect(page.locator("article[data-delivery]")).toHaveCount(0);
+    await expect(page.locator(".msg[data-delivery]")).toHaveCount(0);
     expect(posts).toBe(0);
     await page.evaluate(() => {
       crypto.randomUUID = window.__uuid;
     });
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     await expect(field).toHaveValue("");
     await expect(
       page
@@ -409,7 +406,7 @@ test("validated interactive preview appears before completion and preserves edit
     await page.goto(`/app/${agent.id}`);
     const preview = page.locator(`[data-stream-run-id="${run.id}"]`);
     await expect(preview.locator(".native-visual-response")).toBeVisible();
-    await expect(preview.locator('[data-activity-phase="writing"]')).toHaveCount(1);
+    await expect(preview).toHaveAttribute("data-activity-phase", "writing");
     await preview.getByRole("spinbutton", { name: "Quantity", exact: true }).fill("4");
     await expect(preview.locator('[data-visual-value="total"]')).toHaveText("40");
     const final = {

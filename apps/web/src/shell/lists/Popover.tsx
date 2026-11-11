@@ -14,9 +14,22 @@ import {
 /* The reference's popover menu (openPop): glass, fixed beside its anchor (below unless it
    does not fit), the first item focused; a press outside, a scroll, a resize or Escape
    closes it. One at a time. */
-type Pop = { anchor: HTMLElement; body: ReactNode; label: string; serial: number };
+type Pop = {
+  anchor: HTMLElement;
+  body: ReactNode;
+  label: string;
+  serial: number;
+  cls?: string;
+  above?: boolean;
+  onClose?: () => void;
+};
 type Api = {
-  open: (anchor: HTMLElement, body: ReactNode, label: string) => void;
+  open: (
+    anchor: HTMLElement,
+    body: ReactNode,
+    label: string,
+    extra?: { cls?: string; above?: boolean; onClose?: () => void },
+  ) => void;
   close: () => void;
 };
 const Context = createContext<Api | null>(null);
@@ -26,9 +39,9 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
   const element = useRef<HTMLDivElement>(null);
   const serial = useRef(0);
   const close = useCallback(() => setPop(null), []);
-  const open = useCallback<Api["open"]>((anchor, body, label) => {
+  const open = useCallback<Api["open"]>((anchor, body, label, extra) => {
     serial.current += 1;
-    setPop({ anchor, body, label, serial: serial.current });
+    setPop({ anchor, body, label, serial: serial.current, ...extra });
   }, []);
   useLayoutEffect(() => {
     const el = element.current;
@@ -39,7 +52,13 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
     const gap = 10;
     const below = r.bottom + 6;
     const above = r.top - 6 - h;
-    let top = below + h <= innerHeight - gap ? below : above;
+    let top = pop.above
+      ? above >= gap
+        ? above
+        : below
+      : below + h <= innerHeight - gap
+        ? below
+        : above;
     top = Math.max(gap, Math.min(top, innerHeight - h - gap));
     let left = (r.left + r.right) / 2 < innerWidth / 2 ? r.left : r.right - w;
     left = Math.max(gap, Math.min(left, innerWidth - w - gap));
@@ -51,7 +70,9 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
     });
     const anchor = pop.anchor;
+    const onClose = pop.onClose;
     return () => {
+      onClose?.();
       cancelAnimationFrame(frame);
       if (anchor.getAttribute("aria-expanded") === "true")
         anchor.setAttribute("aria-expanded", "false");
@@ -96,7 +117,7 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
         <div
           key={pop.serial}
           ref={element}
-          className="pop menu-pop"
+          className={`pop ${pop.cls ?? "menu-pop"}`}
           role="menu"
           aria-label={pop.label}
         >

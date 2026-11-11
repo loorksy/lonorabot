@@ -30,6 +30,10 @@ OwnerActionKind = Literal[
 # use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
 ModelCardKind = Literal["agent_model", "agent_model_changed"]
 MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
+# Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
+# an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
+# only reports a tightened stop loss (undoing it would be a new financial modification).
+NoticeCardKind = Literal["watch_changed", "stop_tightened"]
 GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 # A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
 # own positions the card shows; owner decision D1 defaults) or Full delegation (every
@@ -343,3 +347,69 @@ class OwnerActionDecision(Contract):
     money_limit: Literal["apply", "none"] = "apply"
     resume_trading: bool = False
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
+    # A resolve card answered «غير معروف»: also pause new trades on its account until the
+    # end of the trading day (an owner restriction; it only narrows). Only with "unknown".
+    pause_new_today: bool = False
+
+    @model_validator(mode="after")
+    def pause_only_when_unknown(self) -> "OwnerActionDecision":
+        if self.pause_new_today and (self.decision != "confirm" or self.outcome != "unknown"):
+            raise ValueError("owner_action_pause_unknown_only")
+        return self
+
+
+class AccountAuthorityDraft(Contract):
+    """The owner's mandate sheet («تنفيذ مفوَّض»): a grant card drafted from the UI. The
+    server resolves it like an agent's proposal (the account, the agent's pair, D1
+    defaults) and stores it on a pending grant card; nothing is active until the owner
+    signs that card with the passkey (its challenge and decision).
+
+    ``mode`` "full" (Q17): every pair on the account for Lonora and flexible agents; a
+    fixed-pair agent's full delegation is its own pair only, every action, until
+    stopped, the owner's own positions included. Full takes no markets, actions,
+    duration, daily loss or own-positions switch: its terms are fixed. The money-limit
+    choice («التشغيل دون حد مالي»: ``money_limit`` "none") and the conflict choice
+    (``stop_authorities``) are the card decision's own fields."""
+
+    mode: GrantDelegation = "custom"
+    thread_id: str | None = Field(default=None, min_length=1, max_length=36)
+    account_id: str | None = Field(default=None, min_length=1, max_length=36)
+    symbols: list[str] | None = Field(default=None, min_length=1, max_length=100)
+    all_pairs: bool = False
+    actions: list[AuthorityAction] | None = Field(default=None, min_length=1, max_length=10)
+    duration: GrantDuration | None = None
+    allow_manual_positions: bool | None = None
+    # Q16: an amount in the account currency, or a percentage of equity now.
+    daily_loss_amount: Decimal | None = Field(default=None, gt=0)
+    daily_loss_percent: Decimal | None = Field(default=None, gt=0, le=100)
+
+    @model_validator(mode="after")
+    def terms_for_mode(self) -> "AccountAuthorityDraft":
+        if self.mode == "full" and (
+            self.symbols is not None
+            or self.all_pairs
+            or self.actions is not None
+            or self.duration is not None
+            or self.allow_manual_positions is not None
+            or self.daily_loss_amount is not None
+            or self.daily_loss_percent is not None
+        ):
+            raise ValueError("owner_action_full_delegation_terms_fixed")
+        if self.daily_loss_amount is not None and self.daily_loss_percent is not None:
+            raise ValueError("owner_action_fields_invalid")
+        return self
+
+    def proposal(self, agent_id: str) -> OwnerActionProposal:
+        """The same resolution an agent's grant proposal goes through."""
+        return OwnerActionProposal(
+            kind="grant_authority",
+            agent_id=agent_id,
+            account_id=self.account_id,
+            symbols=self.symbols,
+            all_pairs=self.all_pairs,
+            actions=self.actions,
+            duration=self.duration,
+            allow_manual_positions=self.allow_manual_positions,
+            daily_loss_amount=self.daily_loss_amount,
+            daily_loss_percent=self.daily_loss_percent,
+        )

@@ -22,6 +22,7 @@ from lonora_db.schema import (
     AccountAuthorityRow,
     AgentRow,
     BrokerSessionRow,
+    OwnerActionRow,
     TradingJournalRow,
     TradingRestrictionRow,
 )
@@ -300,7 +301,7 @@ async def test_active_restriction_pauses_and_a_freeze_traps_no_exit_but_shows_it
 async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    db, owner, agent, _ = task_db
+    db, owner, agent, thread = task_db
     acct = await account(db, owner)
     await resume(db)
     level(monkeypatch, "autonomous", grant(acct))
@@ -330,6 +331,49 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
     assert [item["operation_id"] for item in operations] == ["op-ambiguous", "op-submitted"]
     assert operations[0]["this_agent"] is True and operations[1]["this_agent"] is False
     assert {item["blocks"] for item in operations} == {"new_risk_on_this_symbol_or_ticket"}
+    # «حسم» opens that operation's own resolve card, never another pending card.
+    assert [item["resolve_card"] for item in operations] == [None, None]
+    async with db.sessions() as session, session.begin():
+        card = OwnerActionRow(
+            owner_id=owner,
+            agent_id=agent,
+            # The card lives in a conversation (here the agent's own chat; another agent's or
+            # Lonora's likewise): «حسم» opens that conversation and jumps to it.
+            thread_id=thread,
+            timeline_seq=7,
+            source="system",
+            kind="resolve_operation",
+            subject="operation:op-ambiguous",
+            payload={"operation_id": "op-ambiguous"},
+            payload_hash="resolve",
+            status="pending",
+            result={},
+            expires_at=utcnow() + timedelta(days=1),
+        )
+        session.add(card)
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=agent,
+                source="system",
+                kind="resolve_operation",
+                subject="operation:op-submitted",
+                payload={"operation_id": "op-submitted"},
+                payload_hash="expired",
+                status="pending",
+                result={},
+                expires_at=utcnow() - timedelta(minutes=1),
+            )
+        )
+    linked = (await readiness(db, owner, agent))["unresolved_operations"]
+    assert linked[0]["resolve_card"] == {
+        "id": card.id,
+        "thread_id": thread,
+        "agent_id": agent,
+        "group_id": None,
+        "timeline_seq": 7,
+    }
+    assert linked[1]["resolve_card"] is None
     # A stop or pause is the stronger line; the operation stays listed for the sheet.
     await save_controls(db, TradingControl(enabled=False))
     stopped = await readiness(db, owner, agent)
@@ -512,7 +556,6 @@ async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
 ) -> None:
     """A decision card in the agent's conversation, or its own operation the broker has
     not settled, is never "Idle": the line says what the card and the pill say."""
-    from lonora_db.schema import OwnerActionRow
 
     db, owner, agent, thread = task_db
     acct = await account(db, owner)

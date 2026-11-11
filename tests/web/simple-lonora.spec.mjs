@@ -37,6 +37,18 @@ const text = {
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
+/* The trading line of an agent: «الحالة والأمان» from the chat's ⋮ menu (the reference pins
+   nothing under the header in a normal state). */
+async function modeLine(page) {
+  await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
+  await page
+    .getByRole("button", {
+      name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
+    })
+    .click();
+  return page.getByTestId("agent-mode-line");
+}
+
 test("ar: one sentence creates a gold agent; one tap approves a trade, one passkey signs the grant, one tap lifts today's pause", async ({
   page,
   context,
@@ -153,11 +165,14 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     });
     await page.goto(`/app/${gold}`);
     // Ask me until the grant: the pill says it asks before each trade.
-    await expect(page.getByTestId("safety-pill")).toContainText(text.asks);
+    await expect(await modeLine(page)).toContainText(text.asks);
+    await page.keyboard.press("Escape");
+    // The sheet slides away before the conversation behind it takes input again.
+    await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
     await said(words.buyOnce);
     const asked = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
     expect(asked.status).toBe("waiting_input");
-    const approval = page.locator("article").filter({ hasText: text.approvalTitle }).last();
+    const approval = page.locator("[data-trade-approval]").last();
     await expect(approval).toContainText(data.symbol);
     await approval.getByRole("button", { name: text.approve, exact: true }).click();
     taps.approve += 1;
@@ -176,7 +191,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     //    continues straight into the passkey prompt for this decision (no second tap).
     await page.goto(`/app/${lonora.id}`);
     const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
-    await card.getByRole("checkbox", { name: text.resumeToo }).check();
+    await card.getByRole("switch", { name: text.resumeToo }).click();
     const authorize = card.getByRole("button", { name: text.authorize, exact: true });
     await authorize.click();
     taps.create += 1;
@@ -194,7 +209,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     });
     // The gold agent's pill says what the card signed: its pair and the daily loss.
     await page.goto(`/app/${gold}`);
-    const pill = page.getByTestId("safety-pill");
+    let pill = await modeLine(page);
     await expect(pill).toContainText(text.onItsOwn);
     await expect(pill).toContainText(data.symbol);
     await expect(pill).toContainText(text.dailyLoss);
@@ -215,6 +230,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     expect(lifts).toHaveLength(1);
     const liftRow = { id: lifts[0] };
     await page.goto(`/app/${gold}`);
+    pill = await modeLine(page);
     await expect(pill).toContainText(text.paused);
     await page.goto(`/app/${lonora.id}`);
     const lift = page.locator(`[data-owner-action="${liftRow.id}"]`);
@@ -223,6 +239,7 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     await expect(lift).toHaveAttribute("data-owner-action-status", "confirmed");
     pause = undefined;
     await page.goto(`/app/${gold}`);
+    pill = await modeLine(page);
     await expect(pill).toContainText(text.onItsOwn);
     await expect(pill).not.toContainText(text.paused);
 

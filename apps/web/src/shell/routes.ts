@@ -32,6 +32,7 @@ export const PAGES = [
   "lab",
   // Phase 5: settings pages (the reference's route names).
   "accessibility",
+  "chat-prefs",
   "notify-settings",
   "communication",
   "integrations",
@@ -82,6 +83,7 @@ const ITEM_PAGES = new Set<string>([
 const SETTINGS_PAGES = new Set<string>([
   "owner",
   "accessibility",
+  "chat-prefs",
   "notify-settings",
   "communication",
   "integrations",

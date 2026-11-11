@@ -293,10 +293,22 @@ main.page-enter {
 /* The conversation body keeps its own scroller and composer (phase 3 owns their internals). */
 #app > main.chat-main,
 .desktop-content > main.chat-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: var(--top-h, 60px) 0 0;
+  padding: 0;
+}
+/* Phones: the history picker and the error banner sit under the floating header, never
+   beneath it; the transcript below them then needs no header clearance of its own. The
+   desktop header is solid and already clears them. */
+@media (max-width: 899px) {
+  main.chat-main > :is(.tpl-history-picker, .tpl-error-banner):first-child {
+    margin-top: var(--top-h, 60px);
+  }
+  main.chat-main > :is(.tpl-history-picker, .tpl-error-banner) ~ .chat-scroll {
+    padding-top: 4px;
+  }
 }
 main.chat-main > .legacy-surface {
   flex: 1;

@@ -243,20 +243,20 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${state.agent.id}`);
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator("strong")).toContainText(text.grantTitle);
-      await expect(card.locator("strong")).toContainText(state.agent.name);
+      await expect(card.locator(".oa-kind")).toContainText(text.grantTitle);
+      await expect(card.locator(".oa-kind")).toContainText(state.agent.name);
       await expect(card.getByText(state.data.symbol)).toBeVisible();
       // One line from the owner's own limit to the lower one, and the opt-out keeps it.
       const daily = card.getByText(text.dailyLoss, { exact: false });
       await expect(daily).toBeVisible();
       await expect(daily).toContainText(`500⁩ ${text.arrow} ⁨300.00 USD`);
-      await expect(card.getByRole("checkbox", { name: text.keepLimit })).not.toBeChecked();
+      await expect(card.getByRole("switch", { name: text.keepLimit })).not.toBeChecked();
       // The switch states the owner's own positions; no fixed line contradicts it.
       await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
       // D1: the owner's own positions are excluded unless switched on; Resume waits for
       // the owner after the owner's own Stop.
-      const own = card.getByRole("checkbox", { name: text.includeOwn });
-      const resume = card.getByRole("checkbox", { name: text.resumeToo });
+      const own = card.getByRole("switch", { name: text.includeOwn });
+      const resume = card.getByRole("switch", { name: text.resumeToo });
       await expect(own).not.toBeChecked();
       await expect(resume).not.toBeChecked();
       await resume.check();
@@ -272,7 +272,7 @@ for (const locale of ["en", "ar"])
       await card.getByRole("button", { name: text.register, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.signed);
-      await expect(card.getByRole("button")).toHaveCount(0);
+      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
       const challenges = bodies.filter(([kind]) => kind === "challenge").map(([, body]) => body);
       // The challenge names the choice the card showed: Custom, with its own switch.
       expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
@@ -402,7 +402,7 @@ for (const locale of ["en", "ar"])
       await expect(card.locator("[data-owner-action-choice-detail]")).toContainText(
         text.customMeaning,
       );
-      await expect(card.getByRole("checkbox", { name: text.includeOwn })).not.toBeChecked();
+      await expect(card.getByRole("switch", { name: text.includeOwn })).not.toBeChecked();
       await expect(dailyLine).toContainText("300.00 USD");
       // Choosing Full updates the card's stored draft; the card then reads as Full.
       await full.check();
@@ -410,14 +410,14 @@ for (const locale of ["en", "ar"])
       const detail = card.locator("[data-owner-action-choice-detail]");
       await expect(detail).toContainText(text.fullMeaning);
       await expect(detail).toContainText(text.fullLimits);
-      await expect(card.getByRole("checkbox", { name: text.includeOwn })).toHaveCount(0);
+      await expect(card.getByRole("switch", { name: text.includeOwn })).toHaveCount(0);
       await expect(card.getByText(text.ownIncluded, { exact: true })).toBeVisible();
       await expect(card.getByText(text.allPairs, { exact: true })).toBeVisible();
       await expect(dailyLine).toHaveCount(0);
       // Back to Custom restores it exactly, then Full again.
       await custom.check();
       await expect(custom).toBeChecked();
-      await expect(card.getByRole("checkbox", { name: text.includeOwn })).toBeVisible();
+      await expect(card.getByRole("switch", { name: text.includeOwn })).toBeVisible();
       await expect(dailyLine).toContainText("300.00 USD");
       await full.check();
       await expect(full).toBeChecked();
@@ -459,7 +459,24 @@ for (const locale of ["en", "ar"])
       expect(policy.risk.max_daily_loss).toBeNull();
       expect(Number(policy.risk.max_open_risk)).toBe(400);
       await page.reload();
-      await expect(page.getByTestId("safety-pill")).toContainText(text.full);
+      // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
+      await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
+      await page
+        .getByRole("button", {
+          name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
+        })
+        .click();
+      await expect(page.getByTestId("agent-mode-line")).toContainText(text.full);
+      // The owner's absolute open-risk cap stays and is shown as set, never «دون حد».
+      const openRisk = page.locator(
+        `#dialog [data-account-limits="${state.account}"] [data-money-limit="max_open_risk"]`,
+      );
+      await expect(openRisk).toContainText("400");
+      await expect(
+        page.locator(
+          `#dialog [data-account-limits="${state.account}"] [data-money-limit="max_open_risk_equity_percent"]`,
+        ),
+      ).toHaveCount(0);
     } finally {
       await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
       await state.cleanup();
@@ -534,7 +551,7 @@ for (const locale of ["en", "ar"])
         data: { decision: "choose", delegation: "full" },
       });
       expect(other.ok()).toBeTruthy();
-      await card.getByRole("checkbox", { name: text.includeOwn }).check();
+      await card.getByRole("switch", { name: text.includeOwn }).click();
       await expect(custom).toBeChecked();
       await card.getByRole("button", { name: text.authorize, exact: true }).click();
       // Refused before any passkey prompt: the card is read again and shows Full now.
@@ -591,7 +608,7 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${state.agent.id}`);
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator("strong")).toHaveText(text.resumeTitle);
+      await expect(card.locator(".oa-kind")).toHaveText(text.resumeTitle);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         // The primary action starts the row on the reading side: right in Arabic.
@@ -605,7 +622,7 @@ for (const locale of ["en", "ar"])
       await card.getByRole("button", { name: text.resumeButton, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.resumed);
-      await expect(card.getByRole("button")).toHaveCount(0);
+      await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
       expect(decisions).toEqual([{ decision: "confirm" }]);
       expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
       // The conversation confirms the change in one server-written line.
@@ -644,7 +661,7 @@ for (const locale of ["en", "ar"])
       });
       await page.goto(`/app/${state.agent.id}`);
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
-      await expect(card.locator("strong")).toHaveText(text.resolveTitle);
+      await expect(card.locator(".oa-kind")).toHaveText(text.resolveTitle);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(3);
       // "Unknown" says that it releases the hold; it never reads as "wait".
       await expect(card.locator('[data-owner-action-button="unknown"]')).toHaveText(text.unknown);
@@ -678,10 +695,10 @@ test("the safety sheet lifts a pause with one tap", async ({ page, context }) =>
     expect(created.status()).toBe(201);
     const pause = (await created.json()).id;
     await page.goto(`/app/${state.agent.id}`);
-    await page.getByTestId("safety-pill").click();
-    const sheet = page.getByTestId("safety-sheet");
+    await page.getByTestId("safety-capsule").click();
+    const sheet = page.locator("#dialog");
     await sheet.locator(`[data-lift-restriction="${pause}"]`).click();
-    await expect(sheet.getByText("No pauses", { exact: true })).toBeVisible();
+    await expect(sheet.locator(`[data-lift-restriction="${pause}"]`)).toHaveCount(0);
     const current = await (
       await context.request.get(`/api/trading/restrictions?account_id=${state.account}`)
     ).json();

@@ -235,6 +235,8 @@ class ThreadRow(Base):
     group_id: Mapped[str | None] = mapped_column(String(36), index=True)
     title: Mapped[str] = mapped_column(String(160), default="")
     next_seq: Mapped[int] = mapped_column(Integer, default=1)
+    # Per-chat options the agent reads ({"web_search": bool}).
+    options: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default=text("'{}'"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -259,6 +261,25 @@ class MessageRow(Base):
     client_nonce: Mapped[str | None] = mapped_column(String(100))
     reply_to: Mapped[str | None] = mapped_column(String(36))
     attachment_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # The agent's optional next-reply suggestion on a conversational answer (Q23).
+    suggested_reply: Mapped[str | None] = mapped_column(String(60))
+    # Edit and resend (Q21): the original owner message this one replaces; both stay.
+    edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MessageReactionRow(Base):
+    """One quick reaction per reactor ("owner" or an agent id) and message (Q26, Q28)."""
+
+    __tablename__ = "ln_message_reactions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "reactor", name="ln_message_reaction_reactor"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    message_id: Mapped[str] = mapped_column(ForeignKey("ln_messages.id", ondelete="CASCADE"))
+    thread_id: Mapped[str] = mapped_column(String(36))
+    reactor: Mapped[str] = mapped_column(String(36))
+    emoji: Mapped[str] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -647,7 +668,10 @@ class ResourceRow(Base):
 
 class TradingJournalRow(Base):
     __tablename__ = "ln_trading_journal"
-    __table_args__ = (Index("ln_journal_reconcile_due", "status", "submitted_at"),)
+    __table_args__ = (
+        Index("ln_journal_reconcile_due", "status", "submitted_at"),
+        Index("ln_trading_journal_thread", "thread_id", "updated_at"),
+    )
     operation_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     account_id: Mapped[str] = mapped_column(String(120), index=True)
@@ -657,6 +681,10 @@ class TradingJournalRow(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Presentation anchor only (never read by execution or authority): the conversation
+    # and its next message seq when an agent Run of that conversation requested it.
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
 
 
 class ScratchpadRow(ResourceRow):
@@ -845,6 +873,8 @@ class TradeApprovalRow(Base):
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    # Past it a pending approval can no longer be approved (Q32); NULL on older rows.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -940,7 +970,7 @@ class OwnerActionRow(Base):
             "status IN ('pending','confirmed','cancelled','expired','superseded')",
             name="ln_owner_action_status",
         ),
-        CheckConstraint("source IN ('agent','system')", name="ln_owner_action_source"),
+        CheckConstraint("source IN ('agent','system','owner')", name="ln_owner_action_source"),
         Index("ln_owner_action_owner_status", "owner_id", "status"),
         Index("ln_owner_action_thread", "thread_id", "created_at"),
         Index("ln_owner_action_subject", "owner_id", "kind", "subject"),
@@ -961,7 +991,8 @@ class OwnerActionRow(Base):
     agent_id: Mapped[str] = mapped_column(String(36))
     thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
     run_id: Mapped[str | None] = mapped_column(String(36))
-    # agent: proposed by an agent's tool call; system: raised from a runtime event.
+    # agent: proposed by an agent's tool call; system: raised from a runtime event;
+    # owner: drafted by the owner (a grant card from the mandate sheet).
     source: Mapped[str] = mapped_column(String(8))
     kind: Mapped[str] = mapped_column(String(32))
     # The record the card acts on ("trading", "restriction:<id>", "operation:<id>", ...).
@@ -970,6 +1001,8 @@ class OwnerActionRow(Base):
     payload_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16), default="pending")
     status_reason: Mapped[str | None] = mapped_column(String(64))
+    # The newer card that replaced this one (same subject), for «عرض الأحدث».
+    superseded_by: Mapped[str | None] = mapped_column(String(36))
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

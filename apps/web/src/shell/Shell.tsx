@@ -83,8 +83,9 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
         {/* One scope for the chrome and what the providers float above it (sheets, toast,
             menus): the reference's defaults reach all of them, the legacy styles none. */}
         <div className="app-shell">
-          <SheetProvider>
-            <ToastProvider>
+          {/* Sheet and menu bodies use the toast; menus open sheets; navigation closes both. */}
+          <ToastProvider>
+            <SheetProvider>
               <PopoverProvider>
                 <AppLockProvider>
                   <NavigationProvider>
@@ -92,8 +93,8 @@ export function Shell({ onLogout }: { onLogout: () => void }) {
                   </NavigationProvider>
                 </AppLockProvider>
               </PopoverProvider>
-            </ToastProvider>
-          </SheetProvider>
+            </SheetProvider>
+          </ToastProvider>
         </div>
       </ShellDataLoader>
     </VoiceProvider>
@@ -644,6 +645,23 @@ function ShellBody() {
   const title = routeTitle(route, agent, group);
   const onNewTask = useCallback(() => nav.go("/app/tasks?new=1"), [nav]);
   const onOpenChart = useCallback((id: string) => menu.openChart(id), [menu]);
+  // The conversation's own controls ask the shell for the call, the chart and the members.
+  useEffect(() => {
+    const call = () => {
+      if (voice.target) voice.expand();
+      else if (agent) void voice.start(agent, new URLSearchParams(location.search).get("thread"));
+    };
+    const chart = () => menu.openChart();
+    const members = () => menu.openInfo();
+    window.addEventListener("lonora:start-call", call);
+    window.addEventListener("lonora:open-chart", chart);
+    window.addEventListener("lonora:members-permissions", members);
+    return () => {
+      window.removeEventListener("lonora:start-call", call);
+      window.removeEventListener("lonora:open-chart", chart);
+      window.removeEventListener("lonora:members-permissions", members);
+    };
+  }, [voice, agent, location.search, menu]);
   const header = conversation ? (
     <ChatHeader
       agent={agent}

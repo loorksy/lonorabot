@@ -45,7 +45,7 @@ for (const locale of ["en", "ar"]) {
       const badge = page.getByTestId("permission-no-trading");
       await expect(badge).toBeVisible();
       await expect(badge).toHaveText(locale === "ar" ? "لا يتداول" : "No trading");
-      await expect(page.getByTestId("permission-selector")).toHaveCount(0);
+      await expect(page.getByTestId("permission-chip")).toHaveCount(0);
       await expect(page.getByText(/Super Bot|سوبر بوت/)).toHaveCount(0);
 
       // A trading agent with its focus pair keeps the one trading control.
@@ -61,7 +61,7 @@ for (const locale of ["en", "ar"]) {
       const gold = await trading.json();
       agents.push(gold.id);
       await page.goto(`/app/${gold.id}`);
-      await expect(page.getByTestId("permission-selector")).toBeVisible();
+      await expect(page.getByTestId("permission-chip")).toBeVisible();
       await expect(page.getByTestId("permission-no-trading")).toHaveCount(0);
     } finally {
       for (const id of agents) await context.request.delete(`/api/agents/${id}`, { headers });

@@ -3,6 +3,8 @@ import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { ChatPrefsPage } from "../conversation/ChatPrefsPage";
+import { Conversation } from "../conversation/Conversation";
 import { usePersistentThread } from "../hooks/usePersistentThread";
 import type { Agent, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
@@ -10,7 +12,6 @@ import { Artifacts } from "../pages/Artifacts";
 import { Knowledge } from "../pages/Knowledge";
 import type { SettingsTab } from "../pages/settings-sidebar";
 import { AgentCreatePanel } from "../pages/shell/bot-panel";
-import { ThreadViewport } from "../pages/shell/chat-context";
 import { useClient } from "../providers/ClientProvider";
 import { AgentsPage } from "./AgentsPage";
 import { AgentPage } from "./agent/AgentPage";
@@ -139,6 +140,8 @@ export function pageTitle(page: Page): string {
       return t({ message: "Profile", context: "owner" });
     case "accessibility":
       return t`Accessibility`;
+    case "chat-prefs":
+      return t`Chat experience`;
     case "notify-settings":
       return t`Notifications and contact`;
     case "communication":
@@ -313,6 +316,7 @@ export function DetailPages({
         />
         <Route path="/app/owner" element={<OwnerPage />} />
         <Route path="/app/accessibility" element={<AccessibilityPage />} />
+        <Route path="/app/chat-prefs" element={<ChatPrefsPage />} />
         <Route path="/app/notify-settings" element={<NotifyPage />} />
         <Route
           path="/app/communication/:item"
@@ -418,10 +422,11 @@ function AgentConversation({
           </label>
         </div>
       )}
-      <ThreadViewport
+      <Conversation
         key={thread.id}
         threadId={thread.id}
         aroundSeq={aroundOf(params)}
+        jumpTo={params.get("card") ?? undefined}
         agentId={agent.id}
         agents={agents}
         knownRuns={knownRuns}
@@ -450,35 +455,31 @@ export function ChatPane({
   const data = useShellData();
   const [params] = useSearchParams();
   if (group)
-    return (
-      <Legacy>
-        {group.state?.thread_id ? (
-          <ThreadViewport
-            key={String(group.state.thread_id)}
-            threadId={String(group.state.thread_id)}
-            aroundSeq={aroundOf(params)}
-            agentId=""
-            knownRuns={data.runs}
-            conversationName={String(group.payload.name)}
-            onOpenChart={onOpenChart}
-            agents={memberAgents}
-          />
-        ) : (
-          <NotFoundPage />
-        )}
-      </Legacy>
+    return group.state?.thread_id ? (
+      <Conversation
+        key={String(group.state.thread_id)}
+        threadId={String(group.state.thread_id)}
+        aroundSeq={aroundOf(params)}
+        jumpTo={params.get("card") ?? undefined}
+        agentId=""
+        knownRuns={data.runs}
+        conversationName={String(group.payload.name)}
+        onOpenChart={onOpenChart}
+        agents={memberAgents}
+        groupLead={(group.payload.lead_agent_id as string | undefined) ?? memberAgents[0]?.id}
+      />
+    ) : (
+      <NotFoundPage />
     );
   if (!agent) return data.agentsLoading ? <SkChat /> : <NotFoundPage />;
   return (
-    <Legacy>
-      <AgentConversation
-        key={agent.id}
-        agent={agent}
-        agents={data.agents}
-        knownRuns={data.runs}
-        onOpenChart={onOpenChart}
-      />
-    </Legacy>
+    <AgentConversation
+      key={agent.id}
+      agent={agent}
+      agents={data.agents}
+      knownRuns={data.runs}
+      onOpenChart={onOpenChart}
+    />
   );
 }
 

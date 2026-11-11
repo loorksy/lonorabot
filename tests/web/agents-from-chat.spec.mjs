@@ -51,7 +51,7 @@ const copy = {
     undone: "Undone: the agent was removed.",
     monitoring: /^Monitoring ⁨XAUUSD⁩ until /,
     cancel: "Cancel",
-    condition: /⁨XAUUSD⁩ above ⁨2100⁩ · until /,
+    condition: /⁨XAUUSD⁩ above ⁨2100⁩/,
   },
   ar: {
     created: "أُنشئ وكيل",
@@ -61,7 +61,7 @@ const copy = {
     undone: "تم التراجع: أُزيل الوكيل.",
     monitoring: /^يراقب ⁨XAUUSD⁩ حتى /,
     cancel: "إلغاء",
-    condition: /⁨XAUUSD⁩ فوق ⁨2100⁩ · حتى /,
+    condition: /⁨XAUUSD⁩ فوق ⁨2100⁩/,
   },
 };
 
@@ -81,7 +81,11 @@ for (const locale of ["en", "ar"])
         sameSite: "Strict",
       })),
     );
-    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    await context.addInitScript((value) => {
+      localStorage.setItem("lonora.locale", value);
+      // «حالة الوكيل التفصيلية» is a per-device preference, off by default (Q35).
+      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ agentStatus: true }));
+    }, locale);
     const headers = {
       "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
     };
@@ -128,30 +132,28 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${creator.id}`);
       const card = page.locator(`[data-owner-action="${seeded.card}"]`);
       await expect(card).toHaveAttribute("data-owner-action-kind", "agent_created");
-      await expect(card.locator("strong")).toHaveText(text.created);
-      await expect(card.getByText(text.level, { exact: true })).toBeVisible();
+      // A change made without asking is one line with «تراجع» (reference noticeMarkup).
+      const line_ = card.locator(".nt-text");
+      await expect(line_).toContainText(text.created);
+      await expect(line_).toContainText(name);
       // The stored task, word for word: the standing instruction the agent keeps.
-      await expect(card.getByText(text.task, { exact: true })).toBeVisible();
-      await expect(card.getByText(name, { exact: false })).toBeVisible();
+      await expect(line_).toContainText(text.task);
       const line = page.getByTestId("agent-status-line");
       await expect(line).toHaveText(text.monitoring);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        // Every fact line reads right to left, the agent's Latin name included.
-        for (const direction of await card
-          .locator("p")
-          .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).direction)))
-          expect(direction).toBe("rtl");
+        expect(await line_.evaluate((row) => getComputedStyle(row).direction)).toBe("rtl");
         await card.screenshot({ path: test.info().outputPath("agent-created-ar.png") });
       }
       await card.getByRole("button", { name: text.undo, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+      // The real outcome of the Undo, word for word.
       await expect(card.getByRole("status")).toHaveText(text.undone);
       expect((await context.request.get(`/api/agents/${seeded.agent}`)).status()).toBe(404);
-      // The watch list opens from the status line; Cancel stops the watch, keeping it.
-      const live = page.getByTestId("agent-live-state");
-      await live.locator("summary").click();
-      const item = live.locator(`[data-watch="${watchId}"]`);
+      // The status line opens the AgentSheet; its watches row opens «المراقبات»; Cancel there.
+      await line.click();
+      await page.locator("#dialog .ev-row").click();
+      const item = page.locator(`#dialog [data-watch="${watchId}"]`);
       await expect(item).toContainText(text.condition);
       await item.getByRole("button", { name: text.cancel, exact: true }).click();
       await expect(item).toHaveCount(0);

@@ -26,6 +26,9 @@ def journal_data(row: TradingJournalRow) -> dict[str, Any]:
         "result": row.result,
         "submitted_at": row.submitted_at.isoformat() if row.submitted_at else None,
         "updated_at": row.updated_at.isoformat(),
+        # The conversation anchor: where the chat places this operation's order line.
+        "thread_id": row.thread_id,
+        "timeline_seq": row.timeline_seq,
         **lifecycle(row),
     }
 

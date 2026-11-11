@@ -161,14 +161,16 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${seeded.watcher}`);
       const card = page.locator(`[data-owner-action="${seeded.card}"]`);
       await expect(card).toHaveAttribute("data-owner-action-kind", "supervise");
-      await expect(card.locator("strong")).toHaveText(text.title);
+      // The reference's card head names the kind (.oa-kind).
+      await expect(card.locator(".oa-kind")).toHaveText(text.title);
       await expect(card).toContainText(`⁨Gold ${suffix}⁩`);
       await expect(card).toContainText(text.never);
       await card.getByRole("button", { name: text.allow, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.set);
       const undo = page.locator('[data-owner-action-kind="supervision_created"]');
-      await expect(undo.locator("strong")).toHaveText(text.created);
+      // A change made without asking is one notice line with Undo (reference noticeMarkup).
+      await expect(undo.locator(".nt-text")).toContainText(text.created);
       await undo.getByRole("button", { name: text.undo, exact: true }).click();
       await expect(undo).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(undo.getByRole("status")).toHaveText(text.undone);
@@ -181,7 +183,7 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${seeded.gold}`);
       const pause = page.locator(`[data-owner-action="${seeded.pause}"]`);
       await expect(pause).toHaveAttribute("data-owner-action-kind", "supervision_paused");
-      await expect(pause.locator("strong")).toHaveText(text.pauseTitle);
+      await expect(pause.locator(".oa-kind")).toHaveText(text.pauseTitle);
       await expect(pause).toContainText(`⁨${seeded.lonora_name}⁩`);
       await expect(pause).toContainText(`⁨Review gold ${suffix}⁩`);
       if (locale === "ar")

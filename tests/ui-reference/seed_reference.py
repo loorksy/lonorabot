@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from check_streaming import Fixture  # noqa: E402
 from lonora_db.messages import message_data  # noqa: E402
-from lonora_db.schema import MessageRow, ThreadRow  # noqa: E402
+from lonora_db.schema import MessageReactionRow, MessageRow, RunRow, ThreadRow  # noqa: E402
 
 
 def at(hour: int, minute: int) -> datetime:
@@ -48,6 +48,100 @@ async def say(fixture: Fixture, thread_id: str, agent_id: str, content: str, whe
         thread.next_seq += 1
         await session.flush()
         return message_data(row)
+
+
+async def write(
+    fixture: Fixture,
+    thread_id: str,
+    role: str,
+    agent_id: str | None,
+    content: str,
+    when: datetime,
+    **extra: Any,
+) -> MessageRow:
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        thread = await session.get(ThreadRow, thread_id, with_for_update=True)
+        assert thread is not None
+        row = MessageRow(
+            thread_id=thread_id,
+            seq=thread.next_seq,
+            role=role,
+            agent_id=agent_id,
+            content=content,
+            created_at=when,
+            **extra,
+        )
+        session.add(row)
+        thread.next_seq += 1
+        await session.flush()
+        session.expunge(row)
+        return row
+
+
+async def run(
+    fixture: Fixture,
+    thread_id: str,
+    agent_id: str,
+    seq: int,
+    status: str,
+    when: datetime,
+    code: str | None = None,
+):
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            RunRow(
+                thread_id=thread_id,
+                agent_id=agent_id,
+                trigger="user",
+                status=status,
+                input_seq=seq,
+                error_code=code,
+                created_at=when,
+                updated_at=when,
+            )
+        )
+
+
+CONVERSATION_MD = (
+    "## ملخص الفائدة\n"
+    "- ثبّت البنك المركزي السعر هذا الأسبوع\n"
+    "- تميل التوقعات إلى خفض في الربع القادم\n\n"
+    '```json\n{"rate": 5.25, "next": "cut"}\n```'
+)
+
+
+async def conversation(fixture: Fixture, seed: dict[str, Any]) -> dict[str, Any]:
+    """The conversation states: Markdown with a code block, a reply quote, reactions of the
+    owner, a failed reply (rate family) and a missed call, in the research agent's chat."""
+    thread = seed["threads"]["research"]
+    agent = seed["agents"]["research"]
+    ask = await write(fixture, thread, "user", None, "لخّص لي آخر تقرير عن الفائدة", at(9, 10))
+    await run(fixture, thread, agent, ask.seq, "completed", at(9, 10))
+    answer = await write(fixture, thread, "assistant", agent, CONVERSATION_MD, at(9, 11))
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            MessageReactionRow(message_id=answer.id, thread_id=thread, reactor="owner", emoji="👍")
+        )
+    follow = await write(
+        fixture, thread, "user", None, "اشرح لي الكود باختصار", at(9, 12), reply_to=answer.id
+    )
+    await run(fixture, thread, agent, follow.seq, "failed", at(9, 12), "model_rate_limited")
+    await write(
+        fixture,
+        thread,
+        "system",
+        agent,
+        "مكالمة صوتية فائتة",
+        at(9, 20),
+        rich_content={
+            "version": 1,
+            "parts": [
+                {"type": "call", "direction": "incoming", "duration_seconds": 0, "missed": True}
+            ],
+        },
+    )
+    await fixture.request("POST", f"/threads/{thread}/read", {"seq": follow.seq + 1})
+    return {"answer": answer.id}
 
 
 async def rows(fixture: Fixture, path: str) -> list[dict[str, Any]]:
@@ -256,6 +350,8 @@ async def main(data: dict[str, Any]) -> dict[str, Any]:
     try:
         if data["action"] == "init":
             return await init(fixture)
+        if data["action"] == "conversation":
+            return await conversation(fixture, await init(fixture))
         raise ValueError("Unknown seed action")
     finally:
         await fixture.close(cleanup=False)

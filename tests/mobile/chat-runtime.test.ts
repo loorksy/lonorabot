@@ -11,6 +11,7 @@ import {
 } from "../../apps/mobile/lib/composer-drafts";
 import { projectConversation } from "../../apps/mobile/lib/conversation-projection";
 import { closeSessionResources } from "../../apps/mobile/lib/session-lifecycle";
+import { pendingVoiceRich } from "../../packages/core/src/message-parts";
 
 function moduleFixture<T>(name: string, dependencies: Record<string, unknown>, globals = {}) {
   const source = readFileSync(new URL(`../../apps/mobile/lib/${name}.ts`, import.meta.url), "utf8");
@@ -47,6 +48,7 @@ function outboxFixture(storage = browserStorage()) {
     "outgoing-messages",
     {
       "react-native": { Platform: { OS: "web" } },
+      "@lonora/core": { pendingVoiceRich },
       "./session-lifecycle": {
         registerSessionTeardown: (fn: () => Promise<void>) => teardown.push(fn),
       },

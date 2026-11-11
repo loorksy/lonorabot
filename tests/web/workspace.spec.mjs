@@ -152,11 +152,14 @@ test("recoverable task failure shows authoritative review and resumes the same R
     encoding: "utf8",
   });
   await page.goto(`/app/${agent.id}`);
-  const live = page.getByTestId("agent-live-state");
+  // A task that needs the owner opens from ⋮ «الحالة والأمان» (the AgentSheet).
+  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  const live = page.locator("#dialog").getByTestId("agent-live-state");
   await expect(live).toHaveAttribute("data-state", "action_required");
-  await live.locator("summary").click();
-  await expect(live.getByText("Task needs review", { exact: true })).toBeVisible();
-  await live.getByRole("button", { name: "Resume", exact: true }).click();
+  const row = page.locator(`#dialog [data-task-id="${task.id}"]`);
+  await expect(row.getByText("Task needs review", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Resume", exact: true }).click();
   await expect
     .poll(async () => (await (await context.request.get(`/api/tasks/${task.id}`)).json()).status)
     .toBe("queued");
@@ -171,20 +174,20 @@ test("send, cancel and reload retain one real transcript", async ({ page, contex
   await page.goto(`/app/${agent.id}`);
   await expect(page.getByTestId("transcript")).toHaveCount(1);
   const message = `${prefix} persistent message`;
-  await page.getByRole("combobox", { name: "Message", exact: true }).fill(message);
+  await page.locator(".composer textarea").fill(message);
   const sent = page.waitForResponse(
     (response) =>
       /\/api\/threads\/[^/]+\/messages$/.test(new URL(response.url()).pathname) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.locator(".composer .send").click();
   const receipt = await (await sent).json();
   expect(receipt.run_ids).toHaveLength(1);
   await expect(page.getByTestId("transcript").getByText(message, { exact: true })).toHaveCount(1);
   const cancelled = page.waitForResponse((response) =>
     response.url().endsWith(`/api/runs/${receipt.run_ids[0]}/cancel`),
   );
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("button", { name: "Stop the reply", exact: true }).click();
   expect((await cancelled).ok()).toBeTruthy();
   await expect
     .poll(
@@ -366,9 +369,9 @@ test("retry after a committed message response is lost reuses its real receipt",
     );
   try {
     await page.goto(`/app/${agent.id}`);
-    const composer = page.getByRole("combobox", { name: "Message", exact: true });
+    const composer = page.locator(".composer textarea");
     await composer.fill(message);
-    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".composer .send").click();
     // A durable event acknowledges the canonical message even when HTTP delivery
     // loses its response. Replay the same nonce explicitly to verify the receipt;
     // the UI must not ask the owner to resend an already committed message.
@@ -397,7 +400,7 @@ test("retry after a committed message response is lost reuses its real receipt",
     // Sending identical content again after confirmation is a new deliberate intent.
     await composer.fill(message);
     const repeatedResponse = messageResponse();
-    await page.getByRole("button", { name: "Send direction", exact: true }).click();
+    await page.locator(".composer .send").click();
     const repeated = await (await repeatedResponse).json();
     for (const id of repeated.run_ids) ownedRuns.add(id);
     expect(nonces).toHaveLength(2);

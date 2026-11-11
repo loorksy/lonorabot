@@ -6,8 +6,9 @@ from typing import Any
 from lonora_adapters.voice.realtime import OpenAILiveAdapter
 from lonora_contracts.voice import VoiceSessionCreate
 from lonora_core.user_error import LonoraError
+from lonora_db.call_log import log_call
 from lonora_db.client import Database
-from lonora_db.schema import EffectReceiptRow, VoiceSessionRow
+from lonora_db.schema import EffectReceiptRow, ResourceRow, VoiceSessionRow
 from lonora_db.transactions import owned_agent, owned_thread
 from lonora_db.voice import VoiceSessionRepository
 from lonora_providers.credentials import ProviderCredentials
@@ -15,6 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .context import voice_context
+from .incoming import MODE as INCOMING_MODE
 from .incoming import owner_lock
 from .routing import live_model
 
@@ -112,6 +114,8 @@ async def create_voice_session(
         elif blocked := await blocking_voice_call(session, owner_id):
             pass
         else:
+            if request.incoming_call_id:
+                await answer_incoming(session, owner_id, request, session_id)
             instructions, seed = await voice_context(
                 session, owner_id, agent, thread.id, VOICE_INSTRUCTIONS
             )
@@ -122,6 +126,11 @@ async def create_voice_session(
                     "mode": "gpt_live",
                     "status": "allocating",
                     "model": model.model,
+                    **(
+                        {"incoming_call_id": request.incoming_call_id}
+                        if request.incoming_call_id
+                        else {}
+                    ),
                 },
                 agent_id=agent.id,
                 thread_id=thread.id,
@@ -209,6 +218,48 @@ async def end_voice_session(db: Database, owner_id: str, session_id: str) -> Non
         if row.payload.get("status") not in {"closed", "failed"}:
             row.payload = {**row.payload, "status": "closing"}
             row.version += 1
+        await log_voice_call(session, row)
+
+
+async def answer_incoming(
+    session: AsyncSession, owner_id: str, request: VoiceSessionCreate, session_id: str
+) -> None:
+    """Link the accepted incoming call to the session that answers it (once)."""
+    assert request.incoming_call_id is not None
+    call = await session.get(VoiceSessionRow, request.incoming_call_id, with_for_update=True)
+    if (
+        call is None
+        or call.owner_id != owner_id
+        or call.payload.get("mode") != INCOMING_MODE
+        or call.agent_id != request.agent_id
+    ):
+        raise LonoraError("incoming_call_not_found", 404)
+    if call.payload.get("status") != "accepted":
+        raise LonoraError("incoming_call_not_accepted", 409)
+    answered = call.payload.get("answered_session_id")
+    if answered not in {None, session_id}:
+        raise LonoraError("incoming_call_already_answered", 409)
+    call.payload = {**call.payload, "answered_session_id": session_id}
+
+
+async def log_voice_call(session: AsyncSession, row: ResourceRow) -> None:
+    """The ended call's bubble, once; a call that never connected leaves none."""
+    connected_at = row.state.get("connected_at")
+    if row.payload.get("mode") != "gpt_live" or not row.agent_id or connected_at is None:
+        return
+    # Ending runs more than once per call: the receipt decides before anything else.
+    if await session.get(EffectReceiptRow, "call-log:" + row.id):
+        return
+    # Incoming only when the owner answered the agent's call: the link is explicit.
+    await log_call(
+        session,
+        row.owner_id,
+        row.agent_id,
+        row.id,
+        direction="incoming" if row.payload.get("incoming_call_id") else "outgoing",
+        duration_seconds=round(time.time() - float(connected_at)),
+        missed=False,
+    )
 
 
 async def voice_session_data(db: Database, owner_id: str, session_id: str) -> dict[str, Any]:
