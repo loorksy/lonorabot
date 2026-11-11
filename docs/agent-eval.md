@@ -65,18 +65,20 @@ returns the names of the checks that failed.
 |---|---|
 | `internal_term` | A registered error code, a tool name, an internal state or a resource name in anything the owner sees (the reply, a question card and its choices). |
 | `private` | The product's own privacy guard (`public_reply_violation`): an internal id, path or credential. |
-| `broken_markdown` | A bold marker that would show raw: a space inside `**`, an unclosed `**`, or two bold spans glued into `****`. |
+| `broken_markdown` | A bold marker that would show raw: a `**` CommonMark would not pair (a space inside it, a closer glued to the next word after punctuation, an unclosed one), or two bold spans glued into `****`. |
 | `rounds` | More than 8 model requests in the turn (a scenario may set its own limit). |
 | `claims_inability` | "I cannot" or "I have no tool" while a tool that serves the request is registered. |
-| `unbacked_claim` | "Done", or a promise ("I will …", "I am watching it"), with no successful effect in the same turn. A read, a failed or refused call, a pending approval, a note to memory and a question card are not effects. An offer ("إذا تريد، …") is not a promise, and "تم التحقق" is not a claim of an effect. |
-| `language` | Most letters of the reply are not in the owner's script. Symbols, codes and units are not counted. |
+| `unbacked_claim` | "Done", or a promise to watch, notify or act ("سأحذف", "أتابعه", "I am watching it"), with no successful effect in the same turn. A read, a failed, refused or unsettled call, a pending approval, a note to memory and a card that only asks are not effects. What follows an offer ("إذا تريد، …") is not a promise; a question, a quotation, a negation and "تم التحقق" claim nothing. |
+| `language` | Fewer than half of the reply's letters are in the owner's script. Symbols, codes and units are not counted. |
 
 **The lists come from the code**, not from this harness: tool names from the registry;
 error codes from every literal `LonoraError(...)` in `packages/` and `apps/`; internal states
 from every `…Status` and `…State` literal of `lonora_contracts` and the Task wait reasons;
-resource names from the registry's `…_list` tools (`watch`, `routines`, `goals`, …). Names
-spelled with `_` fail in any language; one-word states and resource names fail when they
-appear in Latin letters in an Arabic reply.
+resource names from what the registry both creates and lists (`watch_create` and
+`watch_list` give `watch` and `watches`; likewise routines, goals and boards). Names spelled
+with `_` fail in any language and any letter case, also written as `WatchCancel`, and so does
+an unregistered snake_case name built from the same words (`pending_approval`). One-word
+states and resource names fail when they appear in Latin letters in an Arabic reply.
 
 **The scenario's own checks** are written in the bank:
 
