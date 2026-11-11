@@ -94,6 +94,7 @@ async def resolve_grant(
         symbols, scope = [], "account"
     else:
         raise LonoraError("owner_action_grant_markets_required", 409)
+    await remember_contracts(db, owner_id, account_id, broker, symbols)
     requested = proposal.daily_loss_amount is not None or proposal.daily_loss_percent is not None
     if not requested and risk.max_daily_loss is not None:
         # The account already has the owner's own daily loss limit: the card shows it
@@ -111,6 +112,30 @@ async def resolve_grant(
         allow_manual_positions=bool(proposal.allow_manual_positions),
         daily_loss=daily_loss,
     )
+
+
+async def remember_contracts(
+    db: Database, owner_id: str, account_id: str, broker: BrokerAdapter, symbols: list[str]
+) -> None:
+    """Keep the broker's specification of each symbol a grant names with the account, so
+    the grant card shows what the symbol is (what one lot is, the smallest order). The
+    card's facts come from records, never from the broker at display time. Best effort:
+    a specification the broker cannot give now is simply not shown."""
+    contracts: dict[str, Any] = {}
+    for symbol in symbols:
+        try:
+            contracts[symbol] = (await broker.instrument(symbol)).model_dump(mode="json")
+        except Exception:
+            continue
+    if not contracts:
+        return
+    async with db.sessions() as session, session.begin():
+        saved = await session.get(BrokerSessionRow, account_id, with_for_update=True)
+        if saved is not None and saved.owner_id == owner_id:
+            saved.state = {
+                **saved.state,
+                "contracts": {**saved.state.get("contracts", {}), **contracts},
+            }
 
 
 async def daily_loss_draft(
