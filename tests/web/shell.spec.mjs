@@ -490,4 +490,68 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       }
     });
   }
+  test("the rail follows the section, Ctrl+K opens a folded list, the shortcuts are keys", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      const rail = page.locator(".desktop-rail");
+      const current = (name) =>
+        expect(rail.getByRole("button", { name, exact: true })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+      await page.goto("/app/artifacts");
+      await current("الإعدادات");
+      await page.goto("/app/recovery");
+      await current("الإعدادات");
+      await page.goto("/app/new-schedule");
+      await current("المهام");
+      await page.goto("/app/my-profile");
+      await expect(page).toHaveURL(/\/app\/owner$/);
+      await page.goto("/app/reach-me");
+      await expect(page).toHaveURL(/\/app\/notify-settings$/);
+      await page.goto("/app");
+      await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
+      await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
+      await page.keyboard.press("Control+k");
+      await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
+      await expect(page.locator("#desktop-search")).toBeFocused();
+      await page.keyboard.press("Control+/");
+      const rows = page.locator("#dialog .kbd-list .row");
+      const show = rows.filter({ hasText: "عرض الاختصارات" });
+      await expect(show.locator("kbd")).toHaveText(["Ctrl", "/"]);
+      const step = rows.filter({ hasText: "المحادثة السابقة / التالية" });
+      await expect(step.locator("kbd")).toHaveCount(4);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
+test("an unknown address shows the not-found page without a chat header", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 800 },
+    ]) {
+      await page.setViewportSize(size);
+      for (const path of ["/app/nope-route", "/app/g/nope-group"]) {
+        await page.goto(path);
+        await expect(page.locator("main .state-page h2")).toHaveText("الصفحة غير موجودة");
+        await expect(page.locator(".chat-head")).toHaveCount(0);
+        await expect(page.locator(".topbar")).toHaveAttribute("data-route", "not-found");
+      }
+    }
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
 });

@@ -465,6 +465,16 @@ test("phone search browses recent content when the query is empty", async ({ pag
   await expect(page.locator("#search-results .search-count")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#app")).not.toHaveClass(/search-mode/);
+  // A tap on the results keeps the search; a tap on the blank space below them closes it.
+  await page.locator("#search").fill("zzzz-no-hit");
+  const surface = page.locator(".search-surface");
+  await expect(surface).toBeVisible();
+  await surface.click({ position: { x: 20, y: 10 } });
+  await expect(page.locator("#app")).toHaveClass(/search-mode/);
+  const box = await surface.boundingBox();
+  expect(box.y + box.height).toBeLessThan(560);
+  await page.mouse.click(195, 600);
+  await expect(page.locator("#app")).not.toHaveClass(/search-mode/);
 });
 
 test("«حذف» and «مسح» hide the history for the owner; agents and groups are never deleted", async ({

@@ -286,11 +286,20 @@ function ShellLists() {
 
 function ShellBody() {
   const nav = useNavigation();
-  const { route } = nav;
   const location = useLocation();
   const navigate = useNavigate();
   const desktop = useDesktop();
   const data = useShellData();
+  // A conversation whose agent or group does not exist is the not-found page, not a chat.
+  const asked = nav.route;
+  const missing =
+    !data.error &&
+    (asked.kind === "chat"
+      ? !data.agentsLoading && !data.agents.some((row) => row.id === asked.agentId)
+      : asked.kind === "group" &&
+        !data.groupsLoading &&
+        !data.groups.some((row) => row.id === asked.groupId));
+  const route: ShellRoute = missing ? { kind: "not-found" } : asked;
   const { owner, connected, revision, events } = useClient();
   const attention = useAttention();
   const voice = useVoice();
@@ -385,6 +394,31 @@ function ShellBody() {
   const [maintenance, setMaintenance] = useState(false);
   const [forcedUpdate, setForcedUpdate] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const appRef = useRef<HTMLDivElement>(null);
+  const toggleList = useCallback(() => {
+    // The list pane leaves and returns with opacity and a slide; the grid changes at once.
+    const list = appRef.current?.querySelector<HTMLElement>(".desktop-list");
+    if (!list || reducedMotion()) return setCollapsed((value) => !value);
+    // Toward the rail: its side is the inline start.
+    const slide = getComputedStyle(list).direction === "rtl" ? 24 : -24;
+    if (collapsed) {
+      flushSync(() => setCollapsed(false));
+      list.animate(
+        [
+          { opacity: 0, transform: `translateX(${slide}px)` },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 220, easing: EASE },
+      );
+    } else
+      list.animate(
+        [
+          { opacity: 1, transform: "none" },
+          { opacity: 0, transform: `translateX(${slide}px)` },
+        ],
+        { duration: 220, easing: EASE },
+      ).onfinish = () => setCollapsed(true);
+  }, [collapsed]);
   const [desktopQuery, setDesktopQuery] = useState("");
   const [desktopTab, setDesktopTab] = useState<SearchTab>("all");
   const chatsBadge = unreadBadgeTotal(data.inbox);
@@ -501,7 +535,7 @@ function ShellBody() {
     if (!search.expanded) return;
     const outside = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (sheets.isOpen() || target?.closest(".header-search,#view-scroll")) return;
+      if (sheets.isOpen() || target?.closest(".header-search,.search-surface,.sk-page")) return;
       clearSearch();
     };
     document.addEventListener("pointerdown", outside);
@@ -553,6 +587,7 @@ function ShellBody() {
       if (mod && event.key.toLowerCase() === "k") {
         event.preventDefault();
         if (!isDesktop() && !(route.kind === "root" && route.root === "chats")) nav.go("/app");
+        if (collapsed) toggleList();
         setTimeout(
           () =>
             (
@@ -601,10 +636,11 @@ function ShellBody() {
     openShortcuts,
     sheets,
     clearSearch,
+    collapsed,
+    toggleList,
   ]);
 
   /* Chrome refs and the pager */
-  const appRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const topRef = useRef<HTMLElement>(null);
@@ -826,30 +862,7 @@ function ShellBody() {
             chatsBadge={chatsBadge}
             updatesDot={attention.items.length > 0}
             collapsed={collapsed}
-            onToggleCollapsed={() => {
-              // The list pane leaves and returns with opacity and a slide; the grid changes at once.
-              const list = appRef.current?.querySelector<HTMLElement>(".desktop-list");
-              if (!list || reducedMotion()) return setCollapsed((value) => !value);
-              // Toward the rail: its side is the inline start.
-              const slide = getComputedStyle(list).direction === "rtl" ? 24 : -24;
-              if (collapsed) {
-                flushSync(() => setCollapsed(false));
-                list.animate(
-                  [
-                    { opacity: 0, transform: `translateX(${slide}px)` },
-                    { opacity: 1, transform: "none" },
-                  ],
-                  { duration: 220, easing: EASE },
-                );
-              } else
-                list.animate(
-                  [
-                    { opacity: 1, transform: "none" },
-                    { opacity: 0, transform: `translateX(${slide}px)` },
-                  ],
-                  { duration: 220, easing: EASE },
-                ).onfinish = () => setCollapsed(true);
-            }}
+            onToggleCollapsed={toggleList}
             onSection={switchTab}
             ownerInitial={owner.email.slice(0, 1).toUpperCase()}
             onOwner={() => nav.go("/app/owner")}
