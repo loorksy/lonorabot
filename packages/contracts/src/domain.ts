@@ -1,4 +1,4 @@
-import type { UiLock, UiState, UiSubmitRecord } from "./genui";
+import type { UiLock, UiState, UiSubmitInput, UiSubmitRecord } from "./genui";
 import type { AgentTemplate } from "./owner-actions";
 import type { RichContent } from "./visual-response";
 
@@ -59,6 +59,8 @@ export type MessageCreate = {
   mention_all?: boolean;
   collaboration_session_id?: string | null;
   input_answer?: InputAnswer | null;
+  /** A generated card's send. The server composes the bubble; content is ignored. */
+  ui_submit?: UiSubmitInput | null;
   /** Edit and resend (Q21): the owner's own text message this one replaces. */
   edited_from?: string | null;
   voice?: VoiceNote | null;
