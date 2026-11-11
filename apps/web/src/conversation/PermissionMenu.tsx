@@ -163,7 +163,7 @@ export function PermissionChip({
             threadId={threadId}
           />,
           t`Permission level`,
-          { cls: "mode-pop", above: true },
+          { cls: "mode-pop", morph: true },
         )
       }
     >

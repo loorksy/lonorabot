@@ -370,11 +370,100 @@ test.describe("phone with touch (390×844, Arabic)", () => {
       const back = page.locator(".chat-back");
       await chip.tap();
       await expect(menu).toBeVisible();
-      await back.tap();
+      // The menu's scrim covers the header: the tap lands where the back button is.
+      const at = await back.boundingBox();
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
       await expect(menu).toHaveCount(0);
       expect(page.url()).toBe(chat);
       await back.tap();
       await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("the permission menu forms out of the composer; a drag down folds it back, a sideways drag leaves «النموذج»", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const card = page.locator(".composer-card");
+      const pages = menu.locator(".mp-pages");
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bmorph\b/);
+      await expect(card).toHaveClass(/\bmp-open\b/);
+      await expect(page.locator(".mp-scrim")).toHaveClass(/\bon\b/);
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      // Joined to the composer: as wide as it less its corners and fillets, standing on its top edge.
+      const at = await page.evaluate(() => {
+        const c = document.querySelector(".composer-card").getBoundingClientRect();
+        const p = document.querySelector(".pop.morph .mp-in").getBoundingClientRect();
+        return { card: [c.left, c.top, c.width], panel: [p.left, p.bottom, p.width] };
+      });
+      expect(at.panel[0]).toBeCloseTo(at.card[0] + 26, 0);
+      expect(at.panel[1]).toBeCloseTo(at.card[1], 0);
+      expect(at.panel[2]).toBeCloseTo(at.card[2] - 52, 0);
+      const row = await menu.locator(".mp-model-row").boundingBox();
+      const x = row.x + row.width / 2;
+      const y = row.y + row.height / 2;
+      // A short drag springs it back open.
+      await swipe(page, ".pop.morph .mp-model-row", { x, y }, { x, y: y + 30 }, { hold: 200 });
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await expect(menu).not.toHaveAttribute("aria-hidden", "true");
+      // Sideways toward where «النموذج» came from: back to the first page.
+      await menu.locator(".mp-model-row").tap();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await swipe(page, ".pop.morph .p2 .mp-head", { x: 300, y }, { x: 100, y });
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu).toBeVisible();
+      // Down past 28%: it folds back into the composer and is gone; the chat stays.
+      await swipe(page, ".pop.morph .mp-model-row", { x, y }, { x, y: y + 260 });
+      await expect(menu).toHaveAttribute("aria-hidden", "true");
+      await expect(card).not.toHaveClass(/\bmp-open\b/);
+      await expect(chip).toHaveAttribute("aria-expanded", "false");
+      await expect(menu).toHaveCount(0);
+      await expect(page.locator(".mp-scrim")).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("with reduced motion the permission menu fades in place and out", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bfade\b/);
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bleaving\b/);
+      await expect(menu).toHaveCount(0);
     } finally {
       if (trading)
         await context.request.delete(`/api/agents/${trading.agent.id}`, {

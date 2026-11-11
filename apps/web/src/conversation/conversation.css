@@ -750,14 +750,6 @@
   min-width: 0;
   padding: 6px;
 }
-.mode-pop {
-  width: min(330px, calc(100vw - 20px));
-}
-/* the pages carry the padding, so the sliding page is clipped at the menu's edge */
-.pop.mode-pop {
-  padding: 0;
-  overflow-x: hidden;
-}
 
 /* ---- reference 770-845 */
 /* ---- Voice messages: recording (hold the mic) */
