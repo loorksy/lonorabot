@@ -11,19 +11,36 @@ import { useShellData } from "../data";
 import { NotFoundPage } from "../StatePage";
 import { useToast } from "../Toast";
 import { NOTIFY_DEFAULTS, type NotifyPrefs, useDevicePref } from "./device-prefs";
-import { type OwnerProfile, useOwnerProfile } from "./owner";
+import type { OwnerProfile } from "./owner";
 import { NavRow, Note, ToggleRow, useLoad } from "./ui";
 
 type Channel = IncomingCallPolicy["channel"];
 /** The reference's REACH (8368), one to one with the server's ReachMe. */
 export const reachOptions = (): [Channel, string, string, IconName][] => [
   ["activity", t`Activity log only`, t`Recorded in Updates without any alert`, "updates"],
-  ["notify", t`Notification`, t`An alert on your device`, "bell"],
-  ["message", t`Message`, t`A message in the agent's conversation with an alert`, "chat"],
-  ["call", t`Call`, t`For urgent matters: the agent calls you`, "phone"],
+  [
+    "notify",
+    t({ message: "Notification", context: "reach mode" }),
+    t`An alert on your device`,
+    "bell",
+  ],
+  [
+    "message",
+    t({ message: "Message", context: "reach mode" }),
+    t`A message in the agent's conversation with an alert`,
+    "chat",
+  ],
+  [
+    "call",
+    t({ message: "Call", context: "reach mode" }),
+    t`For urgent matters: the agent calls you`,
+    "phone",
+  ],
 ];
 export const reachLabel = (channel: Channel) =>
   reachOptions().find(([value]) => value === channel)?.[1] ?? "";
+
+const noDevice = () => t`Register a passkey on this device so a call can reach you`;
 
 const clock = (minute: number | null | undefined) =>
   minute == null
@@ -41,7 +58,7 @@ const minutes = (value: string) => {
 export function NotifyPage() {
   const data = useShellData();
   const toast = useToast();
-  const [profile, setProfile] = useOwnerProfile();
+  const { ownerProfile: profile, setOwnerProfile: setProfile } = data;
   const [prefs, setPrefs] = useDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
   const rules = useLoad(
     () => api.get<Record<string, AgentDeliveryRules>>("/agents/notifications"),
@@ -99,11 +116,14 @@ export function NotifyPage() {
               disabled={!policy || busy}
               className={`row reach-opt${on ? " on" : ""}`}
               onClick={() =>
-                save(
-                  value === "call" && !policy?.device_id && profile?.devices[0]
-                    ? { channel: value, device_id: profile.devices[0].id }
-                    : { channel: value },
-                )
+                value !== "call"
+                  ? save({ channel: value })
+                  : profile?.devices[0]
+                    ? save({
+                        channel: value,
+                        device_id: policy?.device_id ?? profile.devices[0].id,
+                      })
+                    : toast(noDevice(), { type: "warn" })
               }
             >
               <span className="row-icon">
@@ -236,11 +256,25 @@ export function NotifyPage() {
           </>
         )}
       </div>
-      {profile && profile.devices.length > 0 && (
-        <>
-          <h3>
-            <Trans>Device</Trans>
-          </h3>
+      <h3>
+        <Trans>Device</Trans>
+      </h3>
+      {profile && !profile.devices.length ? (
+        <div className="group">
+          <div className="row">
+            <span className="row-icon">
+              <Icon name="device" />
+            </span>
+            <span className="body">
+              <strong>
+                <Trans>This device</Trans>
+              </strong>
+              <small>{noDevice()}</small>
+            </span>
+          </div>
+        </div>
+      ) : (
+        profile && (
           <div className="group" role="radiogroup" aria-label={t`Device`}>
             {profile.devices.map((device) => {
               const on = policy?.device_id === device.id;
@@ -275,7 +309,7 @@ export function NotifyPage() {
               );
             })}
           </div>
-        </>
+        )
       )}
       <h3>
         <Trans>Per agent</Trans>
@@ -317,6 +351,7 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
       noValidate
       onSubmit={async (event) => {
         event.preventDefault();
+        if (!draft) return toast(t`Saved`, { type: "success" });
         setBusy(true);
         try {
           rules.set(
@@ -378,7 +413,7 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
         </small>
       </label>
       <div className="actions">
-        <button type="submit" className="btn primary" disabled={busy || !draft}>
+        <button type="submit" className="btn primary" disabled={busy}>
           <Trans>Save</Trans>
         </button>
       </div>

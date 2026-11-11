@@ -137,6 +137,69 @@ test("the profile page reads right to left in Arabic with the reference's labels
   expect(owner.agent.id).toBeTruthy();
 });
 
+test("one name and initial everywhere, the reference's zones, an enabled Save and the device row", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "ar");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const local = (process.env.LONORA_UI_TEST_EMAIL ?? "ci@example.com").split("@")[0];
+  await page.goto("/app/owner");
+  // No name yet: the field shows the e-mail name as a hint, and every avatar the same capital.
+  const name = page.getByLabel("الاسم", { exact: true });
+  await expect(name).toHaveValue("");
+  await expect(name).toHaveAttribute("placeholder", local);
+  const initial = local.slice(0, 1).toUpperCase();
+  await expect(page.locator(".hero .avatar")).toHaveText(initial);
+  await expect(page.locator(".desktop-rail .avatar.initial")).toHaveText(initial);
+  await expect(page.locator("select[name=zone] option")).toHaveText([
+    "دمشق",
+    "أمستردام",
+    "الرياض",
+    "دبي",
+    "UTC",
+  ]);
+  // «حفظ» is the ivory primary from the start; with nothing changed it sends nothing.
+  const writes = [];
+  page.on("request", (request) => request.method() === "PUT" && writes.push(request.url()));
+  const save = page.getByRole("button", { name: "حفظ", exact: true });
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.getByText("تم الحفظ")).toBeVisible();
+  expect(writes).toEqual([]);
+  await name.fill("Ahmed");
+  await page.getByLabel("طريقة المخاطبة", { exact: true }).fill("أبو سامي");
+  await expect(page.locator(".hero .avatar")).toHaveText("أ");
+  await save.click();
+  await expect(page.locator(".desktop-rail .avatar.initial")).toHaveText("أ");
+  await page.goto("/app");
+  await expect(page.locator(".welcome h2")).toHaveText("مرحبًا أبو سامي");
+  await page.goto("/app/settings");
+  await expect(page.getByRole("button", { name: /^أبو سامي/ })).toBeVisible();
+  await expect(page.locator(".settings-version")).toHaveText(
+    /^Lonora · الإصدار \S+( · [0-9a-f]{1,7})?$/,
+  );
+  await page.getByRole("button", { name: /^تسجيل الخروج/ }).click();
+  await expect(page.locator("#dialog")).toContainText("تسجيل الخروج؟");
+  await page.keyboard.press("Escape");
+  // The reach options are bare nouns, and the settings row shows the same word.
+  await page.goto("/app/notify-settings");
+  await expect(page.getByRole("radio", { name: /^رسالة/ })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: /^مكالمة/ })).toBeVisible();
+  // No passkey device yet: the device row says what to do, and «مكالمة» does not save.
+  await expect(page.getByText("سجّل مفتاح مرور على هذا الجهاز ليصلك الاتصال")).toBeVisible();
+  await page.getByRole("radio", { name: /^مكالمة/ }).click();
+  await expect(page.locator(".t-msg").getByText(/^سجّل مفتاح مرور/)).toBeVisible();
+  expect(
+    (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
+  ).toBe("message");
+  expect(owner.agent.id).toBeTruthy();
+});
+
 test("the Knowledge panel's profile link closes the chat menu and opens the profile page", async ({
   page,
   context,

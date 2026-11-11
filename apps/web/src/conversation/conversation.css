@@ -439,6 +439,12 @@
 .chat-empty .arcs {
   z-index: 0;
 }
+.chat-empty > .lonora-agent-avatar,
+.chat-empty > .group-av {
+  display: inline-flex;
+  width: 88px;
+  height: 88px;
+}
 .chat-empty h2 {
   margin: 14px 0 0;
 }

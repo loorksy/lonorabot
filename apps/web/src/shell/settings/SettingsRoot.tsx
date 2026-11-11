@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { activateLocale } from "../../i18n/config";
 import { api, isRequestCancelled } from "../../lib/api";
-import { useShellData } from "../data";
+import { ownerDisplayName, ownerInitial, useShellData } from "../data";
 import { LogoMark } from "../LogoMark";
 import { usePopover } from "../lists/Popover";
 import { reducedMotion, useDesktop } from "../motion";
@@ -15,7 +15,6 @@ import { useSheets } from "../sheets/SheetHost";
 import { useDevicePref } from "./device-prefs";
 import { LOCK_DEFAULTS, type LockPrefs } from "./lock-state";
 import { reachLabel } from "./NotifyPages";
-import { ownerName, useOwnerProfile } from "./owner";
 import { NavRow } from "./ui";
 
 const standalone = () =>
@@ -47,14 +46,16 @@ function useLinkedCount() {
   return count;
 }
 
-/** The Lonora version under the sections (Q54: no «حول» page). */
+type Version = { version: string; build: string | null };
+
+/** The Lonora version and the served build under the sections (Q54: no «حول» page). */
 function useVersion() {
-  const [version, setVersion] = useState<string | null>(null);
+  const [version, setVersion] = useState<Version | null>(null);
   useEffect(() => {
     let live = true;
-    api.get<{ version: string; build: string | null }>("/version").then(
+    api.get<Version>("/version").then(
       (value) => {
-        if (live) setVersion(value.version);
+        if (live) setVersion(value);
       },
       (error) => {
         if (!isRequestCancelled(error)) console.warn("version_unavailable", error);
@@ -263,13 +264,15 @@ export function SettingsRoot() {
   const sheets = useSheets();
   const shortcuts = useShortcutsSheet();
   const install = useInstallSheet();
-  const [profile] = useOwnerProfile();
+  const profile = data.ownerProfile;
   const linked = useLinkedCount();
-  const version = useVersion();
+  const served = useVersion();
+  const version = served?.version;
+  const build = served?.build?.slice(0, 7);
   const [lock] = useDevicePref<LockPrefs>("lock", LOCK_DEFAULTS);
-  const name = ownerName(profile, data.owner.email);
+  const name = ownerDisplayName(profile, data.owner);
   const confirmSignOut = () => {
-    const title = t`Sign out`;
+    const title = t`Sign out?`;
     sheets.open({
       id: "sign-out",
       title,
@@ -302,7 +305,7 @@ export function SettingsRoot() {
     <>
       <div className="group">
         <NavRow
-          icon={<span className="avatar initial">{name.slice(0, 1)}</span>}
+          icon={<span className="avatar initial">{ownerInitial(name)}</span>}
           label={<bdi>{name}</bdi>}
           sub={t`Profile · shared by all your agents`}
           to="/app/owner"
@@ -387,7 +390,13 @@ export function SettingsRoot() {
       </div>
       {version && (
         <p className="note settings-version">
-          <Trans>Lonora · version {version}</Trans>
+          {build ? (
+            <Trans>
+              Lonora · version {version} · <span className="ltr">{build}</span>
+            </Trans>
+          ) : (
+            <Trans>Lonora · version {version}</Trans>
+          )}
         </p>
       )}
     </>

@@ -50,7 +50,14 @@ import {
 import { type EdgeOptions, useScrollChrome } from "./chrome";
 import { DesktopList } from "./DesktopList";
 import { DesktopRail } from "./DesktopRail";
-import { mergePrefs, type ShellData, ShellDataProvider, useShellData } from "./data";
+import {
+  mergePrefs,
+  ownerDisplayName,
+  ownerInitial,
+  type ShellData,
+  ShellDataProvider,
+  useShellData,
+} from "./data";
 import { FloatingTabBar, tabLabel } from "./FloatingTabBar";
 import { EASE, flip } from "./flip";
 import { LargeTitle } from "./LargeTitle";
@@ -72,6 +79,7 @@ import { isRoot, type Root, rootPath, type ShellRoute, sectionOf } from "./route
 import { useShortcutsSheet } from "./ShortcutsSheet";
 import { MaintenanceOverlay, PageErrorBoundary } from "./StatePage";
 import { AppLockProvider } from "./settings/AppLock";
+import { useOwnerProfile } from "./settings/owner";
 import { SheetProvider, useSheets } from "./sheets/SheetHost";
 import { ToastProvider, useToast } from "./Toast";
 import { bareDetail, bareSection, TopBar } from "./TopBar";
@@ -113,6 +121,7 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const voice = useVoice();
   const navigate = useNavigate();
   const { agents, loading, error: agentError } = useAgents();
+  const [ownerProfile, setOwnerProfile] = useOwnerProfile();
   const [groups, setGroups] = useState<Resource[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
@@ -209,6 +218,8 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
   const value = useMemo<ShellData>(
     () => ({
       owner,
+      ownerProfile,
+      setOwnerProfile,
       agents,
       agentsLoading: loading,
       groups,
@@ -230,6 +241,8 @@ function ShellDataLoader({ onLogout, children }: { onLogout: () => void; childre
     }),
     [
       owner,
+      ownerProfile,
+      setOwnerProfile,
       agents,
       loading,
       groups,
@@ -743,7 +756,7 @@ function ShellBody() {
       {route.kind === "root" ? (
         home ? (
           <Welcome
-            name={owner.email.split("@")[0]}
+            name={ownerDisplayName(data.ownerProfile, owner)}
             onNewChat={openNewChat}
             onNewTask={onNewTask}
             onNewGroup={() => nav.go("/app/new-group")}
@@ -851,7 +864,7 @@ function ShellBody() {
                 ).onfinish = () => setCollapsed(true);
             }}
             onSection={switchTab}
-            ownerInitial={owner.email.slice(0, 1).toUpperCase()}
+            ownerInitial={ownerInitial(ownerDisplayName(data.ownerProfile, owner))}
             onOwner={() => nav.go("/app/owner")}
           />
           <DesktopList
