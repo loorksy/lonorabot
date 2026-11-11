@@ -47,6 +47,16 @@
   max-width: 84%;
   min-width: 0;
 }
+@media (min-width: 900px) {
+  .msg-line {
+    max-width: 68%;
+  }
+}
+@media (max-width: 430px) {
+  .msg-line {
+    max-width: 88%;
+  }
+}
 .msg.mine .msg-line {
   flex-direction: row-reverse;
 }
