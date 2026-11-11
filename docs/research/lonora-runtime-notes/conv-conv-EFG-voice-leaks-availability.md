@@ -3,11 +3,12 @@
 Scope: voice and language ([48]-[51]), leaked terms and display ([10], [16]-[65], [41], [61], [67], [75], [77]), availability ([2], [3]).
 Method: code reading at 9f5b1da with `path:line`, plus two scripted reproductions on database `audit_j13_test`.
 
+- Reproduction note (checker): the driver is not idempotent. It leaves `reply_language = "ar"` in the database after section E, so a second run on the same database shows `"language": "ar"` in the first E block. Truncate every application table of database 13 first (as `scripts/reset_db9.sh` does for database 9); after that the output matches `conv-EFG.out` line for line apart from run ids and timestamps. The "F run metadata flags" block prints nulls because it reads `RunRow.model_metadata`, while those flags are written to the reply's `provider_metadata` (`packages/agent-runtime/src/lonora_agent/model_runtime.py:261-268`); the nulls are not evidence either way.
 - Driver: `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/scripts/conv_efg.py`, raw output `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/runs/conv-EFG.out` (stderr in `conv-EFG.err`).
 - Bold patterns: `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/scripts/conv_efg_markdown.mjs`, output `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/runs/conv-EFG-markdown.out`.
 - SCRIPTED in the driver: the speech-to-text provider, every model reply, and the provider outage in G2. Everything else is the real runtime (API app, admission, executor, tool loop, real router in G1, retry endpoint, voice settlement, context builder, reply protection).
 - Times: I use the lead's corrected timeline (`TIMELINE_CORRECTION.md`): export times are UTC+1. [1]-[3] are 2026-11-10 16:44-16:48 UTC on build efb4911; [4] is 2026-11-11 09:37 UTC; [4]-[55] ran on 2477c22, [56]-[71] on cd2cc91, [72]-[81] on 9f5b1da.
-- I used `production-trace.md` (present in the audit folder) as a lead; where I rely on it I say so. Everything else is marked "TRACE MUST CONFIRM".
+- I used `production-trace.md` (present in the audit folder) as a lead; where I rely on it I say so. Where the trace settles a point the text says so; "TRACE MUST CONFIRM" is kept only for what the trace export does not contain.
 
 ## Classification table
 
@@ -15,7 +16,7 @@ Method: code reading at 9f5b1da with `path:line`, plus two scripted reproduction
 |---|---|---|---|
 | [48]→[49] | Arabic voice note transcribed as something else; agent asks the owner to write it | FAILS | No language is sent to speech-to-text when `reply_language` is empty (`packages/voice/src/lonora_voice/voice_notes.py:55-58`, `:72`; `packages/adapters/src/lonora_adapters/voice/stt.py:26`). Voice code on 2477c22 (the serving build) is byte-identical to main. Reproduced: `"language": null`. |
 | [50]→[51] | Reply in Turkish, offer to continue in Turkish | FAILS | The context tells the model `"reply_language": "latest_owner_message"` (`packages/agent-runtime/src/lonora_agent/context/memory.py:131`) and the policy says to reply in "the language of the owner's latest message" (`packages/agent-runtime/resources/system/lonora.md:58`). The latest owner message was the Turkish transcript. No guard checks the reply language. Reproduced. |
-| [10] | `symbol_not_found`, `broker_account_not_found` in the reply | FAILS | Codes reach the model as `{"ok": False, "code": ...}` (`packages/agent-runtime/src/lonora_agent/tool_dispatch.py:113`); the only server reply filter covers credentials, private paths and UUIDs (`packages/core/src/lonora_core/public_reply.py:37-51`). Reproduced: both codes stored unchanged. |
+| [10] | `symbol_not_found`, `broker_account_not_found` in the reply | FAILS | The code reaches the model as `{"ok": False, "code": ...}` (`packages/agent-runtime/src/lonora_agent/tool_dispatch.py:113`) plus a `recovery` block added for failed results (`packages/agent-runtime/src/lonora_agent/environment.py:204-210`; any code ending `_not_found` is classed `not_found` / `inspect_existing_state`, `environment.py:80-81`); production Part 4 #15 and #17 show exactly this (`production-trace.md`, run 1ae9a14c). The only server reply filter covers credentials, private paths and UUIDs (`packages/core/src/lonora_core/public_reply.py:37-51`). Reproduced: both codes stored unchanged. |
 | [10] | Broker name, account number, server in the reply | FAILS (it is instructed) | The policy and the tool tell the model to show them: `lonora.md:49`, `packages/tools/src/lonora_tools/account.py:63-64`. |
 | [59][65] | `waiting`, `owner_attention`, `routines`, `goals` | FAILS | Raw keys and values of the `agent_inspect` result (`packages/tools/src/lonora_tools/supervision.py:149-158`, `:220-255`); no filter. Reproduced. |
 | [75][77] | `watch_cancel` | FAILS (observed: [72]-[81] ran on 9f5b1da) | The tool name is in the system text the model reads (`packages/agent-runtime/resources/constitution/trading-policy.md:7`, `lonora.md:434`); the reply filter deliberately ignores tool names (`public_reply.py:42`). Reproduced. |
@@ -69,7 +70,9 @@ Side effect on server-written text: the two server heuristics that pick Arabic o
 
 Model output, not code. No such string exists in `apps`, `packages` or `scripts` (`grep -rn "اكتبها\|لم أفهم"` returns nothing). The server's own note for an untranscribable note is different English text addressed to the model ("…Tell the owner you could not hear it and ask them to send it again or write it.", `message_preview.py:38-41`) and is used only when the transcript is empty; here the transcript was the non-empty string «ımuz lazım birasta» (lead's trace, seq 45), so the model saw gibberish with Arabic history and asked for Arabic.
 
-TRACE MUST CONFIRM: (a) the stored `content` of seq 45 and 47 and that their voice parts are `transcript_status: done`; (b) `ln_owner_profile.reply_language` empty at 09:52 UTC; (c) which STT model answered (the owner's STT route or the default `gpt-4o-mini-transcribe`); the log line `voice_note_transcription_failed` would show a fallback.
+Settled by the trace (checker): (a) the stored content of seq 45 and 47 is the Turkish text above (`production-trace.md` Part 3, lines for seq 45 and 47; both rows are voice notes). A non-empty transcript is settled as `transcript_status: done` by `packages/db/src/lonora_db/voice_notes.py:63-67`; the part's stored status itself is not in the trace. (b) `ln_owner_profile.reply_language` is EMPTY (Part 2, Q6 block; Part 1 key findings). (c) Q7 shows `model_routing` = `{"mode": "unified", ..., "routes": {}}`, so there is no STT route; `transcription_models` (`voice_notes.py:34-40`, reading `model_routing` via `packages/providers/src/lonora_providers/routing_policy.py:6-10`) therefore tries `gpt-4o-mini-transcribe` first and `whisper-1` only after an error.
+
+TRACE MUST CONFIRM: whether `gpt-4o-mini-transcribe` or the `whisper-1` fallback produced the two transcripts. Only the log line `voice_note_transcription_failed` (`voice_notes.py:74`) would show it, and logs before 10:37 UTC are gone (`TIMELINE_CORRECTION.md`), so this stays open. It does not change the verdict: neither call carried a language.
 
 ---
 
@@ -100,9 +103,9 @@ Side finding from that run: when the privacy filter fires, it rewrites the whole
 
 | Term | Where the model got it | Citation |
 |---|---|---|
-| `symbol_not_found`, `broker_account_not_found` [10] | The `code` field of the failed tool results; the error result is `{"ok": False, "code": error.code}` and nothing else. Lead's trace, Part 4 #15 and #17, shows these two results in run 1ae9a14c. | `packages/agent-runtime/src/lonora_agent/tool_dispatch.py:113` |
+| `symbol_not_found`, `broker_account_not_found` [10] | The `code` field of the failed tool results; the error result is `{"ok": False, "code": error.code}` (plus `issues` and `retryable` for argument errors, `tool_dispatch.py:114-116`) and the runtime then adds a `recovery` block (`environment.py:204-210`). Production Part 4 #15 and #17 (run 1ae9a14c) show `{"ok":false,"code":"symbol_not_found","recovery":{"category":"not_found","next_action":"inspect_existing_state","safe_to_retry":false,"schema_tool":"tool_environment",...}}`: no candidate symbols and no owner-language text. | `packages/agent-runtime/src/lonora_agent/tool_dispatch.py:113`; `packages/agent-runtime/src/lonora_agent/environment.py:80-81`, `:204-210` |
 | Broker / account number / server [10] | `list_accounts` returns `broker_identity` with `broker`, `login`, `server`, and its `guidance` field says "Present accounts to the user using broker_identity broker/login/server, never transport IDs as account numbers." The policy agrees: "Name the broker's real company, account login and server when verified". This is instructed behaviour, not an accident. | `packages/tools/src/lonora_tools/account.py:63-64`; `lonora.md:48-49` |
-| `waiting` [59][65] | `agent_inspect`: overview `activity.state` (value `"waiting"` whenever the agent has runs, watches or tasks and nothing is working) and each task's `status`. A watch summary itself has no `waiting` value (its field is `lifecycle`, default `"pending"`), so «الحالة: waiting» attached to the EURUSDm watch in [59] is the agent's or the task's state applied to the watch by the model. | `packages/tools/src/lonora_tools/supervision.py:149-158`, `:220-227`; `packages/db/src/lonora_db/agent_state.py:562-564`, `:36-53` |
+| `waiting` [59][65] | `agent_inspect`: overview `activity.state` (value `"waiting"` only when the agent is not paused, not degraded, has nothing needing the owner and nothing working, but has runs, watches or tasks: `packages/db/src/lonora_db/agent_state.py:540-564`) and each task's `status` (a task held for the owner is `status "waiting"`, `waiting_reason "owner_attention"`, `tasks.py:785`; production Q5 shows that ticket with `waiting_reason owner_attention`). A watch summary itself has no `waiting` value (its field is `lifecycle`, default `"pending"`), so «الحالة: waiting» attached to the EURUSDm watch in [59] is the agent's or the task's state applied to the watch by the model. | `packages/tools/src/lonora_tools/supervision.py:149-158`, `:220-227`; `packages/db/src/lonora_db/agent_state.py:562-564`, `:36-53` |
 | `owner_attention` [65] | Task field `waiting_reason`, constant `OWNER_ATTENTION = "owner_attention"`, set when a Task is held for the owner. | `supervision.py:225`; `packages/db/src/lonora_db/tasks.py:20`, `:785` |
 | `routines`, `goals` [65] | Top-level keys of the `agent_inspect` work page: `"watches"`, `"routines"`, `"tasks"`, `"goals"`. The tool description also lists "watches, routines, Tasks, goals". | `supervision.py:229-255`, `:600-603` |
 | `watch_cancel` [75][77] | Not a tool result: `tool_environment` returned an empty list in that run (lead's trace, Part 4 #77). The name is in the system text every run receives: "A watch is cancelled with watch_cancel or changed with watch_update" (added by PR #42) and "Steer your own watches with watch_cancel, watch_pause, watch_resume and watch_update". | `packages/agent-runtime/resources/constitution/trading-policy.md:7`; `lonora.md:434`; tool defined at `packages/tools/src/lonora_tools/market_watch.py:254-255` |
@@ -113,11 +116,11 @@ TRACE MUST CONFIRM: the `view` argument and full result of the two `agent_inspec
 
 Confirmed: there is no Markdown normalisation anywhere on the server reply path (table in F.1; the reproduction stored `**المراقبة النشطة: **` and `** owner_attention**` unchanged).
 
-Not confirmed as stated: the CommonMark flanking rule applies only where the CommonMark renderer is used. Main has three renderers:
+Not confirmed as stated: the CommonMark flanking rule applies only where the CommonMark renderer is used. Main has three renderers and one path with no renderer (the caption, item 2):
 
-1. Web conversation bubbles: `TextBody` → `mdInline`, a hand-written regex, `claim(/\*\*([^*\n]+)\*\*/g, …<strong>…)` (`apps/web/src/conversation/Markdown.tsx:68`, used from `apps/web/src/conversation/Message.tsx:393-400`). It accepts inner spaces. Applied to the lines of [16], [18], [35], [65] it produces `<strong> 0.24</strong>`, `<strong>الخلاصة العملية: </strong>` and so on: bold, with a misplaced space, and with the spaces around the bold run lost where the model put them inside the markers (`conv-EFG-markdown.out`).
+1. Web conversation bubbles: `TextBody` → `mdInline`, a hand-written regex, `claim(/\*\*([^*\n]+)\*\*/g, …<strong>…)` (`apps/web/src/conversation/Markdown.tsx:68`, used from `apps/web/src/conversation/Message.tsx:393-400`). Text with block syntax (lists, headings, tables) goes through `md()` instead (`Markdown.tsx:270-276`), but `md()` renders every line, list item and table cell with the same `mdInline` (`Markdown.tsx:107`, `:180`, `:190`, `:204`, `:218`, `:232`), so the behaviour is the same. It accepts inner spaces. Applied to the lines of [16], [18], [35], [65] it produces `<strong> 0.24</strong>`, `<strong>الخلاصة العملية: </strong>` and so on: bold, with a misplaced space, and with the spaces around the bold run lost where the model put them inside the markers (`conv-EFG-markdown.out`).
 2. Web image captions: when the reply has an image attachment and text, the text is rendered with `<TextBody text={text} agent={false} …/>` (`Message.tsx:402-409`; `images` is defined at `:344`). With `agent` false `TextBody` uses `richText`, which interprets links and mentions only (`Markdown.tsx:21-23`, `:277-281`). Every `**` in such a reply is shown raw, correct or not. [20] and [22] are exactly these messages (chart images attached), and [22] is the one the owner confirmed by screenshot. The same code was in the serving build (`git grep -n TextBody 2477c22 -- apps/web/src/conversation/Message.tsx` shows the identical lines `:393` and `:406`).
-3. The CommonMark renderer: `ChatMarkdown` = `react-markdown` with `remark-gfm` (`packages/chat-ui/src/markdown.web.tsx:20-21`). On main it is reached only through `RichResponse` (`apps/web/src/components/visual/RichResponse.tsx:103`, `:111`), i.e. for replies that carry a generated UI part (`Message.tsx:336-341`, `:374-376`). There `** 0.24**` and `**3 صور **` stay raw, because an opening `**` followed by a space, or a closing `**` preceded by a space, is not a valid delimiter. None of the production replies had `rich_content` (lead's trace, Part 3: "rich_content is null on every row except the two voice notes"), so this renderer did not draw any of the listed messages.
+3. The CommonMark renderer: `ChatMarkdown` = `react-markdown` with `remark-gfm` (`packages/chat-ui/src/markdown.web.tsx:20-21`). On main it is reached only through `RichResponse` (`apps/web/src/components/visual/RichResponse.tsx:103`, `:111`, and for node text `:271`; the only importer is `apps/web/src/conversation/GenUiPart.tsx:2`), i.e. for replies that carry a generated UI part (`Message.tsx:336-341`, `:374-376`). There `** 0.24**` and `**3 صور **` stay raw, because an opening `**` followed by a space, or a closing `**` preceded by a space, is not a valid delimiter. None of the production replies had `rich_content` (lead's trace, Part 3: "rich_content is null on every row except the two voice notes"), so this renderer did not draw any of the listed messages.
 4. Mobile (Expo) bubbles: a regex split on `\*\*[^*]+\*\*` (`apps/mobile/components/markdown.tsx:22`, `:38-43`, used at `apps/mobile/components/message-bubble.tsx:164`). Same tolerance as the web regex.
 
 So on main: [20][22] show raw `**` on web because of the caption path; the other listed messages render bold with a stray or missing space on web and mobile; any of them would show raw `**` if delivered inside a generated-UI reply.
@@ -173,9 +176,9 @@ Provider error classes that end as family `model` (codes from `packages/adapter-
 | not_configured | `model_not_configured` | model |
 | context_overflow, payload_too_large | `context_limit_exceeded` | model |
 
-So one sentence, "the model provider could not be reached", is shown for eleven different causes, most of which are not about reachability. The client has an accurate sentence for several of them, e.g. `model_not_configured` → "Connect a provider and choose a global model in Settings." (`apps/web/src/lib/user_error.ts:88-89`), but the card uses it only for family `other` (`Cards.tsx:82`).
+So one sentence, "the model provider could not be reached", is shown for ten different codes (the table has eleven rows; the timeout row is family `timeout`, not `model`), most of which are not about reachability. The client has an accurate sentence for several of them, e.g. `model_not_configured` → "Connect a provider and choose a global model in Settings." (`apps/web/src/lib/user_error.ts:88-89`), but the card uses it only for family `other` (`Cards.tsx:82`).
 
-Production (lead's trace, point 8): all five failed runs are `model_not_configured`; the installation had no model routing until 2026-11-11 09:37:25 UTC. The text «تعذّر الوصول إلى مزوّد النموذج» was therefore untrue. Note also that the Arabic title string does not exist in build efb4911 (`git grep "النموذج غير متاح حاليًا" efb4911` finds nothing), so the card the owner exported under «أمس» was drawn by the 2026-11-11 client for the old failed run of [1].
+Production (lead's trace, point 8): all five failed runs are `model_not_configured`; the installation had no model routing until 2026-11-11 09:37:25 UTC. The text «تعذّر الوصول إلى مزوّد النموذج» was therefore untrue. Note also that the standalone title «النموذج غير متاح حاليًا» is not in build efb4911: `git grep -n "النموذج غير متاح حاليًا" efb4911 -- apps` returns only two hits for a different string, «مزود النموذج غير متاح حاليًا. حاول مجددًا بعد قليل.» (`apps/mobile/lib/i18n.ts:606`, `apps/web/src/i18n/locales/ar/messages.po:6121`), while `git grep -n "AgentErrorCard" efb4911 -- apps` and `git grep -n "is not available right now" efb4911 -- apps` find nothing; at 2477c22 the standalone title is at `messages.po:7158`. The card is drawn by the client from the run's data, so the card the owner exported under «أمس» was drawn by a later client for the old failed run of [1]. Also, `packages/db/src/lonora_db/run_retry.py` does not exist at efb4911 or at aa50e8e (`git cat-file -e` fails) and exists at 2477c22: on 2026-11-10 the retry path was not in the serving build, which fits the retries only starting on 2026-11-11 (08:55 UTC, `production-trace.md` Part 1). UNSURE: what the efb4911 client showed under a failed run; I did not find an error card there.
 
 Reproduction (G1, real router, nothing patched): model settings `{"mode": "unified", "unified": null, "routes": {}}`; the run for «مرحبا» ended `failed`, `error_code: "model_not_configured"`, `failure: {"family": "model"}` one step after `run.context_ready`.
 
@@ -185,7 +188,7 @@ It exists, inside one request, in `GlobalModelRouter`:
 
 - Candidate chain: run choice, the agent's own primary, the global primary for the capability, the agent's fallbacks, the owner's `model_backups`, and, when the agent is in automatic mode or has no preference, every model the owner added (`packages/providers/src/lonora_providers/router.py:162-184`). An empty chain raises `model_not_configured` (`router.py:210-211`).
 - `complete` walks the chain (`router.py:271-342`). After a failure it moves to the next candidate unless the reason's recovery says `fallback=False` (`router.py:326-328`).
-- Recovery table (`packages/providers/src/lonora_providers/resilience.py:75-97`): every reason falls back except `CONTEXT_OVERFLOW` and `PAYLOAD_TOO_LARGE` ("Another model cannot shrink this request"). Same-provider retries are 0-2 depending on the reason; failed candidates are benched (15 s to 900 s).
+- Recovery table (`packages/providers/src/lonora_providers/resilience.py:75-97`): every reason falls back except `CONTEXT_OVERFLOW` and `PAYLOAD_TOO_LARGE` ("Another model cannot shrink this request"). Same-provider retries are 0-2 depending on the reason; a failed candidate is benched (15 s to 900 s) only for reasons whose `bench_seconds` is set (auth, billing, permission, rate limit, overloaded, server error, timeout, connection, unknown, model not found; not content policy, format, output limit, truncated, invalid response, not configured; `resilience.py:75-97`).
 
 When fallback is skipped or cannot help:
 
@@ -221,7 +224,7 @@ Conclusion from code: the only way a message whose run already failed gets a rep
 Two consequences reproduced in G1:
 
 1. A retry answers one message. Each failed run can be retried once, and the retry keeps the failed run's `input_seq` (`run_retry.py:87-90`, `:125-133`; `runs.py:270-277`). After the owner retried the second «مرحبا» the thread was: `seq 1 user: مرحبا`, `seq 2 user: مرحبا`, `seq 3 assistant: مرحباً. كيف أساعدك؟`; the run for seq 1 is still `failed`. The retried request did contain both greetings, so the model saw [1], but [1] keeps its error card. That is the production picture: [1], card [2], [3], reply [4].
-2. The retry button of the card stays the only path even after the owner fixes the cause in settings; changing the model does not re-run anything.
+2. The retry button of the card stays the only path even after the owner fixes the cause in settings; changing the model does not re-run anything. I found no caller of `/runs/{id}/retry` under `apps/mobile` (`grep -rn "/retry\|retryRun" apps/mobile`); UNSURE whether the Expo client offers any retry.
 
 ### G.4 Reproduction: provider unavailable, then a second message (G2)
 
@@ -237,10 +240,10 @@ So after an outage the second message is not lost from history, but the server n
 
 ### G.5 What the production trace must confirm for G
 
-- TRACE MUST CONFIRM: the run that answered at 09:37:44 UTC has `model_metadata.retry_of` = 7b86f6fb (the last failed retry of seq 2), and the access log around 08:55-09:37 shows `POST /api/runs/<id>/retry` (the logs before 10:37 UTC are gone per the lead, so the `retry_of` chain in `ln_runs` is the remaining evidence).
-- TRACE MUST CONFIRM: no run exists for seq 1 after e2bc2eae, i.e. [1] was never answered.
+- SETTLED by the trace (checker): the run that answered at 09:37:44 UTC, d5b850bc, is `retry_of 7b86f6fb`; the chain is 603d1bb0 (11-10 16:48) -> cf008869 (08:56:00) -> 7b86f6fb (09:05:37) -> d5b850bc (`production-trace.md` Part 1, run list). `retry_of` is written only by `retry_run` (`packages/db/src/lonora_db/run_retry.py:132`; `grep -rn "retry_of" packages apps --include=*.py` shows no other writer) and that function is called only by `POST /runs/{id}/retry` (`apps/api/src/lonora_api/routes/runs.py:63-73`), so each link was a client retry request. The access log is not needed.
+- SETTLED by the trace (checker): [1] was never answered: seq 1 has b1cea9d1 (failed) and e2bc2eae (`retry_of b1cea9d1`, failed) and nothing later (`production-trace.md` Part 1 run list and the line "seq 1 and 2 (yesterday, model_not_configured) got no reply; the retry at 09:37:44 answered seq 2 only").
 - TRACE MUST CONFIRM: whether provider credentials existed at 16:44 UTC on 2026-11-10 (only routing missing, or keys too). Both give `model_not_configured` (`router.py:210-211` and `router.py:274-280`).
-- TRACE MUST CONFIRM: `ln_runs.model_metadata.failure` of the five failed runs is `{"family": "model"}` (the reproduction says it is).
+- TRACE MUST CONFIRM (low value): the stored `ln_runs.model_metadata.failure` of the five failed runs. The family does not depend on it: `failure_data` falls back to `failure_family(row.error_code)` at read time (`packages/db/src/lonora_db/runs.py:40-47`), which gives `model` for `model_not_configured` (`runtime_failure.py:50-51`), and the web card reads the family from the run payload.
 
 ---
 
@@ -255,3 +258,45 @@ So after an outage the second message is not lost from history, but the server n
 ## Money-safety check
 
 Nothing above touches the executor, grants, approvals, journals or restrictions. Two points to keep in mind for whoever changes these areas: the run retry refuses any run with a financial effect or descendants (`packages/db/src/lonora_db/run_retry.py:91-103`), and a voice request stays provisional through a retry (`run_retry.py:134-136`); both must stay as they are.
+
+---
+
+## Verification log
+
+Checker pass at code 9f5b1da. The repository HEAD is now 3f09572; `git diff 9f5b1da HEAD` touches only `docs/research/**`, so all code citations are at 9f5b1da. `git status --short` was clean before and after.
+
+**Citations opened.** About 150 `path:line` citations, every one re-read in the repository (voice path, reply path, public_reply, stop gates, uncertain outcome, router, resilience, model recovery, tool loop, run retry, runs, messages, web Cards / Message / Markdown / RichResponse, mobile markdown and question component, CSS, reference HTML, policy text). All line numbers and short quotes matched except the items below.
+
+**Corrected**
+- F.2 and classification table row [10]: the claim that a failed tool result is `{"ok": False, "code": ...}` "and nothing else" was wrong. The runtime adds a `recovery` block (`environment.py:204-210`, classification `:80-81`), argument errors also carry `issues` and `retryable` (`tool_dispatch.py:114-116`), and production Part 4 #15/#17 show the `recovery` object.
+- G.1: "eleven different causes" is ten: the table has eleven rows, one of which (timeout) is family `timeout`.
+- G.1: the sentence that `git grep` for the title in efb4911 "finds nothing" was imprecise (it matches a different string by substring). Rewritten with the exact hits, plus the added fact that `run_retry.py` does not exist at efb4911 or aa50e8e.
+- G.2: benching applies only to reasons with `bench_seconds` set, not to every failed candidate.
+- F.3: "three renderers" followed by four numbered items; reworded. Added that `md()` (block text) also goes through `mdInline`, so lists in [16], [18], [35], [65] do not change the result, and that `RichResponse.tsx:271` is a further `ChatMarkdown` call.
+- F.2 `waiting`: the overview state is `"waiting"` only when the agent is not paused, degraded, action-required or working (`agent_state.py:540-564`); stated precisely.
+- Reproduction instructions: the driver is not idempotent (see the reproduction note at the top).
+
+**TRACE MUST CONFIRM items checked**
+- E.4 (a), (b), (c): (a) and (b) settled by the trace (seq 45/47 content; reply_language EMPTY); (c) narrowed by Q7 (no STT route, so `gpt-4o-mini-transcribe` first); only "did the whisper-1 fallback run" stays open, and the logs are gone.
+- F.2 agent_inspect arguments and results: kept; Part 4 holds no `agent_inspect` call (only the reply text in Part 1).
+- F.3 raw bubble text: kept (no raw assistant content in the trace).
+- G.5: retry chain and "[1] never answered" settled by Part 1; credential presence at 16:44 kept (not in the trace); stored `failure` of the five runs downgraded to low value with the read-time fallback cited.
+
+**Claims confirmed after trying to refute them**
+- Root cause 9 (language hint = `OwnerProfileRow.reply_language`, empty gives no `language` field): confirmed, including `transcription.py` being unused (second grep over `.py/.md/.toml` for any import also finds none) and the ce92a10 regression (`-LANGUAGE = "ar"` in its diff; ce92a10 is an ancestor of 2477c22, not of aa50e8e; `git diff 2477c22 9f5b1da` over the voice and STT adapter paths is empty).
+- No reply guard for language, codes, tool names or Markdown: re-read every module of the reply path; `git diff aa50e8e 9f5b1da` of `model_runtime.py` and `lonora.md` adds only suggested-reply handling, a generated-UI block, a @mention line and a reaction line. No counter-mechanism found.
+- Raw `**` in [20]/[22] from the caption path (`Message.tsx:402-409` with `agent={false}`, `Markdown.tsx:277-281`): confirmed; both messages carry image attachments in the export.
+- Option icons without size on web: `.opt-list`/`.opt-row` have no CSS in the repository (two greps: `grep -rn "opt-"` over css, and `grep -rn "opt-list\|opt-row"` over apps/packages/docs). The only global `button svg` rule is excluded inside `.app-shell` (`apps/web/src/styles.css:129`); `.mcard svg` rules exist only for the kicker (`conversation.css:307-310`). UNSURE: I did not render the page or confirm that the conversation is always inside `.app-shell` (the shell wrapper is `apps/web/src/shell/Shell.tsx:91`). The old `apps/web/src/components/conversation-question.tsx` is imported by nothing (grep of `conversation-question` over `apps/web/src`).
+- [2]: all five failed runs are `model_not_configured` (trace Part 1); message composed in the web client (`Cards.tsx:73`, `:81`).
+- [3]: only a client retry creates a new run for a failed message (`retry_of` has a single writer, `run_retry.py:132`).
+
+**Reproductions rerun.** `conv_efg.py` on database 13 after truncating all tables: output identical to `runs/conv-EFG.out` apart from ids and timestamps (E: `"language": null` then `"ar"`; reply_language `latest_owner_message`; Turkish reply stored unchanged; F: only the UUID redacted and «أغهِقه» became «أغهقه»; G1 and G2 as described). Before truncating, a second run differed only in the E block as explained. `conv_efg_markdown.mjs`: output identical to `runs/conv-EFG-markdown.out`.
+
+**Added**
+- The `recovery` block and its content (above); production evidence that no candidate symbols were offered.
+- Retry code absent at efb4911/aa50e8e, present at 2477c22.
+- No STT route in production (Q7), so default models only.
+- Note that the "F run metadata flags" output is not evidence.
+- Expo: no caller of the retry endpoint found (UNSURE).
+
+**Refuted or downgraded:** none of the nine classification rows was refuted. Downgraded: the "eleven causes" count, the "nothing else" claim about tool results, the unqualified `git grep` statement, the three TRACE MUST CONFIRM items now settled.

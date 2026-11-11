@@ -1,6 +1,6 @@
 # Tool surface, group A ("world" tools): mechanics, capability map and refusal census
 
-Repository `/home/user/lonorabot`, HEAD `9f5b1da`. Read-only audit. Paths are relative to the repo root.
+Repository `/home/user/lonorabot`, code at `9f5b1da` (the checked-out HEAD is `3f09572`, a commit that only adds draft notes under `docs/research/`; `git diff --stat 9f5b1da 3f09572` shows no code file, so every line number below holds for both). Read-only audit. Checked by an independent pass: see "Verification log" at the end. Paths are relative to the repo root.
 Abbreviations used for long path prefixes:
 
 - `T/` = `packages/tools/src/lonora_tools/`
@@ -55,7 +55,7 @@ Observed by running: after `observe()`, a result `{'ok': False, 'code': 'model_n
 
 - A read-only tool failing with a transient code is retried by the runtime with `2**attempt` seconds back-off (`R/tool_block.py:309-328`, `R/environment.py:219-224`); at the third failure `safe_to_retry` becomes false and `next_action` becomes `alternate_route_or_wait` (`R/environment.py:206-209`).
 - The same tool with the same arguments failing three times is refused without running: `{"ok": False, "code": "tool_route_exhausted", "recovery": {"next_action": "alternate_route_or_wait"}}` (`R/environment.py:129`, `R/tool_dispatch.py:70-81`). Read routes are forgotten at the next owner input (`R/environment.py:104-124`); routes of non-read tools are not.
-- A non-read-only tool that hits the dispatch deadline, a `ConnectionError` or any unexpected exception returns `tool_execution_uncertain` (`R/tool_dispatch.py:118-128`, `R/tool_dispatch.py:129-138`). `observe()` marks that route `ambiguous` (`R/environment.py:156-163`, `R/environment.py:181`), and every later identical call is answered `{"ok": False, "code": "broker_result_ambiguous", "recovery": {"next_action": "reconcile_before_any_resend"}}` without running (`R/tool_dispatch.py:70-81`). The branch that reconciles is limited to `tool.financial` (`R/tool_dispatch.py:55-62`). **BUG for non-financial tools:** `scratchpad_write`, `artifact_create`, `mcp_execute`, `workspace_update`, `news_feed_subscribe`, `model_request` and the `skill_package_*` tools can end up answering a *broker* code although no broker is involved and no reconcile tool exists for them. The model is told to reconcile something it cannot reconcile; the name of the code invites a wrong explanation to the owner.
+- A non-read-only tool that hits the dispatch deadline, a `ConnectionError` or any unexpected exception returns `tool_execution_uncertain` (`R/tool_dispatch.py:118-128`, `R/tool_dispatch.py:129-138`). `observe()` marks that route `ambiguous` (`R/environment.py:156-163`, `R/environment.py:181`), and every later identical call is answered `{"ok": False, "code": "broker_result_ambiguous", "recovery": {"next_action": "reconcile_before_any_resend"}}` without running (`R/tool_dispatch.py:70-81`). The branch that reconciles is limited to `tool.financial` (`R/tool_dispatch.py:55-62`). **BUG for non-financial tools:** `scratchpad_write`, `artifact_create`, `mcp_execute`, `workspace_update`, `news_feed_subscribe`, `model_request` and the `skill_package_*` tools can end up answering a *broker* code although no broker is involved and no reconcile tool exists for them. The model is told to reconcile something it cannot reconcile; the name of the code invites a wrong explanation to the owner. Added by the checker: the same mismatch exists one step earlier. `classify()` maps the first `tool_execution_uncertain` to `ambiguous_mutation` / `reconcile_before_any_resend` (`R/environment.py:42-43`), and `observe()` classifies any uncertain result as `broker_result_ambiguous` (`R/environment.py:204`). `tool_environment` also advertises for every non-read tool `"reconciliation_after_uncertainty": not read_only` (`T/environment.py:39`) and, for non-financial mutating tools, the common code `tool_execution_uncertain` (`T/environment.py:49-53`), so the model is told up front that it must reconcile, and no reconcile tool is named.
 - A read-only tool's unexpected exception becomes `tool_internal_failure`; only the exception type is logged (`R/tool_dispatch.py:129-138`). It is classified `terminal_domain_failure` (not retried).
 
 ### 1.4 Arguments
@@ -87,14 +87,14 @@ Effect inside my families: in `model_request`, `owner_named` needs `message_id i
 | # | tool | code / outcome | path:line | what the model sees | class | recovery path |
 |---|---|---|---|---|---|---|
 | S1 | any | `tool_arguments_invalid` | `T/schema.py:49`, `R/tool_dispatch.py:114-116` | code, `issues[{path,type,code?}]`, `retryable: true`, `next_action: inspect_schema_and_repair` | LED | repair arguments |
-| S2 | `tool_environment`, any call | `tool_not_allowed` for a tool name that is not registered (typo) | `T/registry.py:351-353`, `T/registry.py:478-480` | code + `permission_denied` / `respect_scope` | BUG | a misspelt name is reported as a permission refusal that says "respect scope"; the right step is `tool_environment` with `query` |
+| S2 | `tool_environment`, any call | `tool_not_allowed` for a tool name that is not registered (typo) | `T/registry.py:351-353`, `T/registry.py:478-480` | code + `permission_denied` / `respect_scope` | BUG | a misspelt name given as `tool_environment.tool_name` (`T/registry.py:351-353`) or as a direct call (`T/registry.py:478-480`) is reported as a permission refusal that says "respect scope"; the right step is `tool_environment` with `query`. Through the `tool_call` bridge a misspelt name instead gives `tool_call_target_unknown` (`T/registry.py:218-222`, see S8) |
 | S3 | any | `tool_not_allowed` for a helper/observe-only scope | `T/registry.py:483-484` | same as S2 | DEAD | by design for helpers; the parent agent must do it |
 | S4 | read-only tools | `tool_read_timeout`, `tool_connection_failure` raised by dispatch | `R/tool_dispatch.py:118-128` | code, `safe_to_retry: true`; runtime retries | LED | automatic |
 | S5 | read-only tools | `tool_internal_failure` | `R/tool_dispatch.py:129-138` | code + `terminal_domain_failure / alternate_route` | RNL | retry once or use another tool; cause is only in the server log |
 | S6 | non-read tools | `tool_execution_uncertain`, then `broker_result_ambiguous` on the same call | `R/tool_dispatch.py:70-81`, `R/tool_dispatch.py:118-138` | code + `reconcile_before_any_resend` | BUG | see 1.3; for these tools the check is a read (`scratchpad_read`, `workspace_inspect`, `news_feed_read`, `model_list`) that nothing names |
 | S7 | any | `tool_route_exhausted` | `R/tool_dispatch.py:70-81`, `R/environment.py:129` | code + `alternate_route_or_wait` | RNL | change the arguments or the tool; no alternative is named |
 | S8 | `tool_call` | `tool_call_target_unknown`, `tool_call_target_invalid`, `tool_call_unresolved` | `T/registry.py:213-222` | code + `terminal_domain_failure / alternate_route` | RNL | `tool_environment` with `query` or the exact name |
-| S9 | `tool_environment` | query with no match: `{"tools": [], "total": 0}` | `T/registry.py:361-388`, `T/tool_discovery.py:62-73` | empty list, no hint | RNL | query in English catalog words (the schema says so, `T/environment.py:16`) or page without `query`; a query in Arabic matches nothing because the gate token must occur in the English catalog |
+| S9 | `tool_environment` | query with no match: `{"tools": [], "total": 0}` | `T/registry.py:361-388`, `T/tool_discovery.py:62-73` | empty list, no hint | RNL | query in English catalog words (the schema says so, `T/environment.py:16`) or page without `query`; a query in Arabic matches nothing because the gate token must occur in the English catalog. Stricter than the author wrote: the gate is the rarest query token, and a token absent from the whole catalog has frequency 0, so it becomes the gate (`T/tool_discovery.py:62`) and every tool lacking it is skipped (`T/tool_discovery.py:69-72`). One unknown word, Arabic or English, in an otherwise good query returns `{"tools": [], "total": 0}`; only an exact registered name always matches (`T/tool_discovery.py:60-61`, `T/tool_discovery.py:67`) |
 | S10 | any | oversized result | `R/tool_block.py:252-276` | bounded summary, `narrow_query`, `result_ref` | LED | `artifact_read` with the `result_ref` |
 
 Shared count: RNL 4 (S5, S7, S8, S9) · OWNER 0 · DEAD 1 (S3) · BUG 2 (S2, S6) · LED 3 (S1, S4, S10).
@@ -134,7 +134,7 @@ Shared count: RNL 4 (S5, S7, S8, S9) · OWNER 0 · DEAD 1 (S3) · BUG 2 (S2, S6)
 | `model_list` | this agent's model mode, allowed models, catalog matches for a name | none | yes | 45 s | `T/models.py:163-187`, `T/models.py:389-397` |
 | `model_request` | switches the agent's model or raises a one-tap card; at most 3 switches per Run | none | no | 90 s | `T/models.py:64`, `T/models.py:212-370`, `T/models.py:375-388` |
 
-Exposure consequence worth stating plainly: the owner's Personal Agent is a `market` + `coordination` identity (`R/tool_exposure.py:43-46`). Of the 26 rows above it receives natively only `tool_environment`, `tool_call`, `skills_list`, `skill_view` and `web_search`. `web_fetch`, `web_browse`, `capabilities_list`, every workspace, feed, MCP, artifact, scratchpad and model tool is one discovery step away. That is a design choice (schema budget, `T/registry.py:75-85`), not a refusal, but each of these is an ability the model must first remember exists.
+Exposure consequence worth stating plainly: the owner's Personal Agent is a `market` + `coordination` identity (`R/tool_exposure.py:43-46`). Of the 30 tools in the 26 rows above (the `skill_package_*` and `scratchpad_*` rows each hold several tools) it receives natively only `tool_environment`, `tool_call`, `skills_list`, `skill_view` and `web_search`. `web_fetch`, `web_browse`, `capabilities_list`, every workspace, feed, MCP, artifact, scratchpad and model tool is one discovery step away. That is a design choice (schema budget, `T/registry.py:75-85`), not a refusal, but each of these is an ability the model must first remember exists.
 
 Backend availability checks that hide a tool from the native set and print `name=code` in the inventory:
 
@@ -189,7 +189,7 @@ Count: RNL 14 · OWNER 1 · DEAD 3 · BUG 0 · LED 1.
 
 | # | tool | code / outcome | path:line | what the model sees | class | recovery path |
 |---|---|---|---|---|---|---|
-| B1 | browse | `browser_unconfigured` | `T/browser.py:42-43` | code + `not_configured / inspect_authorized_alternative` | DEAD | operator setting `LONORA_BROWSER_URL` (`docs/open-web-research.md:68-73`); `web_fetch` covers static pages but is not named in the result |
+| B1 | browse | `browser_unconfigured` | `T/browser.py:42-43` | code + `not_configured / inspect_authorized_alternative` | RNL | partly: `web_fetch` reads static pages and is callable by the same agent (`T/search.py:325-332`) but is not named in the result; pages that need JavaScript have no path, and only a server operator can enable the browser: operator setting `LONORA_BROWSER_URL` (`docs/open-web-research.md:68-73`); `web_fetch` covers static pages but is not named in the result |
 | B2 | browse, fetch | `unsafe_remote_url` (http, a `#fragment`, a port, user info) | `S/network.py:11-20` | code + `terminal_domain_failure / alternate_route` | RNL | resend as plain `https://host/path` without the fragment. The word "unsafe" for a URL that only carries `#section` invites a refusal |
 | B3 | browse, fetch | `remote_host_unavailable` (DNS) | `S/network.py:25-26` | code only | RNL | `web_search` for the right address |
 | B4 | browse, fetch | `private_remote_address_forbidden` | `S/network.py:27-30` | code only | DEAD | needed for safety (no private networks) |
@@ -207,7 +207,7 @@ Count: RNL 14 · OWNER 1 · DEAD 3 · BUG 0 · LED 1.
 | B16 | fetch | network timeout or connection error | `T/search.py:137-140`, `R/tool_dispatch.py:129-138` | `tool_internal_failure`, not retried | BUG | `fetch` has no `try`; httpx timeout and connect errors are not Python `TimeoutError`/`ConnectionError` (checked by import), so they fall to the generic branch. `web_search` maps the same errors to retryable codes (`T/search.py:226-229`) |
 | B17 | fetch | PDF, image or other non-text body | `T/search.py:150-158` | `ok: true` with the bytes decoded as text (`errors="replace"`) | BUG | no content-type check; the model receives garbage as a successful read |
 | B18 | fetch | page longer than 24,000 chars | `T/search.py:158`, `T/search.py:33-34` | `ok: true`, cut silently: no `truncated` flag, no offset | BUG | the model cannot know the page continued |
-| B19 | search | `research_provider_not_configured` | `T/search.py:189-191` | code + `not_configured / inspect_authorized_alternative` | OWNER | the owner connects Brave through one `connect_credential` card (`docs/trusted-sources.md:162-164`); the agent's step, `owner_action_propose`, is named only in `capabilities_list` guidance (`T/capabilities.py:302-304`), not here. `web_fetch` and `news_feed_read` still work |
+| B19 | search | `research_provider_not_configured` | `T/search.py:189-191` | code + `not_configured / inspect_authorized_alternative` | OWNER | the owner connects Brave through one `connect_credential` card (`docs/trusted-sources.md:162-164`); the card kind `connect_credential` is named in `capabilities_list` guidance (`T/capabilities.py:302-304`, which does not name the tool `owner_action_propose`) and in the system prompt (`packages/agent-runtime/resources/system/lonora.md:561`: `A missing account, key or server is one connect_credential card`), not in this result. The tool name `owner_action_propose` appears for `trust_source` at `lonora.md:558`. `web_fetch` and `news_feed_read` still work |
 | B20 | search | `provider_temporarily_unavailable` (5xx, 429) | `T/search.py:211-212` | code, retried | LED | automatic |
 | B21 | search | `research_provider_unavailable` (other HTTP errors incl. a rejected Brave key, bad JSON, all engines down) | `T/search.py:200`, `T/search.py:213-214`, `T/search.py:230-231`, `T/search.py:306-308` | code only | RNL | `web_fetch` a known source, `news_feed_read`; a wrong key (owner needed) cannot be told from an outage |
 | B22 | search | `tool_read_timeout`, `tool_connection_failure` | `T/search.py:226-229` | code, retried | LED | automatic |
@@ -217,7 +217,7 @@ Count: RNL 14 · OWNER 1 · DEAD 3 · BUG 0 · LED 1.
 
 Other contract facts that shape behaviour: `web_fetch` drops every tag and attribute (`T/search.py:37-53`, `T/search.py:151-154`), so a fetched HTML page contains **no links**; following a link from a page needs `web_browse` (60 visible `https` anchors, `T/browser_service.py:290`).
 
-Count: RNL 8 · OWNER 1 · DEAD 4 · BUG 5 · LED 5.
+Count: RNL 9 · OWNER 1 · DEAD 3 · BUG 5 · LED 5.
 
 ### 3.3 Feeds (`news_feed_read`, `news_feed_subscribe`)
 
@@ -231,9 +231,9 @@ Count: RNL 8 · OWNER 1 · DEAD 4 · BUG 5 · LED 5.
 | F6 | subscribe | `status: "owner_trust_required"` | `T/feeds.py:149-161` | card summary and `guidance` | OWNER | needed: the trusted-sources list is the owner's (`docs/trusted-sources.md:25-28`). Well led; the card is already raised |
 | F7 | read | no subscribed feeds | `T/feeds.py:114-120` | `configured: false` and guidance naming `news_feed_subscribe` | LED | subscribe or read a URL once |
 | F8 | subscribe | `agent_run_mismatch`, `agent_thread_mismatch` | `T/owner_actions.py:204-212` | code only | DEAD | internal scope check |
-| F9 | (no tool) | the owner asks to drop a feed | `T/feeds.py:147` | the only trace is the string `"owner_sees": "Capabilities, with Remove"` | DEAD | no unsubscribe tool is registered in `T/feeds.py:164-188`; the owner removes it in Capabilities |
+| F9 | (no tool) | the owner asks to drop a feed | `T/feeds.py:147` | the only trace is the string `"owner_sees": "Capabilities, with Remove"` | OWNER | no unsubscribe tool is registered in `T/feeds.py:164-188`; the owner removes it in Capabilities |
 
-Count: RNL 5 · OWNER 1 · DEAD 2 · BUG 0 · LED 1.
+Count: RNL 5 · OWNER 2 · DEAD 1 · BUG 0 · LED 1.
 
 ### 3.4 MCP (`mcp_connections`, `mcp_tools`, `mcp_execute`)
 
@@ -273,18 +273,18 @@ Count: RNL 6 · OWNER 6 · DEAD 3 · BUG 0 · LED 2.
 | K6 | inspect, import | `skill_repository_not_found`, `skill_repository_rate_limited`, `skill_repository_access_denied`, `skill_repository_unavailable` | `R/skills/repository.py:232-250` | code only; rate limit is not retried | RNL | wait and retry, or `web_search` for the right repository |
 | K7 | inspect, import | `skill_repository_archive_too_large`, `_archive_invalid`, `_path_unsafe`, `_path_duplicate` | `R/skills/repository.py:50-86`, `R/skills/repository.py:254` | code only | DEAD | the repository does not fit the bounds |
 | K8 | import | `status: "owner_trust_required"` | `R/skills/lifecycle.py:216-241` | card summary and `guidance` | OWNER | needed (trusted-sources list). Well led |
-| K9 | import, create, validate, control | `version_conflict` on `expected_version` | `R/skills/lifecycle.py:72-74`, `R/skills/lifecycle.py:112-114` | code + `version_conflict / reload_authoritative_state` | BUG | `expected_version` is the row's `resource_version`, which only the package tools return (`R/skills/lifecycle.py:172-177`). `skills_list` entries do not contain it (`R/skills/access.py:256-268`), nor does `capabilities_list` (`T/capabilities.py:235-254`). In a later Run there is no read that "reloads" it. A search of `T/` and `R/` for `resource_version` finds only `R/skills/lifecycle.py:177` and the owner-API catalog `R/skills/catalog.py:69`. UNSURE whether prior tool results recalled from history are meant to cover this |
+| K9 | import, create, validate, control | `version_conflict` on `expected_version` | `R/skills/lifecycle.py:72-74`, `R/skills/lifecycle.py:112-114` | code + `version_conflict / reload_authoritative_state` | RNL | `expected_version` is the row's `resource_version`, which only the package tools return (`R/skills/lifecycle.py:172-177`). `skills_list` entries do not contain it (`R/skills/access.py:256-268`), nor does `capabilities_list` (`T/capabilities.py:235-254`). In a later Run there is no read that "reloads" it. A search of `T/` and `R/` for `resource_version` finds only `R/skills/lifecycle.py:177` and the owner-API catalog `R/skills/catalog.py:69`. UNSURE whether prior tool results recalled from history are meant to cover this. Checker: downgraded from BUG. The `skill_package_import` description does tell the model `updates require current resource_version` (`T/skills.py:131`), and every package tool result carries `resource_version` (`R/skills/lifecycle.py:177`), so inside one Run the value is at hand; only a later Run depends on recalled history |
 | K10 | import, create, control | `skill_version_revoked` | `R/skills/lifecycle.py:95-99`, `R/skills/lifecycle.py:116-117`, `R/skills/lifecycle.py:137` | code only | OWNER | needed: the owner undid this version in Capabilities |
 | K11 | import, create | `skill_package_version_limit` (8 versions), `skill_package_version_immutable` | `R/skills/lifecycle.py:120-127` | code only | RNL | choose a new semantic version; remove the package with `skill_package_control` |
 | K12 | import, create | package shape codes: `skill_frontmatter_invalid`, `skill_document_too_large`, `skill_package_document_missing`, `_too_large`, `_file_too_large`, `_nested_unsupported`, `_binary_unsupported`, `_document_incompatible`, `_commit_required` | `R/skills/packages.py:151-207`, `R/skills/packages.py:255`, `R/skills/packages.py:284-315` | code only | RNL | fix the adapted `SKILL.md` or pick a smaller directory |
 | K13 | validate, control | `skill_package_utility_unsupported`, `skill_package_validation_interrupted`, `skill_package_validation_required`, `skill_package_version_not_found` | `R/skills/lifecycle.py:400`, `R/skills/lifecycle.py:412`, `R/skills/lifecycle.py:491`, `R/skills/lifecycle.py:499` | code only | RNL | run `skill_package_validate` for each utility, then activate |
-| K14 | import, create, control | graph and state codes: `skill_tool_unknown`, `skill_duplicate_id`, `skill_package_content_changed`, `skill_package_source_changed`, `skill_package_state_invalid`, `skill_package_identity_conflict` | `R/skills/lifecycle.py:46`, `R/skills/lifecycle.py:86`, `R/skills/lifecycle.py:161-169`, `R/skills/packages.py:104-115` | code only | RNL | publish a corrected new version |
+| K14 | import, create, control | graph and state codes: `skill_tool_unknown`, `skill_duplicate_id`, `skill_package_content_changed`, `skill_package_source_changed`, `skill_package_state_invalid`, `skill_package_identity_conflict` | `R/skills/lifecycle.py:46`, `R/skills/lifecycle.py:86`, `R/skills/lifecycle.py:161-169`, `R/skills/packages.py:104-115`, `R/skills/registry.py:40`, `R/skills/registry.py:46` (the first two codes are raised there and passed through by `R/skills/lifecycle.py:166-169`) | code only | RNL | publish a corrected new version |
 | K15 | import (with utilities), validate, control | `workspace_runtime_unavailable` | `R/skills/lifecycle.py:209-210`, `R/skills/lifecycle.py:403` | code only | DEAD | no analysis host on this server (operator) |
 | K16 | view, list | `skill_scope_mismatch`, `skill_view_identity_conflict`, `skill_snapshot_invalid` | `R/skills/access.py:65`, `R/skills/access.py:96`, `R/skills/access.py:184` | code only | DEAD | internal consistency checks |
 
 Not reachable: `skill_runtime_unavailable` (`T/skills.py:66`), because dispatch always injects `RunSkillAccess` (`R/tool_dispatch.py:103-106`).
 
-Count: RNL 9 · OWNER 2 · DEAD 4 · BUG 1 · LED 0.
+Count: RNL 10 · OWNER 2 · DEAD 4 · BUG 0 · LED 0.
 
 ### 3.6 Artifacts (`artifact_create`, `artifact_read`)
 
@@ -344,15 +344,15 @@ Count: RNL 0 · OWNER 1 · DEAD 1 · BUG 0 · LED 0.
 |---|---|---|---|---|---|
 | shared (registry, dispatch) | 4 | 0 | 1 | 2 | 3 |
 | workspace | 14 | 1 | 3 | 0 | 1 |
-| web | 8 | 1 | 4 | 5 | 5 |
-| feeds | 5 | 1 | 2 | 0 | 1 |
+| web | 9 | 1 | 3 | 5 | 5 |
+| feeds | 5 | 2 | 1 | 0 | 1 |
 | MCP | 6 | 6 | 3 | 0 | 2 |
-| skills | 9 | 2 | 4 | 1 | 0 |
+| skills | 10 | 2 | 4 | 0 | 0 |
 | artifacts | 2 | 0 | 4 | 0 | 0 |
 | scratchpad | 0 | 0 | 1 | 0 | 0 |
 | models | 1 | 2 | 3 | 1 | 2 |
 | capabilities_list | 0 | 1 | 1 | 0 | 0 |
-| **total** | **49** | **14** | **26** | **9** | **14** |
+| **total** | **51** | **15** | **24** | **8** | **14** |
 
 A row groups codes that share a cause and a fix, so these are counts of outcomes, not of distinct code strings. Of 112 outcomes, 14 lead the model to a next step.
 
@@ -377,7 +377,7 @@ A row groups codes that share a cause and a fix, so these are counts of outcomes
 | `T/registry.py:159-160` | `Discovery grants no authority.` | Needed for safety |
 | `T/models.py:381-382` | `A model outside the allowed list, and any other change, raises a one-tap owner card instead.` | Owner decision, needed |
 
-None of the 18 files contains an Arabic string (checked by scanning each file for Arabic letters). Everything these tools return is English or a code; any Arabic the owner reads is written by the model from this material.
+None of the files behind these tools contains an Arabic string (the author scanned 18 files; the checker re-scanned 43: the shared tool files, the families' tool modules, `R/workspace*.py`, `R/skills/*.py` and `A/mcp/*.py`, with no hit). Everything these tools return is English or a code; any Arabic the owner reads is written by the model from this material.
 
 ---
 
@@ -391,7 +391,7 @@ There is no server-side filter between a tool result and the model's reply in th
 4. **A broker code for non-broker tools**: `broker_result_ambiguous` after an interrupted `scratchpad_write`, `artifact_create` or `mcp_execute` (1.3). If repeated to the owner it is also untrue.
 5. **Codes in successful results**: feed `reason` (`T/feeds.py:78-80`), skill `code` (`R/skills/access.py:266-267`), model card `why` (`T/models.py:312-316`), capability states `not_connected` / `not_set_up` (`T/capabilities.py:80-98`), MCP trust states (`T/mcp.py:216-242`).
 6. **Internal identifiers given to the model**: MCP `connection_id` (`T/mcp.py:199`, `T/capabilities.py:202`), skill `resource_id` and `agent_id` (`T/capabilities.py:236-237`), integration `id` (`T/capabilities.py:265`), workspace `operation_id` and container image digest (`R/workspace_access.py:399-403`), card ids (`T/owner_actions.py:185-195`, `T/models.py:310`, `T/models.py:365`).
-7. **English UI words**: `"owner_sees": "Capabilities, with Remove"` (`T/feeds.py:147`); the Arabic UI calls that place «التكاملات» (`docs/trusted-sources.md:115`).
+7. **English UI words**: `"owner_sees": "Capabilities, with Remove"` (`T/feeds.py:147`). The Arabic labels differ by client: web calls the page «التكاملات» (`docs/trusted-sources.md:181`), mobile calls Capabilities «القدرات» (`apps/mobile/lib/i18n.ts:483`). The author's earlier citation `docs/trusted-sources.md:115` is the integrations page of the MCP review, not the Capabilities label.
 8. **Raw program output**: `stdout` and `stderr` of `workspace_execute`, including Python tracebacks (`R/workspace_access.py:400-402`).
 
 Cards: the trust cards raised from these families are built on the server from a domain, a repository name or MCP tool names (`T/feeds.py:149-154`, `R/skills/lifecycle.py:227-233`, `T/mcp.py:300-308`); the model supplies no card text. I did not trace the card renderer (it is in the owner-action family), so I make no claim about what the card itself displays.
@@ -426,13 +426,13 @@ Cards: the trust cards raised from these families are built on the server from a
 
 ## 8. Mechanisms from these families that produce the owner's complaint, most important first
 
-1. **Failures carry a code and a category, never a next tool** (`R/tool_dispatch.py:110-117`, `R/environment.py:35-93`). 49 of 112 outcomes here are recoverable by the agent alone and say nothing about how. This is the direct cause of replies shaped like the owner's example.
+1. **Failures carry a code and a category, never a next tool** (`R/tool_dispatch.py:110-117`, `R/environment.py:35-93`). 51 of 112 outcomes here are recoverable by the agent alone and say nothing about how. This is the direct cause of replies shaped like the owner's example.
 2. **The one place a handler wrote a hint, the runtime deletes it** (`R/environment.py:210` against `T/models.py:207-208`, `T/models.py:222-223`).
-3. **Wrong labels that send the model the wrong way**: a typo in a tool name becomes a permission refusal (S2); a missing page element becomes a retried "timeout" (B6); a network error in `web_fetch` becomes an "internal failure" (B16); a too-large page becomes "browser unavailable" (B10); an interrupted note or file write becomes a "broker result ambiguous" (S6).
+3. **Wrong labels that send the model the wrong way**: a typo in a tool name given directly or to `tool_environment` becomes a permission refusal (S2); a missing page element becomes a retried "timeout" (B6); a network error in `web_fetch` becomes an "internal failure" (B16); a too-large page becomes "browser unavailable" (B10); an interrupted note or file write becomes a "broker result ambiguous" (S6).
 4. **Silent wrong success in `web_fetch`**: redirects refused without the target (B14), binary bodies returned as text (B17), long pages cut without a flag (B18), HTML links removed. The agent believes it read a source it did not fully read, or gives up on a source that only moved.
 5. **Transient states labelled terminal**: `workspace_busy`, `mcp_connection_timeout`, `skill_repository_rate_limited` are `terminal_domain_failure` and are not retried (W3, M12, K6); three identical failures then lock the call (S7).
-6. **Owner-needed steps are led only from a different tool**: the result of `mcp_execute` or `web_search` does not mention the card; the guidance lives in `mcp_tools`, `mcp_connections` and `capabilities_list` (M5, B19), none of which the Personal Agent has natively.
-7. **Missing inverse and lookup tools**: no artifact list (A1), no feed unsubscribe (F9), no note edit (P1), no read of a skill's `resource_version` (K9), no paging in `web_fetch`/`web_browse` (B13, B18).
+6. **Owner-needed steps are led only from a different tool**: the result of `mcp_execute` or `web_search` does not mention the card; the guidance lives in `mcp_tools`, `mcp_connections`, `capabilities_list` and, for the card kinds, the system prompt (`packages/agent-runtime/resources/system/lonora.md:558`, `:561`) (M5, B19); the tool-side ones are not native for the Personal Agent, the system prompt lines are always present.
+7. **Missing inverse and lookup tools**: no artifact list (A1), no feed unsubscribe (F9), no note edit (P1), no read of a skill's `resource_version` outside the package tools' own results (K9, UNSURE), no paging in `web_fetch`/`web_browse` (B13, B18).
 8. **`not_set_up` is a taught "I can't"** (`T/capabilities.py:302-304`): correct for an operator, a dead end for this owner, and no substitute is offered.
 9. **The external-content switch fires on first-party reads** (`mcp_connections`, `workspace_inspect`, `search_internal`), turning an owner-named model switch into a card (1.6, O5). Needed for safety in principle; the trigger list is wider than the threat.
 
@@ -448,3 +448,35 @@ Refusals in these families that exist for the money-safety rules and must stay: 
 - Whether recalled history is intended to supply `resource_version` for skill packages in later Runs (K9).
 - Browser behaviour for a missing selector (B6) was derived from the code and the Playwright class hierarchy, not from a live browser run.
 - What the trust and model cards display to the owner was not traced (section 5).
+
+---
+
+## Verification log
+
+Independent check of this file against the code (read-only; only this file was edited).
+
+- Citations opened: 460 `path:line` or `path:a-b` citations in the file (414 distinct). Each was extracted by script and the cited lines printed. For 135 distinct ranges longer than 7 lines only the first 7 lines were printed; for the claims that hinge on the rest of such a range (S6 dispatch/observe, K9, B6, B10, B16-B18, W7, F2, F4, F5) the full code was read separately.
+- Line numbers corrected: 0 wrong. Every cited line exists and supports its claim. Citation corrections: 2 (the Arabic label citation in section 5 item 7; the missing cites for K14).
+- Verbatim quotes: the quoted strings in sections 1.2, 1.6, 4 and 5 (about 25, including the 13 rows of section 4) were compared with the source; all match, including the split-line quotes (`T/search.py:337-338`, `T/mcp.py:436-437`, `T/models.py:207-208`, `T/models.py:222-223`).
+- Runtime facts re-run (project virtualenv, nothing written): registry has 126 tools; `classify()` outputs for the nine codes in 1.1 item 5 match; `observe()` replaces a handler's `recovery` string with the generic dict; eager profiles of the 30 tools match the "native for" column; httpx timeout/connect errors are not subclasses of the builtin `TimeoutError`/`ConnectionError` (B16); Playwright's `TimeoutError` is a subclass of its `Error` (B6).
+- Counts: all ten family tables and the totals were recounted from the rows (112 outcomes). After the reclassifications below the totals are RNL 51, OWNER 15, DEAD 24, BUG 8, LED 14 (sum 112).
+
+Claims refuted or downgraded:
+
+1. K9 (skills `version_conflict`) downgraded from BUG to RNL with UNSURE: the claim that only package tool results carry `resource_version` missed that the `skill_package_import` description tells the model `updates require current resource_version` (`T/skills.py:131`); inside one Run the value is available.
+2. F9 (no feed unsubscribe) reclassified DEAD to OWNER: the class definition says DEAD means no path for the owner either, and the owner has a path ("Capabilities, with Remove", `T/feeds.py:147`).
+3. B1 (`browser_unconfigured`) reclassified DEAD to RNL (partial): `web_fetch` is callable by the same agent and covers static pages. Only JavaScript-rendered pages stay without a path.
+4. B19 / section 8 item 6: "the agent's step `owner_action_propose` is named only in `capabilities_list` guidance" was wrong. That guidance names the card kind `connect_credential`, not the tool; the system prompt names the kind at `packages/agent-runtime/resources/system/lonora.md:561` and the tool for `trust_source` at `:558`. Section 8 item 6 no longer says the Personal Agent lacks all such guidance.
+5. Section 5 item 7: the Arabic UI does not call the Capabilities place «التكاملات» everywhere. Web uses «التكاملات» (`docs/trusted-sources.md:181`), mobile uses «القدرات» (`apps/mobile/lib/i18n.ts:483`); the cited line 115 is the MCP review sheet.
+6. S2 narrowed: a misspelt name becomes `tool_not_allowed` only when given directly or to `tool_environment`; through `tool_call` it is `tool_call_target_unknown`.
+7. Section 2: "Of the 26 rows" is now "30 tools in the 26 rows" (the `skill_package_*` and `scratchpad_*` rows group several tools). The list of five native tools was confirmed.
+8. Header: HEAD is `3f09572`, not `9f5b1da`; the difference is documentation only (`git diff --stat 9f5b1da 3f09572` lists no code), so the code citations stand.
+9. Section 4 note "None of the 18 files": count was unsupported; rewritten with the checker's 43-file scan (no Arabic found).
+
+Findings the author missed (added to the body above):
+
+- `tool_environment` itself tells the model that every mutating tool needs `reconciliation_after_uncertainty` and lists `tool_execution_uncertain` as its common code (`T/environment.py:39`, `T/environment.py:49-53`), and `classify()` already maps the first `tool_execution_uncertain` to `reconcile_before_any_resend` (`R/environment.py:42-43`). This widens S6.
+- Discovery is stricter than written in S9: one unknown token anywhere in a query (not only Arabic) empties the result, because the rarest token becomes the gate (`T/tool_discovery.py:62`, `T/tool_discovery.py:69-72`).
+- `K14` codes `skill_duplicate_id` and `skill_tool_unknown` come from `R/skills/registry.py:40`, `R/skills/registry.py:46` and are passed through at `R/skills/lifecycle.py:166-169`.
+- Not changed, but worth knowing: the external-content rule (1.6) is deliberate; `R/context/run_evidence.py:49-51` says a test makes every catalog tool take a side, so widening or narrowing the list is a design decision, not an oversight.
+- Doc/code disagreement 7.1 holds with a nuance: the doc line (`docs/open-web-research.md:24-26`) only excludes the Personal Agent from the `research` profile; the code gives it `web_search` through `coordination` (`T/search.py:342`).
