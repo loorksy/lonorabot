@@ -97,16 +97,17 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "market_symbols",
-            "Discover exact broker symbol names without loading specifications for every instrument. "
-            "Use before guessing broker symbols or aliases; suffixes matter. When an immutable trading market "
-            "is bound, omit account_id and do not ask the owner to repeat the symbol.",
+            "List the account's exact symbol names without loading specifications for every "
+            "instrument. Market reads resolve a name or code themselves; use this to browse "
+            "the catalogue. When an immutable trading market is bound, omit account_id and do "
+            "not ask the owner to repeat the symbol.",
             AccountInput,
             symbols,
             True,
         ),
         Tool(
             "market_instrument",
-            "Read specifications for ONE exact broker symbol from market_symbols. Prefer this to loading every instrument for a single-symbol analysis.",
+            "Read ONE contract's specifications. A name or code (gold, XAUUSD) resolves to this account's own symbol, stated in the result.",
             QuoteInput,
             instrument,
             True,
@@ -121,7 +122,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_quote",
-            "Read current market price quotes (bid/ask) and sourced observation time for an exact broker symbol.",
+            "Read current market price quotes (bid/ask) and observation time; symbol resolves like market_instrument.",
             QuoteInput,
             quote,
             True,
@@ -130,7 +131,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_candles",
-            "Read historical broker candles without symbol rewriting.",
+            "Read historical broker candles for this account's symbol.",
             CandlesInput,
             candles,
             True,

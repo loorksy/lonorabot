@@ -55,10 +55,13 @@ async def test_invalid_catalog_shape_is_unavailable_not_an_unknown_symbol() -> N
         await canonical_broker_symbol(broker, "EURUSDm", require_exists=True)
 
 
+Specs = dict[str, tuple[str | None, str | None]]
+
+
 class Account:
     """One account's catalogue with the broker's own specifications."""
 
-    def __init__(self, specs: dict[str, tuple[str | None, str | None]]):
+    def __init__(self, specs: Specs):
         self.specs = specs
         self.listings = 0
 
@@ -82,7 +85,7 @@ class Account:
         )
 
 
-EXNESS = {"EURUSDm": ("EUR", "USD"), "XAUUSDm": ("XAU", "USD"), "XAUEURm": ("XAU", "EUR")}
+EXNESS: Specs = {"EURUSDm": ("EUR", "USD"), "XAUUSDm": ("XAU", "USD"), "XAUEURm": ("XAU", "EUR")}
 REQUESTS = ["XAUUSD", "xauusd", "gold", "الذهب", "XAU/USD", "XAU", "USD", "m", "EURUSD", "XAUUSDT"]
 
 
@@ -140,11 +143,12 @@ async def test_an_order_or_grant_symbol_is_never_resolved_to_another_symbol(
 ) -> None:
     """Money paths accept the catalogue's exact name (letter case aside) or fail."""
     arguments = {"require_exists": True} if strict is canonical_broker_symbol else {}
-    for specs in (
+    accounts: list[Specs] = [
         EXNESS,
         {"XAUUSD": ("XAU", "USD"), "XAUUSDc": ("XAU", "USD")},
         {"GOLD": (None, None)},
-    ):
+    ]
+    for specs in accounts:
         try:
             symbol = await strict(Account(specs), requested, **arguments)
         except SymbolNotResolved:

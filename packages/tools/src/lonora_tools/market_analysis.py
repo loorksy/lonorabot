@@ -357,7 +357,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "market_snapshot",
-            "One compact multi-timeframe summary for an exact broker symbol: bid/ask/spread and "
+            "One compact multi-timeframe summary for one instrument: bid/ask/spread and "
             "freshness; per timeframe closed-bar trend slope, swing structure, range, ATR with "
             "percentile volatility regime and RSI; previous day/week high-low with distances in "
             "price and daily ATR. Forming bars are excluded and reported separately. Numbers "

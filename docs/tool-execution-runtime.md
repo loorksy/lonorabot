@@ -209,6 +209,12 @@ Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
 
+A failed call's observation is `{ok: false, code}` plus `recovery`. Two failures add
+what the model needs to continue by itself: `tool_arguments_invalid` carries its
+`issues`, and a symbol the account does not list (`symbol_not_found`,
+`symbol_ambiguous`) carries the account's real `candidates` and the `next` call
+(`docs/market-analysis.md`, Instrument resolution).
+
 ## Dispatch deadlines
 
 `ToolRegistry.execute` wraps the handler in a per-tool deadline:
