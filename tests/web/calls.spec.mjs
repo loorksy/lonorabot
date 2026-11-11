@@ -268,7 +268,7 @@ test("Q58: with no voice provider the call button warns and opens the provider s
   await expect(sheet).toContainText("No voice provider is configured yet.");
   await expect(page).toHaveURL(`/app/${agent.id}`);
   await sheet.getByRole("button", { name: "Set up the voice provider", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/providers$/);
+  await expect(page).toHaveURL(/\/app\/provider\/openai$/);
   // Nothing was dialled and no microphone was asked for.
   expect(sessions).toHaveLength(0);
   expect(await page.evaluate(() => window.__calls.streams.length)).toBe(0);

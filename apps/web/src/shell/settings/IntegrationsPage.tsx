@@ -42,8 +42,8 @@ const levelText = (server: CapabilityServer) => {
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). Ours: the global brake under the trading accounts, and «النماذج» (routing) and the
-   voice-call readiness under AI. */
+   owner (Q53). The global brake sits under the trading accounts; «النماذج» (routing) and the
+   voice-call readiness under AI (Q57). */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
@@ -473,15 +473,17 @@ export function IntegrationsPage() {
             <button
               type="button"
               className={`btn ${stop ? "danger" : "primary"}`}
-              onClick={() => {
+              onClick={async () => {
                 sheets.close(true);
-                void act(
-                  async () => {
-                    controls.set(await (stop ? stopNewTrading() : resumeTrading()));
-                    refresh();
-                  },
-                  stop ? t`Trading stopped · closing is still allowed` : t`Trading resumed`,
-                );
+                try {
+                  controls.set(await (stop ? stopNewTrading() : resumeTrading()));
+                  refresh();
+                  toast(stop ? t`Trading stopped · closing is still allowed` : t`Trading resumed`, {
+                    type: "success",
+                  });
+                } catch (error) {
+                  toast(userError(error), { type: "error" });
+                }
               }}
             >
               {title}
@@ -545,7 +547,7 @@ export function IntegrationsPage() {
           </span>
           <span className="body">
             <strong>{safety.title}</strong>
-            <small role="status">
+            <small>
               {stopped == null
                 ? controls.error != null
                   ? userError(controls.error)

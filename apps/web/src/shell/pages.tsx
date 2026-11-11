@@ -58,7 +58,7 @@ import { UsageDetailPage, UsagePage } from "./settings/UsagePage";
 
 const Market = lazy(() => import("../pages/Market").then((m) => ({ default: m.Market })));
 const Trading = lazy(() => import("../pages/Trading").then((m) => ({ default: m.Trading })));
-/** Old settings tabs, each on its page now. */
+/** `?tab=` values of saved links and the page each one opens. */
 const settingsMoved: Readonly<Record<string, string>> = {
   capabilities: "/app/integrations",
   integrations: "/app/integrations",

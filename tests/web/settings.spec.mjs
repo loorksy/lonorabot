@@ -306,6 +306,29 @@ test("models, voice calls and the trading brake live under integrations; old tab
     await page.goto("/app/settings?tab=models");
     await expect(page).toHaveURL(/\/app\/models$/);
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+    // No provider yet: the page says where models come from and offers no empty form.
+    await expect(
+      page.getByText("Models appear here after you add a model provider."),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
+    await page.getByRole("button", { name: /^Model providers/ }).click();
+    await expect(page).toHaveURL(/\/app\/providers$/);
+    await page.route("**/api/providers/openai/models", (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: "gpt-test",
+            provider: "openai",
+            name: "GPT Test",
+            capabilities: ["conversation"],
+            verified: true,
+            source: "discovered",
+            context_window: null,
+          },
+        ],
+      }),
+    );
+    await page.goto("/app/models");
     await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
     await expect(page.locator("[data-allowed-models]")).toBeVisible();
     // One key form: the provider page. This page has none.
@@ -327,19 +350,19 @@ test("models, voice calls and the trading brake live under integrations; old tab
     );
     // The global brake: confirmed in a sheet, exits stay allowed.
     const brake = page.getByTestId("trading-brake");
-    await expect(brake.getByRole("status")).toHaveText("New trading is running");
+    await expect(brake.locator("small")).toHaveText("New trading is running");
     await brake.click();
     const sheet = page.locator("#dialog");
     await expect(sheet).toContainText("Exits stay allowed");
     await sheet.getByRole("button", { name: "Stop new trading" }).click();
-    await expect(brake.getByRole("status")).toHaveText("New trading is stopped");
+    await expect(brake.locator("small")).toHaveText("New trading is stopped");
     expect(await (await context.request.get("/api/trading/controls")).json()).toMatchObject({
       enabled: false,
       emergency_stop: true,
     });
     await brake.click();
     await sheet.getByRole("button", { name: "Resume trading" }).click();
-    await expect(brake.getByRole("status")).toHaveText("New trading is running");
+    await expect(brake.locator("small")).toHaveText("New trading is running");
     await page.getByRole("button", { name: /^Voice calls/ }).click();
     await expect(page).toHaveURL(/\/app\/provider\/openai$/);
   } finally {

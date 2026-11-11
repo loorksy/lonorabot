@@ -11,7 +11,7 @@ import { capabilities, readRouting, saveRouting } from "../../lib/model_routing"
 import { userError } from "../../lib/user_error";
 import { useToast } from "../Toast";
 import { providerName } from "./ConnectionPages";
-import { Note, useLoad } from "./ui";
+import { NavRow, Note, useLoad } from "./ui";
 
 const capabilityLabel = (cap: Capability) =>
   ({
@@ -44,6 +44,17 @@ export function ModelsPage() {
   if (!load.value) return load.error != null ? <Note>{userError(load.error)}</Note> : null;
   const [routing, catalogs, allowed] = load.value;
   const models = catalogs.flat();
+  if (!models.length)
+    return (
+      <>
+        <Note>
+          <Trans>Models appear here after you add a model provider.</Trans>
+        </Note>
+        <div className="group">
+          <NavRow icon="cpu" label={t`Model providers`} to="/app/providers" />
+        </div>
+      </>
+    );
   return (
     <>
       <RoutingForm
@@ -256,7 +267,7 @@ function AllowedList({ initial, models }: { initial: AllowedModels; models: Mode
         </div>
       )}
       <label className="field">
-        <span>{text.chooseModel}</span>
+        <span>{t`Model`}</span>
         <select value={pick} onChange={(event) => setPick(event.target.value)}>
           <option value="">{text.chooseModel}</option>
           {models
