@@ -632,7 +632,6 @@ async def test_the_terminal_refuses_like_a_broker():
     assert await code_of(fake.account()) == ("broker_account_not_found", 404)
 
 
-@pytest.mark.xfail(strict=True, reason="main reports a symbol's 404 as an unknown account ([10])")
 @pytest.mark.asyncio
 async def test_an_unknown_symbol_is_not_reported_as_an_unknown_account():
     fake = adapter(broker.FakeTerminal())

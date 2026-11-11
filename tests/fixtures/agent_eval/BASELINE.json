@@ -185,9 +185,7 @@
  },
  "structural": {
   "expected": {
-   "M09": [
-    "call:gold_analysis"
-   ],
+   "M09": [],
    "M13": [],
    "M28": [],
    "M34": [],
@@ -195,33 +193,17 @@
    "M62": [],
    "M64": [],
    "M68": [],
-   "M74": [
-    "finds_the_cancel_tool"
-   ],
-   "M50": [
-    "voice_heard_in_arabic"
-   ],
-   "X_c": [
-    "call:gold_analysis"
-   ],
-   "X_pro": [
-    "call:gold_analysis"
-   ],
-   "X_gold": [
-    "call:gold_analysis"
-   ],
-   "X_code": [
-    "call:gold_analysis"
-   ],
-   "X_alias": [
-    "call:gold_read"
-   ],
+   "M74": [],
+   "M50": [],
+   "X_c": [],
+   "X_pro": [],
+   "X_gold": [],
+   "X_code": [],
+   "X_alias": [],
    "X_unknown": [
     "refusal:candidates"
    ],
-   "X_drop": [
-    "refusal:connection_retryable"
-   ],
+   "X_drop": [],
    "X_rate": [
     "refusal:retryable"
    ],
@@ -233,9 +215,7 @@
     "call:watch_cancel",
     "state:all_watches_cancelled"
    ],
-   "X_task": [
-    "state:task_watch_stopped"
-   ]
+   "X_task": []
   }
  }
 }

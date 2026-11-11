@@ -269,9 +269,10 @@ signing started, and every earlier turn of the conversation as history.
   deletion.
 - *Live read* ([28], [56], [58], [64]): a status answer has its read in the same turn.
 
-## Baseline: `main` today
+## Baseline: `main` before the fixes
 
-`main` at `9f5b1da`, 2026-11-11. Two columns, and they are not the same kind of evidence:
+`main` at `9f5b1da`, 2026-11-11: the "before" column of the before/after report. What `main`
+scores now is in the next section. Two columns, and they are not the same kind of evidence:
 
 - **Live** is one run of the whole bank on a real model (`openai/gpt-5.4-mini`, one sample
   per scenario, sequential). It measures behaviour: what the model did with today's prompt,
@@ -341,7 +342,7 @@ calls and no cancel; [68] and [76] again create a watch switched off instead of 
 [23] and [30] again refuse despite the mandate; [50] again answers the mis-transcribed note
 in another language.
 
-**What the structural column says about `main`:**
+**What the structural column said about `main` at `9f5b1da`:**
 
 - A gold name that is not the account's exact symbol does not resolve: «الذهب», `XAUUSD` and
   `GOLD` are refused on every account naming (M09, X_c, X_pro, X_gold, X_code, X_alias). Only
@@ -357,6 +358,32 @@ in another language.
 - Setting take-profit and stop-loss on the position, arming a profit watch on it, reading
   the account live and stopping an unauthorised trade at the owner's approval all work
   (M34, M40, M28, X_permission).
+
+## After phase 0 and the watch lifecycle fixes
+
+`main` at `0aee7ea`, 2026-11-11, with pull requests #60 (phase 0: the account's own symbol
+for an instrument, the 404 split, tool search, the error contract fields, the voice language
+hint) and #57 (the no-model state, the watch lifecycle, the counterpart tools) merged.
+
+**Structural: 18 of 22 probes pass** (8 of 22 before). `tests/fixtures/agent_eval/BASELINE.json`
+holds this state, and the test suite holds it strictly.
+
+| Scenario | Before | Now | Still failing |
+|---|---|---|---|
+| M09, X_c, X_pro, X_gold, X_code, X_alias (gold by name, code or another account naming) | fail | pass |  |
+| M74 (tool search finds the cancel tool from «حذف المتابعات») | fail | pass |  |
+| M50 (a voice note is heard in the owner's language) | fail | pass |  |
+| X_drop (a dropped connection is reported as a connection failure that can be retried) | fail | pass |  |
+| X_task (a cancelled Task stops the watch it created) | fail | pass |  |
+| M13, M28, M34, M40, M62, M64, M68, X_permission | pass | pass |  |
+| X_unknown (a symbol the account does not have) | fail | fail | refusal:candidates: the nearest names arrive as `similar_symbols`, not as `candidates` |
+| X_rate (the broker rate-limits) | fail | fail | refusal:retryable |
+| X_args (a size below the contract minimum) | fail | fail | refusal:input: the refusal has no `class` of input |
+| X_owner (watches of another agent of the owner) | fail | fail | call:watch_cancel; state:all_watches_cancelled |
+
+The live column was not run again: it needs a real model and spends tokens, and it measures
+behaviour that the later phases change (the completion check, promises, claims). It is run
+again for the final before/after report.
 
 ## Limits
 
