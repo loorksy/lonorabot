@@ -23,6 +23,7 @@ export type Candle = {
 export type Instrument = {
   symbol: string;
   description: string;
+  path?: string | null;
   digits: number;
   tick_size: string;
   volume_min: string;

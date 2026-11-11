@@ -88,6 +88,9 @@ class Tool:
     # Profiles whose Runs receive this schema natively from the first turn.
     eager: frozenset[ExposureProfile] = field(default_factory=frozenset[ExposureProfile])
     availability: AvailabilityCheck | None = None
+    # Everyday English and Arabic words for this capability that its description does
+    # not use. Discovery only: they are matched by tool search, never sent as schema.
+    search_terms: str = ""
 
     def permitted(self, scope: ToolScope) -> bool:
         if scope == "full":

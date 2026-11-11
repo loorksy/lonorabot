@@ -38,7 +38,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | Profile | Applies to | Eager tools |
 | --- | --- | --- |
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
-| `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `trade_execute` |
+| `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `watch_list`, `watch_cancel`, `trade_execute`, `trade_close_positions` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
 | `coordination` | the Personal Agent, and any agent while it holds a supervision grant; not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
@@ -47,10 +47,10 @@ A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
 the members: an observe-only wake keeps every non-financial member (no financial
 effects), and a helper (subagent) keeps the read-only members plus
 `workspace_execute` and `artifact_create`. The eager set
-is at most `EAGER_SCHEMA_BUDGET` (25,700) characters of serialized schema for
+is at most `EAGER_SCHEMA_BUDGET` (26,950) characters of serialized schema for
 every profile combination (largest today: the Personal Agent's conversation
-with coordination, 25,695, and market Task Runs, 25,689; a market conversation
-about 24,300; a general conversation about 9,000), against
+with coordination, 26,929, and market Task Runs, 26,923; a market conversation
+about 25,600; a general conversation about 9,000), against
 about 97,500 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit. The budget rose
 from 24,000 to 24,800 when the core set gained ranked history recall
@@ -62,7 +62,15 @@ market) and the DST-correct `market_sessions` clock, while `market_structure`
 left it: the snapshot reports swing structure per timeframe with the same rule,
 and exact anchors and lines are a follow-up through `tool_call` (and a remembered
 tool once used). `PROMOTED_SCHEMA_BUDGET` gave up the same 900 characters, so
-the worst-case native set is unchanged. Owner restrictions and monetary limits
+the worst-case native set is unchanged. It rose to 26,950 when the market set
+gained the counterparts of what it already offered: `watch_list` and
+`watch_cancel` beside `watch_create`, and `trade_close_positions` beside
+`trade_execute`. A Run that may create a watch or open a position lists, stops
+and closes the same way, so an exit is never the harder tool to find (offering
+a tool authorizes nothing: every call is still validated).
+`PROMOTED_SCHEMA_BUDGET` gave up the same 1,250 characters (4,100 to 2,850),
+which those three tools no longer need from it; it still holds `trade_execute`
+beside two reads for an agent that is not a market agent. Owner restrictions and monetary limits
 are shown in the permission frame on every turn, so `trade_restriction_create`
 and `trade_restriction_list` stay long-tail. A tool whose backend is not
 configured reports it through `availability`: `economic_calendar_read` without
@@ -78,7 +86,7 @@ nothing: a helper Run carries its parent's agent id, and observe-only wakes are
 automated, so neither displaces the agent's own tools. When the agent's next
 Run starts, its most recent remembered tools are promoted into that Run's
 native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`
-(4,100 characters); tools that are unavailable,
+(2,850 characters); tools that are unavailable,
 out of scope or larger than the remaining budget are skipped. A follow-up turn
 therefore calls the long-tail tool it used last time directly. The native set
 is bounded by about 29,800 characters in the worst case.
@@ -208,6 +216,50 @@ as interrupted:
 Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
+
+A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
+`class` is one of input, resolution, connection, permission, provider, internal
+(`environment.error_class`, from the recovery category). An operation the executor
+refused or the broker failed (`status` failed or rejected) is `ok: false` too; a read
+that returns the record of such an operation has itself succeeded and is not touched.
+The owner's rejection of a card (`trade_approval_rejected`) and an agent whose level
+does not trade (`agent_analysis_only`, `shadow_execution_forbidden`) are of class
+permission.
+
+Every failure has a `hint`: the tool's own when it wrote one, else the general sentence
+of its recovery category (`environment.RECOVERY_HINTS`). A general hint says no more
+than is known: an outcome that is not known says so and forbids both "failed" and "went
+through"; a permission hint says not to look for another way, and the sentence for an
+unclassified refusal says a rule or the owner's decision is respected; a connection
+failure is offered for another try only on a read, and a read that failed three times
+says it is not tried again. A handler that returns its own sentence under `recovery` has
+it carried as the `hint` (the structured block takes the `recovery` key), and a next step
+a handler names itself is kept in the block.
+
+A tool writes its own fields by raising `ToolRefusal` (`lonora_core.user_error`), whose
+`details` `tool_dispatch` forwards: authored text and the account's own data, never
+exception text. Today: `tool_arguments_invalid` carries its `issues`; a symbol the
+account does not list (`symbol_not_found`, `symbol_ambiguous`) carries the account's
+`candidates`, a `hint` and `next_actions` (`docs/market-analysis.md`, Instrument
+resolution); a new order whose size the contract cannot take (`volume_out_of_range`,
+`volume_step_mismatch`) is refused by `trade.require_order_size` before any card and
+before the executor, with the contract's `limits`. That check runs on a first attempt
+only (`trade.never_recorded`): a call that already has an approval card or a journal
+entry (after the owner's approval, after a restart, or to reconcile an unknown outcome)
+is answered from its record. A partial close is never checked there: an exit is the
+executor's alone. A broker rate limit (`broker_rate_limited`) is a transient read
+failure: a read is retried after a short wait like a dropped connection.
+
+**What the model reads.** The Run record keeps the whole envelope. The request to the
+model carries every tool result through `failure_view`: a `code` of ours becomes
+`reason` with its words spelled out ("symbol not found"), and the recovery labels
+likewise. That covers a failure, an outcome not yet known and a result that only notes
+why nothing was done (`no_positions`); a `code` that is not a machine label, such as one
+an outside tool returns, is left alone, and a `reason` the result already gives is kept
+after the code's words. Tool names stay exact. A reply cannot repeat a machine code the
+model never read; the gates, the scorer and the logs still read the codes in the record.
+The background summary and the context sections that list earlier failures still read
+the record and are not covered by this view.
 
 ## Dispatch deadlines
 

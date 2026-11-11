@@ -182,6 +182,8 @@ async def resume_ready_waits(db: Database) -> int:
             MarketWatchRow.id == source_id,
             MarketWatchRow.agent_id == RunRow.agent_id,
             MarketWatchRow.thread_id == RunRow.thread_id,
+            # A watch stopped after it fired wakes nobody: the owner believes it is gone.
+            MarketWatchRow.payload["enabled"].as_boolean().is_not(False),
             observed.is_not(None),
             ~consumed,
         )
@@ -249,6 +251,7 @@ async def resume_one(db: Database, candidate: RunRow) -> bool:
                 and source.owner_id == thread.owner_id
                 and source.agent_id == candidate.agent_id
                 and source.thread_id == candidate.thread_id
+                and source.payload.get("enabled", True)
             ):
                 observed = source.state.get("last_triggered")
                 ready = bool(observed and observed >= source.created_at.isoformat())

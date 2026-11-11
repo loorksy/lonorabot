@@ -542,5 +542,6 @@ def tools() -> list[Tool]:
             "Pause, resume or cancel this saved goal. This tool cannot enable financial autonomy or expand financial limits.",
             GoalToggle,
             toggle,
+            search_terms="delete remove cancel stop clear erase حذف احذف امسح مسح ألغ ألغِ الغ إلغاء الغاء أوقف وقف ايقاف إيقاف شيل ازل أزل إزالة هدف الهدف أهداف الأهداف خطة الخطة",
         ),
     ]

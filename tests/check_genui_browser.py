@@ -13,6 +13,7 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 import asyncio
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -106,7 +107,7 @@ async def setup(_: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
-def scripted(first: list[ToolCall], text: Any, delay: float):
+def scripted(first: list[ToolCall], text: Callable[[list[ModelMessage]], str], delay: float):
     """Round one asks for ``first``; round two streams ``text(messages)`` in chunks."""
 
     async def complete(*args: Any, **kwargs: Any):

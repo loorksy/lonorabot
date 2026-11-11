@@ -3,6 +3,7 @@ the delivery row, budget and deterministic repair (GENUI_PLAN §9.2, §9.4, §10
 
 import json
 import re
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -85,7 +86,21 @@ def reply(body: str = A01) -> str:
     return LEAD + "```lonora-ui\n" + body.rstrip("\n") + "\n```\n"
 
 
-async def project(text: str, *, agent: _Agent | None = None, history=None, partial=False):
+Edit = Callable[[str], str]
+
+
+def edits(*items: Edit) -> list[Edit]:
+    """A parametrized list of card edits, typed so each lambda's argument is the card text."""
+    return list(items)
+
+
+async def project(
+    text: str,
+    *,
+    agent: _Agent | None = None,
+    history: list[ModelMessage] | None = None,
+    partial: bool = False,
+):
     projector = VisualReplyProjector(context(agent), history or messages())
     projection = await projector.project(text, partial=partial)
     return projection, projector
@@ -244,7 +259,9 @@ async def test_over_budget_blocks_fold_but_the_send_stays_last() -> None:
     assert any(d["code"] == "budget_folded" for d in projector.diagnostics)
 
 
-def test_v2_prompt_block_is_bounded_generated_and_off_by_default(monkeypatch) -> None:
+def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.skills.visual_policy import (
         MAX_GENUI_GUIDANCE_CHARS,
@@ -340,15 +357,14 @@ async def test_a_typed_market_value_makes_the_card_fall_back() -> None:
         '{"type":"KeyValue","rows":[["Target","2400"]]}\n{"type":"Text","tone":"muted"',
     )
     projection, _ = await project(reply(owned))
-    assert projection.rich_until() and any(
-        p["type"] == "ui" for p in projection.rich_until()["parts"]
-    )
+    rich = projection.rich_until()
+    assert rich and any(p["type"] == "ui" for p in rich["parts"])
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "edit",
-    [
+    edits(
         # A templated head title assembles a private id only when rendered.
         lambda body: body.replace('"title":"تنبيه سعر"', '"title":"{$tid}"').replace(
             '"calc":{', '"calc":{"tid":"\'0f1e2d3c-4b5a-6978\'+\'-8a9b-0c1d2e3f4a5b\'",'
@@ -371,9 +387,9 @@ async def test_a_typed_market_value_makes_the_card_fall_back() -> None:
             '{"type":"Note","text":"{$tag + \'-8a9b-0c1d2e3f4a5b\'}"}\n'
             '{"type":"Text","tone":"muted"',
         ),
-    ],
+    ),
 )
-async def test_the_privacy_guard_reads_rendered_strings(edit) -> None:
+async def test_the_privacy_guard_reads_rendered_strings(edit: Edit) -> None:
     """S2: the client renders templates and scalar labels, so the guard does too."""
     projection, projector = await project(reply(edit(A01)))
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
@@ -479,7 +495,7 @@ async def test_a_link_in_a_cards_send_is_never_the_owners_link() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "edit",
-    [
+    edits(
         # Inside template braces.
         lambda b: b.replace(
             '{"type":"Text","tone":"muted"',
@@ -496,9 +512,9 @@ async def test_a_link_in_a_cards_send_is_never_the_owners_link() -> None:
             '{"type":"Text","tone":"muted"',
             '{"type":"Note","text":"السعر ٢٬٣٦٨٫٤٠"}\n{"type":"Text","tone":"muted"',
         ),
-    ],
+    ),
 )
-async def test_typed_market_values_are_caught_wherever_the_card_types_them(edit) -> None:
+async def test_typed_market_values_are_caught_wherever_the_card_types_them(edit: Edit) -> None:
     projection, projector = await project(reply(edit(A01)))
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
     assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
@@ -598,7 +614,7 @@ async def test_a_card_built_on_a_calc_chain_falls_back_or_stays_bounded_never_cr
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "edit",
-    [
+    edits(
         # An option without a label shows its value (UiCard optionList).
         lambda b: b.replace(
             '{"type":"Text","tone":"muted"',
@@ -609,9 +625,9 @@ async def test_a_card_built_on_a_calc_chain_falls_back_or_stays_bounded_never_cr
         lambda b: b.replace(
             '"title":"تنبيه سعر"', "\"title\":\"{$f ? '/workspace/k' : 'T'}\""
         ).replace('"state":{', '"state":{"f":false,'),
-    ],
+    ),
 )
-async def test_the_privacy_guard_reads_what_the_client_shows_and_every_branch(edit) -> None:
+async def test_the_privacy_guard_reads_what_the_client_shows_and_every_branch(edit: Edit) -> None:
     projection, projector = await project(reply(edit(A01)))
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
     assert any(d["code"] == "card_fallback_private" for d in projector.diagnostics), [

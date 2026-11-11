@@ -19,8 +19,10 @@ from .context.financial_result import (
 )
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
+from .failure_view import failure_view
 from .progress import progress
 from .public_stream import PublicStream
+from .reply_markdown import normalize_bold
 from .skills.system_policy import apply_operating_policy
 from .skills.visual_policy import genui_v2_enabled
 from .stream_publication import StreamPublication
@@ -173,7 +175,8 @@ async def model_turn(
     try:
         reply, selection = await context.router.complete(
             capability,
-            request_messages,
+            # Failures in words: the canonical ``messages`` keep their codes for the gates.
+            failure_view(request_messages),
             tools,
             on_delta=delta,
             on_attempt=attempt,
@@ -240,7 +243,8 @@ async def model_turn(
     # request. Sensitive spans are removed deterministically from the actual
     # answer; financial truth was established above and is not rewritten.
     projection_started = monotonic()
-    projection = await projector.project(reply.text)
+    # Bold markers written with a space inside would reach the owner as raw asterisks.
+    projection = await projector.project(normalize_bold(reply.text))
     answer, rich_content = projection.text, projection.rich_until()
     visual_errors = projection.errors
     protected = redact_private_reply(answer, public_ids=public_ids)

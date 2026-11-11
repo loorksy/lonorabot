@@ -12,6 +12,7 @@ from lonora_providers.discovery import discover_models
 from lonora_providers.registry import PROVIDERS
 
 from ..middleware.auth import require_owner, runtime
+from .model_router import answer_unconfigured
 
 router = APIRouter(prefix="/providers")
 
@@ -36,6 +37,8 @@ async def save_credential(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, bool]:
     await runtime(request).services(owner.id).secrets.write(provider, body.api_key, "provider")
+    # With a key the router can choose a model: what failed for lack of one is retried.
+    await answer_unconfigured(request, owner)
     return {"configured": True}
 
 

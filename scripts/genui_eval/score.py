@@ -179,14 +179,21 @@ def financial_calls(
 ) -> list[tuple[str, str | None]]:
     """Every financial call the model proposed, as (tool, action); bridged calls unwrapped."""
     found: list[tuple[str, str | None]] = []
-    calls = [c for m in transcript for c in m.get("tool_calls", [])] + list(reply_calls)
+    calls: list[Mapping[str, Any]] = [
+        c for m in transcript for c in m.get("tool_calls", [])
+    ] + list(reply_calls)
     for call in calls:
-        name, arguments = call["name"], call.get("arguments") or {}
+        name: str = call["name"]
+        arguments: Any = call.get("arguments") or {}
         if name == "tool_call":
             name = arguments.get("name") or ""
             arguments = arguments.get("arguments") or {}
         if name in FINANCIAL_CALLS:
-            action = arguments.get("action") if isinstance(arguments, dict) else None
+            action: Any = (
+                cast("dict[str, Any]", arguments).get("action")
+                if isinstance(arguments, dict)
+                else None
+            )
             found.append((name, action if isinstance(action, str) else None))
     return found
 
@@ -213,10 +220,14 @@ def card_strings(document: Mapping[str, Any]) -> list[str]:
     texts: list[Any] = [document.get("title"), document.get("sub")]
     for node in nodes(document):
         texts.extend(node.get(key) for key in ("label", "text", "hint", "sub", "title"))
-        for option in node.get("options") or []:
-            texts.append(option.get("label") if isinstance(option, dict) else None)
-        for row in node.get("rows") or []:
-            texts.extend(row if isinstance(row, list) else [])
+        options: list[Any] = node.get("options") or []
+        for option in options:
+            texts.append(
+                cast("dict[str, Any]", option).get("label") if isinstance(option, dict) else None
+            )
+        rows: list[Any] = node.get("rows") or []
+        for row in rows:
+            texts.extend(cast("list[Any]", row) if isinstance(row, list) else [])
     out: list[str] = []
     for value in texts:
         if isinstance(value, str):

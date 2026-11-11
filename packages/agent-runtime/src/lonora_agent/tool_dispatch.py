@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import Any
 
 from lonora_adapter_kit.types import ToolCall
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -114,6 +114,9 @@ async def dispatch_call(
         if isinstance(error, ToolArgumentsError):
             error_result["issues"] = error.issues
             error_result["retryable"] = True
+        if isinstance(error, ToolRefusal):
+            # What the tool wrote for the model: the candidates, the limits, the next call.
+            error_result.update(error.details)
         result = error_result
     except (TimeoutError, ConnectionError) as error:
         result = {
