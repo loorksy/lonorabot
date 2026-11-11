@@ -10,7 +10,7 @@ import {
   stopTargets,
   turnActivity,
 } from "@lonora/core";
-import { Icon } from "@lonora/ui-web";
+import { GroupAvatar, Icon } from "@lonora/ui-web";
 import {
   Fragment,
   type ReactNode,
@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { FilePreviewPanel } from "../components/common/FilePreviewPanel";
 import { GenuiHost } from "../components/genui";
 import { OwnerActionCard, useOwnerActions } from "../components/owner-actions/OwnerActionCard";
@@ -37,7 +38,7 @@ import { streamForRun } from "../lib/response_streaming";
 import { activityTimeline, stepsSeconds, streamVisible } from "../lib/stream-timeline";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
-import { useShellData } from "../shell/data";
+import { ownerDisplayName, useShellData } from "../shell/data";
 import type { TaskView } from "../shell/domain/api";
 import { usePopover } from "../shell/lists/Popover";
 import { useNetworkPhase } from "../shell/NetworkStrip";
@@ -1084,12 +1085,7 @@ export function Conversation({
       >
         <GenuiHost value={{ threadId, messages: thread.messages, runs, agents }}>
           {empty ? (
-            <ChatEmpty
-              agent={agent}
-              name={name}
-              ownerName={owner.email.split("@")[0]}
-              group={isGroup}
-            />
+            <ChatEmpty agent={agent} members={agents} name={name} group={isGroup} />
           ) : (
             <div ref={content} className="messages" id="messages">
               {canPage && (
@@ -1204,18 +1200,28 @@ function cardMessage(
 
 function ChatEmpty({
   agent,
+  members,
   name,
-  ownerName,
   group,
 }: {
   agent?: Agent;
+  /** In a group, its members. */
+  members: Agent[];
   name: string;
-  ownerName: string;
   group: boolean;
 }) {
+  const { owner, ownerProfile } = useShellData();
+  const ownerName = ownerDisplayName(ownerProfile, owner);
   return (
     <div className="chat-empty">
       <div className="arcs" aria-hidden="true" />
+      {group
+        ? members.length > 0 && (
+            <span className="group-av">
+              <GroupAvatar members={members} />
+            </span>
+          )
+        : agent && <AgentAvatar agent={agent} />}
       <h2>
         <Trans>Hello {ownerName}</Trans>
       </h2>

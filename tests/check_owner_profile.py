@@ -381,6 +381,8 @@ async def message_instead_of_calling(fixture: Fixture, lonora: dict[str, Any]) -
         )
         # A qualifying, still-current critical event: new trading is stopped.
         await SettingsRepository().put(session, "trading_control", {"emergency_stop": True})
+    # Agents never call until the owner turns «مكالمات الوكيل» on for them.
+    await fixture.request("PUT", f"/agents/{lonora['id']}/notifications", {"calls": True})
     # 1. "Call me if a decision is needed": the reach-me preference becomes call.
     context = await owner_run(fixture, lonora, "راقب الذهب واتصل بي إذا احتاج الأمر قراري")
     thread_id = context.thread_id

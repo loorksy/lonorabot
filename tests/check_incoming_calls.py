@@ -51,6 +51,8 @@ async def main():
     f = await Fixture().open()
     try:
         agent = await f.agent("Incoming attention fixture")
+        # Agents never call until the owner turns «مكالمات الوكيل» on for them.
+        await f.request("PUT", f"/agents/{agent['id']}/notifications", {"calls": True})
         thread = await f.conversation(agent)
         device = new_id()
         async with f.runtime.db.sessions() as session, session.begin():

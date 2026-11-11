@@ -26,7 +26,13 @@ import { ToggleRow } from "./ui";
    applied live on this device. */
 export function AccessibilityPage() {
   const [prefs, set] = useDevicePref<A11yPrefs>("a11y", A11Y_DEFAULTS);
-  const sizes = [t`Small`, t`Default`, t`Large`, t`Larger`, t`Largest`];
+  const sizes = [
+    t`Small`,
+    t({ message: "Default", context: "text size" }),
+    t`Large`,
+    t`Larger`,
+    t`Largest`,
+  ];
   useEffect(() => applyA11y(prefs), [prefs]);
   return (
     <>

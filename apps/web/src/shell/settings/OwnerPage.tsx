@@ -3,14 +3,14 @@ import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import { preferenceFieldLabel, preferenceValueText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
-import { useShellData } from "../data";
+import { ownerDisplayName, ownerInitial, useShellData } from "../data";
 import { clearDirty, markDirty } from "../navigation";
 import { useToast } from "../Toast";
-import { type OwnerProfile, ownerName, useOwnerProfile } from "./owner";
+import type { OwnerProfile } from "./owner";
 import { Note, useLoad } from "./ui";
 
 type FieldChange = { field: string; before: unknown; after: unknown };
@@ -36,20 +36,18 @@ export function ago(iso: string) {
   if (minutes < 2880) return t`Yesterday`;
   return t`${Math.round(minutes / 1440)} days ago`;
 }
+const filled = (value: unknown) => value != null && value !== "";
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
-function zones(): string[] {
-  try {
-    return (
-      (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.(
-        "timeZone",
-      ) ?? ["UTC"]
-    );
-  } catch {
-    return ["UTC"];
-  }
-}
+/** The reference's five time zones; the server keeps the IANA name. */
+const zones = (): [string, string][] => [
+  ["Asia/Damascus", t`Damascus`],
+  ["Europe/Amsterdam", t`Amsterdam`],
+  ["Asia/Riyadh", t`Riyadh`],
+  ["Asia/Dubai", t`Dubai`],
+  ["UTC", "UTC"],
+];
 
 /* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما يعرفه وكلاؤك
    عنك» (lines agents wrote into the shared profile, each removable) and «سجل التغييرات» (who · field,
@@ -59,7 +57,7 @@ export function OwnerPage() {
   const locale = i18n.locale;
   const data = useShellData();
   const toast = useToast();
-  const [profile, setProfile] = useOwnerProfile();
+  const { ownerProfile: profile, setOwnerProfile: setProfile } = data;
   const revisions = useLoad(
     () => api.get<Revision[]>("/owner/profile/revisions?limit=50"),
     [profile?.version, profile?.name, profile?.address, profile?.reach_me.timezone],
@@ -71,7 +69,6 @@ export function OwnerPage() {
     content: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
-  const zoneList = useMemo(zones, []);
   const form = draft ?? {
     name: profile?.name ?? "",
     address: profile?.address ?? "",
@@ -114,6 +111,7 @@ export function OwnerPage() {
   };
   const save = async () => {
     if (!profile || busy) return;
+    if (!draft) return toast(t`Saved`, { type: "success" });
     setBusy(true);
     try {
       let next: OwnerProfile = profile;
@@ -169,7 +167,11 @@ export function OwnerPage() {
       toast(userError(error), { type: "error" });
     }
   };
-  const name = ownerName(profile, data.owner.email);
+  const zoneList = zones();
+  const name = ownerDisplayName(
+    profile && { ...profile, name: form.name.trim(), address: form.address.trim() },
+    data.owner,
+  );
   return (
     <>
       <form
@@ -180,7 +182,7 @@ export function OwnerPage() {
         }}
       >
         <div className="hero">
-          <span className="avatar initial big">{(form.name || name).slice(0, 1)}</span>
+          <span className="avatar initial big">{ownerInitial(name)}</span>
         </div>
         <label className="field">
           <span>
@@ -190,6 +192,7 @@ export function OwnerPage() {
             name="name"
             required
             maxLength={80}
+            placeholder={ownerDisplayName(null, data.owner)}
             value={form.name}
             onChange={(event) => edit({ name: event.target.value })}
           />
@@ -214,9 +217,12 @@ export function OwnerPage() {
             value={form.zone}
             onChange={(event) => edit({ zone: event.target.value })}
           >
-            {(zoneList.includes(form.zone) ? zoneList : [form.zone, ...zoneList]).map((zone) => (
+            {(zoneList.some(([zone]) => zone === form.zone)
+              ? zoneList
+              : [[form.zone, form.zone], ...zoneList]
+            ).map(([zone, label]) => (
               <option key={zone} value={zone}>
-                {zone}
+                {label}
               </option>
             ))}
           </select>
@@ -234,7 +240,7 @@ export function OwnerPage() {
           />
         </label>
         <div className="actions">
-          <button type="submit" className="btn primary" disabled={!profile || busy || !draft}>
+          <button type="submit" className="btn primary" disabled={!profile || busy}>
             <Trans>Save</Trans>
           </button>
         </div>
@@ -303,10 +309,13 @@ export function OwnerPage() {
                 <span className="pf-diff">
                   {fields.map((item) => (
                     <span key={item.field}>
-                      {item.before != null && item.before !== "" && (
+                      {filled(item.before) && (
                         <del>{preferenceValueText(item.field, item.before, locale)}</del>
                       )}{" "}
-                      <ins>{preferenceValueText(item.field, item.after, locale)}</ins>
+                      {/* A value turned off or cleared shows only the old one, struck through. */}
+                      {(filled(item.after) || !filled(item.before)) && (
+                        <ins>{preferenceValueText(item.field, item.after, locale)}</ins>
+                      )}
                     </span>
                   ))}
                   {text.map((item, index) =>

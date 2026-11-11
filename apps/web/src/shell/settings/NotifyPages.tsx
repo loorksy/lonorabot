@@ -1,9 +1,10 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentDeliveryRules, IncomingCallPolicy } from "@lonora/contracts";
+import type { AgentDeliveryRules, DeviceChallenge, IncomingCallPolicy } from "@lonora/contracts";
+import { accountAuthorityLabels, webDeviceProof, webDeviceSupported } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -11,19 +12,36 @@ import { useShellData } from "../data";
 import { NotFoundPage } from "../StatePage";
 import { useToast } from "../Toast";
 import { NOTIFY_DEFAULTS, type NotifyPrefs, useDevicePref } from "./device-prefs";
-import { type OwnerProfile, useOwnerProfile } from "./owner";
+import type { OwnerProfile } from "./owner";
 import { NavRow, Note, ToggleRow, useLoad } from "./ui";
 
 type Channel = IncomingCallPolicy["channel"];
 /** The reference's REACH (8368), one to one with the server's ReachMe. */
 export const reachOptions = (): [Channel, string, string, IconName][] => [
   ["activity", t`Activity log only`, t`Recorded in Updates without any alert`, "updates"],
-  ["notify", t`Notification`, t`An alert on your device`, "bell"],
-  ["message", t`Message`, t`A message in the agent's conversation with an alert`, "chat"],
-  ["call", t`Call`, t`For urgent matters: the agent calls you`, "phone"],
+  [
+    "notify",
+    t({ message: "Notification", context: "reach mode" }),
+    t`An alert on your device`,
+    "bell",
+  ],
+  [
+    "message",
+    t({ message: "Message", context: "reach mode" }),
+    t`A message in the agent's conversation with an alert`,
+    "chat",
+  ],
+  [
+    "call",
+    t({ message: "Call", context: "reach mode" }),
+    t`For urgent matters: the agent calls you`,
+    "phone",
+  ],
 ];
 export const reachLabel = (channel: Channel) =>
   reachOptions().find(([value]) => value === channel)?.[1] ?? "";
+
+const noDevice = () => t`Register a passkey on this device so a call can reach you`;
 
 const clock = (minute: number | null | undefined) =>
   minute == null
@@ -41,7 +59,7 @@ const minutes = (value: string) => {
 export function NotifyPage() {
   const data = useShellData();
   const toast = useToast();
-  const [profile, setProfile] = useOwnerProfile();
+  const { ownerProfile: profile, setOwnerProfile: setProfile } = data;
   const [prefs, setPrefs] = useDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
   const rules = useLoad(
     () => api.get<Record<string, AgentDeliveryRules>>("/agents/notifications"),
@@ -64,6 +82,27 @@ export function NotifyPage() {
       setProfile(
         await api.put<OwnerProfile>("/owner/preferences", { reach_me: { ...current, ...patch } }),
       );
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const [enroll, setEnroll] = useState(false);
+  /** The same one-time passkey registration the grant card runs, here so a call has a device. */
+  const register = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const password = String(new FormData(event.currentTarget).get("password"));
+    setBusy(true);
+    try {
+      const challenge = await api.post<DeviceChallenge>("/auth/devices/enrollment", {
+        password,
+        name: accountAuthorityLabels[i18n.locale === "ar" ? "ar" : "en"].device,
+      });
+      await api.post("/auth/devices/enrollment/verify", await webDeviceProof(challenge, true));
+      setProfile(await api.get<OwnerProfile>("/owner/profile"));
+      setEnroll(false);
+      toast(t`This device is registered`, { type: "success" });
     } catch (error) {
       toast(userError(error), { type: "error" });
     } finally {
@@ -98,13 +137,16 @@ export function NotifyPage() {
               aria-checked={on}
               disabled={!policy || busy}
               className={`row reach-opt${on ? " on" : ""}`}
-              onClick={() =>
-                save(
-                  value === "call" && !policy?.device_id && profile?.devices[0]
-                    ? { channel: value, device_id: profile.devices[0].id }
-                    : { channel: value },
-                )
-              }
+              onClick={() => {
+                if (value !== "call") return save({ channel: value });
+                if (profile?.devices[0])
+                  return save({
+                    channel: value,
+                    device_id: policy?.device_id ?? profile.devices[0].id,
+                  });
+                toast(noDevice(), { type: "warn" });
+                setEnroll(true);
+              }}
             >
               <span className="row-icon">
                 <Icon name={icon} />
@@ -236,11 +278,57 @@ export function NotifyPage() {
           </>
         )}
       </div>
-      {profile && profile.devices.length > 0 && (
-        <>
-          <h3>
-            <Trans>Device</Trans>
-          </h3>
+      {profile && (
+        <h3>
+          <Trans>Device</Trans>
+        </h3>
+      )}
+      {profile && !profile.devices.length ? (
+        <div className="group">
+          <button
+            type="button"
+            className="row"
+            aria-expanded={enroll}
+            disabled={!webDeviceSupported()}
+            onClick={() => setEnroll(!enroll)}
+          >
+            <span className="row-icon">
+              <Icon name="device" />
+            </span>
+            <span className="body">
+              <strong>
+                <Trans>This device</Trans>
+              </strong>
+              <small>
+                {webDeviceSupported() ? noDevice() : t`This browser cannot use a passkey.`}
+              </small>
+            </span>
+            <span className="chevron">
+              <Icon name="chev" />
+            </span>
+          </button>
+          {enroll && (
+            <form className="row enroll" onSubmit={register}>
+              <label className="field">
+                <span>
+                  <Trans>Password</Trans>
+                </span>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  dir="ltr"
+                />
+              </label>
+              <button type="submit" className="btn primary" disabled={busy}>
+                <Trans>Register this device</Trans>
+              </button>
+            </form>
+          )}
+        </div>
+      ) : (
+        profile && (
           <div className="group" role="radiogroup" aria-label={t`Device`}>
             {profile.devices.map((device) => {
               const on = policy?.device_id === device.id;
@@ -275,7 +363,7 @@ export function NotifyPage() {
               );
             })}
           </div>
-        </>
+        )
       )}
       <h3>
         <Trans>Per agent</Trans>
@@ -317,6 +405,7 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
       noValidate
       onSubmit={async (event) => {
         event.preventDefault();
+        if (!draft) return toast(t`Saved`, { type: "success" });
         setBusy(true);
         try {
           rules.set(
@@ -378,7 +467,7 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
         </small>
       </label>
       <div className="actions">
-        <button type="submit" className="btn primary" disabled={busy || !draft}>
+        <button type="submit" className="btn primary" disabled={busy}>
           <Trans>Save</Trans>
         </button>
       </div>
