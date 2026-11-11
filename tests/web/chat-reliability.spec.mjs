@@ -71,11 +71,11 @@ test("approval remains causal in chat, resolves in place and reconnect clears re
   try {
     await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${agent.id}`);
-    await expect(page.locator(".template-thread-error")).toHaveCount(1);
+    await expect(page.locator(".fail-inline")).toHaveCount(1);
     failing = false;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await expect(page.getByText("after broker result", { exact: true })).toBeVisible();
-    await expect(page.locator(".template-thread-error")).toHaveCount(0);
+    await expect(page.locator(".fail-inline")).toHaveCount(0);
     const card = page.locator(`[data-trade-approval="${approval.id}"]`);
     await expect(card).toHaveCount(1);
     const before = await page.getByText("before approval", { exact: true }).boundingBox();

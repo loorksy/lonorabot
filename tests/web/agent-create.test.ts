@@ -247,10 +247,13 @@ test("the status line says what it monitors and until when, in both languages", 
     agentStatusLine({ ...monitoring, phase: "thinking", state: "working" }, "en"),
     "Working",
   );
-  assert.equal(agentStatusLine({ ...monitoring, phase: "paused", state: "paused" }, "ar"), "متوقف");
+  assert.equal(
+    agentStatusLine({ ...monitoring, phase: "paused", state: "paused" }, "ar"),
+    "متوقف مؤقتًا",
+  );
   assert.equal(
     agentStatusLine({ ...monitoring, phase: "action_required", state: "action_required" }, "ar"),
-    "بانتظارك",
+    "بانتظار قرارك",
   );
 });
 
@@ -287,14 +290,21 @@ test("the avatar follows the server phase between runs", () => {
 });
 
 test("web and mobile render the same status line, watch list and avatar", () => {
-  for (const path of [
-    "apps/web/src/components/ai/AgentLiveStatus.tsx",
-    "apps/mobile/components/agent-live-status.tsx",
-  ]) {
-    const source = readFileSync(path, "utf8");
-    for (const name of ["agentStatusLine", "watchCondition", "watchUntil", "/control"])
-      assert.ok(source.includes(name), `${path} uses ${name}`);
+  // The surfaces the web actually mounts: the agent sheet's status line and the watches sheet.
+  const web = [
+    "apps/web/src/conversation/sheets/AgentSheet.tsx",
+    "apps/web/src/conversation/sheets/WatchesSheet.tsx",
+  ]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
+  const mobile = readFileSync("apps/mobile/components/agent-live-status.tsx", "utf8");
+  for (const name of ["agentStatusLine", "watchCondition", "watchUntil", "/control"]) {
+    assert.ok(web.includes(name), `the web sheets use ${name}`);
+    assert.ok(mobile.includes(name), `mobile uses ${name}`);
   }
+  // …and the chat really opens them (the header's capsule and the chat menu).
+  for (const path of ["apps/web/src/shell/ChatMenu.tsx", "apps/web/src/shell/ChatHeader.tsx"])
+    assert.ok(readFileSync(path, "utf8").includes("useAgentSheet"), path);
   for (const path of ["apps/web/src/shell/Shell.tsx", "apps/mobile/app/thread.tsx"])
     assert.ok(readFileSync(path, "utf8").includes("liveAvatarState"), path);
 });

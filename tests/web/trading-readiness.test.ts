@@ -304,13 +304,22 @@ test("Web and Mobile explain every brake and money-limit code from one shared ta
     assert.ok(source.replace(/\s+/g, " ").includes("{ enabled: false, emergency_stop: true }"));
   }
   // Both sheets render the same brake, name the agent that set a pause and the account
-  // of every item when there are several.
-  const webPill = readFileSync("apps/web/src/components/trading/SafetyPill.tsx", "utf8");
-  for (const source of [webPill, mobilePill]) {
-    assert.ok(source.includes("tradingBrake(readiness.global_trading, locale)"));
-    assert.ok(source.includes("agentName(item.created_by_agent_id)"));
-    assert.ok(source.includes("accountName(item.account_id)"));
-    assert.ok(source.includes("accountName(operation.account_id)"));
-    assert.ok(source.includes("tradingReadinessLine(readiness, locale, new Date(), accountName)"));
-  }
+  // of every item when there are several (web: the conversation's AgentSheet).
+  const mobileChecks = [
+    "tradingBrake(readiness.global_trading, locale)",
+    "agentName(item.created_by_agent_id)",
+    "accountName(item.account_id)",
+    "accountName(operation.account_id)",
+    "tradingReadinessLine(readiness, locale, new Date(), accountName)",
+  ];
+  for (const check of mobileChecks) assert.ok(mobilePill.includes(check), check);
+  const webSheet = readFileSync("apps/web/src/conversation/sheets/AgentSheet.tsx", "utf8");
+  for (const check of [
+    "resumeTrading : stopNewTrading",
+    "agentName(r.created_by_agent_id)",
+    "accountName(r.account_id)",
+    "accountName(op.account_id)",
+    "tradingReadinessLine(readiness, i18n.locale, new Date(), accountName)",
+  ])
+    assert.ok(webSheet.includes(check), check);
 });

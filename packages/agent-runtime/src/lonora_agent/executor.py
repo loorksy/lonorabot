@@ -3,6 +3,7 @@ import logging
 from collections.abc import Callable
 from time import monotonic
 
+from lonora_adapter_kit.model_errors import ModelProviderError
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
@@ -72,8 +73,14 @@ async def keep_lease(context: ToolContext, lease_seconds: int, lost: Callable[[]
             break
 
 
-async def record_failure(context: ToolContext, registry: ToolRegistry, code: str) -> None:
-    """Fail the Run with ``code``; once its lease is lost the failure is discarded."""
+async def record_failure(
+    context: ToolContext, registry: ToolRegistry, code: str, error: LonoraError | None = None
+) -> None:
+    """Fail the Run with ``code``; once its lease is lost the failure is discarded.
+
+    A provider error adds its classified reason and ``Retry-After`` hint (Q22).
+    """
+    provider = error if isinstance(error, ModelProviderError) else None
     try:
         async with context.db.sessions() as session, session.begin():
             await fail_run(
@@ -81,6 +88,8 @@ async def record_failure(context: ToolContext, registry: ToolRegistry, code: str
                 context.lease,
                 code,
                 read_only_names={tool.name for tool in registry.tools.values() if tool.read_only},
+                reason=provider.reason.value if provider else None,
+                retry_after=provider.retry_after if provider else None,
             )
         await return_outcome(context.db, context.lease.run_id)
     except LonoraError:
@@ -300,7 +309,7 @@ async def execute_run(
             raise
     except LonoraError as error:
         if error.code != "stale_lease":
-            await record_failure(context, registry, error.code)
+            await record_failure(context, registry, error.code, error)
     except Exception as error:
         log.error("run_failed type=%s", type(error).__name__)
         await record_failure(context, registry, "runtime_error")

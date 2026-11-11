@@ -2,8 +2,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunRequest
+from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
 from lonora_core.run_state import assert_transition
+from lonora_core.runtime_failure import failure_family, retry_after_seconds
 from lonora_core.user_error import LonoraError
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,16 @@ def outcome_status(row: RunRow) -> str:
     if row.status == "completed" and row.model_metadata.get("reply_outcome") == "limited":
         return "limited"
     return row.status
+
+
+def failure_data(row: RunRow) -> dict[str, Any] | None:
+    """The failed Run's error family and the provider's retry hint, else None."""
+    if row.status != "failed":
+        return None
+    stored = row.model_metadata.get("failure")
+    if isinstance(stored, dict):
+        return RunFailure.model_validate(stored).model_dump()
+    return RunFailure(family=failure_family(row.error_code)).model_dump()
 
 
 def run_data(row: RunRow) -> dict[str, Any]:
@@ -70,6 +81,7 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "trigger": row.trigger,
         "input_seq": row.input_seq,
         "error_code": row.error_code,
+        "failure": failure_data(row),
         "result": row.result,
         "model_metadata": row.model_metadata,
         "stream": stream_data(row),
@@ -255,9 +267,13 @@ async def claim_next(
     # Consecutive crash recoveries; a claim from the queue means the last attempt ended
     # cleanly (completed a step, waited, or was released on drain).
     row.recovery_count = row.recovery_count + 1 if recovered else 0
-    if (thread.group_id or row.model_metadata.get("ui_submit_origin")) and not row.execution_state:
-        # Rule W: a submission's Run reads the reply of the work it waited behind; its own
-        # message is read by id (``ui_submit_origin.message_id``), never by this window.
+    # A retry answers its failed Run's message, not the newest one. A submission's Run
+    # reads the reply of the work it waited behind; its own message is read by id.
+    if (
+        (thread.group_id or row.model_metadata.get("ui_submit_origin"))
+        and not row.execution_state
+        and not row.model_metadata.get("retry_of")
+    ):
         row.input_seq = max(row.input_seq, thread.next_seq - 1)
     row.status = "leased"
     row.lease_owner = worker_id
@@ -317,6 +333,30 @@ async def checkpoint(session: AsyncSession, lease: Lease, state: dict[str, Any])
     row.updated_at = utcnow()
 
 
+async def suggested_reply(
+    session: AsyncSession,
+    row: RunRow,
+    metadata: dict[str, Any],
+    rich_content: dict[str, Any] | None,
+) -> str | None:
+    """The agent's suggestion for the owner's next reply (Q23), kept only on a
+    conversational answer to the owner: never with a generated interface, and never when
+    this Run raised a card (owner action, trade approval or question)."""
+    from .schema import OwnerActionRow, TradeApprovalRow
+
+    value = metadata.get("suggested_reply")
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 60:
+        return None
+    if row.trigger not in {"user", "group"} or row.execution_state.get("input_requests"):
+        return None
+    if rich_content and any(part.get("type") == "ui" for part in rich_content.get("parts", [])):
+        return None
+    for card in (OwnerActionRow, TradeApprovalRow):
+        if await session.scalar(select(card.id).where(card.run_id == row.id).limit(1)):
+            return None
+    return value.strip()
+
+
 async def complete_run(
     session: AsyncSession, lease: Lease, answer: str, metadata: dict[str, Any]
 ) -> bool:
@@ -344,6 +384,7 @@ async def complete_run(
             seq=thread.next_seq,
             content=answer,
             rich_content=rich_content,
+            suggested_reply=await suggested_reply(session, row, metadata, rich_content),
         )
         thread.next_seq += 1
         session.add(message)
@@ -409,12 +450,24 @@ async def complete_run(
 
 
 async def fail_run(
-    session: AsyncSession, lease: Lease, code: str, *, read_only_names: set[str] | None = None
+    session: AsyncSession,
+    lease: Lease,
+    code: str,
+    *,
+    read_only_names: set[str] | None = None,
+    reason: str | None = None,
+    retry_after: float | None = None,
 ) -> None:
+    """``reason`` and ``retry_after`` are the provider's classified reason and its
+    ``Retry-After`` hint, when the failure came from a model provider."""
     row = await require_lease(session, lease, lock=True)
     row.status = "failed"
     settle_stream(row, "failed")
     row.error_code = code
+    failure = RunFailure(
+        family=failure_family(code, reason), retry_after_seconds=retry_after_seconds(retry_after)
+    ).model_dump()
+    row.model_metadata = {**row.model_metadata, "failure": failure}
     row.updated_at = utcnow()
     row.lease_expires_at = None
     if row.model_metadata.get("task_id"):
@@ -430,7 +483,7 @@ async def fail_run(
             thread_id=row.thread_id,
             agent_id=row.agent_id,
             run_id=row.id,
-            payload={"code": code},
+            payload={"code": code, "failure": failure},
         )
 
 
@@ -503,6 +556,10 @@ async def quarantine_run(
     row.status = "failed"
     settle_stream(row, "failed")
     row.error_code = "run_recovery_limit"
+    row.model_metadata = {
+        **row.model_metadata,
+        "failure": RunFailure(family=failure_family(row.error_code)).model_dump(),
+    }
     row.updated_at = utcnow()
     row.lease_expires_at = None
     if row.model_metadata.get("task_id"):
@@ -515,6 +572,6 @@ async def quarantine_run(
             thread_id=row.thread_id,
             agent_id=row.agent_id,
             run_id=row.id,
-            payload={"code": "run_recovery_limit"},
+            payload={"code": "run_recovery_limit", "failure": failure_data(row)},
         )
     return "failed"

@@ -310,6 +310,7 @@ export function SettingsRoot() {
       </div>
       <div className="group">
         <PrefsRow />
+        <NavRow icon="chat" label={t`Chat experience`} to="/app/chat-prefs" />
         <NavRow icon="eye" label={t`Accessibility`} to="/app/accessibility" />
       </div>
       <div className="group">

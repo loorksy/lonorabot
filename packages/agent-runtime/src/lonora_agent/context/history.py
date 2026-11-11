@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
+from lonora_core.message_preview import model_content
 from lonora_db.genui_submit import NEVER_RAN_NOTE, never_ran, submit_status
 from lonora_db.owner_words import submit_hidden
 from lonora_db.schema import AgentRow, MessageRow, RunRow
@@ -119,6 +120,18 @@ async def history_context(
             .limit(HISTORY_WINDOW)
         )
     ).all()
+    # Edit-and-resend (Q21): an owner message replaced by a newer one is no longer the
+    # owner's instruction. Every later run reads only the replacement, never the original.
+    replaced = set(
+        await session.scalars(
+            select(MessageRow.edited_from).where(
+                MessageRow.thread_id == thread_id,
+                MessageRow.seq <= input_seq,
+                MessageRow.edited_from.in_([row.id for row in rows if row.role == "user"]),
+            )
+        )
+    )
+    rows = [row for row in rows if row.id not in replaced]
     # Published messages store question text; the existing Run stores its exact
     # choices. Recover a bounded projection so a new turn can understand the
     # original alternatives without manufacturing them or reading future replies.
@@ -178,10 +191,15 @@ async def history_context(
             if never_ran(row.ui_submit, await submit_status(session, row)):
                 messages.append(ModelMessage(role="user", content="[" + NEVER_RAN_NOTE + "]"))
             continue
+        text = (
+            card_words(row, run)
+            if row.origin in {"ui_submit", "ui_follow_up"}
+            else model_content(row.content, row.rich_content)
+        )
         content = (
-            "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + row.content
+            "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + text
             if peer
-            else card_words(row, run)
+            else text
         )
         content += options.get(row.id, "")
         messages.append(

@@ -20,6 +20,17 @@ RunStatus = Literal[
 ]
 
 
+class RunFailure(Contract):
+    """Why a Run failed, by the provider's error family (Q22), on ``run.failed`` and Run.
+
+    ``retry_after_seconds`` is the provider's own ``Retry-After`` hint when it sent one,
+    counted from the failure; the client never invents a countdown.
+    """
+
+    family: Literal["quota", "rate", "timeout", "model", "other"]
+    retry_after_seconds: int | None = Field(default=None, ge=0)
+
+
 class RunRequest(Contract):
     thread_id: str
     agent_id: str

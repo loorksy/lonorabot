@@ -1,6 +1,7 @@
 from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage
+from lonora_core.message_preview import model_content, voice_part
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
@@ -32,13 +33,16 @@ async def merge_steering(
             messages.append(
                 ModelMessage(
                     role="user",
-                    content=row.content + ("\n\n" + notes if notes else ""),
+                    content=model_content(row.content, row.rich_content)
+                    + ("\n\n" + notes if notes else ""),
                     images=images,
                 )
             )
         if fresh:
             if any(
-                row.role == "user" and (row.content.strip() or row.attachment_ids) for row in fresh
+                row.role == "user"
+                and (row.content.strip() or row.attachment_ids or voice_part(row.rich_content))
+                for row in fresh
             ):
                 reset_stop_gate(state)
                 reset_guardrails(state)

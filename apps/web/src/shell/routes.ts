@@ -3,6 +3,11 @@ export const ROOTS = ["chats", "updates", "tasks", "settings"] as const;
 export type Root = (typeof ROOTS)[number];
 export const PAGES = [
   "agents",
+  "agent",
+  "identity",
+  "trades",
+  "group",
+  "recovery",
   "artifacts",
   "archived",
   "market",
@@ -27,6 +32,7 @@ export const PAGES = [
   "lab",
   // Phase 5: settings pages (the reference's route names).
   "accessibility",
+  "chat-prefs",
   "notify-settings",
   "communication",
   "integrations",
@@ -60,18 +66,24 @@ const ALIASES: Readonly<Record<string, string>> = {
   // Search lives in the chats header (phones) and the list pane (desktop).
   search: "/app",
 };
-/** Pages that take one item (`/app/<page>/<id>`); the rest take `?agent=` / `?item=`. */
+/** Pages that take one item (`/app/<page>/<id>`): settings items, the agent page, its
+ * identity form and trades, the group page; the rest take `?agent=` / `?item=`. */
 const ITEM_PAGES = new Set<string>([
   "artifacts",
   "communication",
   "broker-account",
   "usage-detail",
   "provider",
+  "agent",
+  "identity",
+  "trades",
+  "group",
 ]);
 /** The settings pages: the settings tab stays selected under them. */
 const SETTINGS_PAGES = new Set<string>([
   "owner",
   "accessibility",
+  "chat-prefs",
   "notify-settings",
   "communication",
   "integrations",
@@ -87,6 +99,7 @@ const SETTINGS_PAGES = new Set<string>([
 ]);
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);
+const NEEDS_ITEM: ReadonlySet<string> = new Set(["agent", "identity", "trades", "group"]);
 
 export const rootPath = (root: Root) => (root === "chats" ? "/app" : `/app/${root}`);
 
@@ -104,7 +117,13 @@ export function parseRoute(pathname: string): ShellRoute {
   if (head === "skills" && item && !extra) return { kind: "page", page: "skill", item };
   if (rootNames.has(head) && !item) return { kind: "root", root: head as Root };
   if (pageNames.has(head)) {
-    if (extra || (item && !ITEM_PAGES.has(head)) || head === "task" || head === "skill")
+    if (
+      extra ||
+      (item && !ITEM_PAGES.has(head)) ||
+      (!item && NEEDS_ITEM.has(head)) ||
+      head === "task" ||
+      head === "skill"
+    )
       return { kind: "not-found" };
     return item ? { kind: "page", page: head as Page, item } : { kind: "page", page: head as Page };
   }
@@ -124,3 +143,9 @@ export const isRoot = (route: ShellRoute): route is { kind: "root"; root: Root }
   route.kind === "root";
 export const isConversation = (route: ShellRoute) =>
   route.kind === "chat" || route.kind === "group";
+
+/** The recovery page (recovery.page) for a broker outage, scoped to its account. */
+export const recoveryPath = (account: unknown) =>
+  typeof account === "string" && account
+    ? `/app/recovery?account=${encodeURIComponent(account)}`
+    : "/app/recovery";

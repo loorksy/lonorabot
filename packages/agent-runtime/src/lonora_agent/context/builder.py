@@ -13,6 +13,7 @@ from lonora_db.agent_creation import agent_origin, agent_written_instructions
 from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
+from lonora_db.threads import thread_options
 from lonora_db.trading_goals import goal_read_threads
 from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
@@ -125,6 +126,12 @@ async def build_context(
         ]
         if thread.group_id:
             blocks.append(load_prompt("group_behavior"))
+        if run.trigger in {"user", "group"}:
+            # The owner's own message: the answer may carry a next-reply suggestion (Q23).
+            blocks.append(load_prompt("suggested_reply"))
+            if thread_options(thread).web_search:
+                # The per-chat option (Q33) preselects web_search for this turn.
+                blocks.append(load_prompt("web_search_on"))
         if run.trigger == "subagent":
             blocks.append(load_prompt("subagent_system"))
         if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:

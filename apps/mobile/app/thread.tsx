@@ -228,7 +228,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setApprovals((old) =>
             nextApprovals.map((row) => {
               const previous = old.find((item) => item.id === row.id);
-              const rank = { pending: 0, approved: 1, rejected: 1, completed: 2, cancelled: 2 };
+              const rank = {
+                pending: 0,
+                approved: 1,
+                rejected: 1,
+                expired: 1,
+                completed: 2,
+                cancelled: 2,
+              };
               return previous &&
                 (rank[previous.status] > rank[row.status] ||
                   (previous.status === row.status && previous.results.length > row.results.length))
@@ -1049,6 +1056,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           }
           draft={draft}
           members={agents}
+          direct={!thread?.group_id}
+          self={thread?.group_id ? null : agent?.id}
           mentionAll={collaborationActive}
           collaborationSessionId={collaborationSessionId}
           reply={reply}

@@ -6,6 +6,7 @@ export type * from "./auth";
 export type * from "./capabilities";
 export type * from "./devices";
 export type * from "./domain";
+export { REACTION_EMOJIS } from "./domain";
 export type * from "./events";
 export type * from "./genui";
 export type * from "./models";

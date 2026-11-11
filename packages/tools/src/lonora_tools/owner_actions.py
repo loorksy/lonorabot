@@ -11,10 +11,12 @@ from decimal import ROUND_DOWN, Decimal
 from typing import Any
 
 from lonora_adapter_kit.broker import BrokerAdapter
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.owner_actions import DailyLossDraft, GrantDraft, OwnerActionProposal
 from lonora_core.delegation_words import asks_full_delegation
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import account_wide_scope, agent_binding, require_financial_agent
+from lonora_db.client import Database
 from lonora_db.owner_actions import ALL_ACTIONS, account_policy, card_facts, live_status, propose
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
@@ -48,13 +50,26 @@ async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> Gr
         if grantee != context.agent_id and proposer.role != "personal":
             # Lonora routes grants for any agent; every other agent asks for its own.
             raise LonoraError("owner_action_grant_agent_forbidden", 403)
-        agent = await require_financial_agent(session, context.owner_id, grantee)
+    return await resolve_grant(context.db, context.brokers, context.owner_id, grantee, proposal)
+
+
+async def resolve_grant(
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    grantee: str,
+    proposal: OwnerActionProposal,
+) -> GrantDraft:
+    """The draft for ``grantee``'s grant, resolved the same way for an agent's proposal
+    and the owner's mandate sheet. It grants nothing."""
+    async with db.sessions() as session:
+        agent = await require_financial_agent(session, owner_id, grantee)
         account_id = proposal.account_id or agent.trading_account_id
         if account_id is None:
             accounts = list(
                 await session.scalars(
                     select(BrokerSessionRow.id)
-                    .where(BrokerSessionRow.owner_id == context.owner_id)
+                    .where(BrokerSessionRow.owner_id == owner_id)
                     .order_by(BrokerSessionRow.created_at, BrokerSessionRow.id)
                     .limit(2)
                 )
@@ -63,8 +78,8 @@ async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> Gr
                 # Several accounts: one focused question to the owner decides which.
                 raise LonoraError("owner_action_account_required", 409)
             account_id = accounts[0]
-        risk = (await account_policy(session, context.owner_id, account_id)).risk
-    broker = await context.brokers.get(context.owner_id, account_id)
+        risk = (await account_policy(session, owner_id, account_id)).risk
+    broker = await brokers.get(owner_id, account_id)
     if proposal.symbols:
         symbols = [
             await canonical_broker_symbol(broker, symbol, require_exists=True)

@@ -106,6 +106,7 @@ from .tool_block import (
 from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import halt_reason
 from .tool_intent import start_budget_epoch
+from .uncertain_outcome import append_uncertain_line
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -185,6 +186,7 @@ def selection_metadata(
         "stream_timings": reply.provider_metadata.get("stream_timings", {}),
         "visual_errors": reply.provider_metadata.get("visual_errors", []),
         "visual_diagnostics": reply.provider_metadata.get("visual_diagnostics", []),
+        "suggested_reply": reply.provider_metadata.get("suggested_reply"),
     }
 
 
@@ -293,6 +295,8 @@ async def finish_turn(
                 rich_content=state.get("rich_content"),
             )
         )
+        # The round-limit and guardrail report gets the uncertain-outcome line too.
+        text = append_uncertain_line(state, messages, text)
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
     if task_run:
@@ -601,6 +605,7 @@ async def execute_tool_loop(
                 else "silent",
             },
             save,
+            outcome_line=True,
         )
         if outcome is not None:
             return outcome

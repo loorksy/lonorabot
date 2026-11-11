@@ -248,139 +248,143 @@ test("invalid or executable display content falls back to the original text", as
   await expect(page.getByRole("button", { name: "Do not execute" })).toHaveCount(0);
 });
 
-for (const locale of ["en", "ar"]) {
-  test(`compact numeric drafts remain editable on a phone in ${locale}`, async ({
-    page,
-    conversation,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.addInitScript((language) => {
-      localStorage.setItem("lonora.locale", language);
-      localStorage.setItem("lonora.theme", JSON.stringify("dark"));
-    }, locale);
-    const state = { a: 1, b: 1000, c: 3, d: 4, e: 5, f: 6 };
-    const document = {
-      version: 1,
-      mode: "example",
-      state,
-      root: {
-        id: "calc",
-        type: "card",
-        label: "Educational calculation",
-        children: [
-          {
-            id: "fields",
-            type: "grid",
-            columns: 2,
-            children: Object.keys(state).map((key) => ({
-              id: key,
-              type: "input",
-              label: `Input ${key}`,
-              input_kind: "number",
-              state_key: key,
-              minimum: key === "b" ? 100 : -100,
-              maximum: key === "b" ? 10000 : 100,
-              step: key === "a" ? 1 : 0.01,
-            })),
-          },
-          {
-            id: "metrics",
-            type: "grid",
-            columns: 2,
-            children: [
-              { id: "m1", type: "metric", label: "Quantity", value: { state: "a" } },
-              {
-                id: "m2",
-                type: "metric",
-                label: "Double",
-                value: { op: "mul", args: [{ state: "a" }, 2] },
-              },
-            ],
-          },
-        ],
-      },
-    };
-    const row = {
-      id: randomUUID(),
-      thread_id: conversation.thread.id,
-      agent_id: conversation.agent.id,
-      seq: 1,
-      role: "assistant",
-      content: "Educational example.",
-      rich_content: { version: 1, parts: [{ type: "ui", document }] },
-      reply_to: null,
-      attachment_ids: [],
-      created_at: "2026-10-26T08:00:00Z",
-    };
-    await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
-      route.request().method() === "GET" ? route.fulfill({ json: [row] }) : route.continue(),
-    );
-    await page.goto(`/app/${conversation.agent.id}`);
-    const response = page.locator('[data-visual-document="calc"]');
-    await expect(response).toBeVisible();
-    const mutations = [];
-    page.on("request", (request) => {
-      if (request.method() !== "GET" && request.url().includes("/api/"))
-        mutations.push(request.url());
-    });
-    const height = (await response.boundingBox()).height;
-    expect(height).toBeLessThan(550);
-    const geometry = await page.evaluate(() => {
-      const fields = document.querySelector('[data-visual-node="fields"]');
-      const input = fields.querySelector("input");
-      return {
-        gridColumns: getComputedStyle(fields).gridTemplateColumns,
-        inputFont: getComputedStyle(input).fontSize,
-        inputHeight: input.getBoundingClientRect().height,
-        rootWidth: document.documentElement.clientWidth,
-        scrollWidth: document.documentElement.scrollWidth,
+test.describe("on a phone", () => {
+  // A phone: touch and no hover, so the reference hides the reaction button (hover:none).
+  test.use({ hasTouch: true, isMobile: true });
+  for (const locale of ["en", "ar"]) {
+    test(`compact numeric drafts remain editable on a phone in ${locale}`, async ({
+      page,
+      conversation,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.addInitScript((language) => {
+        localStorage.setItem("lonora.locale", language);
+        localStorage.setItem("lonora.theme", JSON.stringify("dark"));
+      }, locale);
+      const state = { a: 1, b: 1000, c: 3, d: 4, e: 5, f: 6 };
+      const document = {
+        version: 1,
+        mode: "example",
+        state,
+        root: {
+          id: "calc",
+          type: "card",
+          label: "Educational calculation",
+          children: [
+            {
+              id: "fields",
+              type: "grid",
+              columns: 2,
+              children: Object.keys(state).map((key) => ({
+                id: key,
+                type: "input",
+                label: `Input ${key}`,
+                input_kind: "number",
+                state_key: key,
+                minimum: key === "b" ? 100 : -100,
+                maximum: key === "b" ? 10000 : 100,
+                step: key === "a" ? 1 : 0.01,
+              })),
+            },
+            {
+              id: "metrics",
+              type: "grid",
+              columns: 2,
+              children: [
+                { id: "m1", type: "metric", label: "Quantity", value: { state: "a" } },
+                {
+                  id: "m2",
+                  type: "metric",
+                  label: "Double",
+                  value: { op: "mul", args: [{ state: "a" }, 2] },
+                },
+              ],
+            },
+          ],
+        },
       };
+      const row = {
+        id: randomUUID(),
+        thread_id: conversation.thread.id,
+        agent_id: conversation.agent.id,
+        seq: 1,
+        role: "assistant",
+        content: "Educational example.",
+        rich_content: { version: 1, parts: [{ type: "ui", document }] },
+        reply_to: null,
+        attachment_ids: [],
+        created_at: "2026-10-26T08:00:00Z",
+      };
+      await page.route(`**/api/threads/${conversation.thread.id}/messages*`, (route) =>
+        route.request().method() === "GET" ? route.fulfill({ json: [row] }) : route.continue(),
+      );
+      await page.goto(`/app/${conversation.agent.id}`);
+      const response = page.locator('[data-visual-document="calc"]');
+      await expect(response).toBeVisible();
+      const mutations = [];
+      page.on("request", (request) => {
+        if (request.method() !== "GET" && request.url().includes("/api/"))
+          mutations.push(request.url());
+      });
+      const height = (await response.boundingBox()).height;
+      expect(height).toBeLessThan(550);
+      const geometry = await page.evaluate(() => {
+        const fields = document.querySelector('[data-visual-node="fields"]');
+        const input = fields.querySelector("input");
+        return {
+          gridColumns: getComputedStyle(fields).gridTemplateColumns,
+          inputFont: getComputedStyle(input).fontSize,
+          inputHeight: input.getBoundingClientRect().height,
+          rootWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(geometry.gridColumns.split(" ")).toHaveLength(2);
+      expect(geometry.inputHeight).toBeGreaterThanOrEqual(44);
+      expect(geometry.inputFont).toBe("16px");
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.rootWidth + 1);
+      const input = page.getByRole("spinbutton", { name: "Input a", exact: true });
+      await input.fill("");
+      await input.pressSequentially("-1.25");
+      await expect(input).toHaveValue("-1.25");
+      await expect(input).toHaveAttribute("aria-valuenow", "-1.25");
+      const derived = page.locator('[data-visual-value="m2"]');
+      await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(-2.5));
+      const bounded = page.getByRole("spinbutton", { name: "Input b", exact: true });
+      await bounded.fill("");
+      await bounded.pressSequentially("2");
+      await expect(bounded).not.toHaveAttribute("aria-valuenow");
+      await bounded.pressSequentially("50");
+      await expect(bounded).toHaveValue("250");
+      await expect(bounded).toHaveAttribute("aria-valuenow", "250");
+      await input.fill("1.");
+      await expect(input).toHaveValue("1.");
+      await bounded.focus();
+      await expect(input).toHaveValue("1");
+      await input.fill("-");
+      await expect(input).toHaveValue("-");
+      await bounded.focus();
+      await expect(input).toHaveValue("1");
+      await input.fill("١٢٫٥");
+      await expect(input).toHaveValue("١٢٫٥");
+      await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(25));
+      await input.press("ArrowUp");
+      await expect(input).toHaveValue("13.5");
+      await bounded.fill("20000");
+      await input.focus();
+      await expect(bounded).toHaveValue("10000");
+      expect(mutations).toEqual([]);
+      appendFileSync(
+        ".runtime/visual-density-after.jsonl",
+        `${JSON.stringify({ locale, height, geometry, numeric: "editable/decimal/Arabic/bounds passed" })}\n`,
+      );
+      await response.screenshot({ path: `.runtime/visual-density-after-${locale}.png` });
+      await page.reload();
+      await expect(input).toHaveValue("13.5");
+      await expect(bounded).toHaveValue("10000");
     });
-    expect(geometry.gridColumns.split(" ")).toHaveLength(2);
-    expect(geometry.inputHeight).toBeGreaterThanOrEqual(44);
-    expect(geometry.inputFont).toBe("16px");
-    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.rootWidth + 1);
-    const input = page.getByRole("spinbutton", { name: "Input a", exact: true });
-    await input.fill("");
-    await input.pressSequentially("-1.25");
-    await expect(input).toHaveValue("-1.25");
-    await expect(input).toHaveAttribute("aria-valuenow", "-1.25");
-    const derived = page.locator('[data-visual-value="m2"]');
-    await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(-2.5));
-    const bounded = page.getByRole("spinbutton", { name: "Input b", exact: true });
-    await bounded.fill("");
-    await bounded.pressSequentially("2");
-    await expect(bounded).not.toHaveAttribute("aria-valuenow");
-    await bounded.pressSequentially("50");
-    await expect(bounded).toHaveValue("250");
-    await expect(bounded).toHaveAttribute("aria-valuenow", "250");
-    await input.fill("1.");
-    await expect(input).toHaveValue("1.");
-    await bounded.focus();
-    await expect(input).toHaveValue("1");
-    await input.fill("-");
-    await expect(input).toHaveValue("-");
-    await bounded.focus();
-    await expect(input).toHaveValue("1");
-    await input.fill("١٢٫٥");
-    await expect(input).toHaveValue("١٢٫٥");
-    await expect(derived).toHaveText(new Intl.NumberFormat(locale).format(25));
-    await input.press("ArrowUp");
-    await expect(input).toHaveValue("13.5");
-    await bounded.fill("20000");
-    await input.focus();
-    await expect(bounded).toHaveValue("10000");
-    expect(mutations).toEqual([]);
-    appendFileSync(
-      ".runtime/visual-density-after.jsonl",
-      `${JSON.stringify({ locale, height, geometry, numeric: "editable/decimal/Arabic/bounds passed" })}\n`,
-    );
-    await response.screenshot({ path: `.runtime/visual-density-after-${locale}.png` });
-    await page.reload();
-    await expect(input).toHaveValue("13.5");
-    await expect(bounded).toHaveValue("10000");
-  });
-}
+  }
+});
 
 test("dense tables, charts and diagrams remain local and contained at 320px", async ({
   page,

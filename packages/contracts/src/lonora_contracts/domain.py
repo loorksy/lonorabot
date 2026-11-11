@@ -93,6 +93,18 @@ class UiSubmit(Contract):
     values: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
+class VoiceNote(Contract):
+    artifact_id: str = Field(min_length=1, max_length=36)
+    duration: float = Field(gt=0, le=120, allow_inf_nan=False)
+    peaks: list[int] = Field(min_length=44, max_length=44)
+
+    @model_validator(mode="after")
+    def bounded_peaks(self) -> "VoiceNote":
+        if any(peak < 0 or peak > 100 for peak in self.peaks):
+            raise ValueError("voice_peaks_invalid")
+        return self
+
+
 class MessageCreate(Contract):
     input_answer: InputAnswer | None = None
     ui_submit: UiSubmit | None = None
@@ -103,15 +115,40 @@ class MessageCreate(Contract):
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)
     reply_to: str | None = None
     attachment_ids: list[str] = Field(default_factory=list[str], max_length=10)
+    # Edit and resend (Q21): the owner's text message this one replaces.
+    edited_from: str | None = Field(default=None, max_length=36)
+    # An owner voice note: the audio artifact uploaded to this thread. The server
+    # transcribes it into the message content before the Agent is asked to answer.
+    voice: VoiceNote | None = None
 
     @model_validator(mode="after")
-    def text_or_card(self) -> "MessageCreate":
+    def content_or_voice(self) -> "MessageCreate":
         # A card submission carries no text of its own: the server writes the bubble.
-        if self.ui_submit is None and not self.content:
+        if self.ui_submit is None and self.voice is None and not self.content:
             raise ValueError("message_content_required")
-        if self.ui_submit is not None and (self.input_answer or self.attachment_ids):
+        if self.voice is not None and (
+            self.content
+            or self.input_answer
+            or self.ui_submit
+            or self.attachment_ids
+            or self.mention_agent_ids
+            or self.mention_all
+            or self.collaboration_session_id
+            or self.edited_from
+        ):
+            raise ValueError("voice_note_invalid")
+        if self.ui_submit is not None and (
+            self.input_answer or self.attachment_ids or self.voice or self.edited_from
+        ):
             raise ValueError("ui_submit_invalid")
         return self
+
+
+class ThreadOptions(Contract):
+    """Per-chat options the agent reads (Q33): ``web_search`` makes it gather sources with
+    the web_search tool before answering."""
+
+    web_search: bool = False
 
 
 class ResourceInput(Contract):

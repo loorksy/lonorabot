@@ -1,14 +1,19 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { showsTradingControl } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
 import { type ReactNode, useCallback } from "react";
-import { ConversationCharts } from "../components/charts/ConversationCharts";
 import { TradingGoals } from "../components/goals/TradingGoals";
+import { useChatPrefs } from "../conversation/prefs";
+import { useAgentSheet } from "../conversation/sheets/AgentSheet";
+import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
+import { useAgentLiveState } from "../lib/agent-live-state";
 import type { Agent, Resource } from "../lib/api";
 import { GroupSettings } from "../pages/GroupPanel";
 import { Knowledge } from "../pages/Knowledge";
 import { AgentSettings } from "../pages/shell/bot-settings";
 import { useClient } from "../providers/ClientProvider";
+import { useChartSheet } from "./agent/ChartSheet";
 import { useShellData } from "./data";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
@@ -42,6 +47,22 @@ function MenuRow({
   );
 }
 
+/** «الحالة والأمان»: trading agents and the status preference always; any other agent while it
+    has a task that may need the owner (review, resume). Live, since the menu stays open. */
+function StatusRow({
+  agent,
+  shown,
+  onClick,
+}: {
+  agent: Agent;
+  shown: boolean;
+  onClick: () => void;
+}) {
+  const tasks = useAgentLiveState(agent.id).state?.tasks ?? [];
+  if (!shown && !tasks.length) return null;
+  return <MenuRow icon="shield" label={<Trans>Status and safety</Trans>} onClick={onClick} />;
+}
+
 export function useChatMenu({
   agent,
   group,
@@ -55,37 +76,41 @@ export function useChatMenu({
   const nav = useNavigation();
   const data = useShellData();
   const { refresh } = useClient();
-  // The sheet keeps the body it was opened with: the chart an answer asks for goes in here.
-  const openChart = useCallback(
-    (chartId?: string) => {
-      const title = t`Chart`;
-      sheets.open({
-        id: "chart",
-        expand: true,
-        title,
-        label: title,
-        body: (
-          <div className="grow legacy-surface">
-            <ConversationCharts
-              key={agent?.id ?? group?.id}
-              preferredChartId={chartId}
-              agentId={agent?.id}
-              binding={
-                agent?.trading_account_id && agent.trading_symbol
-                  ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
-                  : undefined
-              }
-              threadId={group?.state?.thread_id ? String(group.state.thread_id) : undefined}
-              onOpenMarket={() => nav.go("/app/market")}
-            />
-          </div>
-        ),
-      });
-    },
-    [sheets, nav, agent, group],
+  const prefs = useChatPrefs();
+  const statusSheet = useAgentSheet((id) =>
+    window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
   );
+  const watchesSheet = useWatchesSheet();
+  // Lonora (the personal agent) trades too (Q19): its chat has the capsule and the sheet's
+  // trading section like any trading agent's.
+  const trading = Boolean(
+    agent &&
+      (agent.template === "trading" ||
+        showsTradingControl({ role: agent.role, trading_account_id: agent.trading_account_id })),
+  );
+  // The chart sheet (chart.sheet, Q37): the agent's pair, or the chart an answer named.
+  const chartSheet = useChartSheet();
+  const openChart = useCallback(
+    (chartId?: string) =>
+      chartSheet(
+        agent?.trading_account_id && agent.trading_symbol
+          ? { accountId: agent.trading_account_id, symbol: agent.trading_symbol }
+          : null,
+        {
+          agentId: agent?.id,
+          chartId,
+          threadId: group?.state?.thread_id ? String(group.state.thread_id) : undefined,
+        },
+      ),
+    [chartSheet, agent, group],
+  );
+  // Every page is built from the loaded agent or group (a group's from its member agents),
+  // and the sheet keeps the body it opened with: before they arrive nothing opens, from the
+  // ⋮ button, the avatar or the name alike.
+  const ready = Boolean(agent || (group && !data.agentsLoading));
   const openPage = useCallback(
     (page: MenuPage, dir?: "fwd" | "back") => {
+      if (!ready) return;
       const title =
         page === "menu"
           ? t`Chat menu`
@@ -107,6 +132,20 @@ export function useChatMenu({
                 onClick={() => openPage("info", "fwd")}
               />
               <MenuRow icon="chart" label={<Trans>Chart</Trans>} onClick={() => openChart()} />
+              {agent && (
+                <StatusRow
+                  agent={agent}
+                  shown={trading || prefs.agentStatus}
+                  onClick={() => statusSheet(agent, trading, prefs.agentStatus)}
+                />
+              )}
+              {agent && trading && (
+                <MenuRow
+                  icon="radar"
+                  label={<Trans>Watches</Trans>}
+                  onClick={() => watchesSheet(agent)}
+                />
+              )}
               <MenuRow
                 icon="book"
                 label={<Trans>Knowledge</Trans>}
@@ -182,9 +221,24 @@ export function useChatMenu({
         { morph: true },
       );
     },
-    [sheets, nav, data, group, agent, memberAgents, refresh, openChart],
+    [
+      sheets,
+      nav,
+      data,
+      group,
+      agent,
+      memberAgents,
+      refresh,
+      openChart,
+      ready,
+      prefs.agentStatus,
+      statusSheet,
+      trading,
+      watchesSheet,
+    ],
   );
   return {
+    ready,
     openMenu: () => openPage("menu"),
     openInfo: () => openPage("info"),
     openChart,

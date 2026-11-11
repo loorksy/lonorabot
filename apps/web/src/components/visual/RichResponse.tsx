@@ -110,13 +110,13 @@ export function RichResponse(props: Props) {
           <div className="native-rich-text" key={`text:${index}`}>
             <ChatMarkdown>{part.text}</ChatMarkdown>
           </div>
-        ) : (
+        ) : part.type === "ui" ? (
           <VisualDocumentView
             key={`${index}:${visualDocumentKey(part.document)}`}
             {...props}
             document={part.document}
           />
-        ),
+        ) : null,
       )}
     </div>
   );
@@ -153,13 +153,17 @@ export function VisualDocumentView({
       return {
         state: initialVisualState(document, JSON.parse(prior ?? "null")),
         canonical: canonical !== null,
+        stored: prior !== null,
       };
     } catch {
-      return { state: initialVisualState(document), canonical: false };
+      return { state: initialVisualState(document), canonical: false, stored: false };
     }
   });
   const [state, setState] = useState<VisualState>(initial.state);
   const userEdited = useRef(false);
+  // Only a state the owner made (or carried over from the preview) is written back: an
+  // untouched card stores nothing, so a later mount still restores the preview's edits.
+  const owned = useRef(initial.stored);
   const migratedFrom = useRef(previousStorageKey);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>();
@@ -176,12 +180,16 @@ export function VisualDocumentView({
     migratedFrom.current = previousStorageKey;
     try {
       const prior = localStorage.getItem(previousStorageKey);
-      if (prior !== null) setState(initialVisualState(document, JSON.parse(prior)));
+      if (prior !== null) {
+        owned.current = true;
+        setState(initialVisualState(document, JSON.parse(prior)));
+      }
     } catch {
       /* The answer remains usable when local storage is unavailable. */
     }
   }, [previousStorageKey, document, initial.canonical]);
   useEffect(() => {
+    if (!owned.current) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify(state));
     } catch {
@@ -199,6 +207,7 @@ export function VisualDocumentView({
   };
   const change = (node: VisualNode, next: VisualScalar) => {
     userEdited.current = true;
+    owned.current = true;
     setState((old) => updateVisualState(document, old, node, next));
   };
   async function act(node: VisualNode) {
@@ -610,6 +619,7 @@ export function VisualDocumentView({
           className="native-visual-reset"
           onClick={() => {
             userEdited.current = true;
+            owned.current = true;
             setState(initialVisualState(document));
           }}
         >

@@ -29,6 +29,12 @@ export function userError(error: unknown) {
       return t`This agent’s market scope cannot be changed.`;
     case "agent_scope_change_incomplete":
       return t`Choose a complete market scope and reload the saved settings before continuing.`;
+    case "collaboration_guest_limit":
+      return t`At most two other agents can join one message.`;
+    case "risk_currency_required":
+      return t`Amount limits are in the account currency: enter it to save.`;
+    case "trading_day_timezone_invalid":
+      return t`Choose a valid time zone for the trading day.`;
     case "input_answer_invalid":
       return t`Choose an available answer.`;
     case "input_answer_expired":

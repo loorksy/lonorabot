@@ -986,3 +986,11 @@ test("on a never-started install the resume card is Start trading, and says so w
   assert.ok(financialBoundaryError("trading_not_started", "en")?.includes("Start trading"));
   assert.ok(financialBoundaryError("trading_not_started", "ar")?.includes("بدء التداول"));
 });
+
+test("M5: a settled stop_tightened notice reads as applied, only an Undo reads as undone", async () => {
+  const { noticeUndone } = await import("../../packages/core/src/owner-actions");
+  assert.equal(noticeUndone({ kind: "stop_tightened", status: "confirmed" }), false);
+  assert.equal(noticeUndone({ kind: "watch_changed", status: "confirmed" }), true);
+  assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
+  assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
+});

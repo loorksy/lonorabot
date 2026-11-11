@@ -104,8 +104,28 @@ export type VisualDocument = {
   state?: VisualState;
   facts?: Record<string, VisualFact>;
 };
+/** An owner voice note (server-written): the transcript is the message's content. */
+export type VoiceTranscriptStatus = "pending" | "done" | "failed";
+export type VoicePart = {
+  type: "voice";
+  artifact_id: string;
+  /** Seconds, 0 < duration <= 120. */
+  duration: number;
+  /** Exactly 44 bars, each 0..100. */
+  peaks: number[];
+  transcript_status: VoiceTranscriptStatus;
+};
+/** A call log bubble (server-written system message). */
+export type CallPart = {
+  type: "call";
+  direction: "outgoing" | "incoming";
+  duration_seconds: number;
+  missed: boolean;
+};
 export type VisualResponsePart =
   | { type: "text"; text: string }
   | { type: "ui"; document: VisualDocument }
-  | UiPart;
+  | UiPart
+  | VoicePart
+  | CallPart;
 export type RichContent = { version: 1; parts: VisualResponsePart[] };

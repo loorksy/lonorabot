@@ -15,6 +15,7 @@ import { useAttention } from "../../providers/AttentionProvider";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
+import { recoveryPath } from "../routes";
 import { NOTIFY_DEFAULTS, type NotifyPrefs, readDevicePref } from "../settings/device-prefs";
 import { suppressClicks } from "../sheets/SheetHost";
 import { chatPath } from "./ChatList";
@@ -25,7 +26,8 @@ import { RowAvatar } from "./ThreadRow";
    swipe up hides it. Mute, archive and the owner's quiet hours suppress it and its tone
    (owner decision Q4, the reach-me policy); a critical or action_required attention item
    always shows. */
-type Banner = { row: ChatRow; text: string; serial: number };
+/** `path`: where a tap goes when it is not the row's chat (a broker outage → recovery). */
+type Banner = { row: ChatRow; text: string; serial: number; path?: string };
 
 let audio: AudioContext | null = null;
 function tone() {
@@ -130,10 +132,15 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
     quiet,
     off: offAgents,
   };
-  const show = useCallback((row: ChatRow, text: string) => {
+  const show = useCallback((row: ChatRow, text: string, path?: string) => {
     const prefs = readDevicePref<NotifyPrefs>("notify", NOTIFY_DEFAULTS);
     serial.current += 1;
-    setBanner({ row, text: prefs.preview ? text : t`New message`, serial: serial.current });
+    setBanner({
+      row,
+      text: prefs.preview ? text : t`New message`,
+      serial: serial.current,
+      path,
+    });
     setPhase("in");
     if (prefs.sound) tone();
   }, []);
@@ -178,8 +185,18 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       const key = item.parameters.group_id
         ? rowKey("group", item.parameters.group_id)
         : rowKey("agent", item.agent_id);
-      const row = rows.find((candidate) => candidate.key === key);
-      if (row) show(row, item.parameters.summary || labels[item.code]);
+      // An account-level outage has no chat of its own: Lonora's row carries it.
+      const row =
+        rows.find((candidate) => candidate.key === key) ??
+        (item.code === "broker_degraded"
+          ? rows.find((candidate) => candidate.agent?.role === "personal")
+          : undefined);
+      if (row)
+        show(
+          row,
+          item.parameters.summary || labels[item.code],
+          item.code === "broker_degraded" ? recoveryPath(item.parameters.account_id) : undefined,
+        );
     }
   }, [attention.items, show]);
   const [entered, setEntered] = useState(0);
@@ -201,7 +218,7 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
   if (!banner) return null;
   const open = () => {
     setPhase("out");
-    nav.go(chatPath(banner.row));
+    nav.go(banner.path ?? chatPath(banner.row));
   };
   return (
     <div
@@ -232,7 +249,8 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
         </span>
       </button>
       <button type="button" className="btn small outline hu-reply" onClick={open}>
-        <Trans>Reply</Trans>
+        {/* A broker outage opens the recovery page under its own words, not «رد». */}
+        {banner.path ? <Trans>Outage and recovery</Trans> : <Trans>Reply</Trans>}
       </button>
     </div>
   );

@@ -2,6 +2,7 @@
  * No expression or action is executed as JavaScript, HTML, a URL or a broker call.
  */
 import type {
+  CallPart,
   RichContent,
   VisualAction,
   VisualDocument,
@@ -10,6 +11,7 @@ import type {
   VisualScalar,
   VisualState,
   VisualValue,
+  VoiceTranscriptStatus,
 } from "@lonora/contracts";
 import { validateUiPart } from "./genui/spec";
 import { unsafeVisualText } from "./visual-private-text";
@@ -526,6 +528,47 @@ export function validateRichContent(value: unknown): RichContent | null {
         const card = validateUiPart(part);
         if (!card) return null;
         parts.push(card);
+      } else if (part.type === "voice") {
+        if (
+          !fieldsOnly(part, ["type", "artifact_id", "duration", "peaks", "transcript_status"]) ||
+          typeof part.artifact_id !== "string" ||
+          !resourcePattern.test(part.artifact_id) ||
+          typeof part.duration !== "number" ||
+          !Number.isFinite(part.duration) ||
+          part.duration <= 0 ||
+          part.duration > 120 ||
+          !Array.isArray(part.peaks) ||
+          part.peaks.length !== 44 ||
+          !part.peaks.every(
+            (peak: unknown) =>
+              typeof peak === "number" && Number.isInteger(peak) && peak >= 0 && peak <= 100,
+          ) ||
+          !literal(part.transcript_status, ["pending", "done", "failed"])
+        )
+          return null;
+        parts.push({
+          type: "voice",
+          artifact_id: part.artifact_id,
+          duration: part.duration,
+          peaks: [...part.peaks],
+          transcript_status: part.transcript_status as VoiceTranscriptStatus,
+        });
+      } else if (part.type === "call") {
+        if (
+          !fieldsOnly(part, ["type", "direction", "duration_seconds", "missed"]) ||
+          !literal(part.direction, ["outgoing", "incoming"]) ||
+          typeof part.duration_seconds !== "number" ||
+          !Number.isInteger(part.duration_seconds) ||
+          part.duration_seconds < 0 ||
+          typeof part.missed !== "boolean"
+        )
+          return null;
+        parts.push({
+          type: "call",
+          direction: part.direction as CallPart["direction"],
+          duration_seconds: part.duration_seconds,
+          missed: part.missed,
+        });
       } else {
         if (part.type !== "ui" || !fieldsOnly(part, ["type", "document"])) return null;
         const document = validateVisualDocument(part.document);

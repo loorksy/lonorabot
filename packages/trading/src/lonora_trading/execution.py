@@ -25,7 +25,7 @@ from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
 from lonora_db.trade_approvals import require_approved_target_current
-from lonora_db.trading_journal import persist_result, reserve_operation
+from lonora_db.trading_journal import anchor_operation, persist_result, reserve_operation
 from lonora_db.trading_restrictions import restriction_lock
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -245,6 +245,8 @@ class ExecutionService:
             )
             if not fresh:
                 return receipt(journal)
+            if leased_run:
+                await anchor_operation(session, journal, leased_run)
             # Reserved is durable identity only. The send boundary below atomically
             # moves it to submitted; recovery proves an abandoned reservation unsent.
             journal.status = "reserved"

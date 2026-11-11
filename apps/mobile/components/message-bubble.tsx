@@ -1,5 +1,5 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { peerOutcome, validateRichContent } from "@lonora/core";
+import { callPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
@@ -54,6 +54,20 @@ export function MessageBubble({
     [message.rich_content, message.role],
   );
   const imageIds = useMemo(() => nativeRichImageIds(rich), [rich]);
+  // A voice note or a call log has no text: it is named, never drawn as a blank bubble.
+  const voice = voicePart(message);
+  const call = callPart(message);
+  const clock = (seconds: number) => {
+    const s = Math.max(0, Math.round(seconds || 0));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  const partLine = voice
+    ? `${t("voiceNote")} · ${clock(voice.duration)}`
+    : call
+      ? call.missed
+        ? t("missedVoiceCall")
+        : `${t("voiceCall")} · ${clock(call.duration_seconds)}`
+      : null;
   return (
     <Pressable
       onLongPress={() => onReply?.(message)}
@@ -153,6 +167,10 @@ export function MessageBubble({
           />
         ) : message.content ? (
           <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
+        ) : partLine ? (
+          <Text style={{ color: colors.secondary, fontSize: 14, writingDirection: "auto" }}>
+            {partLine}
+          </Text>
         ) : null))
       )}
       {mark ? (

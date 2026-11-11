@@ -66,6 +66,10 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "ok": False,
             "code": "financial_consent_requires_trade_request",
             "next_tool": "trade_execute",
+            # A trade is not the answer to an owner-only control (G0 baseline I07).
+            "guidance": "An order or close is trade_execute. Resuming trading, lifting a "
+            "pause, limits and authority are owner_action_propose cards (through tool_call); "
+            "a pause the owner asks for is trade_restriction_create.",
         }
     if any(
         public_reply_violation(text)

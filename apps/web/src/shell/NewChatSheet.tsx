@@ -3,22 +3,15 @@ import { Trans } from "@lingui/react/macro";
 import { GroupAvatar, Icon } from "@lonora/ui-web";
 import { useCallback } from "react";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
-import type { Agent, Resource } from "../lib/api";
 import { useShellData } from "./data";
 import { agentRole } from "./lists/ThreadRow";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
 /* «محادثة جديدة»: a new agent or group, then the agents and the groups that already exist. */
-function Body({
-  agents,
-  groups,
-  onGo,
-}: {
-  agents: Agent[];
-  groups: Resource[];
-  onGo: (path: string) => void;
-}) {
+/* The lists are read live: a sheet opened before the shell's data arrives fills in. */
+function Body({ onGo }: { onGo: (path: string) => void }) {
+  const { agents, groups } = useShellData();
   return (
     <>
       <div className="group">
@@ -120,12 +113,11 @@ function Body({
 export function useNewChatSheet() {
   const sheets = useSheets();
   const nav = useNavigation();
-  const data = useShellData();
   return useCallback(() => {
     sheets.open({
       id: "new-chat",
       title: t`New chat`,
-      body: <Body agents={data.agents} groups={data.groups} onGo={nav.go} />,
+      body: <Body onGo={nav.go} />,
     });
-  }, [sheets, nav.go, data.agents, data.groups]);
+  }, [sheets, nav.go]);
 }

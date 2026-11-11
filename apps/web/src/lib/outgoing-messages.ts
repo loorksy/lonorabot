@@ -1,3 +1,4 @@
+import { pendingVoiceRich } from "@lonora/core";
 import { ApiError, type Message } from "./api";
 
 export type OutgoingMessage = Message & {
@@ -133,6 +134,8 @@ export function enqueueOutgoing(
       seq: Math.max(afterSeq, ...outgoingMessages(key).map((row) => row.message.seq)) + 0.25,
       role: "user",
       content: String(body.content ?? ""),
+      // A voice note is drawn as one while it is sending or failed, never as a blank bubble.
+      rich_content: pendingVoiceRich(body),
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,
       attachment_ids: Array.isArray(body.attachment_ids) ? [...body.attachment_ids] : [],
       created_at: new Date().toISOString(),
@@ -151,6 +154,13 @@ export function failOutgoing(
     outgoingMessages(key).map((row) =>
       row.nonce === nonce ? { ...row, message: { ...row.message, delivery } } : row,
     ),
+  );
+}
+/** «حذف» on a failed message: it leaves the outbox (it never reached the server). */
+export function dropOutgoing(key: string, nonce: string) {
+  save(
+    key,
+    outgoingMessages(key).filter((row) => row.nonce !== nonce),
   );
 }
 /** The owner's keys with an outbox, in memory or saved on this device. */

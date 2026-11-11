@@ -44,7 +44,12 @@ async def start_ticket(
             thread_id=ticket.thread_id,
             trigger="tickets",
             prompt=ticket.payload["title"] + "\n" + ticket.payload.get("description", ""),
-            metadata={"ticket_id": ticket.id, **inherited_authority(starter)},
+            metadata={
+                "ticket_id": ticket.id,
+                # The run that started it: a retry of that run must not repeat this work.
+                **({"started_by_run_id": starter.id} if starter else {}),
+                **inherited_authority(starter),
+            },
         )
         # Tainted work that starts a ticket taints it, then the Run inherits it.
         await taint_row_from(session, starter, "ticket", ticket.id)

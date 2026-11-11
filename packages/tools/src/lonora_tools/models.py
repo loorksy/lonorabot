@@ -176,6 +176,10 @@ async def list_models(context: ToolContext, args: dict[str, Any]) -> dict[str, A
             "answering": await _named(session, answering) if answering else None,
             "allowed": [await _named(session, item) for item in allowed],
             "connected_providers": connected,
+            # Reading changes nothing; the choice itself is model_request (G0 baseline D05).
+            "next": "To choose or change this agent's model, call model_request with an exact "
+            "id: it applies when the rules allow, otherwise the owner gets a one-tap card. "
+            "query finds catalog models beyond the allowed list.",
         }
         if params.query:
             entries = await catalog_models(session, connected)

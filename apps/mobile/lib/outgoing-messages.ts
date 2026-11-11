@@ -1,5 +1,6 @@
 /** Recoverable owner-scoped send intents, never an alternate conversation store. */
 import type { Message } from "@lonora/contracts";
+import { pendingVoiceRich } from "@lonora/core";
 import { Platform } from "react-native";
 import { registerSessionTeardown } from "./session-lifecycle";
 
@@ -163,6 +164,8 @@ export async function enqueueOutgoing(
       seq: Math.max(afterSeq, ...outgoingMessages(key).map((row) => row.message.seq)) + 0.25,
       role: "user",
       content: String(body.content ?? ""),
+      // A voice note is drawn as one while it is sending or failed, never as a blank bubble.
+      rich_content: pendingVoiceRich(body),
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,
       attachment_ids: Array.isArray(body.attachment_ids) ? [...body.attachment_ids] : [],
       created_at: new Date().toISOString(),

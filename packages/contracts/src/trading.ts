@@ -72,6 +72,9 @@ export type Trade = {
   price?: string;
   stop_loss?: string;
   take_profit?: string;
+  /** modify_position: remove the stop or the target (the server decides if that is allowed). */
+  clear_stop_loss?: boolean;
+  clear_take_profit?: boolean;
   position_id?: string;
   order_id?: string;
 };
@@ -119,6 +122,13 @@ export type Journal = {
   verification_status?: string | null;
   awaiting_broker_confirmation?: boolean;
   resolution?: OperationResolutionRecord | null;
+  /**
+   * Conversation anchor (presentation only): the thread and its next message seq when an
+   * agent Run of that conversation requested the operation; null for the owner's own
+   * controls and background transitions. The chat places the order line there.
+   */
+  thread_id?: string | null;
+  timeline_seq?: number | null;
 };
 export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {
@@ -127,7 +137,8 @@ export type TradeApproval = {
   run_id: string;
   thread_id: string;
   agent_id: string;
-  status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
+  /** expired: its lifetime (30-60 min) ended unapproved; «طلب جديد» asks the agent again. */
+  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired";
   requests: Payload[];
   results: {
     operation_id: string;
@@ -136,6 +147,8 @@ export type TradeApproval = {
     code?: string | null;
     details: Payload;
   }[];
+  /** Past it the card can no longer be approved; null on older approvals. */
+  expires_at?: string | null;
   created_at: string;
 };
 /** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */
@@ -235,6 +248,15 @@ export type TradingReadiness = {
     submitted_at: string | null;
     this_agent: boolean;
     blocks: "new_risk_on_this_symbol_or_ticket";
+    /** The operation's own pending resolve card («حسم») and the conversation that holds it
+        (an agent's chat or a group), or null. */
+    resolve_card: {
+      id: string;
+      thread_id: string | null;
+      agent_id: string | null;
+      group_id: string | null;
+      timeline_seq: number | null;
+    } | null;
   }>;
   unresolved_count: number;
   exits_allowed: boolean;

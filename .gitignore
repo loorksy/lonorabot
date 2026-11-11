@@ -13,6 +13,10 @@ dist/
 *.tsbuildinfo
 .runtime/
 backups/
+# Production installation state when /opt/lonora is a checkout (docs/operations.md).
+/backup.key
+/state/
+/release.json
 
 # Generated Expo/native projects (signing and device state stay local).
 apps/mobile/.expo/

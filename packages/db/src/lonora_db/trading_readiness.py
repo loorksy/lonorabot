@@ -22,7 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import fixed_market
 from .agent_permissions import permission_state
-from .schema import AgentRow, BrokerSessionRow, SettingRow, TradingJournalRow
+from .schema import (
+    AgentRow,
+    BrokerSessionRow,
+    OwnerActionRow,
+    SettingRow,
+    ThreadRow,
+    TradingJournalRow,
+)
 from .trading_restrictions import list_restrictions, relevant_to, restriction_state
 from .transactions import SettingsRepository, execution_policy_key
 
@@ -211,6 +218,42 @@ async def trading_readiness(
                     "blocks": "new_risk_on_this_symbol_or_ticket",
                 }
             )
+    # «حسم» opens the operation's own resolve card (a live, pending one), never another card,
+    # in whichever conversation holds it (this chat, another agent's, a group, Lonora's).
+    cards: dict[str, dict[str, Any]] = {}
+    if operations:
+        for card_id, subject, thread_id, seq, thread_agent, group_id in (
+            await session.execute(
+                select(
+                    OwnerActionRow.id,
+                    OwnerActionRow.subject,
+                    OwnerActionRow.thread_id,
+                    OwnerActionRow.timeline_seq,
+                    ThreadRow.agent_id,
+                    ThreadRow.group_id,
+                )
+                .outerjoin(ThreadRow, ThreadRow.id == OwnerActionRow.thread_id)
+                .where(
+                    OwnerActionRow.owner_id == owner_id,
+                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.status == "pending",
+                    OwnerActionRow.expires_at > now,
+                    OwnerActionRow.subject.in_(
+                        ["operation:" + item["operation_id"] for item in operations]
+                    ),
+                )
+                .order_by(OwnerActionRow.created_at)
+            )
+        ).all():
+            cards[subject.removeprefix("operation:")] = {
+                "id": card_id,
+                "thread_id": thread_id,
+                "agent_id": thread_agent,
+                "group_id": group_id,
+                "timeline_seq": seq,
+            }
+    for item in operations:
+        item["resolve_card"] = cards.get(item["operation_id"])
     active = [
         item
         for item in restrictions
