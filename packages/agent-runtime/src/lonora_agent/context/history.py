@@ -168,7 +168,8 @@ async def history_context(
                     continue
                 if question.choices:
                     payload = json.dumps(
-                        [choice.model_dump() for choice in question.choices], ensure_ascii=False
+                        [choice.model_dump(include={"id", "label"}) for choice in question.choices],
+                        ensure_ascii=False,
                     ).replace("<", "\\u003c")
                     options[message_id] = "\n<question_choices>" + payload + "</question_choices>"
     names = {

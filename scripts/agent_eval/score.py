@@ -566,6 +566,26 @@ def ends_with_offer(record: Mapping[str, Any]) -> bool:
     return bool(found and OFFER.search(found[-1]))
 
 
+def asked(record: Mapping[str, Any]) -> tuple[bool, bool]:
+    """Reported, not failed: the turn asked a question, and a choice of it binds calls.
+
+    Read from the Run's own transcript: a question counts once it was accepted, and it
+    binds only when its result carries what a pick does. A refused binding is neither.
+    """
+    question = bound = False
+    for message in cast(list[dict[str, Any]], record.get("transcript") or []):
+        if message.get("role") != "tool":
+            continue
+        try:
+            result: Any = json.loads(message.get("content") or "")
+        except ValueError:
+            continue
+        if isinstance(result, dict) and cast(dict[str, Any], result).get("_runtime_wait"):
+            question = True
+            bound = bound or bool(cast(dict[str, Any], result).get("effects"))
+    return question, bound
+
+
 def write_baseline(section: str, verdicts: Mapping[str, list[str]], **facts: Any) -> None:
     """Record one layer's result per scenario in BASELINE.json, the list the CI replay holds
     strictly: "live" (a recorded model run) or "structural" (the probes, no model)."""
@@ -586,12 +606,14 @@ def report(
     structural: bool = False,
 ) -> str:
     rows = ["| Scenario | Source | Result | Failed checks |", "|---|---|---|---|"]
-    passed = offers = 0
+    passed = offers = questions = bound = 0
     for record in records:
         scenario = scenarios[record["scenario"]]
         failed = findings(scenario, record)
         passed += not failed
         offers += ends_with_offer(record)
+        question, binds = asked(record)
+        questions, bound = questions + question, bound + binds
         detail = "; ".join(
             name if found == "expected effect missing" else f"{name} ({found})"
             for name, found in sorted(failed.items())
@@ -603,7 +625,8 @@ def report(
     rows.append(
         f"{passed} of {len(records)} probes pass (structural: no model)."
         if structural
-        else f"{passed} of {len(records)} scenarios pass; {offers} replies end with an offer."
+        else f"{passed} of {len(records)} scenarios pass; {offers} replies end with an offer; "
+        f"{questions} turns asked a question, {bound} of them with bound actions."
     )
     return "\n".join(rows)
 

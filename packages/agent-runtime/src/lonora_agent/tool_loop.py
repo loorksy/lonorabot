@@ -66,6 +66,7 @@ from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
     attention_outcome,
+    closing_lines,
     external_wait_outcome,
     final_answer,
     question_outcome,
@@ -108,7 +109,6 @@ from .tool_block import (
 from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import halt_reason
 from .tool_intent import start_budget_epoch
-from .uncertain_outcome import append_uncertain_line
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -297,8 +297,8 @@ async def finish_turn(
                 rich_content=state.get("rich_content"),
             )
         )
-        # The round-limit and guardrail report gets the uncertain-outcome line too.
-        text = append_uncertain_line(state, messages, text)
+        # The round-limit and guardrail report gets the runtime's fixed lines too.
+        text = closing_lines(state, messages, text, registry)
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
     if task_run:
@@ -615,6 +615,7 @@ async def execute_tool_loop(
             )
             if final_limit - int(state["rounds"]) - 1 > 0
             else None,
+            registry=registry,
         )
         if outcome is not None:
             return outcome

@@ -559,6 +559,17 @@ class ToolRegistry:
                 await mark_external_content(session, context.lease.run_id, call.name)
         return result
 
+    async def accepts(self, context: ToolContext, name: str, arguments: dict[str, Any]) -> None:
+        """Raise what this tool's own preparation and validation raise for these arguments.
+
+        It runs nothing: it reads what the real call reads before its handler.
+        """
+        tool = self.tools[name]
+        prepared, _ = await prepare_market_arguments(
+            context, name, dict(arguments), tool.input_type, read=tool.read_only
+        )
+        validate_arguments(tool.input_type, prepared)
+
     async def dispatch(self, tool: Tool, call: ToolCall, context: ToolContext) -> dict[str, Any]:
         arguments, named = await prepare_market_arguments(
             context, call.name, dict(call.arguments), tool.input_type, read=tool.read_only

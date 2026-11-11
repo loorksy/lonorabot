@@ -2,8 +2,12 @@
 
 A Task has steps to finish; a conversation has none, so a reply could end a request with
 one named step left untaken. This gate reads the request's own tool calls and results and
-continues the turn, at most twice per owner message, in three cases:
+continues the turn, at most twice per owner message, in four cases:
 
+- ``choice_not_carried_out``: the owner picked a choice of a question, the choice was
+  bound to calls when it was offered (``offers``), and fewer calls of those tools have
+  succeeded since. It is raised once; a reply that still leaves it undone gets one fixed
+  line saying so;
 - ``read_step_not_taken``: the last call did not find what it named, its result names one
   tool to read next, and that tool was never called;
 - ``found_tool_unused``: ``tool_environment`` returned exactly one tool and it was never
@@ -22,10 +26,12 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_core.user_error import LonoraError
+from lonora_db.runs import OFFER_OBLIGATION
 from lonora_tools.registry import BRIDGE_TOOLS, INSPECTOR, ToolRegistry
 
 from .context.run_evidence import SKIPPED_TOOLS
-from .runtime_notices import is_owner_message
+from .offers import PICKED, bound_tools, open_obligation, outstanding
+from .runtime_notices import is_owner_message, notice_kind
 from .stop_gates import CONVERSATION_KEY, MAXIMUM_STOP_NUDGES, StopGateVerdict
 from .uncertain_outcome import FINANCIAL_EFFECTS, uncertain_operations
 
@@ -79,6 +85,21 @@ def _request(messages: list[ModelMessage]) -> list[ModelMessage] | None:
     if last is None or messages[last].content.startswith(WAKE_OPEN):
         return None
     return messages[last + 1 :]
+
+
+def _since_pick(messages: list[ModelMessage]) -> list[Exchange] | None:
+    """Every call made after the owner's pick, with its result; ``None`` without a pick.
+
+    Read from the pick's own notice, not from the last owner-side message: another
+    agent's outcome merged after the calls must not hide them, or a change that was made
+    would be asked for again.
+    """
+    last = next(
+        (i for i in range(len(messages) - 1, -1, -1) if notice_kind(messages[i]) == PICKED), None
+    )
+    if last is None:
+        return None
+    return [exchange for block in _blocks(messages[last + 1 :]) for exchange in block]
 
 
 def _blocks(request: list[ModelMessage]) -> list[list[Exchange]]:
@@ -135,6 +156,31 @@ def _held(
         ):
             return True
     return bool(uncertain_operations(state, messages))
+
+
+def _choice_not_carried_out(
+    obligation: dict[str, Any] | None, exchanges: list[Exchange]
+) -> Finding | None:
+    if obligation is None:
+        return None
+    missing = outstanding(obligation, exchanges)
+    if not missing:
+        return None
+    bound = bound_tools(obligation)
+    done = sum(bound.values()) - sum(missing.values())
+    listed = ", ".join(
+        name if count == 1 else f"{name} ({count} calls)" for name, count in missing.items()
+    )
+    return (
+        "choice_not_carried_out",
+        next(iter(missing)),
+        str(obligation.get("question_id")),
+        f"The owner picked choice {obligation.get('choice_id')} of your question, and you "
+        f"bound that choice to {sum(bound.values())} call(s). Since the pick, {done} of them "
+        f"succeeded; still to make: {listed}. Make them now, as you bound them. If they no "
+        "longer apply, your reply must say plainly that what the owner chose was not "
+        "carried out, and why; do not describe it as done.",
+    )
 
 
 def _reads(registry: ToolRegistry, name: Any, permitted: Collection[str]) -> bool:
@@ -272,10 +318,14 @@ def conversation_stop_gate(
     record = _record(state)
     request = _request(messages)
     blocks = _blocks(request) if request else []
-    if not blocks:
+    # A picked choice is checked even when the reply made no call at all.
+    picked = _since_pick(messages) if request is not None else None
+    obligation = open_obligation(state) if picked is not None else None
+    if not blocks and obligation is None:
         return ACCEPT
     exchanges = [exchange for block in blocks for exchange in block]
-    if _held(state, messages, exchanges, registry):
+    # The pick starts at or before the request, so its calls include the request's.
+    if _held(state, messages, picked if obligation and picked else exchanges, registry):
         return ACCEPT
     called = {call.name for call, _ in exchanges}
     fired = {
@@ -287,7 +337,8 @@ def conversation_stop_gate(
         (
             found
             for found in (
-                _read_step_not_taken(blocks, called, registry, permitted),
+                _choice_not_carried_out(obligation, picked or []),
+                _read_step_not_taken(blocks, called, registry, permitted) if blocks else None,
                 _found_tool_unused(exchanges, called, registry),
                 _changes_all_failed(exchanges, registry, permitted),
             )
@@ -308,3 +359,31 @@ def conversation_stop_gate(
         "fired": [*record["fired"], {"condition": condition, "tool": tool, "call_id": call_id}],
     }
     return StopGateVerdict(continue_turn=True, nudge=LEAD + text + REPLACES)
+
+
+def choice_left_undone(
+    state: dict[str, Any], messages: list[ModelMessage], registry: ToolRegistry
+) -> bool:
+    """At a reply that ends the turn: record how the picked choice ended and say whether
+    it was left undone with nothing holding it, so the reply gets the fixed line.
+
+    The obligation stays open: a reply drafted again (another agent's outcome arrived, or
+    a restart) is judged afresh from the same transcript.
+    """
+    obligation = open_obligation(state)
+    picked = _since_pick(messages)
+    if (
+        obligation is None
+        or picked is None
+        or _request(messages) is None
+        or state.get("owner_started") is not True
+    ):
+        return False
+    missing = outstanding(obligation, picked)
+    # A rule, a decision of the owner's or an unknown outcome stopped it: the reply stands.
+    held = bool(missing) and _held(state, messages, picked, registry)
+    state[OFFER_OBLIGATION] = {
+        **obligation,
+        "outcome": "held" if held else "unmet" if missing else "met",
+    }
+    return bool(missing) and not held
