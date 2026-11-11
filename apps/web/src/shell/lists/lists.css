@@ -1067,6 +1067,7 @@
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   box-shadow: var(--float-shadow);
+  animation: pop-in 0.16s var(--ease) both;
 }
 .emo-tones .emo {
   width: 44px;
