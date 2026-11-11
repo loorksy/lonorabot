@@ -249,11 +249,10 @@ test("returning to a cached conversation stays visible while fresh reads wait, t
     releaseThreads();
     releaseMessages();
     await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
-    // Opening and closing agent info leaves the same authoritative timeline.
+    // Going to agent info and back leaves the same authoritative timeline.
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    await expect(page.locator("#dialog")).toHaveAttribute("open", "");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(/\/app\/agent\//);
+    await page.goBack();
     await expect(page.getByTestId("transcript")).toContainText(messages[1].content);
     let backgroundStarted = false;
     const backgroundGate = new Promise((resolve) => {

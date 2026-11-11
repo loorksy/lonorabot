@@ -146,10 +146,8 @@ test("the Knowledge panel's profile link closes the chat menu and opens the prof
     localStorage.setItem("lonora.locale", "en");
     localStorage.setItem("lonora.auth.intro-seen", "1");
   });
-  await page.goto(`/app/${owner.agent.id}`);
-  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  const panel = page.locator("#dialog");
-  await panel.getByRole("button", { name: "Knowledge", exact: true }).click();
+  await page.goto(`/app/memory?agent=${owner.agent.id}`);
+  const panel = page.locator("main");
   await panel.getByRole("button", { name: "Open the profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/owner$/);
   await expect(page.locator("#dialog[open]")).toHaveCount(0);

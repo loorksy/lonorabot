@@ -381,7 +381,6 @@ function ShellBody() {
   }, [onCallRoute, voice.target, voice.minimized]);
   const home = desktop && route.kind === "root" && route.root === "chats";
   const net = useNetworkPhase(connected);
-  const menu = useChatMenu({ agent, group, memberAgents });
   const [maintenance, setMaintenance] = useState(false);
   const [forcedUpdate, setForcedUpdate] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -397,6 +396,13 @@ function ShellBody() {
     : group
       ? String(group.state?.thread_id ?? "")
       : undefined;
+  const menu = useChatMenu({
+    agent,
+    group,
+    memberAgents,
+    threadId: openThread,
+    liveTasks: liveState?.tasks?.length ?? 0,
+  });
   const reading = useRef("");
   const { patchInbox } = data;
   useEffect(() => {
@@ -694,7 +700,7 @@ function ShellBody() {
       else if (agent) void voice.start(agent, new URLSearchParams(location.search).get("thread"));
     };
     const chart = () => menu.openChart();
-    const members = () => menu.openInfo();
+    const members = () => menu.openMembers();
     window.addEventListener("lonora:start-call", call);
     window.addEventListener("lonora:open-chart", chart);
     window.addEventListener("lonora:members-permissions", members);
@@ -720,7 +726,6 @@ function ShellBody() {
         if (agent) void starter.start(agent, new URLSearchParams(location.search).get("thread"));
       }}
       onMenu={menu.openMenu}
-      menuReady={menu.ready}
     />
   ) : undefined;
   const mainClass = [

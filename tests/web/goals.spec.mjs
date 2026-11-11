@@ -146,7 +146,7 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
   }
 });
 
-test("a group's menu waits for its member agents before it opens", async ({ page, context }) => {
+test("a group's menu opens before its member agents arrive", async ({ page, context }) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -192,23 +192,15 @@ test("a group's menu waits for its member agents before it opens", async ({ page
     });
     await page.goto(`/app/g/${group.id}`);
     await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
+    // The ⋮ menu is a popover built from the group itself: it opens at once.
     const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeDisabled();
-    const clicked = await page.evaluate(() =>
-      [".head-avatar", ".chat-name"].map((selector) => {
-        const button = document.querySelector(selector);
-        button?.click();
-        return Boolean(button);
-      }),
-    );
-    expect(clicked).toEqual([true, true]);
-    await expect(page.locator("#dialog[open]")).toHaveCount(0);
-    releaseAgents();
     await expect(menu).toBeEnabled();
     await menu.click();
-    await page.unroute(slowAgents);
-    await page.locator("#dialog").getByRole("button", { name: "Group info", exact: true }).click();
-    await expect(page.locator("#dialog").getByText(name).first()).toBeVisible();
+    await page.getByRole("menuitem", { name: "Group info" }).click();
+    await expect(page).toHaveURL(new RegExp(`/app/group/${group.id}$`));
+    releaseAgents();
+    await page.unrouteAll({ behavior: "wait" });
+    await expect(page.locator("main").getByText(name).first()).toBeVisible();
   } finally {
     releaseAgents?.();
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });

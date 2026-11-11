@@ -71,7 +71,7 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     );
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Chart" }).click();
     const panel = page.locator("#dialog");
     // Q37: the reference's chart sheet draws the chart's candles as SVG.
     await expect(

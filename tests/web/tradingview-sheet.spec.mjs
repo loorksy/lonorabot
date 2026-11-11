@@ -28,7 +28,7 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${data.agent}`);
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Chart" }).click();
     const sheet = page.locator("#dialog");
     await expect(sheet).toHaveClass(/expandable/);
     // The conversation has no pair: its latest chart, on that chart's own timeframe, drawn
@@ -52,7 +52,7 @@ test("chart sheet expands, dismisses with Escape and restores focus (Q37: the re
     const menu = page.getByRole("button", { name: "Chat menu", exact: true });
     await expect(menu).toBeFocused();
     await menu.click();
-    await sheet.getByRole("button", { name: "Chart", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Chart" }).click();
     await expect(candles.first()).toBeVisible();
     await sheet.getByRole("button", { name: "Close", exact: true }).click();
     await expect(sheet).not.toHaveAttribute("open", "");
