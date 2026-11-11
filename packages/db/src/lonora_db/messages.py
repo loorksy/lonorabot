@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from lonora_contracts.domain import MessageCreate
+from lonora_contracts.domain import MessageCommand, MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
 from lonora_core.run_state import TERMINAL, is_conversational
@@ -20,6 +20,7 @@ from .schema import (
     GroupRow,
     MessageRow,
     RunRow,
+    SkillRow,
     SteeringRow,
     ThreadRow,
 )
@@ -203,6 +204,26 @@ async def acknowledged_runs(session: AsyncSession, run_ids: list[str]) -> list[d
         row.id: row for row in await session.scalars(select(RunRow).where(RunRow.id.in_(run_ids)))
     }
     return [run_data(rows[identity]) for identity in run_ids if identity in rows]
+
+
+async def command_part(
+    session: AsyncSession, thread: ThreadRow, command: MessageCommand
+) -> dict[str, Any]:
+    """The chip of an owner / command. A task or a skill is one Agent's: not a group's."""
+    part: dict[str, Any] = {"type": "command", **command.model_dump(mode="json")}
+    if command.name in {"task", "skill"} and thread.agent_id is None:
+        raise LonoraError("command_unavailable", 409)
+    if command.skill_id:
+        skill = await session.get(SkillRow, command.skill_id)
+        if (
+            skill is None
+            or skill.owner_id != thread.owner_id
+            or skill.agent_id != thread.agent_id
+            or skill.payload.get("enabled") is False
+        ):
+            raise LonoraError("skill_not_found", 404)
+        part["skill_name"] = str(skill.payload.get("name", ""))[:80]
+    return part
 
 
 async def send_message(
@@ -392,6 +413,8 @@ async def send_message(
                 "transcript_status": "pending",
             }
         )
+    if request.command:
+        rich_content = server_rich_content(await command_part(session, thread, request.command))
     if request.edited_from:
         await supersede(session, owner_id, thread_id, request.edited_from)
     message = MessageRow(
@@ -407,6 +430,7 @@ async def send_message(
                 "input_answer",
                 "ui_submit",
                 "voice",
+                "command",
             }
         ),
         rich_content=rich_content,
