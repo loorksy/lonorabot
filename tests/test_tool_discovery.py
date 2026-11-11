@@ -402,6 +402,15 @@ def test_everyday_words_in_the_owners_language_find_the_tool(query: str, expecte
     assert search_definitions(catalog.definitions(), query, terms=terms)[0] == expected
 
 
+def test_the_production_query_that_found_nothing_finds_the_cancel_tools():
+    catalog = load_tools()
+    terms = {name: tool.search_terms for name, tool in catalog.tools.items()}
+    found = search_definitions(
+        catalog.definitions(), "watch cancel task routines goals", terms=terms
+    )
+    assert {"watch_cancel", "task_control"} <= set(found)
+
+
 def inventory_names(inventory: str) -> set[str]:
     return {
         name

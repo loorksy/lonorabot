@@ -82,10 +82,10 @@ def search_definitions(
     for definition, document in zip(definitions, corpus, strict=True):
         exact = query.strip().casefold() == definition.name.casefold()
         term_counts = Counter(document)
-        if not exact and (
-            not term_counts[gate]
-            or sum(token in term_counts for token in answerable) < minimum_coverage
-        ):
+        covered = sum(token in term_counts for token in answerable)
+        # The rarest word, or (a query that lists several things at once) two of its
+        # words: one generic verb alone never qualifies a tool.
+        if not exact and (covered < minimum_coverage if term_counts[gate] else covered < 2):
             continue
         score = 0.0
         for term in query_tokens:

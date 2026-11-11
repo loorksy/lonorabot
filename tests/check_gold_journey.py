@@ -106,20 +106,6 @@ async def main() -> None:
         connections.append(connection_id)
         seed = f"/trading/connections/{connection_id}/simulation"
         await fixture.request("POST", seed, snapshot(SUFFIXED, "472790406"))
-        # A second account that lists a standard and a cent gold contract.
-        two_contracts = (
-            await fixture.request(
-                "POST",
-                "/trading/connections",
-                {"provider": "simulation", "account_id": uuid4().hex, "enabled": True},
-            )
-        )["id"]
-        connections.append(two_contracts)
-        await fixture.request(
-            "POST",
-            f"/trading/connections/{two_contracts}/simulation",
-            snapshot([*SUFFIXED, contract("XAUUSDc", "XAU", "Gold cent", "1")], "472790407"),
-        )
         await fixture.request(
             "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
         )
@@ -158,7 +144,8 @@ async def main() -> None:
                         ToolCall(
                             id="contract",
                             name="market_instrument",
-                            arguments={"account_id": connection_id, "symbol": "الذهب"},
+                            # No account named: the owner's only account is meant.
+                            arguments={"symbol": "الذهب"},
                         ),
                     ]
                 )
@@ -214,6 +201,20 @@ async def main() -> None:
             "own symbol, no internal code, no question about a symbol name"
         )
 
+        # A second account that lists a standard and a cent gold contract.
+        two_contracts = (
+            await fixture.request(
+                "POST",
+                "/trading/connections",
+                {"provider": "simulation", "account_id": uuid4().hex, "enabled": True},
+            )
+        )["id"]
+        connections.append(two_contracts)
+        await fixture.request(
+            "POST",
+            f"/trading/connections/{two_contracts}/simulation",
+            snapshot([*SUFFIXED, contract("XAUUSDc", "XAU", "Gold cent", "1")], "472790407"),
+        )
         order = {"account_id": connection_id, "action": "buy", "volume": "0.01"}
         buying = await fixture.request(
             "POST",
