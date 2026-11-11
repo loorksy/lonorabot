@@ -48,6 +48,62 @@ ERROR_CLASSES: dict[str, str] = {
 }
 
 
+# An order the contract cannot take as written: the arguments are wrong, nothing else is.
+ORDER_ARGUMENT_CODES = frozenset(
+    {
+        "volume_out_of_range",
+        "volume_step_mismatch",
+        "price_tick_mismatch",
+        "position_volume_exceeded",
+        "position_remaining_volume_invalid",
+    }
+)
+
+# What the model does next when a failure brings no hint of its own, by recovery category.
+RECOVERY_HINTS: dict[FailureCategory, str] = {
+    "invalid_tool_arguments": "The arguments are not acceptable as written. Correct them "
+    "and call again.",
+    "result_too_large": "The result is too large to read at once. Ask for less: a "
+    "narrower range, fewer items or a filter.",
+    "temporary_unavailable": "A temporary failure of the connection. The same read can be "
+    "tried again; do not report it to the owner as a refusal.",
+    "version_conflict": "What this was based on has changed since it was read. Read the "
+    "current state again, then decide from it.",
+    "stale_state": "The evidence is too old to act on. Read it fresh, then decide from it.",
+    "authorization_required": "Only the owner can allow this. Say in one plain line what "
+    "needs their approval; do not look for another way to do the same thing.",
+    "permission_denied": "A rule of the owner's or the account's forbids this. Do not look "
+    "for another way to do the same thing: tell the owner what is needed, or raise the "
+    "card for it.",
+    "not_configured": "This is not set up yet, so it cannot run. Take another authorized "
+    "route to the same result, or tell the owner what has to be connected.",
+    "not_found": "What the call named was not found as written. Read what exists, then "
+    "call again with the exact name; ask the owner only if several fit.",
+    "health_blocked": "The state of the account or the system blocks this for now, not "
+    "the request itself. Do not repeat it or route around it; say what is blocked.",
+    "risk_limit_blocked": "A risk limit blocks this request as it is. The risk assessment "
+    "in this result has the limit and the modelled risk: a size that fits, or protecting "
+    "or reducing exposure, is allowed. Never repeat the same request.",
+    "ambiguous_mutation": "The outcome is not known: this may or may not have taken "
+    "effect. Do not send it again. Read the current state to learn what happened, and "
+    "until then say it is being confirmed, never that it failed or went through.",
+    "terminal_domain_failure": "This did not go through, for the reason given. Do not "
+    "repeat it unchanged. A rule or a decision of the owner's is respected, not routed "
+    "around; anything else may have another route to the same goal. Otherwise say plainly "
+    "what could not be done.",
+}
+# A read that kept failing is not offered again in this turn.
+RETRY_EXHAUSTED_HINT = (
+    "This kept failing and is not tried again now. Take another route to the same "
+    "information, or say plainly that it could not be read at the moment."
+)
+# The connection failed on a call that is not a read: it is not repeated by itself.
+UNSENT_HINT = (
+    "The connection failed before this was carried out. Do not call it again by itself: "
+    "say that it could not be done now."
+)
+
+
 def error_class(code: str, category: str) -> str:
     """input | resolution | connection | permission | provider | internal."""
     if category in ERROR_CLASSES:
@@ -60,6 +116,8 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     action = "alternate_route"
     if code == "tool_arguments_invalid":
         category, action = "invalid_tool_arguments", "inspect_schema_and_repair"
+    elif code in ORDER_ARGUMENT_CODES:
+        category, action = "invalid_tool_arguments", "correct_arguments"
     elif code == "tool_result_too_large":
         category, action = "result_too_large", "narrow_query"
     elif code in AMBIGUOUS:
@@ -84,6 +142,10 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         "financial_authority_required",
         # An owner restriction: never route around it through another symbol or account.
         "trading_restriction_active",
+        # The owner said no to this card, or the agent's level does not trade.
+        "trade_approval_rejected",
+        "agent_analysis_only",
+        "shadow_execution_forbidden",
         "restriction_all_mutations_requires_owner_message",
         # Supervision never silences the owner's entry point or sheds its own oversight.
         "supervision_personal_agent",
@@ -169,6 +231,11 @@ def observe(
         cast(dict[str, Any], nested_value) if isinstance(nested_value, dict) else {}
     )
     code = str(result.get("code") or nested.get("code") or "tool_failed")
+    # A handler's own sentence of guidance is the hint; `recovery` is the runtime's block.
+    authored = result.get("recovery")
+    if isinstance(authored, str):
+        del result["recovery"]
+        result.setdefault("hint", authored)
     raw_outcomes = result.get("results")
     outcomes = (
         [
@@ -187,9 +254,11 @@ def observe(
             item.get("status") in IN_FLIGHT or item.get("code") in AMBIGUOUS for item in outcomes
         )
     )
-    failed = (
-        result.get("ok") is False or uncertain or result.get("status") in {"failed", "rejected"}
+    # A read that returns the record of a failed operation has itself succeeded.
+    settled_failure = result.get("status") in {"failed", "rejected"} and not (
+        tool and tool.read_only
     )
+    failed = result.get("ok") is False or uncertain or settled_failure
     unconfirmed = not failed and (
         result.get("status") == SETTLED_UNCONFIRMED
         or nested.get("status") == SETTLED_UNCONFIRMED
@@ -233,10 +302,25 @@ def observe(
             recovery["safe_to_retry"] = False
             recovery["next_action"] = "alternate_route_or_wait"
             recovery["retry_exhausted"] = True
+        elif isinstance(authored, dict) and "category" not in authored:
+            # The next step a handler named itself is kept.
+            named = cast(dict[str, Any], authored).get("next_action")
+            if isinstance(named, str):
+                recovery["next_action"] = named
         result["recovery"] = recovery
-        # The unified error contract; a tool's own class and retryable are kept.
+        if settled_failure:
+            # A refused or failed operation is not a success of the call.
+            result["ok"] = False
+        # The unified error contract; a tool's own class, retryable and hint are kept.
         result.setdefault("class", error_class(code, recovery["category"]))
         result.setdefault("retryable", recovery["safe_to_retry"])
+        if recovery["retry_exhausted"]:
+            hint = RETRY_EXHAUSTED_HINT
+        elif recovery["category"] == "temporary_unavailable" and not recovery["safe_to_retry"]:
+            hint = UNSENT_HINT
+        else:
+            hint = RECOVERY_HINTS[recovery["category"]]
+        result.setdefault("hint", hint)
     elif unconfirmed:
         # Not a success to build on: read the account again before any next decision.
         result["recovery"] = ToolRecovery(

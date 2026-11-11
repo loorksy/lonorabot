@@ -437,7 +437,7 @@ async def message_instead_of_calling(fixture: Fixture, lonora: dict[str, Any]) -
     )
     assert '"reach_me": "message"' in context_text(seen[0])
     refused = result_of(seen[-1], "call-2")
-    assert refused["code"] == "owner_prefers_other_channel" and refused["reach_me"] == "message"
+    assert refused["reason"] == "owner prefers other channel" and refused["reach_me"] == "message"
     assert await incoming(fixture, second) == 0 and await incoming(fixture) == 1
     assert await assistant_messages(fixture, thread_id) == before + 1
     print(

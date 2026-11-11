@@ -16,7 +16,7 @@ from typing import Any, cast
 from weakref import WeakKeyDictionary
 
 from lonora_contracts.market import Instrument
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_market.instruments import catalogue_matches, confirms, contradicts, instrument_codes
 
 MAXIMUM_CANDIDATES = 8
@@ -39,9 +39,9 @@ ASK_WHICH_CONTRACT = (
     "names; then repeat the call with the chosen exact symbol."
 )
 NOT_LISTED = (
-    "No symbol on this account is confirmed for that instrument. similar_symbols are "
-    "its nearest names (market_instrument describes one) and market_symbols returns "
-    "the catalogue; if the instrument is not offered, say so plainly."
+    "No symbol on this account is confirmed for that instrument. The candidates marked "
+    "similar are only its nearest names (market_instrument describes one) and "
+    "market_symbols returns the catalogue; if the instrument is not offered, say so plainly."
 )
 SEVERAL_FOR_A_READ = (
     "Several contracts match on this account and this read used the first. Before any "
@@ -49,7 +49,7 @@ SEVERAL_FOR_A_READ = (
 )
 
 
-class SymbolNotResolved(LonoraError):
+class SymbolNotResolved(ToolRefusal):
     """``symbol_not_found`` or ``symbol_ambiguous`` with what the model needs to go on."""
 
     def __init__(self, requested: str, candidates: list[str], names: list[object]):
@@ -67,10 +67,10 @@ class SymbolNotResolved(LonoraError):
             "next_actions": _next_actions(candidates),
         }
         if not candidates:
-            # Not matches: the account's nearest names, for the model to judge.
+            # Not matches: the account's nearest names, marked so, for the model to judge.
             stem = instrument_codes(requested)[0][:3].casefold()
-            self.details["similar_symbols"] = [
-                name
+            self.details["candidates"] = [
+                {"symbol": name, "similar": True}
                 for name in names
                 if isinstance(name, str) and len(stem) == 3 and stem in name.casefold()
             ][:MAXIMUM_CANDIDATES]

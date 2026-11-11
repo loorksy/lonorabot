@@ -188,8 +188,8 @@ symbol a request names is decided by code, never by the model:
   one: `hint` names it and tells the model to repeat the call) or `symbol_ambiguous`
   (several contracts: `hint` tells the model to ask the owner which, in plain words).
   The result carries `requested_symbol`, `candidates` (each with the broker's
-  description, category path, contract size, currencies and minimum volume),
-  `similar_symbols` when nothing matches, and `hint`. `tool_dispatch` forwards these
+  description, category path, contract size, currencies and minimum volume; when
+  nothing matches, the account's nearest names, each marked `similar`), and `hint`. `tool_dispatch` forwards these
   beside the code, so the model continues in the same run.
 - The approval card's data carries `contracts` (the broker's specification of each
   requested symbol, read when the card is made) and the grant card's facts carry

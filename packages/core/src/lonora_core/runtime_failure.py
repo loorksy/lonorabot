@@ -11,6 +11,8 @@ TRANSIENT_READ_CODES = frozenset(
     {
         "broker_connection_timeout",
         "broker_connection_unavailable",
+        # The broker asked to slow down: the same read succeeds after a short wait.
+        "broker_rate_limited",
         "broker_candles_unavailable",
         "market_quote_unavailable",
         "market_candles_unavailable",

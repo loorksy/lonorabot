@@ -255,7 +255,7 @@ async def discovery_and_context(f: Fixture) -> None:
         phase += 1
         if phase == 1:
             return inspect("denied-discovery", "trade_execute")
-        assert observation(messages, "denied-discovery")["code"] == "tool_not_allowed"
+        assert observation(messages, "denied-discovery")["reason"] == "tool not allowed"
         return response(text="يمكنني مراجعة البيانات المتاحة ضمن الصلاحية الحالية.")
 
     with patch.object(ctx.router, "complete", reader):
@@ -379,7 +379,9 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
                 phase -= 1
                 return response(call("review-later", "task_wait", kind="timer", seconds=30))
             elif not valid:
-                assert observation(messages, "review-later")["code"] == "task_wait_already_resumed"
+                assert (
+                    observation(messages, "review-later")["reason"] == "task wait already resumed"
+                )
             return inspect("discover-live-quote", "market_quote")
         if phase == 6:
             return response(call("fresh-quote", "market_quote", account_id=account, symbol=symbol))
@@ -627,7 +629,9 @@ async def wait_supersedes_proposed_mutation(f: Fixture) -> None:
             return reply, selection
         assert any("<runtime_wake>" in message.content for message in messages)
         if phase == 3:
-            assert observation(messages, "stale-proposed-entry")["code"] == "tool_call_superseded"
+            assert observation(messages, "stale-proposed-entry")["reason"] == (
+                "tool call superseded: task wait requires fresh analysis after wake"
+            )
             return inspect("discover-quote", "market_quote")
         if phase == 4:
             return response(

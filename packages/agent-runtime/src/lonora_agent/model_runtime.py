@@ -19,6 +19,7 @@ from .context.financial_result import (
 )
 from .context.image_observations import prepare_image_observations
 from .context.team import refresh_routing_context
+from .failure_view import failure_view
 from .progress import progress
 from .public_stream import PublicStream
 from .reply_markdown import normalize_bold
@@ -174,7 +175,8 @@ async def model_turn(
     try:
         reply, selection = await context.router.complete(
             capability,
-            request_messages,
+            # Failures in words: the canonical ``messages`` keep their codes for the gates.
+            failure_view(request_messages),
             tools,
             on_delta=delta,
             on_attempt=attempt,
