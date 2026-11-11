@@ -185,6 +185,10 @@ msgstr "{n} خطوات"
 #~ msgid "{name} is queued"
 #~ msgstr "{name} في قائمة الانتظار"
 
+#: src/shell/settings/ConnectionPages.tsx:590
+msgid "{name} is removed"
+msgstr "أُزيل {name}"
+
 #: src/components/ai/primitives.tsx:88
 #~ msgid "{name} is working"
 #~ msgstr "{name} يعمل"
@@ -287,11 +291,11 @@ msgstr "ستعود المحادثة عند وصول رسالة جديدة"
 msgid "A decision is needed"
 msgstr "قرار مطلوب"
 
-#: src/shell/settings/ConnectionPages.tsx:495
+#: src/shell/settings/ConnectionPages.tsx:496
 msgid "A demo account trades against market data you import: the balance, the symbols, their prices and candles. Import a snapshot file to use it."
 msgstr "يتداول الحساب التجريبي على بيانات سوق تستوردها: الرصيد والرموز وأسعارها وشموعها. استورد ملف لقطة لاستخدامه."
 
-#: src/lib/user_error.ts:43
+#: src/lib/user_error.ts:47
 msgid "A different answer was already recorded."
 msgstr "سُجّلت إجابة مختلفة مسبقًا."
 
@@ -361,12 +365,12 @@ msgctxt "order state"
 msgid "Accepted by the broker"
 msgstr "مقبول لدى الوسيط"
 
-#: src/shell/settings/ConnectionPages.tsx:803
+#: src/shell/settings/ConnectionPages.tsx:900
 msgid "Access token"
 msgstr "رمز الوصول"
 
-#: src/shell/settings/ConnectionPages.tsx:75
-#: src/shell/settings/ConnectionPages.tsx:809
+#: src/shell/settings/ConnectionPages.tsx:76
+#: src/shell/settings/ConnectionPages.tsx:906
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
@@ -382,7 +386,7 @@ msgstr "سهولة الاستخدام"
 msgid "Account"
 msgstr "الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:281
+#: src/shell/settings/ConnectionPages.tsx:282
 msgid "Account {number} is unlinked"
 msgstr "فُصل الحساب {number}"
 
@@ -408,12 +412,12 @@ msgid "Account limits changed"
 msgstr "تغيّرت حدود الحساب"
 
 #: src/components/trading/AccountSummary.tsx:21
-#: src/shell/settings/ConnectionPages.tsx:71
+#: src/shell/settings/ConnectionPages.tsx:72
 msgid "Account number"
 msgstr "رقم الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:147
-#: src/shell/settings/ConnectionPages.tsx:374
+#: src/shell/settings/ConnectionPages.tsx:148
+#: src/shell/settings/ConnectionPages.tsx:375
 msgid "Account type"
 msgstr "نوع الحساب"
 
@@ -492,7 +496,7 @@ msgstr "إضافة"
 msgid "Add a goal"
 msgstr "إضافة هدف"
 
-#: src/shell/settings/ConnectionPages.tsx:583
+#: src/shell/settings/ConnectionPages.tsx:641
 msgid "Add a provider"
 msgstr "إضافة مزود"
 
@@ -578,7 +582,7 @@ msgstr "إضافة MCP"
 msgid "Add owner instructions"
 msgstr "إضافة تعليمات خاصة"
 
-#: src/shell/settings/ConnectionPages.tsx:848
+#: src/shell/settings/ConnectionPages.tsx:945
 msgid "Add the server"
 msgstr "إضافة الخادم"
 
@@ -634,7 +638,7 @@ msgstr "بعد دقيقة"
 msgid "After leaving the app"
 msgstr "بعد مغادرة التطبيق"
 
-#: src/shell/settings/ConnectionPages.tsx:202
+#: src/shell/settings/ConnectionPages.tsx:203
 msgid "After linking, the account's trading symbols are fetched from the broker and appear in the pair pickers."
 msgstr "بعد الربط تُجلب رموز التداول المتاحة من الحساب تلقائيًا، وتظهر في قوائم اختيار الزوج."
 
@@ -726,7 +730,7 @@ msgstr "الوكلاء والمجموعات"
 msgid "Agents it supervises"
 msgstr "الوكلاء تحت إشرافه"
 
-#: src/shell/settings/ConnectionPages.tsx:425
+#: src/shell/settings/ConnectionPages.tsx:426
 msgid "Agents on this account"
 msgstr "الوكلاء على هذا الحساب"
 
@@ -790,7 +794,7 @@ msgstr "كل الأوقات"
 #~ msgid "Allow autonomous trading for this goal"
 #~ msgstr "السماح بالتداول التلقائي لهذا الهدف"
 
-#: src/lib/user_error.ts:131
+#: src/lib/user_error.ts:135
 msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
@@ -807,7 +811,7 @@ msgstr "الإجراءات المسموحة"
 #~ msgstr "الوجهات المسموح بها · مفصولة بفواصل"
 
 #: src/conversation/sheets/LimitsSheet.tsx:265
-#: src/lib/user_error.ts:35
+#: src/lib/user_error.ts:39
 msgid "Amount limits are in the account currency: enter it to save."
 msgstr "الحدود بالمبالغ بعملة الحساب: أدخلها للحفظ."
 
@@ -815,7 +819,7 @@ msgstr "الحدود بالمبالغ بعملة الحساب: أدخلها لل
 msgid "Amsterdam"
 msgstr "أمستردام"
 
-#: src/lib/user_error.ts:61
+#: src/lib/user_error.ts:65
 msgid "An active skill is no longer available. Review its settings before resuming this task."
 msgstr "إحدى المهارات النشطة لم تعد متاحة. راجع إعداداتها قبل استئناف المهمة."
 
@@ -874,11 +878,11 @@ msgstr "تمت الإجابة"
 msgid "Answers"
 msgstr "الإجابات"
 
-#: src/shell/settings/ConnectionPages.tsx:262
+#: src/shell/settings/ConnectionPages.tsx:263
 msgid "Any signed delegation on this account is revoked, and {names} go back to «Execute with approval» without an account until you choose another one."
 msgstr "يُلغى أي تفويض موقَّع على هذا الحساب، ويعود {names} إلى «تنفيذ بموافقة» دون حساب حتى تختار حسابًا آخر."
 
-#: src/shell/settings/ConnectionPages.tsx:659
+#: src/shell/settings/ConnectionPages.tsx:732
 msgid "API key"
 msgstr "مفتاح API"
 
@@ -989,7 +993,7 @@ msgstr "أسند العمل إلى وكلائك وتابع كل مهمة."
 msgid "At market price"
 msgstr "بسعر السوق"
 
-#: src/lib/user_error.ts:33
+#: src/lib/user_error.ts:37
 msgid "At most two other agents can join one message."
 msgstr "يمكن أن ينضم وكيلان آخران على الأكثر إلى رسالة واحدة."
 
@@ -1019,7 +1023,7 @@ msgstr "مرفقات وأدوات"
 msgid "Audio output"
 msgstr "مخرج الصوت"
 
-#: src/shell/settings/ConnectionPages.tsx:795
+#: src/shell/settings/ConnectionPages.tsx:892
 msgid "Authentication"
 msgstr "المصادقة"
 
@@ -1048,13 +1052,13 @@ msgstr "تلقائي"
 msgid "Available"
 msgstr "متاحة"
 
-#: src/shell/settings/ConnectionPages.tsx:378
-#: src/shell/settings/ConnectionPages.tsx:401
+#: src/shell/settings/ConnectionPages.tsx:379
+#: src/shell/settings/ConnectionPages.tsx:402
 msgid "Available symbols"
 msgstr "الرموز المتاحة"
 
 #. placeholder {0}: list.length
-#: src/shell/settings/ConnectionPages.tsx:380
+#: src/shell/settings/ConnectionPages.tsx:381
 msgid "Available symbols · {0}"
 msgstr "الرموز المتاحة · {0}"
 
@@ -1134,7 +1138,7 @@ msgstr "العمل في الخلفية"
 
 #: src/components/market/MarketWatch.tsx:194
 #: src/components/trading/AccountSummary.tsx:40
-#: src/shell/settings/ConnectionPages.tsx:361
+#: src/shell/settings/ConnectionPages.tsx:362
 msgid "Balance"
 msgstr "الرصيد"
 
@@ -1210,7 +1214,7 @@ msgid "Bring an agent into the conversation"
 msgstr "إشراك وكيل في المحادثة"
 
 #: src/components/trading/AccountSummary.tsx:11
-#: src/shell/settings/ConnectionPages.tsx:129
+#: src/shell/settings/ConnectionPages.tsx:130
 msgid "Broker"
 msgstr "الوسيط"
 
@@ -1225,7 +1229,7 @@ msgstr "حساب الوسيط"
 msgid "Broker account changed"
 msgstr "تغيّرت حالة حساب الوسيط"
 
-#: src/lib/user_error.ts:157
+#: src/lib/user_error.ts:161
 msgid "Broker account not found."
 msgstr "لم يتم العثور على حساب الوسيط."
 
@@ -1233,15 +1237,15 @@ msgstr "لم يتم العثور على حساب الوسيط."
 #~ msgid "Broker acknowledged — resulting state unverified"
 #~ msgstr "أقرّ الوسيط بالطلب — لم يُتحقق من الحالة الناتجة"
 
-#: src/lib/user_error.ts:173
+#: src/lib/user_error.ts:177
 msgid "Broker authentication was rejected."
 msgstr "رفض الوسيط بيانات المصادقة."
 
-#: src/lib/user_error.ts:149
+#: src/lib/user_error.ts:153
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "شموع الوسيط غير متاحة لهذا الرمز والإطار الزمني."
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:190
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "تحتوي شموع الوسيط على بيانات غير صالحة أو غير متطابقة."
 
@@ -1257,11 +1261,11 @@ msgstr "تمت استعادة اتصال الوسيط"
 msgid "Broker connection requires attention"
 msgstr "اتصال الوسيط يحتاج إلى مراجعة"
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:171
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "بيانات الوسيط لا تطابق الحساب المحدد. لم يُرسل أي أمر."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:205
 msgid "Broker deal history is unavailable for this time range."
 msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
 
@@ -1419,7 +1423,8 @@ msgstr "الكاميرا غير مسموحة"
 #: src/shell/domain/TasksPages.tsx:175
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
-#: src/shell/settings/ConnectionPages.tsx:270
+#: src/shell/settings/ConnectionPages.tsx:271
+#: src/shell/settings/ConnectionPages.tsx:580
 #: src/shell/settings/IntegrationsPage.tsx:472
 #: src/shell/settings/SettingsRoot.tsx:288
 msgid "Cancel"
@@ -1626,7 +1631,7 @@ msgstr "فحص الحقول"
 msgid "Check the highlighted fields."
 msgstr "تحقق من الحقول المحددة."
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:211
 msgid "Check the required fields and try again."
 msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
 
@@ -1655,7 +1660,7 @@ msgstr "اختر «تثبيت التطبيق» أو «إضافة إلى الشا
 msgid "Choose a 4-digit code"
 msgstr "اختر رمزًا من 4 أرقام"
 
-#: src/lib/user_error.ts:31
+#: src/lib/user_error.ts:35
 msgid "Choose a complete market scope and reload the saved settings before continuing."
 msgstr "اختر نطاق سوق مكتملًا وأعد تحميل الإعدادات المحفوظة قبل المتابعة."
 
@@ -1692,7 +1697,7 @@ msgstr "اختر ملفًا أصغر من 600 كيلوبايت."
 msgid "Choose a time that has not passed."
 msgstr "اختر وقتًا لم يمضِ بعد."
 
-#: src/lib/user_error.ts:37
+#: src/lib/user_error.ts:41
 msgid "Choose a valid time zone for the trading day."
 msgstr "اختر منطقة زمنية صحيحة ليوم التداول."
 
@@ -1709,7 +1714,7 @@ msgstr "اختر وكيلًا"
 #~ msgid "Choose an agent or return to your workspace."
 #~ msgstr "اختر وكيلاً أو عد إلى مساحة عملك."
 
-#: src/lib/user_error.ts:39
+#: src/lib/user_error.ts:43
 msgid "Choose an available answer."
 msgstr "اختر إجابة متاحة."
 
@@ -1738,7 +1743,7 @@ msgstr "اختر عضوًا واحدًا على الأقل."
 msgid "Choose broker account"
 msgstr "اختر حساب الوسيط"
 
-#: src/lib/user_error.ts:142
+#: src/lib/user_error.ts:146
 msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت العام."
 
@@ -1746,18 +1751,26 @@ msgstr "اختر GPT-Live 1 أو GPT-Live 1 mini كنموذج الصوت الع�
 msgid "Choose how replies appear and how you write. Applies to every conversation."
 msgstr "اختر كيف تظهر الردود وكيف تكتب. تُطبّق على كل المحادثات."
 
-#: src/lib/user_error.ts:144
+#: src/lib/user_error.ts:148
 msgid "Choose supported global speech models in Settings."
 msgstr "اختر نماذج صوت مدعومة من الإعدادات العالمية."
 
-#: src/shell/settings/ConnectionPages.tsx:97
+#: src/shell/settings/ConnectionPages.tsx:98
 msgid "Choose the broker"
 msgstr "اختر الوسيط"
 
-#: src/shell/settings/ConnectionPages.tsx:606
-#: src/shell/settings/ConnectionPages.tsx:649
+#: src/shell/settings/ConnectionPages.tsx:766
+msgid "Choose the model"
+msgstr "اختر النموذج"
+
+#: src/shell/settings/ConnectionPages.tsx:667
+#: src/shell/settings/ConnectionPages.tsx:722
 msgid "Choose the provider"
 msgstr "اختر المزود"
+
+#: src/shell/settings/ConnectionPages.tsx:766
+msgid "Choose the provider first"
+msgstr "اختر المزود أولاً"
 
 #: src/shell/domain/SchedulesPages.tsx:158
 #: src/shell/domain/SchedulesPages.tsx:449
@@ -1980,7 +1993,7 @@ msgstr "الشرط — للتنبيه الشرطي"
 msgid "Condition triggered"
 msgstr "تحقق الشرط"
 
-#: src/lib/user_error.ts:129
+#: src/lib/user_error.ts:133
 msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
 msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبدء المكالمة."
 
@@ -1995,6 +2008,7 @@ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبد�
 #: src/shell/domain/FilesPages.tsx:55
 #: src/shell/domain/SchedulesPages.tsx:53
 #: src/shell/domain/TasksPages.tsx:167
+#: src/shell/settings/ConnectionPages.tsx:564
 msgid "Confirm deletion"
 msgstr "تأكيد الحذف"
 
@@ -2019,7 +2033,7 @@ msgstr "اربط حساب الوسيط قبل إنشاء بوت التداول."
 msgid "Connect a model provider"
 msgstr "ربط مزوّد نماذج"
 
-#: src/lib/user_error.ts:89
+#: src/lib/user_error.ts:93
 msgid "Connect a provider and choose a global model in Settings."
 msgstr "اربط مزودًا واختر نموذجًا عالميًا في الإعدادات."
 
@@ -2060,7 +2074,7 @@ msgid "Connection restored"
 msgstr "عاد الاتصال"
 
 #: src/components/trading/BrokerConnection.tsx:47
-#: src/shell/settings/ConnectionPages.tsx:779
+#: src/shell/settings/ConnectionPages.tsx:876
 msgid "Connection type"
 msgstr "نوع الاتصال"
 
@@ -2420,8 +2434,14 @@ msgstr "تغيّر التفويض"
 #: src/shell/lists/Selection.tsx:99
 #: src/shell/lists/Selection.tsx:273
 #: src/shell/settings/AppLock.tsx:290
+#: src/shell/settings/ConnectionPages.tsx:596
 msgid "Delete"
 msgstr "حذف"
+
+#. placeholder {0}: providerName(item.id)
+#: src/shell/settings/ConnectionPages.tsx:626
+msgid "Delete {0}"
+msgstr "حذف {0}"
 
 #: src/pages/shell/bot-settings.tsx:191
 #: src/pages/shell/bot-settings.tsx:241
@@ -2480,10 +2500,10 @@ msgstr "هل تريد حذف هذه المهمة؟"
 #~ msgid "Deliver incoming messages to"
 #~ msgstr "توصيل الرسائل الواردة إلى"
 
-#: src/shell/settings/ConnectionPages.tsx:147
-#: src/shell/settings/ConnectionPages.tsx:349
-#: src/shell/settings/ConnectionPages.tsx:374
-#: src/shell/settings/ConnectionPages.tsx:490
+#: src/shell/settings/ConnectionPages.tsx:148
+#: src/shell/settings/ConnectionPages.tsx:350
+#: src/shell/settings/ConnectionPages.tsx:375
+#: src/shell/settings/ConnectionPages.tsx:491
 msgid "Demo"
 msgstr "تجريبي"
 
@@ -2492,9 +2512,9 @@ msgstr "تجريبي"
 msgid "Demo · {0}"
 msgstr "تجريبي · {0}"
 
-#: src/shell/settings/ConnectionPages.tsx:65
-#: src/shell/settings/ConnectionPages.tsx:247
-#: src/shell/settings/ConnectionPages.tsx:487
+#: src/shell/settings/ConnectionPages.tsx:66
+#: src/shell/settings/ConnectionPages.tsx:248
+#: src/shell/settings/ConnectionPages.tsx:488
 #: src/shell/settings/IntegrationsPage.tsx:533
 msgid "Demo account"
 msgstr "حساب تجريبي"
@@ -2533,11 +2553,11 @@ msgstr "مصمم"
 msgid "Device"
 msgstr "الجهاز"
 
-#: src/lib/user_error.ts:77
+#: src/lib/user_error.ts:81
 msgid "Device authentication was cancelled. No authority was granted."
 msgstr "أُلغيت مصادقة الجهاز. لم يُمنح أي تفويض."
 
-#: src/lib/user_error.ts:81
+#: src/lib/user_error.ts:85
 msgid "Device verification failed. No authority was granted."
 msgstr "فشل التحقق من الجهاز. لم يُمنح أي تفويض."
 
@@ -2656,7 +2676,7 @@ msgstr "سجل التداول الدائم"
 msgid "Duration"
 msgstr "المدة"
 
-#: src/shell/settings/ConnectionPages.tsx:158
+#: src/shell/settings/ConnectionPages.tsx:159
 msgid "e.g. 7310"
 msgstr "مثل: 7310"
 
@@ -2841,7 +2861,7 @@ msgstr "إنهاء المكالمة"
 msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
-#: src/shell/settings/ConnectionPages.tsx:738
+#: src/shell/settings/ConnectionPages.tsx:835
 #: src/shell/settings/IntegrationsPage.tsx:290
 msgid "Enter a link that starts with https://"
 msgstr "أدخل رابطًا يبدأ بـ https://"
@@ -2854,20 +2874,20 @@ msgstr "أدخل الاسم."
 msgid "Enter a valid domain like example.com"
 msgstr "أدخل نطاقًا صحيحًا مثل example.com"
 
-#: src/shell/settings/ConnectionPages.tsx:102
-#: src/shell/settings/ConnectionPages.tsx:740
+#: src/shell/settings/ConnectionPages.tsx:103
+#: src/shell/settings/ConnectionPages.tsx:837
 msgid "Enter the access token"
 msgstr "أدخل رمز الوصول"
 
-#: src/lib/user_error.ts:161
+#: src/lib/user_error.ts:165
 msgid "Enter the access token."
 msgstr "أدخل رمز الوصول."
 
-#: src/shell/settings/ConnectionPages.tsx:102
+#: src/shell/settings/ConnectionPages.tsx:103
 msgid "Enter the account number"
 msgstr "أدخل رقم الحساب"
 
-#: src/shell/settings/ConnectionPages.tsx:607
+#: src/shell/settings/ConnectionPages.tsx:668
 msgid "Enter the API key"
 msgstr "أدخل مفتاح API"
 
@@ -2890,7 +2910,7 @@ msgstr "أدخل رمز القفل"
 msgid "Enter the role."
 msgstr "أدخل الدور."
 
-#: src/shell/settings/ConnectionPages.tsx:736
+#: src/shell/settings/ConnectionPages.tsx:833
 msgid "Enter the server name"
 msgstr "أدخل اسم الخادم"
 
@@ -2988,7 +3008,7 @@ msgstr "سجل التنفيذ"
 #~ msgid "Execution mode"
 #~ msgstr "وضع التنفيذ"
 
-#: src/lib/user_error.ts:67
+#: src/lib/user_error.ts:71
 msgid "Execution mode changed. Review the saved plan before continuing."
 msgstr "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة."
 
@@ -3063,11 +3083,11 @@ msgstr "رابط خلاصة"
 msgid "Fetch the tools to review them before approving the server."
 msgstr "اجلب الأدوات لمراجعتها قبل اعتماد الخادم."
 
-#: src/shell/settings/ConnectionPages.tsx:408
+#: src/shell/settings/ConnectionPages.tsx:409
 msgid "Fetched from the broker account, and shown in the pair pickers when creating an agent and in delegation."
 msgstr "تُجلب من حساب الوسيط تلقائيًا، وتظهر في قوائم اختيار الزوج عند إنشاء وكيل وفي التفويض."
 
-#: src/shell/settings/ConnectionPages.tsx:387
+#: src/shell/settings/ConnectionPages.tsx:388
 msgid "Fetching the symbols from <0>{broker}</0>…"
 msgstr "جارٍ جلب الرموز من <0>{broker}</0>…"
 
@@ -3322,7 +3342,7 @@ msgstr "الأهداف"
 #~ msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 #~ msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI المحفوظ على الخادم. اختر نموذج الصوت في التوجيه العام؛ وينفذ وكيل Lonora نفسه المهام المفوضة بأدواته."
 
-#: src/lib/user_error.ts:135
+#: src/lib/user_error.ts:139
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live غير متاح لمشروع OpenAI هذا. تحقق من صلاحية الوصول إلى واجهته."
 
@@ -3382,7 +3402,7 @@ msgstr "مرحبًا {ownerName}"
 msgid "Hide message text"
 msgstr "إخفاء نص الرسائل"
 
-#: src/shell/settings/ConnectionPages.tsx:672
+#: src/shell/settings/ConnectionPages.tsx:745
 msgid "Hide the key"
 msgstr "إخفاء المفتاح"
 
@@ -3390,11 +3410,11 @@ msgstr "إخفاء المفتاح"
 msgid "Higher contrast"
 msgstr "تباين أعلى"
 
-#: src/lib/user_error.ts:175
+#: src/lib/user_error.ts:179
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية. أعد تحديث الشارت."
 
-#: src/lib/user_error.ts:179
+#: src/lib/user_error.ts:183
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
@@ -3416,7 +3436,7 @@ msgstr "الساعة"
 msgid "How to reach you"
 msgstr "طريقة التواصل"
 
-#: src/lib/user_error.ts:226
+#: src/lib/user_error.ts:230
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "توقفت عند حد الخطوات لهذا التشغيل. أرسل رسالة وأكمل من حيث توقفت."
 
@@ -3436,7 +3456,7 @@ msgstr "صورة مرفقة"
 msgid "Immediately"
 msgstr "فورًا"
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:209
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
@@ -3444,7 +3464,7 @@ msgstr "استورد بيانات السوق قبل استخدام حساب ال
 msgid "Import a skill"
 msgstr "استيراد مهارة"
 
-#: src/shell/settings/ConnectionPages.tsx:501
+#: src/shell/settings/ConnectionPages.tsx:502
 msgid "Import the demo account data"
 msgstr "استيراد بيانات الحساب التجريبي"
 
@@ -3666,7 +3686,7 @@ msgstr "متابعة التعديل"
 #~ msgid "Keep working beside the conversation."
 #~ msgstr "واصل العمل بجانب المحادثة."
 
-#: src/shell/settings/ConnectionPages.tsx:568
+#: src/shell/settings/ConnectionPages.tsx:620
 msgid "Key saved · never shown again"
 msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 
@@ -3805,7 +3825,7 @@ msgid "Link"
 msgstr "رابط"
 
 #: src/components/trading/BrokerPairPicker.tsx:153
-#: src/shell/settings/ConnectionPages.tsx:238
+#: src/shell/settings/ConnectionPages.tsx:239
 #: src/shell/settings/IntegrationsPage.tsx:792
 msgid "Link a trading account"
 msgstr "ربط حساب تداول"
@@ -3822,7 +3842,7 @@ msgstr "اربط حساب تداول أولًا من الإعدادات."
 msgid "Link Telegram"
 msgstr "ربط Telegram"
 
-#: src/shell/settings/ConnectionPages.tsx:209
+#: src/shell/settings/ConnectionPages.tsx:210
 msgid "Link the account"
 msgstr "ربط الحساب"
 
@@ -3979,6 +3999,10 @@ msgstr "يحتاج Lonora إلى الكاميرا لالتقاط الصور وإ
 #: src/shell/PermissionSheet.tsx:23
 msgid "Lonora needs the microphone for dictation, voice messages and calls. Nothing is recorded without your tap."
 msgstr "يحتاج Lonora إلى الميكروفون للإملاء والرسائل الصوتية والمكالمات. لا نسجّل شيئًا دون ضغطك."
+
+#: src/shell/settings/ConnectionPages.tsx:775
+msgid "Lonora uses it for your agents' conversations. You can change it in Models."
+msgstr "يستخدمه Lonora في محادثات وكلائك، ويمكنك تغييره من «النماذج»."
 
 #: src/shell/FloatingTabBar.tsx:138
 msgid "Main navigation"
@@ -4243,6 +4267,7 @@ msgstr "الوضع"
 #: src/conversation/PermissionMenu.tsx:432
 #: src/pages/shell/bot-panel.tsx:226
 #: src/shell/agent/IdentityPage.tsx:211
+#: src/shell/settings/ConnectionPages.tsx:758
 #: src/shell/settings/ModelsPage.tsx:270
 msgid "Model"
 msgstr "النموذج"
@@ -4464,7 +4489,7 @@ msgstr "التالي: المحادثات"
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
-#: src/shell/settings/ConnectionPages.tsx:455
+#: src/shell/settings/ConnectionPages.tsx:456
 msgid "No agent works on this account."
 msgstr "لا يعمل أي وكيل على هذا الحساب."
 
@@ -4491,11 +4516,11 @@ msgstr "لا توجد محادثات مؤرشفة. اضغط مطولًا على 
 msgid "No artifacts found."
 msgstr "لم يتم العثور على ملفات."
 
-#: src/shell/settings/ConnectionPages.tsx:802
+#: src/shell/settings/ConnectionPages.tsx:899
 msgid "No authentication"
 msgstr "بدون مصادقة"
 
-#: src/lib/user_error.ts:183
+#: src/lib/user_error.ts:187
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "لم يتم العثور على شموع تاريخية لهذا الرمز والفريم."
 
@@ -4743,7 +4768,7 @@ msgstr "دون تنفيذ · تحليل ومتابعة"
 msgid "No trading account chosen · choose an account"
 msgstr "لم يُختر حساب تداول · اختر حسابًا"
 
-#: src/shell/settings/ConnectionPages.tsx:235
+#: src/shell/settings/ConnectionPages.tsx:236
 msgid "No trading account is linked."
 msgstr "لا يوجد حساب تداول مرتبط."
 
@@ -5193,7 +5218,7 @@ msgstr "الصفحة غير موجودة"
 msgid "Pair"
 msgstr "الزوج"
 
-#: src/lib/user_error.ts:224
+#: src/lib/user_error.ts:228
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
 
@@ -5561,7 +5586,7 @@ msgstr "احمِ محادثاتك برمز من 4 أرقام"
 msgid "Protection change"
 msgstr "تعديل الحماية"
 
-#: src/shell/settings/ConnectionPages.tsx:638
+#: src/shell/settings/ConnectionPages.tsx:709
 msgid "Provider"
 msgstr "المزود"
 
@@ -5765,11 +5790,11 @@ msgstr "تحديث الرسم البياني"
 #~ msgid "Refresh live candles"
 #~ msgstr "تحديث الشموع المباشر"
 
-#: src/shell/settings/ConnectionPages.tsx:421
+#: src/shell/settings/ConnectionPages.tsx:422
 msgid "Refresh the symbols"
 msgstr "تحديث الرموز"
 
-#: src/shell/settings/ConnectionPages.tsx:73
+#: src/shell/settings/ConnectionPages.tsx:74
 msgid "Region"
 msgstr "المنطقة"
 
@@ -5777,7 +5802,7 @@ msgstr "المنطقة"
 #~ msgid "Register a passkey"
 #~ msgstr "تسجيل مفتاح مرور"
 
-#: src/lib/user_error.ts:73
+#: src/lib/user_error.ts:77
 msgid "Register a passkey before activating this request."
 msgstr "سجّل مفتاح مرور قبل تفعيل هذا الطلب."
 
@@ -5816,7 +5841,7 @@ msgstr "مرفوض"
 msgid "Reload"
 msgstr "إعادة تحميل"
 
-#: src/shell/settings/ConnectionPages.tsx:842
+#: src/shell/settings/ConnectionPages.tsx:939
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
@@ -5937,7 +5962,7 @@ msgstr "البحث المعمق"
 msgid "Research agent"
 msgstr "وكيل بحث"
 
-#: src/shell/settings/ConnectionPages.tsx:777
+#: src/shell/settings/ConnectionPages.tsx:874
 msgid "Research tools"
 msgstr "أدوات الأبحاث"
 
@@ -6098,7 +6123,7 @@ msgstr "مراجعة الآن"
 #~ msgid "Review plan"
 #~ msgstr "مراجعة الخطة"
 
-#: src/lib/user_error.ts:59
+#: src/lib/user_error.ts:63
 msgid "Review skill dependencies and unique identities before saving."
 msgstr "راجع اعتماديات المهارات ومعرّفاتها الفريدة قبل الحفظ."
 
@@ -6106,7 +6131,7 @@ msgstr "راجع اعتماديات المهارات ومعرّفاتها الف
 msgid "Review the connection"
 msgstr "مراجعة الاتصال"
 
-#: src/lib/user_error.ts:55
+#: src/lib/user_error.ts:59
 msgid "Review the skill identity, version and manifest before saving."
 msgstr "راجع معرّف المهارة وإصدارها وبياناتها الوصفية قبل الحفظ."
 
@@ -6221,7 +6246,7 @@ msgstr "حفظ القائمة"
 msgid "Save the list · {count}"
 msgstr "حفظ القائمة · {count}"
 
-#: src/shell/settings/ConnectionPages.tsx:713
+#: src/shell/settings/ConnectionPages.tsx:810
 msgid "Save the settings"
 msgstr "حفظ الإعدادات"
 
@@ -6232,7 +6257,7 @@ msgstr "الحفظ بمفتاح المرور"
 #: src/components/skills/SkillEditor.tsx:119
 #: src/pages/KnowledgeSection.tsx:96
 #: src/shell/agent/IdentityPage.tsx:138
-#: src/shell/settings/ConnectionPages.tsx:627
+#: src/shell/settings/ConnectionPages.tsx:698
 #: src/shell/settings/ModelsPage.tsx:147
 #: src/shell/settings/NotifyPages.tsx:408
 #: src/shell/settings/NotifyPages.tsx:418
@@ -6407,7 +6432,7 @@ msgstr "الأقسام"
 #~ msgid "Secure device authentication is unavailable in this browser."
 #~ msgstr "مصادقة الجهاز الآمنة غير متاحة في هذا المتصفح."
 
-#: src/lib/user_error.ts:79
+#: src/lib/user_error.ts:83
 msgid "Secure device authentication is unavailable on this device."
 msgstr "المصادقة الآمنة غير متاحة على هذا الجهاز."
 
@@ -6503,11 +6528,11 @@ msgstr "مُرسَل"
 msgid "Sent to {0}"
 msgstr "أُرسل إلى {0}"
 
-#: src/shell/settings/ConnectionPages.tsx:782
+#: src/shell/settings/ConnectionPages.tsx:879
 msgid "Server address"
 msgstr "عنوان الخادم"
 
-#: src/shell/settings/ConnectionPages.tsx:775
+#: src/shell/settings/ConnectionPages.tsx:872
 msgid "Server name"
 msgstr "اسم الخادم"
 
@@ -6618,7 +6643,7 @@ msgstr "عرض المزيد"
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
-#: src/shell/settings/ConnectionPages.tsx:672
+#: src/shell/settings/ConnectionPages.tsx:745
 msgid "Show the key"
 msgstr "إظهار المفتاح"
 
@@ -6658,7 +6683,7 @@ msgstr "تسجيل الخروج"
 msgid "Sign out?"
 msgstr "تسجيل الخروج؟"
 
-#: src/lib/user_error.ts:85
+#: src/lib/user_error.ts:89
 msgid "Sign-in failed. Check your email and password."
 msgstr "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
 
@@ -6737,7 +6762,7 @@ msgstr "حُفظت المهارة"
 msgid "Skill updated"
 msgstr "حُدّثت مهارة"
 
-#: src/lib/user_error.ts:52
+#: src/lib/user_error.ts:56
 msgid "Skill version controls could not be verified. Reload before making changes."
 msgstr "تعذر التحقق من ضوابط إصدارات المهارات. أعد التحميل قبل إجراء تغييرات."
 
@@ -7188,9 +7213,9 @@ msgstr "فُصل Telegram"
 msgid "Temporary delegated tasks"
 msgstr "المهام المفوّضة المؤقتة"
 
-#: src/shell/settings/ConnectionPages.tsx:199
-#: src/shell/settings/ConnectionPages.tsx:709
-#: src/shell/settings/ConnectionPages.tsx:839
+#: src/shell/settings/ConnectionPages.tsx:200
+#: src/shell/settings/ConnectionPages.tsx:806
+#: src/shell/settings/ConnectionPages.tsx:936
 msgid "Test the connection"
 msgstr "اختبار الاتصال"
 
@@ -7207,7 +7232,7 @@ msgstr "حجم النص"
 msgid "Text size · {0}"
 msgstr "حجم النص · {0}"
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:192
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
@@ -7215,11 +7240,15 @@ msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 msgid "That time has passed. Choose a new time."
 msgstr "مضى هذا الوقت. اختر وقتًا جديدًا."
 
-#: src/shell/settings/ConnectionPages.tsx:258
+#: src/shell/settings/ConnectionPages.tsx:572
+msgid "The {name} key is deleted from Lonora. Your agents cannot use its models until you add the key again."
+msgstr "يُحذف مفتاح {name} من Lonora، ولا يستطيع وكلاؤك استخدام نماذجه حتى تضيف المفتاح من جديد."
+
+#: src/shell/settings/ConnectionPages.tsx:259
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "يُفصل الحساب <0>{number}</0> لدى <1>{broker}</1>."
 
-#: src/shell/settings/ConnectionPages.tsx:117
+#: src/shell/settings/ConnectionPages.tsx:118
 msgid "The account is linked"
 msgstr "رُبط الحساب"
 
@@ -7255,15 +7284,15 @@ msgstr "يتابعها الوكيل حتى تكتمل"
 msgid "The agent's work steps"
 msgstr "خطوات عمل الوكيل"
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:169
 msgid "The broker account could not be verified. Check its connection details and try again."
 msgstr "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا."
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:175
 msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 msgstr "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:201
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المتابعة."
 
@@ -7271,11 +7300,11 @@ msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المت�
 msgid "The broker connection dropped"
 msgstr "انقطع اتصال الوسيط"
 
-#: src/lib/user_error.ts:169
+#: src/lib/user_error.ts:173
 msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
 msgstr "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة."
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:207
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
 
@@ -7291,15 +7320,15 @@ msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُ�
 msgid "The broker is connected"
 msgstr "الاتصال بالوسيط سليم"
 
-#: src/lib/user_error.ts:181
+#: src/lib/user_error.ts:185
 msgid "The broker market-data service is rate limited."
 msgstr "تم بلوغ حد طلبات خدمة بيانات السوق لدى الوسيط."
 
-#: src/lib/user_error.ts:199
+#: src/lib/user_error.ts:203
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبقى التنفيذ محظورًا حتى التحقق من نتيجتها."
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:194
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 
@@ -7307,11 +7336,11 @@ msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 msgid "The broker rejected the order"
 msgstr "رفض الوسيط الأمر"
 
-#: src/lib/user_error.ts:177
+#: src/lib/user_error.ts:181
 msgid "The broker rejected this timeframe or candle request."
 msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:196
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
@@ -7349,19 +7378,19 @@ msgstr "يُطلب الرمز عند فتح Lonora"
 msgid "The codes do not match. Choose a new code"
 msgstr "الرمزان غير متطابقين. اختر رمزًا جديدًا"
 
-#: src/shell/settings/ConnectionPages.tsx:189
+#: src/shell/settings/ConnectionPages.tsx:190
 msgid "The connection works"
 msgstr "الاتصال يعمل"
 
-#: src/shell/settings/ConnectionPages.tsx:701
+#: src/shell/settings/ConnectionPages.tsx:798
 msgid "The connection works · {count} models available"
 msgstr "الاتصال يعمل · {count} نموذجًا متاحًا"
 
-#: src/shell/settings/ConnectionPages.tsx:831
+#: src/shell/settings/ConnectionPages.tsx:928
 msgid "The connection works · {count} tools"
 msgstr "الاتصال يعمل · {count} أداة"
 
-#: src/shell/settings/ConnectionPages.tsx:185
+#: src/shell/settings/ConnectionPages.tsx:186
 msgid "The connection works · <0>{who}</0>"
 msgstr "الاتصال يعمل · <0>{who}</0>"
 
@@ -7369,7 +7398,7 @@ msgstr "الاتصال يعمل · <0>{who}</0>"
 msgid "The coordinator must be one of the group's members."
 msgstr "يجب أن يكون المنسق من أعضاء المجموعة."
 
-#: src/lib/user_error.ts:123
+#: src/lib/user_error.ts:127
 msgid "The current market no longer confirms this goal's condition. No trade was sent."
 msgstr "لم يعد السوق الحالي يؤكد شرط هذا الهدف. لم يُرسل أي أمر تداول."
 
@@ -7377,7 +7406,7 @@ msgstr "لم يعد السوق الحالي يؤكد شرط هذا الهدف. �
 msgid "The default market is optional. Other markets can be analyzed; trading follows your separate authorization."
 msgstr "السوق الافتراضي اختياري. يمكن تحليل أسواق أخرى؛ التداول يخضع لتفويضك المنفصل."
 
-#: src/shell/settings/ConnectionPages.tsx:520
+#: src/shell/settings/ConnectionPages.tsx:521
 msgid "The demo account data is imported"
 msgstr "استُوردت بيانات الحساب التجريبي"
 
@@ -7397,7 +7426,7 @@ msgstr "حُذفت المعلومة"
 msgid "The fields passed the check."
 msgstr "نجح فحص الحقول."
 
-#: src/shell/settings/ConnectionPages.tsx:524
+#: src/shell/settings/ConnectionPages.tsx:525
 msgid "The file is not valid JSON."
 msgstr "الملف ليس JSON صالحًا."
 
@@ -7421,7 +7450,7 @@ msgstr "تعذّر عرض معاينة الملف"
 msgid "The item no longer exists."
 msgstr "لم يعد العنصر موجودًا."
 
-#: src/shell/settings/ConnectionPages.tsx:680
+#: src/shell/settings/ConnectionPages.tsx:753
 msgid "The key is stored encrypted and is never shown again."
 msgstr "يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى."
 
@@ -7463,7 +7492,7 @@ msgstr "تُحذف رسائل {0} من عندك فقط، وتبقى المحاد
 msgid "The microphone is not available on this page."
 msgstr "الميكروفون غير متاح في هذه الصفحة."
 
-#: src/lib/user_error.ts:222
+#: src/lib/user_error.ts:226
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
@@ -7475,11 +7504,11 @@ msgstr "النموذج غير متاح حاليًا"
 msgid "The model provider could not be reached. Try another model or retry shortly."
 msgstr "تعذّر الوصول إلى مزوّد النموذج. جرّب نموذجًا آخر أو أعد المحاولة بعد قليل."
 
-#: src/lib/user_error.ts:105
+#: src/lib/user_error.ts:109
 msgid "The model provider is unavailable right now. Try again shortly."
 msgstr "مزود النموذج غير متاح حاليًا. حاول مجددًا بعد قليل."
 
-#: src/lib/user_error.ts:91
+#: src/lib/user_error.ts:95
 msgid "The model provider rate limit was reached. Try again shortly."
 msgstr "تم بلوغ حد طلبات مزود النماذج. أعد المحاولة بعد قليل."
 
@@ -7487,11 +7516,11 @@ msgstr "تم بلوغ حد طلبات مزود النماذج. أعد المحا
 msgid "The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets."
 msgstr "رفض مزوّد النموذج الطلب لنفاد الحصة في حسابه لديه. أضف رصيدًا لدى المزوّد، أو اختر نموذجًا آخر، أو أعد المحاولة بعد تجدّد الحصة."
 
-#: src/lib/user_error.ts:107
+#: src/lib/user_error.ts:111
 msgid "The model provider rejected this request."
 msgstr "رفض مزود النموذج هذا الطلب."
 
-#: src/lib/user_error.ts:109
+#: src/lib/user_error.ts:113
 msgid "The model provider returned an unreadable response. Try again."
 msgstr "أعاد مزود النموذج استجابة غير قابلة للقراءة. حاول مجددًا."
 
@@ -7499,11 +7528,11 @@ msgstr "أعاد مزود النموذج استجابة غير قابلة للق
 msgid "The model provider's quota ran out"
 msgstr "نفدت حصة مزوّد النموذج"
 
-#: src/lib/user_error.ts:99
+#: src/lib/user_error.ts:103
 msgid "The model provider’s safety system withheld this answer."
 msgstr "حجب نظام الأمان لدى مزود النموذج هذه الإجابة."
 
-#: src/lib/user_error.ts:101
+#: src/lib/user_error.ts:105
 msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 msgstr "انقطعت إجابة النموذج عند حد المخرجات. حاول مجددًا أو اطلب إجابة أقصر."
 
@@ -7536,7 +7565,7 @@ msgstr "الثلاثين يومًا السابقة"
 msgid "The previous value is restored"
 msgstr "استُعيدت القيمة السابقة"
 
-#: src/lib/user_error.ts:93
+#: src/lib/user_error.ts:97
 msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
@@ -7552,7 +7581,7 @@ msgstr "لم يصل الرد في الوقت المحدد، وقد يكون ال
 msgid "The reply timed out"
 msgstr "انتهت مهلة الرد"
 
-#: src/lib/user_error.ts:228
+#: src/lib/user_error.ts:232
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
@@ -7560,11 +7589,11 @@ msgstr "تعذر إكمال الطلب. أعد المحاولة."
 msgid "The requested work is done"
 msgstr "إنجاز المطلوب"
 
-#: src/lib/user_error.ts:137
+#: src/lib/user_error.ts:141
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جاهزية الخادم وأعد المحاولة."
 
-#: src/lib/user_error.ts:146
+#: src/lib/user_error.ts:150
 msgid "The resident worker is preparing this chart."
 msgstr "العامل المقيم يجهّز هذا الشارت."
 
@@ -7592,11 +7621,11 @@ msgstr "يُحذف سجل الدردشات في المجموعة المحددة 
 msgid "The selected groups' chat history is hidden for you. The groups stay with their members."
 msgstr "يُحذف سجل الدردشات في المجموعات المحددة من عندك فقط. تبقى المجموعات بأعضائها."
 
-#: src/lib/user_error.ts:103
+#: src/lib/user_error.ts:107
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "النموذج المحدد غير متاح لدى هذا المزود. اختر نموذجًا آخر من الإعدادات."
 
-#: src/shell/settings/ConnectionPages.tsx:764
+#: src/shell/settings/ConnectionPages.tsx:861
 msgid "The server is added"
 msgstr "أُضيف الخادم"
 
@@ -7612,7 +7641,7 @@ msgstr "أُوقف الخادم"
 msgid "The server's schema changed. Review the tools before approving them."
 msgstr "تغيّر مخطط الخادم. راجع الأدوات قبل اعتمادها."
 
-#: src/lib/user_error.ts:87
+#: src/lib/user_error.ts:91
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
@@ -7640,7 +7669,7 @@ msgstr "لم تعد المهمة موجودة."
 #~ msgid "The task resumed from its saved state after reconnection."
 #~ msgstr "استؤنفت المهمة من حالتها المحفوظة بعد إعادة الاتصال."
 
-#: src/lib/user_error.ts:159
+#: src/lib/user_error.ts:163
 msgid "The test did not get an answer in time. Nothing was saved."
 msgstr "لم يصل رد على الاختبار في الوقت المحدد. لم يُحفظ شيء."
 
@@ -7657,7 +7686,7 @@ msgstr "تُرسَل القيمة مشفّرة ولا تُعرض بعد الحف
 msgid "The value is too short"
 msgstr "القيمة قصيرة جدًا"
 
-#: src/lib/user_error.ts:140
+#: src/lib/user_error.ts:144
 msgid "The voice connection failed. Retry the call."
 msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 
@@ -7700,11 +7729,11 @@ msgstr "تنطبق هذه الإعدادات على جميع الوكلاء وا
 msgid "Thinking"
 msgstr "يفكر"
 
-#: src/lib/user_error.ts:45
+#: src/lib/user_error.ts:49
 msgid "This agent has reached its blocked-version limit. Existing blocks have been preserved."
 msgstr "وصل هذا الوكيل إلى الحد الأقصى للإصدارات المحظورة. بقيت عمليات الحظر الحالية محفوظة."
 
-#: src/lib/user_error.ts:29
+#: src/lib/user_error.ts:33
 msgid "This agent’s market scope cannot be changed."
 msgstr "لا يمكن تعديل نطاق هذا الوكيل."
 
@@ -7712,23 +7741,23 @@ msgstr "لا يمكن تعديل نطاق هذا الوكيل."
 msgid "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
 msgstr "معرفة هذا الوكيل وملاحظات عمله الخاصة، محفوظة بمعزل عن سجل المحادثة. ما يعرفه الوكلاء عنك موجود في «عنك»."
 
-#: src/lib/user_error.ts:95
+#: src/lib/user_error.ts:99
 msgid "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
 msgstr "لا يمكن لمفتاح API هذا استخدام النموذج المحدد. اختر نموذجًا آخر أو تحقق من صلاحيات النماذج في حساب المزود."
 
-#: src/lib/user_error.ts:83
+#: src/lib/user_error.ts:87
 msgid "This authorization request expired or changed. Review a new request."
 msgstr "انتهت صلاحية طلب التفويض أو تغير. راجع طلبًا جديدًا."
 
-#: src/lib/user_error.ts:111
+#: src/lib/user_error.ts:115
 msgid "This broker account does not permit trading. Check its trading permissions."
 msgstr "لا يسمح حساب الوسيط هذا بالتداول. تحقق من صلاحياته."
 
-#: src/lib/user_error.ts:163
+#: src/lib/user_error.ts:167
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود."
 
-#: src/lib/user_error.ts:194
+#: src/lib/user_error.ts:198
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
@@ -7778,7 +7807,7 @@ msgstr "هذا الجهاز"
 msgid "This device is registered"
 msgstr "سُجِّل هذا الجهاز"
 
-#: src/lib/user_error.ts:151
+#: src/lib/user_error.ts:155
 msgid "This exact symbol is not available from your broker."
 msgstr "هذا الرمز بالضبط غير متاح لدى وسيطك."
 
@@ -7786,15 +7815,15 @@ msgstr "هذا الرمز بالضبط غير متاح لدى وسيطك."
 msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
 msgstr "هذا الهدف خطة ضمن مستوى تداول الوكيل وتفويضه الموقّع. يبقى إيقاف الصفقات الجديدة وإيقافاتك المؤقتة وحدود الحساب المالية سارية على كل أمر. إيقاف الهدف مؤقتًا لا يغلق صفقات الوسيط القائمة."
 
-#: src/lib/user_error.ts:118
+#: src/lib/user_error.ts:122
 msgid "This goal is paused, cancelled or completed. Reload its current state."
 msgstr "هذا الهدف متوقف مؤقتًا أو ملغى أو مكتمل. أعد تحميل حالته الحالية."
 
-#: src/lib/user_error.ts:115
+#: src/lib/user_error.ts:119
 msgid "This goal is waiting for broker verification. Its financial operation will not be repeated automatically."
 msgstr "ينتظر هذا الهدف التحقق لدى الوسيط. لن تُكرر عمليته المالية تلقائيًا."
 
-#: src/lib/user_error.ts:120
+#: src/lib/user_error.ts:124
 msgid "This goal stopped because its conversation or agent was deleted. Its history is kept."
 msgstr "توقف هذا الهدف لأن محادثته أو وكيله حُذف. سجله محفوظ."
 
@@ -7802,11 +7831,15 @@ msgstr "توقف هذا الهدف لأن محادثته أو وكيله حُذ�
 msgid "This is how text looks in conversations."
 msgstr "هذا مثال على حجم النص في المحادثات."
 
-#: src/lib/user_error.ts:127
+#: src/lib/user_error.ts:131
 msgid "This item changed. Reload it before saving."
 msgstr "تغيّر هذا العنصر. أعد تحميله قبل الحفظ."
 
-#: src/lib/user_error.ts:220
+#: src/lib/user_error.ts:31
+msgid "This key is set on the server and cannot be deleted here."
+msgstr "هذا المفتاح مضبوط على الخادم ولا يمكن حذفه من هنا."
+
+#: src/lib/user_error.ts:224
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "هذه الرسالة أكبر من أن تُعالج حتى بعد تلخيص السجل الأقدم. اختصرها أو أرسل مرفقات أقل؛ المحادثة محفوظة."
 
@@ -7814,7 +7847,7 @@ msgstr "هذه الرسالة أكبر من أن تُعالج حتى بعد تل
 msgid "This month"
 msgstr "هذا الشهر"
 
-#: src/lib/user_error.ts:75
+#: src/lib/user_error.ts:79
 msgid "This needs a new grant you sign with your passkey."
 msgstr "يلزم تفويض جديد توقّعه بمفتاح المرور."
 
@@ -7822,11 +7855,11 @@ msgstr "يلزم تفويض جديد توقّعه بمفتاح المرور."
 msgid "this one does not block closing"
 msgstr "هذا لا يمنع الإغلاق"
 
-#: src/lib/user_error.ts:155
+#: src/lib/user_error.ts:159
 msgid "This operation already has a settled outcome. Reload the journal."
 msgstr "لهذه العملية نتيجة محسومة بالفعل. أعد تحميل السجل."
 
-#: src/lib/user_error.ts:153
+#: src/lib/user_error.ts:157
 msgid "This operation is still in progress. Wait for its broker result before resolving it."
 msgstr "هذه العملية ما زالت قيد التنفيذ. انتظر نتيجة الوسيط قبل تسويتها."
 
@@ -7856,7 +7889,7 @@ msgstr "ربما نُقلت هذه الصفحة أو لم تعد متاحة."
 msgid "This pair is permanent for this agent. Create another agent to use a different pair."
 msgstr "هذا الزوج ثابت للبوت. أنشئ بوتًا آخر لاستخدام زوج مختلف."
 
-#: src/lib/user_error.ts:69
+#: src/lib/user_error.ts:73
 msgid "This passkey request is not available in this session. Start it again."
 msgstr "طلب مفتاح المرور هذا غير متاح في هذه الجلسة. ابدأه من جديد."
 
@@ -7868,11 +7901,15 @@ msgstr "لا يمكن التراجع عن هذا الحظر الدائم. تأك
 #~ msgid "This plan is advisory and cannot execute trades."
 #~ msgstr "هذه الخطة استشارية ولا يمكنها تنفيذ صفقات."
 
-#: src/lib/user_error.ts:47
+#: src/lib/user_error.ts:51
 msgid "This procedure requires a validated version before it can be enabled or changed."
 msgstr "يتطلب تفعيل هذا الإجراء أو تغييره إصدارًا جرى التحقق منه."
 
-#: src/lib/user_error.ts:41
+#: src/lib/user_error.ts:29
+msgid "This provider is used in Models or by an agent. Choose another model there first."
+msgstr "هذا المزوّد مستخدم في «النماذج» أو لدى أحد الوكلاء. اختر نموذجًا آخر هناك أولًا."
+
+#: src/lib/user_error.ts:45
 msgid "This question is no longer waiting for an answer."
 msgstr "لم يعد هذا السؤال ينتظر إجابة."
 
@@ -7880,19 +7917,19 @@ msgstr "لم يعد هذا السؤال ينتظر إجابة."
 #~ msgid "This run was recovered by another worker."
 #~ msgstr "استعاد عامل آخر هذا التنفيذ."
 
-#: src/lib/user_error.ts:49
+#: src/lib/user_error.ts:53
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "لم تعد هذه المهارة موجودة في المكتبة الحالية. أعد تحميل القائمة."
 
-#: src/lib/user_error.ts:211
+#: src/lib/user_error.ts:215
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "انقطعت هذه الخطوة ثم استُؤنفت. لم يتكرر أي شيء."
 
-#: src/lib/user_error.ts:216
+#: src/lib/user_error.ts:220
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "لا يمكن استئناف المهمة بحالتها الحالية. راجع الخطة وحد المحاولات."
 
-#: src/lib/user_error.ts:213
+#: src/lib/user_error.ts:217
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "تنتظر المهمة التحقق من عملية خارجية غير محسومة."
 
@@ -7976,7 +8013,7 @@ msgstr "اليوم حتى الآن"
 msgid "Tokens"
 msgstr "التوكن"
 
-#: src/lib/user_error.ts:209
+#: src/lib/user_error.ts:213
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
@@ -8228,10 +8265,10 @@ msgstr "حساب غير معروف"
 msgid "Unlink"
 msgstr "فصل"
 
-#: src/shell/settings/ConnectionPages.tsx:250
-#: src/shell/settings/ConnectionPages.tsx:288
-#: src/shell/settings/ConnectionPages.tsx:310
-#: src/shell/settings/ConnectionPages.tsx:459
+#: src/shell/settings/ConnectionPages.tsx:251
+#: src/shell/settings/ConnectionPages.tsx:289
+#: src/shell/settings/ConnectionPages.tsx:311
+#: src/shell/settings/ConnectionPages.tsx:460
 msgid "Unlink the account"
 msgstr "فصل الحساب"
 
@@ -8379,7 +8416,7 @@ msgstr "استهلاك {0} · آخر {1} يومًا"
 msgid "Use the arrows to move between the columns."
 msgstr "استخدم الأسهم للتنقل بين الأعمدة."
 
-#: src/lib/user_error.ts:71
+#: src/lib/user_error.ts:75
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
@@ -8475,6 +8512,10 @@ msgstr "مكالمة صوتية"
 msgid "Voice calls"
 msgstr "المكالمات الصوتية"
 
+#: src/shell/settings/ConnectionPages.tsx:576
+msgid "Voice calls stop too."
+msgstr "وتتوقف المكالمات الصوتية أيضًا."
+
 #: src/conversation/Composer.tsx:847
 #: src/conversation/Composer.tsx:848
 msgid "Voice conversation"
@@ -8493,7 +8534,7 @@ msgstr "محادثة صوتية"
 msgid "Voice message ({0})"
 msgstr "رسالة صوتية ({0})"
 
-#: src/lib/user_error.ts:133
+#: src/lib/user_error.ts:137
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "يتطلب الصوت متصفحًا يدعم WebRTC والميكروفون عبر HTTPS."
 
@@ -8541,7 +8582,7 @@ msgstr "بانتظار التسليم"
 msgid "Waiting for reconciliation"
 msgstr "بانتظار التحقق من النتيجة"
 
-#: src/lib/user_error.ts:125
+#: src/lib/user_error.ts:129
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "بانتظار أن يبلغ الوسيط عن صفقة الدخول. لن يُرسل الأمر المقبول مرة أخرى."
 
@@ -8795,7 +8836,7 @@ msgstr "يمكنك تثبيت 3 محادثات فقط"
 msgid "You decide"
 msgstr "أنت صاحب القرار"
 
-#: src/shell/settings/ConnectionPages.tsx:579
+#: src/shell/settings/ConnectionPages.tsx:637
 msgid "You have not added a provider yet."
 msgstr "لم تضف مزودًا بعد."
 
@@ -8860,11 +8901,11 @@ msgstr "محادثاتك وملفاتك محفوظة في Lonora، لا في ه�
 #~ msgid "Your Lonora workspace"
 #~ msgstr "مساحة عملك في Lonora"
 
-#: src/lib/user_error.ts:97
+#: src/lib/user_error.ts:101
 msgid "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
 msgstr "نفد رصيد حساب مزود النموذج أو تجاوز حد الإنفاق. أضف رصيدًا أو اختر مزودًا آخر."
 
-#: src/lib/user_error.ts:63
+#: src/lib/user_error.ts:67
 msgid "Your Personal Agent cannot be deleted."
 msgstr "لا يمكن حذف مساعدك الشخصي."
 

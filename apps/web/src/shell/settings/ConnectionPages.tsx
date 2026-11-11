@@ -3,7 +3,8 @@ import { Trans } from "@lingui/react/macro";
 import { Icon, PairIcon } from "@lonora/ui-web";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
-import { api } from "../../lib/api";
+import { api, type Provider } from "../../lib/api";
+import { readRouting, saveRouting } from "../../lib/model_routing";
 import { readAccount } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
@@ -548,31 +549,88 @@ export const providerName = (id: string) => PROVIDER_NAMES[id] ?? id;
 /* «مزوّدو النماذج» (route `providers`): the server's providers that have a key. */
 export function ProvidersPage() {
   const nav = useNavigation();
+  const sheets = useSheets();
+  const toast = useToast();
   const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
+  const routing = useLoad(readRouting, []);
   const configured = (providers.value ?? []).filter((item) => item.configured);
+  // The model Lonora routes to this provider, when it has one.
+  const routed = (id: string) =>
+    [routing.value?.unified, ...Object.values(routing.value?.routes ?? {})].find(
+      (selection) => selection?.provider === id,
+    )?.model;
+  const remove = (id: string) => {
+    const name = providerName(id);
+    const title = t`Confirm deletion`;
+    sheets.open({
+      id: "provider-remove",
+      title,
+      label: title,
+      body: (
+        <>
+          <p>
+            <Trans>
+              The {name} key is deleted from Lonora. Your agents cannot use its models until you add
+              the key again.
+            </Trans>
+            {id === "openai" ? ` ${t`Voice calls stop too.`}` : ""}
+          </p>
+          <div className="actions">
+            <button type="button" className="btn outline" onClick={() => sheets.close()}>
+              <Trans>Cancel</Trans>
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={async () => {
+                sheets.close(true);
+                try {
+                  await api.delete(`/providers/${encodeURIComponent(id)}/credential`);
+                  providers.reload();
+                  toast(t`${name} is removed`, { type: "success" });
+                } catch (error) {
+                  toast(userError(error), { type: "error" });
+                }
+              }}
+            >
+              <Trans>Delete</Trans>
+            </button>
+          </div>
+        </>
+      ),
+    });
+  };
   return (
     <>
       {configured.length ? (
         <div className="group">
-          {configured.map((item) => (
-            <button
-              type="button"
-              className="row"
-              key={item.id}
-              onClick={() => nav.go(`/app/provider/${item.id}`)}
-            >
-              <Icon name="cpu" />
-              <span className="body">
-                <strong>{providerName(item.id)}</strong>
-                <small>
-                  <Trans>Key saved · never shown again</Trans>
-                </small>
-              </span>
-              <span className="chevron">
-                <Icon name="chev" />
-              </span>
-            </button>
-          ))}
+          {configured.map((item) => {
+            const model = routed(item.id);
+            return (
+              <div className="row" key={item.id}>
+                <Icon name="cpu" />
+                <span className="body">
+                  <strong>{providerName(item.id)}</strong>
+                  <small>
+                    {model ? (
+                      <>
+                        <span className="ltr">{model}</span> ·{" "}
+                      </>
+                    ) : null}
+                    <Trans>Key saved · never shown again</Trans>
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  className="icon"
+                  aria-label={t`Delete ${providerName(item.id)}`}
+                  onClick={() => remove(item.id)}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       ) : providers.loading ? null : (
         <Empty>
@@ -600,6 +658,9 @@ function ProviderForm({ initial }: { initial?: string }) {
   const [provider, setProvider] = useState(initial ?? "");
   const [shown, setShown] = useState(false);
   const [test, setTest] = useState<TestState>(null);
+  // The provider's models, once a test has listed them, and the one chosen as Lonora's default.
+  const [models, setModels] = useState<string[] | null>(null);
+  const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const key = (form: HTMLFormElement | null) => (form ? field(form, "key") : "");
   const check = (form: HTMLFormElement | null) => {
@@ -623,6 +684,16 @@ function ProviderForm({ initial }: { initial?: string }) {
           await api
             .post(`/providers/${encodeURIComponent(provider)}/discover`, {})
             .catch(() => undefined);
+          if (model) {
+            // Read at save time: a change made on «النماذج» meanwhile is kept.
+            const current = await readRouting();
+            const selection = { provider: provider as Provider, model };
+            await saveRouting(
+              current.mode === "unified"
+                ? { ...current, unified: selection }
+                : { ...current, routes: { ...current.routes, conversation: selection } },
+            );
+          }
           clearDirty();
           toast(t`Saved`, { type: "success" });
           nav.go("/app/providers", { replace: true });
@@ -644,6 +715,8 @@ function ProviderForm({ initial }: { initial?: string }) {
           onChange={(event) => {
             setProvider(event.target.value);
             setTest(null);
+            setModels(null);
+            setModel("");
           }}
         >
           <option value="">{t`Choose the provider`}</option>
@@ -680,6 +753,31 @@ function ProviderForm({ initial }: { initial?: string }) {
           <Trans>The key is stored encrypted and is never shown again.</Trans>
         </small>
       </label>
+      <label className="field">
+        <span>
+          <Trans>Model</Trans>
+        </span>
+        <select
+          name="model"
+          value={model}
+          disabled={!models}
+          onChange={(event) => setModel(event.target.value)}
+        >
+          <option value="">{models ? t`Choose the model` : t`Choose the provider first`}</option>
+          {models?.map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+        {models && (
+          <small>
+            <Trans>
+              Lonora uses it for your agents' conversations. You can change it in Models.
+            </Trans>
+          </small>
+        )}
+      </label>
       <TestResult state={test} />
       <button
         type="button"
@@ -698,6 +796,7 @@ function ProviderForm({ initial }: { initial?: string }) {
               },
             );
             const count = result.models.length;
+            setModels(result.models);
             setTest({ ok: true, text: t`The connection works · ${count} models available` });
           } catch (error) {
             setTest({ ok: false, text: userError(error) });

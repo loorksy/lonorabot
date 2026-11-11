@@ -351,6 +351,79 @@ test("a trading account page shows the broker's own balance, name, server and pa
   }
 });
 
+test("providers: a tested key offers its models as the default; removal asks first", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    let routing = { mode: "unified", unified: null, routes: {} };
+    const saved = [];
+    await page.route("**/api/providers/openai/test", (route) =>
+      route.fulfill({ json: { ok: true, models: ["gpt-test", "gpt-test-mini"] } }),
+    );
+    await page.route("**/api/providers/openai/credential", (route) =>
+      route.request().method() === "PUT"
+        ? route.fulfill({ json: { configured: true } })
+        : route.fallback(),
+    );
+    await page.route("**/api/providers/openai/discover", (route) => route.fulfill({ json: [] }));
+    await page.route("**/api/settings/models", (route) => {
+      if (route.request().method() === "PUT") {
+        routing = route.request().postDataJSON();
+        saved.push(routing);
+      }
+      return route.fulfill({ json: routing });
+    });
+    // The form: the model list comes from the test, and the chosen one becomes Lonora's default.
+    await page.goto("/app/provider/openai");
+    const model = page.locator("select[name=model]");
+    await expect(model).toBeDisabled();
+    await expect(model.locator("option").first()).toHaveText("Choose the provider first");
+    await page.locator("input[name=key]").fill("sk-test-key-123");
+    await page.getByRole("button", { name: "Test the connection" }).click();
+    await expect(model).toBeEnabled();
+    await model.selectOption("gpt-test-mini");
+    await page.getByRole("button", { name: "Save the settings" }).click();
+    await expect(page).toHaveURL(/\/app\/providers$/);
+    expect(saved).toEqual([
+      { mode: "unified", unified: { provider: "openai", model: "gpt-test-mini" }, routes: {} },
+    ]);
+    // The list: the routed model on the row; removal asks first and says why it is refused.
+    let configured = true;
+    let refused = true;
+    await page.route("**/api/providers", (route) =>
+      route.fulfill({ json: [{ id: "openai", configured }] }),
+    );
+    await page.route("**/api/providers/openai/credential", (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback();
+      if (refused) return route.fulfill({ status: 409, json: { code: "provider_in_use" } });
+      configured = false;
+      return route.fulfill({ json: { configured: false } });
+    });
+    await page.reload();
+    const row = page.locator("div.row", { hasText: "OpenAI" });
+    await expect(row).toContainText("gpt-test-mini");
+    const sheet = page.locator("dialog");
+    await row.getByRole("button", { name: "Delete OpenAI" }).click();
+    await expect(sheet).toContainText("Confirm deletion");
+    await expect(sheet).toContainText("Voice calls stop too.");
+    await sheet.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(
+      page.getByText("This provider is used in Models or by an agent.", { exact: false }),
+    ).toBeVisible();
+    await expect(row).toBeVisible();
+    refused = false;
+    await row.getByRole("button", { name: "Delete OpenAI" }).click();
+    await sheet.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.getByText("You have not added a provider yet.")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
 test("models, voice calls and the trading brake live under integrations; old tabs redirect", async ({
   page,
   context,

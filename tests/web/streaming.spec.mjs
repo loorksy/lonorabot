@@ -62,9 +62,10 @@ test("header and turn avatars follow actual work while status reads are unavaila
       { turn_id: "header-status-proof", text: "The observed result is ready." },
       "writing",
     );
-    await expect(page.locator(`[data-stream-run-id='${data.parent.id}']`)).toContainText(
-      "The observed result is ready.",
-    );
+    const reply = page.locator(`[data-stream-run-id='${data.parent.id}']`);
+    await expect(reply).toContainText("The observed result is ready.");
+    // While the text streams, the folded steps line already carries its time («· Nث»).
+    await expect(reply.locator(".steps-head")).toHaveText(/ · \d+/);
   } finally {
     fixture({ ...data, action: "peer_cleanup" });
   }
