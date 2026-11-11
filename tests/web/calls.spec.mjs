@@ -258,7 +258,11 @@ test("Q58: with no voice provider the call button warns and opens the provider s
   await page.setViewportSize(phone);
   await page.addInitScript(harness, { deny: false, locale: "en" });
   await page.goto(`/app/${agent.id}`);
-  await page.locator(".chat-head").getByRole("button", { name: "Voice call", exact: true }).click();
+  // aria-disabled marks the missing provider, and a tap still opens the sheet (Q58).
+  await page
+    .locator(".chat-head")
+    .getByRole("button", { name: "Voice call", exact: true })
+    .click({ force: true });
   const sheet = page.locator("dialog");
   await expect(sheet).toContainText("Calls are not set up");
   await expect(sheet).toContainText("No voice provider is configured yet.");
