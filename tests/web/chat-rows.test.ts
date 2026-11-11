@@ -7,6 +7,7 @@ import type {
   InboxLastMessage,
   Resource,
 } from "../../packages/contracts/src/domain";
+import type { RunStatus } from "../../packages/contracts/src/runs";
 import {
   archivedRowSummary,
   attentionAlwaysShows,
@@ -16,10 +17,12 @@ import {
   headsUpAllowed,
   inQuietHours,
   isPlainOutgoing,
+  mergeLiveMessage,
   pinsAfter,
   rowMarkedOnly,
   selectionSummary,
 } from "../../packages/core/src/chat-rows";
+import { retriedRunIds, stopTargets } from "../../packages/core/src/run-state";
 import { foldSearch, highlightRange } from "../../packages/core/src/search-fold";
 
 const at = (hour: number) => `2026-11-09T${String(hour).padStart(2, "0")}:00:00Z`;
@@ -165,6 +168,10 @@ test("Q6 and Q4: only plain messages flush; mute hides heads-ups, never urgent a
     }),
     false,
   );
+  // GENUI_PLAN §8: a card submit never enters the auto-flushed outbox; nor does a voice note.
+  assert.equal(isPlainOutgoing({ content: "x", ui_submit: { card_id: "c" } }), false);
+  assert.equal(isPlainOutgoing({ content: "", voice: { artifact_id: "a" } }), false);
+  assert.equal(isPlainOutgoing({ content: "x", edited_from: "m" }), false);
   assert.equal(headsUpAllowed(entries[3]), false);
   assert.equal(headsUpAllowed(entries[4]), false);
   assert.equal(headsUpAllowed(entries[0]), true);
@@ -199,6 +206,21 @@ test("quiet hours: 22:00-08:00 in the owner's zone, crossing midnight; none set,
   assert.equal(inQuietHours(null, new Date()), false);
 });
 
+test("Stop cancels every cancellable run of the thread, a queued card submit included", () => {
+  const run = (id: string, status: RunStatus, thread_id = "t") => ({ id, status, thread_id });
+  const targets = stopTargets(
+    [
+      run("a", "running"),
+      run("b", "queued"),
+      run("c", "waiting_input"),
+      run("d", "completed"),
+      run("e", "queued", "other"),
+    ],
+    "t",
+  ).map((row) => row.id);
+  assert.deepEqual(targets, ["a", "b", "c"]);
+});
+
 test("quiet hours to the minute (Q47): 22:30-07:15 wins over the whole hours", () => {
   const policy = {
     quiet_start_hour: 22,
@@ -211,4 +233,52 @@ test("quiet hours to the minute (Q47): 22:30-07:15 wins over the whole hours", (
   assert.equal(inQuietHours(policy, new Date("2026-11-09T22:30:00Z")), true);
   assert.equal(inQuietHours(policy, new Date("2026-11-10T07:14:00Z")), true);
   assert.equal(inQuietHours(policy, new Date("2026-11-10T07:15:00Z")), false);
+});
+
+test("M2(d): a retried reply's error card settles; it never offers a second Retry", () => {
+  const ids = retriedRunIds([
+    { model_metadata: { retry_of: "failed-1" } },
+    { model_metadata: {} },
+    { model_metadata: null },
+  ]);
+  assert.deepEqual([...ids], ["failed-1"]);
+});
+
+test("M7: a late message.created never overwrites what the refetch already knows", () => {
+  const read = {
+    id: "m",
+    thread_id: "t",
+    seq: 3,
+    role: "user",
+    content: "اشترِ",
+    attachment_ids: [],
+    created_at: "2026-11-10T08:00:00Z",
+    superseded_by: "m2",
+    consumed: true,
+    reactions: [{ emoji: "👍", by: "owner" }],
+  } as unknown as Parameters<typeof mergeLiveMessage>[0];
+  const created = { ...read, superseded_by: null, reactions: [] } as Record<string, unknown>;
+  delete created.consumed;
+  const merged = mergeLiveMessage(read, "message.created", created);
+  assert.equal(merged.superseded_by, "m2");
+  assert.equal((merged as { consumed?: boolean }).consumed, true);
+  assert.equal((merged as { reactions?: unknown[] }).reactions?.length, 1);
+  // A message.updated is the newer projection.
+  const updated = mergeLiveMessage(read, "message.updated", { ...created, superseded_by: "m3" });
+  assert.equal(updated.superseded_by, "m3");
+});
+
+test("a direct chat offers at most two guests per message; a group is not capped", async () => {
+  const { guestCandidates } = await import("../../packages/core/src/composer-mentions");
+  const named = (id: string) => ({ id, name: id, paused: false }) as unknown as Agent;
+  const pool = [named("a"), named("b"), named("c")];
+  assert.deepEqual(
+    guestCandidates(pool, [{ agent_id: "a" }], true).map((row) => row.id),
+    ["a", "b", "c"],
+  );
+  assert.deepEqual(
+    guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], true).map((row) => row.id),
+    ["a", "b"],
+  );
+  assert.equal(guestCandidates(pool, [{ agent_id: "a" }, { agent_id: "b" }], false).length, 3);
 });

@@ -42,6 +42,8 @@ SKIPPED_TOOLS = frozenset(
         "memory_write",
         "owner_preferences_update",
         "scratchpad_write",
+        # A quick reaction is a gesture in the conversation, not an observation.
+        "message_react",
     }
 )
 EFFECT_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})

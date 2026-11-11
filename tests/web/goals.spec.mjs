@@ -17,6 +17,7 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
 }) => {
   const data = fixture({ action: "init" });
   let agent;
+  let releaseAgents;
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
   };
@@ -82,9 +83,34 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     expect(current.state).not.toHaveProperty("autonomous");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    // The agent list arrives late after this reload: the chat menu waits for it, so it is
+    // never opened without the agent's Goals row (the menu keeps the body it opened with).
+    const slowAgents = /\/api\/agents(\?.*)?$/;
+    const agentsGate = new Promise((resolve) => {
+      releaseAgents = resolve;
+    });
+    await page.route(slowAgents, async (route) => {
+      await agentsGate;
+      await route.continue();
+    });
     await page.reload();
+    await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeDisabled();
+    // The avatar and the name open the agent's info page: not before the agent is there.
+    // (Without an agent they are empty, so they are clicked in the page, not by the pointer.)
+    const clicked = await page.evaluate(() =>
+      [".head-avatar", ".chat-name"].map((selector) => {
+        const button = document.querySelector(selector);
+        button?.click();
+        return Boolean(button);
+      }),
+    );
+    expect(clicked).toEqual([true, true]);
+    await expect(page.locator("#dialog[open]")).toHaveCount(0);
+    releaseAgents();
+    await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeEnabled();
     // Sheets are not remembered across a reload: open the goals again from the chat menu.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
+    await page.unroute(slowAgents);
     await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Resume", exact: true }).click();
@@ -111,10 +137,82 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
       .toBe("cancelled");
     expect(errors).toEqual([]);
   } finally {
+    releaseAgents?.();
     if (agent)
       expect([200, 404]).toContain(
         (await context.request.delete(`/api/agents/${agent.id}`, { headers })).status(),
       );
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("a group's menu waits for its member agents before it opens", async ({ page, context }) => {
+  const data = fixture({ action: "init" });
+  const headers = {
+    "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
+  };
+  let agent;
+  let group;
+  let releaseAgents;
+  try {
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+    const name = `Member ${randomUUID()}`;
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: { name, trading_account_id: data.account, trading_symbol: data.symbol },
+    });
+    expect(created.status()).toBe(201);
+    agent = await created.json();
+    const response = await context.request.post("/api/groups/create", {
+      headers,
+      data: {
+        name: `Group ${randomUUID()}`,
+        member_ids: [agent.id],
+        participation: "mentions_or_lead",
+      },
+    });
+    expect(response.ok()).toBeTruthy();
+    group = await response.json();
+    // The group arrives at once, its member agents late: its pages are built from both.
+    const slowAgents = /\/api\/agents(\?.*)?$/;
+    const agentsGate = new Promise((resolve) => {
+      releaseAgents = resolve;
+    });
+    await page.route(slowAgents, async (route) => {
+      await agentsGate;
+      await route.continue();
+    });
+    await page.goto(`/app/g/${group.id}`);
+    await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
+    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
+    await expect(menu).toBeDisabled();
+    const clicked = await page.evaluate(() =>
+      [".head-avatar", ".chat-name"].map((selector) => {
+        const button = document.querySelector(selector);
+        button?.click();
+        return Boolean(button);
+      }),
+    );
+    expect(clicked).toEqual([true, true]);
+    await expect(page.locator("#dialog[open]")).toHaveCount(0);
+    releaseAgents();
+    await expect(menu).toBeEnabled();
+    await menu.click();
+    await page.unroute(slowAgents);
+    await page.locator("#dialog").getByRole("button", { name: "Group info", exact: true }).click();
+    await expect(page.locator("#dialog").getByText(name).first()).toBeVisible();
+  } finally {
+    releaseAgents?.();
+    if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
+    if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });
     fixture({ ...data, action: "cleanup" });
   }
 });

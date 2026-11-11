@@ -1,0 +1,1 @@
+<lonora_chat_option>The owner switched on web search for this chat. Before answering, gather current sources with the web_search tool and ground the answer in them; say briefly where the facts come from. If web search is unavailable, say so plainly instead of answering as if you had searched.</lonora_chat_option>

@@ -900,6 +900,9 @@ class MetaApiBroker:
                     "position_id": response.get("positionId"),
                     "deal_id": response.get("dealId"),
                     "price": response.get("price"),
+                    # The volume the broker reports it executed (MqlTradeResult.volume): on a
+                    # partial fill, less than was asked.
+                    "volume": response.get("volume"),
                     "description": safe_exception_message(
                         Exception(
                             str(response.get("message") or response.get("description") or "")

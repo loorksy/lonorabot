@@ -11,6 +11,15 @@ function fixture(data) {
   );
 }
 
+/* Older pages load when the skeleton bubbles above the first message come into view
+   (reference olderSentinel): scroll the conversation to its top. */
+async function older(page) {
+  await expect(page.locator(".sk-older")).toHaveCount(1);
+  await page.getByTestId("transcript").evaluate((element) => {
+    element.scrollTop = 0;
+  });
+}
+
 test("header and turn avatars follow actual work while status reads are unavailable", async ({
   page,
   context,
@@ -33,7 +42,7 @@ test("header and turn avatars follow actual work while status reads are unavaila
       fixture({ ...data, action: "peer_activity", kind, payload });
       await expect(avatar).toHaveAttribute("data-state", state);
       await expect(status).toHaveAttribute("data-activity-phase", state);
-      await expect(status.getByRole("status")).toBeVisible();
+      await expect(status).toBeVisible();
     };
     // The server reports each tool's registry toolset and effect with tool.started.
     const lookup = { call_id: "lookup", name: "web_search", toolset: "research", effect: "read" };
@@ -92,7 +101,7 @@ test("durable SSE reply survives event eviction, reload and a fenced restart wit
     const preview = page.locator(`[data-stream-run-id='${data.run.id}']`);
     await expect(preview).toContainText(data.text);
     await expect(page.locator(".lonora-pixel-grid")).toHaveCount(0);
-    await page.getByRole("button", { name: "Load earlier messages", exact: true }).click();
+    await older(page);
     await expect(
       page.getByTestId("transcript").getByText("HISTORY 000 immutable fixture", { exact: true }),
     ).toHaveCount(1);
@@ -107,7 +116,7 @@ test("durable SSE reply survives event eviction, reload and a fenced restart wit
     await page.reload();
     await expect(preview).toContainText("START durable browser prefix");
     await expect(preview).toContainText("chunk-169");
-    await page.getByRole("button", { name: "Load earlier messages", exact: true }).click();
+    await older(page);
     await expect(
       page.getByTestId("transcript").getByText("HISTORY 000 immutable fixture", { exact: true }),
     ).toHaveCount(1);
@@ -116,7 +125,7 @@ test("durable SSE reply survives event eviction, reload and a fenced restart wit
     await expect(preview).not.toContainText("START durable browser prefix");
     await page.reload();
     await expect(preview).toContainText(data.text);
-    await page.getByRole("button", { name: "Load earlier messages", exact: true }).click();
+    await older(page);
     fixture({ ...data, action: "complete" });
     await expect(page.getByTestId("transcript").getByText(data.text, { exact: true })).toHaveCount(
       1,
@@ -189,7 +198,7 @@ test("live reply stays before a later owner message instead of moving to the foo
     const saved = await response.json();
     await expect(page.locator(`[data-message-id='${saved.message.id}']`)).toBeVisible();
     const order = await page
-      .locator('[data-testid="transcript"] article')
+      .locator('[data-testid="transcript"] .msg')
       .evaluateAll((nodes) =>
         nodes.map(
           (node) => node.getAttribute("data-stream-run-id") ?? node.getAttribute("data-message-id"),
@@ -201,7 +210,7 @@ test("live reply stays before a later owner message instead of moving to the foo
     const resumed = fixture({ ...data, action: "recover" });
     await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toContainText(resumed.text);
     const resumedOrder = await page
-      .locator('[data-testid="transcript"] article')
+      .locator('[data-testid="transcript"] .msg')
       .evaluateAll((nodes) =>
         nodes.map(
           (node) => node.getAttribute("data-stream-run-id") ?? node.getAttribute("data-message-id"),

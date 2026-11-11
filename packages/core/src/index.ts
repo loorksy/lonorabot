@@ -27,6 +27,7 @@ export {
   agentStatusLine,
   agentStatusText,
   liveAvatarState,
+  uncertainLine,
   watchCondition,
   watchUntil,
 } from "./agent-status";
@@ -64,6 +65,7 @@ export {
   type ListFilter,
   listIdOf,
   listMemberRows,
+  mergeLiveMessage,
   type OutboxLatest,
   PIN_LIMIT,
   pinsAfter,
@@ -76,6 +78,8 @@ export {
   selectionSummary,
 } from "./chat-rows";
 export {
+  guestCandidates,
+  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -108,11 +112,26 @@ export {
   unreadBadgeTotal,
 } from "./inbox";
 export {
+  callPart,
+  pendingVoiceRich,
+  validateAgentRichContent,
+  voicePart,
+} from "./message-parts";
+export {
+  type OrderLine,
+  type OrderLineState,
+  orderLineAction,
+  orderLineLabels,
+  orderLineState,
+  orderLineText,
+} from "./order-line";
+export {
   type CredentialField,
   type CredentialForm,
   type CredentialPost,
   credentialForm,
   mergeOwnerAction,
+  noticeUndone,
   OWNER_ACTION_CHANGED,
   type OwnerActionButton,
   type OwnerActionOption,
@@ -152,7 +171,14 @@ export {
   streamForRun,
   streamText,
 } from "./reply-stream";
-export { activeStatuses, canCancel, canResume, isWorking } from "./run-state";
+export {
+  activeStatuses,
+  canCancel,
+  canResume,
+  isWorking,
+  retriedRunIds,
+  stopTargets,
+} from "./run-state";
 export {
   firstSearchPage,
   moreSearchItems,

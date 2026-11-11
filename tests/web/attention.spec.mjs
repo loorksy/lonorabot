@@ -1,6 +1,18 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
+// The fixture's agent holds an uncertain trade, which rightly refuses its deletion: it is
+// paused after the test, so it never counts against the agent cap.
+let fixtureAgent;
+test.afterEach(() => {
+  if (!fixtureAgent) return;
+  execFileSync(".venv/bin/python", ["tests/browser_agents.py"], {
+    input: JSON.stringify({ action: "pause", ids: [fixtureAgent] }),
+    encoding: "utf8",
+  });
+  fixtureAgent = undefined;
+});
+
 test("durable notification is shared across views and stays read after reload", async ({
   page,
   context,
@@ -10,6 +22,7 @@ test("durable notification is shared across views and stays read after reload", 
       encoding: "utf8",
     }),
   );
+  fixtureAgent = fixture.agent?.id;
   await context.addCookies(
     fixture.cookies.map((cookie) => ({
       ...cookie,

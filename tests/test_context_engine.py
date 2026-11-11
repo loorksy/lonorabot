@@ -366,6 +366,7 @@ class SimpleThread:
         self.purpose = "conversation"
         self.context_summary = context_summary
         self.summary_seq = 10
+        self.options: dict[str, object] = {}
 
 
 class SimpleRun:

@@ -16,6 +16,28 @@ import { useRef, useState } from "react";
 import { userError } from "../../lib/user_error";
 import "./avatar-studio.css";
 
+/** Lonora's avatar shapes, named in the owner's language. */
+export function avatarFaceLabels(): Record<string, string> {
+  return {
+    orb: t`Signals`,
+    "face-smile": t`Smile`,
+    "face-thoughtful": t`Thoughtful`,
+    "face-happy": t`Happy`,
+    "face-wink": t`Wink`,
+    "face-sleepy": t`Sleepy`,
+    "face-surprised": t`Surprised`,
+    "face-angry": t`Angry`,
+    "face-playful": t`Playful`,
+    "face-excited": t`Excited`,
+    "face-skeptical": t`Skeptical`,
+    "face-dreamy": t`Dreamy`,
+    "face-focused": t`Focused`,
+    "face-worried": t`Worried`,
+    "face-laugh": t`Laugh`,
+    "face-determined": t`Determined`,
+  };
+}
+
 /** Existing profiles save appearance independently; new-agent selections remain creation drafts. */
 export function AvatarStudio({
   name,
@@ -56,24 +78,7 @@ export function AvatarStudio({
       setSaving(false);
     }
   };
-  const labels: Record<string, string> = {
-    orb: t`Signals`,
-    "face-smile": t`Smile`,
-    "face-thoughtful": t`Thoughtful`,
-    "face-happy": t`Happy`,
-    "face-wink": t`Wink`,
-    "face-sleepy": t`Sleepy`,
-    "face-surprised": t`Surprised`,
-    "face-angry": t`Angry`,
-    "face-playful": t`Playful`,
-    "face-excited": t`Excited`,
-    "face-skeptical": t`Skeptical`,
-    "face-dreamy": t`Dreamy`,
-    "face-focused": t`Focused`,
-    "face-worried": t`Worried`,
-    "face-laugh": t`Laugh`,
-    "face-determined": t`Determined`,
-  };
+  const labels = avatarFaceLabels();
   return (
     <Dialog
       open={open}

@@ -77,7 +77,7 @@ export function IncomingCallOverlay() {
       setCall(null);
       if (action === "accept" && acceptedIncoming(result)) {
         const agent = await api.get<Agent>(`/agents/${encodeURIComponent(result.agent_id)}`);
-        await voice.start(agent, result.thread_id);
+        await voice.start(agent, result.thread_id, result.id);
       }
     } catch (cause) {
       setError(errorText(cause));

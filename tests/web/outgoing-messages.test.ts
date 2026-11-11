@@ -5,6 +5,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { ApiError, type Message } from "../../apps/web/src/lib/api";
+import { pendingVoiceRich } from "../../packages/core/src/message-parts";
 
 type Outbox = typeof import("../../apps/web/src/lib/outgoing-messages");
 function fixture() {
@@ -23,6 +24,7 @@ function fixture() {
     crypto: webcrypto,
     require(name: string) {
       if (name === "./api") return { ApiError };
+      if (name === "@lonora/core") return { pendingVoiceRich };
       throw new Error(`Unexpected module ${name}`);
     },
   });

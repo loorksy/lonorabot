@@ -73,12 +73,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
     const panel = page.locator("#dialog");
+    // Q37: the reference's chart sheet draws the chart's candles as SVG.
     await expect(
-      panel
-        .locator(`[data-chart-id='${data.chart}']`)
-        .frameLocator(".chart-renderer iframe")
-        .locator("canvas")
-        .first(),
+      panel.locator(`[data-chart-id='${data.chart}'] svg.chart > g > rect`).first(),
     ).toBeVisible();
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
@@ -88,16 +85,17 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await page.screenshot({ path: ".runtime/rakazo-parity/web-chat-chart.png", fullPage: true });
     await page.keyboard.press("Escape");
     await expect(panel).not.toHaveAttribute("open", "");
-    await page.getByRole("button", { name: "Preview analysis.svg", exact: true }).click();
-    const preview = page.getByRole("dialog", { name: "analysis.svg", exact: true });
-    await expect(preview.locator("img")).toBeVisible();
+    // The reference names a photo generically («صورة، اضغط لعرضها»): open it by its file.
+    await page.locator(`.img-msg[data-artifact-id='${data.artifact}']`).click();
+    // The reference's photo sheet: the image itself, never a frame.
+    const preview = page.locator("#dialog");
+    await expect(preview.locator(".sheet-photo-box.ld img")).toBeVisible();
     await expect(preview.locator("iframe")).toHaveCount(0);
-    await preview.getByRole("button", { name: "Close", exact: true }).click();
-    await page
-      .getByRole("combobox", { name: "Message", exact: true })
-      .fill("**Keep these characters** https://example.com");
-    await page.getByRole("button", { name: "Send", exact: true }).click();
-    const literal = page.getByTestId("transcript").locator(".template-user-text");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#app")).not.toHaveAttribute("inert", "");
+    await page.locator(".composer textarea").fill("**Keep these characters** https://example.com");
+    await page.locator(".composer .send").click();
+    const literal = page.getByTestId("transcript").locator(".msg.mine .bubble .text");
     await expect(literal).toContainText("**Keep these characters**");
     await expect(literal.locator("strong")).toHaveCount(0);
     await expect(
@@ -131,8 +129,9 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     expect(created.template).toBe("trading");
     expect(created.trading_symbol).toBe(data.symbol);
     expect(created.description).toBe("Review exposure before trading.");
-    await expect(page).toHaveURL(new RegExp(`/app/${created.id}$`));
-    await page.reload();
+    // The new agent lands on its own page (phase 4a); its conversation reloads as before.
+    await expect(page).toHaveURL(new RegExp(`/app/agent/${created.id}$`));
+    await page.goto(`/app/${created.id}`);
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
     await expect(
@@ -166,7 +165,7 @@ test("actual chart snapshot arrives as an assistant image card and survives relo
     await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
     await page.goto(`/app/${png.agent_id}`);
     const image = page.locator(
-      `[data-message-id='${png.message_id}'][class*='assistant'] [data-artifact-id='${png.artifact_id}'] img`,
+      `[data-message-id='${png.message_id}'].theirs [data-artifact-id='${png.artifact_id}'] img`,
     );
     await expect(image).toBeVisible();
     await expect

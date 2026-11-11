@@ -6,7 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.domain import MessageCreate
-from lonora_db.messages import history, history_around, message_data, send_message
+from lonora_db.messages import history, history_around, messages_data, send_message
+from lonora_db.reactions import owner_reaction
 from lonora_db.thread_prefs import consumed, consumed_seq, hidden_floor, steered_message_ids
 
 from ..middleware.auth import require_owner, runtime
@@ -33,7 +34,7 @@ async def messages(
             if around is not None
             else await history(session, owner.id, thread_id, limit, before, floor=floor)
         )
-        items = [message_data(row) for row in rows]
+        items = await messages_data(session, rows)
         started = await consumed_seq(session, thread_id)
         steered = await steered_message_ids(
             session, [item["id"] for item in items if item["role"] == "user"]
@@ -41,6 +42,30 @@ async def messages(
         for item in items:
             item["consumed"] = consumed(item, started, steered)
         return items
+
+
+@router.put("/threads/{thread_id}/messages/{message_id}/reactions/{emoji}")
+async def react(
+    request: Request,
+    thread_id: str,
+    message_id: str,
+    emoji: str,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    """The owner's one quick reaction (Q26, Q28); it replaces a previous one."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        return await owner_reaction(session, owner.id, thread_id, message_id, emoji)
+
+
+@router.delete("/threads/{thread_id}/messages/{message_id}/reactions")
+async def unreact(
+    request: Request,
+    thread_id: str,
+    message_id: str,
+    owner: OwnerIdentity = Depends(require_owner),
+) -> dict[str, Any]:
+    async with runtime(request).db.sessions() as session, session.begin():
+        return await owner_reaction(session, owner.id, thread_id, message_id, None)
 
 
 @router.post("/threads/{thread_id}/messages", status_code=202)

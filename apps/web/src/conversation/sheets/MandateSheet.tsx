@@ -1,0 +1,417 @@
+import { t } from "@lingui/core/macro";
+import { Trans } from "@lingui/react/macro";
+import type {
+  AccountAuthorityDraft,
+  AccountAuthorityDraftResult,
+  AuthorityAction,
+  AuthorityDuration,
+  OwnerAction,
+  PermissionState,
+} from "@lonora/contracts";
+import { hasFixedMarket } from "@lonora/core";
+import { Icon } from "@lonora/ui-web";
+import { useCallback, useEffect, useState } from "react";
+import { OwnerActionCard } from "../../components/owner-actions/OwnerActionCard";
+import { AgentPermissions } from "../../components/permissions/AgentPermissions";
+import type { Agent } from "../../lib/api";
+import { api } from "../../lib/api";
+import { userError } from "../../lib/user_error";
+import { useSheets } from "../../shell/sheets/SheetHost";
+
+/* «التفويض» (reference OA_R.grant_authority, Desktop-37 7774-7799): مخصّص / كامل, the
+   markets, the allowed actions, the duration, the daily loss (D1: 3% suggested), own
+   positions. «التوقيع بمفتاح المرور» drafts the grant on the server
+   (POST /agents/{id}/account-authorities/draft, Q17/Q18); the drafted grant card then opens in
+   the same sheet, where the passkey signs exactly what the server stored. Nothing is active
+   before that signature; the money-limit choice («التشغيل دون حد مالي») and a conflicting
+   agent's stop are the card's own switches. */
+
+type Kind = "open" | "modify" | "close";
+const ACTIONS: Record<Kind, AuthorityAction[]> = {
+  open: ["buy", "sell", "buy_limit", "sell_limit", "buy_stop", "sell_stop"],
+  modify: ["modify_position", "modify_order"],
+  close: ["close_position", "cancel_order"],
+};
+const actionLabel = (kind: Kind) =>
+  ({
+    open: t`Open new trades`,
+    modify: t`Modify the stop and target`,
+    close: t`Close trades`,
+  })[kind];
+const durationLabel = (d: AuthorityDuration) =>
+  ({
+    "12h": t`12 hours`,
+    "24h": t`24 hours`,
+    "7d": t`7 days`,
+    until_stopped: t`Until cancelled`,
+  })[d];
+
+function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
+  const [mode, setMode] = useState<"custom" | "full">("custom");
+  const [allPairs, setAllPairs] = useState(false);
+  const [kinds, setKinds] = useState<Kind[]>(["open", "modify", "close"]);
+  // D1 (Q18): until the owner stops it; the daily loss is the account's own limit, else a
+  // suggested 3% of equity that is sent only when the owner sets it here.
+  const [duration, setDuration] = useState<AuthorityDuration>("until_stopped");
+  const [loss, setLoss] = useState(3);
+  const [lossSet, setLossSet] = useState(false);
+  const [accountLoss, setAccountLoss] = useState<{ amount: string; currency: string } | null>(null);
+  useEffect(() => {
+    if (!agent.trading_account_id) return;
+    let live = true;
+    void api
+      .get<{ risk: { max_daily_loss?: string | null; currency?: string | null } }>(
+        `/trading/accounts/${encodeURIComponent(agent.trading_account_id)}/execution-policy`,
+      )
+      .then((row) => {
+        if (live && row.risk.max_daily_loss != null)
+          setAccountLoss({
+            amount: String(+Number(row.risk.max_daily_loss).toFixed(2)),
+            currency: row.risk.currency ?? "",
+          });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [agent.trading_account_id]);
+  const [manual, setManual] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const [card, setCard] = useState<OwnerAction | null>(null);
+  if (card) return <OwnerActionCard row={card} onChanged={setCard} inSheet />;
+  const full = mode === "full";
+  const symbol = agent.trading_symbol;
+  // A fixed-pair agent trades its own pair only; Lonora works on the whole account.
+  const fixed = Boolean(symbol) && hasFixedMarket(agent) && agent.role !== "personal";
+  const accountWide = agent.role === "personal" || !symbol;
+  const draft = async () => {
+    if (!full && !kinds.length) return setError(new Error(t`Choose at least one action`));
+    setBusy(true);
+    setError(undefined);
+    const body: AccountAuthorityDraft = full
+      ? { mode: "full", ...(threadId ? { thread_id: threadId } : {}) }
+      : {
+          mode: "custom",
+          ...(threadId ? { thread_id: threadId } : {}),
+          // Lonora's markets are the server's (the whole account); a fixed agent its own pair.
+          ...(agent.role === "personal"
+            ? {}
+            : allPairs && !fixed
+              ? { all_pairs: true }
+              : symbol
+                ? { symbols: [symbol] }
+                : {}),
+          actions: kinds.flatMap((kind) => ACTIONS[kind]),
+          duration,
+          allow_manual_positions: manual,
+          ...(lossSet && !accountLoss ? { daily_loss_percent: String(loss) } : {}),
+        };
+    try {
+      const result = await api.post<AccountAuthorityDraftResult>(
+        `/agents/${encodeURIComponent(agent.id)}/account-authorities/draft`,
+        body,
+      );
+      setCard(result.owner_action);
+    } catch (cause) {
+      setError(cause);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="oa in-sheet act-grant_authority st-pending">
+      {/* biome-ignore lint/a11y/useSemanticElements: the reference's radio rows */}
+      <div className="oa-radios" role="radiogroup" aria-label={t`Kind of mandate`}>
+        {(["custom", "full"] as const).map((value) => (
+          // biome-ignore lint/a11y/useSemanticElements: the reference's radio rows
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            className={`oa-radio${mode === value ? " on" : ""}`}
+            onClick={() => setMode(value)}
+          >
+            <span>
+              <strong>{value === "custom" ? t`Custom mandate` : t`Full mandate`}</strong>
+              <small>
+                {value === "custom"
+                  ? t`You set the markets, actions, duration and money limit`
+                  : fixed && symbol
+                    ? t`${symbol} only: all actions and your own positions until cancelled; the account's limits still apply`
+                    : t`All pairs and all actions until cancelled; the account's limits still apply`}
+              </small>
+            </span>
+            {mode === value && <Icon name="check" />}
+          </button>
+        ))}
+      </div>
+      {!full && (
+        <div className="oa-fields">
+          <div className="oa-f col">
+            <span className="oa-l">
+              <Trans>Markets</Trans>
+            </span>
+            {/* biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice */}
+            <div className="oa-seg" role="radiogroup">
+              {symbol && agent.role !== "personal" && (
+                // biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!allPairs}
+                  className={!allPairs ? "on" : ""}
+                  onClick={() => setAllPairs(false)}
+                >
+                  <span className="ltr">{symbol}</span>
+                </button>
+              )}
+              {!fixed && (
+                // biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={allPairs || accountWide}
+                  className={allPairs || accountWide ? "on" : ""}
+                  onClick={() => setAllPairs(true)}
+                >
+                  <Trans>All pairs on the account</Trans>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="oa-f col">
+            <span className="oa-l">
+              <Trans>Allowed actions</Trans>
+            </span>
+            {/* biome-ignore lint/a11y/useSemanticElements: the reference's check rows */}
+            <div className="oa-checks" role="group">
+              {(["open", "modify", "close"] as const).map((kind) => {
+                const on = kinds.includes(kind);
+                return (
+                  // biome-ignore lint/a11y/useSemanticElements: the reference's check rows
+                  <button
+                    key={kind}
+                    type="button"
+                    className="oa-check"
+                    role="checkbox"
+                    aria-checked={on}
+                    onClick={() =>
+                      setKinds((old) => (on ? old.filter((k) => k !== kind) : [...old, kind]))
+                    }
+                  >
+                    <span className={`pick-box${on ? " on" : ""}`} aria-hidden="true">
+                      {on && <Icon name="check" />}
+                    </span>
+                    <span>{actionLabel(kind)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="oa-f col">
+            <span className="oa-l">
+              <Trans>Duration</Trans>
+            </span>
+            {/* biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice */}
+            <div className="oa-seg" role="radiogroup">
+              {(["12h", "24h", "7d", "until_stopped"] as const).map((value) => (
+                // biome-ignore lint/a11y/useSemanticElements: the reference's segmented choice
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={duration === value}
+                  className={duration === value ? "on" : ""}
+                  onClick={() => setDuration(value)}
+                >
+                  {durationLabel(value)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {accountLoss ? (
+            // The account's own daily loss limit stays as it is: the card never raises it.
+            <div className="oa-f" data-daily-loss="account">
+              <span className="oa-l">
+                <Trans>Daily loss limit</Trans>
+                <small>
+                  <Trans>The account's limit stays</Trans>
+                </small>
+              </span>
+              <span className="ltr">
+                {accountLoss.amount}
+                {accountLoss.currency ? ` ${accountLoss.currency}` : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="oa-f" data-daily-loss={lossSet ? "requested" : "suggested"}>
+              <span className="oa-l">
+                <Trans>Daily loss limit</Trans>
+                {!lossSet && (
+                  <small>
+                    <Trans>Suggested value 3%</Trans>
+                  </small>
+                )}
+              </span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the reference's stepper */}
+              <div className="oa-num" role="group" aria-label={t`Daily loss limit`}>
+                <button
+                  type="button"
+                  aria-label={t`Decrease`}
+                  onClick={() => {
+                    setLossSet(true);
+                    setLoss((v) => Math.max(0.5, +(v - 0.5).toFixed(2)));
+                  }}
+                >
+                  <Icon name="minus" />
+                </button>
+                <output className="ltr">{loss}%</output>
+                <button
+                  type="button"
+                  aria-label={t`Increase`}
+                  onClick={() => {
+                    setLossSet(true);
+                    setLoss((v) => Math.min(20, +(v + 0.5).toFixed(2)));
+                  }}
+                >
+                  <Icon name="plus" />
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="oa-f">
+            <span className="oa-l">
+              <Trans>Manage manual trades</Trans>
+            </span>
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={manual}
+              aria-label={t`Manage manual trades`}
+              onClick={() => setManual((v) => !v)}
+            />
+          </div>
+        </div>
+      )}
+      {full && (
+        <p className="oa-keep">
+          <Icon name="shield" />
+          <span>
+            <Trans>The account's current limits stay in force.</Trans>
+          </span>
+        </p>
+      )}
+      {error != null && (
+        <p className="oa-warn" role="alert">
+          <Icon name="alert" />
+          <span>{userError(error)}</span>
+        </p>
+      )}
+      <div className="oa-actions">
+        <button
+          type="button"
+          className={`btn primary${busy ? " is-busy" : ""}`}
+          disabled={busy}
+          onClick={() => void draft()}
+        >
+          <Icon name="fingerprint" />
+          <span>
+            <Trans>Review and sign with the passkey</Trans>
+          </span>
+        </button>
+      </div>
+      <p className="note">
+        <Trans>
+          Nothing becomes active before your passkey signature; the next step shows exactly what you
+          sign.
+        </Trans>
+      </p>
+    </div>
+  );
+}
+
+/* A grant the agent proposed, or one already signed, is reviewed (and signed or revoked)
+   through the permission flow itself; otherwise the owner drafts one. Read fresh: the
+   composer's snapshot may predate the agent's proposal. */
+function MandateEntry({
+  agent,
+  details,
+  threadId,
+}: {
+  agent: Agent;
+  details: boolean;
+  threadId?: string;
+}) {
+  const [state, setState] = useState<PermissionState | null>(null);
+  // A grant waiting for the signature, or the signed one, opens as its own .oa grant card.
+  const [card, setCard] = useState<OwnerAction | null | undefined>();
+  const [error, setError] = useState<unknown>();
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<PermissionState>(`/agents/${encodeURIComponent(agent.id)}/permissions`)
+      .then(async (row) => {
+        if (!live) return;
+        const held = Boolean(row.pending_authority || row.active_authorities.length);
+        const rows =
+          held && threadId
+            ? await api
+                .get<OwnerAction[]>(`/owner-actions?thread_id=${encodeURIComponent(threadId)}`)
+                .catch(() => [])
+            : [];
+        const status = row.pending_authority ? "pending" : "confirmed";
+        const found = rows
+          .filter(
+            (item) =>
+              item.kind === "grant_authority" &&
+              item.agent_id === agent.id &&
+              item.status === status,
+          )
+          .sort((a, b) => (b.timeline_seq ?? 0) - (a.timeline_seq ?? 0))[0];
+        if (!live) return;
+        setCard(found ?? null);
+        setState(row);
+      })
+      .catch((cause) => live && setError(cause));
+    return () => {
+      live = false;
+    };
+  }, [agent.id, threadId]);
+  if (error != null) return <p className="form-error">{userError(error)}</p>;
+  if (!state) return <p className="note">…</p>;
+  // «تفاصيل التفويض» and a pending grant both open the grant card itself.
+  if (card) return <OwnerActionCard row={card} onChanged={(row) => setCard(row)} inSheet />;
+  return details || state.pending_authority || state.active_authorities.length ? (
+    <div className="legacy-surface">
+      <AgentPermissions
+        key={agent.id}
+        agent={agent}
+        threadId={threadId ?? ""}
+        surface="settings"
+        autostart="autonomous"
+      />
+    </div>
+  ) : (
+    <MandateBody agent={agent} threadId={threadId} />
+  );
+}
+
+export function useMandateSheet() {
+  const sheets = useSheets();
+  return useCallback(
+    (agent: Agent, permission: PermissionState | null, details = false, threadId?: string) => {
+      const title = details ? t`Mandate details` : t`Delegated execution`;
+      sheets.open({
+        id: "mandate",
+        bar: true,
+        title,
+        label: title,
+        body: <MandateEntry agent={agent} details={details} threadId={threadId} />,
+      });
+    },
+    [sheets],
+  );
+}

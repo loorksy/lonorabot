@@ -1,0 +1,9 @@
+# Proxy mode: an existing reverse proxy on the host (for example traefik) terminates TLS
+# for LONORA_DOMAIN and forwards to Caddy, which listens in plain HTTP on one loopback
+# address only (LONORA_PROXY_LISTEN, e.g. 127.0.0.1:18030). Nothing binds 80 or 443.
+services:
+  caddy:
+    ports: ["${LONORA_PROXY_LISTEN:?set the loopback address:port}:8080"]
+    environment:
+      LONORA_SITE_ADDRESS: ":8080"
+      LONORA_TRUSTED_PROXIES: private_ranges

@@ -18,15 +18,18 @@ function language(locale: string): Language {
 
 export const agentStatusLabels = {
   en: {
-    idle: "Idle",
+    idle: "Active",
     working: "Working",
     waiting: "Waiting",
-    action_required: "Waiting for you",
+    action_required: "Waiting for your decision",
     awaiting_broker: "Awaiting broker confirmation",
-    uncertain: "Uncertain: waiting for the broker or you",
+    uncertain: "Unconfirmed operation",
+    uncertainMany: "unconfirmed operations",
     degraded: "Service needs attention",
     paused: "Paused",
     monitoring: "Monitoring",
+    analysing: "Analysing",
+    searching: "Searching",
     until: "until",
     more: "more",
     watches: "Watching",
@@ -52,15 +55,19 @@ export const agentStatusLabels = {
     volume: "volume",
   },
   ar: {
-    idle: "خامل",
+    // The reference's own terms (Lonora-Desktop-37 AG_ST / agentStatus()).
+    idle: "نشط",
     working: "يعمل",
     waiting: "ينتظر",
-    action_required: "بانتظارك",
+    action_required: "بانتظار قرارك",
     awaiting_broker: "بانتظار تأكيد الوسيط",
-    uncertain: "غير مؤكد: بانتظار الوسيط أو قرارك",
+    uncertain: "عملية غير مؤكَّدة",
+    uncertainMany: "غير مؤكَّدة",
     degraded: "الخدمة تحتاج إلى انتباه",
-    paused: "متوقف",
+    paused: "متوقف مؤقتًا",
     monitoring: "يراقب",
+    analysing: "يحلّل",
+    searching: "يبحث",
     until: "حتى",
     more: "أخرى",
     watches: "يراقب",
@@ -145,9 +152,19 @@ export function watchUntil(
     : text.noExpiry;
 }
 
+/** «عملية غير مؤكَّدة», or «3 عمليات غير مؤكَّدة» for several (11+: «عملية»), as the capsule. */
+export function uncertainLine(count: number, locale: string): string {
+  const text = agentStatusText(locale);
+  if (count <= 1) return text.uncertain;
+  if (language(locale) === "en") return `${isolate(String(count))} ${text.uncertainMany}`;
+  return `${isolate(String(count))} ${count <= 10 ? "عمليات" : "عملية"} ${text.uncertainMany}`;
+}
+
 /**
- * The agent's one status line: "Monitoring XAUUSD until 17:00 · 2 more" while it waits on
- * its watches, otherwise the plain state ("Working", "Waiting for you", "Paused").
+ * The agent's one status line, most urgent first (the reference's agentStatus()): paused →
+ * an unconfirmed operation → a decision waiting for the owner → an order at the broker →
+ * explicit work («يحلّل», «يبحث») → an active watch («يراقب XAUUSD حتى 17:00 · 2 أخرى») →
+ * «نشط». Everything comes from the server's live state; nothing is simulated.
  */
 export function agentStatusLine(
   state: AgentLiveState,
@@ -155,9 +172,27 @@ export function agentStatusLine(
   now: Date = new Date(),
 ): string {
   const text = agentStatusText(locale);
-  // An operation the broker has not settled says so, as the pill does.
-  if (state.phase === "uncertain") return text.uncertain;
-  if (state.phase === "awaiting_broker") return text.awaiting_broker;
+  const work = state.current_work ?? null;
+  if (state.state === "paused") return text.paused;
+  // An operation the broker has not settled says so, as the capsule does.
+  if (state.phase === "uncertain") {
+    const readiness = state.trading_readiness;
+    return uncertainLine(
+      readiness?.state === "uncertain" ? (readiness.params.count ?? 1) : 1,
+      locale,
+    );
+  }
+  if (
+    state.pending_card_id ||
+    work?.kind === "waiting_owner" ||
+    state.pending_approval_count > 0 ||
+    (state.pending_authorization_count ?? 0) > 0
+  )
+    return text.action_required;
+  if (state.phase === "awaiting_broker" || work?.kind === "broker") return text.awaiting_broker;
+  if (work?.kind === "analysing") return text.analysing;
+  if (work?.kind === "searching") return text.searching;
+  if (state.state === "action_required") return text.action_required;
   const watches = state.watches ?? [];
   if (state.phase !== "monitoring" || !watches.length) return text[state.state];
   const first = watches[0];

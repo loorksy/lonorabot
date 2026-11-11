@@ -43,7 +43,12 @@ async def start_ticket(
             thread_id=ticket.thread_id,
             trigger="tickets",
             prompt=ticket.payload["title"] + "\n" + ticket.payload.get("description", ""),
-            metadata={"ticket_id": ticket.id, **inherited_authority(starter)},
+            metadata={
+                "ticket_id": ticket.id,
+                # The run that started it: a retry of that run must not repeat this work.
+                **({"started_by_run_id": starter.id} if starter else {}),
+                **inherited_authority(starter),
+            },
         )
         run = await create_run(session, owner_id, request)
         ticket.payload = {**ticket.payload, "status": "working", "run_id": run.id}

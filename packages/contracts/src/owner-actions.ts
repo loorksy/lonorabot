@@ -20,7 +20,11 @@ export type OwnerActionKind =
   | "supervision_stopped"
   | "supervision_paused"
   | "trust_source"
-  | "connect_credential";
+  | "connect_credential"
+  /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
+  | "watch_changed"
+  /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
+  | "stop_tightened";
 /**
  * A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
  * own positions the card shows) or Full delegation (every pair on the account, every
@@ -91,7 +95,10 @@ export type OwnerAction = {
   kind: OwnerActionKind;
   status: OwnerActionStatus;
   status_reason: string | null;
-  source: "agent" | "system";
+  /** The newer card that replaced this one («عرض الأحدث»), or null. */
+  superseded_by: string | null;
+  /** owner: a grant card the owner drafted from the mandate sheet. */
+  source: "agent" | "system" | "owner";
   agent_id: string;
   thread_id: string | null;
   run_id: string | null;
@@ -113,6 +120,7 @@ export type OwnerAction = {
       set_by_agent_name: string | null;
     };
     operation?: {
+      operation_id: string;
       action: string | null;
       symbol: string | null;
       volume: string | null;
@@ -223,6 +231,22 @@ export type OwnerAction = {
     };
     /** connect_credential: the form to offer ("x" names an X MCP server). */
     credential?: { target: CredentialTarget; service: "x" | null };
+    /** watch_changed: the agent's extension; active while Undo still restores it. */
+    watch?: {
+      symbol: string | null;
+      kind: string | null;
+      previous_expires_at: string | null;
+      /** null: the agent removed the end (the watch runs until cancelled). */
+      expires_at: string | null;
+      active: boolean;
+    };
+    /** stop_tightened: the position's stop loss before and after (no Undo). */
+    stop?: {
+      symbol: string;
+      position_id: string;
+      previous_stop_loss: string | null;
+      stop_loss: string;
+    };
   };
   /** Confirming needs the owner's passkey: it raises or removes a money limit. */
   requires_passkey: boolean;
@@ -261,6 +285,10 @@ export type OwnerAction = {
     integration_id?: string;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
+    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
+    restriction_id?: string;
+    /** watch_changed Undo: the watch's expiry now. */
+    expires_at?: string | null;
   };
   expires_at: string;
   decided_at: string | null;
@@ -287,6 +315,38 @@ export type OwnerActionDecision = {
   tier?: EffectTier;
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
+  /**
+   * Resolve card answered "unknown" only: also pause new trades by every agent on its
+   * account until the trading day ends there (an owner restriction; it only narrows).
+   */
+  pause_new_today?: boolean;
+};
+/**
+ * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It
+ * becomes a pending grant card; nothing is active until the owner signs that card with
+ * the passkey (POST /owner-actions/{id}/challenge, then /decision with the proof and the
+ * card's choices: money_limit, stop_authorities, resume_trading). "full" takes no terms:
+ * every pair for Lonora and flexible agents; a fixed-pair agent's own pair only, every
+ * action, until stopped, its owner's positions included.
+ */
+export type AccountAuthorityDraft = {
+  mode?: GrantDelegation;
+  thread_id?: string;
+  account_id?: string;
+  symbols?: string[];
+  all_pairs?: boolean;
+  actions?: AuthorityAction[];
+  duration?: AuthorityDuration;
+  allow_manual_positions?: boolean;
+  /** An amount in the account currency (Q16), or daily_loss_percent of equity now. */
+  daily_loss_amount?: string;
+  daily_loss_percent?: string;
+};
+/** The draft's grant card, with the exact stored payload and its hash. */
+export type AccountAuthorityDraftResult = {
+  owner_action: OwnerAction;
+  payload: Record<string, unknown>;
+  payload_hash: string;
 };
 /**
  * Grant card: the owner's choice that changes what the passkey signs (his own positions,

@@ -28,7 +28,18 @@ RUN --mount=type=secret,id=system_ca,required=false \
 COPY --from=web /build/apps/web/dist ./apps/web/dist
 COPY scripts ./scripts
 COPY entrypoint.sh ./entrypoint.sh
-RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh
+# The production deployment bundle ships inside the image it deploys: the installer
+# and `lonora update` copy /app/deploy to the host, so a host needs no source checkout.
+COPY infra/compose ./deploy/infra/compose
+COPY infra/research ./deploy/infra/research
+COPY infra/analysis/compose.workspace.yml ./deploy/infra/analysis/compose.workspace.yml
+COPY infra/systemd ./deploy/infra/systemd
+COPY infra/release ./infra/release
+ARG LONORA_VERSION=""
+ARG LONORA_GIT_SHA=unknown
+ARG LONORA_BUILT_AT=unknown
+RUN python scripts/release_manifest.py --version "$LONORA_VERSION" --git-sha "$LONORA_GIT_SHA" --built-at "$LONORA_BUILT_AT" >/app/release.json && cp /app/release.json /app/deploy/release.json
+RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh /app/deploy/infra/compose/*.sh /app/deploy/infra/compose/lonora
 USER lonora
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

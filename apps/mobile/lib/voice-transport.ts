@@ -45,7 +45,8 @@ export class MobileVoiceJoin {
     });
   }
 
-  async connect(agentId: string, threadId: string) {
+  /** ``incomingCallId``: the agent's accepted call this session answers (linked once). */
+  async connect(agentId: string, threadId: string, incomingCallId?: string) {
     try {
       this.microphone = await this.device.microphone();
       if (this.disposed) {
@@ -96,6 +97,7 @@ export class MobileVoiceJoin {
         mode: "gpt_live",
         client_nonce: this.nonce,
         sdp,
+        ...(incomingCallId ? { incoming_call_id: incomingCallId } : {}),
       });
       this.sessionId = result.session_id;
       if (this.disposed) {

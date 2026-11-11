@@ -50,7 +50,9 @@ for (const locale of ["en", "ar"])
       // The creation form is a page (a template first, owner decision Q9); the agent's info
       // opens as a sheet from the chat header.
       let panel = page.locator("main");
-      await panel.getByRole("button", { name: locale === "ar" ? "التالي" : "Next" }).click();
+      await panel
+        .getByRole("button", { name: locale === "ar" ? "التالي" : "Next", exact: true })
+        .click();
       await panel
         .getByLabel(locale === "ar" ? "اسم الوكيل" : "Agent name", { exact: true })
         .fill(`Avatar Studio ${randomUUID()}`);

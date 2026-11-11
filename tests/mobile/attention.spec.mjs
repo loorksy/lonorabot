@@ -1,6 +1,18 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
+// The fixture's agent holds an uncertain trade, which rightly refuses its deletion: it is
+// paused after the test, so it never counts against the agent cap.
+let fixtureAgent;
+test.afterEach(() => {
+  if (!fixtureAgent) return;
+  execFileSync(".venv/bin/python", ["tests/browser_agents.py"], {
+    input: JSON.stringify({ action: "pause", ids: [fixtureAgent] }),
+    encoding: "utf8",
+  });
+  fixtureAgent = undefined;
+});
+
 test("Expo Arabic attention uses durable server state and read does not grant trading", async ({
   page,
   context,
@@ -8,6 +20,7 @@ test("Expo Arabic attention uses durable server state and read does not grant tr
   const fixture = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_attention_browser.py"], { encoding: "utf8" }),
   );
+  fixtureAgent = fixture.agent?.id;
   await context.addCookies(
     fixture.cookies.map((cookie) => ({
       ...cookie,

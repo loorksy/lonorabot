@@ -55,6 +55,8 @@ STEPS = (
     StepSpec("charts", 2, 120, critical=False),
     StepSpec("watches", 2, 120),
     StepSpec("voice", 0.5, 60, critical=False),
+    # Owner voice notes: one provider transcription per note, outside any request.
+    StepSpec("voice_notes", 1, 300, critical=False),
     StepSpec("channels", 2, 120),
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
@@ -225,6 +227,16 @@ class Gateway:
             lambda service: maintain_voice(self.db, service, self.identity, self.voice_tasks)
         )
 
+    async def voice_notes(self) -> None:
+        from lonora_providers.credentials import ProviderCredentials
+        from lonora_voice.voice_notes import transcribe_pending
+
+        await self.for_each_owner(
+            lambda service: transcribe_pending(
+                self.db, ProviderCredentials(self.db, service.secrets), service.owner_id, self.root
+            )
+        )
+
     async def channels(self) -> None:
         await self.for_each_owner(lambda service: dispatch_channels(self.db, service))
 
@@ -264,6 +276,7 @@ class Gateway:
             "charts": self.charts,
             "watches": self.watches,
             "voice": self.voice,
+            "voice_notes": self.voice_notes,
             "channels": self.channels,
             "attention": self.attention,
             "incoming": self.incoming,

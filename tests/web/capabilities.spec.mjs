@@ -109,7 +109,7 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${seeded.agent}`);
       const card = page.locator(`[data-owner-action="${seeded.credential}"]`);
       await expect(card).toHaveAttribute("data-owner-action-kind", "connect_credential");
-      await expect(card.locator("strong")).toHaveText(text.connectTitle);
+      await expect(card.locator(".oa-kind")).toHaveText(text.connectTitle);
       const key = card.locator('input[name="secret"]');
       await expect(key).toHaveAttribute("type", "password");
       await expect(key).toHaveAttribute("dir", "ltr");
@@ -129,7 +129,7 @@ for (const locale of ["en", "ar"])
       created.push(JSON.parse(decision.body).connected.id);
 
       const trust = page.locator(`[data-owner-action="${seeded.trust}"]`);
-      await expect(trust.locator("strong")).toHaveText(text.trustTitle);
+      await expect(trust.locator(".oa-kind")).toHaveText(text.trustTitle);
       await expect(trust).toContainText(`⁨${domain}⁩`);
       await trust.getByRole("button", { name: text.trust, exact: true }).click();
       await expect(trust).toHaveAttribute("data-owner-action-status", "confirmed");

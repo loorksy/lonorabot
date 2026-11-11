@@ -1,12 +1,19 @@
 from typing import Any
 
-from lonora_contracts.domain import ThreadCreate
+from lonora_contracts.domain import ThreadCreate, ThreadOptions
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .events import emit
 from .schema import AgentRow, GroupRow, RunRow, ThreadRow
-from .transactions import owned_agent
+from .transactions import owned_agent, owned_thread
+
+
+def thread_options(row: ThreadRow) -> ThreadOptions:
+    """The chat's options with their defaults; unknown stored keys are ignored."""
+    stored = row.options or {}
+    return ThreadOptions(web_search=stored.get("web_search") is True)
 
 
 def thread_data(row: ThreadRow) -> dict[str, Any]:
@@ -15,8 +22,26 @@ def thread_data(row: ThreadRow) -> dict[str, Any]:
         "agent_id": row.agent_id,
         "group_id": row.group_id,
         "title": row.title,
+        "options": thread_options(row).model_dump(),
         "created_at": row.created_at.isoformat(),
     }
+
+
+async def set_thread_options(
+    session: AsyncSession, owner_id: str, thread_id: str, options: ThreadOptions
+) -> ThreadRow:
+    """Per-chat options (Q33); the agent reads them when it builds its next turn."""
+    row = await owned_thread(session, owner_id, thread_id, lock=True)
+    row.options = {**(row.options or {}), **options.model_dump()}
+    emit(
+        session,
+        owner_id,
+        "thread.updated",
+        thread_id=row.id,
+        agent_id=row.agent_id,
+        payload={"thread_id": row.id, "options": thread_options(row).model_dump()},
+    )
+    return row
 
 
 async def create_thread(

@@ -214,6 +214,8 @@ async def create_task(
                 "task_id": row.id,
                 "origin_thread_id": origin_thread_id,
                 "lane": "work",
+                # The run that started it: a retry of that run must not repeat this work.
+                **({"started_by_run_id": starter.id} if starter else {}),
                 **inherited_authority(starter),
             },
         ),
