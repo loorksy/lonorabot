@@ -749,6 +749,7 @@ export function Composer({
               tools.open({
                 agent,
                 isGroup,
+                groupLead,
                 trading,
                 // Another agent's level is never shown while this one's loads.
                 permission: permission?.agent_id === agent?.id ? permission : null,

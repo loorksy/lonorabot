@@ -14,6 +14,8 @@ import { LEVEL_ICON, levelName } from "./PermissionMenu";
 export type ToolsInput = {
   agent?: Agent;
   isGroup: boolean;
+  /** A group's lead (or first member): the new task's preselected agent. */
+  groupLead?: string;
   trading: boolean;
   permission: PermissionState | null;
   permissionFailed?: boolean;
@@ -112,7 +114,10 @@ function ToolsBody({
           icon="task"
           title={<Trans>New task</Trans>}
           sub={<Trans>The agent follows it until it is done</Trans>}
-          onClick={() => go("/app/tasks?new=1")}
+          onClick={() => {
+            const taskAgent = input.agent?.id ?? input.groupLead;
+            go(`/app/new-task${taskAgent ? `?agent=${taskAgent}` : ""}`);
+          }}
         />
         <AddRow
           icon="clock"
