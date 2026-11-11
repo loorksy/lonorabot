@@ -165,7 +165,7 @@ msgstr "{kb} كيلوبايت"
 msgid "{label}. Tap to call back"
 msgstr "{label}. اضغط لمعاودة الاتصال"
 
-#: src/shell/settings/SettingsRoot.tsx:331
+#: src/shell/settings/SettingsRoot.tsx:357
 msgid "{linked} linked"
 msgstr "{linked} مرتبطة"
 
@@ -383,7 +383,7 @@ msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
 #: src/shell/pages.tsx:140
-#: src/shell/settings/SettingsRoot.tsx:318
+#: src/shell/settings/SettingsRoot.tsx:344
 msgid "Accessibility"
 msgstr "سهولة الاستخدام"
 
@@ -1436,7 +1436,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/shell/settings/ConnectionPages.tsx:271
 #: src/shell/settings/ConnectionPages.tsx:580
 #: src/shell/settings/IntegrationsPage.tsx:474
-#: src/shell/settings/SettingsRoot.tsx:288
+#: src/shell/settings/SettingsRoot.tsx:314
 msgid "Cancel"
 msgstr "إلغاء"
 
@@ -1573,7 +1573,7 @@ msgid "Chat"
 msgstr "محادثة"
 
 #: src/shell/pages.tsx:142
-#: src/shell/settings/SettingsRoot.tsx:317
+#: src/shell/settings/SettingsRoot.tsx:343
 msgid "Chat experience"
 msgstr "تجربة المحادثة"
 
@@ -1658,11 +1658,11 @@ msgstr "جارٍ التحقق مع الوسيط"
 msgid "Choose “Allow”, then come back and try again."
 msgstr "اختر «السماح» ثم عد وحاول مرة أخرى."
 
-#: src/shell/settings/SettingsRoot.tsx:199
+#: src/shell/settings/SettingsRoot.tsx:225
 msgid "Choose «Add to Home Screen»."
 msgstr "اختر «إضافة إلى الشاشة الرئيسية»."
 
-#: src/shell/settings/SettingsRoot.tsx:205
+#: src/shell/settings/SettingsRoot.tsx:231
 msgid "Choose «Install app» or «Add to Home screen»."
 msgstr "اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»."
 
@@ -1826,7 +1826,7 @@ msgstr "مسح الرسائل؟"
 msgid "Clearer text and borders, opaque backgrounds"
 msgstr "نصوص وحدود أوضح وخلفيات غير شفافة"
 
-#: src/shell/settings/SettingsRoot.tsx:209
+#: src/shell/settings/SettingsRoot.tsx:235
 msgid "Click the install icon in the address bar."
 msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 
@@ -2022,7 +2022,7 @@ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبد�
 msgid "Confirm deletion"
 msgstr "تأكيد الحذف"
 
-#: src/shell/settings/SettingsRoot.tsx:206
+#: src/shell/settings/SettingsRoot.tsx:232
 msgid "Confirm the installation."
 msgstr "أكّد التثبيت."
 
@@ -2372,7 +2372,7 @@ msgstr "دمشق"
 #~ msgid "Dark"
 #~ msgstr "داكن"
 
-#: src/shell/settings/SettingsRoot.tsx:167
+#: src/shell/settings/SettingsRoot.tsx:193
 msgid "Dark mode"
 msgstr "الوضع الليلي"
 
@@ -3124,7 +3124,7 @@ msgstr "اسم الملف"
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
 #: src/shell/pages.tsx:98
-#: src/shell/settings/SettingsRoot.tsx:337
+#: src/shell/settings/SettingsRoot.tsx:363
 msgid "Files"
 msgstr "الملفات"
 
@@ -3554,15 +3554,15 @@ msgstr "المؤشرات والرسومات"
 msgid "Input {input}% · output {0}%"
 msgstr "إدخال {input}% · إخراج {0}%"
 
-#: src/shell/settings/SettingsRoot.tsx:213
+#: src/shell/settings/SettingsRoot.tsx:239
 msgid "Install Lonora"
 msgstr "تثبيت Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:237
+#: src/shell/settings/SettingsRoot.tsx:263
 msgid "Install now"
 msgstr "تثبيت الآن"
 
-#: src/shell/settings/SettingsRoot.tsx:351
+#: src/shell/settings/SettingsRoot.tsx:377
 msgid "Install the app"
 msgstr "تثبيت التطبيق"
 
@@ -3593,7 +3593,7 @@ msgstr "التعليمات"
 
 #: src/conversation/ToolsSheet.tsx:223
 #: src/shell/pages.tsx:148
-#: src/shell/settings/SettingsRoot.tsx:329
+#: src/shell/settings/SettingsRoot.tsx:355
 msgid "Integrations"
 msgstr "التكاملات"
 
@@ -3605,13 +3605,13 @@ msgstr "واجهة تفاعلية"
 msgid "Interface"
 msgstr "واجهة"
 
-#: src/shell/settings/SettingsRoot.tsx:131
-#: src/shell/settings/SettingsRoot.tsx:153
+#: src/shell/settings/SettingsRoot.tsx:157
+#: src/shell/settings/SettingsRoot.tsx:179
 msgid "Interface language"
 msgstr "لغة الواجهة"
 
 #. placeholder {0}: current.name
-#: src/shell/settings/SettingsRoot.tsx:125
+#: src/shell/settings/SettingsRoot.tsx:151
 msgid "Interface language: {0}"
 msgstr "لغة الواجهة: {0}"
 
@@ -3644,7 +3644,7 @@ msgstr "لا يشرف على أي وكيل حاليًا."
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "يجمع المعلومات ويلخّصها، ولا يحتاج إلى صلاحيات."
 
-#: src/shell/settings/SettingsRoot.tsx:211
+#: src/shell/settings/SettingsRoot.tsx:237
 msgid "It opens in its own window like any app."
 msgstr "سيفتح في نافذة مستقلة مثل أي تطبيق."
 
@@ -3706,7 +3706,7 @@ msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 msgid "Keyboard"
 msgstr "لوحة المفاتيح"
 
-#: src/shell/settings/SettingsRoot.tsx:364
+#: src/shell/settings/SettingsRoot.tsx:390
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
@@ -3976,7 +3976,7 @@ msgstr "جارٍ تحميل المعاينة…"
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
-#: src/shell/settings/SettingsRoot.tsx:344
+#: src/shell/settings/SettingsRoot.tsx:370
 msgid "Lock on"
 msgstr "القفل مفعّل"
 
@@ -3993,11 +3993,11 @@ msgstr "الذاكرة الدائمة"
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:395
+#: src/shell/settings/SettingsRoot.tsx:421
 msgid "Lonora · version {version}"
 msgstr "Lonora · الإصدار {version}"
 
-#: src/shell/settings/SettingsRoot.tsx:391
+#: src/shell/settings/SettingsRoot.tsx:417
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · الإصدار {version} · <0>{build}</0>"
 
@@ -4919,7 +4919,7 @@ msgid "Notifications"
 msgstr "التنبيهات"
 
 #: src/shell/pages.tsx:144
-#: src/shell/settings/SettingsRoot.tsx:323
+#: src/shell/settings/SettingsRoot.tsx:349
 msgid "Notifications and contact"
 msgstr "الإشعارات والتواصل"
 
@@ -4967,7 +4967,7 @@ msgid "of the total cost"
 msgstr "من إجمالي التكلفة"
 
 #: src/shell/PermissionSheet.tsx:48
-#: src/shell/settings/SettingsRoot.tsx:249
+#: src/shell/settings/SettingsRoot.tsx:275
 msgid "OK"
 msgstr "حسنًا"
 
@@ -5067,7 +5067,7 @@ msgstr "فتح المحادثة"
 #~ msgid "Open conversation with {name}"
 #~ msgstr "فتح المحادثة مع {name}"
 
-#: src/shell/settings/SettingsRoot.tsx:225
+#: src/shell/settings/SettingsRoot.tsx:251
 msgid "Open Lonora straight from your home screen, in a full window."
 msgstr "افتح Lonora من شاشتك الرئيسية مباشرة، بنافذة كاملة."
 
@@ -5088,7 +5088,7 @@ msgstr "سعر الفتح"
 msgid "Open risk limit"
 msgstr "حد المخاطرة المفتوحة"
 
-#: src/shell/settings/SettingsRoot.tsx:204
+#: src/shell/settings/SettingsRoot.tsx:230
 msgid "Open the ⋮ menu of the browser."
 msgstr "افتح قائمة ⋮ في المتصفح."
 
@@ -5156,7 +5156,7 @@ msgstr "حُسمت عملية"
 msgid "Operations awaiting confirmation"
 msgstr "عمليات بانتظار التأكيد"
 
-#: src/shell/settings/SettingsRoot.tsx:210
+#: src/shell/settings/SettingsRoot.tsx:236
 msgid "Or open the browser menu and choose «Install Lonora»."
 msgstr "أو افتح قائمة المتصفح واختر «تثبيت Lonora»."
 
@@ -5561,7 +5561,7 @@ msgid "Price zone"
 msgstr "منطقة سعرية"
 
 #: src/shell/pages.tsx:168
-#: src/shell/settings/SettingsRoot.tsx:342
+#: src/shell/settings/SettingsRoot.tsx:368
 msgid "Privacy and security"
 msgstr "الخصوصية والأمان"
 
@@ -5582,7 +5582,7 @@ msgctxt "owner"
 msgid "Profile"
 msgstr "الملف الشخصي"
 
-#: src/shell/settings/SettingsRoot.tsx:311
+#: src/shell/settings/SettingsRoot.tsx:337
 msgid "Profile · shared by all your agents"
 msgstr "الملف الشخصي · مشترك بين جميع وكلائك"
 
@@ -6701,12 +6701,12 @@ msgstr "تسجيل الدخول"
 #~ msgid "Sign in to your persistent workspace"
 #~ msgstr "سجّل دخولك إلى مساحة عملك الدائمة"
 
-#: src/shell/settings/SettingsRoot.tsx:298
-#: src/shell/settings/SettingsRoot.tsx:378
+#: src/shell/settings/SettingsRoot.tsx:324
+#: src/shell/settings/SettingsRoot.tsx:404
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
-#: src/shell/settings/SettingsRoot.tsx:276
+#: src/shell/settings/SettingsRoot.tsx:302
 msgid "Sign out?"
 msgstr "تسجيل الخروج؟"
 
@@ -6719,7 +6719,7 @@ msgid "Signals"
 msgstr "أعمدة الإشارة"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:381
+#: src/shell/settings/SettingsRoot.tsx:407
 msgid "Signed in as <0>{0}</0>"
 msgstr "مسجَّل الدخول باسم <0>{0}</0>"
 
@@ -7019,7 +7019,7 @@ msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
 #: src/shell/pages.tsx:166
-#: src/shell/settings/SettingsRoot.tsx:336
+#: src/shell/settings/SettingsRoot.tsx:362
 msgid "Storage and data"
 msgstr "التخزين والبيانات"
 
@@ -7128,7 +7128,7 @@ msgstr "جني الربح"
 msgid "Take profit · optional"
 msgstr "جني الربح · اختياري"
 
-#: src/shell/settings/SettingsRoot.tsx:200
+#: src/shell/settings/SettingsRoot.tsx:226
 msgid "Tap «Add»."
 msgstr "اضغط «إضافة»."
 
@@ -7136,7 +7136,7 @@ msgstr "اضغط «إضافة»."
 msgid "Tap the lock icon next to the site address."
 msgstr "اضغط رمز القفل بجانب عنوان الموقع."
 
-#: src/shell/settings/SettingsRoot.tsx:198
+#: src/shell/settings/SettingsRoot.tsx:224
 msgid "Tap the share button at the bottom of the browser."
 msgstr "اضغط زر المشاركة أسفل المتصفح."
 
@@ -8424,7 +8424,7 @@ msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتس�
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 
-#: src/shell/settings/SettingsRoot.tsx:335
+#: src/shell/settings/SettingsRoot.tsx:361
 msgid "Usage"
 msgstr "الاستهلاك"
 
@@ -8907,7 +8907,7 @@ msgstr "أوقفتَ الرد قبل اكتمال الواجهة"
 msgid "You will lose the unsaved edits."
 msgstr "ستفقد التعديلات غير المحفوظة."
 
-#: src/shell/settings/SettingsRoot.tsx:284
+#: src/shell/settings/SettingsRoot.tsx:310
 msgid "You will need to sign in again. Your conversations stay saved in Lonora."
 msgstr "ستحتاج إلى تسجيل الدخول مجددًا. محادثاتك تبقى محفوظة في Lonora."
 

@@ -131,6 +131,83 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
   }
 });
 
+test("the new theme grows from its switch; without view transitions the thumb leads it", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/settings");
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    const html = page.locator("html");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // The new theme is on the page when the circle starts, and the circle takes 720 ms.
+    const reveal = await page.evaluate(async () => {
+      document.querySelector(".theme-switch").click();
+      const started = performance.now();
+      let circle;
+      while (!circle && performance.now() - started < 2000) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        circle = document
+          .getAnimations()
+          .find(
+            (animation) =>
+              animation.effect?.pseudoElement === "::view-transition-new(root)" &&
+              animation.effect.getKeyframes().some((frame) => "clipPath" in frame),
+          );
+      }
+      const timing = circle?.effect.getTiming();
+      return {
+        theme: document.documentElement.dataset.theme,
+        marked: document.documentElement.classList.contains("theme-vt"),
+        duration: timing?.duration,
+        easing: timing?.easing,
+      };
+    });
+    expect(reveal).toEqual({
+      theme: "light",
+      marked: true,
+      duration: 720,
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+    });
+    await expect(html).not.toHaveClass(/theme-vt/);
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    // A browser without view transitions: the thumb slides first, the theme follows after
+    // 280 ms, and a second tap meanwhile is ignored.
+    await page.addInitScript(() => {
+      Document.prototype.startViewTransition = undefined;
+    });
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    const lead = await page.evaluate(async () => {
+      const button = document.querySelector(".theme-switch");
+      button.click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const seen = {
+        thumb: button.classList.contains("is-dark"),
+        theme: document.documentElement.dataset.theme,
+        stored: localStorage.getItem("lonora.theme"),
+      };
+      button.click();
+      return seen;
+    });
+    expect(lead).toEqual({ thumb: true, theme: "light", stored: '"light"' });
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.waitForTimeout(400);
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // Reduced motion: the theme changes at once, with no reveal.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await toggle.click();
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).not.toHaveClass(/theme-vt/);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
 test("app lock: a 4-digit code, wrong tries counted, unlocked again", async ({ page, context }) => {
   const data = fixture({ action: "init", empty: true });
   try {

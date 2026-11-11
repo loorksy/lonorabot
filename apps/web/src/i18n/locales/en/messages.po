@@ -165,7 +165,7 @@ msgstr "{kb} KB"
 msgid "{label}. Tap to call back"
 msgstr "{label}. Tap to call back"
 
-#: src/shell/settings/SettingsRoot.tsx:331
+#: src/shell/settings/SettingsRoot.tsx:357
 msgid "{linked} linked"
 msgstr "{linked} linked"
 
@@ -383,7 +383,7 @@ msgid "Access token — stored encrypted, never shown again"
 msgstr "Access token — stored encrypted, never shown again"
 
 #: src/shell/pages.tsx:140
-#: src/shell/settings/SettingsRoot.tsx:318
+#: src/shell/settings/SettingsRoot.tsx:344
 msgid "Accessibility"
 msgstr "Accessibility"
 
@@ -1436,7 +1436,7 @@ msgstr "Camera not allowed"
 #: src/shell/settings/ConnectionPages.tsx:271
 #: src/shell/settings/ConnectionPages.tsx:580
 #: src/shell/settings/IntegrationsPage.tsx:474
-#: src/shell/settings/SettingsRoot.tsx:288
+#: src/shell/settings/SettingsRoot.tsx:314
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -1573,7 +1573,7 @@ msgid "Chat"
 msgstr "Chat"
 
 #: src/shell/pages.tsx:142
-#: src/shell/settings/SettingsRoot.tsx:317
+#: src/shell/settings/SettingsRoot.tsx:343
 msgid "Chat experience"
 msgstr "Chat experience"
 
@@ -1658,11 +1658,11 @@ msgstr "Checking with the broker"
 msgid "Choose “Allow”, then come back and try again."
 msgstr "Choose “Allow”, then come back and try again."
 
-#: src/shell/settings/SettingsRoot.tsx:199
+#: src/shell/settings/SettingsRoot.tsx:225
 msgid "Choose «Add to Home Screen»."
 msgstr "Choose «Add to Home Screen»."
 
-#: src/shell/settings/SettingsRoot.tsx:205
+#: src/shell/settings/SettingsRoot.tsx:231
 msgid "Choose «Install app» or «Add to Home screen»."
 msgstr "Choose «Install app» or «Add to Home screen»."
 
@@ -1826,7 +1826,7 @@ msgstr "Clear the messages?"
 msgid "Clearer text and borders, opaque backgrounds"
 msgstr "Clearer text and borders, opaque backgrounds"
 
-#: src/shell/settings/SettingsRoot.tsx:209
+#: src/shell/settings/SettingsRoot.tsx:235
 msgid "Click the install icon in the address bar."
 msgstr "Click the install icon in the address bar."
 
@@ -2022,7 +2022,7 @@ msgstr "Configure an OpenAI credential with GPT-Live access to start a voice cal
 msgid "Confirm deletion"
 msgstr "Confirm deletion"
 
-#: src/shell/settings/SettingsRoot.tsx:206
+#: src/shell/settings/SettingsRoot.tsx:232
 msgid "Confirm the installation."
 msgstr "Confirm the installation."
 
@@ -2372,7 +2372,7 @@ msgstr "Damascus"
 #~ msgid "Dark"
 #~ msgstr "Dark"
 
-#: src/shell/settings/SettingsRoot.tsx:167
+#: src/shell/settings/SettingsRoot.tsx:193
 msgid "Dark mode"
 msgstr "Dark mode"
 
@@ -3124,7 +3124,7 @@ msgstr "File name"
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
 #: src/shell/pages.tsx:98
-#: src/shell/settings/SettingsRoot.tsx:337
+#: src/shell/settings/SettingsRoot.tsx:363
 msgid "Files"
 msgstr "Files"
 
@@ -3560,15 +3560,15 @@ msgstr "Indicators and drawings"
 msgid "Input {input}% · output {0}%"
 msgstr "Input {input}% · output {0}%"
 
-#: src/shell/settings/SettingsRoot.tsx:213
+#: src/shell/settings/SettingsRoot.tsx:239
 msgid "Install Lonora"
 msgstr "Install Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:237
+#: src/shell/settings/SettingsRoot.tsx:263
 msgid "Install now"
 msgstr "Install now"
 
-#: src/shell/settings/SettingsRoot.tsx:351
+#: src/shell/settings/SettingsRoot.tsx:377
 msgid "Install the app"
 msgstr "Install the app"
 
@@ -3599,7 +3599,7 @@ msgstr "Instructions"
 
 #: src/conversation/ToolsSheet.tsx:223
 #: src/shell/pages.tsx:148
-#: src/shell/settings/SettingsRoot.tsx:329
+#: src/shell/settings/SettingsRoot.tsx:355
 msgid "Integrations"
 msgstr "Integrations"
 
@@ -3611,13 +3611,13 @@ msgstr "Interactive interface"
 msgid "Interface"
 msgstr "Interface"
 
-#: src/shell/settings/SettingsRoot.tsx:131
-#: src/shell/settings/SettingsRoot.tsx:153
+#: src/shell/settings/SettingsRoot.tsx:157
+#: src/shell/settings/SettingsRoot.tsx:179
 msgid "Interface language"
 msgstr "Interface language"
 
 #. placeholder {0}: current.name
-#: src/shell/settings/SettingsRoot.tsx:125
+#: src/shell/settings/SettingsRoot.tsx:151
 msgid "Interface language: {0}"
 msgstr "Interface language: {0}"
 
@@ -3650,7 +3650,7 @@ msgstr "It does not supervise any agent now."
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "It gathers information and summarises it, and needs no permissions."
 
-#: src/shell/settings/SettingsRoot.tsx:211
+#: src/shell/settings/SettingsRoot.tsx:237
 msgid "It opens in its own window like any app."
 msgstr "It opens in its own window like any app."
 
@@ -3712,7 +3712,7 @@ msgstr "Key saved · never shown again"
 msgid "Keyboard"
 msgstr "Keyboard"
 
-#: src/shell/settings/SettingsRoot.tsx:364
+#: src/shell/settings/SettingsRoot.tsx:390
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
@@ -3982,7 +3982,7 @@ msgstr "Loading preview…"
 msgid "Loading…"
 msgstr "Loading…"
 
-#: src/shell/settings/SettingsRoot.tsx:344
+#: src/shell/settings/SettingsRoot.tsx:370
 msgid "Lock on"
 msgstr "Lock on"
 
@@ -3999,11 +3999,11 @@ msgstr "Long-term memory"
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:395
+#: src/shell/settings/SettingsRoot.tsx:421
 msgid "Lonora · version {version}"
 msgstr "Lonora · version {version}"
 
-#: src/shell/settings/SettingsRoot.tsx:391
+#: src/shell/settings/SettingsRoot.tsx:417
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · version {version} · <0>{build}</0>"
 
@@ -4925,7 +4925,7 @@ msgid "Notifications"
 msgstr "Notifications"
 
 #: src/shell/pages.tsx:144
-#: src/shell/settings/SettingsRoot.tsx:323
+#: src/shell/settings/SettingsRoot.tsx:349
 msgid "Notifications and contact"
 msgstr "Notifications and contact"
 
@@ -4973,7 +4973,7 @@ msgid "of the total cost"
 msgstr "of the total cost"
 
 #: src/shell/PermissionSheet.tsx:48
-#: src/shell/settings/SettingsRoot.tsx:249
+#: src/shell/settings/SettingsRoot.tsx:275
 msgid "OK"
 msgstr "OK"
 
@@ -5073,7 +5073,7 @@ msgstr "Open conversation"
 #~ msgid "Open conversation with {name}"
 #~ msgstr "Open conversation with {name}"
 
-#: src/shell/settings/SettingsRoot.tsx:225
+#: src/shell/settings/SettingsRoot.tsx:251
 msgid "Open Lonora straight from your home screen, in a full window."
 msgstr "Open Lonora straight from your home screen, in a full window."
 
@@ -5094,7 +5094,7 @@ msgstr "Open price"
 msgid "Open risk limit"
 msgstr "Open risk limit"
 
-#: src/shell/settings/SettingsRoot.tsx:204
+#: src/shell/settings/SettingsRoot.tsx:230
 msgid "Open the ⋮ menu of the browser."
 msgstr "Open the ⋮ menu of the browser."
 
@@ -5162,7 +5162,7 @@ msgstr "Operation resolved"
 msgid "Operations awaiting confirmation"
 msgstr "Operations awaiting confirmation"
 
-#: src/shell/settings/SettingsRoot.tsx:210
+#: src/shell/settings/SettingsRoot.tsx:236
 msgid "Or open the browser menu and choose «Install Lonora»."
 msgstr "Or open the browser menu and choose «Install Lonora»."
 
@@ -5567,7 +5567,7 @@ msgid "Price zone"
 msgstr "Price zone"
 
 #: src/shell/pages.tsx:168
-#: src/shell/settings/SettingsRoot.tsx:342
+#: src/shell/settings/SettingsRoot.tsx:368
 msgid "Privacy and security"
 msgstr "Privacy and security"
 
@@ -5588,7 +5588,7 @@ msgctxt "owner"
 msgid "Profile"
 msgstr "Profile"
 
-#: src/shell/settings/SettingsRoot.tsx:311
+#: src/shell/settings/SettingsRoot.tsx:337
 msgid "Profile · shared by all your agents"
 msgstr "Profile · shared by all your agents"
 
@@ -6707,12 +6707,12 @@ msgstr "Sign in"
 #~ msgid "Sign in to your persistent workspace"
 #~ msgstr "Sign in to your persistent workspace"
 
-#: src/shell/settings/SettingsRoot.tsx:298
-#: src/shell/settings/SettingsRoot.tsx:378
+#: src/shell/settings/SettingsRoot.tsx:324
+#: src/shell/settings/SettingsRoot.tsx:404
 msgid "Sign out"
 msgstr "Sign out"
 
-#: src/shell/settings/SettingsRoot.tsx:276
+#: src/shell/settings/SettingsRoot.tsx:302
 msgid "Sign out?"
 msgstr "Sign out?"
 
@@ -6725,7 +6725,7 @@ msgid "Signals"
 msgstr "Signals"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:381
+#: src/shell/settings/SettingsRoot.tsx:407
 msgid "Signed in as <0>{0}</0>"
 msgstr "Signed in as <0>{0}</0>"
 
@@ -7025,7 +7025,7 @@ msgid "Stopped at its work limit"
 msgstr "Stopped at its work limit"
 
 #: src/shell/pages.tsx:166
-#: src/shell/settings/SettingsRoot.tsx:336
+#: src/shell/settings/SettingsRoot.tsx:362
 msgid "Storage and data"
 msgstr "Storage and data"
 
@@ -7134,7 +7134,7 @@ msgstr "Take profit"
 msgid "Take profit · optional"
 msgstr "Take profit · optional"
 
-#: src/shell/settings/SettingsRoot.tsx:200
+#: src/shell/settings/SettingsRoot.tsx:226
 msgid "Tap «Add»."
 msgstr "Tap «Add»."
 
@@ -7142,7 +7142,7 @@ msgstr "Tap «Add»."
 msgid "Tap the lock icon next to the site address."
 msgstr "Tap the lock icon next to the site address."
 
-#: src/shell/settings/SettingsRoot.tsx:198
+#: src/shell/settings/SettingsRoot.tsx:224
 msgid "Tap the share button at the bottom of the browser."
 msgstr "Tap the share button at the bottom of the browser."
 
@@ -8430,7 +8430,7 @@ msgstr "Urgent alerts always arrive and do not count."
 msgid "Urgent always arrives"
 msgstr "Urgent always arrives"
 
-#: src/shell/settings/SettingsRoot.tsx:335
+#: src/shell/settings/SettingsRoot.tsx:361
 msgid "Usage"
 msgstr "Usage"
 
@@ -8913,7 +8913,7 @@ msgstr "You stopped the reply before the interface was complete"
 msgid "You will lose the unsaved edits."
 msgstr "You will lose the unsaved edits."
 
-#: src/shell/settings/SettingsRoot.tsx:284
+#: src/shell/settings/SettingsRoot.tsx:310
 msgid "You will need to sign in again. Your conversations stay saved in Lonora."
 msgstr "You will need to sign in again. Your conversations stay saved in Lonora."
 
