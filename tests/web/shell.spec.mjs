@@ -298,6 +298,105 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+
+  test("every page keeps its scroll: back, a tab round trip, a chat and back", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await settingsScrollRoundTrip(page);
+      const main = page.locator("#view-scroll");
+      const nav = page.locator("nav.tabbar");
+      await main.evaluate((element) => {
+        element.scrollTop = 250;
+      });
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      await nav.locator('button[data-root="tasks"]').click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await expect.poll(() => page.locator(".pager-ghost").count()).toBe(0);
+      await nav.locator('button[data-root="settings"]').click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      // The chat list rests past its filters, and stays so after a round trip or a chat.
+      const filters = () =>
+        main.evaluate((element) => ({
+          top: element.scrollTop,
+          rest: element.querySelector(".list-filters").offsetHeight,
+          opacity: element.querySelector(".list-filters").style.opacity,
+          // The room to rest that way is the same on every visit.
+          room: element.querySelector("#chat-rows").style.minHeight,
+        }));
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(async () => (await filters()).opacity).toBe("0");
+      const { rest, room } = await filters();
+      await nav.locator('button[data-root="updates"]').click();
+      await expect(page).toHaveURL(/\/app\/updates$/);
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
+      await page.locator("#chat-rows .row.thread").first().click();
+      await expect(page.locator(".composer")).toBeVisible();
+      await page.goBack();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+
+  test("a tab change moves the lens once, straight to the new tab", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/app/updates");
+      const nav = page.locator("nav.tabbar");
+      await expect(nav.locator('button[data-root="updates"]')).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      for (const [from, to] of [
+        ["updates", "tasks"],
+        ["tasks", "updates"],
+        ["updates", "settings"],
+      ]) {
+        await expect(nav.locator(`button[data-root="${from}"]`)).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        await page.waitForTimeout(500);
+        const trace = await page.evaluate(async (to) => {
+          const nav = document.querySelector("nav.tabbar");
+          const lens = nav.querySelector(".nav-lens");
+          const target = nav.querySelector(`button[data-root="${to}"]`);
+          const left = () => lens.getBoundingClientRect().left;
+          const xs = [left()];
+          target.click();
+          const end = performance.now() + 1500;
+          while (performance.now() < end) {
+            await new Promise(requestAnimationFrame);
+            xs.push(left());
+          }
+          return { xs, goal: target.getBoundingClientRect().left };
+        }, to);
+        const { xs, goal } = trace;
+        expect(Math.abs(xs.at(-1) - goal)).toBeLessThan(1);
+        // Once the lens has reached the new tab it never leaves it again.
+        const arrived = xs.findIndex((x) => Math.abs(x - goal) < 2);
+        expect(arrived).toBeGreaterThan(0);
+        for (const x of xs.slice(arrived)) expect(Math.abs(x - goal)).toBeLessThan(6);
+        // On the way it only travels toward the new tab.
+        const dir = Math.sign(goal - xs[0]);
+        for (let i = 1; i < arrived; i++) expect((xs[i] - xs[i - 1]) * dir).toBeGreaterThan(-2);
+      }
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
   test("popover menus: Back and Escape leave «النموذج» first, then close; the chip toggles its menu", async ({
     page,
     context,
@@ -385,6 +484,22 @@ test.describe("phone with touch (390×844, Arabic)", () => {
   });
 });
 
+/** Leave the settings page scrolled, open an inner page, come back: the list is where it was. */
+async function settingsScrollRoundTrip(page) {
+  await page.goto("/app/settings");
+  const main = page.locator("#view-scroll");
+  await expect(page.getByText("الإشعارات والتواصل")).toBeVisible();
+  await main.evaluate((element) => {
+    element.scrollTop = 300;
+  });
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+  await page.getByText("الإشعارات والتواصل").click();
+  await expect(page).toHaveURL(/\/app\/notify-settings$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/settings$/);
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+}
+
 test.describe("desktop shell (1280×800, Arabic)", () => {
   test("the press that dismisses the list menu does not open the row beneath", async ({
     page,
@@ -420,6 +535,27 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
     }
   });
 
+  test("the settings page keeps its scroll across an inner page and a rail round trip", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await settingsScrollRoundTrip(page);
+      const rail = page.locator(".desktop-rail");
+      await rail.getByRole("button", { name: "المهام", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await rail.getByRole("button", { name: "الإعدادات", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect
+        .poll(() => page.locator("#view-scroll").evaluate((element) => element.scrollTop))
+        .toBe(300);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
   for (const theme of ["dark", "light"]) {
     test(`rail, list pane, welcome and the solid header (${theme})`, async ({ page, context }) => {
       const data = fixture({ action: "init", empty: true });
@@ -472,5 +608,69 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
         fixture({ ...data, action: "cleanup" });
       }
     });
+  }
+  test("the rail follows the section, Ctrl+K opens a folded list, the shortcuts are keys", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      const rail = page.locator(".desktop-rail");
+      const current = (name) =>
+        expect(rail.getByRole("button", { name, exact: true })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+      await page.goto("/app/artifacts");
+      await current("الإعدادات");
+      await page.goto("/app/recovery");
+      await current("الإعدادات");
+      await page.goto("/app/new-schedule");
+      await current("المهام");
+      await page.goto("/app/my-profile");
+      await expect(page).toHaveURL(/\/app\/owner$/);
+      await page.goto("/app/reach-me");
+      await expect(page).toHaveURL(/\/app\/notify-settings$/);
+      await page.goto("/app");
+      await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
+      await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
+      await page.keyboard.press("Control+k");
+      await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
+      await expect(page.locator("#desktop-search")).toBeFocused();
+      await page.keyboard.press("Control+/");
+      const rows = page.locator("#dialog .kbd-list .row");
+      const show = rows.filter({ hasText: "عرض الاختصارات" });
+      await expect(show.locator("kbd")).toHaveText(["Ctrl", "/"]);
+      const step = rows.filter({ hasText: "المحادثة السابقة / التالية" });
+      await expect(step.locator("kbd")).toHaveCount(4);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
+test("an unknown address shows the not-found page without a chat header", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 800 },
+    ]) {
+      await page.setViewportSize(size);
+      for (const path of ["/app/nope-route", "/app/g/nope-group"]) {
+        await page.goto(path);
+        await expect(page.locator("main .state-page h2")).toHaveText("الصفحة غير موجودة");
+        await expect(page.locator(".chat-head")).toHaveCount(0);
+        await expect(page.locator(".topbar")).toHaveAttribute("data-route", "not-found");
+      }
+    }
+  } finally {
+    fixture({ ...data, action: "cleanup" });
   }
 });

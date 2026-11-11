@@ -197,6 +197,7 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
                 '{"v":2,"kind":"receipt","title":"تنبيه فعّال","sub":"الذهب فوق 2,400","icon":"check"}',
                 '{"type":"KeyValue","rows":[["الأصل","الذهب"],["الشرط","يصعد فوق 2,400"],["الإشعار","داخل التطبيق"]]}',
                 '{"type":"Row","children":[{"type":"Button","label":"عرض التنبيهات","icon":"bell","action":{"do":"go","route":"market"}},'
+                '{"type":"Button","label":"تفضيلات المحادثة","icon":"settings","action":{"do":"go","route":"chat-prefs"}},'
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":{"do":"send","intent":"alert.off","data":{"watch_id":"'
                 + watch
                 + '"}}}]}',
