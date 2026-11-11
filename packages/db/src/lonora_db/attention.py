@@ -62,7 +62,8 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
     )
 
 
-async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
+async def fact_current(session: AsyncSession, row: AttentionRow) -> bool | None:
+    """Whether the fact behind the item still holds; None for a code with no such check."""
     if row.code == "operation_uncertain":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
         return (
@@ -112,25 +113,15 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
                 )
             )
         )
-    return False
+    return None
 
 
-# The codes whose fact mandatory_current can check; any other item stays true as said.
-CHECKED_FACTS = frozenset(
-    {
-        "operation_uncertain",
-        "operation_unresolved",
-        "run_quarantined",
-        "emergency_stop",
-        "approval_required",
-        "broker_degraded",
-        "task_review",
-    }
-)
+async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
+    return await fact_current(session, row) is True
 
 
 async def still_current(session: AsyncSession, row: AttentionRow) -> bool:
-    return row.code not in CHECKED_FACTS or await mandatory_current(session, row)
+    return await fact_current(session, row) is not False
 
 
 async def decide_attention(

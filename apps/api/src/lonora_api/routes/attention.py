@@ -52,15 +52,24 @@ async def shown(session: AsyncSession, owner_id: str, statuses: list[str]) -> li
         query = query.where(AttentionRow.importance != "opportunity")
     if not settings.informational:
         query = query.where(AttentionRow.importance != "informational")
+    query = query.order_by(AttentionRow.updated_at.desc(), AttentionRow.id)
     rows: list[dict[str, Any]] = []
     facts: set[tuple[str, str]] = set()
-    for row in await session.scalars(query.order_by(AttentionRow.updated_at.desc()).limit(50)):
-        if (row.code, row.coalesce_key) in facts:
-            continue
-        facts.add((row.code, row.coalesce_key))
-        if await still_current(session, row):
-            rows.append(attention_data(row))
-    return rows
+    offset = 0
+    # Up to 50 shown rows: repeated or cleared facts do not use up the cap.
+    while True:
+        page = (await session.scalars(query.offset(offset).limit(50))).all()
+        for row in page:
+            if (row.code, row.coalesce_key) in facts:
+                continue
+            facts.add((row.code, row.coalesce_key))
+            if await still_current(session, row):
+                rows.append(attention_data(row))
+                if len(rows) == 50:
+                    return rows
+        if len(page) < 50:
+            return rows
+        offset += 50
 
 
 @router.get("/history")

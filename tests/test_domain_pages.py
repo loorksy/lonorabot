@@ -403,7 +403,7 @@ async def test_updates_alerts_show_each_current_fact_once():
             "PUT", "/trading/controls", {"enabled": False, "emergency_stop": True}
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
-            rows = {
+            rows: dict[str, tuple[str, str, str, str, dict[str, Any], float]] = {
                 # Two stops: the same fact, said twice.
                 "old-stop": ("critical", "emergency_stop", "seen", "stop", {}, 2),
                 "new-stop": ("critical", "emergency_stop", "ready", "stop", {}, 1),
@@ -418,7 +418,19 @@ async def test_updates_alerts_show_each_current_fact_once():
                 ),
                 "withdrawn": ("important_change", "goal_changed", "suppressed", "w", {}, 0),
                 "kept": ("important_change", "goal_changed", "seen", "kept", {}, 3),
+                # Another notification of the same kind in its own group is its own fact.
+                "other": ("important_change", "goal_changed", "seen", "other", {}, 4),
             }
+            # More repeats of the stop than the cap must not push older facts out.
+            for repeat in range(55):
+                rows[f"repeat-{repeat}"] = (
+                    "critical",
+                    "emergency_stop",
+                    "seen",
+                    "stop",
+                    {},
+                    1 + (repeat + 1) / 60,
+                )
             ids = {}
             for name, (importance, code, status, group, parameters, age) in rows.items():
                 row = AttentionRow(
@@ -442,13 +454,13 @@ async def test_updates_alerts_show_each_current_fact_once():
             listed = cast(list[Any], await fixture.request("GET", path))
             return [ids[row["id"]] for row in listed if row["id"] in ids]
 
-        assert await shown("/attention/history") == ["new-stop", "kept"]
+        assert await shown("/attention/history") == ["new-stop", "kept", "other"]
         assert await shown("/attention") == ["new-stop"]
         # Once trading runs again, no row still says it is stopped.
         await fixture.request(
             "PUT", "/trading/controls", {"enabled": True, "emergency_stop": False}
         )
-        assert await shown("/attention/history") == ["kept"]
+        assert await shown("/attention/history") == ["kept", "other"]
         assert await shown("/attention") == []
     finally:
         await fixture.request(
