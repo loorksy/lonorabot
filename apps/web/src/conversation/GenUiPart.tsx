@@ -38,7 +38,7 @@ export function GenUiSubmitQuote({ message }: { message: Message }) {
       <span className="cmd-chip">
         <Trans>Interface</Trans>
       </span>{" "}
-      {message.content}
+      <span>{message.content}</span>
     </span>
   );
 }

@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { FilePreviewPanel } from "../components/common/FilePreviewPanel";
+import { GenuiHost } from "../components/genui";
 import { OwnerActionCard, useOwnerActions } from "../components/owner-actions/OwnerActionCard";
 import { TradeApprovalCard, useTradeApprovals } from "../components/trading/TradeApprovals";
 import { useTheme } from "../hooks/useTheme";
@@ -1044,41 +1045,43 @@ export function Conversation({
           syncFloat();
         }}
       >
-        {empty ? (
-          <ChatEmpty
-            agent={agent}
-            name={name}
-            ownerName={owner.email.split("@")[0]}
-            group={isGroup}
-          />
-        ) : (
-          <div ref={content} className="messages" id="messages">
-            {canPage && (
-              <div
-                ref={sentinel}
-                className="sk-older"
-                role="status"
-                aria-busy="true"
-                aria-label={t`Loading older messages`}
-              >
-                {[58, 36, 64].map((width, i) => (
-                  <div
-                    key={width}
-                    className={`sk-bub${i % 2 ? " mine" : ""}`}
-                    style={{ width: `${width}%` }}
-                  >
-                    <span className="sk sk-line" style={{ width: "90%" }} />
-                    {i % 3 ? <span className="sk sk-line" style={{ width: "55%" }} /> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-            {body.map((node, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: nodes carry their own keys
-              <Fragment key={index}>{node}</Fragment>
-            ))}
-          </div>
-        )}
+        <GenuiHost value={{ threadId, messages: thread.messages, runs, agents }}>
+          {empty ? (
+            <ChatEmpty
+              agent={agent}
+              name={name}
+              ownerName={owner.email.split("@")[0]}
+              group={isGroup}
+            />
+          ) : (
+            <div ref={content} className="messages" id="messages">
+              {canPage && (
+                <div
+                  ref={sentinel}
+                  className="sk-older"
+                  role="status"
+                  aria-busy="true"
+                  aria-label={t`Loading older messages`}
+                >
+                  {[58, 36, 64].map((width, i) => (
+                    <div
+                      key={width}
+                      className={`sk-bub${i % 2 ? " mine" : ""}`}
+                      style={{ width: `${width}%` }}
+                    >
+                      <span className="sk sk-line" style={{ width: "90%" }} />
+                      {i % 3 ? <span className="sk sk-line" style={{ width: "55%" }} /> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {body.map((node, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: nodes carry their own keys
+                <Fragment key={index}>{node}</Fragment>
+              ))}
+            </div>
+          )}
+        </GenuiHost>
         {(thread.error ?? actionError ?? approvals.error ?? ownerActions.error) != null && (
           <p className="fail-inline" role="alert">
             {userError(thread.error ?? actionError ?? approvals.error ?? ownerActions.error)}

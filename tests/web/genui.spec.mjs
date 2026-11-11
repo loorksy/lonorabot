@@ -186,7 +186,7 @@ test("A01: Stop before the submission's Run starts marks it «لم يُنفَّ�
     await expect(alert.getByRole("button", { name: "إنشاء التنبيه" })).toBeEnabled();
     await alert.getByRole("button", { name: "إنشاء التنبيه" }).click();
     await expect(alert).toHaveClass(/is-sent/);
-    const stop = page.getByRole("button", { name: /^(Stop|إيقاف)$/ }).first();
+    const stop = page.getByRole("button", { name: /^(Stop the reply|إيقاف الرد)$/ }).first();
     await expect(stop).toBeVisible();
     await stop.click();
     await expect(page.locator('span[data-ui-mark="not_run"]')).toHaveText("لم يُنفَّذ");

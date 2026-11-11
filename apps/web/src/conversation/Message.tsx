@@ -1,7 +1,9 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { submitMark } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type ReactNode, useRef } from "react";
+import { SubmitMark } from "../components/genui";
 import type { Agent, Message as ApiMessage, Resource } from "../lib/api";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
 import {
@@ -417,10 +419,13 @@ export function Message({
       </>
     );
   }
+  const mark = submitMark(message);
   const note = stopped ? (
     <span className="stopped">
       <Trans>You stopped the reply</Trans>
     </span>
+  ) : mark ? (
+    <SubmitMark message={message} />
   ) : superseded ? (
     <span className="edited">
       <Trans>Edited</Trans>
@@ -530,8 +535,24 @@ export function Message({
           }}
         >
           {name}
-          {message.reply_to && <Quote id={message.reply_to} />}
-          {body}
+          {message.origin === "ui_submit" ? (
+            <article data-ui-mark={mark ?? undefined}>
+              {message.ui_submit?.card_title ? (
+                <blockquote className="ux-quote">
+                  <Icon name="sparkle" />
+                  <span>{message.ui_submit.card_title}</span>
+                </blockquote>
+              ) : (
+                message.reply_to && <Quote id={message.reply_to} />
+              )}
+              {body}
+            </article>
+          ) : (
+            <>
+              {message.reply_to && <Quote id={message.reply_to} />}
+              {body}
+            </>
+          )}
           {!card && (
             <span className="meta">
               {note}
