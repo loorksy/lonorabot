@@ -273,6 +273,7 @@ test("M6: leaving the chat while recording releases the microphone and sends not
 
 test("the + sheet: rows with their counts, each opening this agent's own page", async ({
   page,
+  context,
   conversation,
 }) => {
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
@@ -298,6 +299,23 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   await page.goto(`/app/${id}`);
   await open(/^New task/);
   await expect(page).toHaveURL(new RegExp(`/app/new-task\\?agent=${id}$`));
+  // A group has no one agent: no skills or knowledge rows, and Schedule picks the agent there.
+  const created = await context.request.post("/api/groups/create", {
+    headers: conversation.headers,
+    data: { name: `Group ${randomUUID()}`, member_ids: [id], participation: "mentions_or_lead" },
+  });
+  expect(created.ok()).toBeTruthy();
+  const group = await created.json();
+  try {
+    await page.goto(`/app/g/${group.id}`);
+    await page.getByRole("button", { name: "Attachments and tools", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: /^Skills/ })).toHaveCount(0);
+    await expect(sheet.getByRole("button", { name: /^Knowledge/ })).toHaveCount(0);
+    await sheet.getByRole("button", { name: /^Schedule/ }).click();
+    await expect(page).toHaveURL(/\/app\/new-schedule$/);
+  } finally {
+    await context.request.delete(`/api/groups/${group.id}`, { headers: conversation.headers });
+  }
 });
 
 test("the @ list: the role in words, full-width rows, and a picked name drawn as a chip", async ({
@@ -338,6 +356,24 @@ test("the mic hint shows once above the mic, goes on the first press and never c
   await page.reload();
   await page.waitForTimeout(1500);
   await expect(tip).toHaveCount(0);
+});
+
+test("the mic hint waits while the @ list is open and is not used up there", async ({
+  page,
+  context,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const agents = await (await context.request.get("/api/agents")).json();
+  const other = agents.find((row) => row.id !== conversation.agent.id);
+  await page.goto(`/app/${conversation.agent.id}`);
+  await page.getByRole("combobox").fill(`@${other.name.slice(0, 2)}`);
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(page.locator(".mic-tip")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("lonora.tips.mic"))).toBeNull();
+  await page.reload();
+  await expect(page.locator(".mic-tip")).toHaveClass(/show/);
 });
 
 test("M10: older history keeps paging page after page, and a failed read does not end it", async ({

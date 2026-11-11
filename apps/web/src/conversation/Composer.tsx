@@ -420,9 +420,10 @@ export function Composer({
     const timer = setTimeout(() => setMicTip(true), 700);
     return () => clearTimeout(timer);
   }, []);
+  const micBusy = assistOpen || recorder.active;
   useEffect(() => {
-    if (assistOpen || recorder.active) setMicTip(false);
-  }, [assistOpen, recorder.active]);
+    if (micTip && micBusy) setMicTip(false);
+  }, [micTip, micBusy]);
 
   const trading = agent
     ? agent.template === "trading" ||
@@ -889,7 +890,9 @@ export function Composer({
           </div>
         </div>
       )}
-      {micTip && micButton.current && <MicTip mic={micButton.current} onDone={hideMicTip} />}
+      {micTip && !micBusy && micButton.current && (
+        <MicTip mic={micButton.current} onDone={hideMicTip} />
+      )}
     </form>
   );
 }
