@@ -2,9 +2,9 @@
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { HeaderButton } from "./header-button";
 import { NativeSymbol } from "./native-symbol";
-import { colors } from "./ui";
 export function ThreadHeader({
   title,
   avatar,
@@ -26,6 +26,7 @@ export function ThreadHeader({
   safety?: ReactNode;
 }) {
   const { rtl, t } = useSession();
+  const shell = useShellColors();
   return (
     <View>
       <View
@@ -40,7 +41,7 @@ export function ThreadHeader({
       >
         <HeaderButton label={t("back")} onPress={onBack}>
           <View style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }}>
-            <NativeSymbol name="back" size={23} />
+            <NativeSymbol name="back" size={23} color={shell.foreground} />
           </View>
         </HeaderButton>
         <View style={{ flex: 1, alignItems: "center" }}>
@@ -56,14 +57,14 @@ export function ThreadHeader({
               paddingVertical: 6,
               paddingHorizontal: 10,
               borderRadius: 22,
-              backgroundColor: colors.muted,
+              backgroundColor: shell.muted,
               opacity: pressed ? 0.6 : 1,
             })}
           >
             {avatar}
             <Text
               numberOfLines={1}
-              style={{ flexShrink: 1, fontSize: 17, color: colors.foreground, fontWeight: "600" }}
+              style={{ flexShrink: 1, fontSize: 17, color: shell.foreground, fontWeight: "600" }}
             >
               {title}
             </Text>
@@ -71,11 +72,11 @@ export function ThreadHeader({
         </View>
         {onCall ? (
           <HeaderButton label={t("callAgent")} onPress={onCall}>
-            <NativeSymbol name="call" size={21} />
+            <NativeSymbol name="call" size={21} color={shell.foreground} />
           </HeaderButton>
         ) : null}
         <HeaderButton label={t("actions")} onPress={onActions}>
-          <NativeSymbol name="more" size={21} />
+          <NativeSymbol name="more" size={21} color={shell.foreground} />
         </HeaderButton>
       </View>
       {safety ?? null}

@@ -2,10 +2,11 @@
 import { formatTimeSeparator } from "@lonora/core";
 import { Text } from "react-native";
 import { useSession } from "../lib/session";
-import { colors } from "./ui";
+import { useShellColors } from "../lib/theme";
 
 export function TimeSeparator({ createdAt }: { createdAt: string }) {
   const { locale, t } = useSession();
+  const shell = useShellColors();
   const title = formatTimeSeparator(createdAt, locale, {
     today: t("today"),
     yesterday: t("yesterday"),
@@ -13,7 +14,7 @@ export function TimeSeparator({ createdAt }: { createdAt: string }) {
   return (
     <Text
       accessibilityRole="header"
-      style={{ color: colors.secondary, fontSize: 12, textAlign: "center", marginVertical: 12 }}
+      style={{ color: shell.secondary, fontSize: 12, textAlign: "center", marginVertical: 12 }}
     >
       {title}
     </Text>

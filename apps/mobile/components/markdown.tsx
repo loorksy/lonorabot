@@ -2,8 +2,8 @@
 // Native, selectable message typography. Links open only on explicit user action.
 import { Linking, Platform, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import type { NativeVisualPalette } from "./native-rich-theme";
-import { colors } from "./ui";
 
 function Inline({
   value,
@@ -14,7 +14,8 @@ function Inline({
   onChartLink?: (url: string) => boolean;
   palette?: NativeVisualPalette;
 }) {
-  const ink = palette ? { ...colors, link: palette.link, accent: palette.accent } : colors;
+  const shell = useShellColors();
+  const ink = palette ? { ...shell, link: palette.link, accent: palette.accent } : shell;
   return (
     <>
       {value
@@ -68,14 +69,15 @@ export function Markdown({
   palette?: NativeVisualPalette;
 }) {
   const { rtl } = useSession();
+  const shell = useShellColors();
   const ink = palette
     ? {
-        ...colors,
+        ...shell,
         foreground: palette.foreground,
         secondary: palette["muted-foreground"],
         muted: palette.muted,
       }
-    : colors;
+    : shell;
   const blocks = content.split(/(```[^\n]*\n[\s\S]*?```)/g).filter(Boolean);
   return (
     <View style={{ gap: 8 }}>
