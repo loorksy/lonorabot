@@ -395,3 +395,70 @@ async def test_a_stopped_watch_is_not_evidence_for_an_opportunity(task_db: Fixtu
         codes, _ = await evidence_state(session, opportunity, now)
     # Stopping the watch dropped its health flag; it must still not count as confirmed.
     assert "thesis_watch_unconfirmed" in codes
+
+
+@pytest.mark.asyncio
+async def test_a_watch_is_stopped_by_the_name_the_owner_gives_it_and_never_restarted_by_one(
+    task_db: Fixture,
+) -> None:
+    """«ألغِ مراقبة اليورو»: the one live watch on it is cancelled and named in the result."""
+    from lonora_tools.market_watch import named_watch
+    from lonora_tools.resolve import NotResolved
+
+    db, owner, agent, thread = task_db
+    context = cast(ToolContext, SimpleNamespace(owner_id=owner, agent_id=agent))
+    async with db.sessions() as session, session.begin():
+        live = MarketWatchRow(
+            owner_id=owner, agent_id=agent, thread_id=thread, payload=payload(), state=dict(LIVE)
+        )
+        gone = MarketWatchRow(
+            owner_id=owner, agent_id=agent, thread_id=thread, payload=payload(), state=dict(LIVE)
+        )
+        gold = MarketWatchRow(
+            owner_id=owner,
+            agent_id=agent,
+            thread_id=thread,
+            payload=payload(symbol="XAUUSDm", level="4100"),
+            state=dict(LIVE),
+        )
+        other = MarketWatchRow(
+            owner_id=owner, agent_id=None, thread_id=thread, payload=payload(), state=dict(LIVE)
+        )
+        session.add_all([live, gone, gold, other])
+    async with db.sessions() as session, session.begin():
+        await control_watch(session, owner, gone.id, "cancel")
+    async with db.sessions() as session:
+        # The cancelled watch on the same symbol and another agent's are not candidates.
+        for requested in ("eurusdm", "EURUSDm below 1.11305"):
+            watch_id, note = await named_watch(session, context, requested, "cancel")
+            assert watch_id == live.id and note is not None and note["id"] == live.id
+        assert await named_watch(session, context, live.id, "cancel") == (live.id, None)
+        # Part of a name stops nothing by itself.
+        with pytest.raises(NotResolved) as partial:
+            await named_watch(session, context, "EURUSD", "cancel")
+        assert partial.value.details["next_actions"] == [{"repeat_with": {"watch_id": live.id}}]
+        # A resume switches a wake back on: it is refused with the one stopped watch.
+        with pytest.raises(NotResolved) as back:
+            await named_watch(session, context, "EURUSDm", "resume")
+        assert back.value.code == "market_watches_not_found" and back.value.details["retryable"]
+        assert [item["id"] for item in back.value.details["candidates"]] == [gone.id]
+        assert back.value.details["candidates"][0]["symbol"] == "EURUSDm"
+        with pytest.raises(NotResolved) as change:
+            await named_watch(session, context, "XAUUSDm", "update")
+        assert change.value.details["next_actions"] == [{"repeat_with": {"watch_id": gold.id}}]
+        with pytest.raises(NotResolved) as missing:
+            await named_watch(session, context, "bitcoin", "cancel")
+        assert {item["id"] for item in missing.value.details["existing"]} == {live.id, gold.id}
+        # Another agent's watch is not found even by its id.
+        with pytest.raises(NotResolved):
+            await named_watch(session, context, other.id, "cancel")
+    async with db.sessions() as session, session.begin():
+        twin = MarketWatchRow(
+            owner_id=owner, agent_id=agent, thread_id=thread, payload=payload(), state=dict(LIVE)
+        )
+        session.add(twin)
+    async with db.sessions() as session:
+        with pytest.raises(NotResolved) as several:
+            await named_watch(session, context, "EURUSDm", "cancel")
+        assert several.value.code == "market_watches_ambiguous"
+        assert {item["id"] for item in several.value.details["candidates"]} == {live.id, twin.id}
