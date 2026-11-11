@@ -17,7 +17,7 @@ from lonora_contracts.model_routing import (
     AgentModelState,
     ModelSelection,
 )
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,6 +162,7 @@ async def raise_model_card(
     server's record of a switch that applied; a newer one replaces it.
     """
     from .owner_actions import (
+        CARDS_WAITING,
         MAXIMUM_PENDING_PER_AGENT,
         card_thread,
         create_card,
@@ -210,7 +211,7 @@ async def raise_model_card(
             )
         )
         if (pending or 0) >= MAXIMUM_PENDING_PER_AGENT:
-            raise LonoraError("owner_action_limit", 429)
+            raise ToolRefusal("owner_action_limit", 429, details=CARDS_WAITING)
     thread = await card_thread(session, owner_id, agent_id, thread_id)
     row = await create_card(
         session,

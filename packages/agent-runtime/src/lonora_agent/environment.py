@@ -56,6 +56,10 @@ ORDER_ARGUMENT_CODES = frozenset(
         "price_tick_mismatch",
         "position_volume_exceeded",
         "position_remaining_volume_invalid",
+        # A size request the account or its currency cannot answer as asked.
+        "position_sizing_below_minimum",
+        "position_sizing_account_mismatch",
+        "position_sizing_currency_mismatch",
     }
 )
 
@@ -111,7 +115,6 @@ CLASS_CATEGORIES: dict[str, tuple[FailureCategory, str]] = {
     "connection": ("temporary_unavailable", "inspect_health"),
     "permission": ("permission_denied", "respect_scope"),
 }
-_LIMIT_OR_PAUSE = ("_limit", "_limit_reached", "_exceeded", "_forbidden", "_paused")
 
 
 def _by_status(code: str, status: int) -> tuple[FailureCategory, str] | None:
@@ -134,9 +137,13 @@ def _by_status(code: str, status: int) -> tuple[FailureCategory, str] | None:
         return "authorization_required", "request_owner_authorization"
     if code.endswith("_reconciliation_required"):
         return "health_blocked", "wait_for_authoritative_recovery"
-    if code.startswith(("account_authority_", "work_paused")) or code.endswith(_LIMIT_OR_PAUSE):
+    if code.startswith(("account_authority_", "work_paused")) or code.endswith(
+        ("_forbidden", "_paused")
+    ):
+        # The mandate's own terms, or a pause someone set. A count that is full
+        # (helpers, pins, retries) is not a rule and stays as it was.
         return "permission_denied", "respect_scope"
-    if code.endswith(("_wrong_side", "_stops_level")) or code.startswith("position_sizing_"):
+    if code.endswith(("_wrong_side", "_stops_level")):
         return "invalid_tool_arguments", "correct_arguments"
     return None
 
@@ -190,14 +197,11 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "supervision_revoke_own_oversight",
         # The owner or a supervisor paused this agent.
         "agent_paused",
-        # The owner's own budgets: waiting inside the turn does not lift them.
+        # One Run creates so many agents and no more.
         "agent_create_run_limit",
-        "owner_action_limit",
-        "owner_notify_rate_limited",
         # Rules that no corrected argument gets past.
         "trusted_source_write_blocked",
         "ui_submit_disabled",
-        "reaction_not_allowed",
         "memory_authority_claim_refused",
         "restriction_owner_manual_agent_conflict",
         "collaboration_guest_limit",

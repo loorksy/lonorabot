@@ -227,6 +227,15 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
         ("account_authority_volume_limit", 409, "permission", "respect_scope"),
         ("work_paused_by_owner", 409, "permission", "respect_scope"),
         ("pending_price_wrong_side", 409, "input", "correct_arguments"),
+        ("position_sizing_below_minimum", 409, "input", "correct_arguments"),
+        ("goal_delegated_trade_forbidden", 409, "permission", "respect_scope"),
+        # A count that is full is not a rule of the owner's, and the broker's own bad
+        # numbers are not the caller's arguments.
+        ("subagent_limit", 409, "internal", "alternate_route"),
+        ("task_retry_limit", 409, "internal", "alternate_route"),
+        ("position_sizing_values_invalid", 409, "internal", "alternate_route"),
+        # A different emoji is all a refused reaction needs.
+        ("reaction_not_allowed", 422, "input", "correct_arguments"),
         # A state conflict says nothing a model can act on: it stays as it was.
         ("task_not_running", 409, "internal", "alternate_route"),
         ("operation_status_transition_invalid", 409, "internal", "alternate_route"),
@@ -245,7 +254,7 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
         ("task_run_not_found", 409, "resolution", "inspect_existing_state"),
         # Rules that a corrected argument does not get past, and the owner's budgets.
         ("trusted_source_write_blocked", 422, "permission", "respect_scope"),
-        ("owner_action_limit", 429, "permission", "respect_scope"),
+        ("agent_create_run_limit", 429, "permission", "respect_scope"),
         ("agent_paused", 409, "permission", "respect_scope"),
         ("trade_approval_required", 403, "permission", "request_owner_authorization"),
     ],
