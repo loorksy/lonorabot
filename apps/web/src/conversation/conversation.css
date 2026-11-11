@@ -1849,6 +1849,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   object-fit: cover;
   filter: brightness(0.62) saturate(0.8);
 }
+.att.image .up,
 .img-msg.busy .up,
 .img-msg.busy .up-retry {
   position: absolute;
@@ -1861,9 +1862,14 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
+.att.image .up-x,
 .img-msg.busy .up-x,
 .img-msg.busy .up-retry {
   color: #fff;
+}
+.att.image .up {
+  width: 44px;
+  height: 44px;
 }
 .img-msg.busy .up-retry {
   display: grid;
@@ -2259,6 +2265,17 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .att-x svg {
   width: 12px;
   height: 12px;
+}
+/* a file still uploading: its ring and cancel in place of the icon, or over the picture */
+.att.file.uploading {
+  padding-inline-end: 12px;
+}
+.att.file .up {
+  width: 36px;
+  height: 36px;
+}
+.att.image.uploading img {
+  filter: brightness(0.62) saturate(0.8);
 }
 /* ↓ to the newest message */
 .jump {

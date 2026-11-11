@@ -59,9 +59,27 @@ if (typeof window !== "undefined")
     }
   });
 
-const uploadCounts = new Map<string, number>();
+/** A file on its way to the server: in the composer's tray, or in a bubble once sent. */
+export type DraftUpload = {
+  id: string;
+  name: string;
+  size: number;
+  media_type: string;
+  /** A picture's local address while it uploads. */
+  preview?: string;
+  /** How much has been sent, 0 to 1. */
+  p: number;
+  done: Promise<Resource>;
+  cancel: () => void;
+  /** Taken by a sent message: the file no longer returns to the draft. */
+  sent: boolean;
+};
+const uploads = new Map<string, DraftUpload[]>();
 const uploadListeners = new Map<string, Set<() => void>>();
-export const pendingDraftUploads = (key: string) => uploadCounts.get(key) ?? 0;
+const NONE: readonly DraftUpload[] = [];
+/** The uploads of a draft that are still running; a new list whenever one moves. */
+export const draftUploads = (key: string): readonly DraftUpload[] => uploads.get(key) ?? NONE;
+export const pendingDraftUploads = (key: string) => draftUploads(key).length;
 export function observeDraftUploads(key: string, listener: () => void) {
   const listeners = uploadListeners.get(key) ?? new Set();
   listeners.add(listener);
@@ -73,13 +91,65 @@ export function observeDraftUploads(key: string, listener: () => void) {
 function notifyDraftUpload(key: string) {
   for (const listener of uploadListeners.get(key) ?? []) listener();
 }
-export function startDraftUpload(key: string) {
-  uploadCounts.set(key, pendingDraftUploads(key) + 1);
+function setUploads(key: string, list: DraftUpload[]) {
+  if (list.length) uploads.set(key, list);
+  else uploads.delete(key);
   notifyDraftUpload(key);
 }
-export function finishDraftUpload(key: string) {
-  uploadCounts.set(key, Math.max(0, pendingDraftUploads(key) - 1));
-  notifyDraftUpload(key);
+/**
+ * Starts an upload for a draft. `run` does the transfer, reporting progress and stopping
+ * when its signal aborts. A finished file joins the draft, even after the composer has
+ * gone, unless a sent message took the upload first.
+ */
+export function trackDraftUpload(
+  key: string,
+  file: File,
+  run: (progress: (p: number) => void, signal: AbortSignal) => Promise<Resource>,
+  moved: () => void = () => {},
+): DraftUpload {
+  const controller = new AbortController();
+  const settled = () => {
+    if (upload.preview) URL.revokeObjectURL(upload.preview);
+    setUploads(
+      key,
+      draftUploads(key).filter((item) => item !== upload),
+    );
+  };
+  const upload: DraftUpload = {
+    id: crypto.randomUUID(),
+    name: file.name,
+    size: file.size,
+    media_type: file.type,
+    preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+    p: 0,
+    sent: false,
+    cancel: () => controller.abort(),
+    done: run((p) => {
+      upload.p = p;
+      // A new list, so a reader that compares lists sees the progress.
+      if (!upload.sent) setUploads(key, [...draftUploads(key)]);
+      moved();
+    }, controller.signal).then(
+      (row) => {
+        settled();
+        if (!upload.sent) appendDraftFiles(key, [row]);
+        return row;
+      },
+      (cause) => {
+        settled();
+        throw cause;
+      },
+    ),
+  };
+  setUploads(key, [...draftUploads(key), upload]);
+  return upload;
+}
+/** The draft's running uploads, handed to the message being sent. */
+export function takeDraftUploads(key: string): DraftUpload[] {
+  const taken = [...draftUploads(key)];
+  for (const upload of taken) upload.sent = true;
+  if (taken.length) setUploads(key, []);
+  return taken;
 }
 export function appendDraftFiles(key: string, files: Resource[]) {
   const draft = readComposerDraft(key);

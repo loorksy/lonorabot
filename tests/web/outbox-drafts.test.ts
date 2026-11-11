@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import type { Message, Resource } from "../../apps/web/src/lib/api";
 import {
-  appendDraftFiles,
   draftKey,
-  finishDraftUpload,
+  draftUploads,
   pendingDraftUploads,
   readComposerDraft,
   saveComposerDraft,
-  startDraftUpload,
+  takeDraftUploads,
+  trackDraftUpload,
 } from "../../apps/web/src/lib/composer-drafts";
 import {
   acknowledgeOutgoing,
@@ -72,22 +72,75 @@ test("restored unacknowledged receipts require Retry and never auto-submit", () 
   assert.equal(outgoingMessages(key)[0].message.delivery, "failed");
   assert.equal(outgoingMessages(outgoingKey(crypto.randomUUID(), "thread")).length, 0);
 });
-test("thread and owner drafts remain isolated, including uploads completing offscreen", () => {
+/** An upload the test finishes by hand: its progress callback, its signal, its outcome. */
+function held() {
+  const run = {
+    progress: (_: number) => {},
+    signal: undefined as AbortSignal | undefined,
+    finish: (_: Resource) => {},
+    fail: (_: unknown) => {},
+  };
+  const start = (progress: (p: number) => void, signal: AbortSignal) => {
+    run.progress = progress;
+    run.signal = signal;
+    return new Promise<Resource>((resolve, reject) => {
+      run.finish = resolve;
+      run.fail = reject;
+    });
+  };
+  return { run, start };
+}
+const file = (name: string) => ({ name, size: 3, type: "text/plain" }) as File;
+const stored = (id: string) => ({ id, payload: { name: "chart.png" } }) as Resource;
+
+test("thread and owner drafts remain isolated, including uploads completing offscreen", async () => {
   const owner = crypto.randomUUID(),
     a = draftKey(owner, "A"),
     b = draftKey(owner, "B");
   saveComposerDraft(a, { text: "Unsent A", files: [], mentions: [], reply: null });
   saveComposerDraft(b, { text: "Unsent B", files: [], mentions: [], reply: null });
-  startDraftUpload(a);
+  const { run, start } = held();
+  const upload = trackDraftUpload(a, file("chart.png"), start);
   assert.equal(pendingDraftUploads(a), 1);
-  appendDraftFiles(a, [{ id: "upload-a", payload: { name: "chart.png" } } as Resource]);
-  finishDraftUpload(a);
+  assert.equal(pendingDraftUploads(b), 0);
+  // Progress gives readers a new list, so one that compares lists redraws.
+  const before = draftUploads(a);
+  run.progress(0.5);
+  assert.equal(upload.p, 0.5);
+  assert.notEqual(draftUploads(a), before);
+  run.finish(stored("upload-a"));
+  await upload.done;
   assert.equal(pendingDraftUploads(a), 0);
   assert.equal(readComposerDraft(a).text, "Unsent A");
   assert.equal(readComposerDraft(a).files[0].id, "upload-a");
   assert.equal(readComposerDraft(b).text, "Unsent B");
   assert.equal(readComposerDraft(b).files.length, 0);
   assert.equal(readComposerDraft(draftKey(crypto.randomUUID(), "A")).text, "");
+});
+test("a cancelled or failed upload leaves nothing, and one a message took stays out of the draft", async () => {
+  const key = draftKey(crypto.randomUUID(), "A");
+  const cancelled = held();
+  const first = trackDraftUpload(key, file("a.txt"), cancelled.start);
+  first.cancel();
+  assert.equal(cancelled.run.signal?.aborted, true);
+  cancelled.run.fail(new Error("aborted"));
+  await assert.rejects(first.done);
+  assert.equal(pendingDraftUploads(key), 0);
+  assert.equal(readComposerDraft(key).files.length, 0);
+
+  const sent = held();
+  let moved = 0;
+  const second = trackDraftUpload(key, file("b.txt"), sent.start, () => {
+    moved += 1;
+  });
+  assert.deepEqual(takeDraftUploads(key), [second]);
+  assert.equal(pendingDraftUploads(key), 0);
+  // The message that took it still hears its progress.
+  sent.run.progress(0.25);
+  assert.equal(moved, 1);
+  sent.run.finish(stored("upload-b"));
+  assert.equal((await second.done).id, "upload-b");
+  assert.equal(readComposerDraft(key).files.length, 0);
 });
 test("closed storage does not prevent local acceptance or destroy a draft", () => {
   Object.assign(globalThis, {

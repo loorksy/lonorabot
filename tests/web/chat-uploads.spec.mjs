@@ -1,0 +1,76 @@
+import { execFileSync } from "node:child_process";
+import { expect, test } from "@playwright/test";
+
+/* An attachment on its way (reference uploadMarkup and cancelUpload, Desktop-37 5530-5534): its
+   ring and cancel are in the composer's tray while it uploads, and the composer stays free. */
+function fixture(data) {
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["tests/agent_pages_browser.py"], {
+      input: JSON.stringify(data),
+      encoding: "utf8",
+    }),
+  );
+}
+let data = null;
+const errors = [];
+test.beforeEach(async ({ page, context }) => {
+  data = fixture({ action: "init" });
+  data.groups = [];
+  data.agents = [];
+  await context.addCookies(
+    data.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  page.on("pageerror", (error) => errors.push(error.message));
+});
+test.afterEach(() => {
+  expect(errors.splice(0)).toEqual([]);
+  if (data) fixture({ ...data, action: "cleanup" });
+  data = null;
+});
+
+const report = { name: "report.txt", mimeType: "text/plain", buffer: Buffer.alloc(300 * 1024, 97) };
+
+test("an upload shows its ring in the tray, can be cancelled, and leaves the composer free", async ({
+  page,
+}) => {
+  await page.goto(`/app/${data.research.id}`);
+  let release = () => {};
+  let held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/artifacts/upload", async (route) => {
+    await held;
+    await route.continue().catch(() => {});
+  });
+  const input = page.locator('form input[type="file"]');
+  const tray = page.getByRole("list", { name: "Attachments" });
+  await input.setInputFiles(report);
+  const chip = tray.locator(".att.file.uploading");
+  await expect(chip.locator("b")).toHaveText("report.txt");
+  await expect(chip.locator("small")).toHaveText("Uploading · 300 KB");
+  await expect(chip.getByRole("progressbar", { name: "Uploading report.txt" })).toBeVisible();
+  // The composer is not held by the upload: text can be typed and another file attached.
+  await page.getByRole("combobox").fill("The weekly report");
+  await expect(
+    page.getByRole("button", { name: "Attachments and tools", exact: true }),
+  ).toBeEnabled();
+  await chip.getByRole("button", { name: "Cancel the upload" }).click();
+  await expect(tray).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText("Upload cancelled");
+  await expect(page.getByRole("combobox")).toHaveValue("The weekly report");
+
+  // An upload that finishes becomes an ordinary attachment of the draft.
+  held = Promise.resolve();
+  release();
+  await input.setInputFiles(report);
+  const done = tray.locator(".att.file:not(.uploading)");
+  await expect(done.locator("b")).toHaveText("report.txt");
+  await expect(done.getByRole("button", { name: "Remove report.txt" })).toBeVisible();
+  await expect(tray.getByRole("progressbar")).toHaveCount(0);
+});

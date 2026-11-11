@@ -22,16 +22,14 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
-import { api } from "../lib/api";
+import { api, isRequestCancelled } from "../lib/api";
 import {
-  appendDraftFiles,
   draftKey,
-  finishDraftUpload,
+  draftUploads,
   observeDraftUploads,
-  pendingDraftUploads,
   readComposerDraft,
   saveComposerDraft,
-  startDraftUpload,
+  trackDraftUpload,
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
@@ -45,6 +43,7 @@ import { PermissionChip } from "./PermissionMenu";
 import { useChatPrefs } from "./prefs";
 import { useToolsSheet } from "./ToolsSheet";
 import { useThreadOptions } from "./threadOptions";
+import { UploadRing } from "./UploadRing";
 import { VOICE, voiceFmt, voicePeaks } from "./Voice";
 
 /* The composer (reference composer(), Desktop-37 3828-3870, 404-435): a floating glass card,
@@ -121,7 +120,7 @@ export function Composer({
   const initial = useRef(readComposerDraft(storageKey));
   const [text, setText] = useState(initial.current.text);
   const [files, setFiles] = useState<Resource[]>(initial.current.files);
-  const [uploading, setUploading] = useState(() => pendingDraftUploads(storageKey) > 0);
+  const [uploads, setUploads] = useState(() => draftUploads(storageKey));
   const [error, setError] = useState<unknown>();
   const [dragging, setDragging] = useState(false);
   const [mention, setMention] = useState<string | null>(null);
@@ -190,7 +189,7 @@ export function Composer({
   useEffect(
     () =>
       observeDraftUploads(storageKey, () => {
-        setUploading(pendingDraftUploads(storageKey) > 0);
+        setUploads(draftUploads(storageKey));
         setFiles(readComposerDraft(storageKey).files);
       }),
     [storageKey],
@@ -362,32 +361,25 @@ export function Composer({
 
   /* ---- attachments: chips in the composer; ≤6 items ≤8MB; caption rides with the first photo */
   const upload = useCallback(
-    async (picked: File[]) => {
+    (picked: File[]) => {
       if (!picked.length) return;
-      const room = ATTACH.items - files.length;
+      const room = ATTACH.items - files.length - uploads.length;
       const fit = picked.filter((file) => file.size <= ATTACH.bytes).slice(0, Math.max(0, room));
       if (fit.length < picked.length)
         toast(t`Up to 6 photos and files, 8 MB each`, { type: "warn" });
-      if (!fit.length) return;
-      startDraftUpload(storageKey);
-      setUploading(true);
       setError(undefined);
-      try {
-        const results = await Promise.allSettled(fit.map((file) => api.upload(file, threadId)));
-        const done = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-        appendDraftFiles(storageKey, done);
-        for (const row of done) onUploaded(row);
-        const failure = results.find((r) => r.status === "rejected");
-        if (failure?.status === "rejected") setError(failure.reason);
-      } finally {
-        finishDraftUpload(storageKey);
-        setUploading(false);
-      }
+      // Each file uploads on its own: its ring is in the tray and the composer stays free.
+      for (const file of fit)
+        trackDraftUpload(storageKey, file, (progress, signal) =>
+          api.upload(file, threadId, progress, signal),
+        ).done.then(onUploaded, (cause) => {
+          if (!isRequestCancelled(cause)) setError(cause);
+        });
     },
-    [files.length, storageKey, threadId, toast, onUploaded],
+    [files.length, uploads.length, storageKey, threadId, toast, onUploaded],
   );
 
-  const canSend = Boolean(text.trim() || files.length) && !uploading;
+  const canSend = Boolean(text.trim() || files.length) && !uploads.length;
   const send = () => {
     if (!canSend) return;
     const sent = typedCommand?.option;
@@ -799,7 +791,7 @@ export function Composer({
             </button>
           </div>
         )}
-        {files.length > 0 && (
+        {files.length + uploads.length > 0 && (
           // biome-ignore lint/a11y/useSemanticElements: the reference's attachment chips
           <div className="att-row" role="list" aria-label={t`Attachments`}>
             {files.map((file) => {
@@ -832,6 +824,28 @@ export function Composer({
                   >
                     <Icon name="close" />
                   </button>
+                </div>
+              );
+            })}
+            {uploads.map((item) => {
+              const cancel = () => {
+                item.cancel();
+                toast(t`Upload cancelled`);
+              };
+              return item.preview ? (
+                // biome-ignore lint/a11y/useSemanticElements: one chip of the row
+                <div key={item.id} className="att image uploading" role="listitem">
+                  <img src={item.preview} alt="" />
+                  <UploadRing name={item.name} p={item.p} onCancel={cancel} />
+                </div>
+              ) : (
+                // biome-ignore lint/a11y/useSemanticElements: one chip of the row
+                <div key={item.id} className="att file uploading" role="listitem">
+                  <UploadRing name={item.name} p={item.p} onCancel={cancel} />
+                  <span className="att-n">
+                    <b>{item.name}</b>
+                    <small>{t`Uploading · ${Math.max(1, Math.ceil(item.size / 1024))} KB`}</small>
+                  </span>
                 </div>
               );
             })}
@@ -992,7 +1006,6 @@ export function Composer({
             className="icon cbtn"
             aria-label={t`Attachments and tools`}
             title={t`Attachments and tools`}
-            disabled={uploading}
             onClick={() =>
               tools.open({
                 agent,
