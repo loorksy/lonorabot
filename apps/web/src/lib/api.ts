@@ -10,6 +10,13 @@ export class ApiError extends Error {
     super(code);
   }
 }
+
+/** The API itself did not answer: a gateway error that names no reason, or a request that
+ * never completed while the device is online (offline is the network strip's state). */
+export const isServiceUnavailable = (error: unknown) =>
+  error instanceof ApiError
+    ? [502, 503, 504].includes(error.status) && error.code === "request_failed"
+    : (error as { name?: string } | null)?.name === "TypeError" && navigator.onLine;
 export class RequestCancelled extends Error {
   readonly code = "request_cancelled";
   constructor() {
@@ -89,12 +96,13 @@ async function perform<T>(path: string, init: RequestInit): Promise<T> {
       current();
       if (response.status === 401 && !path.startsWith("/auth/"))
         window.dispatchEvent(new CustomEvent("lonora:session-expired"));
-      // Repeated 503s mean maintenance (the shell decides how many), never one transient error.
-      // A 503 that names its own reason (broker identity, voice worker…) comes from a running
-      // API and stays that feature's error; only an unnamed one counts toward maintenance.
-      if (response.status === 503 && (data.code ?? "request_failed") === "request_failed")
+      // Repeated gateway errors mean maintenance (the shell decides how many), never one
+      // transient error. One that names its own reason (broker identity, voice worker…) comes
+      // from a running API and stays that feature's error.
+      const failure = new ApiError(data.code ?? "request_failed", response.status);
+      if (isServiceUnavailable(failure))
         window.dispatchEvent(new CustomEvent("lonora:api-unavailable"));
-      throw new ApiError(data.code ?? "request_failed", response.status);
+      throw failure;
     }
     const data = await response.json();
     current();

@@ -575,20 +575,6 @@ function ShellBody() {
   useEffect(() => {
     if (connected) setMaintenance(false);
   }, [connected]);
-  const retryMaintenance = useCallback(async () => {
-    try {
-      const response = await fetch("/ready", { credentials: "include" });
-      if (response.ok) {
-        setMaintenance(false);
-        data.refresh();
-        return;
-      }
-    } catch {
-      /* still down */
-    }
-    navigator.vibrate?.([10, 50, 10]);
-    toast(t`Maintenance is still in progress. Try again shortly`, { type: "warn" });
-  }, [data, toast]);
   useEffect(() => {
     if (voice.error instanceof ApiError && voice.error.code === "voice_permission_denied")
       permission("mic");
@@ -962,7 +948,14 @@ function ShellBody() {
       )}
       <UpdateBar revision={revision} forced={import.meta.env.DEV && forcedUpdate} />
       <HeadsUp currentThreadId={conversation ? openThread : undefined} />
-      {maintenance && <MaintenanceOverlay retry={() => void retryMaintenance()} />}
+      {maintenance && (
+        <MaintenanceOverlay
+          onReady={() => {
+            setMaintenance(false);
+            data.refresh();
+          }}
+        />
+      )}
     </>
   );
 }

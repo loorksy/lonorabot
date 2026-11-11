@@ -672,3 +672,86 @@ test("an unknown address shows the not-found page without a chat header", async 
     fixture({ ...data, action: "cleanup" });
   }
 });
+
+test("a server that does not answer at startup shows maintenance, which leaves when it answers", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    let down = true;
+    const gateway = (route) => (down ? route.fulfill({ status: 502, body: "" }) : route.continue());
+    await page.route("**/api/onboarding", gateway);
+    await page.route("**/health", gateway);
+    await page.goto("/app");
+    const heading = page.getByRole("heading", { name: "Lonora is under maintenance" });
+    await expect(heading).toBeVisible();
+    await expect(page.locator(".auth-card")).toHaveCount(0);
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(
+      page.getByText("Maintenance is still in progress. Try again shortly"),
+    ).toBeVisible();
+    down = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(heading).toHaveCount(0);
+    await expect(page.locator("header.chats-header")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("an unexpected startup error is its own page with a retry, not maintenance", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    let broken = true;
+    await page.route("**/api/onboarding", (route) =>
+      broken ? route.fulfill({ status: 500, json: { code: "internal_error" } }) : route.continue(),
+    );
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { name: "An unexpected error occurred" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lonora is under maintenance" })).toHaveCount(0);
+    broken = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator("header.chats-header")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("gateway errors in the middle of a session bring maintenance, which clears by itself", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app");
+    await expect(page.locator("header.chats-header")).toBeVisible();
+    let down = true;
+    const gateway = (route) =>
+      down && !route.request().url().includes("/events")
+        ? route.fulfill({ status: 504, body: "" })
+        : route.continue();
+    await page.route("**/api/**", gateway);
+    await page.route("**/health", gateway);
+    const heading = page.getByRole("heading", { name: "Lonora is under maintenance" });
+    // Three reads without an answer within half a minute.
+    for (const tab of ["Updates", "Tasks", "Settings", "Chats"]) {
+      if (await heading.isVisible()) break;
+      await page.locator("nav.tabbar").getByRole("button", { name: tab }).click({ force: true });
+    }
+    await expect(heading).toBeVisible();
+    down = false;
+    await expect(heading).toHaveCount(0, { timeout: 12_000 });
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});

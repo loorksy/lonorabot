@@ -835,11 +835,12 @@ msgstr "An alert when an agent confirms an opportunity"
 msgid "An unconfirmed operation or a restriction on your account"
 msgstr "An unconfirmed operation or a restriction on your account"
 
+#: src/App.tsx:79
 #: src/shell/Toast.tsx:57
 msgid "An unexpected error occurred"
 msgstr "An unexpected error occurred"
 
-#: src/shell/StatePage.tsx:62
+#: src/shell/StatePage.tsx:64
 msgid "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 msgstr "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 
@@ -1102,8 +1103,8 @@ msgstr "Awaiting review"
 #: src/pages/shell/bot-panel.tsx:277
 #: src/shell/ChatHeader.tsx:125
 #: src/shell/sheets/SheetHost.tsx:580
-#: src/shell/StatePage.tsx:47
-#: src/shell/StatePage.tsx:72
+#: src/shell/StatePage.tsx:49
+#: src/shell/StatePage.tsx:74
 #: src/shell/TopBar.tsx:64
 msgid "Back"
 msgstr "Back"
@@ -1112,7 +1113,7 @@ msgstr "Back"
 msgid "Back to artifacts"
 msgstr "Back to artifacts"
 
-#: src/shell/StatePage.tsx:44
+#: src/shell/StatePage.tsx:46
 msgid "Back to chats"
 msgstr "Back to chats"
 
@@ -3994,7 +3995,7 @@ msgstr "Lonora · version {version}"
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · version {version} · <0>{build}</0>"
 
-#: src/shell/StatePage.tsx:112
+#: src/shell/StatePage.tsx:137
 msgid "Lonora is under maintenance"
 msgstr "Lonora is under maintenance"
 
@@ -4014,7 +4015,7 @@ msgstr "Lonora uses it for your agents' conversations. You can change it in Mode
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/shell/Shell.tsx:590
+#: src/shell/StatePage.tsx:131
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "Maintenance is still in progress. Try again shortly"
 
@@ -4605,6 +4606,7 @@ msgstr "No goals for this agent."
 msgid "No groups yet."
 msgstr "No groups yet."
 
+#: src/App.tsx:77
 #: src/shell/NetworkStrip.tsx:50
 msgid "No internet connection"
 msgstr "No internet connection"
@@ -5107,7 +5109,7 @@ msgstr "Open voice settings"
 #~ msgid "Opening conversation…"
 #~ msgstr "Opening conversation…"
 
-#: src/App.tsx:65
+#: src/App.tsx:101
 msgid "Opening workspace…"
 msgstr "Opening workspace…"
 
@@ -5216,7 +5218,7 @@ msgstr "Owner instructions"
 msgid "Owner-supplied source"
 msgstr "Owner-supplied source"
 
-#: src/shell/StatePage.tsx:39
+#: src/shell/StatePage.tsx:41
 msgid "Page not found"
 msgstr "Page not found"
 
@@ -6075,7 +6077,6 @@ msgstr "Resume"
 msgid "Retried. The state updates when the broker answers."
 msgstr "Retried. The state updates when the broker answers."
 
-#: src/App.tsx:55
 #: src/conversation/Cards.tsx:117
 #: src/conversation/Conversation.tsx:536
 #: src/pages/ActivityList.tsx:153
@@ -7875,7 +7876,7 @@ msgstr "This operation is still in progress. Wait for its broker result before r
 msgid "This operation will not be sent again."
 msgstr "This operation will not be sent again."
 
-#: src/shell/StatePage.tsx:60
+#: src/shell/StatePage.tsx:62
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
@@ -7887,7 +7888,7 @@ msgstr "This page is available in the development build only"
 #~ msgid "This page is unavailable"
 #~ msgstr "This page is unavailable"
 
-#: src/shell/StatePage.tsx:40
+#: src/shell/StatePage.tsx:42
 msgid "This page may have moved or is no longer available."
 msgstr "This page may have moved or is no longer available."
 
@@ -8178,9 +8179,10 @@ msgstr "Trend line"
 msgid "Trusted"
 msgstr "Trusted"
 
+#: src/App.tsx:85
 #: src/shell/agent/RecoveryPage.tsx:167
-#: src/shell/StatePage.tsx:69
-#: src/shell/StatePage.tsx:121
+#: src/shell/StatePage.tsx:71
+#: src/shell/StatePage.tsx:146
 msgid "Try again"
 msgstr "Try again"
 
@@ -8651,7 +8653,7 @@ msgstr "Watches"
 msgid "Watches · {0}"
 msgstr "Watches · {0}"
 
-#: src/shell/StatePage.tsx:114
+#: src/shell/StatePage.tsx:139
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 
@@ -8757,7 +8759,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:902
+#: src/shell/Shell.tsx:888
 msgid "Workspace"
 msgstr "Workspace"
 

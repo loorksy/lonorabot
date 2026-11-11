@@ -835,11 +835,12 @@ msgstr "تنبيه عندما يؤكد وكيل فرصة"
 msgid "An unconfirmed operation or a restriction on your account"
 msgstr "عملية غير مؤكَّدة أو قيد على حسابك"
 
+#: src/App.tsx:79
 #: src/shell/Toast.tsx:57
 msgid "An unexpected error occurred"
 msgstr "حدث خطأ غير متوقع"
 
-#: src/shell/StatePage.tsx:62
+#: src/shell/StatePage.tsx:64
 msgid "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 msgstr "حدث خطأ غير متوقع أثناء العرض. بياناتك محفوظة ولم يُفقد شيء."
 
@@ -1102,8 +1103,8 @@ msgstr "بانتظار المراجعة"
 #: src/pages/shell/bot-panel.tsx:277
 #: src/shell/ChatHeader.tsx:125
 #: src/shell/sheets/SheetHost.tsx:580
-#: src/shell/StatePage.tsx:47
-#: src/shell/StatePage.tsx:72
+#: src/shell/StatePage.tsx:49
+#: src/shell/StatePage.tsx:74
 #: src/shell/TopBar.tsx:64
 msgid "Back"
 msgstr "رجوع"
@@ -1112,7 +1113,7 @@ msgstr "رجوع"
 msgid "Back to artifacts"
 msgstr "العودة إلى الملفات"
 
-#: src/shell/StatePage.tsx:44
+#: src/shell/StatePage.tsx:46
 msgid "Back to chats"
 msgstr "العودة إلى المحادثات"
 
@@ -3988,7 +3989,7 @@ msgstr "Lonora · الإصدار {version}"
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · الإصدار {version} · <0>{build}</0>"
 
-#: src/shell/StatePage.tsx:112
+#: src/shell/StatePage.tsx:137
 msgid "Lonora is under maintenance"
 msgstr "Lonora قيد الصيانة"
 
@@ -4008,7 +4009,7 @@ msgstr "يستخدمه Lonora في محادثات وكلائك، ويمكنك ت
 msgid "Main navigation"
 msgstr "التنقل الرئيسي"
 
-#: src/shell/Shell.tsx:590
+#: src/shell/StatePage.tsx:131
 msgid "Maintenance is still in progress. Try again shortly"
 msgstr "ما زالت الصيانة جارية. حاول بعد قليل"
 
@@ -4599,6 +4600,7 @@ msgstr "لا توجد أهداف لهذا الوكيل."
 msgid "No groups yet."
 msgstr "لا توجد مجموعات."
 
+#: src/App.tsx:77
 #: src/shell/NetworkStrip.tsx:50
 msgid "No internet connection"
 msgstr "لا يوجد اتصال بالإنترنت"
@@ -5101,7 +5103,7 @@ msgstr "فتح إعدادات الصوت"
 #~ msgid "Opening conversation…"
 #~ msgstr "جارٍ فتح المحادثة…"
 
-#: src/App.tsx:65
+#: src/App.tsx:101
 msgid "Opening workspace…"
 msgstr "جارٍ فتح مساحة العمل…"
 
@@ -5210,7 +5212,7 @@ msgstr "تعليمات خاصة"
 msgid "Owner-supplied source"
 msgstr "مصدر أضافه المالك"
 
-#: src/shell/StatePage.tsx:39
+#: src/shell/StatePage.tsx:41
 msgid "Page not found"
 msgstr "الصفحة غير موجودة"
 
@@ -6069,7 +6071,6 @@ msgstr "استئناف"
 msgid "Retried. The state updates when the broker answers."
 msgstr "أُعيدت المحاولة. تتحدّث الحالة عندما يستجيب الوسيط."
 
-#: src/App.tsx:55
 #: src/conversation/Cards.tsx:117
 #: src/conversation/Conversation.tsx:536
 #: src/pages/ActivityList.tsx:153
@@ -7869,7 +7870,7 @@ msgstr "هذه العملية ما زالت قيد التنفيذ. انتظر ن
 msgid "This operation will not be sent again."
 msgstr "لن تُرسل هذه العملية مرة أخرى."
 
-#: src/shell/StatePage.tsx:60
+#: src/shell/StatePage.tsx:62
 msgid "This page could not be displayed"
 msgstr "تعذّر عرض هذه الصفحة"
 
@@ -7881,7 +7882,7 @@ msgstr "هذه الصفحة متاحة في نسخة التطوير فقط"
 #~ msgid "This page is unavailable"
 #~ msgstr "هذه الصفحة غير متاحة"
 
-#: src/shell/StatePage.tsx:40
+#: src/shell/StatePage.tsx:42
 msgid "This page may have moved or is no longer available."
 msgstr "ربما نُقلت هذه الصفحة أو لم تعد متاحة."
 
@@ -8172,9 +8173,10 @@ msgstr "خط اتجاه"
 msgid "Trusted"
 msgstr "موثوق"
 
+#: src/App.tsx:85
 #: src/shell/agent/RecoveryPage.tsx:167
-#: src/shell/StatePage.tsx:69
-#: src/shell/StatePage.tsx:121
+#: src/shell/StatePage.tsx:71
+#: src/shell/StatePage.tsx:146
 msgid "Try again"
 msgstr "إعادة المحاولة"
 
@@ -8645,7 +8647,7 @@ msgstr "المراقبات"
 msgid "Watches · {0}"
 msgstr "المراقبات · {0}"
 
-#: src/shell/StatePage.tsx:114
+#: src/shell/StatePage.tsx:139
 msgid "We are making quick improvements to the service. Your chats are saved and we will be back in minutes."
 msgstr "نجري تحسينات سريعة على الخدمة. محادثاتك محفوظة وسنعود خلال دقائق."
 
@@ -8751,7 +8753,7 @@ msgstr "جارٍ العمل"
 msgid "Working…"
 msgstr "يعمل…"
 
-#: src/shell/Shell.tsx:902
+#: src/shell/Shell.tsx:888
 msgid "Workspace"
 msgstr "مساحة العمل"
 

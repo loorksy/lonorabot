@@ -108,6 +108,10 @@ test("refresh waits for the real session without flashing sign-in or workspace s
     await page.goto(`/app/${agent.id}`, { waitUntil: "domcontentloaded" });
     await requested;
     await expect(page.getByTestId("workspace-loading")).toBeVisible();
+    // The brand mark, inside the shell so that tokens and reduced motion apply.
+    await expect(
+      page.locator(".app-shell [data-testid=workspace-loading] .logo-mark"),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
     await expect(page.getByTestId("transcript")).toHaveCount(0);
     await expect(page.locator("#app")).toHaveCount(0);
