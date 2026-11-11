@@ -107,7 +107,7 @@ msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:250
+#: src/shell/domain/UpdatesPages.tsx:259
 msgid "{0}, has something new"
 msgstr "{0}، لديه جديد"
 
@@ -693,7 +693,7 @@ msgstr "قالب الوكيل"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:244
+#: src/shell/domain/UpdatesPages.tsx:253
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:89
@@ -3689,7 +3689,7 @@ msgstr "آخر تحديث"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:358
+#: src/shell/domain/UpdatesPages.tsx:367
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
@@ -3955,7 +3955,7 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:268
+#: src/shell/domain/UpdatesPages.tsx:277
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -4250,7 +4250,7 @@ msgstr "الاسم"
 msgid "Needs attention"
 msgstr "يحتاج إلى مراجعة"
 
-#: src/shell/domain/UpdatesPages.tsx:294
+#: src/shell/domain/UpdatesPages.tsx:303
 msgid "Needs your action"
 msgstr "يتطلب إجراء"
 
@@ -4368,7 +4368,7 @@ msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
 #: src/shell/domain/UpdatesPages.tsx:115
-#: src/shell/domain/UpdatesPages.tsx:381
+#: src/shell/domain/UpdatesPages.tsx:390
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -4433,7 +4433,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/shell/domain/UpdatesPages.tsx:352
+#: src/shell/domain/UpdatesPages.tsx:361
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -4518,7 +4518,7 @@ msgstr "دون حد مالي"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:306
+#: src/shell/domain/UpdatesPages.tsx:315
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -4756,7 +4756,7 @@ msgstr "طريقة الإشعار"
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/shell/domain/UpdatesPages.tsx:264
+#: src/shell/domain/UpdatesPages.tsx:273
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
@@ -4902,7 +4902,7 @@ msgstr "افتح شارت"
 #: src/components/ai/AttentionInbox.tsx:138
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
-#: src/shell/domain/UpdatesPages.tsx:233
+#: src/shell/domain/UpdatesPages.tsx:242
 msgid "Open conversation"
 msgstr "فتح المحادثة"
 
@@ -5982,7 +5982,7 @@ msgstr "مراجعة الآن"
 msgid "Review skill dependencies and unique identities before saving."
 msgstr "راجع اعتماديات المهارات ومعرّفاتها الفريدة قبل الحفظ."
 
-#: src/shell/domain/UpdatesPages.tsx:231
+#: src/shell/domain/UpdatesPages.tsx:240
 msgid "Review the connection"
 msgstr "مراجعة الاتصال"
 
@@ -6490,7 +6490,7 @@ msgstr "عرض كجدول"
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:376
+#: src/shell/domain/UpdatesPages.tsx:385
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -7767,7 +7767,7 @@ msgstr "التشديد يُحفَظ مباشرةً."
 #: src/shell/domain/SchedulesPages.tsx:178
 #: src/shell/domain/SchedulesPages.tsx:197
 #: src/shell/domain/SchedulesPages.tsx:507
-#: src/shell/domain/UpdatesPages.tsx:221
+#: src/shell/domain/UpdatesPages.tsx:230
 msgid "Time"
 msgstr "الوقت"
 
@@ -8116,7 +8116,7 @@ msgstr "إلغاء الكتم"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:301
+#: src/shell/domain/UpdatesPages.tsx:310
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -8172,7 +8172,7 @@ msgstr "ارتفاع {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
-#: src/shell/domain/UpdatesPages.tsx:312
+#: src/shell/domain/UpdatesPages.tsx:321
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 

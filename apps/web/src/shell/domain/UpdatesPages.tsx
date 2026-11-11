@@ -156,7 +156,10 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
-  if ([notes, routines, feed].some((load) => load.data === undefined && load.error == null))
+  if (
+    [notes, routines, feed].some((load) => load.data === undefined && load.error == null) ||
+    (!attention.loaded && attention.error == null)
+  )
     return (
       <SkPage>
         <SkHead width={24} />
@@ -172,7 +175,9 @@ export function UpdatesPage() {
   const list = notes.data ?? [];
   // The tab dot's own list: a row is unread while it is still among the open items.
   const unread = (item: AttentionNotification) =>
-    attention.items.some((open) => open.id === item.id);
+    attention.loaded
+      ? attention.items.some((open) => open.id === item.id)
+      : item.status === "pending" || item.status === "ready";
   // «تحديد الكل كمقروء» leaves critical and action_required items to the owner's own look.
   const markable = list.some((item) => unread(item) && !attentionAlwaysShows(item.importance));
   const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name ?? "";
@@ -217,7 +222,11 @@ export function UpdatesPage() {
       label: labels[item.code],
       body: (
         <>
-          <p>{detail(item)}</p>
+          {item.parameters.summary ? (
+            <p dir="auto">{item.parameters.summary}</p>
+          ) : (
+            <p>{detail(item)}</p>
+          )}
           <ValueRow label={t`Time`} value={<span className="ltr">{when(item.created_at)}</span>} />
           <button
             type="button"

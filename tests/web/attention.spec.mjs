@@ -32,8 +32,21 @@ test("durable notification is shared across views and stays read after reload", 
     })),
   );
   await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
-  // «التنبيهات» on «المستجدات» (UI phase 4b).
+  // «التنبيهات» on «المستجدات» (UI phase 4b). The page is one skeleton until its alerts load.
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/attention/history", async (route) => {
+    await held;
+    await route.continue();
+  });
   await page.goto("/app/updates");
+  const main = page.getByRole("main");
+  await expect(main.locator(".sk-page[aria-busy='true']")).toBeVisible();
+  await expect(main.getByText("No enabled schedules.")).toHaveCount(0);
+  release();
+  await expect(main.locator(".sk-page")).toHaveCount(0);
   const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
   await expect(alert.getByText("New trading stopped", { exact: true })).toBeVisible();
   await expect(alert.locator(".dot")).toHaveCount(1);

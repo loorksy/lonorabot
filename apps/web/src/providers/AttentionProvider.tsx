@@ -4,6 +4,8 @@ import { api } from "../lib/api";
 
 type Attention = {
   items: AttentionNotification[];
+  /** The open items have been read from the server at least once. */
+  loaded: boolean;
   error: unknown;
   seen: (id: string) => Promise<void>;
   /** Read the open items again (after «تحديد الكل كمقروء»). */
@@ -18,6 +20,7 @@ export function AttentionProvider({
   children: ReactNode;
 }) {
   const [items, setItems] = useState<AttentionNotification[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<unknown>();
   const [manual, setManual] = useState(0);
   useEffect(() => {
@@ -48,6 +51,7 @@ export function AttentionProvider({
       .then((rows) => {
         if (active) {
           setItems(rows);
+          setLoaded(true);
           setError(undefined);
         }
       })
@@ -62,6 +66,7 @@ export function AttentionProvider({
     <Context.Provider
       value={{
         items,
+        loaded,
         error,
         seen: async (id) => {
           await api.post("/attention/seen", { notification_id: id });
