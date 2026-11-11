@@ -3234,11 +3234,11 @@ msgstr "التوجيه العالمي"
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
-#: src/conversation/Conversation.tsx:1145
+#: src/conversation/Conversation.tsx:1143
 msgid "Go to the latest messages"
 msgstr "الانتقال إلى آخر الرسائل"
 
-#: src/conversation/Conversation.tsx:1145
+#: src/conversation/Conversation.tsx:1143
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
@@ -3317,7 +3317,7 @@ msgstr "المجموعات"
 msgid "Happy"
 msgstr "سعيد"
 
-#: src/conversation/Conversation.tsx:1223
+#: src/conversation/Conversation.tsx:1221
 msgid "Hello {ownerName}"
 msgstr "مرحبًا {ownerName}"
 
@@ -8495,7 +8495,7 @@ msgstr "ما الذي حدث لدى الوسيط"
 msgid "What is needed"
 msgstr "المطلوب"
 
-#: src/conversation/Conversation.tsx:1229
+#: src/conversation/Conversation.tsx:1227
 msgid "What shall we do today with {name}?"
 msgstr "ماذا سنفعل اليوم مع {name}؟"
 
@@ -8572,7 +8572,7 @@ msgstr "قلق"
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 
-#: src/conversation/Conversation.tsx:1227
+#: src/conversation/Conversation.tsx:1225
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
