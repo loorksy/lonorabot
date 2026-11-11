@@ -813,6 +813,7 @@ def tools() -> list[Tool]:
             financial=True,
             replay_safe=True,
             legacy_replay_safe=True,
+            eager=eager_for("market"),
             availability=trading_permission_available,
         ),
     ]

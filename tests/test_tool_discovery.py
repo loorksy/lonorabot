@@ -131,6 +131,12 @@ def test_eager_working_sets_are_data_from_tool_metadata():
         "market_decision_history",
         "watch_create",
     } <= market
+    # Whoever may create a watch can list and stop one the same way, and whoever may open
+    # a position can close one: an exit is never the harder tool to find.
+    assert {"watch_list", "watch_cancel", "trade_close_positions"} <= market
+    assert catalog.tools["trade_close_positions"].eager == catalog.tools["trade_execute"].eager
+    for name in ("watch_list", "watch_cancel"):
+        assert catalog.tools[name].eager == catalog.tools["watch_create"].eager
     # Exact swing anchors and lines are a follow-up to the snapshot's structure.
     assert "market_structure" not in market and "market_structure" in catalog.tools
     assert {"web_search", "web_fetch"} <= research and not {"web_search", "web_fetch"} & market

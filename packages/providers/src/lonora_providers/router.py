@@ -25,6 +25,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolDefinition
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_context import UNKNOWN_OUTPUT_TOKENS, ModelContextPolicy
 from lonora_contracts.model_routing import (
+    TEXT_CAPABILITIES,
     AgentModelRecord,
     Capability,
     ModelSelection,
@@ -44,6 +45,7 @@ from .context import (
     prepare_context,
 )
 from .credentials import ProviderCredentials
+from .default_model import choose_default_model
 from .registry import model_adapter
 from .resilience import (
     MAXIMUM_INLINE_WAIT_SECONDS,
@@ -58,6 +60,8 @@ log = logging.getLogger("lonora.model_router")
 
 # Distinct candidates one request may try, primary included.
 MAXIMUM_CANDIDATES = 6
+# After no default model could be chosen, how long before the providers are asked again.
+UNCHOOSABLE_SECONDS = 60.0
 # A request without streaming keeps its budget where an HTTP read cannot stall.
 NON_STREAM_OUTPUT_TOKENS = 16384
 NON_STREAM_BOOST_TOKENS = 32768
@@ -137,6 +141,8 @@ class GlobalModelRouter:
         self.db, self.credentials, self.factory = db, credentials, factory
         self.sleep, self.jitter = sleep, jitter
         self.health = ProviderHealth(clock)
+        self.choosing = asyncio.Lock()
+        self.clock, self.unchoosable_until = clock, 0.0
 
     async def route(
         self,
@@ -211,6 +217,49 @@ class GlobalModelRouter:
             raise LonoraError("model_not_configured", 409)
         return route
 
+    async def usable_route(
+        self,
+        capability: Capability,
+        *,
+        owner_id: str | None = None,
+        agent_id: str | None = None,
+        choices: Sequence[ModelSelection] | None = None,
+        run_choice: ModelSelection | None = None,
+    ) -> Route:
+        """``route`` for a request that is about to be made. When text work has no model
+        at all and a provider key exists, the default is chosen and recorded once
+        (``default_model``), so a new installation answers without a routing setting."""
+        try:
+            return await self.route(
+                capability,
+                owner_id=owner_id,
+                agent_id=agent_id,
+                choices=choices,
+                run_choice=run_choice,
+            )
+        except LonoraError as error:
+            if (
+                error.code != "model_not_configured"
+                or choices is not None
+                or capability not in TEXT_CAPABILITIES
+            ):
+                raise
+        async with self.choosing:
+            try:
+                # Another request chose while this one waited.
+                return await self.route(
+                    capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
+                )
+            except LonoraError as error:
+                if error.code != "model_not_configured" or self.clock() < self.unchoosable_until:
+                    raise
+            if await choose_default_model(self.db, self.credentials, self.factory) is None:
+                # Nothing to choose: do not ask the providers again on every request.
+                self.unchoosable_until = self.clock() + UNCHOOSABLE_SECONDS
+        return await self.route(
+            capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
+        )
+
     async def context_limits(
         self,
         capability: Capability,
@@ -225,7 +274,7 @@ class GlobalModelRouter:
         Runtime compaction plans against these; every attempt, fallbacks included,
         is still admitted separately against its own window.
         """
-        route = await self.route(
+        route = await self.usable_route(
             capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
         )
         choice = route.choices[0]
@@ -258,7 +307,7 @@ class GlobalModelRouter:
         tightens admission after a provider-proven overflow.
         """
         started = monotonic()
-        route = await self.route(
+        route = await self.usable_route(
             capability,
             owner_id=owner_id,
             agent_id=agent_id,

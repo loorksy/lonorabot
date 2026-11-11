@@ -18,6 +18,9 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import OwnerRow
+from lonora_db.transactions import SettingsRepository
+from lonora_providers.credentials import ProviderCredentials
+from lonora_providers.default_model import choose_default_model
 from lonora_providers.registry import PROVIDERS
 from lonora_security.secrets import SecretCipher
 from lonora_trading import connections
@@ -54,6 +57,21 @@ async def main(data: dict[str, Any]) -> int:
             except LonoraError as error:
                 failed += 1
                 print(f"FAILED {label}: {error.code}")
+        # A fresh install has keys and no routing: choose the model now, so the agent can
+        # answer and Settings show the choice (the runtime would choose the same one).
+        async with db.sessions() as session:
+            routing = await SettingsRepository().get(session, "model_routing")
+        if not routing.get("unified"):
+            try:
+                chosen = await choose_default_model(db, ProviderCredentials(db, store))
+            except LonoraError as error:
+                chosen = None
+                print(f"default model not chosen: {error.code}")
+            print(
+                f"default model: {chosen.provider}/{chosen.model}"
+                if chosen
+                else "no default model: choose one in Settings > Global models"
+            )
         used: set[str] = set()
         brokers: list[dict[str, Any]] = data.get("brokers") or []
         for payload in brokers:
