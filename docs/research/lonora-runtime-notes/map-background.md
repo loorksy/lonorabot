@@ -1,6 +1,6 @@
 # Part 1.7 — Long-running and background work (map)
 
-Repository `/home/user/lonorabot`, HEAD `9f5b1da`. Read-only audit. Every claim cites
+Repository `/home/user/lonorabot`, code as of `9f5b1da` (the checked-out HEAD is `0a03960`; `git diff --name-only 9f5b1da HEAD` lists only files under `docs/`, so every code line number below is unchanged). Read-only audit. Every claim cites
 `path:line`. "UNSURE:" marks what was not confirmed. "Needed for safety" marks a refusal
 that exists for the money-safety rules and must stay.
 
@@ -11,12 +11,12 @@ that exists for the money-safety rules and must stay.
 | F1 | A watch on a symbol the broker does not list (`XAUUSD` vs `XAUUSDm`) is saved without any check, then every evaluation fails quietly; the watch never fires, is never quarantined and the owner is told nothing. | §3.5 |
 | F2 | A routine, watch, webhook or broker wake whose Run fails produces no notification, no chat message and no error card. For a watch the trigger is already consumed, so the event is lost. | §4.5 |
 | F3 | A failed subagent returns its raw internal code (for example `model_provider_unavailable`) as the body of a chat message in the owner's conversation. | §5.4 |
-| F4 | A Task that needs the owner posts its explanation («... ردّ هنا ...») into the hidden work thread; the notification opens a different conversation. | §1.7 |
+| F4 | A Task that needs the owner posts its explanation («... ردّ هنا ...») into the hidden work thread; the notification belongs to the origin conversation and the web link only opens the agent's chat (§1.7). | §1.7 |
 | F5 | A Task waiting on a watch that was disabled, expired, paused or quarantined waits forever. No timer, no watchdog check, no notice. | §1.8 |
 | F6 | The owner's Task page shows «بانتظار المراجعة» for both a failed Task and a healthy Task sleeping on a timer, with no reason and no steps. Tasks failed with recovery `modify_plan`, `terminal` or `reconcile/external` have no Resume at all. | §1.6 |
-| F7 | A quarantined routine/watch tells the owner only «أوقفت لونورا عنصرًا في الخلفية بعد أخطاء متكررة» — not which item, not why — and the link opens the Personal Agent's chat. | §6.2 |
+| F7 | A quarantined routine/watch tells the owner only «أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل» (web label, `apps/web/src/i18n/locales/ar/messages.po:243`; the off-app text is «أوقفت لونورا عنصرًا في الخلفية بعد أخطاء متكررة. يستمر كل ما عداه في العمل.», `packages/bus/src/lonora_bus/attention_messages.json:12`) — not which item, not why — and the link opens the Personal Agent's chat. | §6.2 |
 | F8 | Goal-linked routines and watches, and Task watches, are switched off without any event when their plan moves on. | §2.5, §3.6 |
-| F9 | All background notifications are in-app only; off-app channels carry only `critical`/`action_required` items with a generic sentence. | §4.4 |
+| F9 | All background notifications are in-app only; off-app channels carry only `critical`/`action_required` items, as one fixed catalog sentence per item code (no detail). | §4.4 |
 
 ---
 
@@ -169,14 +169,23 @@ What reaches the owner:
    `task_reconciliation_required` (`packages/db/src/lonora_db/task_recovery.py:236-244`),
    and after 3 attempts with `task_retry_limit`
    (`packages/db/src/lonora_db/task_recovery.py:245-246`). The Task page has no "revise"
-   control; its buttons are Pause, Resume, Mark as completed, Delete
-   (`apps/web/src/shell/domain/TasksPages.tsx:213-249`). The API accepts `revise`
+   control; its buttons are "View conversation" (opens the origin thread,
+   `apps/web/src/shell/domain/TasksPages.tsx:204-211`), Pause, Resume, Mark as completed,
+   Delete (`apps/web/src/shell/domain/TasksPages.tsx:213-249`). The API accepts `revise`
    (`apps/api/src/lonora_api/routes/tasks.py:54-59`) and a revision turns `modify_plan`
    into `owner` (`packages/db/src/lonora_db/tasks.py:454-457`), but a search of `apps/web/src`
-   and `apps/mobile` for `"revise"` found no client that sends it; in practice only the
-   agent tool `task_control` does (`packages/tools/src/lonora_tools/tasks.py:120-125`). So a
-   Task that stopped at `tool_round_limit` or `context_limit_exceeded` as a *Run failure*
-   is a dead end for the owner unless he asks the agent in chat. Web text for these
+   and `apps/mobile` for `"revise"` found no client that sends it (every web and mobile caller of
+   `/tasks/control` sends only pause, resume or cancel:
+   `apps/web/src/shell/domain/api.ts:55`, `apps/web/src/components/ai/AgentLiveStatus.tsx:107-117`,
+   `apps/web/src/conversation/sheets/AgentSheet.tsx:410-422`,
+   `apps/web/src/pages/Board.tsx:557-561`, `apps/mobile/components/agent-live-status.tsx:147-150`);
+   in practice only the agent tool `task_control` can revise
+   (`packages/tools/src/lonora_tools/tasks.py:120-125`). So a Task that stopped at
+   `tool_round_limit` or `context_limit_exceeded` as a *Run failure* is a dead end for the
+   owner unless the agent can reach `task_control`. UNSURE whether it can: the production
+   trace lists 23 native tools offered to the model and `task_control` is not among them
+   (`TIMELINE_CORRECTION.md`, reading point 2), and the one `tool_environment` query made
+   in that conversation returned an empty list (same file, reading point 4). Web text for these
    codes: "This task cannot resume in its current state. Review its plan or retry limit."
    (`apps/web/src/lib/user_error.ts:214-216`).
 5. **Completion.** `task.updated` with status `completed` is `informational`
@@ -208,23 +217,34 @@ What reaches the owner:
   - then «آخر تقرير: » plus the model's last text
     (`packages/agent-runtime/src/lonora_agent/runtime_notices.py:203`).
 - These sentences are jargon for a non-technical owner («الجولة», «حدّ العمل», «انتظار
-  مراقبة», «استدعاء أداة») and three of them ask him to choose between revise / resume /
-  pause / cancel.
+  مراقبة», «استدعاء أداة») and all five carry the closing line, which asks him to choose
+  between revise / resume / pause / cancel: `attention_notice` appends it unconditionally
+  (`packages/agent-runtime/src/lonora_agent/runtime_notices.py:190-195`). It also lists
+  «الخطوات غير المكتملة: ...» when steps are open
+  (`packages/agent-runtime/src/lonora_agent/runtime_notices.py:180-189`).
 - **Where the message goes.** The executor writes it to the Run's own thread
   (`packages/agent-runtime/src/lonora_agent/executor.py:143`,
   `packages/agent-runtime/src/lonora_agent/executor.py:176-187`). For a Task Run that is
   the hidden work thread (`packages/db/src/lonora_db/tasks.py:176-178`,
   `packages/db/src/lonora_db/tasks.py:212`). The notification (`task.attention_required`,
-  `packages/db/src/lonora_db/tasks.py:787-795`) opens the **origin** conversation
-  (`packages/gateway/src/lonora_gateway/attention.py:271-281`). The text says «ردّ هنا»,
+  `packages/db/src/lonora_db/tasks.py:787-795`) is attached to the **origin** conversation
+  (`packages/gateway/src/lonora_gateway/attention.py:271-281`). On the web the item's
+  "Open conversation" link goes to `/app/<agent_id>` with no thread in it
+  (`apps/web/src/components/ai/AttentionInbox.tsx:123-130`, `:135-139`), and a page without
+  a requested thread opens the saved thread, else the oldest one
+  (`apps/web/src/hooks/usePersistentThread.ts:58-66`); UNSURE whether that is the origin
+  thread when the owner has more than one conversation with the agent. The text says «ردّ هنا»,
   but an owner message steers only a Run in the thread it was sent to
   (`packages/db/src/lonora_db/messages.py:516-525`). The same applies to an ordinary
   `wait_for_input` question asked by a Task Run: it is posted in the work thread and
   raises no notification at all (`run.waiting_input` is not in `ATTENTION_KINDS`,
   `packages/core/src/lonora_core/attention.py:7-35`).
   UNSURE: whether any client screen opens a work thread. `work_thread_id` appears in the
-  web type (`apps/web/src/shell/domain/api.ts:23`) and a search of `apps/web/src` and
-  `apps/mobile` found no other use.
+  web type (`apps/web/src/shell/domain/api.ts:23`) and the gateway copies it into the
+  attention item's parameters (`packages/gateway/src/lonora_gateway/attention.py:273`);
+  a search of `apps/web/src` and `apps/mobile` found no other use. The Task page's "View
+  conversation" button goes to the origin thread, not the work thread
+  (`apps/web/src/shell/domain/TasksPages.tsx:204-211`).
 - The owner's Resume (Task page) does continue such a Task and gives it a new budget
   (`packages/db/src/lonora_db/tasks.py:507-516`,
   `packages/agent-runtime/src/lonora_agent/loop_restore.py:68-88`).
@@ -302,8 +322,10 @@ What reaches the owner:
 - A fire creates a Run with `trigger="routine"` and the stored prompt in the routine's
   thread (`packages/db/src/lonora_db/routines.py:188-202`). The Run has scope `full`
   (`packages/tools/src/lonora_tools/base.py:53-58`); money still goes through the grant
-  or an approval card at the executor (`docs/proactive-wakes.md:32-36`). Needed for
-  safety.
+  or an approval card at the executor: the doc line says "Money still follows the Agent's
+  signed grant, the account limits, pauses and the manual-positions switch at the
+  executor" (`docs/proactive-wakes.md:33-35`); the approval-card path is the repository's
+  general rule, not stated in those lines. Needed for safety.
 - The fire does not check whether the previous Run of the routine is still queued or
   running; it always adds a Run (`packages/db/src/lonora_db/routines.py:188-202`). Only
   one Run per thread executes at a time (`packages/db/src/lonora_db/runs.py:234-240`), so
@@ -332,8 +354,9 @@ What reaches the owner:
   prompt (`packages/db/src/lonora_db/routines.py:67-70`); the column default makes it a
   `conversation` thread (`packages/db/src/lonora_db/schema.py:227-229`). The Run's reply
   is written there (`packages/db/src/lonora_db/runs.py:379-394`).
-- The web opens the *oldest* direct thread of an agent unless a thread is requested
-  (`apps/web/src/hooks/usePersistentThread.ts:64-66`), so a routine's replies are not in
+- The web opens the thread requested in the link, else the thread last saved in the
+  browser, else the *oldest* thread of the agent
+  (`apps/web/src/hooks/usePersistentThread.ts:58-66`), so a routine's replies are not in
   the chat the owner normally sees. The schedules page has no result or history view (a
   search of `apps/web/src/shell/domain/SchedulesPages.tsx` for `thread`, `history`,
   `runs` finds none); the API has one (`apps/api/src/lonora_api/routes/routines.py:68-72`).
@@ -393,7 +416,10 @@ What reaches the owner:
 
 UNSURE: no limit on the number of watches per agent was found (a search for
 `watch_limit`, `maximum_watches`, `MAX_WATCH` in `packages` found only
-`relationship_watch_limit`, `packages/contracts/src/lonora_contracts/market_intelligence.py:105`).
+`relationship_watch_limit`, `packages/contracts/src/lonora_contracts/market_intelligence.py:105`,
+and `WATCH_LIMIT = 8`, `packages/db/src/lonora_db/operational_state.py:55`). That constant is
+not a creation limit: it caps how many enabled watches are listed in the agent's operational
+state (`packages/db/src/lonora_db/operational_state.py:208-216`).
 
 ### 3.3 Lifecycle and firing
 
@@ -451,11 +477,20 @@ UNSURE: no limit on the number of watches per agent was found (a search for
 6. `watch_create` returned the stored row as a success
    (`packages/tools/src/lonora_tools/market_watch.py:145`); nothing later corrects that.
 
-Result: the owner believes gold is being watched; it is not; no message ever says so.
-Safe read-only next step that exists in the codebase: resolve the symbol against
-`broker.symbols()` before saving (the pattern in
-`packages/tools/src/lonora_tools/symbols.py:18-35`), and raise an owner-visible item when
-a watch stays `suspended_health`.
+Result of the code path: a watch on a name the broker does not know is stored as a success,
+then fails every check, and no message ever says so. The only code in the repository that
+maps a typed name to the broker's own spelling is `canonical_broker_symbol`
+(`packages/tools/src/lonora_tools/symbols.py:18-35`); the read tools use it
+(`packages/tools/src/lonora_tools/market.py:47`, `:58`, `:65`, `:78`) and `watch_create` does
+not.
+
+Trace caveat (the trace wins): in the production conversation this path was NOT what
+happened. The trace shows four watches, all on `EURUSDm`, and "No watch on XAUUSDm and no
++100 USD close watch exists, although the agent said it was monitoring"
+(`production-trace.md:71`; `TIMELINE_CORRECTION.md`, reading point 7). So the owner's
+belief that gold was being watched came from replies written with no `watch_create` call,
+not from a watch that failed quietly. F1 is a real defect in the code, but it was not
+exercised there.
 
 ### 3.6 Other ways a watch stops silently
 
@@ -467,11 +502,28 @@ a watch stays `suspended_health`.
 | Goal completed/cancelled or plan version changed | `enabled: False`, no event | No | `packages/market/src/lonora_market/watchers.py:490-500` |
 | Task that owns the watch ended | `enabled: False`, `state.code = "task_terminal"`, no event | No | `packages/market/src/lonora_market/watchers.py:658-665` |
 | Agent paused | Not evaluated at all | No (needed for safety when the owner paused it) | `packages/market/src/lonora_market/watchers.py:399` |
-| Fixed-market agent, other symbol | `assert_payload_binding` raises inside the observation → health record only | No | `packages/market/src/lonora_market/watchers.py:211-215` |
+| Fixed-market agent, other symbol | A watch on another symbol is refused when it is created (`packages/tools/src/lonora_tools/market_binding.py:120-122`, called from `packages/tools/src/lonora_tools/registry.py:514`). The same check runs again in every observation (`packages/market/src/lonora_market/watchers.py:211-215`), so it only bites a watch saved before the agent's binding changed; then it raises inside the observation → health record only | No | `packages/market/src/lonora_market/watchers.py:211-215` |
+| Watch marked `enabled: false` but still checked | UNSURE. The poll query excludes `enabled` false (`packages/market/src/lonora_market/watchers.py:402`) and `check_watch` returns early for it (`packages/market/src/lonora_market/watchers.py:458`), yet the production trace shows three watches with `enabled false` in the payload whose health was still refreshed every 30 s (`production-trace.md:71`; `TIMELINE_CORRECTION.md`, reading point 10). I could not find in the code why; the other session on the watch lifecycle owns this | No | as cited |
 | Confirmed, but the "opportunity" notification fails re-validation | Notification suppressed (`attention_setup_not_current`, `attention_revalidation_timeout`); the watch Run still runs | Only through the Run's reply | `packages/gateway/src/lonora_gateway/attention.py:55-84`, `packages/gateway/src/lonora_gateway/attention.py:366-379` |
 | Owner turned off opportunity notifications | Suppressed `owner_opportunity_preference` | By the owner's choice | `packages/db/src/lonora_db/attention.py:145-146` |
 
 ---
+
+### 3.7 How a watch is stopped (added by the checker)
+
+- The agent has `watch_list` ("Read this agent's durable market watches."), `watch_cancel`
+  ("Stop one of your own watches; its record stays, and watch_resume undoes it."),
+  `watch_pause`, `watch_resume` and `watch_update`
+  (`packages/tools/src/lonora_tools/market_watch.py:246`, `:254`, `:261`, `:268`, `:276`).
+- The owner can cancel, pause, resume or extend any watch through the API
+  (`apps/api/src/lonora_api/routes/watches.py:28-41`); the web agent live-status panel has a
+  cancel button per watch (`apps/web/src/components/ai/AgentLiveStatus.tsx:60-64`) and shows
+  «Task needs review» for a failed Task (`apps/web/src/components/ai/AgentLiveStatus.tsx:102-105`).
+- Trace caveat: in the production conversation the model was offered 23 native tools and
+  `watch_list` and `watch_cancel` were not among them; they are reachable only through
+  `tool_environment` and `tool_call`, and the single `tool_environment` query returned an
+  empty list (`TIMELINE_CORRECTION.md`, reading points 2 and 4). The tools exist; in that
+  conversation the model never saw them. Another session owns that fix.
 
 ## 4. Wakes
 
@@ -517,8 +569,9 @@ reserved conversation worker (`packages/db/src/lonora_db/runs.py:224-228`).
   `packages/db/src/lonora_db/attention.py:467-469`). Server-raised items
   (`decide_attention`, `raise_system_attention`) have no quiet-hours check
   (`packages/db/src/lonora_db/attention.py:118-301`,
-  `packages/db/src/lonora_db/attention.py:569-668`). This matches
-  `docs/incoming-attention.md:29-32`.
+  `packages/db/src/lonora_db/attention.py:569-668`). `docs/incoming-attention.md:29-32`
+  says Lonora's own alerts "follow the notification settings, whatever the channel"; it
+  does not mention quiet hours, so the quiet-hours part rests on the code alone.
 - Quiet hours do not stop wake Runs from running; they only hold alerts.
 - `owner_notify`: 6 per agent per rolling hour, else the tool fails with
   `owner_notify_rate_limited` (`packages/db/src/lonora_db/attention.py:335`,
@@ -665,7 +718,10 @@ reserved conversation worker (`packages/db/src/lonora_db/runs.py:224-228`).
   (`apps/mobile/components/message-bubble.tsx:164`). So the owner sees a bare internal
   code as a chat bubble. UNSURE: the exact web rendering for a subagent outcome that has
   no peer-message row; on the web `peerOutcome` is called only in `PeerCard`
-  (`apps/web/src/conversation/Cards.tsx:563-567`).
+  (`apps/web/src/conversation/Cards.tsx:563-567`). Trace caveat: `subagent_spawn` is not
+  among the 23 native tools the model was offered in the production conversation
+  (`TIMELINE_CORRECTION.md`, reading point 2), so F3 is a code-path finding that the
+  conversation did not exercise.
 - Subagent threads are created as ordinary `conversation` threads
   (`packages/agent-runtime/src/lonora_agent/collaboration/subagents.py:48-50`,
   `packages/db/src/lonora_db/threads.py:47-49`), so `list_threads` returns them next to
@@ -779,7 +835,7 @@ reserved conversation worker (`packages/db/src/lonora_db/runs.py:224-228`).
 | An in-flight mutating tool call without a receipt | Treated as uncertain, not re-executed (needed for safety) | `docs/lonora-specs/S19_ACCEPTANCE.md:38` |
 | Time | Up to the lease length (120 s) after a hard kill before the Run resumes | `packages/db/src/lonora_db/runs.py:197-198`, `apps/api/src/lonora_api/env.py:96` |
 | Step liveness records and watchdog episodes | In memory; rebuilt; old "running late" items are withdrawn by the next watchdog | `packages/gateway/src/lonora_gateway/liveness.py:69-73`, `packages/gateway/src/lonora_gateway/watchdog.py:78-80`, `packages/gateway/src/lonora_gateway/watchdog.py:147-189` |
-| Per-owner service objects (broker connections, voice tasks) | Rebuilt on first use | `packages/gateway/src/lonora_gateway/service.py:144-157`, `packages/gateway/src/lonora_gateway/service.py:98` |
+| Per-owner service objects (broker connections, voice tasks) | Rebuilt on first use | `packages/gateway/src/lonora_gateway/service.py:144-157`, `packages/gateway/src/lonora_gateway/service.py:97` |
 | Missed recurring routine fires | Collapsed into one | `packages/db/src/lonora_db/routines.py:235-236` |
 | Watch observations during downtime | Not replayed; price `cross_*` conditions compare against the stored last value at the next check | `packages/market/src/lonora_market/watchers.py:576-580`, `packages/core/src/lonora_core/market_watch.py:11-14` |
 
@@ -817,7 +873,7 @@ with `reason_code: "gateway_drained"` (`packages/db/src/lonora_db/runs.py:517-52
 | 21 | Agent alert during quiet hours | Held until they end (`held_for_quiet_hours`) — by the owner's choice | `packages/db/src/lonora_db/attention.py:467-469` |
 | 22 | App closed | Everything above waits for the next app open; off-app carries only urgent items as one generic sentence | §4.4 |
 | 23 | Gateway process down | Nothing raises an item | §6.3 |
-| 24 | Run crashed its worker 5 times | «توقف عمل بعد انقطاعات متكررة» / "Open the conversation to review it" — nothing in the conversation explains it | `packages/gateway/src/lonora_gateway/watchdog.py:230-242`, `packages/bus/src/lonora_bus/attention_messages.json:13` |
+| 24 | Run crashed its worker 5 times | «توقف عمل بعد انقطاعات متكررة» (web label) / off-app «توقف عمل بعد انقطاعات متكررة. افتح المحادثة لمراجعته.» — nothing in the conversation explains it | `packages/gateway/src/lonora_gateway/watchdog.py:230-242`, `packages/bus/src/lonora_bus/attention_messages.json:13` |
 
 Refusals in this area that exist for the money-safety rules and must stay ("needed for
 safety"): no automatic retry of an unresolved financial or unknown mutating call
@@ -837,7 +893,7 @@ cancels its pending approvals (`packages/db/src/lonora_db/tasks.py:537-552`).
 
 | Doc statement | Code | Verdict |
 |---|---|---|
-| `docs/lonora-specs/S19_CONTINUITY_AUDIT.md:16`: "`lonora_gateway/scheduler.py` dispatches `retry_due_tasks`" | The gateway runs each scheduler function as its own step (`packages/gateway/src/lonora_gateway/service.py:264-268`). `scheduler_tick` (`packages/gateway/src/lonora_gateway/scheduler.py:11`) has no caller in `packages` or `apps` (search for `scheduler_tick` found only its definition). | Code wins; the doc describes an older layout. |
+| `docs/lonora-specs/S19_CONTINUITY_AUDIT.md:16`: "`lonora_gateway/scheduler.py` dispatches `retry_due_tasks`" | The gateway runs each scheduler function as its own step (`packages/gateway/src/lonora_gateway/service.py:264-268`). `scheduler_tick` (`packages/gateway/src/lonora_gateway/scheduler.py:11-25`) does loop over `dispatch_routines`, `retry_due_tasks`, `dispatch_activation_reviews` and `resume_ready_waits`, so the doc line is true of that file, but it has no caller in `packages` or `apps` (two searches: for `scheduler_tick`, and for imports of the `scheduler` module, found only the definition). | The doc names dead code; the running path is `service.py:264-268` (code wins). |
 | `docs/lonora-specs/S19_ACCEPTANCE.md:37`: "Safe reads have at most two automatic retries." | Retry while `failures < 3`, delays `2**attempt` s (`packages/agent-runtime/src/lonora_agent/environment.py:205-209`, `packages/agent-runtime/src/lonora_agent/environment.py:219-225`). | Agree. |
 | `docs/proactive-wakes.md:15`: helper gets "read-only tools plus `workspace_execute` and `artifact_create`" | `packages/tools/src/lonora_tools/base.py:50`, `packages/tools/src/lonora_tools/base.py:97` | Agree. |
 | `docs/proactive-wakes.md:91-101`: watch dedupe with and without a key | `packages/tools/src/lonora_tools/market_watch.py:103-128` | Agree. |
@@ -852,3 +908,74 @@ Unused code noticed (not changed): `scheduler_tick`
 (`packages/gateway/src/lonora_gateway/recovery.py:7`), `ScheduledWake`
 (`packages/automation/src/lonora_automation/types.py:6`). A search of `packages` and
 `apps` found no caller for any of them. UNSURE: tests may use them.
+
+---
+
+## Verification log
+
+Checker pass, code as of `9f5b1da` (checked-out HEAD `0a03960` differs only under `docs/`).
+
+- Citations opened: 413 occurrences, 381 distinct `path:line[-line]` references in the
+  original file, all extracted by script and printed from the repository. For ranges longer
+  than 7 lines the bulk print shows only the first 7 lines; the ranges that a claim depends
+  on (about 30, for example `task_recovery.py:126-155`, `item_failures.py:124-232`,
+  `watchers.py:436-545`, `outcome_return.py:164-185`, `runtime_notices.py:142-203`,
+  `model_recovery.py:160-197`) were read in full. Every file exists; no cited line is past
+  the end of its file. All 28 Arabic `«...»` strings in the file were searched in the
+  repository and all exist (one was in a different place than implied, see below).
+- Citations corrected: 2 (`service.py:98` is `self.identity`, the voice task dict is
+  `service.py:97`; the page-selection range in `usePersistentThread.ts` was widened to
+  58-66 because the saved thread comes before the oldest). Quotes corrected: 2 (§7 item 24
+  gave an English phrase in quotation marks that is not in the source, now the real Arabic
+  off-app text, `attention_messages.json:13`; the F7 summary quote was the off-app sentence
+  cut short and mixed with the web label, now both given with their citations).
+- Claims refuted or downgraded (15):
+  1. §1.7 "three of them ask him to choose between revise / resume / pause / cancel":
+     refuted, all five causes carry the closing line (`runtime_notices.py:190-195`,
+     appended unconditionally).
+  2. §1.7 and F4 "the notification opens the origin conversation": downgraded; the item is
+     attached to the origin thread, but the web link goes to `/app/<agent_id>` with no thread
+     (`AttentionInbox.tsx:123-130`), so which thread opens is UNSURE.
+  3. F1 "the owner believes gold is being watched; it is not": downgraded to a code-path
+     finding; the trace shows no gold watch was ever created (`production-trace.md:71`).
+  4. F1 "safe read-only next step... resolve the symbol before saving": removed, it was a
+     fix design and the symbol-resolution fix belongs to another session; the existing
+     helper and its users are cited instead.
+  5. §3.6 "fixed-market agent, other symbol: health record only": refuted as stated; a watch
+     on another symbol is refused at creation (`market_binding.py:120-122`); the
+     observation-time check only matters if the binding changed later.
+  6. §1.6 "dead end unless he asks the agent in chat": downgraded to UNSURE; `task_control`
+     was not among the 23 tools the model was offered in the production conversation.
+  7. §4 "approval card" attributed to `docs/proactive-wakes.md:32-36`: the lines do not
+     mention an approval card; wording narrowed to what they say.
+  8. §4.3 "This matches `docs/incoming-attention.md:29-32`": downgraded; those lines say
+     nothing about quiet hours.
+  9. §8 scheduler row "the doc describes an older layout": refined; `scheduler_tick` does
+     dispatch `retry_due_tasks` (`scheduler.py:11-25`) but nothing calls it.
+  10. §2.4 "web opens the oldest thread unless one is requested": incomplete; it opens the
+      requested thread, else the one saved in the browser, else the oldest.
+  11. F3 (raw code in chat): kept, but marked as not exercised in production, because
+      `subagent_spawn` was not offered to the model there.
+  12. F9 "with a generic sentence": narrowed to one fixed catalog sentence per item code;
+      `task_review` has its own sentence (`attention_messages.json:7`).
+  13. §1.6 item 4 listed the Task page buttons without "View conversation"
+      (`TasksPages.tsx:204-211`): completed.
+  14. §3.2 UNSURE about a per-agent watch limit: kept, but the one hit `WATCH_LIMIT = 8`
+      is explained (it caps the watches listed in operational state, not creation).
+  15. Header "HEAD `9f5b1da`": the checked-out HEAD is `0a03960`; code identical, noted.
+- Checked and confirmed without change (absence claims, two independent searches each):
+  no clock check of `due_at` (greps for `due_at` in `packages` and `apps`); no client sends
+  `revise` (grep for the string, then grep of every `/tasks/control` caller); `work_thread_id`
+  has no client use beyond the type; `scheduler_tick`, `routine_tick`, `wake_agent`,
+  `expired_runs` and `ScheduledWake` have no callers; the ledger row of a quarantined
+  `task_wait` or `outcome` item is never deleted (only `item_failures.py:137` and `:203`
+  delete rows); the schedules page has no result view.
+- Added by the checker (7): watch lifecycle tools and the owner's watch controls with the
+  trace caveat (§3.7); a watch with `enabled: false` still checked in production, UNSURE
+  why (§3.6); what `WATCH_LIMIT` is (§3.2); the attention link carries no thread (§1.7);
+  every other `/tasks/control` caller and the agent live-status panel (§1.6); the
+  incomplete-steps line of the owner notice (§1.7); `task_control` not natively offered
+  (§1.6).
+- Not verified: behaviour at runtime (nothing was executed); `broker_ready` refresh of
+  `observed_at` (still UNSURE as in the body); lines of `docs/proactive-wakes.md:48-67` beyond
+  the first 7.

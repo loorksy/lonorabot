@@ -23,12 +23,15 @@ Labels used below:
    fields kept for logs (`packages/core/src/lonora_core/user_error.py:1-14`). The only
    extra help is a generic `recovery` object. For any code ending in `_not_found` it is
    `category: "not_found"`, `next_action: "inspect_existing_state"`
-   (`packages/agent-runtime/src/lonora_agent/environment.py:80-81`). So for the owner's
-   example the model saw, in substance, `{"ok": false, "code": "symbol_not_found",
-   "recovery": {"category": "not_found", "next_action": "inspect_existing_state", ...}}`.
-   There is no field that says "list this account's symbols and pick the gold one". The
-   model has nothing to put in its reply except the code, which is what it printed.
-   (LEAK, STOP)
+   (`packages/agent-runtime/src/lonora_agent/environment.py:80-81`). The production trace
+   confirms what the model received for both failed calls:
+   `{"ok":false,"code":"symbol_not_found","recovery":{"category":"not_found","next_action":"inspect_existing_state","safe_to_retry":false,"schema_tool":"tool_environment","attempt":1,"retry_exhausted":false}}`
+   (`production-trace.md:246`; the second call has the same block, `production-trace.md:248`).
+   The `schema_tool: "tool_environment"` field is a default of the contract
+   (`packages/contracts/src/lonora_contracts/tool_environment.py:31`), not a hint about
+   symbols. There is no field that says "list this account's symbols and pick the gold
+   one". The model has nothing to put in its reply except the code, which is what it
+   printed. (LEAK, STOP)
 
 2. **The second code in the owner's example is very likely a mis-mapped error.** In the
    MetaApi adapter every HTTP 404 on any stage other than `candles` is turned into
@@ -47,7 +50,28 @@ Labels used below:
    otherwise it raises `symbol_not_found`
    (`packages/tools/src/lonora_tools/symbols.py:6-15`). `XAUUSD` against a catalog that
    has `XAUUSDm` therefore fails, and no suffix candidate is returned with the error.
-   (STOP)
+   (STOP) Which tools use it matters (added by the checker): only tools that call
+   `canonical_broker_symbol(..., require_exists=True)` raise this error, for example
+   `market_snapshot` (`packages/tools/src/lonora_tools/market_analysis.py:140`) and
+   `market_structure` (`packages/tools/src/lonora_tools/market.py:78`). `market_instrument`,
+   `market_quote` and `market_candles` call it without `require_exists`, so a catalog miss
+   is swallowed and the raw symbol goes on to the broker
+   (`packages/tools/src/lonora_tools/symbols.py:18-35`,
+   `packages/tools/src/lonora_tools/market.py:47`, `:58`, `:65`). That is why the owner's
+   second call reached MetaApi and came back as the mis-mapped 404 of finding 2.
+
+   **A recovery tool exists and was not led to (added by the checker).** `market_symbols`
+   is described as "Discover exact broker symbol names without loading specifications for
+   every instrument. Use before guessing broker symbols or aliases; suffixes matter. ...
+   do not ask the owner to repeat the symbol." (`packages/tools/src/lonora_tools/market.py:98-101`).
+   It is not eager (no `eager=` argument, unlike `market_instrument` at
+   `packages/tools/src/lonora_tools/market.py:107-112`), and the native tool list in the
+   trace has no `market_symbols` (`TIMELINE_CORRECTION.md`, lead's reading, point 2). It is
+   still callable by the same agent through `tool_call`: "any registered tool stays
+   reachable via tool_call" (`packages/tools/src/lonora_tools/base.py:23-24`) and
+   `resolve_call` unwraps any registered, non-bridge target
+   (`packages/tools/src/lonora_tools/registry.py:180-208`). So the safe read-only next step
+   was reachable, but nothing in the failure result points to it.
 
 4. **After three failures of the same call the route is refused without running.**
    `blocked_route` blocks a call whose identical (tool, arguments) pair failed three
@@ -55,11 +79,15 @@ Labels used below:
    then gets `{"ok": False, "code": "tool_route_exhausted", "recovery": {"next_action":
    "alternate_route_or_wait"}}`
    (`packages/agent-runtime/src/lonora_agent/tool_dispatch.py:70-81`). Another bare code.
+   If the route is marked ambiguous the same branch returns `broker_result_ambiguous` with
+   `reconcile_before_any_resend` instead (`packages/agent-runtime/src/lonora_agent/tool_dispatch.py:73-78`).
 
 5. **The harness itself tells the model to ask.** When a conversational model turn is
    empty the runtime appends: "No answer was provided for the selected request. Provide
    the substantive result or ask a necessary clarification with wait_for_input."
-   (`packages/agent-runtime/src/lonora_agent/runtime_notices.py:96-99`). The
+   (`packages/agent-runtime/src/lonora_agent/runtime_notices.py:96-99`), added only when the
+   turn is empty and the Run is conversational
+   (`packages/agent-runtime/src/lonora_agent/tool_loop.py:574-577`). The
    `wait_for_input` tool is in the eager core set
    (`packages/tools/src/lonora_tools/runtime_control.py:199-205`). (ASK)
 
@@ -422,8 +450,19 @@ grants are proposed with `owner_action_propose(kind="grant_authority")`
   one-tap Start trading card and the tool returns `"code": "trading_not_started"` with
   `"recovery": "Say in one line that trading has not been started and that the owner's
   one tap on the card starts it; ask again after the tap."`
-  (`packages/tools/src/lonora_tools/trade.py:226-238`). needed for safety. This is the
-  one place I found where a refusal carries a sentence telling the model what to do.
+  (`packages/tools/src/lonora_tools/trade.py:226-238`). needed for safety. Checker
+  correction: the draft called this the one place a refusal carries a sentence. It is not.
+  Other tool results carry a sentence-level `recovery` too:
+  `agent_market_ambiguous` returns `candidates` plus "Ask the owner one focused question
+  (wait_for_input) naming these choices, then call agent_create again..."
+  (`packages/tools/src/lonora_tools/agents.py:261-266`); `agent_already_exists` returns
+  "Use this agent (peer_send) instead of creating another one."
+  (`packages/tools/src/lonora_tools/agents.py:303`); the owner-profile refusal returns
+  "Nothing was saved. ..." (`packages/tools/src/lonora_tools/memory.py:95-98`);
+  `owner_prefers_other_channel` returns `REACH_ME_RECOVERY[channel]`
+  (`packages/tools/src/lonora_tools/incoming_call.py:83`). So the pattern, including a
+  list of candidates, already exists in the code base; it is just not used for
+  `symbol_not_found`.
 - **`owner_action_propose`**: creates a card and "The tool result says the owner must
   tap and that nothing has changed yet" (`docs/owner-actions.md:41-48`).
 - **`wait_for_input`**: a question card. Its description limits it to "a genuinely
@@ -451,7 +490,7 @@ raised inside the executor during a send is instead returned as a trade result w
 | Send without a matching approval | `trade_approval_required` | default | `packages/trading/src/lonora_trading/agent_permission.py:62` | needed for safety |
 | Shadow-mode Run tries to trade | `shadow_execution_forbidden` | default | `packages/tools/src/lonora_tools/trade.py:310-311` | needed for safety |
 | Approval expired / rejected | `trade_approval_expired`, `trade_approval_rejected` (as result fields, status `expired`/`rejected`) | `rejected` counts as a failure and gets the default `recovery`; `expired` does not (`packages/agent-runtime/src/lonora_agent/environment.py:164-166`) | `packages/tools/src/lonora_tools/trade.py:397-406` | needed for safety |
-| Bridge call names an unknown tool | `tool_call_target_unknown` | `not_found` / `inspect_existing_state` (suffix rule) | `packages/tools/src/lonora_tools/registry.py:222`, `packages/agent-runtime/src/lonora_agent/environment.py:80-81` | LEAK |
+| Bridge call names an unknown tool | `tool_call_target_unknown` | default `terminal_domain_failure` / `alternate_route`: the code does not end in `_not_found`, so the suffix rule does not apply (corrected by the checker; the draft said `not_found`) | `packages/tools/src/lonora_tools/registry.py:222`, `packages/agent-runtime/src/lonora_agent/environment.py:35-37`, `packages/agent-runtime/src/lonora_agent/environment.py:80-81` | LEAK |
 | Bad arguments | `tool_arguments_invalid` with `issues` and `retryable: True` | `invalid_tool_arguments` / `inspect_schema_and_repair` | `packages/agent-runtime/src/lonora_agent/tool_dispatch.py:114-116`, `packages/agent-runtime/src/lonora_agent/environment.py:38-39` | fine: the model can repair |
 | Any `*_not_found` (symbol, account, artifact...) | the code | `not_found` / `inspect_existing_state` | `packages/agent-runtime/src/lonora_agent/environment.py:80-81` | LEAK, STOP: the owner's example |
 | Read timed out / connection failed | `tool_read_timeout`, `tool_connection_failure` | `temporary_unavailable`, `safe_to_retry: true` | `packages/agent-runtime/src/lonora_agent/tool_dispatch.py:118-128`, `packages/agent-runtime/src/lonora_agent/environment.py:44-45` | handled: auto-retry (below) |
@@ -562,6 +601,12 @@ Delivery details:
 
 ### 10.1 In the conversation (written by the runtime, not the model)
 
+Checker note: row 1 is a plain conversation reply. Rows 2 to 4 are Task texts: they lead
+an owner-attention question that `request_owner_attention` raises for unfinished Task
+work (`packages/agent-runtime/src/lonora_agent/loop_outcomes.py:109-144`,
+`packages/agent-runtime/src/lonora_agent/runtime_notices.py:142-157`,
+`packages/agent-runtime/src/lonora_agent/runtime_notices.py:172-178`), not a normal chat reply.
+
 | Trigger | Text shown | Citation |
 | --- | --- | --- |
 | Run hit the tool-round limit or a guardrail halt, and the final model call returned nothing | «توقفت قبل إنهاء العمل لأن هذه الجولة بلغت حدّها، ولم يُنفَّذ أي إجراء بعد ذلك. اطلب مني المتابعة عندما تريد الاستئناف.» | `packages/agent-runtime/src/lonora_agent/runtime_notices.py:132-139`, used at `packages/agent-runtime/src/lonora_agent/tool_loop.py:284` |
@@ -590,6 +635,12 @@ in `packages/core/src/lonora_core/runtime_failure.py:39-52`.
 | timeout | «انتهت مهلة الرد» (`apps/web/src/i18n/locales/ar/messages.po:7412-7413`) | «لم يصل الرد في الوقت المحدد، وقد يكون الاتصال ضعيفًا.» (`apps/web/src/i18n/locales/ar/messages.po:7408-7409`) | Retry |
 | model | «النموذج غير متاح حاليًا» (`apps/web/src/i18n/locales/ar/messages.po:7331-7332`) | «تعذّر الوصول إلى مزوّد النموذج. جرّب نموذجًا آخر أو أعد المحاولة بعد قليل.» (`apps/web/src/i18n/locales/ar/messages.po:7335-7336`) | Change the model, Retry |
 | other | «تعذّر على الوكيل الرد» (`apps/web/src/i18n/locales/ar/messages.po:7099-7100`) | `userError(code)`; unknown codes fall to «تعذر إكمال الطلب. أعد المحاولة.» (`apps/web/src/i18n/locales/ar/messages.po:7416-7417`) | **none** (`apps/web/src/conversation/Cards.tsx:96`) |
+
+A provider-less code can still land in the "model" family: any code starting with
+`model_` is family `model` (`packages/core/src/lonora_core/runtime_failure.py:50-51`), so
+`model_not_configured` (the cause of the five failed runs in the trace, per
+`TIMELINE_CORRECTION.md` point 8) shows «تعذّر الوصول إلى مزوّد النموذج...», which says the
+provider could not be reached when none was ever configured. (Added by the checker.)
 
 Codes that land in `other` include `runtime_error`, `run_recovery_limit`,
 `illegal_run_transition` and `input_question_identity_conflict`
@@ -680,7 +731,7 @@ this text is shown.
 | 6 | Empty turn notice tells the model it may ask with `wait_for_input` | ASK | `packages/agent-runtime/src/lonora_agent/runtime_notices.py:96-99` | No |
 | 7 | `wait_for_input` is always in the native tool set | ASK | `packages/tools/src/lonora_tools/runtime_control.py:199-205` | Needed for real owner decisions |
 | 8 | 24-round budget for a conversation Run, then a "limited" reply asking the owner to continue | STOP | `apps/api/src/lonora_api/env.py:97`, `packages/agent-runtime/src/lonora_agent/tool_loop.py:399-438` | A bound must stay; the wording and auto-continue are open |
-| 9 | Error card for family `other` has no action | STOP | `apps/web/src/conversation/Cards.tsx:96` | No |
+| 9 | Error card for family `other` has no action | STOP | `apps/web/src/conversation/Cards.tsx:96` | Partly: the code comment gives a safety reason, "a reply that failed for another reason (it may have touched the executor) never gets a generic retry" (`apps/web/src/conversation/Cards.tsx:94-95`). The server already enforces the financial-effect rule (`packages/db/src/lonora_db/run_retry.py:91-103`), so the text and the missing path can change; a blind retry cannot be assumed safe. |
 | 10 | No off-app delivery for agent notifications or calls | cannot follow up | `packages/db/src/lonora_db/attention.py:341`, `packages/gateway/src/lonora_gateway/service.py:253` | No |
 | 11 | Default `recovery` for unclassified refusals is `alternate_route`, also for safety refusals such as `agent_analysis_only` and `observe_only_execution_forbidden` | wrong hint | `packages/agent-runtime/src/lonora_agent/environment.py:36-37` | The refusals stay (needed for safety); the hint should say "respect scope" |
 | 12 | Approval card wait (`_runtime_wait`) | ASK | `packages/tools/src/lonora_tools/trade.py:398-404` | Yes: needed for safety |
@@ -698,3 +749,62 @@ this text is shown.
   not contain the code.
 - The one existing precedent for a sentence-level recovery hint on a refusal is
   `trading_not_started` (`packages/tools/src/lonora_tools/trade.py:236-237`).
+
+---
+
+## Verification log
+
+Checker pass on this file (independent re-read of the code at HEAD 9f5b1da, plus the trace).
+
+- **Citations opened: 311** (every `path:line` and `path:a-b` reference in the draft, each
+  read at the cited line or range), plus about 12 added by the checker, opened when written.
+  All Arabic quotes in the file (23 strings) and all long English quotes were checked
+  mechanically against the repository text; none differed.
+- **Citations corrected: 6.** Five of them are in the text added by the checker (they were
+  first written 1-2 lines off and fixed after re-opening: `Cards.tsx:94-95`,
+  `market.py:98-101`, `base.py:23-24`, `registry.py:180-208`, `loop_outcomes.py:109-144`).
+  In the draft itself every cited line supports its claim; no draft line number was wrong.
+  One draft range is loose, not wrong: `tool_dispatch.py:111-112` also re-raises
+  `skill_continuation_unavailable`, not only `stale_lease`.
+- **Claims refuted or downgraded: 4.**
+  1. REFUTED: row "Bridge call names an unknown tool" said `not_found` /
+     `inspect_existing_state` by the suffix rule. `tool_call_target_unknown` does not end in
+     `_not_found` (`packages/tools/src/lonora_tools/registry.py:222`,
+     `packages/agent-runtime/src/lonora_agent/environment.py:80`), so it gets the default
+     `terminal_domain_failure` / `alternate_route`. Fixed in the 7.4 table.
+  2. REFUTED: "the one place I found where a refusal carries a sentence" (trading_not_started).
+     At least four other tool results carry sentence-level `recovery` text, one with a
+     candidate list (`packages/tools/src/lonora_tools/agents.py:261-266`). Fixed in the notes.
+  3. DOWNGRADED: section 11 row 9 said the missing Retry button "must stay: No". The web
+     code comment gives a safety reason (`apps/web/src/conversation/Cards.tsx:94-95`). Now
+     "Partly".
+  4. CORRECTED SCOPE: 10.1 rows 2 to 4 were presented as plain conversation text; they are
+     Task attention-question texts (`packages/agent-runtime/src/lonora_agent/loop_outcomes.py:109-144`).
+     The text is right, its channel was mislabelled.
+- **Claims left as the author wrote them but still UNSURE:** HTTP status MetaApi returns for
+  an unknown symbol specification (finding 2); mobile error card; whether uvicorn logs print
+  secrets; whether any dynamic path builds `RuntimeEvents`/`EventQueue`. The checker could
+  not close these from the code.
+- **Absence claims re-checked with two greps each and accepted:** no tool named
+  `super_bot*` under `packages/tools/src` (grep of `"super_bot` and of `super_bot_propose`
+  across `packages`); no push library in `apps/mobile` (grep of `package.json` and of all
+  `.ts`/`.tsx`/`.json` files); `configure_logging` called only by the worker
+  (`apps/worker/src/lonora_worker/main.py:13`, repository-wide grep); `voice_notes` absent
+  from `docs/gateway-reliability.md`.
+- **Totals re-counted:** 23 maintenance steps (23 `StepSpec` entries in
+  `packages/gateway/src/lonora_gateway/service.py:40-65`); 5 shared plus 1 conversation
+  worker; 5 watchdog checks; 7 headline findings; 14 rows in section 11. All match.
+- **Claims added by the checker (5):** (a) the exact `recovery` block the model received,
+  from the trace, including the default `schema_tool` field (finding 1); (b) only
+  `require_exists=True` tools raise `symbol_not_found` from the catalog, while
+  `market_instrument`/`market_quote`/`market_candles` swallow a catalog miss and send the raw
+  symbol to the broker, which explains the second code (finding 3); (c) `market_symbols`
+  exists, is described as the tool to use before guessing symbols, is not native, and is
+  reachable through `tool_call` (finding 3); (d) `model_not_configured` falls in the "model"
+  family and shows a provider-unreachable text (10.2); (e) the ambiguous variant
+  `broker_result_ambiguous` of the blocked-route result (finding 4).
+- **Trace versus draft:** the trace agrees with the draft's account of the two codes
+  (`production-trace.md:246-248`). The trace also shows the owner-facing symptom came from
+  the model ignoring a recovery pointing at `tool_environment` (`production-trace.md:238`);
+  the lead notes `tool_environment` later returned an empty list for another query
+  (`TIMELINE_CORRECTION.md` point 4), which is a tool-discovery issue outside this map.

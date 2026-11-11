@@ -1,6 +1,6 @@
 # J2: How an agent run ends without the job done (loop endings)
 
-Repository `/home/user/lonorabot` at `9f5b1da`, read-only. Database 2 (`audit_j2_test`). All `path:line`
+Repository `/home/user/lonorabot` at `9f5b1da`, read-only. (At verification time HEAD was `0a03960`; `git diff --name-only 9f5b1da HEAD` lists only `docs/research/lonora-runtime-notes/*`, so every code citation below is unchanged.) Database 2 (`audit_j2_test`). All `path:line`
 citations are relative to the repo root and were re-opened before this file was finished.
 
 ## 0. What is real and what is scripted
@@ -45,7 +45,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
 | J2-3 | Empty model replies | same fixed line, which says "reached its limit" although the cause was empty replies | Arabic if owner wrote Arabic | bug (wrong reason) |
 | J2-4 | Provider error / timeout / not configured / context overflow | an error card (web UI), no chat message; four different causes share one text | UI locale | bug / leak (misleading) |
 | J2-5 | Unknown tool name, malformed arguments | nothing directly; the model gets thin codes | n/a | recoverable-not-led |
-| J2-6 | Stop gate / rewrite of the final reply | Task: English or Arabic attention text in the Task thread; chat: a claim next to a money tool call is blanked | mixed | needed for safety (blanking); bug (Task language) |
+| J2-6 | Stop gate / rewrite of the final reply | Task: attention text in the Task thread; chat: a claim next to a money tool call is blanked | Arabic, or English in the finite run (UNSURE why, see J2-6a) | needed for safety (blanking); owner-needed (Task) |
 | J2-7 | New owner message mid-run (steering) | works; the discarded read is repeated | n/a | works as designed; small waste |
 | J2-8 | A text reply after one failed read is accepted as final | the model's text, untouched | model's | dead-end (the main production mechanism) |
 
@@ -70,7 +70,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
   - L1a: whatever the model writes (SCRIPTED here).
   - L1b (the wrap-up call fails): the fixed line, committed as the assistant message:
     «توقفت قبل إنهاء العمل لأن هذه الجولة بلغت حدّها، ولم يُنفَّذ أي إجراء بعد ذلك. اطلب مني المتابعة عندما تريد الاستئناف.»
-    (Arabic unless the owner's last message has no Arabic letters and at least 8 Latin letters with a space; then the English twin: `runtime_notices.py:84-93`, `:132-139`).
+    (Arabic by default. `prefers_arabic` walks the owner messages from the newest back and stops at the first decisive one: Arabic letters give Arabic, a message with a space and at least 8 Latin letters gives English; if none is decisive the answer is Arabic. The English twin of the line is `runtime_notices.py:137-138`; rule at `runtime_notices.py:84-93`.)
 - Root cause (path:line):
   - A provider error in the wrap-up call is swallowed and replaced by the fixed line: `tool_loop.py:273-279`
     (`reply, selection = ModelReply(), None`) then `tool_loop.py:284`
@@ -79,7 +79,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
     do next, and it says nothing about what was found.
   - A conversation run has exactly one slice of rounds. Only a Task run gets more slices
     (`packages/agent-runtime/src/lonora_agent/continuation.py:20` `MAXIMUM_SLICES = 4`,
-    `tool_loop.py:411-416` schedules a continuation only for `reason == "tool_round_limit"` and a Task).
+    `tool_loop.py:411-416` schedules a continuation only for `reason == "tool_round_limit"` and a Task; a run without a `task_id` returns False at `continuation.py:66-68`).
     So for the owner's chat, the limit is a hard stop; he must type again.
   - The wrap-up call is tool-less by design (`tool_loop.py:265-272`): the agent cannot take the one safe read it
     would need to finish. "Owner input buys a new budget" (`tool_loop.py:402-410`) only when he writes again.
@@ -107,7 +107,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
     `terminal_domain_failure` / `alternate_route`: `environment.py:35-37` (default category) applied to the new code at `environment.py:203-209`.
     The model is told to use an alternate route but not which.
   - The first code, `broker_account_not_found` for a missing symbol, is the J1 MetaApi 404 mapping (another session fixes it).
-  - The failure message 82-86 of `packages/agent-runtime/src/lonora_agent/tool_guardrails.py` ends with "or report the blocker": the guard itself names "report the blocker" as an acceptable move.
+  - The 3rd-failure warning (`packages/agent-runtime/src/lonora_agent/tool_guardrails.py:82-86`) ends with "or report the blocker": the guard itself names "report the blocker" as an acceptable move.
   - Halt threshold: `tool_guardrails.py:58` (`SAME_TOOL_FAILURE_HALT_AFTER = 8`), decision at `tool_guardrails.py:332-333`.
 - Class: recoverable-not-led (the run ends at the exact point where one `market_symbols` read would have fixed it, see J2-8b) + leak (internal codes in what the model must paraphrase).
 
@@ -134,7 +134,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
 - Root cause:
   - `tool_loop.py:566` increments `rounds` before the empty check at `tool_loop.py:573-579`, so each empty reply spends a round (with the production limit, 23 empty replies before the limit).
   - The fixed line is used (`tool_loop.py:284`). It tells the owner the "run reached its limit", which is the effect, not the cause (empty replies from the provider).
-  - The NO_ANSWER text is English-only runtime guidance (`runtime_notices.py:96-99`); it never reaches the owner. Fine.
+  - The NO_ANSWER text is English-only runtime guidance (`runtime_notices.py:96-99`); it never reaches the owner. Fine as language. One content point (added by the checker): it tells the model "Provide the substantive result or ask a necessary clarification with wait_for_input" (`runtime_notices.py:97-98`), so the runtime itself offers "ask the owner" as the way out of an empty turn, with no mention of trying a read-only step first.
 - Class: bug (wrong reason shown) and dead-end. Not seen in production.
 - UNSURE: whether any production provider returns empty content; no production run had it (`production-trace.md:241`).
 
@@ -144,11 +144,11 @@ production mechanism (the model writing a text reply and the runtime accepting i
 - SCRIPTED provider errors (`ModelProviderError` from the fake model): L4a three TIMEOUT errors, one per worker claim; L4b AUTH; L4c CONTEXT_OVERFLOW on every attempt; L4d OVERLOADED after a successful `list_accounts`, then recovery.
 - Runtime results (REAL):
   - L4a, pass 1: run goes back to `queued` with `environment.retry` `{"reason_code": "model_provider_retry", "code": "model_provider_unavailable", "attempt": 1}` and stream event `run.retry_scheduled` (`retry_at` 11 s later). Pass 2 schedules another (about 20 s). Pass 3: `status: failed`, `error_code: model_provider_unavailable`, `failure: {"family": "timeout", "retry_after_seconds": null}` and event `run.failed`. No assistant message was written to the chat (last chat message is still the owner's).
-    The harness re-claims the run immediately and does not wait out the back-off; in production the worker waits `retry_at`.
+    The harness re-claims the run immediately and does not wait out the back-off. UNSURE: that the production worker waits for `retry_at` (I did not open the worker code).
   - L4b: `status: failed`, `error_code: model_credentials_rejected`, `failure: {"family": "model"}`. No retry.
   - L4c: three compaction retries (`input_scale` 0.7, 0.49, 0.343) then `status: failed`, `error_code: context_limit_exceeded`, `family: model`.
   - L4d: after the provider error the run is queued with the finished `list_accounts` result kept; pass 2 completes the run (`rounds: 2`). The tool is not repeated.
-- What the owner sees: the web error card from `apps/web/src/conversation/Cards.tsx:72-82` (the Arabic strings are from `apps/web/src/i18n/locales/ar/messages.po`):
+- What the owner sees: the web error card from `apps/web/src/conversation/Cards.tsx:69-84` (the Arabic strings are from `apps/web/src/i18n/locales/ar/messages.po`):
   - timeout (L4a): title «انتهت مهلة الرد», text «لم يصل الرد في الوقت المحدد، وقد يكون الاتصال ضعيفًا.», button «إعادة المحاولة».
   - model family (L4b AUTH, L4c context overflow, and every code starting `model_`, including `model_not_configured`): title «النموذج غير متاح حاليًا», text «تعذّر الوصول إلى مزوّد النموذج. جرّب نموذجًا آخر أو أعد المحاولة بعد قليل.», buttons «تغيير النموذج» and «إعادة المحاولة».
   - The specific per-code texts (`apps/web/src/lib/user_error.ts:88-105`, e.g. "The provider rejected this API key.") are only used for the family `other` (`Cards.tsx:82`).
@@ -177,7 +177,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
 - What the owner sees: nothing from these calls directly; the model sees the results. The run is not ended by them.
 - Root cause (path:line):
   - A tool name that is not in the registry is reported as a permission problem: `packages/tools/src/lonora_tools/registry.py:479-480` (`raise LonoraError("tool_not_allowed", 403)`), and the classifier maps that code to `permission_denied` / `respect_scope` (`environment.py:56-69`, `tool_not_allowed` at `:57`). "Respect scope" reads as "stop", though the real cause is a wrong name. (The bridge path has its own code, `registry.py:222`, but it gets the default `terminal_domain_failure`/`alternate_route` from `environment.py:35-37`.)
-  - Argument errors give path and Pydantic type only (`tool_dispatch.py:113-117`, `packages/tools/src/lonora_tools/schema.py:50`, `:69`): no expected type, no allowed values, no example. The recovery says `schema_tool: tool_environment`, so the model must make another call to learn the shape.
+  - Argument errors give path and Pydantic type, at most 12 issues, plus a `code` only when a validator raised a stable machine code (`tool_dispatch.py:113-117`, `packages/tools/src/lonora_tools/schema.py:51-53`, `:54-69`): no expected type, no allowed values, no example. The recovery says `schema_tool: tool_environment`, so the model must make another call to learn the shape.
   - Not-found codes carry no candidates (`environment.py:80-81`).
 - Class: recoverable-not-led (the model can recover only by guessing the next tool). Another session owns the resolution error contract; this journey records the other error kinds the same contract should cover.
 
@@ -195,21 +195,21 @@ production mechanism (the model writing a text reply and the runtime accepting i
 - Root cause:
   - Two nudges maximum: `packages/agent-runtime/src/lonora_agent/stop_gates.py:41` and `:126-127`; continuous branch `:99-100`.
   - The gate exists only for Task runs: `stop_gates.py:178-181` (`progress is None` -> `continue_turn=False`). A chat run has no stop gate (see J2-8).
-  - The attention text language comes from `prefers_arabic(messages)` (`runtime_notices.py:84-93`): the last owner-origin message in the Task run decides. In the finite case it chose English although the Task title was Arabic (observed in `runs/J2-L6.txt`). UNSURE which message it read; I did not dump the Task run's user messages.
+  - The attention text language comes from `prefers_arabic(messages)` (`runtime_notices.py:84-93`, called at `loop_outcomes.py:125`). In the finite run the text came out English. UNSURE that this is a product bug: the harness created that Task with an English description and English step titles (`scripts/j2_loop.py:218-219`: "Read gold and report.", "Read the gold price"), and the continuous Task (also an English description, `scripts/j2_loop.py:214`) came out Arabic, so I could not tell which owner-origin message decided. Not shown to be a runtime defect.
   - The attention message and its question land in the Task thread, not the chat thread (`runs/J2-L6.txt`, "last messages in the Task work thread" versus "owner chat thread").
-- Class: dead-end that asks the owner (owner-needed), with a language bug in one branch.
+- Class: dead-end that asks the owner (owner-needed). The English text in the finite run is UNSURE (possibly a harness artefact). UNSURE also whether the owner is notified in the chat thread by some other path: the Task thread message is the only one my output shows.
 
 ### J2-6b. A claim text next to a money tool call is blanked
 - Owner request: «اشترِ ذهب»  Raw: `runs/J2-L8.txt`  Rerun: `... j2_loop.py L8`
 - SCRIPTED turn: `trade_execute` (with invalid arguments, so nothing can execute) and the text «تم فتح الصفقة بنجاح وأنا أراقبها الآن.»
-- Runtime result: the stored assistant message has content `""` (the text is gone); the tool result is `tool_arguments_invalid` (`issues: [{"path": ["action"], "type": "literal_error"}]`). The owner never sees the claim.
-- Root cause: `packages/agent-runtime/src/lonora_agent/model_runtime.py:225-228` (`if proposed & FINANCIAL_CALLS: ... "text": ""`). Related replacements: `model_runtime.py:229-231` (reply replaced by the fixed text of `packages/agent-runtime/src/lonora_agent/context/financial_result.py:121-125` when a broker result is confirmed but not independently verified: «أقرّ الوسيط بالطلب، لكن التحقق المستقل من نتيجته لم يكتمل بعد. لن أكرر الإرسال.»).
+- Runtime result: the assistant turn that the model sees again on its next request has content `""` (`runs/J2-L8.txt`, "what SCRIPTED model turn 2 was sent": `["assistant", ""]`), and the owner's chat contains only the later SCRIPTED final text, never the claim. The tool result is `tool_arguments_invalid` (`issues: [{"path": ["action"], "type": "literal_error"}]`). (An earlier draft said "the stored assistant message"; what is shown is the message list sent to the model, not a chat row.)
+- Root cause: `packages/agent-runtime/src/lonora_agent/model_runtime.py:225-228` (`if proposed & FINANCIAL_CALLS: ... "text": ""`). Related replacements: `model_runtime.py:229-232` (reply replaced by the fixed text of `packages/agent-runtime/src/lonora_agent/context/financial_result.py:121-125` when a broker result is confirmed but not independently verified: «أقرّ الوسيط بالطلب، لكن التحقق المستقل من نتيجته لم يكتمل بعد. لن أكرر الإرسال.»).
 - Class: **needed for safety**. These rewrites key off structured financial tool results and proposed financial calls only. Nothing rewrites a claim about a watch, a cancellation or a read (cross-reference `trace-guards.md`, section 0).
 
 ## J2-7. A new owner message arrives mid-run (steering)
 
 - Raw: `runs/J2-L7.txt`  Rerun: `... j2_loop.py L7`
-- L7a: «كم سعر الذهب الآن؟»; while the SCRIPTED model "thinks" it proposes `market_quote(XAUUSD)`; the owner's «ضع حرف m يعني XAUUSDM» arrives through the real admission route (its message seq is 66 and the response returns the already running run, whose `input_seq` is 65: no new run).
+- L7a: «كم سعر الذهب الآن؟»; while the SCRIPTED model "thinks" it proposes `market_quote(XAUUSD)`; the owner's «ضع حرف m يعني XAUUSDM» arrives through the real admission route (its message seq is one above the running run's `input_seq`: 66 vs 65 in the original run, 142 vs 141 in the checker's rerun; the response lists the already running run, no new run).
   - Result (REAL): the proposed read is dropped: `{"ok": false, "code": "tool_call_superseded"}` and the stream shows `tool.cancelled`. The next model turn sees the new owner message as the last user message. The run completes with the SCRIPTED final text.
 - L7b: owner writes «وبالمرة الفضة» while the model drafts a final answer. The runtime does not commit the draft: two `run.reply_started` events, one `run.reply_committed`; the chat shows only the second reply.
 - Root cause (path:line): `tool_loop.py:443-445` (steering before the next call), `tool_loop.py:460` (merge between block and model turn), `tool_loop.py:592-594` (a message arriving after the draft forces a new draft), `packages/agent-runtime/src/lonora_agent/tool_intent.py:26` (code `tool_call_superseded`).
@@ -226,7 +226,7 @@ production mechanism (the model writing a text reply and the runtime accepting i
   - Results (REAL): `market_symbols` -> `{"ok": true, "symbols": ["BTCUSDm", "EURUSDm", "USOILm", "XAGUSDm", "XAUUSDm"]}`; `market_quote(XAUUSDm)` -> `{"ok": true, "symbol": "XAUUSDm", "bid": "4049.73", "ask": "4049.97", ...}` (fake SDK price).
   - Meaning: the safe read-only next step the owner was offered («أبحث لك…») exists in the current tool set and works. The model only has to take it. Nothing in the runtime leads it there.
 - Root cause (path:line):
-  - Any non-empty text without tool calls goes to `final_answer` (`tool_loop.py:595`), where the only gate is the Task gate (`stop_gates.py:178-181`), which returns "stop" for a chat run. So "I can't, shall I search?" is accepted.
+  - Any non-empty text without tool calls goes to `final_answer` (`tool_loop.py:595`, defined at `loop_outcomes.py:155`), where the only gate is the Task gate (`loop_outcomes.py:170`, `stop_gates.py:178-181`), which returns "stop" for a chat run; the only other thing `final_answer` can do is append an uncertain-financial line (`loop_outcomes.py:179-183`). So "I can't, shall I search?" is accepted.
   - The recovery block shows `next_action: inspect_existing_state` for every `*_not_found` code (`environment.py:80-81`); it names no tool (`market_symbols`) and no candidate.
   - The runtime's end-of-run text rules (financial truth, privacy redaction) do not inspect the reply for offers, "I cannot" or leaked codes (`model_runtime.py:220-262`; see `trace-guards.md` section 0, which reaches the same conclusion from the production trace).
 - Class: dead-end, and recoverable-not-led (the tool result gives no lead; the reply is accepted). It is also a leak: code names inside the committed reply are not filtered.
@@ -245,6 +245,8 @@ production mechanism (the model writing a text reply and the runtime accepting i
 7. Rewrites of the final reply exist only for money (blank a claim beside a financial call; replace a confirmed-but-unverified result). Needed for safety, and it works (J2-6b).
 8. Steering is solid (J2-7).
 
+9. (Added by the checker) The runtime's own wording offers exits that are not "take a read": the empty-turn notice says "ask a necessary clarification with wait_for_input" (`runtime_notices.py:97-98`) and the same-tool warning says "or report the blocker" (`tool_guardrails.py:85`). Neither names a read-only step as the first choice.
+
 ## 3. Where a doc and the code disagree
 
 I found none in this area. I did not re-verify the pre-existing mapping notes in `docs/research/` against the trace beyond the figures cited here.
@@ -257,3 +259,19 @@ I found none in this area. I did not re-verify the pre-existing mapping notes in
 - Which owner-origin message the Task-run language heuristic read in J2-6a (finite case).
 - Why the harness agent's native tool list differs from production (see section 0).
 - The repository working tree was clean (`git status --short` empty) after the runs. An untracked `docs/research/` directory appeared and disappeared during the session; it is not from these scripts.
+
+## Verification log
+
+Checker run: all nine journeys (L1..L9) rerun with database 2 from `scripts/j2_loop.py`; outputs saved in `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/chkj2/`. Every journey reproduced (same exit reasons, codes, round counts, fixed Arabic line, notice texts, error families). Differences from the original runs were only ids, timestamps and message sequence numbers.
+
+- Citations opened: about 80 (code `path:line` ranges, web strings and `.po` entries, `production-trace.md` lines, `runs/*.txt` lines).
+- Citations or quotes corrected: 6 (model_runtime 229-231 became 229-232; schema.py 50/69 became 51-69; Cards.tsx 72-82 widened to 69-84; the "82-86 of" guardrail cite given as `tool_guardrails.py:82-86`; `prefers_arabic` rule restated; seq numbers 66/65 made rerun-stable).
+- Claims refuted or downgraded:
+  1. J2-6a "language bug in the finite Task attention text": downgraded to UNSURE, because the harness itself wrote English description and step titles (`scripts/j2_loop.py:214,218-219`).
+  2. J2-6b "stored assistant message has content empty": wrong object; the blank text is the assistant turn in the next model request, and the owner chat has no such row. Reworded.
+  3. J2-1 language rule "owner's last message": imprecise; the rule walks back to the first decisive owner message and defaults to Arabic. Reworded.
+  4. J2-4 "in production the worker waits `retry_at`": unverified, now UNSURE.
+  5. J2-7 fixed sequence numbers 66/65: not stable across runs; reworded.
+- Claims added: 3 (empty-turn notice offers "ask a clarification" as the exit, `runtime_notices.py:97-98`; the same notice and the failure warning both offer non-read exits, cross-cutting item 9; `final_answer` location and its only other behaviour, `loop_outcomes.py:155-184`; plus `continuation.py:66-68` for "Task only").
+- Doc vs code: none found in this area. Repository HEAD moved from `9f5b1da` to `0a03960` by docs-only commits; code unchanged.
+- Not checked: mobile error card; the worker's `retry_at` wait; which message the finite-Task language heuristic read.

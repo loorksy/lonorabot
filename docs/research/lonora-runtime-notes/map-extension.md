@@ -20,6 +20,19 @@ host/sandbox + browser service parts of Part 1.8.
 | 6 | Add a new tool by itself | Absent | Tool registry is a static module list built at start |
 | 7 | Connect an account from chat | Broker, MCP server, news feed, Brave Search, economic calendar: present via one card. Telegram/webhook: owner UI only. Email, personal calendar: absent | `CREDENTIAL_TARGETS` |
 
+Production correction (trace wins). The production trace lists the tools unavailable in every run as
+only `mcp_execute: mcp_tool_not_authorized` and `economic_calendar_read: economic_calendar_not_configured`
+(`production-trace.md:21`, in `/tmp/claude-0/-home-user-lonorabot/a10b53f8-e308-561e-ac54-852bd1cce6ca/scratchpad/audit/`).
+`workspace_execute` and `web_browse` are not in that list, and their availability checks fail on missing
+configuration (`packages/tools/src/lonora_tools/workspace.py:45-51`, `packages/tools/src/lonora_tools/browser.py:37-38`),
+so the owner's server very probably has the workspace host socket and the browser URL configured. The "off by
+default" verdicts in rows 2 and 3 describe a default installation (`infra/compose/install.sh:28`), not necessarily
+the owner's server. UNSURE: the trace shows the unavailable set, not the configuration itself. The same trace
+confirms the exposure claim in section 1 and M8: the 23 native tools offered in every run include only
+`skill_view`, `skills_list`, `tool_call`, `tool_environment`, `web_search` from this area
+(`production-trace.md:20`); no `workspace_*`, `web_browse`, `mcp_*`, `skill_package_*`, `owner_action_propose`
+or `capabilities_list` is native.
+
 Cross-cutting mechanisms that produce "I can't / it did not work / code shown" in this area are in section 8.
 
 ---
@@ -146,8 +159,8 @@ export: `workspace_export_format_invalid`, `workspace_export_format_unsupported`
 - Output: stdout and stderr 128 KiB each (`packages/agent-runtime/src/lonora_agent/workspace.py:26`).
   Exceeding it is not truncated; the whole run fails with `workspace_output_too_large`
   (`packages/agent-runtime/src/lonora_agent/workspace.py:262-265`,
-  `packages/agent-runtime/src/lonora_agent/workspace.py:284-287`) and no files are published
-  (`packages/agent-runtime/src/lonora_agent/workspace_access.py:412-422`).
+  `packages/agent-runtime/src/lonora_agent/workspace.py:284-287`) and no files are published (the abort
+  path "cannot publish a snapshot", `packages/agent-runtime/src/lonora_agent/workspace_access.py:412-426`).
 - Command text at most 32768 bytes (`packages/tools/src/lonora_tools/workspace.py:32`).
 - Concurrency: the host runs 2 jobs at once by default (`packages/agent-runtime/src/lonora_agent/workspace_host.py:26`,
   `packages/agent-runtime/src/lonora_agent/workspace_host.py:154`); a third request is refused at once
@@ -218,8 +231,10 @@ Three different states, three different codes:
    `workspace_isolation_unavailable` (`packages/agent-runtime/src/lonora_agent/workspace.py:331`,
    `packages/agent-runtime/src/lonora_agent/workspace.py:342`).
 
-The host's status code is discarded by the client: every controlled host failure is re-raised with
-status 409 and the bare code (`packages/agent-runtime/src/lonora_agent/workspace_client.py:108-110`).
+The host's status code is discarded by the client: a host failure whose code matches `workspace_[a-z_]{1,60}`
+is re-raised with status 409 and the bare code; any other body becomes `workspace_backend_unavailable`
+(`packages/agent-runtime/src/lonora_agent/workspace_client.py:108-110`). A 429 is mapped to `workspace_busy`
+first (`packages/agent-runtime/src/lonora_agent/workspace_client.py:94-95`).
 
 Other execute failures: `workspace_command_invalid`
 (`packages/agent-runtime/src/lonora_agent/workspace_access.py:335`), `workspace_timeout`
@@ -231,7 +246,7 @@ Other execute failures: `workspace_command_invalid`
 `workspace_execution_interrupted` (`packages/agent-runtime/src/lonora_agent/workspace_access.py:102`,
 `packages/agent-runtime/src/lonora_agent/workspace_access.py:413-415`),
 `workspace_file_unsafe` / `workspace_snapshot_too_large` from the exporter when the command left a
-symlink, an oversized file or more than 128 files (`packages/agent-runtime/src/lonora_agent/workspace.py:89-99`;
+symlink, an oversized file or more than 128 files (`packages/agent-runtime/src/lonora_agent/workspace.py:85-99`;
 these surface as `workspace_backend_unavailable` because the exporter runs with `check=True`,
 `packages/agent-runtime/src/lonora_agent/workspace.py:308-311`,
 `packages/agent-runtime/src/lonora_agent/workspace.py:416-425`),
@@ -260,8 +275,10 @@ jobs running) that a short wait would clear.
 - Tool description: "Run a shell terminal command or Python analysis ..."
   (`packages/tools/src/lonora_tools/workspace.py:116`).
 
-Line 566 is meant for external connections but read literally it forbids the same thing the tool
-description offers. A model that reads both can refuse a computation it is able to do.
+Line 566 is meant for external connections ("servers and credentials come only through those cards") but
+read literally it forbids the same thing the tool description offers. UNSURE: whether a model reads it that
+way; the next lines of the chapter do not mention `workspace_execute`, and no run in the trace used it. It is
+a plausible contradiction, not an observed refusal.
 
 ### 2.5 Doc vs code
 
@@ -269,10 +286,12 @@ description offers. A model that reads both can refuse a computation it is able 
   refuses to create a missing host path". The overlay sets `create_host_path: true`
   (`infra/analysis/compose.workspace.yml:19`, `infra/analysis/compose.workspace.yml:31`). Code wins: the
   path is created.
-- `docs/analytical-workspace.md:19` says the host bridge is "now installed and verified on the production
-  VPS", while `docs/analytical-workspace.md:163` says it "has **not** been installed or verified there".
-  The document contradicts itself; neither statement is checkable from the repository. UNSURE: whether
-  the owner's server runs the host today.
+- `docs/analytical-workspace.md:19-20` says the host bridge is "now installed and verified on the production
+  VPS (2026-10-23)", while `docs/analytical-workspace.md:160-163` says that on 2026-10-21 the VPS was inspected
+  read-only and this execution boundary "has **not** been installed or verified there". The dates differ, so
+  this is most likely a stale paragraph rather than a true contradiction; neither statement is checkable from
+  the repository. UNSURE: whether the owner's server runs the host today (the trace suggests yes, see the
+  production correction in section 0).
 
 ---
 
@@ -322,7 +341,7 @@ description offers. A model that reads both can refuse a computation it is able 
 - Deployment: an **optional** overlay (`infra/research/compose.research.yml:1-2`) starts the `browser`
   service from the application image with a read-only filesystem, all capabilities dropped, 768 MiB,
   0.5 CPU, 256 PIDs, on its own bridge network with no database or secrets
-  (`infra/research/compose.research.yml:42-65`). `LONORA_BROWSER_URL` is set on the `gateway` service
+  (`infra/research/compose.research.yml:3-4`, `infra/research/compose.research.yml:42-65`). `LONORA_BROWSER_URL` is set on the `gateway` service
   only (`infra/research/compose.research.yml:6-9`). The installer's overlay list is empty by default
   (`infra/compose/install.sh:28`).
 - UNSURE: the owner-facing `/capabilities` route reads `browser_url` from the API process settings
@@ -349,7 +368,7 @@ Failure outcomes of `web_browse` as the model sees them
 | `browser_unconfigured` | no `LONORA_BROWSER_URL` (`packages/tools/src/lonora_tools/browser.py:43`) |
 | `tool_read_timeout` | HTTP timeout to the service, or the service said `browser_busy` / `browser_timeout` (`packages/tools/src/lonora_tools/browser.py:59-60`, `packages/tools/src/lonora_tools/browser.py:83-84`) |
 | `tool_connection_failure` | the service is unreachable, or the page's own fetch failed (`packages/tools/src/lonora_tools/browser.py:61-62`, `packages/tools/src/lonora_tools/browser_service.py:193-197`) |
-| `browser_source_unavailable` | main page status >= 400, non-text document, download, too many redirects (`packages/tools/src/lonora_tools/browser_service.py:166-167`, `packages/tools/src/lonora_tools/browser_service.py:178-185`) |
+| `browser_source_unavailable` | main page status >= 400 (`packages/tools/src/lonora_tools/browser_service.py:184-185`), non-text document or download (`packages/tools/src/lonora_tools/browser_service.py:178-183`), redirect with no location or too many redirects (`packages/tools/src/lonora_tools/browser_service.py:166-167`) |
 | `browser_action_failed` | a click/fill did not work, or a password field was targeted (`packages/tools/src/lonora_tools/browser_service.py:267`, `packages/tools/src/lonora_tools/browser_service.py:324-325`) |
 | `unsafe_remote_url`, `private_remote_address_forbidden`, `remote_host_unavailable` | URL safety (`packages/tools/src/lonora_tools/browser.py:78-80`) |
 | `browser_unavailable` | any other service error, including `research_source_too_large`, which is not in the permitted set (`packages/tools/src/lonora_tools/browser.py:73-85`, `packages/tools/src/lonora_tools/browser_service.py:158`) |
@@ -363,8 +382,13 @@ retry of the same call (`packages/agent-runtime/src/lonora_agent/tool_block.py:3
 Policy on failure: "If a search/browser backend is unavailable, do not repeat it under a new query
 pretending it worked." (`packages/agent-runtime/resources/system/lonora.md:553`) and "If a service is
 unavailable, state the practical access limitation and the single supported next step."
-(`packages/agent-runtime/resources/system/lonora.md:568`). The second line instructs the model to stop
-and report after one failure in this area, rather than try `web_fetch` or `web_search` first.
+(`packages/agent-runtime/resources/system/lonora.md:568`). The second line can be read as "stop and report
+after one failure in this area". UNSURE that it is read that way: the `web_browse` tool description itself
+points to the alternatives ("Use web_fetch for simple text sources and web_search to discover URLs.",
+`packages/tools/src/lonora_tools/browser.py:109`), and line 553 forbids only repeating the same unavailable
+backend under a new query, not switching to another backend. `web_fetch` is not a native tool in the
+production runs (`production-trace.md:20`; eager only for `research`, `packages/tools/src/lonora_tools/search.py:331`),
+so reaching it costs the `tool_environment` + `tool_call` steps (M8).
 
 ---
 
@@ -385,7 +409,8 @@ restricted for skills that contain scripts (needs the workspace host, Python onl
    `explicit`, source `installed` (`packages/agent-runtime/src/lonora_agent/skills/packages.py:208-212`,
    `packages/agent-runtime/src/lonora_agent/skills/packages.py:128-143`). Result status:
    `disabled_pending_validation` (`packages/agent-runtime/src/lonora_agent/skills/lifecycle.py:326`).
-   The model must also supply a `review` object with four prose fields
+   The model must also supply a `review` object with four required fields (`source_behavior`,
+   `adapted_behavior`, `assumptions`, `limitations`) and the adapted `SKILL.md` text as `adapted_content`
    (`packages/tools/src/lonora_tools/skills.py:27-35`, `packages/tools/src/lonora_tools/skills.py:49-55`).
 3. For every script: `skill_package_validate` runs `python3 <utility> <args>` in the sandbox for 30 s
    (`packages/agent-runtime/src/lonora_agent/skills/lifecycle.py:404-410`). Only `.py` is accepted
@@ -405,8 +430,10 @@ restricted for skills that contain scripts (needs the workspace host, Python onl
    (`packages/agent-runtime/src/lonora_agent/skills/resolver.py:103-104`).
 
 **Approval steps for an agent-authored skill: none.** No card, no owner tap. The only owner controls
-are after the fact: disable, delete or revoke a version in the owner UI/API
-(`apps/api/src/lonora_api/routes/agent_skills.py:254-260`), and the owner cannot enable or rewrite a
+are after the fact: revoke a version through the owner API
+(`apps/api/src/lonora_api/routes/agent_skills.py:254-260`) and edit or disable the skill resource through the
+generic `/skills` resource routes (`apps/api/src/lonora_api/routes/agent_skills.py:122`; UNSURE: which of
+disable/delete the owner UI exposes, client code not read), and the owner cannot enable or rewrite a
 managed package through the generic route (`skill_package_lifecycle_required`,
 `apps/api/src/lonora_api/routes/agent_skills.py:105-111`).
 
@@ -534,8 +561,8 @@ Steps and gates:
    UNSURE: exactly which fields the card form shows to the owner (client code not read); the server-side
    contract requires a name and an HTTPS URL (`packages/contracts/src/lonora_contracts/mcp.py:9-22`).
 2. **Transport: HTTPS only.** `mcp_https_required` (`packages/contracts/src/lonora_contracts/mcp.py:20-21`).
-   stdio (a local command, the most common way MCP servers are distributed) is refused when saving
-   (`apps/api/src/lonora_api/routes/mcp.py:22-23`), when used
+   stdio (a local command, the most common way MCP servers are distributed) is refused when saved as
+   enabled (`apps/api/src/lonora_api/routes/mcp.py:22-23`), when used
    (`packages/tools/src/lonora_tools/mcp.py:97-98`) and in the transport itself
    (`packages/adapters/src/lonora_adapters/mcp/transport.py:111-118`): `mcp_stdio_isolation_required`.
    **Needed for safety** as built (a command would run as the gateway user), but it removes most
@@ -732,11 +759,20 @@ enabled." (`packages/agent-runtime/resources/system/lonora.md:156`);
 "Registered tools are not proof that their backend is configured or reachable; use actual results."
 (`packages/agent-runtime/resources/system/lonora.md:541`).
 The owner's quoted reply ends with exactly this shape: a failure report followed by one offered next
-step («الخطوة التالية المفيدة: أبحث لك عن اسم الذهب الصحيح على هذا الحساب إذا أردت.»). The one line that
-pushes the other way is weaker and limited to reads: "For an ordinary safe read failure, make a bounded
+step («الخطوة التالية المفيدة: أبحث لك عن اسم الذهب الصحيح على هذا الحساب إذا أردت.»). The nearest line
+that pushes the other way is weaker and limited to reads: "For an ordinary safe read failure, make a bounded
 meaningful correction or use a genuinely supported alternative source."
-(`packages/agent-runtime/resources/system/lonora.md:160`). Nothing says "take the safe read-only next
-step yourself before replying".
+(`packages/agent-runtime/resources/system/lonora.md:160`). Other lines push the same way but for reversible
+work or argument repair, not for failed reads in this area: "Continue authorized work without asking whether
+to begin or making the owner repair internal arguments." (`packages/agent-runtime/resources/system/lonora.md:35`),
+"After a validation error, correct the relevant fields and continue without asking the owner to speak a
+special command." (`packages/agent-runtime/resources/system/lonora.md:123`), "Do not ask the owner whether to
+perform analysis, inspect a chart or build a plan they already requested: do that reversible work first."
+(`packages/agent-runtime/resources/system/lonora.md:135`), and the `capabilities_list` guidance "Use any ready
+capability without asking." (`packages/tools/src/lonora_tools/capabilities.py:302`). Against them stand the
+report-and-offer lines above and the voice rule "Use one specific next step, not a list of questions."
+(`packages/agent-runtime/resources/system/lonora.md:170`). I found no line that says, for a failed safe
+read, "take the next read-only step yourself before replying"; line 160 is the nearest and is narrow.
 
 **M7. The specification asks for the opposite.** "Do not immediately expose every internal tool failure
 to the user." (`docs/lonora-specs/19_AGENT_OPERATING_ENVIRONMENT_AND_SELF_DIRECTED_RUNTIME.md:523`);
@@ -793,3 +829,78 @@ host shown as ready and reported as "uncertain" (M4, section 2.3), busy/timeout 
 browser (section 3), dropped MCP error reasons (section 5), the contradictory "invoke shell commands"
 line (section 2.4), and prompt lines that tell the model to report and offer instead of taking the safe
 read-only step (M6).
+
+---
+
+## Verification log
+
+Checker pass over this file, comparing every citation with the source at HEAD `9f5b1da`.
+
+- Citations opened: 383 `path:line` / `path:line-line` references in the original text (extracted by script,
+  each cited line range printed and read), plus about 35 extra reads and greps to test claims and absence
+  statements. All verbatim quotes (tool descriptions, policy lines, Arabic strings in
+  `packages/bus/src/lonora_bus/attention_messages.json:46-48`, the owner's quoted reply in `lonora-chat.md`)
+  were compared character by character; all matched.
+- Citations corrected: 4 (browser `browser_source_unavailable` status check moved from 178-185 to 184-185 with
+  178-183 and 166-167 split out; `workspace.py:89-99` widened to 85-99 to include the
+  `workspace_snapshot_too_large` raise at line 86; `workspace_access.py:412-422` widened to 412-426 because the
+  "cannot publish a snapshot" comment is at lines 425-426; `docs/analytical-workspace.md:19` widened to 19-20
+  because "on the production VPS" is on line 20).
+- Claims refuted or downgraded (7):
+  1. "The document contradicts itself" (`docs/analytical-workspace.md:19` vs `:163`): downgraded. Line 163 is in a
+     paragraph about an inspection on 2026-10-21; line 19 says installed 2026-10-23. Most likely stale, not
+     contradictory.
+  2. "Line 566 ... A model that reads both can refuse a computation it is able to do": downgraded to UNSURE; no
+     trace evidence, it is an interpretation.
+  3. "The second line [lonora.md:568] instructs the model to stop and report after one failure ... rather than try
+     web_fetch or web_search first": downgraded to UNSURE; `browser.py:109` points the model to `web_fetch` and
+     `web_search`, and `lonora.md:553` forbids only repeating the same backend.
+  4. "Nothing says take the safe read-only next step yourself before replying": softened; `lonora.md:35`, `:123`,
+     `:135` and `capabilities.py:302` say related things (for reversible work, argument repair and ready
+     capabilities), so the absence claim now says only that no line covers a failed safe read in this area
+     beyond the narrow line 160.
+  5. "disable, delete or revoke a version in the owner UI/API (agent_skills.py:254-260)": that range is only the
+     revoke route; disable/delete come from the generic `/skills` resource router (line 122), and which of them
+     the UI shows is UNSURE.
+  6. "every controlled host failure is re-raised with status 409 and the bare code": too broad; only codes
+     matching `workspace_[a-z_]{1,60}` keep their code, others become `workspace_backend_unavailable` (503).
+  7. "stdio ... is refused when saving": only when saved with `enabled` true (`apps/api/src/lonora_api/routes/mcp.py:22-23`).
+- Verdicts "off by default" for code execution and browser: kept for a default install, but the production
+  trace (`production-trace.md:20-21`) shows neither `workspace_execute` nor `web_browse` in the unavailable set,
+  so the owner's server very probably has both configured. Added as a production correction in section 0.
+- Absence claims independently re-checked and confirmed: no caller of `lonora_adapters/mcp/oauth.py` (grep for
+  `mcp.oauth|from .oauth|pkce_pair` in `apps` and `packages`, and a second grep for `oauth` over all Python,
+  which matches only that file; the web and mobile clients have no `oauth` match either); no email or personal
+  calendar integration (greps for `gmail|imap|smtplib|outlook|google_calendar|caldav|icalendar` over
+  `apps` and `packages` Python, and over `apps/web/src` and `apps/mobile/lib`, found nothing); no client
+  error-text entry for `workspace_*`, `browser_*`, `skill_package_*`, `mcp_*` (only
+  `skill_package_lifecycle_required`, `apps/web/src/lib/user_error.ts:46`, `apps/mobile/lib/i18n.ts:122`);
+  no workspace socket in `infra/compose/docker-compose.prod.yml` (grep for `workspace|analysis`); none of the
+  workspace, browser, MCP, owner-action or capabilities tools has `eager` set (grep over the six files); the
+  tool registry in `loader.py` is static. Counts re-checked: `TRANSIENT_READ_CODES` has 8 codes
+  (`packages/core/src/lonora_core/runtime_failure.py:10-21`); cards limit 5; 7-day card life.
+- Classification checks: "needed for safety" labels (no network/credentials in sandbox, no browser login/POST,
+  no money-moving MCP tools, no stdio MCP, secrets only through card forms, skills cannot grant tools, only the
+  owner's tap confirms a card) all trace to code or policy lines that exist for the money/secret rules. The
+  "not a safety rule" list is correct. `workspace_execution_uncertain` is confirmed to be outside the
+  `AMBIGUOUS` set (`packages/agent-runtime/src/lonora_agent/environment.py:17-19`), so the default
+  `terminal_domain_failure` hint stands.
+- Instruction-only skill activation does not need the workspace host: `current_image` stays `None` and
+  `validation_image` returns `None` when there are no utilities
+  (`packages/agent-runtime/src/lonora_agent/skills/lifecycle.py:456-472`,
+  `packages/agent-runtime/src/lonora_agent/skills/packages.py:73-74`), and `skill_package_control` has no
+  availability gate (`packages/tools/src/lonora_tools/skills.py:145-150`). The original claim is confirmed.
+
+Added findings (also placed in the body above):
+1. Production correction in section 0 (trace shows workspace and browser very probably configured; native tool
+   list confirms the extension tools are long-tail).
+2. `web_browse` description itself names `web_fetch` / `web_search` as alternatives
+   (`packages/tools/src/lonora_tools/browser.py:109`), which weakens the "stop after one failure" reading of
+   `lonora.md:568`.
+3. Counter-lines in the prompt that tell the model to continue without asking
+   (`packages/agent-runtime/resources/system/lonora.md:35`, `:123`, `:135`;
+   `packages/tools/src/lonora_tools/capabilities.py:302`), now listed under M6 so the picture is balanced.
+4. `skill_package_create` also needs the adapted `SKILL.md` text as an argument
+   (`packages/tools/src/lonora_tools/skills.py:54`), not only a directory.
+5. In-repo file `docs/research/lonora-runtime-notes/map-extension.md` exists at HEAD with the same name as this
+   file; it was not read or used here. UNSURE of its content.
