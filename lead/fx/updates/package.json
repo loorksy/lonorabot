@@ -1,0 +1,231 @@
+{
+ "package": "updates",
+ "title": "Updates, tasks, schedules and search results",
+ "wave": 1,
+ "port": 8847,
+ "worktree": "/home/user/wt/updates",
+ "branch": "fx/updates",
+ "owns": [
+  "apps/web/src/shell/domain/UpdatesPages.tsx",
+  "apps/web/src/shell/domain/TasksPages.tsx",
+  "apps/web/src/shell/domain/SchedulesPages.tsx",
+  "the attention provider and the attention routes on the server",
+  "apps/web/src/shell/lists/UnifiedSearch.tsx",
+  "the domain skeletons in shell/Skeleton.tsx"
+ ],
+ "steps": [
+  {
+   "name": "alerts",
+   "lead_notes": "updates_tasks-1 is high and partly a server fix: the alerts list must show each alert once and must not show ones that no longer apply (for example «التداول الجديد متوقف» after trading resumed). Fix it at the source (the attention history query or its projection), with pytest, and keep the journal append-only: filter what is shown, never delete or rewrite rows.\nupdates_tasks-3: «تحديد الكل كمقروء» and the three counts (tab dot, rail dot, page count) must agree. A critical alert that still needs the owner's action may stay open, but then the control must say so honestly instead of looking broken.",
+   "gaps": [
+    {
+     "id": "updates_tasks-1",
+     "title": "Updates alerts show every history row: duplicates and stale «التداول الجديد متوقف» rows",
+     "category": "behaviour",
+     "sev": "high",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:3623-3629 updatesPage(): one list S.notifications, each row is a distinct message (title + text), read/unread only. DESIGN_TREE_37.md:47 «التنبيهات + «تحديد الكل كمقروء»».",
+     "app_evidence": "UpdatesPages.tsx:147-150 loads GET /attention/history; routes/attention.py:27-35 returns the last 50 AttentionRow of any status, without the policy/valid_until filters that GET /attention applies (attention.py:38-58). UpdatesPages.tsx:223-253 renders each row as label[code] + agent name only, with no time and no 'no longer current' state. lonora_core/attention.py:62-63 creates a new critical emergency_stop row on every stop, so two stops render as two identical «التداول الجديد متوقف · محلل الذهب» rows, and both still say trading is stopped after it was resumed (mandatory_current() in lonora_db/attention.py:82-85 is not used by the history route).",
+     "owner_sees": "The same alert twice with the same words. An alert saying new trading is stopped while trading is actually running. Muted informational items and expired opportunities still appear.",
+     "fix_plan": "Server: give /attention/history the same policy and valid_until filters as the inbox, and collapse rows by (code, agent_id, resource) to the newest one. Mark rows whose fact is no longer current (mandatory_current false) as resolved, or leave them out. Web (UpdatesPages.tsx): show the time in a `.value` span (clockTime, as ActivityRow does) so rows that remain can be told apart. Render a resolved critical row as read, without the dot. Add a pytest for the dedupe and a Playwright check that two emergency_stop events give one row.",
+     "files": [
+      "apps/api/src/lonora_api/routes/attention.py",
+      "packages/db/src/lonora_db/attention.py",
+      "apps/web/src/shell/domain/UpdatesPages.tsx",
+      "tests/web/"
+     ],
+     "report_rows": [
+      39
+     ],
+     "verifier_note": "Do not filter by mandatory_current inside a plain SQL query, because it is async and per-row. Call it per row in the route for critical, action_required and similar codes, or reuse the check in gateway/event_dispatch.py:133. Keep acknowledge and seen semantics unchanged. Dedupe by (code, agent_id, resource_id) in the route, keeping the newest. Overlaps with the 'mark all as read' gap, which needs the same filtered list, so do both together. Add a pytest and a Playwright check as planned. Adding a time `.value` span is fine."
+    },
+    {
+     "id": "updates_tasks-3",
+     "title": "«تحديد الكل كمقروء» leaves critical alerts unread and stays visible; the tab dot and the page count different items",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9336 read-all sets every notification read. 3632 shows the link only while `unread` > 0. CAPABILITY_MAP shell.tabbar.badge.updates: the dot is cleared by opening the notification or «تحديد الكل كمقروء».",
+     "app_evidence": "UpdatesPages.tsx:159 counts unread over the full history (pending|ready). The server's acknowledge_all (lonora_db/attention.py:503-520) skips KEEP_UNREAD = critical/action_required. After the tap, those rows keep their dot and the link stays. Shell.tsx:827/924 drive the tab/rail dot from attention.items (GET /attention, filtered by policy and valid_until), which is a different set from the page's list.",
+     "owner_sees": "Tapping «تحديد الكل كمقروء» appears to do nothing when an emergency stop or approval alert is open. The bell dot can be off while the page shows unread dots, or the reverse.",
+     "fix_plan": "Use one source of truth. Compute the page's unread set from the same filtered list the dot uses (or have the history response mark which rows are 'kept'). Count only markable rows for the link's visibility. Show kept rows (critical/action_required) with a distinct «يتطلب إجراء» small line instead of the generic dot, so the owner knows why they stay. Clear the dot from the same list.",
+     "files": [
+      "apps/web/src/shell/domain/UpdatesPages.tsx",
+      "apps/web/src/providers/AttentionProvider.tsx",
+      "apps/api/src/lonora_api/routes/attention.py"
+     ],
+     "report_rows": [
+      39
+     ],
+     "verifier_note": "Do not make 'mark all' clear critical or action_required rows. That is a deliberate safety rule, and the reference's read-all behaviour is not binding here. Fix the presentation only: show the link when markable unread rows exist, and give kept rows a short «requires action» line. Share one filtered list with the tab dot. Depends on the history filter fix in gap 0."
+    },
+    {
+     "id": "updates_tasks-2",
+     "title": "Updates: alerts skeleton beside empty-state text in the other sections; load errors look empty",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:7311 SK_PAGES.updates = skHead(24)+skRows(2,{group,size:40})+skHead(20)+skRows(5,{av:false,ic:true}): one skeleton for the whole page, then content. DESIGN_TREE_37.md:389 «كل صفحة تجلب بيانات لها هيكل تحميل بشكلها، وكل فشل له شاشة أو بطاقة أو تنبيه».",
+     "app_evidence": "UpdatesPages.tsx:154 `upcoming` is [] while routines load, so 297-300 already prints «لا توجد مواعيد مفعّلة.». 187/322-325 print «لا يوجد نشاط بعد.» while the activity feed loads. Only alerts (220-221) show SkRows. An error in any of the three loads falls through to the same empty sentence. Screenshot with the API delayed: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/app-updates-loading-phone.png",
+     "owner_sees": "While the page loads, the alerts card shimmers and the two cards below already say there are no schedules and no activity. Then they change. If a request fails, the page says 'nothing' instead of showing an error.",
+     "fix_plan": "In UpdatesPage, while any of notes/routines/feed has no data yet, return one SkPage: SkLine heading, SkRows(2,size 40), SkLine heading, 5 icon rows (see the skeleton gap below). Then render all sections together. For each section whose load failed, render `<p role=\"alert\">{userError(error)}</p>` inside the group instead of the empty text.",
+     "files": [
+      "apps/web/src/shell/domain/UpdatesPages.tsx",
+      "apps/web/src/shell/Skeleton.tsx"
+     ],
+     "report_rows": [
+      39
+     ],
+     "verifier_note": "Use the useLoad loading and error fields that already exist, so no new state is needed. Show the SkPage or SkRows until all three loads have data or an error. Check that Skeleton.tsx exports a heading-line helper before adding one. Keep the empty text only when the load succeeded with no rows."
+    },
+    {
+     "id": "updates_tasks-4",
+     "title": "Tapping an alert leaves المستجدات instead of opening its details sheet",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9337 `notification`: marks it read, then `sheet(title, <p>text</p>)`. DESIGN_TREE_37.md:247 «المستجدات | تفاصيل موعد أو تنبيه | صفه | العنوان والتفاصيل» (a sheet).",
+     "app_evidence": "UpdatesPages.tsx:170-186 openNote() marks it seen, then nav.go() to the conversation, the group or the recovery page. No sheet.",
+     "owner_sees": "Every alert tap throws them into a chat. They cannot read an alert's details and stay on the Updates page as they can for schedules, which do open a sheet.",
+     "fix_plan": "Open a sheet via useSheets() with id 'notification-details': title = label, body = summary/agent/symbol/time. Add a primary button «فتح المحادثة» (or «مراجعة الاتصال» for broker_degraded) that does the current nav.go. Keep the mark-seen behaviour.",
+     "files": [
+      "apps/web/src/shell/domain/UpdatesPages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add a sheet with a primary action that performs the existing navigation. Keep the mark-seen call. Make sure no owner decision on alert routing removes the sheet. Group and broker_degraded routes must stay reachable from the sheet button. Low priority."
+    },
+    {
+     "id": "updates_tasks-10",
+     "title": "Domain skeletons are 50px avatar rows, unlike the reference's icon rows and tab strip",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:7309 tasks: skTabs(3)+skRows(7,{av:false,ic:true,group:true}). 7311 updates (see above). 7322 activity: skRows(9,{av:false,ic:true,group:true}). 7291 skRows supports av/ic/group/size.",
+     "app_evidence": "Skeleton.tsx:28-45 SkRows always draws a round 50px avatar and is not wrapped in SkPage (no aria-busy/role=status) in TasksPages.tsx:96,140, SchedulesPages.tsx:282 and UpdatesPages.tsx:104,221. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/app-tasks-sched-phone.png (round placeholders for clock-icon rows).",
+     "owner_sees": "Loading Tasks, schedules or the activity log shows chat-style round avatars that then turn into icon rows, so the layout jumps.",
+     "fix_plan": "Add `icon` (rounded 36px square) and `group` options to SkRows, matching skRows(…{av:false,ic:true,group:true}). Use them in the Tasks, Schedules, Activity and Updates loads, wrapped in SkPage so they are announced as loading.",
+     "files": [
+      "apps/web/src/shell/Skeleton.tsx",
+      "apps/web/src/shell/domain/TasksPages.tsx",
+      "apps/web/src/shell/domain/SchedulesPages.tsx",
+      "apps/web/src/shell/domain/UpdatesPages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add an icon/group option to SkRows (rounded 36px square, no avatar) and a tab-strip skeleton for Tasks; wrap in SkPage for aria-busy. Check existing Playwright/unit tests that count .sk-row or sk-av. Pure loading polish, no money-safety impact; do last."
+    }
+   ]
+  },
+  {
+   "name": "tasks-and-search",
+   "lead_notes": "updates_tasks-6: «عند تحقق شرط» is always offered in the schedule form. Package `agent` links to `/app/new-schedule?agent=<id>&kind=condition` for «مراقبة جديدة»: make the form honour `kind=condition` by preselecting that option.\nSearch results: a task opens `/app/tasks/<taskId>`; a file opens the files page editor, not the old Artifacts viewer.",
+   "gaps": [
+    {
+     "id": "updates_tasks-5",
+     "title": "المهام: going back from «جدولة مهمة» or a task resets the tab to «نشطة»",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9291 `task-filter` stores the tab in U.filter, which survives go()/back. DESIGN_TREE_37.md:341 back returns to «الصفحة السابقة، مع موضع التمرير وحالة البحث (النص · التبويب · …)».",
+     "app_evidence": "TasksPages.tsx:54 `useState<Filter>(\"active\")` is local, so it is lost when the page unmounts. Live: open «مجدولة», tap «جدولة مهمة», go back, and the selected tab reads «نشطة» (script /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/scripts/updtasks/e.mjs).",
+     "owner_sees": "After looking at or creating a schedule, back lands on the active tasks list, and they must tap «مجدولة» again.",
+     "fix_plan": "Keep the tab in the URL: `?tab=scheduled` via useSearchParams with setParams(..., {replace:true}), the way search state is kept in history. Or keep it in the navigation/history state the shell already restores. Add a Playwright step: «مجدولة» → «جدولة مهمة» → back → «مجدولة» is still aria-selected.",
+     "files": [
+      "apps/web/src/shell/domain/TasksPages.tsx",
+      "tests/web/"
+     ],
+     "report_rows": [
+      38
+     ],
+     "verifier_note": "Use the existing useSearchParams (already imported on line ~49) with `?tab=` and replace:true. Take care not to clobber the `new=1` handling. Validate the tab value against the Filter union. Add a Playwright step."
+    },
+    {
+     "id": "updates_tasks-6",
+     "title": "«عند تحقق شرط» and the condition field are missing unless a linked trading agent is picked",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3659 new-schedule always lists «متكرر / مرة واحدة / عند تحقق شرط» and always shows F(\"الشرط — للتنبيه الشرطي\"). 9474 requires the condition only when that type is chosen. OWNER_DECISIONS Q39: «عند تحقق شرط» creates a market watch.",
+     "app_evidence": "SchedulesPages.tsx:404-415 adds the «condition» kind only when canWatch (trading agent with an account and symbol), and 503 shows the field only then. From المهام › مجدولة the agent defaults to Lonora, so the type list has two options and there is no condition field. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/app-new-schedule-phone.png. Reference: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/ref-new-schedule-phone.png",
+     "owner_sees": "The form they reach from Tasks has no conditional option and no condition field. The option appears only if they happen to switch the agent to محلل الذهب, so the fields change under them.",
+     "fix_plan": "Always list «عند تحقق شرط». When it is chosen, filter the agent select to trading agents that have an account and pair (preselect the first). If none exists, show a Note «التنبيه الشرطي يحتاج وكيل تداول مرتبطًا بحساب» with a link to ربط حساب تداول, and disable save. Show the condition field whenever the type is «عند تحقق شرط».",
+     "files": [
+      "apps/web/src/shell/domain/SchedulesPages.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      37
+     ],
+     "verifier_note": "Watches need an agent with trading account and symbol, so keep that constraint: when the condition type is picked, restrict the agent select to eligible trader agents and show the Note plus disabled save if none. The type list is computed from the agent chosen, so decouple it (kinds always include condition; compute canWatch for the chosen agent only at submit/validation). Overlaps gap 6 (shared watch helpers in SchedulesPages.tsx). Update both .po files and keep existing tests that expect the field only for traders in check."
+    },
+    {
+     "id": "updates_tasks-7",
+     "title": "Conditional schedules (watches) are missing from المهام › مجدولة and from «المواعيد القادمة»",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3650 the مجدولة tab renders scheduleList(S.schedules), which includes «عند تحقق شرط» items (6900 shows a watch saved as a schedule). 3624-3627 upcoming = all enabled schedules, and they also feed the story rings.",
+     "app_evidence": "SchedulesPages.tsx:276-279 loads watches only when an agentId is given. TasksPages.tsx:86 renders <ScheduleList /> with no agent, so watches never show there. UpdatesPages.tsx:151-157 reads routines only, for both upcoming and ring(). The /watches route accepts no agent_id (routes/__init__.py resource_router list(agent_id=None)).",
+     "owner_sees": "A price alert created from Tasks › «جدولة مهمة» shows on the agent's page but never in the Tasks «مجدولة» tab or in Updates, which look as if it was not saved.",
+     "fix_plan": "In ScheduleList, load `/watches` (no agent filter) when agentId is absent and render the same conditional rows. In UpdatesPage, add enabled listedWatch() rows to upcoming (radar icon, prompt, «عند تحقق شرط · XAUUSD فوق 2350») and count them in ring(). Export listedWatch/conditionText for reuse.",
+     "files": [
+      "apps/web/src/shell/domain/SchedulesPages.tsx",
+      "apps/web/src/shell/domain/UpdatesPages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Confirm GET /watches without agent_id returns all the owner's watches (generic resource_router list in routes/__init__.py; watches.py only adds /control) before dropping the filter, and cache key must differ per agent as already done. Export listedWatch/conditionText from SchedulesPages and reuse in UpdatesPages; only count enabled watches. Overlaps gap 5 in the same file."
+    },
+    {
+     "id": "chats_list-1",
+     "title": "A task result in unified search opens the Tasks board, not that task",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9235 `if(p.type===\"task\"&&S.tasks.some(t=>t.id===p.id))return go(\"task\",{item:p.id,agent:p.agent});`. The task hit opens «تفاصيل المهمة» for that task. Line 9237 does the same for knowledge (`go(\"knowledge-edit\",{item:p.id,...})`).",
+     "app_evidence": "apps/web/src/shell/lists/UnifiedSearch.tsx:178 `case \"tasks\": ... open = () => nav.go(\"/app/tasks\");` opens the board root, although the route /app/tasks/:taskId exists (routes.ts:118-119) and the board uses it (domain/TasksPages.tsx:111). Knowledge hits (UnifiedSearch.tsx:213-216) also go to the /app/knowledge?agent= list, not to the note.",
+     "owner_sees": "Searching «الذهب» and tapping «متابعة الذهب» under «المهام» drops the owner on the whole Tasks tab, where they must find the task again. The search result is a dead end.",
+     "fix_plan": "In UnifiedSearch.tsx Hit, case \"tasks\": open = () => nav.go(`/app/tasks/${encodeURIComponent(item.id)}`), and show the toast «لم تعد النتيجة متاحة» when the task page 404s (the same as `gone`). For a knowledge note, open the note editor for item.id if knowledge-edit accepts an item (routes.ts ITEM_PAGES). If it does not, keep the list but scroll to the note and highlight it. Add a case to tests/web unified-search spec that clicks a task hit and expects /app/tasks/<id>.",
+     "files": [
+      "apps/web/src/shell/lists/UnifiedSearch.tsx",
+      "apps/web/src/shell/routes.ts",
+      "tests/web/"
+     ],
+     "report_rows": [
+      14
+     ],
+     "verifier_note": "Tasks: nav.go(`/app/tasks/${encodeURIComponent(item.id)}`). Knowledge (not memory): nav.go(`/app/knowledge-edit?agent=${agent_id}&item=${id}`). Keep the memory hit as it is. Do not touch ITEM_PAGES, since knowledge-edit uses a query string, not a path item. Check that the task page and the note editor show a gone/not-found state when the id no longer exists, and add a unified-search spec case."
+    },
+    {
+     "id": "cleanliness-9",
+     "title": "A search result for a file opens the old Artifacts viewer, not the files page editor",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md: الملفات `files` → editing a file is one page (file-edit). There is no separate artifact viewer.",
+     "app_evidence": "shell/lists/UnifiedSearch.tsx:193 open = nav.go(`/app/artifacts/${id}`) → shell/pages.tsx:232-239 <Legacy><Artifacts/></Legacy> (pages/Artifacts.tsx uses lucide icons and the old layout). The files list opens /app/file-edit?item= (shell/domain/FilesPages.tsx:118).",
+     "owner_sees": "The same file looks different depending on whether it was opened from search or from the files list.",
+     "fix_plan": "UnifiedSearch.tsx:193 → nav.go(`/app/file-edit?item=${encodeURIComponent(item.id)}${item.agent_id ? `&agent=${item.agent_id}` : \"\"}`). Make /app/artifacts/:id redirect to file-edit, then delete pages/Artifacts.tsx and, if unused elsewhere, components/common/{FilePreviewPanel,ImageGallery}.tsx. Conversation.tsx also uses FilePreviewPanel: restyle its lucide icons there.",
+     "files": [
+      "apps/web/src/shell/lists/UnifiedSearch.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/Artifacts.tsx"
+     ],
+     "report_rows": [
+      22
+     ],
+     "verifier_note": "Prefer making the search hit go to file-edit, and turn /app/artifacts/:artifactId into a redirect. First check that FileEditPage accepts the same ids as the artifact ids from search (item param, agent param) and handles non-text or binary files such as images and PDFs. If it handles only text files, keep a viewer for the rest instead of deleting Artifacts.tsx. Check other links to /app/artifacts/ (grep) and Conversation's FilePreviewPanel use before deleting any file."
+    }
+   ]
+  }
+ ]
+}

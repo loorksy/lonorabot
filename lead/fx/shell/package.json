@@ -1,0 +1,293 @@
+{
+ "package": "shell",
+ "title": "Shell: scroll memory, tab lens, routes, desktop behaviour, call motion",
+ "wave": 1,
+ "port": 8848,
+ "worktree": "/home/user/wt/shell",
+ "branch": "fx/shell",
+ "owns": [
+  "apps/web/src/shell/navigation.tsx",
+  "apps/web/src/shell/pager.ts",
+  "apps/web/src/shell/lens.ts",
+  "apps/web/src/shell/FloatingTabBar.tsx",
+  "apps/web/src/shell/chrome.ts",
+  "apps/web/src/shell/flip.ts",
+  "aliases, redirects and section mapping in shell/routes.ts",
+  "keyboard shortcuts and search dismissal in Shell.tsx",
+  "apps/web/src/shell/ShortcutsSheet.tsx",
+  "the call CSS"
+ ],
+ "steps": [
+  {
+   "name": "scroll-and-lens",
+   "lead_notes": "navigation-2 and shell_phone-2 are one high defect: every page remembers its scroll position per history entry; going back, switching tabs and returning from a chat or an inner page land where the owner was. Find the cause the auditors point to (the cleanup that overwrites the saved value) and fix the mechanism once, for all pages, with a Playwright spec that scrolls, leaves and returns on phone and desktop.\nshell_phone-1 is high: after a tab change the lens must move once. Record the lens position over frames before and after your fix and report it.\nshell_phone-4 and calls_motion-8: use the springs and easings in the design tree; the lens changes its own width instead of being scaled.",
+   "gaps": [
+    {
+     "id": "navigation-2",
+     "title": "Scroll position is not remembered: going back to a page always lands at the top",
+     "category": "behaviour",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md:332 «يتذكّر موضع التمرير لكل صفحة» and :341 «غير ذلك: الصفحة السابقة، مع موضع التمرير». Lonora-Desktop-37.html:3143 go() calls rememberScroll() before rendering, and :3147 stores scroll in the history state.",
+     "app_evidence": "shell/navigation.tsx:203-208: the effect cleanup runs `scrollMemory.set(key, element.scrollTop)` after React has already committed the next page into the same #view-scroll element. That overwrites the saved position with the new page's scrollTop, usually 0. Live (scripts/nav/scroll.mjs): settings scrolled to 400, then «التخزين والبيانات», then the in-app back or page.goBack() returns to /app/settings with scrollTop 0. Same result at phone and desktop sizes.",
+     "owner_sees": "Every time they come back from an inner page (settings, agent pages, tasks), the list jumps to the top and they lose their place.",
+     "fix_plan": "In useScrollMemory (navigation.tsx), stop saving in the cleanup. The rAF scroll listener already records the position, so the cleanup should only cancel the pending frame. If a final save is needed, take it in NavigationProvider.go() and in the popstate listener before navigate(), which is where the reference's rememberScroll() sits. Add a Playwright check: settings scrolled 400, inner page, back, scrollTop ≈ 400.",
+     "files": [
+      "apps/web/src/shell/navigation.tsx",
+      "tests/web/"
+     ],
+     "report_rows": [
+      8
+     ],
+     "verifier_note": "Simplest fix: delete the scrollMemory.set line in the cleanup (keep removeEventListener and cancelAnimationFrame). If the last frame must be flushed, save in go() and the popstate path before navigating. Note that a pending rAF is cancelled in the cleanup, so a final scroll just before navigation can be lost; save synchronously in the scroll handler or in go() if that matters. Keep the restore layout effect unchanged. Add a Playwright check."
+    },
+    {
+     "id": "shell_phone-2",
+     "title": "Scroll position per page is lost: switching tabs or returning from an inner page or a chat lands at the top, and the chat-list filters reappear",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md:333 «يتذكّر موضع التمرير لكل صفحة» and :341 back returns to the previous page «مع موضع التمرير». Lonora-Desktop-37.html:3540 `scrollMemory.set(nextKey,old.scrollTop)` is saved from the OLD page before the new one paints, and :3557 placeScroll(m,r,scrollMemory.get(nextKey)). Line 3529 sets #chat-rows min-height even when a memory exists, so the list can rest past its filters. Measured in the reference: settings scrolled to 260, then tasks, then settings gives 260. Settings at 200, then an inner page, then back gives 200. Chats, then updates, then chats keeps scrollTop 41 with the filters hidden.",
+     "app_evidence": "navigation.tsx:182-209 useScrollMemory. The cleanup of the effect for the old key runs after the shared <main> already holds the NEW page, so `scrollMemory.set(key, element.scrollTop)` saves the new page's offset (0) under the old key. Measured with scripts/phone/s8.mjs and s9.mjs: settings 260, then tasks, then settings gives 0. Settings 200, then «الإشعارات والتواصل», then back gives 0. With s7.mjs: chats, then updates, then chats gives scrollTop 0 and filters opacity 1. Back from a conversation gives scrollTop 0, filters visible and #chat-rows min-height empty (ChatList.tsx:316-325 only hides the filters on a never-placed entry and relies on the corrupted memory). Shots: shots/phone/app-chats-roundtrip.png and app-chats-afterchat.png.",
+     "owner_sees": "Every time Ahmed leaves a long list (settings, updates, tasks) and comes back with the tab bar or the back button, the page jumps to the top. The chat list shows its filter chips after any round trip, even though the reference keeps them tucked away. This is the 'filters sometimes hidden, sometimes always shown' inconsistency in the comparison report.",
+     "fix_plan": "In navigation.tsx useScrollMemory, drop the write in the effect cleanup: the rAF scroll handler already keeps the value current. If a final write is needed, capture it in a ref on each scroll event, or write it from a layout-effect cleanup that runs before the new page is committed, as the reference does at line 3540. Restore in placeScroll (chrome.ts) after the page has content: retry once in rAF if scrollHeight is still too short to reach the saved value. In chrome.ts placeScroll and ChatList.tsx, always apply the #chat-rows min-height on phones (as reference line 3529) whether or not a memory exists. Add Playwright cases for settings scroll, a tab round trip, back from an inner page, and chats filters still hidden after a conversation and back.",
+     "files": [
+      "apps/web/src/shell/navigation.tsx",
+      "apps/web/src/shell/chrome.ts",
+      "apps/web/src/shell/lists/ChatList.tsx",
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [
+      11
+     ],
+     "verifier_note": "Remove the cleanup write at navigation.tsx:207, or keep the last offset from the scroll handler in a ref (the rAF scroll handler already writes it). Be careful with the scroll event that fires on reset, and with pager.ts, which calls placeScroll(main, rootPath(route)) on the ghost. Verify the pager commit path does not overwrite the memory for the root path. After the change, check that the chat-list initial 'filters hidden' placement (ChatList placed set) still works. Always applying the #chat-rows min-height is optional; confirm it first, since the live min-height was 779px. Add Playwright cases for the tab round trip and back from an inner page."
+    },
+    {
+     "id": "shell_phone-1",
+     "title": "Tab lens slides twice after every phone tab change (snaps back to the old tab, then springs again)",
+     "category": "animation",
+     "sev": "high",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3433-3437 setupNav(prev): after a re-render the lens is put back at lensPos (where the pager left it, already on the new tab, set in paintTabs line 4274 `lensPos={x,w}`) and then placeLens(true) has nothing left to move. DESIGN_TREE_37.md:273/294: the lens follows the progress and then stops; it slides once (0.42 spring, width 0.32). Measured in the reference: going from updates to tasks, the lens moves 195→108 and stays at 108.",
+     "app_evidence": "pager.ts finish() (around lines 248-262) calls flushSync(commit(route)) and then placeLens(s.nav,false). The router has not yet moved `button.active`, so lens.ts placeLens puts the lens back on the OLD tab with no transition. When React then renders the new active tab, the [section] effect in FloatingTabBar.tsx:52-66 calls placeLens(nav,true), which plays the CSS spring a second time. Frame trace in scripts/phone/s6.mjs: on a tap from updates to tasks the pager carries the lens 195→108 by t=1643ms, at t=1731 it is back at 195 with the route now on tasks, then it springs 195→104 (overshoot) →108. The same happens on tasks→updates (195, then 108, then 199, then 195) and updates→settings (20, then 195, then 13, then 20). Over 10 taps in s5.mjs, 8 showed backward jumps of 40px or more in a single frame.",
+     "owner_sees": "On every tab change on the phone (tap, swipe or lens drag), the lens arrives under the new tab, jumps back under the tab it came from, and slides over a second time with a bounce. The tab bar flickers, where the reference has one smooth slide.",
+     "fix_plan": "In pager.ts finish() and reset(), place the lens from the target's own rect (lensRect(s.toBtn) on commit, lensRect(s.fromBtn) on reset) instead of calling placeLens(nav), which reads the stale `.active`. Keep a module-level `lensPos` as the reference does. In FloatingTabBar.tsx, the [section] effect should start the lens at that remembered lensPos and only then call placeLens(nav,true), as setupNav(prev) does, so nothing moves when the lens is already in place. Alternatively, skip the animated placement when the lens transform already equals the active tab's rect. Add a Playwright check in tests/web that samples the lens left edge every frame after a tab tap and asserts it never moves away from the target.",
+     "files": [
+      "apps/web/src/shell/pager.ts",
+      "apps/web/src/shell/FloatingTabBar.tsx",
+      "apps/web/src/shell/lens.ts"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix: in finish() and reset(), place the lens from the target button's rect (lensRect(s.toBtn) on commit, lensRect(s.fromBtn) on reset). Alternatively drop the placeLens call in finish() and let the [section] effect place it with animate=false when the lens is already at the target. Keep the animated call only for taps that did not go through the pager. Check the lens-drag release path (onLensRelease) and foldNav, which also use placeLens. No money-safety risk. Overlaps nothing in this batch."
+    },
+    {
+     "id": "shell_phone-4",
+     "title": "Lens stretch uses scaleX, which distorts its rounded ends and shadow mid-way; the reference widens the lens itself",
+     "category": "visual",
+     "sev": "low",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:4274 paintTabs: `lens.style.width=(w+stretch)+\"px\";lens.style.transform=translateX(x-stretch/2+shift)`. The lens keeps a true 28px radius while it widens up to 22%. Line 107 `.nav-lens{...transition:transform .42s var(--spring),width .32s var(--ease)}`.",
+     "app_evidence": "pager.ts paintTabs (around lines 98-125) keeps the width and adds `scaleX((w+stretch)/w)` (measured up to scaleX 1.29 in s2.mjs). shell.css:398-413 .nav-lens sets transform-origin 0 50% and has no width transition, so the 28px corners and the 0 4px 14px shadow are stretched horizontally by up to 29% mid-swipe.",
+     "owner_sees": "Mid-swipe the lens ends look slightly squashed or oval instead of staying round pills. It is subtle but visible next to the reference's liquid stretch.",
+     "fix_plan": "In pager.ts paintTabs, set lens.style.width to w+stretch and use translateX only, as the reference does. Restore `width .32s var(--ease)` in the .nav-lens transition in shell.css and drop transform-origin 0 50%. lensPosition() in FloatingTabBar.tsx already reads the width from style.width.",
+     "files": [
+      "apps/web/src/shell/pager.ts",
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Optional polish, after gap 0. Switching to width has to stay consistent with lensPosition() in FloatingTabBar.tsx, with foldNav's flip scale on the lens, and with the .dragging transform-origin rule. It needs a width transition in shell.css. Do it only if the owner cares. It touches the same code as gap 0."
+    },
+    {
+     "id": "calls_motion-8",
+     "title": "Tab-bar fold and chats-header search use a third easing and stretch the search field",
+     "category": "animation",
+     "sev": "low",
+     "platform": "phone",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 98 `nav{...transition:left .32s var(--ease),right .32s var(--ease),height .32s var(--ease),bottom .32s var(--ease)}`, 102 `.nav-label{transition:opacity .2s,max-height .3s var(--ease)}`, 107 `.nav-lens{transition:transform .42s var(--spring),width .32s var(--ease)}`; the chats header animates `max-width .34s var(--ease)` on the title and `flex-basis .2s var(--ease),max-width .2s var(--ease)` on .header-search. --ease is cubic-bezier(.22,1,.36,1).",
+     "app_evidence": "apps/web/src/shell/flip.ts:6 `EASE = \"cubic-bezier(.2,.8,.2,1)\"` is the default for lens.ts:24-40 foldNav (320ms), chrome.ts:72-83 title-off (340ms) and Shell.tsx:465-480 search expand (200ms). In both header flips the `.header-search` item is passed with `scale: true`, so the pill, its magnifier and its placeholder are scaled non-uniformly during the move. The lens width is set at once (lens.ts:16) rather than animating over .32s.",
+     "owner_sees": "Folding the tab bar on scroll and opening search feel slightly different from every other motion in the app, and the search pill's icon and text stretch for a moment while it resizes.",
+     "fix_plan": "In flip.ts make the default easing `var(--ease)`'s curve (cubic-bezier(.22,1,.36,1)), or read it from the root custom property; keep `EASE` (.2,.8,.2,1) only for sheet height changes, where the reference also uses it (5005). In chrome.ts and Shell.tsx updateSearch, stop scaling `.header-search`: animate only its position, and reveal the width change with a clip-path inset on the pill (transform-free). In lens.ts placeLens let the width change animate (`transition: transform .42s var(--spring), width .32s var(--ease)` in shell.css .nav-lens) when the tab widths differ.",
+     "files": [
+      "apps/web/src/shell/flip.ts",
+      "apps/web/src/shell/chrome.ts",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/lens.ts",
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Do only the easing change: pass the (.22,1,.36,1) curve as the flip default (or have the nav, title and search callers pass it), and keep (.2,.8,.2,1) for sheet height changes. Skip the clip-path rewrite of the search pill and the lens width transition. The first is speculative and the second would conflict with the existing scaleX stretch in shell.css:411, so either could break the compositor-only motion design. Check which other flip callers rely on the old default (sheet pages) before changing it."
+    }
+   ]
+  },
+  {
+   "name": "desktop-and-routes",
+   "lead_notes": "Package `settings` adds settings routes and aliases in routes.ts and pages.tsx at the same time: keep your hunks there small and separate.\nnavigation-5: generated UI may navigate only to an explicit list of real pages, through the shell's own navigation so the unsaved-edits guard applies. Package `settings` changes the `market` entry of that list; leave that entry to it.\nThe shortcuts sheet's «/» row belongs to package `composer`.",
+   "gaps": [
+    {
+     "id": "shell_desktop-3",
+     "title": "Rail highlights «المحادثات» on pages that belong to Settings or Tasks (Files, new scheduled task, recovery, lab)",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3111-3116: settingsRoutes includes \"recovery\" and \"lab\", and `(r===\"files\"&&U.scope===\"all\")` returns \"settings\". Tasks covers `[\"tasks\",\"task\",\"new-task\",\"new-schedule\"]`.",
+     "app_evidence": "apps/web/src/shell/routes.ts:87-103 SETTINGS_PAGES has no \"artifacts\" (the Files page that Settings opens, SettingsRoot.tsx:337), \"recovery\" or \"lab\". sectionOf (routes.ts:138-144) only maps task/new-task to tasks, so \"new-schedule\" (TasksPages.tsx:90, «جدولة مهمة» under the scheduled filter) falls through to \"chats\". Live: Settings → «الملفات» gives /app/artifacts with the active rail button \"chats\" (/tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-files-rail.png).",
+     "owner_sees": "After opening «الملفات» from Settings, or «جدولة مهمة» from Tasks, the rail highlight jumps to «المحادثات», so they lose track of where they are. Clicking the rail to go back lands in the wrong section.",
+     "fix_plan": "In routes.ts, add \"artifacts\" (when opened without an agent scope; the bare /app/artifacts that Settings opens), \"recovery\" and \"lab\" to SETTINGS_PAGES. Add \"new-schedule\" to the tasks branch of sectionOf. Extend the shell route unit test (tests/web or packages/core) with these cases.",
+     "files": [
+      "apps/web/src/shell/routes.ts"
+     ],
+     "report_rows": [],
+     "verifier_note": "Wrong premise in fix_plan: Files scope is NOT in the route. ShellRoute has page 'artifacts' with an optional item; scope comes from the ?agent= query (AgentPage.tsx:295, ChatMenu.tsx:182 open it with ?agent= and must stay under chats). sectionOf(route) only receives the route, so Files-under-settings needs the location search passed in (Shell.tsx:344 has location) and the check 'artifacts without agent param and without item'; the item page /app/artifacts/:id from search should probably stay chats. Adding recovery, new-schedule is a one-line change each; lab can be skipped. Recovery is also reached from broker-outage banners in chats, so check that tests do not expect chats there."
+    },
+    {
+     "id": "shell_desktop-4",
+     "title": "Shortcuts sheet shows «Ctrl /» as «Ctrl» followed by a bare slash, not a key",
+     "category": "visual",
+     "sev": "low",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:6217 shortcutsSheet(): \"/\" is in the kbd list, so the «عرض الاختصارات» row renders <kbd>Ctrl</kbd><kbd>/</kbd> (/tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/ref-shortcuts.png).",
+     "app_evidence": "apps/web/src/shell/ShortcutsSheet.tsx:36 `key === \"/\" && keys.length > 1 ? <span>` treats every \"/\" in a multi-key row as a separator, including the real key in [MOD, \"/\"] (/tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-shortcuts.png, row «عرض الاختصارات»).",
+     "owner_sees": "The sheet suggests the shortcut is just «Ctrl», with a faint slash after it that does not look like a key.",
+     "fix_plan": "In ShortcutsSheet.tsx, only render \"/\" as a separator when it sits between two keys (index > 0 && index < keys.length - 1). Alternatively, write the Alt row as [\"Alt\",\"↑\",\"·\",\"Alt\",\"↓\"] with an explicit separator token. Keep the Alt row's separator as it is today.",
+     "files": [
+      "apps/web/src/shell/ShortcutsSheet.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Render '/' as separator only when index>0 && index<keys.length-1 and the row has more than 2 keys, e.g. check keys.length>2; the [MOD,'/'] row has length 2 with '/' last, so index<length-1 already excludes it. The Alt row keeps its separator. Check a test or locale snapshot of the sheet."
+    },
+    {
+     "id": "shell_desktop-6",
+     "title": "⌘/Ctrl K does nothing while the chat list is collapsed",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:6219 focuses #desktop-search, which sits inside the hidden list when #app.list-collapsed (line 614 visibility:hidden). The reference has the same dead end, but DESIGN_TREE_37.md:364 promises «⌘/Ctrl K: البحث في المحادثات» in every state.",
+     "app_evidence": "Shell.tsx:553-563 focuses #desktop-search without checking `collapsed` (Shell.tsx:387). Live: after the rail collapse, Ctrl+K leaves the focus on the collapse BUTTON (s4 run; /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-collapsed.png).",
+     "owner_sees": "With the list folded away, the search shortcut silently does nothing.",
+     "fix_plan": "In Shell.tsx's keydown handler, if `collapsed` is true, expand the list first (setCollapsed(false), the same path as onToggleCollapsed) and then focus #desktop-search. The owner said the app may be better than the reference, so this is an improvement over it.",
+     "files": [
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "The keydown effect closes over `collapsed`, so add it to the effect's dependency array or read it through a ref. If collapsed, call setCollapsed(false) and then focus #desktop-search after a longer delay than the existing 60 ms, so the list is visible before focus. Focusing a visibility:hidden element fails silently. The collapse toggle at Shell.tsx:829-851 animates via flushSync, so reuse its expand branch or simply call setCollapsed(false) if reduced motion is on. Not money or safety related. Independent of gap 6."
+    },
+    {
+     "id": "chats_list-3",
+     "title": "Tapping empty space under the search results does not close the search",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9403 `if(searchExpanded&&!$(\"#dialog\").open&&!e.target.closest(\".header-search\")&&!e.target.closest(\"#chat-rows\"))clearSearch();`. Only the field and the results themselves keep the search open.",
+     "app_evidence": "apps/web/src/shell/Shell.tsx:504 `if (sheets.isOpen() || target?.closest(\".header-search,#view-scroll\")) return;`. The whole scroll container is exempt, including the empty area below short results.",
+     "owner_sees": "With a few results, tapping the blank lower half of the screen leaves the search open. In the reference that tap closes it.",
+     "fix_plan": "In Shell.tsx outside handler, exempt the results surface (`.search-surface` or `#chat-rows`) instead of `#view-scroll`, matching the reference.",
+     "files": [
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [
+      14
+     ],
+     "verifier_note": "Replace `#view-scroll` with `.search-surface` in the closest() selector. Confirm that the empty area counts as outside the surface (the surface may fill the scroll container, in which case it would still not close). Check that the tab clicks and the sheets still work."
+    },
+    {
+     "id": "navigation-5",
+     "title": "Generated UI can navigate to the wrong set of pages, and bypasses the unsaved-edits guard",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:6657 `if(a.do===\"go\"){if(![\"tasks\",\"schedules\",\"usage\",\"chat-prefs\",\"genui\",\"files\",\"agents\"].includes(a.route))return;return go(a.route,a.args||{})}`. go() closes sheets, applies the dirty guard and pushes history.",
+     "app_evidence": "components/genui/UiCard.tsx:24-30 ROUTES = {market, tasks, agents, files, usage:'/app/settings?tab=usage'}. That list has no schedules and no chat-prefs, and it includes market, an old page. usage takes a redirect hop through ?tab=usage (pages.tsx:69-71). UiCard.tsx:400/523-524 call react-router's navigate() directly instead of the shell's nav.go, so the unsaved-edits sheet and sheet closing are skipped. The server lists the same routes: packages/agent-runtime/src/lonora_agent/genui_capabilities.py:14 `ROUTES = (\"market\", \"tasks\", \"usage\", \"files\", \"agents\")`.",
+     "owner_sees": "An agent's card can offer «السوق», which opens an old page, but cannot open scheduled tasks or chat experience settings the way the reference's cards do.",
+     "fix_plan": "Set the route list in genui_capabilities.py and UiCard.tsx to tasks, schedules (/app/routines), usage (/app/usage), chat-prefs (/app/chat-prefs), files (/app/artifacts) and agents (/app/agents), and drop market. Navigate through useNavigation().go (or goFromSheet) instead of navigate(). Update tests/check_genui_browser.py and the genui unit tests for the new list.",
+     "files": [
+      "apps/web/src/components/genui/UiCard.tsx",
+      "packages/agent-runtime/src/lonora_agent/genui_capabilities.py",
+      "tests/check_genui_browser.py"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use useNavigation().go and point usage straight at /app/usage. Keep the server ROUTES tuple and the client map in sync, since the server tells the agent which routes it may emit; removing market server-side means old stored cards with market become a no-op, which is fine. Update tests/check_genui_browser.py and the unit tests. Overlaps with the leftover-pages gap: do market removal once."
+    },
+    {
+     "id": "navigation-6",
+     "title": "Redirects my-profile and reach-me show a 404",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:8265 `const ROUTE_ALIAS={\"my-profile\":\"owner\",\"reach-me\":\"notify-settings\",\"capabilities\":\"integrations\",\"account\":\"settings\"}`.",
+     "app_evidence": "shell/routes.ts:64-71 ALIASES has board, notifications, account, capabilities and search, but not my-profile or reach-me. parseRoute treats /app/my-profile as an agent id, which renders NotFoundPage. Live: /app/my-profile and /app/reach-me both show «الصفحة غير موجودة». notifications, capabilities, account and board redirect correctly.",
+     "owner_sees": "An old link to «ملفي» or «كيف أصل إليك» lands on «الصفحة غير موجودة».",
+     "fix_plan": "Add `\"my-profile\": \"/app/owner\"` and `\"reach-me\": \"/app/notify-settings\"` to ALIASES in routes.ts, with a parseRoute unit test.",
+     "files": [
+      "apps/web/src/shell/routes.ts"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add the two entries to ALIASES in apps/web/src/shell/routes.ts: \"my-profile\": \"/app/owner\", \"reach-me\": \"/app/notify-settings\". Check that parseRoute resolves aliases before the agent-id fallback, as it does for the existing ones, and add a unit test beside the existing alias tests. Not a money-safety risk. Also make sure neither name is registered as a real agent id."
+    },
+    {
+     "id": "auth_states-8",
+     "title": "An unknown one-segment route shows the 404 inside a chat header",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 5573 notFoundPage() and 3717 «return notFoundPage()» for any unknown route; plain page chrome (back button only).",
+     "app_evidence": "apps/web/src/shell/routes.ts:133 maps any /app/<x> to {kind:\"chat\", agentId:x}; pages.tsx:481 then renders NotFoundPage, but the shell keeps the conversation top bar. Live /app/nope-route: header «Lonora · نشط» with the ⋯ menu, and the 404 art is clipped under the header (shots/states/app-404-phone.png); /app/foo/bar renders the clean 404 (app-404-twoseg-phone.png).",
+     "owner_sees": "A stale or mistyped link shows Lonora's chat header above a «الصفحة غير موجودة» page whose icon is cut off.",
+     "fix_plan": "In Shell.tsx (around 322/345), when route.kind is chat and agents have loaded but none matches, treat the route as not-found (no chat header, no chat menu, page top bar with back), and render the same NotFoundPage.",
+     "files": [
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/pages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest: in Shell, when route.kind==='chat' and !agentsLoading and no agent matches, derive route as {kind:'not-found'} before computing chrome. Beware agents still loading (must keep skeleton) and agent ids of archived agents."
+    },
+    {
+     "id": "calls_motion-4",
+     "title": "The call capsule's mute and press changes are abrupt (transitions missing)",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 1769 `.call-pill{...transition:background .25s,box-shadow .25s}`; 1780 `.cp-btn{...transition:background .2s,color .2s,transform .15s var(--spring)}` `.cp-btn:active{transform:scale(.9)}`; 1789 `.call-pill.muted .cp-bars i{animation:none;height:4px;background:var(--faint);transition:height .2s}`.",
+     "app_evidence": "apps/web/src/shell/call/call.css:187-200 `.chat-head .call-pill` has no transition; 290-298 `.chat-head .cp-btn` has no transition and no :active scale; 309-313 the muted bars have no height transition. Muted state: shots/calls/cmp-capsule-muted.png.",
+     "owner_sees": "Tapping mute in the capsule snaps the capsule from green to grey and drops the bars at once; the buttons do not press in.",
+     "fix_plan": "Add the three rules to call.css: `.chat-head .call-pill { transition: background .25s, box-shadow .25s }`, `.chat-head .cp-btn { transition: background .2s, color .2s, transform .15s var(--spring) } .chat-head .cp-btn:active { transform: scale(.9) }`, and `transition: height .2s` on `.chat-head .call-pill.muted .cp-bars i`.",
+     "files": [
+      "apps/web/src/shell/call/call.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add the three rules to call.css as proposed, scoped under .chat-head so they match the existing selectors. Use var(--spring) only if that token is defined in the app, otherwise check with grep. Keep the enter animation (cp-in) working, since `transition: transform` on .cp-btn could interact with the cp-end enter animation at call.css:~300."
+    },
+    {
+     "id": "calls_motion-5",
+     "title": "The call screen's wave stops moving whenever nobody is speaking",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 520-524 `.wave i{...animation:wave .7s ease-in-out alternate infinite}` with delays .2/.4/.1s, `@keyframes wave{to{transform:scaleY(.4)}}`. DESIGN_TREE_37 «موجة المكالمة · موجة الكبسولة | أعمدة ترتفع وتنخفض | 0.7 · 1.05».",
+     "app_evidence": "apps/web/src/shell/call/CallPages.tsx:42-56 CallWave sets `scaleY(0.35 + level*1.3)` from the real meter, with `transition: transform .12s linear` (call.css:119-125); there is no @keyframes wave. During a connected call with a quiet line the bars measured scaleY 0.98-1.00, almost static, while the capsule bars keep their 1.05s cycle (call.css:240-262).",
+     "owner_sees": "On the call screen the four bars sit still between sentences, while the capsule in the chat header keeps pulsing, so the two views of the same call disagree.",
+     "fix_plan": "Keep the real levels but add the reference's idle motion: apply the 0.7s `wave` keyframes (scaleY to .4, alternate, delays .2/.4/.1s) to an inner element, or when the level is near zero, and multiply the level scale on the outer `<i>`. Keep it flat and grey when muted or not connected, and none under reduced motion.",
+     "files": [
+      "apps/web/src/shell/call/CallPages.tsx",
+      "apps/web/src/shell/call/call.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Inline transform would override a CSS keyframe animation on the same element. Put the keyframe animation on an inner span or on the `i` itself via a different property, such as scale, and keep the level on transform. Alternatively, drop the live meter and use the reference's pure CSS wave, which is simpler. Keep the muted state flat, add no animation under prefers-reduced-motion, and keep the reference's widths and delays. Overlaps with gap 3 in call.css only, so no conflict."
+    }
+   ]
+  }
+ ]
+}

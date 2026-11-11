@@ -1,0 +1,93 @@
+{
+ "package": "cleanup",
+ "title": "Dead code, the second overlay system, duplicate requests",
+ "wave": 2,
+ "port": 8853,
+ "worktree": "/home/user/wt/cleanup",
+ "branch": "fx/cleanup",
+ "owns": [
+  "whatever nothing imports any more"
+ ],
+ "steps": [
+  {
+   "name": "dead-code",
+   "lead_notes": "Delete files, exports, CSS rules, catalog strings and dependencies that nothing reachable uses any more (prove it: no import, no route, no test). cleanliness-8: do the safe part only, as the verifier's note says; the periodic reconcile and reconnect refresh are safety nets for trading freshness and stay.",
+   "gaps": [
+    {
+     "id": "cleanliness-13",
+     "title": "Unreachable files from the older interface (about 60 KB) and dead CSS",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Owner instruction 2026-11-11: no leftover older look; CLAUDE.md asks that dead code be reported.",
+     "app_evidence": "Import-graph walk from main.tsx (scripts/clean/reach.mjs) finds these never imported: pages/Board.tsx 20.3 KB, pages/ActivityList.tsx 9.1 KB, components/ai/AgentLiveStatus.tsx 5.6 KB, TurnActivity.tsx 4.0 KB, primitives.tsx 3.2 KB, CollaborationMarker.tsx 0.9 KB, agent-status.css 3.6 KB, beautiful-ui.css 1.2 KB, components/conversation-question.tsx+css 4.1 KB, components/ArtifactFileCard.tsx+css 2.7 KB, components/ToolActivityDisclosure.tsx 1.7 KB, components/call/Transcript.tsx 0.4 KB, hooks/useLocalPreferences.ts, lib/{thread_cache,run-activity,peer_messages,watches}.ts. chart-render.tsx is used by chart-runtime/index.html (keep). Dead classes: styles.css (thread-view, thread-status, thread-progress, voice-card, reply-preview, modal-backdrop, brand-mark, group-members, streaming-reply, chart-sheet-controls/handle, tpl-context-panel, conversation-charts), theme.overrides.css workspace-search-* (6 classes, ~lines 162-500). About 490 obsolete «#~» entries in ar/messages.po.",
+     "owner_sees": "Nothing directly; it keeps old patterns available to copy and slows reviews.",
+     "fix_plan": "Delete the listed files, updating tests/web/one-vocabulary.test.ts:78 (lists ActivityList.tsx) and tests/web/run-activity.test.ts (tests lib/run-activity) together. Remove the dead selectors from styles.css and theme.overrides.css. Run `lingui extract --clean` to purge obsolete catalog entries. Re-run the reach script in CI so new orphans fail.",
+     "files": [
+      "apps/web/src/pages/Board.tsx",
+      "apps/web/src/pages/ActivityList.tsx",
+      "apps/web/src/components/ai",
+      "apps/web/src/components/conversation-question.tsx",
+      "apps/web/src/components/ArtifactFileCard.tsx",
+      "apps/web/src/components/ToolActivityDisclosure.tsx",
+      "apps/web/src/styles.css",
+      "apps/web/src/theme.overrides.css",
+      "tests/web/one-vocabulary.test.ts",
+      "tests/web/run-activity.test.ts"
+     ],
+     "report_rows": [],
+     "verifier_note": "Delete in dependency order: ActivityList, then CollaborationMarker, primitives and run-activity. Update tests/web/one-vocabulary.test.ts and run-activity.test.ts at the same time. Re-grep every file for non-relative imports and dynamic imports before deleting. Dead CSS classes need a per-selector grep; don't bulk-remove. Run lingui extract --clean last."
+    },
+    {
+     "id": "sheets_overlays-11",
+     "title": "Leftover second overlay system: unused Board.tsx dialogs and the shadcn primitives in @lonora/ui-web",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE:206: everything that is not a page opens as a sheet, a popover beside the button, or a layer over the app. There is one sheet host and one popover.",
+     "app_evidence": "pages/Board.tsx:323 and :531 define their own `role=\"dialog\" aria-modal` overlays (`workspace-dialog`) with useOverlayHistory, and Board is imported nowhere. packages/ui-web/src/components/ui/{dialog,alert-dialog,popover,dropdown-menu,select,tooltip,switch}.tsx still ship Base UI primitives. Their only remaining app users are AvatarStudio (Dialog), AgentPermissions (Dialog and Popover) and BrokerPairPicker (Popover), all covered above.",
+     "owner_sees": "Nothing directly. It keeps a parallel look within reach of any new screen and makes «one token system» harder to hold.",
+     "fix_plan": "Delete pages/Board.tsx and its workspace-dialog CSS. After the AvatarStudio, AgentPermissions and BrokerPairPicker migrations, remove the unused primitives from packages/ui-web and its index exports, and run tsc to confirm that nothing else imports them.",
+     "files": [
+      "apps/web/src/pages/Board.tsx",
+      "packages/ui-web/src/components/ui/dialog.tsx",
+      "packages/ui-web/src/components/ui/alert-dialog.tsx",
+      "packages/ui-web/src/components/ui/popover.tsx",
+      "packages/ui-web/src/components/ui/dropdown-menu.tsx",
+      "packages/ui-web/src/components/ui/select.tsx",
+      "apps/web/src/components/trading/BrokerPairPicker.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Do not delete the workspace-dialog CSS in theme.overrides.css (lines ~399-441 and ~814) just because Board goes. components/common/FilePreviewPanel.tsx still uses workspace-dialog, workspace-dialog-backdrop and workspace-dialog-header. A grep found no importer of FilePreviewPanel outside its own file, so it also looks dead; if it is, delete it first and then the CSS, otherwise keep the CSS. Deleting Board.tsx is safe now. The primitive removal depends on the AvatarStudio, AgentPermissions and BrokerPairPicker migrations (overlap with those gaps). Order matters: dialog.tsx cannot go before command.tsx (also exported from index.ts and imports dialog), so remove or rewrite command.tsx too, or keep dialog. Safe to remove immediately: alert-dialog, dropdown-menu, select, switch and tooltip, and their index.ts exports. Check ShortcutsSheet.tsx and the shell/domain files, which matched the broad grep but use local components, then run tsc and the web unit tests. This is cleanup only, with no money-safety risk."
+    },
+    {
+     "id": "cleanliness-8",
+     "title": "Every live revision refetches about 12 endpoints; version and profile come from several hooks (about 45 requests on load)",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Comparison report row 48 (version and profile requested twice, 45 requests on chat open). The reference has no network, but the owner asked for the same fast, clean feel.",
+     "app_evidence": "Live cold load of /app (scripts/clean/net.mjs): GET /api/version ×4, /api/owner/profile ×4, /api/agents ×4, /api/groups ×4, /api/runs ×4, /api/agents/notifications ×4, /api/threads/inbox ×3, /api/threads/settings ×3, /api/chat-lists ×2, /api/attention ×2; 45 requests in total. Causes: providers/ClientProvider.tsx:27-36 revision = manual + 15 s tick + SSE revision, bumped again on `connected`, and every loader keys on it (Shell.tsx:125-180, hooks/useAgents.ts:11, UpdateBar.tsx:13, HeadsUp.tsx:53 useQuietHours, settings/owner.ts:18 useOwnerProfile). /owner/profile is read separately by HeadsUp and useOwnerProfile; /version by UpdateBar on every revision and by SettingsRoot useVersion.",
+     "owner_sees": "Slower first paint on a VPS, a «جارٍ فتح مساحة العمل…» wait, list rows that appear late, and a full refetch storm every 15 s while the app is visible.",
+     "fix_plan": "Keep one owner profile in ShellData (shell/data.tsx) and have HeadsUp and the settings pages read it. Make UpdateBar check /version on mount and on visibilitychange only, not on every revision. In ClientProvider, skip the `connected` bump on the first connect (the initial fetch already ran), and replace the blanket 15 s tick with targeted invalidation from SSE event kinds (agents, groups, runs, inbox). Add a Playwright assertion that cold load issues each endpoint at most once.",
+     "files": [
+      "apps/web/src/providers/ClientProvider.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/UpdateBar.tsx",
+      "apps/web/src/shell/lists/HeadsUp.tsx",
+      "apps/web/src/shell/settings/owner.ts",
+      "apps/web/src/shell/data.tsx",
+      "apps/web/src/hooks/useAgents.ts"
+     ],
+     "report_rows": [
+      48
+     ],
+     "verifier_note": "This is a performance issue, not a design gap. Be careful: the 15 s tick, the connected bump and the visibility reconcile are the safety net for lost SSE events and for the outbox/refresh behaviour (see the comment at ClientProvider.tsx:46-47), and they protect broker-receipt and loss-limit freshness. Do not remove them. Do the safe part only: share one owner-profile fetch, make UpdateBar check on mount and visibilitychange, and skip the redundant first connected bump. Tune the tick separately and run the conversation Playwright specs. Not a cleanliness item."
+    }
+   ]
+  }
+ ]
+}

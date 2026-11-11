@@ -1,0 +1,176 @@
+{
+ "package": "agent",
+ "title": "Agent, group and identity pages; the new-agent flow",
+ "wave": 1,
+ "port": 8850,
+ "worktree": "/home/user/wt/agent",
+ "branch": "fx/agent",
+ "owns": [
+  "apps/web/src/shell/agent/ (AgentPage, GroupPage, IdentityPage, AgentSheet, WatchesSheet, MandateSheet, the avatar sheet)",
+  "the new-agent and new-group flow"
+ ],
+ "steps": [
+  {
+   "name": "agent-page",
+   "lead_notes": "An extra job with no audit id, do it first: package `chat` is changing the chat header and the ⋮ menu so that «معلومات الوكيل» and «معلومات المجموعة» open your pages instead of the old AgentSettings and GroupSettings forms. Compare what those old forms let the owner do (pages/shell/bot-settings.tsx and what it renders, such as supervision settings, account authority and the avatar studio; pages/GroupPanel.tsx GroupSettings) with the agent page, the identity page and the group page. Anything the owner could do there and could no longer reach gets a place in your pages, in reference containers, with its logic and server calls unchanged. Money-related settings (account authority, mandate, limits) keep their exact behaviour: change containers only. Do not delete the old files; a later cleanup does.\nLinks: voice settings go to `/app/provider/openai` (Q58), «اربط حسابًا» goes to `/app/broker`, «مراقبة جديدة» goes to `/app/new-schedule?agent=<id>&kind=condition` (package `updates` makes the form honour `kind=condition`). «إيقاف الوكيل» stays hidden on Lonora (Q38).\nsheets_overlays-4: one avatar editor, the app's own sheet. Lonora keeps its own avatar (Q42).",
+   "gaps": [
+    {
+     "id": "agent_pages-3",
+     "title": "Agent page «التداول والأمان» row leaves the page for the chat instead of opening the sheet in place",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3641: the level row uses `attrs(\"sf-sheet\",{agent:a.id})`, and agentSheet(aid) (8122) opens the «الحالة والأمان» sheet over the agent page. DESIGN_TREE_37.md:35: «صف المستوى ← ورقة الحالة والأمان».",
+     "app_evidence": "AgentPage.tsx:322 `onClick={() => go(`/app/${agent.id}?sheet=agent`)}`. ChatHeader.tsx:76-79 then opens the sheet over the conversation. In the live run the URL changed to /app/<gold id> and the sheet sat on top of the chat; pressing back stayed in the chat. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-trading-row.png.",
+     "owner_sees": "Tapping the safety row on the agent page throws the owner into the conversation behind a sheet. Closing it leaves them in the chat rather than on the agent page.",
+     "fix_plan": "Call the conversation's sheet opener directly: `const statusSheet = useAgentSheet(...)` from conversation/sheets/AgentSheet, then `statusSheet(agent, true, prefs.agentStatus)`, as ChatMenu does. Keep ?sheet=agent only for deep links.",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/conversation/sheets/AgentSheet.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Open the AgentSheet in place via the same hook ChatMenu uses; keep ?sheet=agent for deep links. This sheet carries trading level controls, so keep the existing level-change confirmation/money-safety flow unchanged and test that closing returns to the agent page."
+    },
+    {
+     "id": "agent_pages-8",
+     "title": "«يشرف على» section shown on every agent, not only on supervisors",
+     "category": "extra",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:8465-8466 supSection returns \"\" unless canSupervise(a). Line 8460: canSupervise is Lonora, the 'supervise' cap (the «الإشراف على وكلاء آخرين» toggle at creation), or an agent that already supervises. On the reference's محلل الذهب page there is no «يشرف على» (ref-gold-1.png).",
+     "app_evidence": "AgentPage.tsx:419 renders SupervisionSection for every non-delegated agent. محلل الذهب shows «يشرف على · لا يشرف على أي وكيل حاليًا · إضافة وكلاء للإشراف». Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-gold-1.png.",
+     "owner_sees": "Every trading or general agent page has an empty supervision block, which makes the page longer and noisier than the reference.",
+     "fix_plan": "Render SupervisionSection only when the agent is personal, or `supervision.value.supervises.length > 0`, or it was created with supervise (the server's supervisor capability or template).",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Render when personal, or the agent is a supervisor template/role, or supervision.value.supervises.length > 0. Avoid a flash while the read loads. Risk: with no section a non-supervisor agent cannot gain supervisees; this matches the reference, where it is set at creation. Confirm creation sets the supervisor capability."
+    },
+    {
+     "id": "agent_pages-4",
+     "title": "Agent page watches lack «مراقبة جديدة» and «تمديد ساعتين»",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3642 `<h3>المراقبات</h3>${wtRows(a.id)}${B(\"مراقبة جديدة\",\"wt-new\",...,\"full outline\")}`. wtRows (8241-8244) gives each row «إيقاف مؤقت» · «تمديد ساعتين» · «إلغاء». DESIGN_TREE_37.md:36: «المراقبات: مراقبة جديدة · إيقاف مؤقت · تمديد ساعتين · إلغاء».",
+     "app_evidence": "AgentPage.tsx:357-410: rows have only Pause/Resume and Cancel, and nothing follows the list. The chat's WatchesSheet.tsx:78-81 already implements `{action:\"extend\", hours:2}` «تمديد ساعتين». Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-gold-1.png against ref-gold-1.png.",
+     "owner_sees": "The owner can extend a watch from the chat's ⋮ sheet but not from the agent page, and there is no button to add a watch.",
+     "fix_plan": "Add the extend button to the page rows, reusing WatchesSheet's control call and toast. Better, extract one WatchRow component shared by the page and the sheet. Add a «مراقبة جديدة» full outline button after the list that goes to /app/new-schedule?agent=<id> with the «عند تحقق شرط» type preselected (Q39: a condition schedule creates a market watch).",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/conversation/sheets/WatchesSheet.tsx",
+      "apps/web/src/shell/domain/SchedulePages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Extract a shared WatchRow used by AgentPage and WatchesSheet. The «مراقبة جديدة» target must be checked: confirm /app/new-schedule supports ?agent= and condition-type preselect; if not, a simple link to the schedule page with agent preselected is enough. Only show for trader agents (ref isTrader gate)."
+    },
+    {
+     "id": "settings_b-5",
+     "title": "Agent page «link an account» goes to the legacy trading tab, not the broker form",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Reference accountPage/emptystate 8706: `B(\"ربط حساب تداول\",\"go\",{route:\"broker\"},\"full primary\")`; every «ربط حساب» leads to route broker.",
+     "app_evidence": "apps/web/src/shell/agent/AgentPage.tsx:353 `go(accounts.length ? `/app/identity/${agent.id}` : \"/app/settings?tab=trading\")`",
+     "owner_sees": "From an agent with no account, «اربط حسابًا» opens the old trading overlay instead of «ربط الوسيط».",
+     "fix_plan": "Change the target to \"/app/broker\" (the reference broker form). Covered by removing the legacy trading tab in the gap above.",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Change the target to /app/broker, which is a valid route in shell/routes.ts. Check that the broker page returns sensibly when opened from the agent. It is a one-line change that is independent of the legacy tab removal, so it can ship first."
+    },
+    {
+     "id": "sheets_overlays-4",
+     "title": "A second avatar editor, «استوديو الأفتار», opens as a shadcn/Base UI dialog stacked over the sheet",
+     "category": "extra",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE:232: «تعديل الأفتار» is one sheet (16 faces, 7 colours), opened from the agent picture on its page or form. Desktop sheets rise 24px over 0.26s (DESIGN_TREE:286).",
+     "app_evidence": "pages/shell/bot-settings.tsx:62 renders `<AvatarStudio>`, which uses Dialog/DialogContent from @lonora/ui-web (components/ai/AvatarStudio.tsx:83-238). Its classes are `fixed top-1/2 left-1/2 … rounded-xl bg-popover … data-open:zoom-in-95 avatar-studio-dialog` with a Tailwind zoom animation. It is reachable from the chat-header info sheet through the pencil on the avatar. The proper sheet, shell/agent/AvatarSheet.tsx, already exists. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-avatar-studio.png",
+     "owner_sees": "A modal with a different radius, shadow, title («استوديو الأفتار» against «تعديل الأفتار») and zoom animation pops over the sheet. There are two avatar editors in the app.",
+     "fix_plan": "This disappears with the first gap (no more AgentSettings in the sheet). Also replace AvatarStudio in bot-settings.tsx, and in any remaining caller, with the AvatarSheet opener from shell/agent/AvatarSheet.tsx. Keep only avatarFaceLabels() in AvatarStudio.tsx, or move it next to AvatarSheet, and delete the Dialog component.",
+     "files": [
+      "apps/web/src/pages/shell/bot-settings.tsx",
+      "apps/web/src/components/ai/AvatarStudio.tsx",
+      "apps/web/src/shell/agent/AvatarSheet.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Becomes dead code once gap 1 lands: if AgentSettings in bot-settings.tsx has no other caller, delete bot-settings AgentSettings use and AvatarStudio component, but keep and relocate avatarFaceLabels (AvatarSheet imports it). Check the .po catalogue and any tests referencing «استوديو الأفتار». Not independent of gap 1."
+    },
+    {
+     "id": "sheets_overlays-9",
+     "title": "«تفاصيل التفويض» falls back to the old AgentPermissions panel with a Base UI popover or dialog inside the sheet",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "DESIGN_TREE:78 and :192 say permission-details opens the «تفاصيل التفويض» sheet, and the level picker is the composer's permission menu (DESIGN_TREE:252, morphing from the composer, ζ0.66 ω17.5). There is no secondary popover or modal inside a sheet.",
+     "app_evidence": "conversation/sheets/MandateSheet.tsx:387-396: when details, pending_authority or active_authorities exist and there is no owner-action card, it renders `<div className=\"legacy-surface\"><AgentPermissions … surface=\"settings\"/></div>`. AgentPermissions.tsx:646-680 then opens a Base UI `<Dialog><DialogContent className=\"permission-picker-sheet\">` on compact widths or a Base UI `<Popover><PopoverContent className=\"permission-picker-popover\">` otherwise, with its own overlay history (line 374). The same component is also used by components/trading/AccountAuthoritySettings.tsx.",
+     "owner_sees": "For an agent with an active delegation, «تفاصيل التفويض» shows an older panel, and changing the level opens a third style of picker over the sheet.",
+     "fix_plan": "Make MandateSheet always render the reference-styled MandateBody or OwnerActionCard path, and show active grants as rows (level, markets, duration, loss limit) with the composer's PermissionMenu as the only level picker. Then delete the Dialog and Popover branches of AgentPermissions, or retire AgentPermissions if AccountAuthoritySettings is also legacy.",
+     "files": [
+      "apps/web/src/conversation/sheets/MandateSheet.tsx",
+      "apps/web/src/components/permissions/AgentPermissions.tsx",
+      "apps/web/src/components/trading/AccountAuthoritySettings.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "This is the grant editor, so changing it risks money-safety rules (grants, limits, confirmation flow) and the permission tests. Do not delete AgentPermissions: AccountAuthoritySettings still uses it. Safest step is only restyling or replacing the picker presentation inside the sheet while keeping the same grant API calls and confirmations. It only appears with an active delegation, so it is not met constantly."
+    }
+   ]
+  },
+  {
+   "name": "new-agent-flow",
+   "lead_notes": "The new-agent flow has real steps with their own titles, and header Back goes one step back, as the reference and the design tree's back-order rules say. Package `settings` and package `shell` edit routes.ts and pages.tsx at the same time: keep your hunks there small. Wording follows Q19 (no «بوت»). MetaApi plus «تجريبي» only (Q52). Package `forms` later replaces native selects across the app: do not start that here.",
+   "gaps": [
+    {
+     "id": "agent_pages-5",
+     "title": "New-agent flow is one route with hidden steps: wrong titles, and header back leaves the flow",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:3010 pages `[\"agent-type\",\"اختيار نوع الوكيل\"],[\"trading-setup\",\"إعداد وكيل التداول\"]`, and «new-agent» is «إنشاء وكيل». 9263 new-agent → go(\"agent-type\"). 9264 agent-next → go(trading-setup or new-agent), a real route, so the header back returns to the type step. The form at 3648 ends with one full primary «إنشاء الوكيل» and has no separate «رجوع». DESIGN_TREE_37.md:41-42.",
+     "app_evidence": "pages.tsx:136 titles /app/new-agent «إنشاء وكيل» for both steps. bot-panel.tsx:25-26 keeps `step` in component state. bot-panel.tsx:275 adds an in-form «رجوع» beside «إنشاء الوكيل». In the live run the header back from step 2 went to /app and dropped the typed fields. Screenshots /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-newagent-trading.png and app-newagent-trading-1.png against ref-agenttype-0.png and ref-tradingsetup.png.",
+     "owner_sees": "The type picker is titled «إنشاء وكيل» instead of «اختيار نوع الوكيل», and the trading form is not «إعداد وكيل التداول». The top back arrow throws away the form, and the bottom of the form has two half-width buttons.",
+     "fix_plan": "Add pages \"agent-type\" and \"trading-setup\" to routes.ts PAGES with titles in pages.tsx. Move the template step to /app/agent-type (NewChatSheet «وكيل جديد» goes there). «التالي» navigates to /app/trading-setup or /app/new-agent with the template and supervise flag in location.state or query. Remove the in-form «رجوع» and make «إنشاء الوكيل» a `btn full primary`. Move the component from pages/shell/bot-panel.tsx to shell/agent/NewAgentPage.tsx.",
+     "files": [
+      "apps/web/src/shell/routes.ts",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/shell/bot-panel.tsx",
+      "apps/web/src/shell/NewChatSheet.tsx"
+     ],
+     "report_rows": [
+      47
+     ],
+     "verifier_note": "Navigation/title polish, not met constantly nor money-related, so downgrade to low. Simplest: add the two routes/titles and carry template via location.state; moving the file to shell/agent is optional churn. Must keep the trading-agent creation guards (no broker, starts at «No trading») untouched, and a direct hit on /app/trading-setup without state should fall back to the type step. Check Playwright specs that drive the single-route flow."
+    },
+    {
+     "id": "agent_pages-6",
+     "title": "Trading-setup account/pair fields use the old BrokerPairPicker look and the old «بوت التداول» wording",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:3648: the form uses acctFields(undefined,\"XAUUSD\"), the same field/select rows as identity (3646), under the shared `.field` styling.",
+     "app_evidence": "bot-panel.tsx:219-221 wraps BrokerPairPicker in `<div className=\"legacy-surface\">`. The live form shows «حساب الوسيط», a pair select with a different arrow/spinner, and «اربط حساب الوسيط قبل إنشاء بوت التداول. فتح إعدادات التداول» in link-blue. IdentityPage.tsx:213-300 already renders the reference-style account select, «الزوج» and field-note. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-newagent-trading.png.",
+     "owner_sees": "In the middle of the clean creation form, one block uses the older control style and says «بوت» where the rest of the app says «وكيل».",
+     "fix_plan": "Extract IdentityPage's account + pair fields (lines ~213-320) into a shared AccountPairFields in shell/agent/shared.tsx and use it in the trading-setup form. When there are no accounts, show the reference's note line with a link to /app/broker. Drop the legacy-surface wrapper.",
+     "files": [
+      "apps/web/src/pages/shell/bot-panel.tsx",
+      "apps/web/src/shell/agent/IdentityPage.tsx",
+      "apps/web/src/shell/agent/shared.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Cosmetic and wording only, so low severity. Reuse IdentityPage's account/pair fields as proposed, but keep the same state and submit payload (pair, trading_account_id). Do not weaken the 'connect a broker account first' guard that blocks creating a trading agent without an account. Update the i18n strings that say the old bot wording."
+    }
+   ]
+  }
+ ]
+}

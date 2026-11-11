@@ -1,0 +1,11 @@
+TRACK T7 — Reference UI phase 4b: the domain pages (branch ui/phase-4-domain from main).
+Scope: these Phase 4 rows of docs/ui-reference/CAPABILITY_MAP.md, built exactly as Lonora-Desktop-37.html inside the phase-2 shell (apps/web/src/shell), with owner decisions Q36, Q39, Q40, Q41, Q43 and Q45:
+- goals.page (Q41): trading agents show their trading goals (plans under the agent's grant, GET/POST /api/trading/goals) in the reference's list style; non-trading agents get light goals (a small new resource: title, description, done). A goal never gains autonomy or authority (W15-9).
+- schedules.page (Q39): routines gain `title` and one-shot `run_at`; «عند تحقق شرط» creates a market watch with a prompt; the notification channel is owner-wide.
+- tasks.page and the task page (Q43): tasks gain `due_at` and `completion_criteria`, plus the reference's «تحديد كمكتملة» control. (Moved here from WP-D; T2 is told.)
+- knowledge.page (Q40): notes become semantic notes; links become a new `link` entry; drop the documents list if it adds nothing.
+- skills.page, the skill page, «سجل الإصدارات» and «الرجوع إلى الإصدار N» with undo: build the skills version history and restore routes (WP-H). T4's settings «المهارات» rows bind the same routes, so publish their exact shape to the lead early.
+- files.page (Q36): text files only; `.json` skill import is data; list, upload, preview, «ملف نصي جديد» and `file-edit` for text files.
+- activity.page (Q45): a server projection over durable events and receipts, `GET /api/activity`; the client never invents entries.
+- updates.page: stories row, «التنبيهات» with «تحديد الكل كمقروء» (`POST /api/attention/seen-all`, WP-H), «المواعيد القادمة», «آخر الإجراءات».
+Boundaries: of WP-H you own the activity projection, routine title/run_at, knowledge link entries, light goals, skills version history and restore, and attention seen-all; T4 owns quiet hours, per-agent notification preferences, the owner profile and MCP. T6 owns the agent page and routes its nav rows to your pages. T2 owns the conversation. Reserved migration revision ids: 0056_*, 0057_*, 0058_*. Extend tests/ui-reference/side-by-side.mjs with your states (pixel % is a report; the gate is computed values + DOM + an eye-review sheet).

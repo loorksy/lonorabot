@@ -1,0 +1,518 @@
+{
+ "package": "settings",
+ "title": "Settings: replace the old tabbed screen, integrations, providers, trading account",
+ "wave": 1,
+ "port": 8845,
+ "worktree": "/home/user/wt/settings",
+ "branch": "fx/settings",
+ "owns": [
+  "the route table for settings pages (shell/routes.ts, shell/pages.tsx)",
+  "apps/web/src/shell/settings/IntegrationsPage.tsx",
+  "apps/web/src/shell/settings/ConnectionPages.tsx",
+  "apps/web/src/shell/settings/UsagePage.tsx",
+  "the new models page",
+  "the three old rows in SettingsRoot.tsx",
+  "the old settings overlay files"
+ ],
+ "steps": [
+  {
+   "name": "legacy-trio",
+   "lead_notes": "These entries are one job. The reference has no «النماذج العالمية», «الصوت» or «التداول» rows in the settings root, and no tab strip inside settings. The lead's decision:\n- Remove the three rows and the old tabbed overlay.\n- Model routing and the allowed-models list keep all their logic and API calls and move to a new inner page `/app/models`, built from the settings primitives, opened by a «النماذج» row under التكاملات › الذكاء الاصطناعي next to «مزوّدو النماذج». The duplicate provider/key form goes away: `/app/provider/<id>` is the one form.\n- Voice: a «المكالمات الصوتية» row in the same section shows readiness from the voice status API and opens `/app/provider/openai`. That is also the Q58 target. No GPT-Live or WebRTC wording; Arabic copy in the Q19 vocabulary.\n- Trading: the stop/resume control for new trades (the global brake) gets a row with a confirm sheet under التكاملات › حسابات التداول. This is a money-safety control: it must stay reachable, keep its exact server calls and wording, and exits stay allowed. The duplicate broker form goes away: `/app/broker` is the one form.\n- `/app/settings?tab=models`, `?tab=voice`, `?tab=trading` keep working as redirects to the new places.\n- Retarget every remaining in-app link to the old tabs, except in PermissionMenu.tsx (package `popover` does it) and AgentPage.tsx (package `agent` does it).\n- Delete the old overlay files once nothing imports them. Keep components that pages/Trading.tsx or others still import.\nUpdate the Playwright specs that open the old tabs so they assert the new places.",
+   "gaps": [
+    {
+     "id": "navigation-3",
+     "title": "«النماذج العالمية · الصوت · التداول» open an old tabbed screen with no back button, its own tab strip, and a ?tab= that does not follow the tab",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "DESIGN_TREE_37.md:10: inner pages have a glass back button and their name as the first content; settings rows open inner pages (go(route) at Lonora-Desktop-37.html:3127, back button at 3511/3515). The reference has no tab strip inside settings.",
+     "app_evidence": "SettingsRoot.tsx:330-332 link to /app/settings?tab=models|voice|trading. pages.tsx:206-216 renders the legacy SettingsOverlay under `.legacy-surface` on the root settings route, so there is no back button and the bottom nav stays on settings. pages/SettingsOverlay.tsx:7-11 switches tabs in local state (setTab), so the URL stays ?tab=models after tapping «الصوت» (live, both sizes). The strip «النماذج العالمية · الصوت · التداول» duplicates the three settings rows (shots/nav/phone-settings-tab-models.png, which also shows the old look: bordered cards and native select).",
+     "owner_sees": "Tapping «النماذج العالمية» from settings opens a screen that looks like the main settings tab, with no back arrow, a second tab bar repeating the rows they just came from, and a URL and system Back that do not follow the tab they pick.",
+     "fix_plan": "Make each one an inner settings page: add `models`, `voice` and `trading-settings` (or similar) to PAGES and SETTINGS_PAGES in routes.ts, give them Route entries in pages.tsx that render the panel body in the shell's page layout (float-back plus title, as the other settings pages do), and drop SettingsSidebar from SettingsOverlay. Point SettingsRoot.tsx:330-332, AgentPage.tsx:161/353 and useSettingsRedirect at the new paths, and keep ?tab=models|voice|trading as redirects in settingsMoved. If the strip must stay for now, at least sync it with nav.go(`/app/settings?tab=${t}`, {replace:true}) and show a back button.",
+     "files": [
+      "apps/web/src/shell/routes.ts",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/SettingsOverlay.tsx",
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/agent/AgentPage.tsx"
+     ],
+     "report_rows": [
+      17,
+      22
+     ],
+     "verifier_note": "The full conversion to new inner routes is M or larger, since model routing and trading controls have no reference design. Cheaper and safer first step: wrap the legacy panel in the shell's inner-page layout (float-back plus title) and drop the SettingsSidebar tab strip so each row opens exactly one panel. Do not change money-related trading controls' behaviour. Overlaps with the leftover-pages gap on pages.tsx and routes.ts: edit both in one pass."
+    },
+    {
+     "id": "settings_root-2",
+     "title": "The old tabbed settings screen (?tab=models|voice|trading) traps navigation: the address does not follow the tab, there is no back button, and the Settings tab does not leave it",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Every settings destination in the reference is its own route reached by `R(label, icon, route)` (3686-3691) and opens as an inner page with the floating back. The reference has no in-page tab strip inside settings. DESIGN_TREE_37.md 86-89 (settings groups) and its back-order section.",
+     "app_evidence": "apps/web/src/shell/pages.tsx:204-217: SettingsPage renders <Legacy><SettingsOverlay initialTab/> under the root tab's large title «الإعدادات». apps/web/src/pages/SettingsOverlay.tsx:7 keeps the tab in useState, so the URL never changes. Live check (scripts/settings/s2.mjs, s5.mjs): after tapping «الصوت» then «التداول» the URL is still /app/settings?tab=models; on a phone, tapping the bottom-bar «الإعدادات» tab from /app/settings?tab=trading leaves the URL at ?tab=trading; no back control exists. Screenshots: shots/settings/app-phone-trading.png, app-desk-trading.png.",
+     "owner_sees": "On the phone, a tap on «النماذج العالمية», «الصوت» or «التداول» opens a page that looks like the settings root with a row of pills. Tapping «الإعدادات» in the tab bar does not get back to the settings list. In the installed app, which has no browser back button, the only way out is another tab. A reload or a shared link reopens the first tab, not the one on screen.",
+     "fix_plan": "Remove the tabbed screen rather than patch it. Once the three gaps below give each feature a reference home, delete the `settingsTabs` branch in pages.tsx:209-216 and map the old keys in `settingsMoved` (models → /app/providers, voice → /app/providers or the voice row, trading → /app/integrations), so that old links still land on a real page. Delete apps/web/src/pages/SettingsOverlay.tsx and settings-sidebar.tsx, and drop the `Settings` lazy import and the `SettingsTab` type import. Until then, the minimum fix is to give each tab a page route with the floating back.",
+     "files": [
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/SettingsOverlay.tsx",
+      "apps/web/src/pages/settings-sidebar.tsx"
+     ],
+     "report_rows": [
+      17,
+      21
+     ],
+     "verifier_note": "This is the consequence of gaps 2, 3 and 4, so do it last, after they are done. It cannot be fully done alone, because tab=models is also linked from Conversation.tsx:612 and PermissionMenu.tsx:492; repoint those to /app/providers when the tab is removed. Add models, voice and trading to settingsMoved. Delete settingsTabs, the Settings lazy import and the SettingsTab type import. Check that SettingsOverlay and settings-sidebar have no other users, and update any tests that cite ?tab=."
+    },
+    {
+     "id": "settings_root-3",
+     "title": "«النماذج العالمية» duplicates the provider key form and keeps model routing and allowed models in old cards outside «مزوّدو النماذج»",
+     "category": "extra",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Settings root 3688 has only «الإشعارات والتواصل» and «التكاملات» in that group. CAPABILITY_MAP.md settings.integrations: «الذكاء الاصطناعي → مزوّدو النماذج (count)». settings.providers: the provider list plus the provider form with «النموذج» select. OQ47 (CAPABILITY_MAP 360): «model routing under «مزوّدو النماذج»».",
+     "app_evidence": "SettingsRoot.tsx:330 row «النماذج العالمية» → /app/settings?tab=models. apps/web/src/pages/ModelSettingsOverlay.tsx:31-90 is a second provider + API-key form (.card, bare <select>, «حفظ واكتشاف النماذج»), which duplicates ProviderFormPage in apps/web/src/shell/settings/ConnectionPages.tsx:604-731. ModelRoutingSettings.tsx:66-166 and AllowedModelsSettings.tsx:42-97 are .card/h2 forms with no .group rows. ProvidersPage (ConnectionPages.tsx:561-598) has no routing and no allowed-models section. Screenshot shots/settings/app-phone-models.png.",
+     "owner_sees": "Two different screens for adding a model key, and the global model choice and allowed list in an older look (cards with headings and bare selects) under a settings row the reference does not have.",
+     "fix_plan": "Remove the «النماذج العالمية» row. In ProvidersPage, under the providers group, add two sections in reference containers. «التوجيه العالمي»: a .group of rows for mode (تلقائي / نموذج واحد) and the default and voice models, each opening a pop-opt picker like the composer's model page. «النماذج المسموح بها»: rows with remove, plus «إضافة نموذج». Reuse the logic of ModelRoutingSettings/AllowedModelsSettings (readRouting, model_catalog) and drop their .card markup. Give the integrations row «مزوّدو النماذج» the count as its value. Delete ModelSettingsOverlay.tsx, then move or delete the two old components.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "apps/web/src/pages/ModelSettingsOverlay.tsx",
+      "apps/web/src/pages/ModelRoutingSettings.tsx",
+      "apps/web/src/pages/AllowedModelsSettings.tsx",
+      "apps/web/src/shell/settings/settings.css"
+     ],
+     "report_rows": [
+      21
+     ],
+     "verifier_note": "The cost is design cleanliness, not money or safety, so medium. Keep the routing and allowed-models logic and the API calls unchanged, and only change the markup into .group rows. Do not lose the per-agent or global model validation. Overlaps with gap 1 on tab=models links from the conversation (612) and the permission menu (492). Give the integrations «مزوّدو النماذج» row its count only if it is cheap."
+    },
+    {
+     "id": "settings_root-4",
+     "title": "«الصوت» is a dead end, and the Q58 «Open voice settings» button lands on it",
+     "category": "behaviour",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "OWNER_DECISIONS Q58: «tapping it shows a warning with a button that opens the voice provider settings». CAPABILITY_MAP call.voice-not-configured: voice uses the configured OpenAI credential (`GET /api/voice/status`). The reference has no «الصوت» settings row (3686-3691).",
+     "app_evidence": "SettingsRoot.tsx:331 row «الصوت» → ?tab=voice. apps/web/src/pages/VoiceSettingsOverlay.tsx:12-38 is a .card of explanatory text («يتصل GPT-Live مباشرة عبر WebRTC…»), at most a status line «Configure an OpenAI credential with GPT-Live API access», and no button. apps/web/src/shell/agent/AgentPage.tsx:150-163 «Calls are not set up» → «Open voice settings» → /app/settings?tab=voice. Screenshot shots/settings/app-phone-voice.png (the status line had not loaded and nothing on the page is actionable).",
+     "owner_sees": "Tapping «فتح إعدادات الصوت» after a call fails opens a technical paragraph about WebRTC and GPT-Live with nothing to tap. The owner cannot add the key from there.",
+     "fix_plan": "Remove the «الصوت» row. In IntegrationsPage, in the «الذكاء الاصطناعي» section, show a voice state row («المكالمات الصوتية» with the value «جاهزة» or «تحتاج مفتاح OpenAI», from /voice/status) that opens /app/provider/openai, or the providers page when OpenAI is configured but lacks voice access. Point AgentPage.tsx:161 and the call screen's not-configured button at that destination. Delete VoiceSettingsOverlay.tsx.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/shell/call/CallPages.tsx",
+      "apps/web/src/pages/VoiceSettingsOverlay.tsx"
+     ],
+     "report_rows": [
+      21
+     ],
+     "verifier_note": "Simplest fix: point AgentPage.tsx:161 and the call screen's not-configured button at /app/provider/openai (or /app/providers) and drop the Voice row. Optionally add a status row in IntegrationsPage from /voice/status. Do not touch the call logic. Delete VoiceSettingsOverlay only after nothing else imports it. Do this before removing the tab (gap 1)."
+    },
+    {
+     "id": "settings_root-5",
+     "title": "«التداول» settings tab duplicates the global brake and an old broker form; «اربط حسابًا» on the agent page goes there instead of the broker form",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Reference broker linking is «ربط حساب تداول» inside التكاملات (CAPABILITY_MAP settings.integrations / settings.broker-form, brokerFormPage 8701-8703). OWNER_DECISIONS Q14: the global brake «إيقاف الصفقات الجديدة / استئناف» lives in the AgentSheet «التداول» row. Q52 and the standing rule: MetaApi + «تجريبي» only, in the reference layout.",
+     "app_evidence": "SettingsRoot.tsx:332 row «التداول» → ?tab=trading → apps/web/src/pages/TradingSettingsPanel.tsx:4-13 (h2 «إعدادات التداول العالمية», old TradingStatus card, BrokerConnection inside a native <details> «◄ إضافة اتصال بالوسيط»). The same brake is already in apps/web/src/conversation/sheets/AgentSheet.tsx:475, and the reference broker form is at /app/broker (ConnectionPages.tsx:80). AgentPage.tsx:353 sends «No trading account linked · link an account» to /app/settings?tab=trading. Screenshot shots/settings/app-desk-trading.png.",
+     "owner_sees": "Two places that stop and resume trading, and two different forms for linking a broker. One of them is an old card with a disclosure triangle. From an agent's page, «اربط حسابًا» opens the old one.",
+     "fix_plan": "Remove the «التداول» row and TradingSettingsPanel.tsx. Change AgentPage.tsx:353 to go to /app/broker (or /app/integrations). In pages.tsx, map ?tab=trading to /app/integrations. If a global stop must stay reachable outside a chat, put it as a row in IntegrationsPage «حسابات التداول» that opens the same AgentSheet brake confirm. Check that components/trading/BrokerConnection.tsx and TradingStatus.tsx have no other users (pages/Trading.tsx still imports TradingStatus) before deleting them.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/pages/TradingSettingsPanel.tsx",
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx"
+     ],
+     "report_rows": [
+      21
+     ],
+     "verifier_note": "Money-safety: the global brake must stay reachable. Before deleting TradingSettingsPanel, confirm the AgentSheet brake covers every case it covers, or add a brake row in IntegrationsPage. Repoint AgentPage.tsx:353 to /app/broker. Keep BrokerConnection and TradingStatus if Trading.tsx (still imported) or other pages use them. Keep MetaApi and demo-only rules intact."
+    },
+    {
+     "id": "settings_root-6",
+     "title": "«ربط مزوّد نماذج» (composer model menu) and the model error card's fix button open the old ?tab=models screen instead of «مزوّدو النماذج»",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 8426: the model page's «ربط مزوّد نماذج» does `go` with `route:\"providers\"`. CAPABILITY_MAP chat.composer.model-page: «ربط مزوّد نماذج» → providers.",
+     "app_evidence": "apps/web/src/conversation/PermissionMenu.tsx:492 `go(\"/app/settings?tab=models\")`. apps/web/src/conversation/Conversation.tsx:612 `fixFailure` → \"/app/settings?tab=models\" for non-quota failures. apps/web/src/components/genui/UiCard.tsx:29 and ToolsSheet.tsx:185 still use ?tab= addresses (these redirect correctly).",
+     "owner_sees": "From a chat, «ربط مزوّد نماذج» or the fix button on a model error opens the old tabbed settings screen with its own key form, not the provider list.",
+     "fix_plan": "Point PermissionMenu.tsx:492 and Conversation.tsx:612 at /app/providers (or /app/provider when none is configured). Change UiCard.tsx:29 to /app/usage and ToolsSheet.tsx:185 to /app/integrations, so that nothing links to ?tab= any more.",
+     "files": [
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/components/genui/UiCard.tsx",
+      "apps/web/src/conversation/ToolsSheet.tsx"
+     ],
+     "report_rows": [
+      17
+     ],
+     "verifier_note": "Fix PermissionMenu.tsx:492 and Conversation.tsx:612 (non-quota branch). Quota already goes to the usage tab and can go to /app/usage. Do not touch SettingsRoot.tsx:330/331/332 (Global models, Voice, Trading rows) or AgentPage.tsx:161/353: those tabs have no reference page yet and must keep ?tab=. The UiCard and ToolsSheet changes are optional and low value. Check any tests that assert the ?tab=models address. Choose /app/provider rather than /app/providers when no provider is configured, as ConnectionPages.tsx:594 does."
+    },
+    {
+     "id": "settings_b-2",
+     "title": "«النماذج العالمية» opens the old settings overlay with its own provider/key form",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Reference has one place for providers: integrationsPage 8297-8303 «الذكاء الاصطناعي › مزوّدو النماذج» → route provider (3699: Select المزود · مفتاح API · Select النموذج · «اختبار الاتصال» · «حفظ الإعدادات»). There is no second model/provider screen in the settings root (DESIGN_TREE_37.md 86-89 lists the root rows; no «النماذج العالمية»).",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:329-332 add rows «النماذج العالمية», «الصوت», «التداول» pointing at /app/settings?tab=…; apps/web/src/shell/pages.tsx:64-68,204-216 render pages/SettingsOverlay.tsx inside <Legacy>. pages/ModelSettingsOverlay.tsx repeats the provider select + API key form (a second provider entry point) in the old `card` look, with an old tab strip (settings-sidebar.tsx), the root «الإعدادات» header and tab bar but no back button. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/c-_app_settings_tab_models.png",
+     "owner_sees": "Tapping «النماذج العالمية» lands on a different-looking screen with pill tabs, boxed cards, raw ids (openai, zai) and no back arrow; adding a provider key can be done in two different places that look different.",
+     "fix_plan": "Move global routing (ModelRoutingSettings) and the allowed-models list (AllowedModelsSettings) into a reference-styled page under التكاملات › الذكاء الاصطناعي (a second NavRow «النماذج» next to «مزوّدو النماذج», new route e.g. `models` added to PAGES/SETTINGS_PAGES in shell/routes.ts), built with the settings primitives (group/row/field, SelectField) from shell/settings/ui.tsx. Drop the provider/key form from ModelSettingsOverlay (the provider form already exists). Remove the «النماذج العالمية» NavRow, retarget Conversation.tsx:612 and PermissionMenu.tsx:492 (`/app/settings?tab=models`) to the new route, and delete settingsTabs 'models'.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/shell/routes.ts",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/pages/ModelSettingsOverlay.tsx",
+      "apps/web/src/pages/ModelRoutingSettings.tsx",
+      "apps/web/src/pages/AllowedModelsSettings.tsx",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx"
+     ],
+     "report_rows": [
+      52
+     ],
+     "verifier_note": "Smaller fix than the proposed L: keep the routing and allowed-models content but restyle it as a settings-primitives page under Integrations > AI. Remove the duplicate provider and key form. Retarget Conversation.tsx:612 and PermissionMenu.tsx:492, which both point to tab=models, and keep tab=models as a redirect alias. Do not drop the model routing functionality, because the quota and model-error recovery flows depend on it. Overlaps with the voice gap (new route and settingsTabs edits) and the trading gap (shared SettingsRoot rows, settingsTabs and pages.tsx edits), so do them together."
+    },
+    {
+     "id": "settings_b-3",
+     "title": "«التداول» settings row opens an old duplicate broker form and hides the trading stop/resume control in the old look",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Reference links trading accounts only through «التكاملات › حسابات التداول» and route broker (8701-8703, «ربط الحساب»); DESIGN_TREE_37.md 130-132. No separate «التداول» settings screen exists.",
+     "app_evidence": "SettingsRoot.tsx:332 NavRow «التداول» → /app/settings?tab=trading → pages/TradingSettingsPanel.tsx renders components/trading/TradingStatus («أمان التداول · التداول الجديد متوقف · استئناف التداول») and components/trading/BrokerConnection.tsx (a <details className=\"card\"> «إضافة اتصال بالوسيط» form with «Simulation snapshot JSON», a second broker form). Live text captured on the audit server: «إعدادات التداول العالمية أمان التداول التداول الجديد متوقف … استئناف التداول إضافة اتصال بالوسيط». Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/c-_app_settings_tab_trading.png",
+     "owner_sees": "A second, older way to link a broker, and the global trading stop/resume switch only reachable from a legacy screen with no back button.",
+     "fix_plan": "Delete BrokerConnection usage and TradingSettingsPanel; place the trading safety state (TradingStatus stop/resume) inside «التكاملات › حسابات التداول» as a reference-style row with a confirm sheet (or at the top of the broker-account page per account), using row/badge classes. Remove the «التداول» NavRow and 'trading' from settingsTabs in shell/pages.tsx; keep `?tab=trading` as an alias redirect to /app/integrations in settingsMoved.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/TradingSettingsPanel.tsx",
+      "apps/web/src/components/trading/BrokerConnection.tsx",
+      "apps/web/src/components/trading/TradingStatus.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Move TradingStatus (stop/resume, with a confirm) into the Integrations > trading accounts page before removing the legacy tab, and keep tab=trading as an alias redirect to /app/integrations. Remove the BrokerConnection use in TradingSettingsPanel. Note that pages/Trading.tsx (/app/trading, wrapped in Legacy) also imports BrokerConnection and TradingStatus, so do not delete those components unless that route is handled too. Run the trading-safety tests and the tests that look for «استئناف التداول». Overlaps with gap 4, whose AgentPage link target must change at the same time."
+    },
+    {
+     "id": "settings_b-4",
+     "title": "Voice settings is a dead end with untranslated GPT-Live/WebRTC copy (Q58 target)",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "OWNER_DECISIONS.md Q58: «Call button is shown disabled when no voice provider is configured; tapping it shows a warning with a button that opens the voice provider settings.» Reference provider form 3699 is the place a provider key is entered.",
+     "app_evidence": "shell/agent/AgentPage.tsx:150-166 «Open voice settings» → /app/settings?tab=voice; SettingsRoot.tsx:331 NavRow «الصوت». pages/VoiceSettingsOverlay.tsx:13-36 only shows prose («يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI…», «اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-Live») with no field, button or link. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/c-_app_settings_tab_voice.png",
+     "owner_sees": "From a disabled call button the owner is sent to a page that tells them to configure a key but gives no way to do it, in technical jargon, with no back arrow.",
+     "fix_plan": "Point Q58's button (AgentPage.tsx:161) and the conversation call button at the provider form (/app/provider/openai) or a voice row on the new «النماذج» page; show voice readiness as a row under التكاملات › الذكاء الاصطناعي («المكالمات الصوتية · جاهزة/غير مهيأة» → opens the provider form). Remove the «الصوت» NavRow, VoiceSettingsOverlay and 'voice' from settingsTabs; reword strings without GPT-Live/WebRTC.",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/VoiceSettingsOverlay.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      52
+     ],
+     "verifier_note": "Simplest fix: point the Q58 button to /app/provider/openai, the existing provider form, and use the same target in any conversation call button that has the same path. Then remove the «الصوت» row and the voice tab, and delete VoiceSettingsOverlay. Optionally add a voice readiness row under Integrations > AI. Update the i18n catalogs after removing or rewording strings. Update the tests that open voice settings. Shares the settingsTabs and SettingsRoot edits with gaps 1 and 2."
+    },
+    {
+     "id": "cleanliness-4",
+     "title": "Settings rows «النماذج العالمية»/«الصوت»/«التداول» open the old SettingsOverlay with its own tab bar and palette",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "DESIGN_TREE_37.md:55-73: the settings tree has no models, voice or trading rows; model providers are under التكاملات › مزوّدو النماذج, the broker under التكاملات › ربط حساب تداول. CAPABILITY_MAP.md:360 (OQ47) suggests 'model routing under «مزوّدو النماذج»'; OWNER_DECISIONS Q57 leaves each homeless feature to be placed per feature.",
+     "app_evidence": "shell/settings/SettingsRoot.tsx:330-332 NavRow to /app/settings?tab=models|voice|trading. shell/pages.tsx:180-192 renders lazy pages/SettingsOverlay inside <Legacy>. The route is the settings ROOT, so phones get no back chevron and no push animation. Screenshots shots/clean/p-set-models.png and d-set-models.png show a second tab strip (النماذج العالمية · الصوت · التداول), a raw provider id «openai», a grey disabled-looking primary «حفظ واكتشاف النماذج», and unnamed fields (live probe: 2-4 of 3-8 inputs lack id/name). d-set-voice.png shows the untranslated technical terms GPT-Live, WebRTC and OpenAI. d-set-trading.png shows a native <details> «◂ إضافة اتصال بالوسيط», which duplicates /app/broker.",
+     "owner_sees": "Three settings rows lead to a screen in the older look, with its own tab bar and no back button on phones, technical English terms and a different button style.",
+     "fix_plan": "Make each one a real page route with back. Move model routing (pages/ModelRoutingSettings.tsx + AllowedModelsSettings.tsx) into a section of the providers page (shell/settings/ConnectionPages.tsx ProvidersPage) built from settings/ui.tsx rows. Turn voice into a «الصوت» row under the providers page, or a sheet from the call-unavailable sheet, with Arabic copy. Put the trading-safety stop/resume (TradingSettingsPanel) in the broker-account page or the «الحالة والأمان» sheet, and drop its <details> broker form because /app/broker exists. Then delete settingsTabs, SettingsOverlay.tsx, settings-sidebar.tsx and the three NavRows.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/SettingsOverlay.tsx",
+      "apps/web/src/pages/ModelRoutingSettings.tsx",
+      "apps/web/src/pages/VoiceSettingsOverlay.tsx",
+      "apps/web/src/pages/TradingSettingsPanel.tsx",
+      "apps/web/src/shell/settings/ConnectionPages.tsx"
+     ],
+     "report_rows": [
+      22,
+      52
+     ],
+     "verifier_note": "Large and risky: trading-safety stop/resume and model routing are money-safety features, so do not remove them without a new home. Settings rows must not be deleted until the replacement exists. Suggest scoping to making them push pages with back and the shared row styling, not deleting the functions. Voice remains phase 6 work. Overlaps gap 4 (Trading page and its broker form)."
+    },
+    {
+     "id": "cleanliness-6",
+     "title": "In-app buttons still send the owner to the old settings tabs instead of the reference pages",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md:62-65: broker linking = `broker`, model providers = `providers` › `provider`. Reference permission sheet (4983) → «الهوية والنموذج» (identity) for account and model choice.",
+     "app_evidence": "AgentPage.tsx:353 «لا يوجد حساب تداول مرتبط · اربط حسابًا» → /app/settings?tab=trading (old) instead of /app/broker. AgentPage.tsx:161 «فتح إعدادات الصوت» → ?tab=voice. conversation/PermissionMenu.tsx:112 «اختيار حساب التداول» → `?settings=trading` → global trading tab, not /app/identity/:id. PermissionMenu.tsx:492 «ربط مزود نماذج» → ?tab=models instead of /app/provider. Conversation.tsx:612 failure «fix» → ?tab=models, or ?tab=usage (a redirect). components/trading/BrokerPairPicker.tsx:152 <Link to=\"?settings=trading\">.",
+     "owner_sees": "Fix-it buttons in the chat and on the agent page open the old settings screen, not the page that does the job (link broker, add provider, pick account).",
+     "fix_plan": "AgentPage.tsx:353 → \"/app/broker\". PermissionMenu.tsx:112 → `/app/identity/${agent.id}`. PermissionMenu.tsx:492 → \"/app/provider\". Conversation.tsx:612 → quota ? \"/app/usage\" : \"/app/providers\". BrokerPairPicker.tsx:152 → \"/app/broker\". Voice: target its new home (see the SettingsOverlay gap). Once no caller remains, drop the `?settings=` redirect hook (pages.tsx:494).",
+     "files": [
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/components/trading/BrokerPairPicker.tsx",
+      "apps/web/src/shell/pages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Do not delete the ?settings= redirect hook (pages.tsx:493-500) or the settings tabs. Other callers remain: ToolsSheet.tsx:185 (?tab=integrations) and :192 (?settings=skills), UiCard.tsx:29 (?tab=usage), and SettingsRoot.tsx:330-332 which still links ?tab=models, voice and trading. AgentPage.tsx:353 already uses /app/identity/:id when accounts exist, so only the no-account branch changes to /app/broker. Voice (AgentPage.tsx:161) has no new page, so leave it. Check the broker pages return to the chat sensibly. Also note SettingsRoot's Trading and Global models rows duplicate the reference pages; that is a separate gap."
+    }
+   ]
+  },
+  {
+   "name": "integrations-detail",
+   "lead_notes": "settings_b-1 is high: the trading account page must show the real balance, broker name and server from the API; find why it is empty (wrong field, missing fetch) and fix the cause.\nsettings_b-6: the «النموذج» field after a successful test, the model in each provider row, and removing a provider. Removing needs a server route: refuse, with a clear message, while the provider is still used by routing or by an agent, and cover it with pytest. Credentials never appear in responses or logs.\nMetaApi plus «تجريبي» only (Q52).",
+   "gaps": [
+    {
+     "id": "settings_b-1",
+     "title": "Trading account page shows an empty balance (and loses broker name/server)",
+     "category": "behaviour",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 8711: accountPage `<div class=\"group\">${V(\"الرصيد التوضيحي\",\"⁦\"+x.balance+\"⁩\")}${V(\"نوع الحساب\",\"تجريبي\")}</div>`; DESIGN_TREE_37.md 132 «صفحة الحساب: الرصيد التوضيحي · الرموز المتاحة …»",
+     "app_evidence": "apps/web/src/shell/settings/ConnectionPages.tsx:216-223 types the snapshot as flat {broker, login, server, currency, balance}, and 371-381 renders `{account.value.balance} {account.value.currency}`; but GET /api/trading/accounts/{id} returns {\"account\":{\"balance\":\"10000\",\"currency\":\"USD\",\"broker\":null,…},\"positions\":[…]} (verified with curl on the audit server). Result: the «الرصيد» row is blank. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/c-_app_broker-account_d88806c2-f.png",
+     "owner_sees": "On «حساب التداول» the balance row is empty even though the account has 10,000 USD. This misstates money on the one page that exists to show the account.",
+     "fix_plan": "In ConnectionPages.tsx change AccountSnapshot to `{ account: { broker, login, server, currency, balance, equity } ; positions: … }`, read `account.value.account.*` for the balance, broker name and server in the hero. Add a Playwright assertion in tests/web (broker account spec) that the balance row shows the amount and currency.",
+     "files": [
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "tests/web/"
+     ],
+     "report_rows": [],
+     "verifier_note": "Change AccountSnapshot to { account: {broker, login, server, currency, balance}, positions? } and read account.value.account.* in both the hero (server, broker name) and the balance row. Check the other uses of account.value in that component (symbols, agents) for the same wrong shape. Add a Playwright assertion that the balance row shows the amount and currency. Mock fixtures in tests may use the flat shape and need updating to the real nested shape."
+    },
+    {
+     "id": "settings_b-8",
+     "title": "Trading account row lacks broker name and symbol count",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "8300: row `<strong>${acctHtml(x)}</strong>` (= «<bdi>broker</bdi> · number», 8670) and `<small>تجريبي · ${symsCount(x.symbols.length)} · ${agentsCount(n)}</small>`; DESIGN_TREE_37.md 130 «صف لكل حساب (الوسيط · الرقم · عدد الرموز · عدد الوكلاء)».",
+     "app_evidence": "IntegrationsPage.tsx:430-452: label is only `row.payload.account_id`, sub is «تجريبي · وكيل واحد» / «MetaApi · …» with no symbol count. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/app-integrations.png",
+     "owner_sees": "Account rows read «ui-reference-demo / تجريبي · وكيل واحد» instead of «الوسيط · الرقم» with how many symbols are available.",
+     "fix_plan": "Label `<bdi>{brokerName}</bdi> · <span className=\"ltr\">{account_id}</span>` (use the broker identity from row.state.broker_identity when present, else «حساب تجريبي»/«MetaApi»), and add a symbol count from /market/symbols?account_id= (or a count in the connections projection) using a symsCount plural helper.",
+     "files": [
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use row.state.broker_identity for the broker when present. A symbol count needs data already in the connections projection; avoid adding an N-request fan-out per row to /market/symbols. If not readily available, ship only the broker label and drop the count. Use a plural Lingui helper and add Arabic msgstr."
+    },
+    {
+     "id": "settings_b-9",
+     "title": "Symbol cells show a letter placeholder instead of pair icons and Arabic names",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "8727-8733 symGrid: `${pairIcon(s)}<span class=\"sym-t\"><strong>…</strong><small>${SYM_AR[s]||\"\"}…<span class=\"sym-who\">…` (pairIcon 8722-8726 draws base/quote images).",
+     "app_evidence": "ConnectionPages.tsx:330-345 always renders `<span className=\"pair-ic none\">{symbol.slice(0,1)}</span>` and no Arabic symbol name, while @lonora/ui-web PairIcon is already used by shell/agent/AgentPage.tsx:327. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/c-_app_broker-account_d88806c2-f.png (XAUUSD with a plain «X»).",
+     "owner_sees": "Gold shows a grey «X» circle instead of the gold/dollar icon used elsewhere in the app.",
+     "fix_plan": "Replace the span with `<PairIcon symbol={symbol} />` and add the Arabic instrument name in <small> (reuse the symbol-name map from packages/core if present, else add one next to PairIcon).",
+     "files": [
+      "apps/web/src/shell/settings/ConnectionPages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simple swap to PairIcon. The Arabic name map (SYM_AR) is optional: only add it if a map already exists in packages/core; otherwise skip the subtitle to avoid new demo-like data. Check the .pair-ic CSS class and any e2e/visual tests that select 'span.pair-ic.none'."
+    },
+    {
+     "id": "settings_b-6",
+     "title": "Provider form has no «النموذج» field; provider rows show no model and cannot be removed",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "3699 provider form: `Select(\"المزود\")` · مفتاح API · `Select(\"النموذج\",\"model\",[[\"\",\"اختر المزود أولاً\"]])` · «اختبار الاتصال» · «حفظ الإعدادات»; 3698 providers list row: `<strong>${p.provider}</strong><small>${p.model} · …</small>` + `IB(\"close\",\"confirm-delete\",…,\"حذف\")`. DESIGN_TREE_37.md 133 «إضافة مزود (المزود · المفتاح · النموذج · اختبار الاتصال)».",
+     "app_evidence": "ConnectionPages.tsx:553-678 ProviderForm has provider + key + test only; the test result already returns `models` (line 650) but nothing lets the owner pick one. ProvidersPage 513-546 rows show «المفتاح محفوظ · لا يُعرض مرة أخرى» with no model and no remove action. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/app-provider.png",
+     "owner_sees": "After adding a key there is no way to say which model to use from this form, and a wrong key cannot be removed from the list.",
+     "fix_plan": "After a successful «اختبار الاتصال», fill a SelectField «النموذج» from result.models (disabled with «اختر المزود أولاً» before), and on save write it as the default model through the routing API used by ModelRoutingSettings. Show the routed model in each ProvidersPage row's <small>, and add an icon button «حذف» with a confirm sheet calling DELETE /providers/{id}/credential (add the route if missing).",
+     "files": [
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "apps/web/src/lib/model_routing.ts",
+      "apps/api/src/lonora_api/routes/providers.py"
+     ],
+     "report_rows": [],
+     "verifier_note": "Split into two parts. (1) Model select: after test, pick from result.models and save via the existing routing API; verify ModelRoutingSettings route first. (2) Remove: confirm that DELETE /providers/{id}/credential does not exist in apps/api/.../routes/providers.py (only the list/catalog/discovery routes were seen); it needs a new route that also must refuse or warn when the provider is still routed by an agent, and must not break the never-display-key rule. Do not copy the reference's demo wording «إعداد تجريبي» or «قيمة وهمية». Keep it a separate change from the other gaps."
+    },
+    {
+     "id": "settings_b-13",
+     "title": "Untranslated identifiers in this area: provider ids, Streamable HTTP, skill ids",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Standing rule (OWNER_DECISIONS.md Q19, vocabulary); reference provider select uses display names «OpenAI, Anthropic, …» (3699).",
+     "app_evidence": "pages/ModelSettingsOverlay.tsx:62-66 `<option>{p}</option>` (openai, zai) and 114-116 `{m.provider} · {m.name}`; ConnectionPages.tsx:803 ValueRow «نوع الاتصال: Streamable HTTP»; IntegrationsPage.tsx:648 skill_id. providerName() exists in ConnectionPages.tsx:503-510 but is not used by the legacy page.",
+     "owner_sees": "Lower-case technical ids and protocol names mixed into Arabic settings.",
+     "fix_plan": "Use providerName() wherever a provider id is shown (fixed automatically if the legacy page is replaced); show «عن بُعد (HTTP)» instead of «Streamable HTTP»; show skill names (see skills gap).",
+     "files": [
+      "apps/web/src/pages/ModelSettingsOverlay.tsx",
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx"
+     ],
+     "report_rows": [
+      52
+     ],
+     "verifier_note": "Wrong line for Streamable HTTP: it is ConnectionPages.tsx:791. Reuse providerName() (ConnectionPages.tsx ~503-510): export it or move it to a shared lib and use it in the legacy option labels and the model list (keep option value as the id). Replace Streamable HTTP with an Arabic label via t``. For skill_id, there is no display name in CapabilitySkill (only skill_id), so a name would need a backend change; leave skill_id as is or only prettify it. Overlaps with any skills-gap item in this batch. Keep this to a small string-only change; update messages.po."
+    },
+    {
+     "id": "settings_b-12",
+     "title": "Usage «حسب الوكيل» / «حسب النموذج» cards are empty boxes with no empty line",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "usageRank 8945-8985 always has rows in the prototype; the app's own empty pattern elsewhere is `<p class=\"pad muted small\">…</p>` (e.g. integrations «لا توجد مهارات.»).",
+     "app_evidence": "UsagePage.tsx Ranked (≈455-510) renders only the header when rows are empty. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/app-usage.png",
+     "owner_sees": "Two titled cards with nothing inside on a fresh install.",
+     "fix_plan": "In Ranked, when rows.length is 0 render `<p className=\"pad muted small\">لا استهلاك في هذه الفترة.</p>`.",
+     "files": [
+      "apps/web/src/shell/settings/UsagePage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "In Ranked, after the u-card-head, render `<p className=\"pad muted small\"><Trans>No usage in this period.</Trans></p>` when rows.length === 0 (use Lingui Trans/t as elsewhere in the file and add the Arabic entry to apps/web/src/i18n/locales/ar/messages.po; then recompile catalogs if the repo does). No money-safety risk. Check any Playwright or unit tests that count .u-rank children."
+    },
+    {
+     "id": "settings_b-10",
+     "title": "Storage page shows the browser quota in MB (4096.00 م.ب) so the bar is empty",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "6145-6148 storagePage: `cap=5*1048576` and «من ${fmtBytes(cap)} تقريبًا» with a visible segmented .store-bar; DESIGN_TREE_37.md 138 «المساحة المستخدمة من نحو 5 م.ب بشريط مقسّم».",
+     "app_evidence": "DevicePages.tsx:99-104 bytes() stops at MB; 136 `cap = estimate?.quota || 5*1048576` uses the multi-GB quota, so the page reads «108 بايت من 4096.00 م.ب تقريبًا» and the bar is a 1px sliver. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/settings2/app-storage.png",
+     "owner_sees": "An odd «4096.00 م.ب» figure and a bar that never fills.",
+     "fix_plan": "Add a GB step to bytes() (ج.ب), and scale the bar to the used total (each segment as a share of the total, as a stacked composition) rather than the quota; keep «من نحو X» text from the quota. Media section stays out (no local media cache exists) and chat export stays out (see row 42 note).",
+     "files": [
+      "apps/web/src/shell/settings/DevicePages.tsx"
+     ],
+     "report_rows": [
+      42
+     ],
+     "verifier_note": "Simplest fix is to add a GB step to bytes() and scale the bar by share of the used total, or use the reference's 5 MB cap for the bar only. Keep the 'bytes' message ids consistent with Lingui and add the Arabic msgstr for the GB unit. Media/chat-export sections stay out per owner decisions (no local media cache)."
+    }
+   ]
+  },
+  {
+   "name": "skills-and-old-pages",
+   "lead_notes": "Old root pages (navigation-4, cleanliness-5), the lead's decision under Q57: `/app/memory` becomes an alias of `/app/knowledge`; `/app/trading` becomes an alias of `/app/integrations`; `/app/market` becomes an alias of `/app`, and the generated-UI `market` route opens the chart sheet through the existing open-chart event. Check tests/web and tests/*.py for uses of these routes and update them. Do not delete Market.tsx, Trading.tsx or Knowledge.tsx themselves here; a later cleanup removes files nothing imports. List in notes_for_lead every owner-facing function that loses its page this way (for example the economic calendar), so the owner can be told.\ntokens-3: after the steps above, list which old-palette screens are still reachable and from where. Port the small ones to reference containers; for money-related surfaces change containers only, never logic. Report what remains.\nsettings_b-7: enable/disable, last used and «الرجوع إلى الإصدار N» need server support; use what the skills API already has and extend it only if small, with pytest.",
+   "gaps": [
+    {
+     "id": "settings_b-7",
+     "title": "Integrations skills rows lack enable/disable, last used and «الرجوع إلى الإصدار N», and show the raw skill id",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "8296 SKILLS_ROWS: `<strong>${k.name}</strong><small>${k.src||\"مدمجة\"} · الإصدار ${k.version} · آخر استخدام: ${k.used||\"—\"}…</small><span class=\"wt-acts\">${B(k.on?\"تعطيل\":\"تفعيل\",\"cap-skill-toggle\",…)}${…B(I(\"undo\")+\"<span>الرجوع إلى الإصدار \"+…+\"</span>\",\"cap-skill-undo\",…)}`; DESIGN_TREE_37.md 136.",
+     "app_evidence": "IntegrationsPage.tsx:640-690 renders `<strong className=\"ltr\">{skill.skill_id}</strong>`, source + version + agent, and only «Undo this version» (no toggle, no last-used). The /app/skills page (shell/domain/SkillsPages.tsx:94-98,167-170,194-229) already has the toggle and restore-to-version for owner skills, so the two «المهارات» lists offer different controls.",
+     "owner_sees": "Skills in التكاملات can't be switched off there, show an English identifier and an undo label that differs from the reference wording.",
+     "fix_plan": "Render the reference row: name (from the skill manifest/catalog, ltr id only as fallback), «المصدر · الإصدار N · آخر استخدام: …» (add last_used_at to CapabilitySkill in packages/contracts/src/capabilities.ts and the capabilities route), a «تعطيل/تفعيل» sm outline button (reuse SkillsPages toggle API), and relabel undo as «الرجوع إلى الإصدار {N}». Add the Arabic msgstr.",
+     "files": [
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "packages/contracts/src/capabilities.ts",
+      "apps/api/src/lonora_api/routes/capabilities.py",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      44
+     ],
+     "verifier_note": "Cheap parts first: relabel undo to «الرجوع إلى الإصدار {version}» and show a readable name instead of the raw id (if the manifest name is not in the capabilities payload, keep the id as fallback). Toggle must reuse the existing SkillsPages toggle API, honouring expected_revision/optimistic-revision handling like the undo call does. Last-used needs a new contract field and backend data; skip it unless data exists (do not fabricate). Update the .po file and any tests asserting «Undo this version»."
+    },
+    {
+     "id": "navigation-4",
+     "title": "Leftover old root pages /app/memory, /app/trading and /app/market in the legacy look",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "The reference's route set has no memory, market or trading page (route list in DESIGN_TREE_37.md sections tree; ROUTE_ALIAS Lonora-Desktop-37.html:8265). OWNER_DECISIONS Q57: homeless server features are follow-ups (API-only, nearest sheet, or retire), not standalone old screens.",
+     "app_evidence": "pages.tsx:262-290 route /app/market, /app/trading and /app/memory to the old Market/Trading/Knowledge screens wrapped in `.legacy-surface`. routes.ts:14-17,21 list them in PAGES. Nothing in the UI links to /app/memory or /app/trading (grep), so they are dead routes. /app/market is reachable only from generated UI (components/genui/UiCard.tsx:25). Live: shots/nav/phone-market.png shows a doubled «السوق» title, native selects and ◀ disclosure triangles.",
+     "owner_sees": "A generated card's «السوق» button, or an old link, opens a page in a different, older style with a repeated title. It looks like part of another app.",
+     "fix_plan": "Remove the /app/memory and /app/trading Route entries and their PAGES/pageTitle cases; the knowledge page already covers memory, and trading lives on the agent pages. For /app/market, either remove it and drop `market` from the generated-UI routes (see the generated-UI gap), or record it as a Q57 follow-up and rebuild it in the shell's page layout. Keep /app/artifacts and /app/routines: they already render the reference-style Files and Schedules pages.",
+     "files": [
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/shell/routes.ts",
+      "apps/web/src/components/genui/UiCard.tsx"
+     ],
+     "report_rows": [
+      22
+     ],
+     "verifier_note": "Before removing /app/memory and /app/trading, check that the knowledge page really covers the memory editor and that tests or e2e specs do not navigate to them (grep tests/web). Trading may still be needed for the agent pages' trading controls, so verify nothing imports the Trading page. Remove market only together with the genui route change, which is the same gap area as the next item (UiCard.tsx ROUTES)."
+    },
+    {
+     "id": "cleanliness-5",
+     "title": "Old pages still reachable at /app/market, /app/trading, /app/memory: double titles, an unreadable tab strip, no reference home",
+     "category": "extra",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "DESIGN_TREE_37.md tree: no market, trading or memory pages; the chart is a sheet (4993 addRow(\"chart\",…,\"chart\")). Trades are the agent's «الصفقات» (`trades`). OWNER_DECISIONS Q57: homeless features become API-only, a nearest sheet, or retired.",
+     "app_evidence": "shell/pages.tsx:261-277 (market, trading) and 284-291 (memory) render pages/Market.tsx, Trading.tsx and Knowledge.tsx inside <Legacy>. Entry points: market only from components/genui/UiCard.tsx:25 ROUTES.market. /app/trading and /app/memory have no in-app link (URL or history only). Screenshots: d-market.png (header «السوق» plus a second large «السوق», native selects, ◂ <details> disclosures, 7 of 8 fields unnamed). d-trading.png (header «الصفقات» but body title «التداول», duplicating the safety card and broker form from settings?tab=trading). d-memory.png (header «الذاكرة», body «المعرفة», near-invisible tab labels).",
+     "owner_sees": "A generative-UI 'open market' button, an old bookmark or search lands on a screen that looks like a different app, with two titles that disagree.",
+     "fix_plan": "genui ROUTES.market: dispatch 'lonora:open-chart' (the chart sheet) instead of /app/market. Make /app/memory an alias to /app/knowledge and /app/trading an alias to /app/trades/<first trading agent> or Settings (routes.ts ALIASES). Record the economic calendar and market watch as Q57 follow-ups; if kept, put them in the chart sheet. Then delete pages/Market.tsx, Trading.tsx, Knowledge.tsx, KnowledgeSection.tsx, MemoryRevisions.tsx, ScratchpadSection.tsx, SkillsSection.tsx and the 'market','trading','memory' entries in PAGES and pageTitle.",
+     "files": [
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/shell/routes.ts",
+      "apps/web/src/components/genui/UiCard.tsx",
+      "apps/web/src/pages/Market.tsx",
+      "apps/web/src/pages/Trading.tsx",
+      "apps/web/src/pages/Knowledge.tsx"
+     ],
+     "report_rows": [
+      22,
+      49
+     ],
+     "verifier_note": "Simplest fix: map the genui market route to dispatching the existing 'lonora:open-chart' event (Shell.tsx:699 already handles it), and add ALIASES in routes.ts memory -> /app/knowledge. Trading/market may hold the economic calendar and trade functions with no new home (Q57), so do not delete Market.tsx/Trading.tsx outright without owner confirmation. Check tests reference these routes before deleting. Overlaps gap 3 (trading)."
+    },
+    {
+     "id": "tokens-3",
+     "title": "Legacy-palette screens are still reachable from settings and chat (old cards, 9px radii, #ececee text, internal tab strip)",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Every page in the reference uses the same containers: `.group`/`.row` lists, `.btn.primary` ivory pill, radii 10/16/24 (DESIGN_TREE_37.md line 14). An inner page has a floating back button and its own large title, with no second navigation strip (DESIGN_TREE_37.md lines 8-11).",
+     "app_evidence": "apps/web/src/shell/pages.tsx:204-218 wraps settings ?tab=models|voice|trading in `<Legacy>` with the old SettingsOverlay. That screen keeps the page title «الإعدادات» and its own tab strip «النماذج العالمية · الصوت · التداول», which duplicates the settings rows. Legacy screens are also mounted at /app/market, /app/trading, /app/memory and /app/artifacts/:id (pages.tsx:247-289), in ChatMenu sub-pages (ChatMenu.tsx:219) and in MandateSheet (conversation/sheets/MandateSheet.tsx:388). Measured inside them: text #ececee, buttons and inputs with 9px radius, bg #18191e, primary #f1f1ef, border #1e2026, and --radius .75rem in tokens.css. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/tokens/legacy-models.png",
+     "owner_sees": "Tapping «النماذج العالمية», «الصوت» or «التداول» in settings opens an older-looking page titled «الإعدادات», with a second set of tabs, boxed cards and slightly different whites and greys from the rest of the app.",
+     "fix_plan": "Port each legacy surface into reference containers, one page at a time: page title = the row's name, `.group`/`.row` sections, `.btn.primary` and reference inputs. Remove the SettingsOverlay tab strip so each settings row opens exactly one page. Afterwards, delete the `Legacy` wrapper in apps/web/src/shell/pages.tsx and ChatMenu.tsx, then the `.legacy-surface` blocks in packages/ui-tokens/src/tokens.css and the 9px/--radius rules in apps/web/src/styles.css. Where a feature has no home yet (Q57), keep it but render it with the reference containers.",
+     "files": [
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/SettingsOverlay.tsx",
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/conversation/sheets/MandateSheet.tsx",
+      "apps/web/src/styles.css",
+      "packages/ui-tokens/src/tokens.css"
+     ],
+     "report_rows": [
+      1,
+      3
+     ],
+     "verifier_note": "Large and risky to do in one pass. The trading and mandate surfaces touch money-safety flows (MandateSheet), so do not rewrite their logic, only the containers. Do the SettingsOverlay tab strip removal first as a separate small step. Keep the Legacy wrapper until every surface is ported. Overlaps gaps 0, 3 and 4."
+    }
+   ]
+  }
+ ]
+}

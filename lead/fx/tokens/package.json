@@ -1,0 +1,418 @@
+{
+ "package": "tokens",
+ "title": "Tokens, the old palette, boot and failure screens, icons",
+ "wave": 1,
+ "port": 8849,
+ "worktree": "/home/user/wt/tokens",
+ "branch": "fx/tokens",
+ "owns": [
+  "packages/ui-tokens",
+  "apps/web/src/styles.css",
+  "apps/web/src/theme.overrides.css",
+  "apps/web/src/App.tsx",
+  "apps/web/index.html and the manifest",
+  "apps/web/src/shell/StatePage.tsx",
+  "the rich-response (visual) CSS"
+ ],
+ "steps": [
+  {
+   "name": "palette",
+   "lead_notes": "tokens-1 is high. One name must never carry two meanings: `--muted`, `--accent` and `--primary` mean what the reference says everywhere. Give what is left of the old layer its own names, and check every use in the old CSS so no old screen changes for the worse (other packages are removing most old screens at the same time; you make the remaining ones readable and stop the name clash). Add the contrast check the auditor suggests for tab labels.\nagent_pages-7 and updates_tasks-9 are one defect (a Tailwind utility named like the button modifier draws a ring on every outline button): fix the cause once.\nThe last five are small CSS fixes in shell.css, lists.css and settings.css, files that other packages also edit: keep each hunk to its own rule.",
+   "gaps": [
+    {
+     "id": "tokens-1",
+     "title": "Two token systems share --muted/--accent/--primary with opposite meanings: Knowledge tab labels are invisible",
+     "category": "cleanliness",
+     "sev": "high",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "One token system. Desktop-37 :root (lines 8-60): --muted is a text colour (#8B919E), --accent is the mint marker (#22E3A8), --primary is ivory (#F7F5EF). `.tabs button` labels use var(--muted) as their text colour.",
+     "app_evidence": "packages/ui-tokens/src/tokens.css:83-94 redefines `.legacy-surface { --primary:#f1f1ef; --accent:#1a1b20; --muted:#141518 }`, so inside it --muted becomes a background colour. The reference rule apps/web/src/shell/domain/domain.css:87 `.tabs button { color: var(--muted) }` also applies to the legacy Knowledge screen (apps/web/src/pages/Knowledge.tsx:24 `<div className=\"tabs\">`), which renders inside `.legacy-surface` (apps/web/src/shell/ChatMenu.tsx:219, apps/web/src/shell/pages.tsx:281-289 /app/memory). Measured live: the tab labels «عنك / الذاكرة الدائمة / المهارات / مسودة العمل» have color rgb(20,21,24) on background rgb(24,25,30), so they are unreadable. Screenshots: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/tokens/chatmenu-knowledge.png and /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/tokens/legacy-memory.png. The sheet also shows the title «المعرفة» twice (sheet title plus the legacy h1) and an old agent picker inside the agent's own chat.",
+     "owner_sees": "Chat ⋮ → «المعرفة» (and /app/memory) opens a sheet whose four tab chips have no visible labels, with the title shown twice and a dropdown that picks a different agent.",
+     "fix_plan": "1) Do not render the legacy Knowledge screen anywhere. In apps/web/src/shell/ChatMenu.tsx, make the «المعرفة» page open the shell's own KnowledgePage (the /app/knowledge route already uses it), scoped to the chat's agent, with no `.legacy-surface` wrapper. Point /app/memory in apps/web/src/shell/pages.tsx at the same page or an alias. 2) Stop the swap: remove `--muted/--accent/--primary` from the `.legacy-surface` blocks in packages/ui-tokens/src/tokens.css. Give the remaining legacy CSS (apps/web/src/styles.css, apps/web/src/theme.overrides.css) shadcn-only names (--secondary, --muted-foreground, --card), so one name never carries two meanings. 3) Add a Playwright check that every visible `.tabs button` has a contrast ratio of at least 4.5.",
+     "files": [
+      "packages/ui-tokens/src/tokens.css",
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/pages/Knowledge.tsx",
+      "apps/web/src/styles.css",
+      "apps/web/src/theme.overrides.css"
+     ],
+     "report_rows": [
+      1
+     ],
+     "verifier_note": "Simplest fix: give Knowledge.tsx tabs a legacy-only class, or add a `.legacy-surface .tabs button` colour override (use --muted-foreground). Do not rely on rewriting to KnowledgePage, since the shell one is a route page and not agent-scoped. Removing --muted/--accent/--primary from the legacy block touches all legacy CSS (genui.css:6 re-declares those names), so grep every var(--muted/--accent/--primary) use in styles.css and theme.overrides.css first. Overlaps gap 2 (legacy wrapper) and gap 3."
+    },
+    {
+     "id": "cleanliness-12",
+     "title": "Second token system (shadcn grey palette and .legacy-surface button rules) still live",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Reference: one token set (--primary-hi/--primary-lo gradient for .btn.primary, line 122; --r-pill buttons, line 118).",
+     "app_evidence": "packages/ui-tokens/src/tokens.css:4-94 defines the shadcn palette (--accent #1a1b20 grey, --radius .75rem, --ring blue #3b82f6) and re-applies it under .legacy-surface. apps/web/src/styles.css:88-130 styles every button/input inside .legacy-surface with a separate primary/danger/selected look. packages/ui-web/src/shadcn.css is 16 KB. genui.css:6 has to re-declare the three names .legacy-surface overrides. Live: the grey primary in d-set-models.png against the ivory gradient .btn.primary in p-newagent.png; a blue focus ring on old screens.",
+     "owner_sees": "Buttons and fields change colour, radius and focus ring between screens; report section «تناقضات داخل الحي»: grey «حفظ» on one screen, ivory on another.",
+     "fix_plan": "After the old surfaces above move to reference containers: delete the .legacy-surface blocks in tokens.css and styles.css:88-130, the <Legacy> wrapper in shell/pages.tsx:81-84, ChatMenu's legacy-surface div, and the genui.css workaround. Map any remaining shadcn tokens onto the reference tokens in ui-tokens/reference.css, and drop shadcn.css imports that nothing uses.",
+     "files": [
+      "packages/ui-tokens/src/tokens.css",
+      "apps/web/src/styles.css",
+      "apps/web/src/shell/pages.tsx",
+      "apps/web/src/components/genui/genui.css",
+      "packages/ui-web/src/shadcn.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Blocked on migrating those 5 Legacy screens, plus MandateSheet, SheetHost and bot-panel, to reference containers. Do not delete the .legacy-surface rules before that or the screens render unstyled. Delete the Legacy wrapper and the genui.css override together, and check the tokens still used by Tailwind and shadcn.css imports before removing them. Overlaps gap 10 (Artifacts) and gap 13."
+    },
+    {
+     "id": "tokens-4",
+     "title": "A second, violet accent remains in legacy switches and in the trading mandate sheet",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37:143 `input[type=checkbox][role=switch]:checked,.switch[aria-checked=\"true\"]{background:var(--accent)!important}`. DESIGN_TREE_37.md line 13: the accent #22E3A8 is used for markers only, and switched-on switches are mint.",
+     "app_evidence": "apps/web/src/styles.css:55 `body input[type=checkbox][data-lonora-switch]:checked { background:#8d7bff }`. This applies to switches inside `.legacy-surface` (bot-settings, KnowledgeSection, SkillEditor, GroupPanel, PermissionEditor, AttentionInbox). apps/web/src/components/permissions/agent-permissions.css:89-93 adds violet selection gradients (#8d7bff, #6d5ce7) in AgentPermissions, which renders in the trading MandateSheet.",
+     "owner_sees": "Some switches turn violet instead of mint, and the trading permissions sheet highlights its choices in violet, a colour that appears nowhere else.",
+     "fix_plan": "Delete the data-lonora-switch block in apps/web/src/styles.css (lines 25-70). Give those inputs role=\"switch\" so the reference rule in apps/web/src/shell/settings/settings.css:5-48 styles them, and drop its `:not(.legacy-surface *)` once the legacy wrapper is gone. In agent-permissions.css, replace #8d7bff/#6d5ce7 with color-mix(in srgb, var(--accent) 14%, var(--surface)) for the selected option and var(--line-strong) for its border. Replace the var(--lonora-*) fallbacks with reference tokens.",
+     "files": [
+      "apps/web/src/styles.css",
+      "apps/web/src/components/permissions/agent-permissions.css",
+      "apps/web/src/shell/settings/settings.css"
+     ],
+     "report_rows": [
+      1,
+      5
+     ],
+     "verifier_note": "Simplest is to change the colour at styles.css:55 to var(--accent) with matching ink, without adding role=switch to every input. Note RichResponse.tsx:506 is in the shell, not legacy. In agent-permissions.css use the reference tokens. Visual tests may assert the old colours, so grep tests."
+    },
+    {
+     "id": "tokens-2",
+     "title": "Rich (v1) agent replies render Markdown with the old palette: grey code chips, blue links, grey table headers",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37:1137 `.md a,.text a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:3px}`. Desktop-37:1138 `.md code,.text code{padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--text) 10%,transparent);font-family:ui-monospace…;font-size:.88em}`.",
+     "app_evidence": "apps/web/src/conversation/GenUiPart.tsx:20 mounts RichResponse, which renders `<ChatMarkdown>` (apps/web/src/components/visual/RichResponse.tsx:103,111) from packages/chat-ui. That package styles Markdown with shadcn tokens: packages/chat-ui/src/markdown.web.css:84 (link var(--link)), :135 (code var(--muted)), :225 (th var(--muted)), and markdown-table.css. Inside the shell, --muted resolves to the reference text grey. Measured in a bubble: code chip background rgb(139,145,158) with text rgb(236,236,238); th background rgb(139,145,158); link rgb(59,130,246); pre/border #141518/#1e2026. The conversation's own renderer (apps/web/src/conversation/Markdown.tsx) already follows the reference. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/tokens/md-dark.png",
+     "owner_sees": "In any answer that carries rich content, the inline code looks like a light-grey slab with poor contrast, links are blue instead of mint, and table headers are grey blocks. Plain text replies are styled differently.",
+     "fix_plan": "Render text parts in RichResponse with the conversation's reference Markdown (md / mdInline from apps/web/src/conversation/Markdown.tsx, inside `.md`) instead of ChatMarkdown. If ChatMarkdown must stay for tables, add a scoped remap in apps/web/src/conversation/conversation.css: `.ui-lead .rk-chat-markdown { --link:var(--accent-ink); --foreground:var(--text); --muted-foreground:var(--muted); --border:var(--line); --card:var(--surface) }`, plus `code` and `th` backgrounds from the reference's color-mix(var(--text) 10%). Then check that visual.css takes no shadcn tokens inside `.ui-lead`.",
+     "files": [
+      "apps/web/src/components/visual/RichResponse.tsx",
+      "apps/web/src/components/visual/visual.css",
+      "apps/web/src/conversation/conversation.css",
+      "packages/chat-ui/src/markdown.web.css"
+     ],
+     "report_rows": [
+      1
+     ],
+     "verifier_note": "Prefer the scoped token remap in conversation.css over swapping the renderer, because ChatMarkdown handles tables and linked images that Markdown.tsx may not. Remap --muted to a color-mix of --text 10% (not --muted-foreground), --link to --accent-ink. Check the line-103 fallback path as well. Light theme needs a check."
+    },
+    {
+     "id": "tokens-5",
+     "title": "Body-level styles still use the old layer: Geist font, --background, 14px/1.65; boot screen shows a placeholder «L»",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37:61 `body{background:var(--bg);color:var(--text);font:400 var(--fs-md)/1.6 var(--font);…}`. --font is system-ui/Noto Sans Arabic. The reference has no Geist font.",
+     "app_evidence": "apps/web/src/styles.css:6 imports @fontsource-variable/geist. styles.css:10 sets `:root{font-family:\"Geist Variable\",…}`, and styles.css:80-85 sets `body{background:var(--background);color:var(--foreground);font-size:14px;line-height:1.65}`. Measured: body bg rgb(11,12,14) dark and rgb(250,250,248) light, against #0B0C10/#F7F5EF in the reference. The body font is Geist. Only `.app-shell` resets to the reference font (shell/shell.css:6-15). Every cold load shows App.tsx:61-66 `.workspace-loading` with a bare letter «L» in Geist on the off-palette body (styles.css:617-630).",
+     "owner_sees": "Each time the app opens, a plain «L» and «Opening workspace…» briefly appear in a different font and a slightly different black or off-white, instead of the Lonora mark.",
+     "fix_plan": "In apps/web/src/styles.css, replace the :root font-family and the body rule with the reference body: background var(--bg); color var(--text); font 400 var(--fs-md)/1.6 var(--font). Remove the @fontsource-variable/geist import and its package.json dependency. In App.tsx, render the Lonora bars glyph (the rail logo) in the boot screen instead of «L».",
+     "files": [
+      "apps/web/src/styles.css",
+      "apps/web/src/App.tsx",
+      "apps/web/package.json"
+     ],
+     "report_rows": [
+      2,
+      4
+     ],
+     "verifier_note": "Changing body font and size affects legacy screens outside .app-shell, so check them visually. Removing the Geist dependency also needs the lockfile updated and a grep for other Geist uses. Replacing the «L» with the logo glyph is a safe independent step."
+    },
+    {
+     "id": "agent_pages-7",
+     "title": "Every «outline» button gets an extra blue 1px ring from a Tailwind utility clash",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:125 `.btn.outline{background:transparent;border-color:var(--line-strong);box-shadow:none}`: a neutral grey border only.",
+     "app_evidence": "In the live app, computed styles on «إنشاء مجموعة» (/app/agents) show outline `oklab(0.62 -0.03 -0.18 / 0.5) solid 1px`. The matched rules are Tailwind's `.outline{outline-style:var(--tw-outline-style);outline-width:1px}` plus the base `*{outline-color:color-mix(in oklab,var(--ring) 50%,transparent)}`. The reference class name `outline` collides with Tailwind's utility. It is visible on «إضافة وكيل», «إضافة وكلاء للإشراف», «إنشاء مجموعة», «رجوع» and «إزالة». Screenshots /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-agents-0.png, app-groupp-0.png and app-lonora-1.png against ref-agents-0.png.",
+     "owner_sees": "Secondary buttons have a bluish double edge, which the reference's plain grey outline buttons do not.",
+     "fix_plan": "In shell.css, add `outline: none` (with a :focus-visible ring restored as in the reference) to `.btn.outline`. Alternatively, blocklist the `outline` utility in the Tailwind config (`@source not` / safelist exclusion) so the reference class name is not compiled as a utility.",
+     "files": [
+      "apps/web/src/shell/shell.css",
+      "apps/web/src/styles.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix is `outline: none` on .btn.outline in shell.css (about line 532), keeping the :focus-visible ring rule (styles.css:110/148) so keyboard focus stays visible. Check that it does not out-specify that rule. It affects every outline button, including owner-action card and genui buttons, so re-check visual snapshots."
+    },
+    {
+     "id": "updates_tasks-9",
+     "title": "Tailwind's `.outline` utility draws a blue 1px ring around every `btn outline` button",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html CSS: `.btn.outline` is transparent with a --line-strong border and no outline (measured outline-style: none on «جدولة مهمة»). Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/ref-tasks-sched-phone.png",
+     "app_evidence": "The generated stylesheet contains `.outline{outline-style:var(--tw-outline-style);outline-width:1px}`, and packages/ui-web/src/styles.css:53 colours it with `outline-ring/50`. Measured on «جدولة مهمة»: outline 'oklab(... / 0.5) solid 1px'. shell.css:532-536 `.btn.outline` does not reset it. domain.css:193-196 already works around the same clash for `.ring`. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/app-tasks-sched3-phone.png",
+     "owner_sees": "Every outline button («جدولة مهمة», «إضافة هدف», «مراقبة جديدة», «إنشاء مجموعة»…) has a bluish double border, a leftover of the older look.",
+     "fix_plan": "In shell.css add `outline: none` to `.btn.outline` (keeping :focus-visible's ring), next to the existing `.story.ring` fix. Better: stop Tailwind generating the colliding utilities (`@source not` / safelist exclusion for outline, ring, shadow, border, rounded) so reference class names stay free of side effects.",
+     "files": [
+      "apps/web/src/shell/shell.css",
+      "apps/web/src/styles.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest safe fix: in shell.css add outline:none to .btn.outline and keep a :focus-visible ring rule so keyboard focus stays visible (accessibility). Do not attempt the global Tailwind source exclusion, it is riskier and out of scope. Verify the computed outline on the live build."
+    },
+    {
+     "id": "updates_tasks-8",
+     "title": "Empty-state icon sits at the right edge instead of centred above the text",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:205-206 `.empty{text-align:center}` `.empty svg{width:32px;height:32px;margin-bottom:12px}`; 2887 empty(). The svg is inline, so it centres (computed display: inline).",
+     "app_evidence": "ui.tsx:61-66 uses the same markup, but Tailwind v4 preflight (styles.css:2 @import \"tailwindcss\") makes svg display:block (measured computed display: block), so text-align:center does not apply. lists.css:313-322 and settings.css:83-92 copy the reference rule without fixing it. Screenshots: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/updtasks/app-tasks-phone.png and app-tasks-desk.png against ref-activity-phone.png",
+     "owner_sees": "In every empty list (Tasks, scheduled tasks, activity, agent pages) the folder icon hangs at the right while the sentence is centred.",
+     "fix_plan": "Add `margin-inline:auto` (or `display:inline-block`) to the shared `.empty svg` rule, once, in the shell's base CSS. Delete the duplicate `.empty` rules so one definition remains (lists.css vs settings.css).",
+     "files": [
+      "apps/web/src/shell/lists/lists.css",
+      "apps/web/src/shell/settings/settings.css",
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [
+      38
+     ],
+     "verifier_note": "Add margin-inline:auto to the .empty svg rule. The settings.css rule is the scoped one that actually wins inside .app-shell (:where specificity is low), so edit both rather than deleting one blindly, or consolidate carefully and check .list-empty and .search-empty variants. Purely cosmetic, so low, not medium."
+    },
+    {
+     "id": "settings_a-10",
+     "title": "The profile hero avatar renders small: there is no `.avatar.big` rule",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 CSS 217-219: `.avatar.big{width:88px;height:88px}` `.avatar.initial.big{font-size:var(--fs-xl)}`. The reference hero shows an 88px «A» (ref-owner-desk.png).",
+     "app_evidence": "OwnerPage.tsx:186 uses `avatar initial big`, but the app CSS defines only `.st-hero .avatar.big` (conversation/conversation.css:2973) and `.avatar.initial` (shell/shell.css:765). The hero renders about 44px (app-owner-desk.png).",
+     "owner_sees": "A tiny initial at the top of the profile page instead of the large avatar.",
+     "fix_plan": "Add the reference's `.avatar.big` and `.avatar.initial.big` rules next to `.avatar.initial` in shell/shell.css.",
+     "files": [
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add `.avatar.big{width:88px;height:88px}` and `.avatar.initial.big{font-size:var(--fs-xl)}` next to `.avatar.initial` in shell/shell.css. Check that conversation.css:2973 (`.st-hero .avatar.big`) has higher specificity and so keeps its own size. Check that --fs-xl exists in the app tokens, and that other uses of the `big` class are not affected (grep for ` big` in avatar class strings). I confirmed the rule is missing but did not view the live render."
+    },
+    {
+     "id": "settings_root-8",
+     "title": "Install (and permission) sheet steps lose their 1. 2. 3. numbering",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 1070 `.perm-steps{…padding-inline-start:34px…}` on an <ol> (6232, 5566); the reference shows «1. اضغط أيقونة التثبيت…», «2. …», «3. …» (shots/settings/ref-install.png).",
+     "app_evidence": "apps/web/src/shell/shell.css:1410-1418 copies .perm-steps, but the app's base reset sets `list-style: none` on ol (computed list-style-type none on .perm-steps and li, scripts/settings/s4.mjs). Screenshot shots/settings/app-install.png shows the three lines with no numbers and an empty 34px start padding.",
+     "owner_sees": "The install steps (and the mic/camera permission steps) read as three loose sentences with an odd indent.",
+     "fix_plan": "Add `list-style: decimal;` (or `list-style: decimal inside` with the padding adjusted) to .perm-steps in apps/web/src/shell/shell.css.",
+     "files": [
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [
+      45
+     ],
+     "verifier_note": "Add `list-style: decimal;` to .perm-steps in apps/web/src/shell/shell.css (the one at line 1410; apps/web/src/pages/shell/shell.css is a different file). Padding-inline-start 34px already leaves room for the markers. Check that no other <ol> uses this class."
+    },
+    {
+     "id": "auth_states-9",
+     "title": "Sign-in and setup headings are regular weight instead of bold",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Reference #auth h1 computes font-weight 700 (UA default; CSS 68 only resets margin). Screenshot shots/states/ref-signin-phone.png.",
+     "app_evidence": "apps/web/src/shell/settings/settings.css:832-836 #auth h1 sets size and line-height only; Tailwind preflight (styles.css:2) resets headings to inherit, so computed weight is 400 (measured live). shots/states/app-signin-desk.png and app-signin-err-phone.png.",
+     "owner_sees": "«تسجيل الدخول», «انتهت جلستك», «إعداد Lonora» and the intro slide titles look thin compared with the rest of the app.",
+     "fix_plan": "Add font-weight: 700 to #auth h1 in settings.css.",
+     "files": [
+      "apps/web/src/shell/settings/settings.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add font-weight: 700 to #auth h1 in settings.css (one line). Verify the intro slide h1 and setup heading render bold and no snapshot test pins the weight."
+    }
+   ]
+  },
+  {
+   "name": "boot-and-states",
+   "lead_notes": "The first three are one defect: the boot screen uses the Lonora mark (shell/LogoMark.tsx) and the reference look.\nauth_states-1 is high: when the app cannot start (the server is down or the first requests fail), the owner sees the maintenance screen with its retry, in the reference style, not a bare error card. auth_states-7: the same screen appears when the server goes away mid-session (502, 504, or the request never completes), and it clears by itself when the server is back. Do not show maintenance for an ordinary offline state: that is the network strip's job.",
+   "gaps": [
+    {
+     "id": "shell_desktop-5",
+     "title": "Boot screen shows a plain letter «L» instead of the Lonora mark",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "The reference uses logoMark() wherever the brand appears (rail .rail-brand line 3394, .logo-hero in welcomeMarkup line 3400). DESIGN_TREE_37.md:393 says loading states take the page's own shape and do not use a placeholder glyph.",
+     "app_evidence": "apps/web/src/App.tsx:59-66 renders `<span className=\"workspace-loading-mark\">L</span>` with «جارٍ فتح مساحة العمل…»; the 2rem bold letter is styled at apps/web/src/styles.css:617-630. It was seen on a hard load of /app/settings: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-settings.png (first capture, before the shell mounted).",
+     "owner_sees": "On every reload or cold start, a big white «L» flashes, a look left over from the older app, before the polished shell appears.",
+     "fix_plan": "Replace the letter with <LogoMark size={64}/> from apps/web/src/shell/LogoMark.tsx inside the same .logo-hero styling the welcome uses, keep the status text, and drop the .workspace-loading-mark rule from styles.css.",
+     "files": [
+      "apps/web/src/App.tsx",
+      "apps/web/src/styles.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Keep data-testid='workspace-loading' and role=status; tests/web/workspace.spec.mjs:110-117 rely on it. LogoMark is in shell/LogoMark.tsx (size prop); check .logo-hero styles are not scoped under .shell or .welcome before reusing them, else just render <LogoMark size={64}/> with a small wrapper. Remove .workspace-loading-mark from styles.css:626-630 once unused."
+    },
+    {
+     "id": "cleanliness-15",
+     "title": "Boot screen «جارٍ فتح مساحة العمل…» shows a letter «L», not the Lonora bars mark",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "OWNER_DECISIONS Q42: Lonora keeps its own bars glyph. The reference opens straight to its shell.",
+     "app_evidence": "apps/web/src/App.tsx:59-66 <main className=\"workspace-loading\"><span className=\"workspace-loading-mark\">L</span><Trans>Opening workspace…</Trans>, shown while /api/onboarding and /api/auth/session load in sequence.",
+     "owner_sees": "A plain letter-L splash on every cold open before the app appears.",
+     "fix_plan": "Render shell/LogoMark.tsx (the bars glyph) in the splash, or render the shell skeleton (SkChats) directly, and fetch onboarding and session in parallel to shorten the wait.",
+     "files": [
+      "apps/web/src/App.tsx",
+      "apps/web/src/shell/LogoMark.tsx"
+     ],
+     "report_rows": [
+      48
+     ],
+     "verifier_note": "Swap the letter for <LogoMark size={..}/> and tidy the .workspace-loading-mark CSS at styles.css:626. Keep the data-testid=\"workspace-loading\" attribute because tests may use it. Parallelising the onboarding and session fetches is optional and riskier, so skip it."
+    },
+    {
+     "id": "auth_states-2",
+     "title": "Boot screen «جارٍ فتح مساحة العمل…» with a plain letter L is the old look",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md 395 «التحميل … هيكل بشكل الصفحة نفسها · «جارٍ التحميل» لقارئ الشاشة»; reference first paint goes straight to the chats skeleton (5580 pageSafe → skBusy(SK_PAGES.chats)); the brand mark everywhere is logoMark() (bars glyph).",
+     "app_evidence": "apps/web/src/App.tsx:59-66 <main className=\"workspace-loading\"><span className=\"workspace-loading-mark\">L</span>Opening workspace…</main>, styled by apps/web/src/styles.css:617-631 (legacy stylesheet, outside .app-shell). Live: shots/states/app-boot-loading-phone.png shows a white «L» and grey text in the middle of a black page.",
+     "owner_sees": "On every cold open a white letter L and «جارٍ فتح مساحة العمل…» flash before the app, unlike anything else in the app.",
+     "fix_plan": "Replace the branch with <div className=\"app-shell\"><SkChats/></div> (shell/Skeleton.tsx, already role=status aria-busy aria-label «جارٍ التحميل») or, if a branded splash is preferred, LogoMark size 44 inside .app-shell. Remove .workspace-loading rules from styles.css and the «Opening workspace…» catalog entry; update any test using data-testid=workspace-loading.",
+     "files": [
+      "apps/web/src/App.tsx",
+      "apps/web/src/styles.css",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Render <div className=\"app-shell\"><SkChats/></div> and delete the .workspace-loading CSS and the 'Opening workspace…' catalog entries. Grep found no tests using data-testid=workspace-loading outside App.tsx. This is a short flash only on cold open, so low severity. Do it in the same change as gap 0."
+    },
+    {
+     "id": "auth_states-1",
+     "title": "Startup failure shows an unstyled error card instead of the maintenance screen",
+     "category": "cleanliness",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 5588-5593 appOverlay(): full-screen #app-state with .state-page, settings icon, «Lonora قيد الصيانة», «نجري تحسينات سريعة على الخدمة. محادثاتك محفوظة وسنعود خلال دقائق.», «إعادة المحاولة»; DESIGN_TREE_37.md 404 «الصيانة | شاشة كاملة».",
+     "app_evidence": "apps/web/src/App.tsx:51-58 renders <main className=\"auth-card\"><p role=alert>{userError(error)}</p><button>Retry</button></main> outside .app-shell when GET /api/onboarding fails, so none of the shell tokens or .state-page styles apply. Live: with /api/** answering 503 or 502 the owner sees a bare top-right line «تعذر إكمال الطلب. أعد المحاولة.» and a grey button (shots/states/app-boot-503-phone.png, app-boot-502-phone.png). MaintenanceOverlay exists (shell/StatePage.tsx:107) but is only reachable from inside Shell.",
+     "owner_sees": "Every time the server restarts (each deploy) and the owner opens or reloads Lonora, a bare error line in the corner instead of the calm full-screen maintenance page with its icon and retry button.",
+     "fix_plan": "In App.tsx, when onboardingStatus() fails with a 5xx/502/504 or a network TypeError, render <div className=\"app-shell\"><MaintenanceOverlay retry={...}/></div> (MaintenanceOverlay needs no navigation context) whose retry calls fetch('/ready') then re-runs the boot effect, with the «ما زالت الصيانة جارية» warn shake when still down; any other failure uses the same StatePage (alert icon) inside .app-shell. Delete the old auth-card error branch.",
+     "files": [
+      "apps/web/src/App.tsx",
+      "apps/web/src/shell/StatePage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Wrap MaintenanceOverlay in <div className=\"app-shell\"> so the tokens apply. Use it only for 5xx, 502, 504 or a network TypeError. Other failures should use a StatePage with the alert icon, not the maintenance copy. Retry should re-run the boot effect rather than location.reload(). Check that no e2e test asserts the old auth-card error text. Overlaps with gap 1, since both edit the same App.tsx branches, so do them together."
+    },
+    {
+     "id": "auth_states-7",
+     "title": "Server down mid-session never reaches the maintenance screen when the proxy answers 502/504 or the request fails",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md 404 «الصيانة | شاشة كاملة | «Lonora قيد الصيانة» · «إعادة المحاولة»»; reference 5588 appOverlay.",
+     "app_evidence": "apps/web/src/lib/api.ts:92-96 dispatches lonora:api-unavailable only for status 503 with code request_failed; apps/web/src/shell/Shell.tsx:512-518 needs 3 such hits. During a service restart behind the reverse proxy the API returns 502/504 or the fetch throws, so only the network strip «جارٍ إعادة الاتصال…» and per-action error toasts appear.",
+     "owner_sees": "While the server restarts, actions fail one by one with error toasts instead of the single calm maintenance screen.",
+     "fix_plan": "Count 502 and 504 responses and fetch TypeErrors while navigator.onLine is true as unavailable in lib/api.ts; keep the 3-in-30s rule in Shell.tsx and the /ready retry.",
+     "files": [
+      "apps/web/src/lib/api.ts",
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add 502/504 to the status check; for fetch TypeError dispatch only when navigator.onLine is true and not for AbortError (aborts are normal). Do not count the /ready retry or non-API calls; existing tests that expect error toasts on 503 may need adjusting. Keep 401 and named-503 behavior untouched."
+    },
+    {
+     "id": "tokens-6",
+     "title": "Initial theme-color, manifest colours and Safari mask-icon are black/violet, not charcoal/ivory",
+     "category": "visual",
+     "sev": "low",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Desktop-37:3544 `meta[name=\"theme-color\"] … S.theme===\"light\"?\"#F7F5EF\":\"#0B0C10\"`. The accent is mint only (DESIGN_TREE_37.md line 13).",
+     "app_evidence": "apps/web/index.html:6 `<meta name=\"theme-color\" content=\"#000000\">`. index.html:12 `mask-icon … color=\"#7776ee\"`. apps/web/public/site.webmanifest:18-19 sets background_color and theme_color to #000000. The meta is only corrected after React mounts (apps/web/src/shell/Shell.tsx:315-319). Measured before the shell mounts: meta #000000 in light mode. apps/web/public/theme-init.js applies data-theme but does not touch the meta.",
+     "owner_sees": "On a phone, the browser bar and the PWA splash flash pure black (even in light mode) before settling. The pinned-tab icon in Safari is violet.",
+     "fix_plan": "In apps/web/public/theme-init.js, also set the theme-color meta to #f7f5ef or #0b0c10 from the stored theme. Change index.html's default to #0b0c10 and the mask-icon colour to #0b0c10 (or #22e3a8). Set site.webmanifest theme_color/background_color to #0b0c10. Leave the avatar --mta-primary alone (Q42 avatar shapes).",
+     "files": [
+      "apps/web/index.html",
+      "apps/web/public/theme-init.js",
+      "apps/web/public/site.webmanifest"
+     ],
+     "report_rows": [
+      4,
+      5
+     ],
+     "verifier_note": "Also browserconfig.xml:2 has TileColor #000000 (not listed by auditor). Manifest has a single colour so use #0b0c10. In theme-init.js, set the meta inside the existing try block from the stored theme (#f7f5ef light, #0b0c10 dark); the meta is in <head> before the script, so querySelector works. Check safari-pinned-tab.svg fill is unaffected. Leave avatar colours alone."
+    },
+    {
+     "id": "tokens-8",
+     "title": "High-contrast is defined twice and the generated tokens are dead, so generative cards ignore «تباين أعلى»",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37:1295-1297: body.hc and body.light.hc override --muted, --faint, --line, --line-strong and the glass tokens. Desktop-37:6191 applyA11y toggles body.hc.",
+     "app_evidence": "packages/ui-tokens/src/generate-css.ts:9 emits `[data-contrast=\"high\"]` (reference.css:146-162), but nothing sets data-contrast. apps/web/src/shell/settings/device-prefs.ts:62 toggles body.hc. apps/web/src/shell/settings/settings.css:1413-1431 therefore repeats the same values by hand under body.hc. apps/web/src/components/genui/genui.css:7-22 pins `.ux { --muted:#8b919e }` and only lifts it under `[data-contrast=\"high\"] .ux`, which never matches. Generated interface cards keep the dim muted text when the owner turns on high contrast.",
+     "owner_sees": "With «تباين أعلى» on, the rest of the app gets clearer greys and lines, but the agent's interactive cards keep their faint secondary text.",
+     "fix_plan": "Change generate-css.ts so the HC selectors are `body.hc` and `[data-theme=\"light\"] body.hc`, then regenerate reference.css. Delete the hand copy in settings.css:1412-1428 and keep `body.hc .bubble`. In genui.css, change the two selectors to `body.hc .ux` and `[data-theme=\"light\"] body.hc .ux`, or better, drop the `.ux` token re-pins once the legacy swap in tokens.css is removed (gap 1).",
+     "files": [
+      "packages/ui-tokens/src/generate-css.ts",
+      "packages/ui-tokens/src/reference.css",
+      "apps/web/src/shell/settings/settings.css",
+      "apps/web/src/components/genui/genui.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest: in genui.css change the two selectors to `body.hc .ux` and `[data-theme=\"light\"] body.hc .ux` (specificity beats .ux). Optionally change HC in generate-css.ts to `body.hc` / `[data-theme=\"light\"] body.hc`, regenerate reference.css, and delete the settings.css copy (keep body.hc .bubble); check any ui-tokens snapshot/test that asserts the [data-contrast] text. Note the settings.css line range is ~1408-1425, not 1413-1431, and `[data-theme=light] body.hc` must still match the existing light override order. Overlaps with the auditor's gap 1 (legacy token swap) only if that is done; not needed here."
+    }
+   ]
+  },
+  {
+   "name": "icons",
+   "lead_notes": "Replace every lucide-react icon that still renders on a reachable surface with the app's own `Icon` set from @lonora/ui-web, adding a glyph to that set, in its existing style, only when none fits. Other packages are editing many of these files: change only the icon import and its use, nothing around it. Do not remove the lucide-react dependency; the cleanup step does that once nothing imports it. Report the files that still import it and why.",
+   "gaps": [
+    {
+     "id": "cleanliness-11",
+     "title": "Two icon sets: lucide-react still renders in reachable surfaces",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Reference uses one icon function I(name) (one stroke set) throughout. The app's own set is @lonora/ui-web Icon/ICON_PATHS.",
+     "app_evidence": "lucide-react imported by components/ai/PersonalAgentBadge.tsx (rendered in shell/ChatHeader.tsx), components/ai/AvatarStudio.tsx (Pencil/RotateCcw/X; via shell/agent/AvatarSheet.tsx), components/permissions/AgentPermissions.tsx (via conversation/sheets/MandateSheet.tsx), components/common/FilePreviewPanel.tsx (via conversation/Conversation.tsx), components/visual/RichResponse.tsx:37 (generative UI), components/trading/BrokerPairPicker.tsx, pages/Artifacts.tsx. Also pages/Board.tsx, pages/ActivityList.tsx and components/conversation-question.tsx, which are dead.",
+     "owner_sees": "Icons with different stroke weight and size inside the chat header badge, the avatar editor, the mandate sheet, file previews and generated cards.",
+     "fix_plan": "Replace each lucide import with <Icon name=…> from @lonora/ui-web, adding missing glyphs to packages/ui-web/src/icons/paths.ts. Then remove lucide-react from apps/web/package.json, and add a lint check (grep in tests/web/one-vocabulary.test.ts) that fails on any lucide import.",
+     "files": [
+      "apps/web/src/components/ai/PersonalAgentBadge.tsx",
+      "apps/web/src/components/ai/AvatarStudio.tsx",
+      "apps/web/src/components/permissions/AgentPermissions.tsx",
+      "apps/web/src/components/common/FilePreviewPanel.tsx",
+      "apps/web/src/components/visual/RichResponse.tsx",
+      "apps/web/src/components/trading/BrokerPairPicker.tsx",
+      "packages/ui-web/src/icons/paths.ts",
+      "apps/web/package.json"
+     ],
+     "report_rows": [],
+     "verifier_note": "Delete the dead files first (gap 12) so fewer imports remain. Artifacts.tsx is mounted in Legacy at pages.tsx, so migrate or replace it too. Only remove lucide-react from package.json once grep shows zero imports. Add missing glyphs to ui-web icons/paths.ts. The one-vocabulary test guard is a good idea."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,382 @@
+{
+ "package": "profile",
+ "title": "Owner profile, notifications, device pages, owner name, theme switch",
+ "wave": 1,
+ "port": 8846,
+ "worktree": "/home/user/wt/profile",
+ "branch": "fx/profile",
+ "owns": [
+  "apps/web/src/shell/settings/OwnerPage.tsx",
+  "apps/web/src/shell/settings/NotifyPages.tsx",
+  "apps/web/src/shell/settings/DevicePages.tsx",
+  "the owner name and avatar helper",
+  "the theme switch, sign-out sheet and version footer in SettingsRoot.tsx",
+  "apps/web/src/hooks/useTheme.ts"
+ ],
+ "steps": [
+  {
+   "name": "owner-and-notify",
+   "lead_notes": "One helper gives the owner's display name and initial everywhere (rail, settings, profile, desktop welcome, the empty-chat greeting): the form of address, else the name, else the e-mail local part. messages-5 touches Conversation.tsx and conversation.css, which belong to package `messages`: keep that hunk to the empty-chat block.\nsettings_a-13 changes server defaults for proactive contact (calls off, a daily limit): change the default for agents that have no saved setting, never rewrite what an owner saved, and cover it with pytest.\nsettings_root-12: the footer shows a version that changes with each deploy; the server already exposes a build id (see the version route and UpdateBar). Show it in the reference's form.\nsettings_a-7: the five Arabic time-zone names from the reference, plus the owner's current zone if it is not one of them, so nobody loses a saved value.",
+   "gaps": [
+    {
+     "id": "shell_desktop-1",
+     "title": "Desktop welcome greets the e-mail local part and ignores the owner's chosen name or form of address",
+     "category": "text",
+     "sev": "medium",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3400 welcomeMarkup(): `<h2>مرحبًا ${E(S.owner.address||S.owner.name)}</h2>`. Reference shot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/ref-home-dark.png shows «مرحبًا أحمد». DESIGN_TREE_37.md:379: «المحتوى في قسم المحادثات شاشة ترحيب: «مرحبًا …»».",
+     "app_evidence": "apps/web/src/shell/Shell.tsx:746 `name={owner.email.split(\"@\")[0]}`. The profile's `address` and `name` (apps/web/src/shell/settings/owner.ts OwnerProfile) are never read here, so the greeting stays «مرحبًا ahmed» even after the owner sets «الاسم» or «طريقة المخاطبة» in the profile. Shot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-home-dark.png",
+     "owner_sees": "Every time the desktop opens on «المحادثات», the welcome reads «مرحبًا ahmed», a lowercase Latin login name, instead of «مرحبًا أحمد» or the form of address they chose in their profile.",
+     "fix_plan": "Read the profile once in the shell. Either call useOwnerProfile() in Shell.tsx or, better, expose it from the shell data provider (apps/web/src/shell/data.tsx) so the rail, the settings and the welcome share one fetch. Add `ownerAddress(profile, email) = profile?.address || ownerName(profile, email)` to apps/web/src/shell/settings/owner.ts and pass it to <Welcome name=…> at Shell.tsx:746.",
+     "files": [
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/settings/owner.ts",
+      "apps/web/src/shell/data.tsx"
+     ],
+     "report_rows": [
+      36
+     ],
+     "verifier_note": "useOwnerProfile() is a per-call fetch hook (refetches on revision); calling it in Shell is fine and simplest, but the shared provider idea is optional. Add ownerAddress(profile,email)=profile?.address||ownerName(profile,email) to owner.ts. Also check the empty-chat greeting inside chat views (ref line 3808 uses the same address) for the same email-local-part bug. Overlaps gap 1 (same Shell profile read, share one useOwnerProfile call). Mind tests that expect the e-mail local part in the welcome."
+    },
+    {
+     "id": "shell_desktop-2",
+     "title": "Owner avatar initial differs between the rail, the settings and the profile",
+     "category": "visual",
+     "sev": "low",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3394, rail: `<span class=\"avatar initial\">${E(S.owner.name.slice(0,1))}</span>`. The settings and owner pages take the same S.owner.name, so one letter («A» for Ahmed) appears everywhere (ref-home-dark.png and ref-settings.png both show «A»).",
+     "app_evidence": "Shell.tsx:854 `ownerInitial={owner.email.slice(0, 1).toUpperCase()}` is the e-mail's first letter, uppercased. SettingsRoot.tsx:305 `name.slice(0, 1)` and OwnerPage.tsx:183 `(form.name || name).slice(0, 1)` take the profile name, or the e-mail local part, without uppercasing. Live check: the rail shows «A» and settings/owner show «a» (/tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/desktop/app-settings.png, app-owner.png). Once the profile name is «أحمد», the rail stays «A» while settings shows «أ».",
+     "owner_sees": "Their own avatar is «A» in the rail but «a» (or «أ») on the settings card and the profile page, so it looks like two different people.",
+     "fix_plan": "Add one helper `ownerInitial(profile, email)` in apps/web/src/shell/settings/owner.ts that takes the first grapheme of ownerName() and uppercases it (toLocaleUpperCase, which leaves Arabic as it is). Use it at Shell.tsx:854 (fed by the shared profile from the welcome fix), SettingsRoot.tsx:305 and OwnerPage.tsx:183. OwnerPage keeps showing the live form value while the owner is editing.",
+     "files": [
+      "apps/web/src/shell/settings/owner.ts",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/OwnerPage.tsx"
+     ],
+     "report_rows": [
+      34
+     ],
+     "verifier_note": "One helper ownerInitial(profile,email) in owner.ts: first grapheme of ownerName(), toLocaleUpperCase(). Share the profile read with gap 0. Use Array.from(...)[0] for graphemes. Keep OwnerPage's live form value. Also reference account page (line 3693) uses the same letter; check AccountPage if present."
+    },
+    {
+     "id": "settings_a-9",
+     "title": "The profile name field is empty while settings and the avatar show the email name",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 3691: F(\"الاسم\",\"name\",S.owner.name,...) prefilled; the hero shows the name's initial. DESIGN_TREE_37 85: «الملف الشخصي: الاسم + ...».",
+     "app_evidence": "OwnerPage.tsx:75-80 `name: profile?.name ?? \"\"`. With profile.name null (GET /api/owner/profile → \"name\":null), the field is empty. The hero (line 186) uses ownerName(), which falls back to the email, so it shows a lowercase «a», and the settings root row shows «ahmed». The seed has no profile name, so this is partly data, but the code shows two different names whenever the name is unset.",
+     "owner_sees": "Settings greets them as «ahmed», but the profile form says their name is blank.",
+     "fix_plan": "In OwnerPage.tsx, prefill name with `profile?.name ?? ownerName(profile, data.owner.email)` (the same value SettingsRoot shows), so saving confirms it. Capitalise the hero initial with toLocaleUpperCase. Separately, seed the demo owner's name «Ahmed» and address «أحمد» in the audit fixture.",
+     "files": [
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/shell/settings/owner.ts"
+     ],
+     "report_rows": [
+      32
+     ],
+     "verifier_note": "Prefilling the form with the email-derived name would make a Save write that derived name into the profile. Choose deliberately: either do that (the reference does prefill), or keep the field empty and show the email name as a placeholder. The placeholder is the safer option. Hero initial: add toLocaleUpperCase, which is a small change. Do not edit seed data as part of this fix. Overlaps with gap 7 in OwnerPage.tsx, so do both in one pass."
+    },
+    {
+     "id": "messages-5",
+     "title": "Empty chat has no large avatar and greets with the e-mail local part («مرحبًا ahmed»)",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 3808: `<div class=\"chat-empty\"><div class=\"arcs\"></div>${g?groupAvatar(true,g):avatar(a,true)}<h2>مرحبًا ${E(S.owner.address||S.owner.name)}</h2><p>…ماذا سنفعل اليوم مع …؟</p>`. DESIGN_TREE_37 line 184 «صورة كبيرة + مرحبًا …».",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:1162-1185 ChatEmpty renders the arcs, h2 and p but no avatar. Line 1053 passes `ownerName={owner.email.split(\"@\")[0]}`, while owner.name exists and is used in pages/Board.tsx:244. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/messages/app-research-phone.png shows «مرحبًا ahmed» with no avatar.",
+     "owner_sees": "A new chat opens on bare text that greets them with a lowercase Latin login name, not their name and not the agent's large picture.",
+     "fix_plan": "In ChatEmpty, render the shared Avatar component at the large size (or the group avatar cluster when group) before the h2, and pass owner.name (falling back to the e-mail local part only when it is empty). Reuse the reference .chat-empty rules (gap 6px, h2 margin-top 14px).",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "The owner decision that Lonora keeps its own avatar applies: use the app's existing large Avatar and group-avatar components, not the reference artwork. The reference greeting uses S.owner.address (a demo handle) falling back to name, so use owner.name and fall back to the email local part only when empty. Check any Playwright test or Lingui text that matches «Hello ahmed»-style text. Overlaps no other gap."
+    },
+    {
+     "id": "settings_a-7",
+     "title": "Time zone is a raw list of 419 IANA identifiers, not the reference's five Arabic names",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 3691: Select(\"المنطقة الزمنية\",\"zone\",[\"دمشق\",\"أمستردام\",\"الرياض\",\"دبي\",\"UTC\"],S.owner.zone). DESIGN_TREE_37 128.",
+     "app_evidence": "OwnerPage.tsx:42-52 zones() returns Intl.supportedValuesOf('timeZone'), and lines 203-215 render each IANA id as option text. Live: 419 options (America/Hermosillo, ...), current value \"UTC\" (shots/settings1/app-owner-desk.png).",
+     "owner_sees": "An enormous English list of city codes in an Arabic settings form.",
+     "fix_plan": "Replace zones() with a fixed list of [value, label] pairs: Asia/Damascus «دمشق», Europe/Amsterdam «أمستردام», Asia/Riyadh «الرياض», Asia/Dubai «دبي», UTC «UTC». Labels go through Lingui, or Intl.DisplayNames where available. If the stored zone is outside the list, prepend it as its own option so nothing is lost. The server keeps receiving IANA values.",
+     "files": [
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      35
+     ],
+     "verifier_note": "Use a fixed list of [iana, label] pairs: Asia/Damascus, Europe/Amsterdam, Asia/Riyadh, Asia/Dubai, UTC. Keep IANA values as the stored and sent value. If the saved zone (profile.reach_me.timezone) is not in the list, prepend it as its own option so the select never shows a wrong value or silently changes the zone on save. Labels go through Lingui or a plain Arabic/English map. Check the zoneList useMemo use and any test that selects a zone by IANA name. This touches only presentation, so it is not a money-safety risk."
+    },
+    {
+     "id": "cleanliness-10",
+     "title": "Owner time-zone picker lists about 400 raw IANA ids (Asia/Damascus …)",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3691 Select(\"المنطقة الزمنية\",\"zone\",[\"دمشق\",\"أمستردام\",\"الرياض\",\"دبي\",\"UTC\"],…): short Arabic city names.",
+     "app_evidence": "shell/settings/OwnerPage.tsx:42-51 zones() = Intl.supportedValuesOf('timeZone'); :217-220 <option>{zone}</option> shows the raw id.",
+     "owner_sees": "An enormous English list of ids like «America/Argentina/ComodRivadavia» in an Arabic profile form.",
+     "fix_plan": "Put a short list of common zones first (Asia/Damascus, Europe/Amsterdam, Asia/Riyadh, Asia/Dubai, UTC, plus the browser's own zone), labelled with the localized city or generic name (e.g. new Intl.DateTimeFormat(locale,{timeZone:z,timeZoneName:'longGeneric'}) and a Lingui city map), then a «أخرى…» group with the rest. Store the IANA value unchanged.",
+     "files": [
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      52
+     ],
+     "verifier_note": "Keep the stored IANA value unchanged. Show a short common list first (including the browser zone and the current form.zone), labelled with a localized name via Intl.DisplayNames or longGeneric, then the rest in an optgroup. Keep the existing `zoneList.includes(form.zone)` fallback so a saved unusual zone still displays. No messages.po edits are needed if labels come from Intl."
+    },
+    {
+     "id": "settings_a-8",
+     "title": "The primary «حفظ» is disabled until an edit, so it shows as a grey bar instead of the ivory primary",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 2886: Form() always ends with `<button type=\"submit\" class=\"btn primary\">حفظ</button>`, never disabled. The live reference shows a full ivory button (shots/settings1/ref-owner-desk.png).",
+     "app_evidence": "OwnerPage.tsx:228 `disabled={!profile || busy || !draft}`. NotifyPages.tsx CommunicationPage submit `disabled={busy || !draft}`. Measured live: disabled=true, opacity .55, and the button renders grey (shots/settings1/app-owner-desk.png, app-communication-phone.png).",
+     "owner_sees": "The main action on the profile and per-agent pages looks greyed out and unavailable whenever a page opens.",
+     "fix_plan": "Follow the reference: keep the button enabled (disable only while busy). When nothing changed, submitting just closes or does nothing; the server already ignores no-op saves (save_owner_preferences returns changed:false). Apply the same in CommunicationPage.",
+     "files": [
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/shell/settings/NotifyPages.tsx"
+     ],
+     "report_rows": [
+      32
+     ],
+     "verifier_note": "The line is 237, not 228. Keep `disabled={busy}`, plus `!profile` in OwnerPage so it cannot submit before load. Make sure submit with no draft is a safe no-op that does not send an empty or default payload that overwrites fields: guard `if (!draft) return` or close, rather than posting the defaults. Check existing Playwright or unit tests that assert the button is disabled when pristine. Settings-root pages with other forms may follow the same pattern, so grep for `!draft` to stay consistent. Overlaps with gap 8 only in OwnerPage.tsx."
+    },
+    {
+     "id": "settings_a-11",
+     "title": "In «سجل التغييرات», quiet-hours on and off entries look like the same entry twice",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 8353 diff(): from in <del>, to in <ins>, and when `to` is empty only the struck old value shows. Each entry's label is the field's own name. DESIGN_TREE_37 128: «من كتب · متى · القيمة القديمة والجديدة · استعادة». The settings page calls the section «ساعات الهدوء».",
+     "app_evidence": "Reproduced live: turning quiet hours on, then off, gives two rows, «أنت · أوقات الهدوء» with `<del>22:00-08:00</del> <ins>غير محدد</ins>` and «أنت · أوقات الهدوء» with `<ins>22:00-08:00</ins>`. Both rows have the same label and the same red/green time pill (shots/settings1/app-owner-log-phone.png). The server does not duplicate entries (an identical PUT returns changed:false), so this is the report's \"duplicate\". Value text comes from packages/core/src/owner-profile.ts:183-191, which maps null to «غير محدد». The field label is «أوقات الهدوء», while NotifyPages calls the section «ساعات الهدوء».",
+     "owner_sees": "Two identical-looking log lines for one setting, an «غير محدد» that really means «off», and a different name from the settings page.",
+     "fix_plan": "In packages/core/src/owner-profile.ts preferenceValueText, return «متوقف» / \"Off\" for quiet_hours when the value is null, and show the window as «22:00 – 08:00» (en dash, LTR). Rename the quiet_hours field label to «ساعات الهدوء». In OwnerPage.tsx, when `before` is null, show only the <ins>; when `after` is null, show only the <del> plus «متوقف», following the reference's diff(). Also skip rows whose field changes list is empty: device-only changes record a revision with no displayable fields.",
+     "files": [
+      "packages/core/src/owner-profile.ts",
+      "apps/web/src/shell/settings/OwnerPage.tsx"
+     ],
+     "report_rows": [
+      33
+     ],
+     "verifier_note": "Smallest fix: in owner-profile.ts make quiet_hours null render «متوقف»/Off (and en dash window), and rename the quiet_hours label at line 103 to «ساعات الهدوء» (line 67 quietHours is a separate label, check which the log uses). In OwnerPage.tsx ~307-309 omit <del> when before is null and show it with «متوقف» when after is null. Skipping empty-change rows is an extra; verify before adding. Downgraded to low: wording only, a log row exists per change anyway. Check core tests that assert «غير محدد»."
+    },
+    {
+     "id": "settings_a-12",
+     "title": "The «الجهاز» section disappears when no passkey device exists, and «مكالمة» can be chosen with nothing to ring",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 8374-8377 deviceSection() always shows three radio rows: this device (name, «مسجَّل لمفتاح المرور» when registered) · «الحاسوب» · «جميع الأجهزة». DESIGN_TREE_37 117: «الجهاز الذي يصله التنبيه | هذا الجهاز | الحاسوب · جميع الأجهزة».",
+     "app_evidence": "NotifyPages.tsx:239 `{profile && profile.devices.length > 0 && (...)}`. The seeded owner has devices:[], so the section is absent (app-notify-phone.png; s2.txt shows no «الجهاز»). In the reach rows (lines 101-105), choosing «call» sets device_id only when a device exists; otherwise it silently saves channel=call with no device.",
+     "owner_sees": "No device row at all. Choosing «مكالمة» appears to work but cannot ring anything, and nothing explains why.",
+     "fix_plan": "Always render the «الجهاز» group. List the registered devices; when none exist, show one row «هذا الجهاز» with the sub «سجّل مفتاح مرور ليصلك الاتصال», linking to the passkey registration in «الخصوصية والأمان» (no dead end). If the server's reach-me policy keeps only device_id, map «جميع الأجهزة» to device_id=null, or record it as server follow-up. When «مكالمة» is picked without a device, show the same hint row instead of saving silently.",
+     "files": [
+      "apps/web/src/shell/settings/NotifyPages.tsx"
+     ],
+     "report_rows": [
+      40
+     ],
+     "verifier_note": "Do not invent «الحاسوب»/«جميع الأجهزة» rows without a server field. Minimal safe fix: always render the group; with no devices show one non-selectable hint row «سجّل مفتاح مرور ليصلك الاتصال» linking to the passkey registration in privacy and security. Show the same hint when «مكالمة» is picked with no device (or disable that save). The incoming-call policy only rings when channel=call with a device, so do not change server semantics. Add i18n msgids (ar and en po) and a Playwright check."
+    },
+    {
+     "id": "settings_a-13",
+     "title": "Per-agent «التواصل الاستباقي» defaults allow calls and set no daily limit (the reference has calls off and a limit of 5)",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 3705: `a.communication||{messages:true,push:true,calls:false,...,limit:5}`, and the limit field is `required` with min 1, max 100. DESIGN_TREE_37 118: «رسائل وإشعارات، دون مكالمات، الحد 5 | الحد بين 1 و100».",
+     "app_evidence": "packages/contracts/src/lonora_contracts/agent_delivery.py:16-18 `in_app: bool = True; calls: bool = True; daily_limit = None`. Live: «مكالمات الوكيل» is on and the limit field shows the placeholder «دون حد» (shots/settings1/app-communication-phone.png vs ref-communication-phone.png).",
+     "owner_sees": "Every agent may call them by default, and a chatty agent has no daily cap.",
+     "fix_plan": "Change the AgentDeliveryRules defaults to calls=False and daily_limit=5 (contract plus db default in agent_delivery.py delivery_rules for rows that do not exist yet). Update the TS contract and the tests. Keep the empty input meaning «دون حد» only if the owner clears it on purpose, or make the field required like the reference.",
+     "files": [
+      "packages/contracts/src/lonora_contracts/agent_delivery.py",
+      "packages/db/src/lonora_db/agent_delivery.py",
+      "apps/web/src/shell/settings/NotifyPages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Changing the contract default alone is not enough. Also change db/agent_delivery.py:40 (calls=False, daily_limit=5) and rules_data/delivery_rules fallbacks for missing rows, and the TS contract. Do NOT alter schema.py server_default without a migration, since existing rows must keep their saved values (a new alembic migration changing the default is optional; setting explicit values on insert at line 40 suffices). Check the enforcement paths near db line 77 and 92, which treat daily_limit=None as unlimited, and tests that assume calls=True or no limit (pytest agent delivery and call tests). Calls default to off is the safer direction. Keep the empty input meaning «دون حد» only if the owner clears it on purpose."
+    },
+    {
+     "id": "settings_a-14",
+     "title": "The text-size step reads «الافتراضي» instead of «افتراضي»",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 6182: sizes=[\"صغير\",\"افتراضي\",\"كبير\",\"أكبر\",\"الأكبر\"]. DESIGN_TREE_37 108.",
+     "app_evidence": "DevicePages.tsx:29 t`Default`. That msgid is shared with lists/EmojiPanel.tsx:512, and ar po 2349-2353 translates it as «الافتراضي». Live heading: «حجم النص · الافتراضي».",
+     "owner_sees": "A heading worded differently from the reference: «حجم النص · الافتراضي».",
+     "fix_plan": "Use a context for the size steps in DevicePages.tsx (t({message:\"Default\", context:\"text size\"})) translated as «افتراضي».",
+     "files": [
+      "apps/web/src/shell/settings/DevicePages.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      46
+     ],
+     "verifier_note": "Use a message context for the text-size step (t({message:'Default', context:'text size'})) and add an ar entry with msgctxt and msgstr «افتراضي». Do not change the shared msgid translation, since the emoji panel keeps «الافتراضي». Run the lingui extract/compile step and update any test that asserts the old heading."
+    },
+    {
+     "id": "settings_root-10",
+     "title": "Reach-mode value reads «الرسالة» instead of «رسالة» (catalog msgid collision)",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 8368 REACH: [\"message\",\"رسالة\",…], [\"notify\",\"إشعار\",…]; the settings row shows the bare noun as its value (3688).",
+     "app_evidence": "apps/web/src/shell/settings/NotifyPages.tsx:22 uses t`Message`. That msgid is shared with src/conversation/Message.tsx:121 and translated «الرسالة» (ar/messages.po:4073-4076), so the root row shows «الإشعارات والتواصل · الرسالة» (shots/settings/app-phone-root-0.png) and the radio row on the notify page shows the same.",
+     "owner_sees": "The value uses the definite article where the reference's options are bare nouns (إشعار · رسالة · مكالمة).",
+     "fix_plan": "Give the reach options their own context, `t({message:\"Message\", context:\"reach mode\"})` (and the same for the others), translated «رسالة». Re-extract the catalogs.",
+     "files": [
+      "apps/web/src/shell/settings/NotifyPages.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use a context for the reach option, e.g. t({message:\"Message\", context:\"reach mode\"}), and translate it «رسالة» in ar. Re-extract the catalogs. Check that reachLabel still matches whatever the tests assert. Also check whether t`Call` or t`Notification` have the same collision."
+    },
+    {
+     "id": "settings_a-6",
+     "title": "Contact-method options and the settings value read «الرسالة» and «اتصال» instead of «رسالة» and «مكالمة»",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 8368 REACH: [\"message\",\"رسالة\",...],[\"call\",\"مكالمة\",...]. DESIGN_TREE_37 111: «سجل النشاط فقط · إشعار · رسالة · مكالمة».",
+     "app_evidence": "NotifyPages.tsx:22-23 use t`Message` and t`Call`. Those msgids are shared with conversation/Message.tsx:121 («الرسالة», ar po 4073-4076) and AgentPage.tsx:273 («اتصال», ar po 1336-1339). Live: the radio rows read «الرسالة» and «اتصال», and the settings root row «الإشعارات والتواصل» shows the value «الرسالة» (shots/settings1/app-notify-phone.png).",
+     "owner_sees": "Inconsistent wording: «إشعار» sits next to «الرسالة» and «اتصال», and the settings list shows «الرسالة» as the current method.",
+     "fix_plan": "In reachOptions() in NotifyPages.tsx, use a msgctxt (\"reach method\") for all four labels. Translate them as رسالة and مكالمة, and re-extract the catalogs. reachLabel then fixes the SettingsRoot value too.",
+     "files": [
+      "apps/web/src/shell/settings/NotifyPages.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      40
+     ],
+     "verifier_note": "Add msgctxt (e.g. \"reach method\") to the Message and Call labels in reachOptions() only. Do not touch the shared msgids, because Message.tsx and AgentPage.tsx must keep their wording. Re-extract and compile the catalogs (ar and en). Check that no Playwright or unit test asserts the old «الرسالة» or «اتصال» text in the notify page. Severity is low because it is wording only."
+    },
+    {
+     "id": "settings_root-9",
+     "title": "Sign-out confirm sheet title lacks the question mark («تسجيل الخروج؟»)",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 9172: `sheet(\"تسجيل الخروج؟\", …)`.",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:272 `const title = t\\`Sign out\\`` reuses the row/button label, so the sheet title is «تسجيل الخروج». Screenshot shots/settings/app-signout.png vs ref-signout.png.",
+     "owner_sees": "The confirm sheet's title reads like the action itself rather than a question.",
+     "fix_plan": "Use a separate message for the sheet title, `t\\`Sign out?\\`` → «تسجيل الخروج؟», in SettingsRoot.tsx, and add it to both catalogs. Keep «تسجيل الخروج» for the row and the danger button.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add a separate t`Sign out?` message for the sheet title only. Keep the `label` (also set from title at line ~274) as it is, or decide whether aria label should be the question too. Update both po catalogs, then run the repo's i18n extract and compile. Check tests that look up the sheet by its «تسجيل الخروج» title."
+    },
+    {
+     "id": "settings_root-12",
+     "title": "Version footer shows the static API version «0.2.0», which does not change between deploys",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "OWNER_DECISIONS Q54: «Show the Lonora version at the bottom of the settings sections». The reference's about page shows «الإصدار 37», a version that identifies the build.",
+     "app_evidence": "SettingsRoot.tsx:51-67 reads only `version` from GET /api/version. Live: {\"version\":\"0.2.0\",\"build\":\"66df6bf74377\"}, and production runs 9f5b1da8 while the footer still says «Lonora · الإصدار 0.2.0» (line 389-391). The note has no .settings-version styling (no centring or muted size). Screenshot shots/settings/app-phone-root-1.png.",
+     "owner_sees": "After every update the footer shows the same «0.2.0», so the owner cannot tell which build is running.",
+     "fix_plan": "Render `version · build.slice(0,7)` when build is present (for example «Lonora · الإصدار 0.2.0 · 9f5b1da»), in a centred muted .settings-version rule in settings.css, with the build in dir=ltr.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/settings.css"
+     ],
+     "report_rows": [
+      19
+     ],
+     "verifier_note": "Make useVersion return {version, build}, render build.slice(0,7) in a span with dir=ltr (a lingui Trans with a placeholder), and add a centred, muted .settings-version rule in settings.css. Update any test or snapshot that asserts the exact footer text. No money-safety impact. No overlap with gap 10 except both editing SettingsRoot.tsx."
+    }
+   ]
+  },
+  {
+   "name": "theme-switch",
+   "lead_notes": "One feature: the night-mode switch reveals the new theme with the growing circle from the switch (720 ms, the easing in the design tree) where View Transitions exist, and with the 280 ms thumb slide and a plain swap where they do not. Reduced motion: an instant swap. Verify in Chrome by sampling during the transition, and check the fallback path by disabling `document.startViewTransition` in a test.",
+   "gaps": [
+    {
+     "id": "settings_root-7",
+     "title": "Night-mode switch: the circle reveal never plays; the theme swaps at once",
+     "category": "animation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 4428-4443 toggleTheme(): `vt=document.startViewTransition(apply)` where apply re-renders synchronously, then `vt.ready.then(()=>root.animate({clipPath:[circle(0px…),circle(R…)]},{duration:720,easing:\"cubic-bezier(.4,0,.2,1)\",pseudoElement:\"::view-transition-new(root)\"}))`. Without the API: the thumb slides, then the theme applies after 280ms. DESIGN_TREE_37.md 94 and 296 (0.72s).",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:83-115: `start(() => setTheme(next))`. hooks/useTheme.ts:23-26 writes data-theme/.dark in a useEffect after the render, so the DOM has not changed when the transition captures the new snapshot. root.animate is called right away (line 104), not in `transition.ready`, and lasts 640ms instead of 720. With no View Transitions it calls setTheme immediately, with no 280ms thumb slide. Live: shots/settings/app-theme-160.png and app-theme-mid.png are already fully light at 160 and 250ms; ref-theme-mid.png shows the growing circle at 250ms.",
+     "owner_sees": "Flipping «الوضع الليلي» snaps the whole screen to the other theme. The reference grows the new theme in a circle out of the switch.",
+     "fix_plan": "In PrefsRow.toggle: apply the theme synchronously inside the transition callback (`start(() => flushSync(() => setTheme(next)))`, plus setting document.documentElement.dataset.theme and the .dark class directly inside the callback, or exporting an applyTheme from useTheme.ts that does both). Run the clip-path animation in `transition.ready.then(...)` with duration 720. In the fallback branch, toggle is-dark/is-light on the switch and apply after 280ms, as the reference does.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/hooks/useTheme.ts"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix: in SettingsRoot.tsx, wrap setTheme in flushSync inside the transition callback and also set documentElement.classList and dataset.theme directly there. flushSync still needs the effect to run, so setting the DOM directly is the safer part. Move root.animate into transition.ready.then and use 720ms. Add the reference's no-API fallback: toggle is-dark/is-light on the switch, then apply after 280ms. Keep the busy guard and the reducedMotion path. Check any Playwright theme test and the .theme-vt CSS."
+    },
+    {
+     "id": "calls_motion-1",
+     "title": "Theme switch never shows the growing circle: the new theme appears at once",
+     "category": "animation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 4425-4441 toggleTheme: `const vt=document.startViewTransition(apply); vt.ready.then(()=>root.animate({clipPath:[circle(0px at x y), circle(R at x y)]},{duration:720,easing:\"cubic-bezier(.4,0,.2,1)\",pseudoElement:\"::view-transition-new(root)\"}))`; without View Transitions the switch thumb moves first and the theme changes after 280ms. DESIGN_TREE_37 «تبديل المظهر | المظهر الجديد ينمو دائرةً من المفتاح (وبدونها تبديل بعد 280 مللي ثانية) | 0.72 · cubic-bezier(.4,0,.2,1)».",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:83-115. `start(() => setTheme(next))` changes React state, which renders after the callback returns, so the View Transition records the same theme twice. `root.animate(...)` runs at once instead of in `transition.ready`, and its duration is 640 not 720. There is no 280ms fallback. Tested live in the same Chrome: 100ms after the tap the app is already fully light and no ::view-transition animation exists (shots/motion/app-theme-100.png). The reference at 250ms still shows the circle growing (shots/motion/ref-theme-250.png, compare shots/motion/cmp-theme.png).",
+     "owner_sees": "Turning dark mode on or off flips the whole screen at once, with no circle growing out of the switch as in the reference.",
+     "fix_plan": "In SettingsRoot.tsx PrefsRow.toggle: call `start(() => flushSync(() => setTheme(next)))`, or have the callback set `document.documentElement.dataset.theme` itself as well as the state, so the DOM changes inside the callback. Move the clip-path `root.animate` into `transition.ready.then(...)` with duration 720 and easing cubic-bezier(.4,0,.2,1). Add the reference fallback: when there is no startViewTransition, toggle the switch's is-dark/is-light class and call setTheme after 280ms. Keep the instant switch under reducedMotion().",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use flushSync(() => setTheme(next)) inside the start callback, or set document.documentElement.dataset.theme there too. Check how ThemeProvider applies the attribute, since an effect-based apply would still run late. Move root.animate into transition.ready.then(...).catch(()=>{}) with duration 720. Add the no-VT fallback: toggle the switch's is-dark/is-light classes and call setTheme after 280ms, keeping the busy guard. The call must be a plain call, and the reducedMotion path stays instant. Add `import { flushSync } from \"react-dom\"`. No money-safety risk."
+    },
+    {
+     "id": "tokens-7",
+     "title": "Theme switch: circle lasts 640ms instead of 720ms, and the no-View-Transitions path skips the 280ms thumb slide",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md line 296: «المظهر الجديد ينمو دائرةً من المفتاح (وبدونها تبديل بعد 280 مللي ثانية) | 0.72 · cubic-bezier(.4,0,.2,1)». Desktop-37:4431-4441: the fallback toggles is-dark/is-light, then `setTimeout(apply,280)`; with View Transitions it waits for `vt.ready.then(()=>root.animate(…,{duration:720,…}))`.",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:91 `if (!start || reducedMotion()) return setTheme(next)` applies the theme at once without the thumb slide. SettingsRoot.tsx:104-111 calls root.animate(...) synchronously, without waiting for transition.ready, with `duration: 640`. Measured live: the new-root animation runs about 500ms to 97% in the app, against about 533ms to 96% in the reference. The circle does play in Chromium.",
+     "owner_sees": "In Chrome the circle wipe is slightly shorter than the reference. In browsers without View Transitions (Firefox, older Safari), the whole theme snaps over with no thumb slide first.",
+     "fix_plan": "In SettingsRoot.tsx toggle: set the duration to 720 and start the clip animation in `transition.ready.then(...)`. In the no-API branch, flip the switch's is-dark/is-light classes (or a local `pending` state), then call setTheme(next) after 280ms while keeping busy.current set. Keep the reduced-motion branch immediate.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx"
+     ],
+     "report_rows": [
+      7
+     ],
+     "verifier_note": "Split the early return: reduced motion keeps immediate setTheme; no-API branch should flip the switch's is-dark/is-light classes (or a local pending state), keep busy.current true, and call setTheme after 280ms. In the API branch change 640 to 720 and wrap root.animate in transition.ready.then(...).catch(()=>{}); also add a catch on transition.finished like the reference. Check that the switch's visual state derives from theme so a manual class flip is not overwritten by a re-render."
+    }
+   ]
+  }
+ ]
+}

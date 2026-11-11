@@ -1,0 +1,136 @@
+{
+ "package": "forms",
+ "title": "Forms: the select control, field errors, skeletons, autocomplete",
+ "wave": 2,
+ "port": 8851,
+ "worktree": "/home/user/wt/forms",
+ "branch": "fx/forms",
+ "owns": [
+  "apps/web/src/shell/settings/ui.tsx (SelectField and field primitives)"
+ ],
+ "steps": [
+  {
+   "name": "select",
+   "lead_notes": "First make the one select control complete: opens upward when there is no room below, full keyboard navigation (arrows, Home, End, type-ahead, Esc, Enter), the pop-in, option icons where the reference has them, correct listbox roles. Then replace every native <select> on a reachable surface with it.",
+   "gaps": [
+    {
+     "id": "sheets_overlays-7",
+     "title": "SelectField listbox: no upward opening, no keyboard navigation, no Home/End, no type-ahead, no pair icons",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9585-9606 openSelectMenu. It opens upward when `below<180&&above>below`, caps maxHeight at min(320, space), focuses the selected option on open, and handles ArrowUp/Down, Home and End in the menu, type-ahead with a 700ms buffer through normalizeSearch, Tab to close, and data-pairs → pairIcon on the trigger and options. It also closes on scroll and resize, and an invalid select focuses the trigger with aria-invalid.",
+     "app_evidence": "shell/domain/ui.tsx:201-209 always sets `top: rect.bottom + 6` with no up branch and no maxHeight from available space. There is no keydown handler on the popup, and focus stays on the trigger. Live check: on /app/new-schedule, opening the last select at y=716 placed the popup at 774-832 of 844, and after ArrowDown and End the focus was still `select-trigger`. There is no pair-icon support. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-select-last.png",
+     "owner_sees": "Near the bottom of a form a longer list runs off the screen, and keyboard users cannot move through the options.",
+     "fix_plan": "Port the reference's openSelectMenu logic into SelectField. Compute `up` and maxHeight from the trigger rect, set top after measuring the menu, focus the aria-selected option on open, and add an onKeyDown on the listbox for arrows, Home, End, Escape, Tab and type-ahead (reuse the Arabic folding normaliser from @lonora/core search). Add an optional `pairs` prop that renders the existing `.pair-ic` (ConnectionPages.tsx:331) before each label. Render the popup with the popover attribute, or portal it to body, so a transformed ancestor such as #dialog (will-change: transform) cannot offset position:fixed when the field is used inside a sheet.",
+     "files": [
+      "apps/web/src/shell/domain/ui.tsx",
+      "apps/web/src/shell/domain/domain.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Same file as gap 5, so land together. The popup is position:fixed inside the form, so inside a sheet a transformed ancestor (#dialog) can offset it. Portaling to body is the safe route. Keep the existing document pointerdown/Escape close handlers consistent with the portal (the outside-click check uses trigger.parentElement.contains). Pair icons only matter if a pair select exists in the app; make that prop optional or skip it."
+    },
+    {
+     "id": "sheets_overlays-6",
+     "title": "Native <select> is still used in many forms; only SelectField has the custom listbox",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9560-9576 syncSelectMenus plus a MutationObserver (line 9609) convert every <select> in the document into a .select-trigger with a .select-popup listbox. DESIGN_TREE:256 says the same: «قوائم الاختيار في النماذج: نافذة مخصّصة بعرض الحقل…».",
+     "app_evidence": "Raw <select> elements in new-shell pages: agent/IdentityPage.tsx:197,219,262 (model and others), agent/GroupPage.tsx:347 (Coordinator), settings/OwnerPage.tsx:212 (Time zone), settings/IntegrationsPage.tsx:427 («Messages reach»). Raw selects in legacy screens still reachable: components/trading/BrokerConnection.tsx:48, AgentMarketPicker.tsx:23, BrokerPairPicker.tsx:80, AgentModelCard.tsx:113, permissions/PermissionEditor.tsx:158-331, AgentPermissions.tsx:792, skills/RevokeVersion.tsx:79, visual/RichResponse.tsx:486 (in chat answers), market/*, charts/*. SelectField (shell/domain/ui.tsx:162) is used only in Tasks, Skills, Goals and Schedules pages.",
+     "owner_sees": "Some dropdowns open the glass listbox and others open the operating system's picker, sometimes in the same flow (an agent page against a schedule page).",
+     "fix_plan": "Replace each raw select in shell/** with SelectField (or a controlled variant that takes value and onChange plus disabled). For legacy components still rendered (RichResponse in chat, broker form), either switch them to SelectField or add a single global upgrader modelled on the reference's syncSelectMenus inside the shell, which keeps the native select as the form value. Remove the select styling rules in theme.overrides.css:65,243,254 once they are unused.",
+     "files": [
+      "apps/web/src/shell/agent/IdentityPage.tsx",
+      "apps/web/src/shell/agent/GroupPage.tsx",
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/components/visual/RichResponse.tsx",
+      "apps/web/src/components/trading/BrokerConnection.tsx",
+      "apps/web/src/shell/domain/ui.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Do the shell pages first by switching them to SelectField, which takes value and onChange and keeps a hidden native select for form submit. The legacy components (RichResponse in chat, broker form) are a separate, riskier step. IdentityPage has three selects and may need a disabled prop that SelectField lacks. Overlaps gap 6: improve SelectField (up-open, keyboard) before or together with this, so the new usages benefit."
+    }
+   ]
+  },
+  {
+   "name": "errors-and-loading",
+   "lead_notes": "One shared way to show an error under its field (message tied to the input with aria-describedby, focus moves to the first invalid field), used by every form. Skeletons use shell/Skeleton.tsx shapes that match each page's real layout.",
+   "gaps": [
+    {
+     "id": "auth_states-3",
+     "title": "Field errors are not shown under each field; forms use one summary line, toasts or browser bubbles",
+     "category": "behaviour",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 5539-5557 validateForm(): per invalid input aria-invalid + aria-describedby, a .field-err (alert icon + «هذا الحقل مطلوب.» / «أدخل بريدًا إلكترونيًا صحيحًا.» / «أدخل N أحرف على الأقل.» …) inserted inside its .field, focus + scroll to the first, warn toast «راجع حقلين قبل الحفظ», errors clear on input; DESIGN_TREE_37.md 401 «خطأ الحقل … رسالة تحت الحقل، والتركيز على أول حقل خاطئ (دون فقاعات المتصفح)».",
+     "app_evidence": "AuthFlow.tsx:86-96 sets one error «تحقق من الحقول المحددة.» below the last field, no aria-invalid, no red field border (live: shots/states/app-signin-err-phone.png vs ref-signin-err-phone.png, where both fields turn red with «هذا الحقل مطلوب.» under each); a bad e-mail gets the same generic line. shell/domain/ui.tsx:331 FormPage calls form.reportValidity(), which shows browser bubbles (tasks, files, skills, goals/knowledge forms). ConnectionPages.tsx:617-621 and 745-754 validate with toasts only. IdentityPage.tsx:177/191 and GroupPage.tsx:304 use <small className=\"field-err\"> without the icon or aria wiring.",
+     "owner_sees": "Submitting an incomplete form either shows a vague single line, a browser tooltip, or a toast, never the red field with its own message seen in the reference; each form behaves differently.",
+     "fix_plan": "Add one helper (e.g. apps/web/src/shell/forms.ts validateForm(form) + an input listener) that ports reference 5539-5557 with Lingui messages, and call it from AuthFlow.run, FormPage.onSubmit (replacing reportValidity), the provider and MCP forms (express their rules as required/minlength/pattern attributes), and Identity/Group pages; keep the warn toast and vibrate. Server errors (wrong password) stay as the single line under the form.",
+     "files": [
+      "apps/web/src/shell/settings/AuthFlow.tsx",
+      "apps/web/src/shell/domain/ui.tsx",
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "apps/web/src/shell/agent/IdentityPage.tsx",
+      "apps/web/src/shell/agent/GroupPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      49
+     ],
+     "verifier_note": "Add one shared helper, e.g. shell/forms.ts, and call it from AuthFlow.run and FormPage. Do not rewrite every form in this pass. The provider and MCP forms that validate by toast in ConnectionPages are optional follow-ups. Use Lingui messages for the texts. Keep server errors such as a wrong password as a single line under the form. Make sure the shell CSS already styles .field-err and [aria-invalid]. Check the auth and form e2e tests that look for the old summary text. No money-safety risk."
+    },
+    {
+     "id": "auth_states-4",
+     "title": "Several data pages show a blank area while loading instead of a skeleton",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 7302 SK_PAGES has skeletons for usage, providers, mcps, integrations, account, storage, help, identity, owner, plans, activity…; 5580 pageSafe renders skBusy(SK_PAGES[r]()) with role=status aria-busy aria-label «جارٍ التحميل»; DESIGN_TREE_37.md 395 «32 صفحة».",
+     "app_evidence": "No SkPage in UsagePage.tsx (531-560: renders filter + «تصدير CSV» only until series arrives), ConnectionPages.tsx:589 ProvidersPage (`providers.loading ? null`), IntegrationsPage.tsx:42, OwnerPage.tsx, AgentsPage.tsx. Live with the APIs delayed 3s: /app/usage shows only the period filter and CSV button over an empty page (shots/states/app-loading_app_usage.png), /app/providers only «إضافة مزود»; aria-busy count 0 on all of them.",
+     "owner_sees": "Opening الاستهلاك or مزوّدو النماذج on a slow link shows an empty page with a lone button, then content pops in.",
+     "fix_plan": "Add page-shaped skeletons to Skeleton.tsx (usage: hero + chart + KPI tiles + ranked rows; providers/integrations/mcps: grouped rows via SkRows; owner/identity: hero circle + fields) following reference skeleton builders near 7284-7330, and render them in each page while the first load is pending.",
+     "files": [
+      "apps/web/src/shell/Skeleton.tsx",
+      "apps/web/src/shell/settings/UsagePage.tsx",
+      "apps/web/src/shell/settings/ConnectionPages.tsx",
+      "apps/web/src/shell/settings/IntegrationsPage.tsx",
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/shell/AgentsPage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Reuse the existing SkPage and SkRows from shell/Skeleton.tsx and keep it minimal, for example SkRows inside the page while useLoad.loading is true and value is undefined. Do not build bespoke page-shaped skeletons for each page. Check each page's loading flag first, because data on some pages comes from useShellData and is not a loading state. Pages are only blank briefly, so this is not medium."
+    },
+    {
+     "id": "cleanliness-14",
+     "title": "Form fields: old screens lack id/name; text inputs on new pages lack autocomplete",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Reference F() helper gives every field a name (e.g. 3691 F(\"الاسم\",\"name\",…)). Comparison report row 49.",
+     "app_evidence": "Live probe (scripts/clean/legacy.out): unnamed fields only on old surfaces: market 7/8, trading 4/5, settings?tab=models 2-4, tab=trading 3, memory 1. Text inputs without autocomplete on owner (2), new-skill (2), new-schedule (2), identity (2), mcp (1), new-task (1), new-goal (1), so Chrome may offer address autofill on agent names.",
+     "owner_sees": "Browser autofill suggestions popping up on agent and skill names; DevTools issues.",
+     "fix_plan": "The old-surface fields disappear with those screens. For the new forms, add autoComplete=\"off\" (or \"name\" for the owner's name) in the shared field helpers in shell/settings/ui.tsx and shell/domain form components.",
+     "files": [
+      "apps/web/src/shell/settings/ui.tsx",
+      "apps/web/src/shell/settings/OwnerPage.tsx",
+      "apps/web/src/shell/domain/SkillsPages.tsx",
+      "apps/web/src/shell/domain/SchedulesPages.tsx",
+      "apps/web/src/shell/agent/IdentityPage.tsx"
+     ],
+     "report_rows": [
+      49
+     ],
+     "verifier_note": "There is no shared input helper in settings/ui.tsx (it exports NavRow, Toggle and similar), so the fix has to go per form: add autoComplete=\"off\" to the named inputs, and \"name\" on the owner name. Add id/name only to the new forms. The old-surface fields go away with gap 11."
+    }
+   ]
+  }
+ ]
+}

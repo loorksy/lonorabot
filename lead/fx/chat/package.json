@@ -1,0 +1,482 @@
+{
+ "package": "chat",
+ "title": "Chat header, the ⋮ chat menu, agent and group info, chat wallpaper",
+ "wave": 1,
+ "port": 8841,
+ "worktree": "/home/user/wt/chat",
+ "branch": "fx/chat",
+ "owns": [
+  "apps/web/src/shell/ChatMenu.tsx",
+  "apps/web/src/shell/ChatHeader.tsx",
+  "the chat-menu, agent-info and members-permissions wiring in apps/web/src/shell/Shell.tsx",
+  "apps/web/src/conversation/wallpaper.ts and the wallpaper rules in conversation.css",
+  "the new wallpaper sheet",
+  "the agent status line in packages/core"
+ ],
+ "steps": [
+  {
+   "name": "info-and-menu",
+   "lead_notes": "Five of these entries are one defect seen by different auditors: the chat header (avatar, name) and the ⋮ row «معلومات الوكيل» / «معلومات المجموعة» must take the owner to the agent page or the group page (see the contracts table), not open the old form in a sheet. Package `agent` runs at the same time and owns AgentPage, GroupPage and IdentityPage; it makes sure those pages offer everything the old forms did. You only change where the chat sends the owner. Do not delete the old form files (pages/shell/bot-settings.tsx, pages/GroupPanel.tsx and so on): a later cleanup removes files nothing imports. Do remove the imports and wrappers your change leaves unused.\nThe ⋮ menu becomes a popover beside its button, as in the reference, on phone and desktop. Use the existing popover hook. Package `popover` is adding Back and Esc handling inside shell/lists/Popover.tsx itself, so do not add your own history handling and do not edit Popover.tsx.\nMenu contents follow the reference for an agent chat and for a group chat, minus what the owner decisions remove. «مسح المحادثة» is red, asks for confirmation, and uses the same hide-history path the chat list's clear action uses (Q1: nothing is deleted). «خلفية المحادثة» is added in the next step, with its sheet.\nsheets_overlays-3: after the extra rows leave the menu, check whether anything else still opens Knowledge or Goals as an old screen inside a sheet; if a path remains, send it to the shell's own page.",
+   "gaps": [
+    {
+     "id": "agent_pages-1",
+     "title": "Chat header avatar/name and ⋮ «معلومات الوكيل» open the old edit-form sheet, not the agent page",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9256 `if(action===\"chat-info\")return go(U.kind===\"group\"?\"group\":\"agent\",...)`. The ⋮ item «معلومات الوكيل» calls chat-info (9257). Route agent at 3639 shows hero, «محادثة · اتصال», then the rows. DESIGN_TREE_37.md:25-37 puts «معلومات الوكيل» under the chat.",
+     "app_evidence": "ChatHeader.tsx:131,143 call onInfo. Shell.tsx:718 wires it to menu.openInfo. ChatMenu.tsx:243 openInfo calls openPage(\"info\"), and ChatMenu.tsx:190 then mounts the legacy AgentSettings (pages/shell/bot-settings.tsx: AvatarStudio, scope select, broker picker, Name/Title/Description inputs, «Advanced» details, Save) inside a `.legacy-surface` bar sheet. The real AgentPage (/app/agent/:id) can only be reached from الوكلاء or a supervisor link. So the app has two agent-info surfaces. Screenshots: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-chat-avatar-p.png (bottom sheet), app-chat-avatar-d.png (centered dialog), versus app-agent-gold-p.png (the correct page).",
+     "owner_sees": "Tapping the agent's avatar or name in a chat opens a dialog (desktop) or a sheet (phone) with raw form fields: «نطاق الوكيل», «حساب الوسيط», «اربط حساب الوسيط قبل إنشاء بوت التداول», folded «صلاحيات الوكيل»/«الإشراف». It has no محادثة/اتصال buttons and no rows. The agent page that matches the reference is hidden two levels deep under the agents list.",
+     "fix_plan": "In ChatMenu.tsx, drop the \"info\" MenuPage. Make openInfo and the ⋮ «معلومات الوكيل» row close the sheet and nav.go(`/app/agent/${agent.id}`), or `/app/group/${group.id}` for a group. Remove the AgentSettings and GroupSettings imports and bodies. Delete apps/web/src/pages/shell/bot-settings.tsx once nothing imports it, plus components/ai/AvatarStudio's studio UI (keep avatarFaceLabels) and components/ai/SupervisionSettings.tsx if they become unused. Update the Playwright specs that open the info sheet.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/pages/shell/bot-settings.tsx",
+      "apps/web/src/components/ai/SupervisionSettings.tsx",
+      "apps/web/src/components/ai/AvatarStudio.tsx"
+     ],
+     "report_rows": [
+      29,
+      30
+     ],
+     "verifier_note": "Route to /app/agent/:id (group to /app/group/:id) from openInfo and the ⋮ row. Before deleting bot-settings.tsx, verify every field AgentSettings edits (scope, broker account, name/title/description, advanced) is reachable from AgentPage via /app/identity/:id; otherwise a capability is lost. Keep the broker-link/trading safety guards intact. Shell.tsx:697 uses menu.openInfo for members-permissions, so overlaps gap 1. Update Playwright specs that open the info sheet; do not delete AvatarStudio/SupervisionSettings until grep shows no importers."
+    },
+    {
+     "id": "agent_pages-2",
+     "title": "Group chat avatar/name opens the old GroupSettings toggle form instead of the group page",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9256 chat-info goes to route group. That route (3666) shows the cluster hero, the name, «3 وكلاء», the purpose, الأعضاء with «المنسق», «إضافة وكيل» and «فتح محادثة المجموعة». The group permission chip opens the «صلاحيات الأعضاء» sheet (8796-8798), which lists members with their levels.",
+     "app_evidence": "ChatMenu.tsx:192 mounts the legacy GroupSettings from pages/GroupPanel.tsx: a name input, a switch per agent and «حفظ الأعضاء». It has no purpose, no coordinator and no group chat button. Shell.tsx:697 sends the composer's `lonora:members-permissions` event to the same form. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/agent/app-group-avatar-p.png. The proper GroupPage (/app/group/:id, ref-matching, shots/agent/app-groupp-0.png) is not reachable from the chat.",
+     "owner_sees": "In فريق التداول, tapping the header opens a boxed form of member switches. The reference's group info page does not appear there, and the permission chip opens the same form.",
+     "fix_plan": "In ChatMenu.tsx, route group info to nav.go(`/app/group/${group.id}`). For `lonora:members-permissions`, add a small «صلاحيات الأعضاء» sheet in shell/sheets that matches ref 8796-8798: member rows with levelLabel, where a tap opens that member's chat with ?sheet=agent and a research agent reads «يجمع المعلومات ويلخّصها · دون صلاحيات». Delete pages/GroupPanel.tsx if it becomes unused.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/pages/GroupPanel.tsx"
+     ],
+     "report_rows": [
+      29
+     ],
+     "verifier_note": "Overlaps gap 0 (same openInfo change in ChatMenu.tsx). The members-permissions sheet is a separate smaller piece; GroupSettings currently lets the owner toggle membership, so make sure GroupPage retains a way to edit members (ref has «إضافة وكيل») before deleting GroupPanel.tsx. Do it in one change with gap 0."
+    },
+    {
+     "id": "chat_header-2",
+     "title": "«معلومات الوكيل/المجموعة» (avatar, name, ⋮ row) opens the old AgentSettings/GroupSettings form in a sheet instead of the agent or group page",
+     "category": "cleanliness",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9256 `if(action===\"chat-info\")return go(U.kind===\"group\"?\"group\":\"agent\", ...)`; chatHeader 3576 the head-avatar and chat-name both carry attrs(\"chat-info\"). DESIGN_TREE_37.md:148 «صورة الوكيل أو المجموعة (تفتح المعلومات)». Live ref: clicking the avatar sets location.hash to #agent (shots/chathead/ref-desk-gold-info.png)",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:188-201 info page body = `<AgentSettings .../>` from pages/shell/bot-settings or `<GroupSettings .../>` from pages/GroupPanel, wrapped in `<div className=\"legacy-surface\">` (219); Shell.tsx:697 and 718 route the avatar, the name and the «lonora:members-permissions» event to menu.openInfo. The new pages exist: apps/web/src/shell/agent/AgentPage.tsx, GroupPage.tsx, routes \"agent\"/\"group\" in shell/routes.ts. Screenshot shots/chathead/app-phone-gold-info.png: plain selects «نطاق الوكيل / حساب الوسيط / اختر حساب الوسيط», the line «اربط حساب الوسيط قبل إنشاء بوت التداول», collapsed «صلاحيات الوكيل / الإشراف» toggles",
+     "owner_sees": "The most-tapped thing in the header (the avatar or the name) shows an older-looking settings form with dropdowns and «بوت التداول» wording, while the clean agent page from the reference sits unused on another path. Two different «agent info» surfaces.",
+     "fix_plan": "In useChatMenu, make openInfo navigate: `nav.go(group ? `/app/group/${group.id}` : `/app/agent/${agent.id}`)` (check the item-page path shape in routes.ts ITEM_PAGES/NEEDS_ITEM). Remove the \"info\" MenuPage and the AgentSettings/GroupSettings imports from ChatMenu.tsx. Point «lonora:members-permissions» at the group page's members/permissions section. Keep Back returning to the chat through the shell's back order.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/agent/AgentPage.tsx",
+      "apps/web/src/shell/agent/GroupPage.tsx"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Simple fix: openInfo does nav.go to the agent or group page (ITEM_PAGES uses /app/agent/<id> and /app/group/<id>). Check the group path shape in routes.ts, because there is also a `g` head form (line 116). Before deleting the AgentSettings import from ChatMenu, confirm AgentPage/GroupPage cover the editing fields that bot-settings and GroupPanel provided (scope, broker account, permissions, group members). Otherwise nothing is reachable. AgentSettings in pages/shell/bot-settings.tsx may then be dead. Mention it, do not delete it unasked. The lonora:members-permissions event should land on the group page or the agent permissions section. Same file as gap 0; do both together."
+    },
+    {
+     "id": "sheets_overlays-1",
+     "title": "Tapping the chat header (avatar or name) opens an old «معلومات الوكيل» settings sheet instead of the agent page",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9256 `if(action===\"chat-info\")return go(U.kind===\"group\"?\"group\":\"agent\",...)`. The header avatar and name both carry data-a=chat-info (line 3576). DESIGN_TREE: the agent page is a full page. Comparison row 29 says the same.",
+     "app_evidence": "Shell.tsx:718 `onInfo={menu.openInfo}`, and ChatHeader.tsx:131/143 call onInfo. ChatMenu.tsx:187-198 renders `<AgentSettings>` (pages/shell/bot-settings) or `<GroupSettings>` inside `<div className=\"legacy-surface\">` in the chat-menu sheet (line 219). The live sheet shows the old form: native-looking selects «نطاق الوكيل» and «حساب الوكيل», a blue «فتح إعدادات التداول» link, and a «◂ صلاحيات الوكيل» disclosure. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-info.png",
+     "owner_sees": "Every tap on the agent's name or picture in a chat opens a cramped sheet in the old visual style, not the agent page the rest of the app uses. The same agent therefore has two different «info» screens.",
+     "fix_plan": "In Shell.tsx, point onInfo (and the lonora:members-permissions handler) to `nav.go(agent ? \\`/app/agent/${agent.id}\\` : \\`/app/group/${group.id}\\`)`, using the agent and group page routes in routes.ts. In ChatMenu.tsx, make the «معلومات الوكيل/المجموعة» row navigate the same way, then delete the `info` MenuPage branch and the AgentSettings and GroupSettings imports.",
+     "files": [
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/ChatHeader.tsx"
+     ],
+     "report_rows": [
+      29
+     ],
+     "verifier_note": "Also repoint the lonora:members-permissions listener (Shell.tsx:697). Routes are /app/agent/:id and /app/group/:id; verify the group page handles the member-permissions entry point before dropping the sheet. Removing the info page also fixes gaps 2-3 partly (info, knowledge, goals branches) and gap 3 (AvatarStudio caller). Check e2e tests that open the header info sheet."
+    },
+    {
+     "id": "cleanliness-2",
+     "title": "Chat header avatar/name and ⋮ «معلومات الوكيل» open the old AgentSettings form in a sheet, not the agent page",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9256 if(action===\"chat-info\")return go(U.kind===\"group\"?\"group\":\"agent\",…): the info row and the header both go to the agent page or group page (design tree: agent page = الهوية والنموذج · المعرفة · المهارات · الأهداف · المهام المجدولة · الملفات …).",
+     "app_evidence": "shell/Shell.tsx:718 onInfo={menu.openInfo}; ChatHeader.tsx:131,143 avatar and name call onInfo. ChatMenu.tsx:186-200 renders <AgentSettings> from pages/shell/bot-settings.tsx (or <GroupSettings> from pages/GroupPanel.tsx) inside <div className=\"legacy-surface\"> (ChatMenu.tsx:218). That form pulls in AvatarStudio (lucide icons), AgentModelCard (a second usage readout), AccountAuthoritySettings and AgentMarketPicker. The new AgentPage at /app/agent/:id (shell/agent/AgentPage.tsx) already exists and is reached only from other places. The lonora:members-permissions event (Shell.tsx:697) also opens this old sheet. Screenshot shots/clean/p-head-info.png: the old grey-select form with «نطاق الوكيل» and «◂ صلاحيات الوكيل» disclosure.",
+     "owner_sees": "Tapping the agent's name in a chat (the most common way to reach agent info) shows an older, differently styled form. The agent page from the agents list looks different and holds different rows, so the same agent has two 'info' screens, and usage appears in both the agent form and Settings.",
+     "fix_plan": "In shell/ChatMenu.tsx make openInfo navigate: nav.go(group ? `/app/group/${group.id}` : `/app/agent/${agent.id}`). Point the members-permissions event at /app/group/:id. Delete the 'info' page branch, then remove the orphaned pages/shell/bot-settings.tsx and pages/GroupPanel.tsx, plus components/models/AgentModelCard.tsx and components/ai/PersonalAgentBadge.tsx if nothing else imports them (ChatHeader still imports PersonalAgentBadge: swap its lucide icon). Move any field AgentPage lacks (market scope, supervision) into IdentityPage first.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/pages/shell/bot-settings.tsx",
+      "apps/web/src/pages/GroupPanel.tsx",
+      "apps/web/src/shell/agent/IdentityPage.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "AgentSettings and GroupSettings are imported only by ChatMenu.tsx, so deleting them is safe, but first check the fields only they hold (market scope, supervision, AccountAuthoritySettings) are on AgentPage/IdentityPage. Otherwise permissions UI is lost, and the account-authority settings are money-safety relevant. Do the migration before deleting. Overlaps gap 2 (same ChatMenu.tsx: remove the 'info' page branch there too)."
+    },
+    {
+     "id": "chat_header-1",
+     "title": "The ⋮ chat menu opens as a bottom sheet (centred modal on desktop) instead of the reference's popover beside the button",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 `if(action===\"chat-menu\"){... return openPop(button, popItem(...)+...+'<div class=\"pop-sep\"></div>'+popItem(\"trash\",\"مسح المحادثة\",\"clear-chat\",{},\"danger\"),{cls:\"menu-pop\"})}`; openPop 4048-4068 places a glass .pop beside its anchor; CSS .pop 437, .pop-item.danger 443, .pop-sep 449. DESIGN_TREE_37.md:206 «قائمة منبثقة بجانب الزر»; 288 popover appear 0.14-0.16s. Screenshot shots/chathead/ref-phone-gold-menu.png and ref-desk-gold-menu.png",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:211-222 `sheets.open({ id: \"chat-menu\", bar: true, title, ... }, { morph: true })` with 60px .row tiles and chevrons (MenuRow 26-48). Screenshots shots/chathead/app-phone-gold-menu.png (bottom sheet titled «قائمة المحادثة» with ✕), app-desk-gold-menu.png (centred 560px modal over the whole app)",
+     "owner_sees": "Tapping ⋮ slides up a full sheet with a title bar and large chevron rows (on desktop a dialog in the middle of the screen) instead of a small menu dropping from the ⋮ button. It feels like a settings page, not a menu, and costs an extra close.",
+     "fix_plan": "Rewrite useChatMenu.openMenu to open the shared popover: `usePopover().open(anchorButton, body, t`Chat menu`, { cls: \"menu-pop\" })` with PopItem rows (icon + label, no chevron) and PopSep before the danger «مسح المحادثة» item, in the reference order. ChatHeader passes the ⋮ button element to onMenu (onMenu(event.currentTarget)). Drop the MenuPage in-sheet pages (info/knowledge/goals) entirely (see the info and extras gaps). Reuse .pop/.pop-item/.pop-sep already styled for Popover.tsx.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/ChatHeader.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/lists/Popover.tsx"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Not high: it is a presentation difference, not a navigation break or money/safety issue. Overlaps with gaps 1, 2 and 3: this rewrite should be done together with them, since the new menu needs the info-navigates, clear and wall rows. The reference menu is: info, chart (trading/groups), safety status and watches (trader with account), new task, agent files (agents only), chat background, separator, clear. The app's extra rows (Knowledge, Goals, Scheduled tasks) are not in the reference menu; decide whether they stay (they need a home, e.g. on the agent page) before dropping the in-sheet pages. Keep the status/watches rows tied to the existing statusSheet/watchesSheet. ChatHeader onMenu is currently () => void and must receive the button element. Shell.tsx also calls menu.openChart and menu.openInfo and must keep working."
+    },
+    {
+     "id": "sheets_overlays-2",
+     "title": "The chat ⋮ menu is a full bottom sheet, not the reference popover, and it lacks «خلفية المحادثة» and «مسح المحادثة»",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 `if(action===\"chat-menu\"){... return openPop(button, popItem(info)… popItem(\"chart\")… sf-sheet… wt-sheet… مهمة جديدة… ملفات الوكيل… popItem(\"image\",\"خلفية المحادثة\",\"wall-sheet\")+'<div class=\"pop-sep\"></div>'+popItem(\"trash\",\"مسح المحادثة\",\"clear-chat\",{},\"danger\"),{cls:\"menu-pop\"})}`. DESIGN_TREE:251 lists «⋮ المحادثة» under القوائم المنبثقة. CAPABILITY_MAP:103 lists the same items. Reference screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-ref-menu.png",
+     "app_evidence": "ChatMenu.tsx:111-221 opens `sheets.open({id:\"chat-menu\", bar:true, title:t`Chat menu`…})` with rows that each carry a chevron: info, chart, status, watches, المعرفة, الأهداف, المهام المجدولة, مهمة جديدة, ملفات الوكيل. It has no wallpaper row, no separator and no danger «مسح المحادثة». On desktop it opens as a centred 560px modal titled «قائمة المحادثة». Screenshots: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-menu.png and /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/d-menu.png",
+     "owner_sees": "In the reference, ⋮ drops a small glass menu beside the button. Here a large sheet with chevrons and a title slides up, and on desktop a dialog opens in the middle of the screen. Two items the owner expects are missing.",
+     "fix_plan": "Rebuild the menu with usePopover().open(anchor, <PopItem…/>, label, {cls:\"menu-pop\"}) from shell/lists/Popover.tsx, in the reference's order: info → navigate, chart, الحالة والأمان, المراقبات, مهمة جديدة, ملفات الوكيل, خلفية المحادثة (open the wallpaper sheet that uses conversation/wallpaper.ts wallDefs), a pop-sep, then «مسح المحادثة» as danger with the Q1 hide-history confirm sheet already used by lists/Selection.tsx. Move المعرفة, الأهداف and المهام المجدولة to the agent page, where CAPABILITY_MAP places them. ChatHeader.tsx must pass the ⋮ button element as the anchor.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/ChatHeader.tsx",
+      "apps/web/src/shell/Shell.tsx",
+      "apps/web/src/shell/lists/Popover.tsx"
+     ],
+     "report_rows": [
+      1,
+      18
+     ],
+     "verifier_note": "The app has NO wallpaper picker sheet: wallpaper.ts only holds fixed SVG defs/levels and Conversation uses WALL_LEVELS.light. Adding «خلفية المحادثة» means building a wall sheet and persisting a choice; either do that or omit the row and state it. «مسح المحادثة» must call the existing lists.clear hide-history path with confirm (Q1), not delete locally. Use usePopover from shell/lists/Popover.tsx (PopItem, PopSep). Mobile should keep working (reference popover is used on both); update tests that click menu rows. Overlaps gap 0 (info row) and gap 2 (knowledge/goals removal)."
+    },
+    {
+     "id": "chat_header-3",
+     "title": "«مسح المحادثة» (red, with confirmation) is missing from the ⋮ menu",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 last menu item `popItem(\"trash\",\"مسح المحادثة\",\"clear-chat\",{},\"danger\")` after a .pop-sep; 9218 `sheet(\"مسح المحادثة\",`<p>…</p><div class=\"actions\">${B(\"إلغاء\",\"close\")}${B(\"مسح\",\"clear-chat-confirm\",{},\"danger\")}</div>`)`; 9219 clears messages, reply-to and the draft. DESIGN_TREE_37.md:153, 222 «مسح المحادثة | ⋮ | إلغاء · مسح». OWNER_DECISIONS Q1: «مسح» = hide history for the owner (visibility cursor), never delete the agent. Screenshot shots/chathead/ref-phone-clear.png",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:125-186 has no clear row; no clear action anywhere in the conversation. The server route already exists and is used by the list selection: apps/web/src/shell/lists/api.ts:19 `clear: (threadId) => api.post(`/threads/${threadId}/clear`, {})`, lists/state.tsx:155, confirm sheet pattern in lists/Selection.tsx:55-103",
+     "owner_sees": "No way to clear one conversation from inside it; the owner must go back to the list, long-press, select and use the selection toolbar.",
+     "fix_plan": "Add a danger PopItem «مسح المحادثة» (icon trash) after PopSep in the chat menu. It opens a plain sheet titled «مسح المحادثة» with a Q1-worded line (e.g. «تُخفى رسائل هذه المحادثة عندك، ويبقى الوكيل وسجله.»; for a group «تبقى المجموعة بأعضائها») and .actions [إلغاء (btn outline) · مسح (btn danger)]. On confirm call lists.clear for the chat's row (or listsApi.clear(threadId)), clear the reply-to and the composer draft, toast «مُسحت الرسائل». Resolve threadId from the open conversation (agent thread / group.state.thread_id). Add ar/en msgids.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/lists/state.tsx",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Do not copy the reference wording, which says messages are removed from this browser only (CAPABILITY_MAP flags it): use Q1 wording, history hidden, agent or group stays. Reuse the Selection.tsx confirm sheet and lists.clear rather than writing a new one. Call the clear on the thread's list row; a group uses its thread_id. After success, refresh the conversation, drop the reply-to and the draft, and ensure the open conversation view empties without a reload. Never call DELETE on the agent or group (Q1, Q44). Add ar/en msgids. Overlaps with gap 0 (menu row)."
+    },
+    {
+     "id": "chat_header-6",
+     "title": "⋮ menu adds «المعرفة», «الأهداف», «المهام المجدولة», which repeat the agent page and the «+» sheet and open old panels",
+     "category": "extra",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 the full item list: معلومات · الشارت (conditional) · الحالة والأمان + المراقبات (trader with account) · مهمة جديدة · ملفات الوكيل (agents only) · خلفية المحادثة · مسح المحادثة. DESIGN_TREE_37.md:153 the same list; CAPABILITY_MAP.md:103 chat.header.menu",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:149-169 rows Knowledge (in-sheet `<Knowledge>` from pages/Knowledge inside .legacy-surface, 202-209), Goals (in-sheet `<TradingGoals>`, 210), Scheduled tasks (nav to /app/routines). The same three are rows on the agent page (shell/agent/AgentPage.tsx:285-292), and Knowledge is also in the «+» sheet (conversation/ToolsSheet.tsx:196). Screenshots shots/chathead/app-phone-research-menu.png, app-phone-group-menu.png",
+     "owner_sees": "A longer menu (9 rows for the gold agent instead of 8, with no background or clear item) and three ways to reach knowledge. Two of them open older-style panels inside the sheet.",
+     "fix_plan": "Delete the Knowledge, Goals and Scheduled tasks rows and the \"knowledge\"/\"goals\" MenuPage branches from ChatMenu.tsx, plus the imports of Knowledge and TradingGoals there. The agent page keeps them.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Only ChatMenu.tsx is touched. Delete the 3 rows, the knowledge/goals MenuPage branches (title ternary at 121-123, body branches at 202-210) and the Knowledge/TradingGoals imports. Then the legacy-surface wrapper at line 219 is only needed for the info page. Confirm AgentPage still carries these rows (not re-checked). Overlaps gaps 6 and 7, which edit the same menu block, so do them in one pass. The ref also has «خلفية المحادثة» and «مسح المحادثة», which are not in this batch."
+    },
+    {
+     "id": "cleanliness-3",
+     "title": "⋮ menu has extra «المعرفة»/«الأهداف»/«المهام المجدولة» rows that open old screens, duplicating the agent page",
+     "category": "extra",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 chat-menu = معلومات الوكيل · الشارت (only when chartOk) · الحالة والأمان + المراقبات (trader) · مهمة جديدة · ملفات الوكيل · خلفية المحادثة · sep · مسح المحادثة. Knowledge, goals and schedules live on the agent page (3640) and knowledge in the + sheet (4995).",
+     "app_evidence": "shell/ChatMenu.tsx:134 shows الشارت always; :149-170 add المعرفة (renders pages/Knowledge.tsx), الأهداف (components/goals/TradingGoals.tsx) and المهام المجدولة. Both screens render inside .legacy-surface in the sheet, while AgentPage.tsx:285-293 links to the new /app/knowledge, /app/goals and /app/routines. Screenshots: shots/clean/p-menu.png (the 9-row menu), p-menu-knowledge.png (title «المعرفة» twice, an unreadable segmented tab strip, an agent <select>), p-menu-goals.png (old TradingGoals copy).",
+     "owner_sees": "Knowledge and goals each have two different-looking screens depending on the entry point. The ⋮ menu is twice the reference's length.",
+     "fix_plan": "Make ChatMenu's rows match the reference list: drop المعرفة, الأهداف and المهام المجدولة; gate الشارت on group || agent.trading_symbol || trading. Delete the 'knowledge' and 'goals' page branches and the TradingGoals and Knowledge imports. Wallpaper and clear-chat belong to the conversation auditor.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Gate the chart row with the same condition as ToolsSheet (isGroup || trading || agent.trading_symbol). Remove the Knowledge, Goals and Scheduled tasks rows, the 'knowledge' and 'goals' page branches and the unused imports (TradingGoals, Knowledge, and AgentSettings/GroupSettings if gap 1 is done). Playwright specs may click these rows, so grep tests/web for them. Same file as gap 1, so do both together."
+    },
+    {
+     "id": "chat_header-7",
+     "title": "«الشارت» appears for every agent, and «المراقبات» does not require a linked account",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 `chartOk=g||A().symbol||A().type===\"تداول\"`; `(!g&&isTrader(A())&&acctOf()?popItem(\"shield\",\"الحالة والأمان\",…)+popItem(\"radar\",\"المراقبات\",…):\"\")`. DESIGN_TREE_37.md:153 «الشارت (وكيل تداول أو مجموعة) · … · المراقبات (وكيل تداول مرتبط بحساب)». Live ref: Lonora (general) menu has no chart (shots/chathead/ref-phone-lonora-menu.png)",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:134 `<MenuRow icon=\"chart\" label={<Trans>Chart</Trans>} …/>` unconditional; 142 Watches shown when `trading` only (template or showsTradingControl), not on trading_account_id. Screenshot shots/chathead/app-phone-research-menu.png shows «الشارت» for مساعد الأبحاث",
+     "owner_sees": "The research agent and the companion agent offer a chart they have nothing to show on; a trading agent without an account offers an empty watches sheet.",
+     "fix_plan": "Show the chart item only for `group || trading || agent.trading_symbol` (Lonora counts as trading under Q19). Show «المراقبات» only for `trading && agent.trading_account_id`. Keep StatusRow's existing rule.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Chart gate: group || trading || agent.trading_symbol. The `trading` const already includes Lonora (the personal agent) via showsTradingControl, but the live ref Lonora menu has no chart. Decide deliberately: it is harmless to keep Lonora's chart because chart cards from answers still use openChart. Do not gate openChart itself. Watches: add && agent.trading_account_id. This is a menu-only change and does not touch money-safety paths. Same block as gaps 5 and 7."
+    },
+    {
+     "id": "chat_header-8",
+     "title": "Group ⋮ menu shows «ملفات الوكيل»",
+     "category": "extra",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9257 `(g?\"\":popItem(\"file\",\"ملفات الوكيل\",\"go\",{route:\"files\",scope:\"agent\"}))`: groups have no agent-files item",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:177-184 Agent files row rendered for groups too (navigates to /app/artifacts with no agent). Screenshot shots/chathead/app-phone-group-menu.png",
+     "owner_sees": "In «فريق التداول» the menu offers «ملفات الوكيل», which opens every file rather than a group's.",
+     "fix_plan": "Render the «ملفات الوكيل» item only when `agent` is set.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx"
+     ],
+     "report_rows": [
+      27
+     ],
+     "verifier_note": "Wrap the row in {agent && ...} and simplify the navigate call to always use agent.id. Same block as gaps 5 and 6."
+    },
+    {
+     "id": "chat_header-9",
+     "title": "«مهمة جديدة» from the chat loses the chat's agent",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3655 new-task form `Select(\"الوكيل المسؤول\",\"agent\",agentsOptions(),U.agent)` preselects the agent of the chat it came from; 9257 menu item `popItem(\"task\",\"مهمة جديدة\",\"go\",{route:\"new-task\"})`",
+     "app_evidence": "apps/web/src/shell/ChatMenu.tsx:175 `nav.go(\"/app/tasks?new=1\")`; shell/domain/TasksPages.tsx:57 redirects to `/app/new-task` without ?agent=, while NewTaskPage (TasksPages.tsx:270, 301) preselects only from useAgentParam(). Same in conversation/ToolsSheet.tsx:115 and Shell.tsx:688",
+     "owner_sees": "Opening «مهمة جديدة» from محلل الذهب's chat shows a form whose responsible agent is the default, not محلل الذهب; the owner has to pick it again.",
+     "fix_plan": "Navigate straight to `/app/new-task?agent=${agent?.id ?? memberAgents[0]?.id}` (and the group's lead agent for groups) from the chat menu, the «+» sheet and Shell.onNewTask.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/conversation/ToolsSheet.tsx",
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Navigate directly to /app/new-task?agent=<id>. For a group use memberAgents[0]. Shell.onNewTask has no chat context if called from a non-chat route, so keep the fallback to the old path there. Optionally keep the /tasks?new=1 redirect but make it forward the agent param. The Shell.tsx and ToolsSheet.tsx call sites must get the current agent id from their own context."
+    },
+    {
+     "id": "chat_header-11",
+     "title": "The ⋮ button stays disabled until agents and groups finish loading",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3576 `${IB(\"more\",\"chat-menu\",{},\"قائمة المحادثة\")}`: the button is always active",
+     "app_evidence": "apps/web/src/shell/ChatHeader.tsx:185 `disabled={!menuReady}`; ChatMenu.tsx:110 `ready = Boolean(agent || (group && !data.agentsLoading))`. On the shared audit server the click failed for several seconds with «element is not enabled» while the header already showed the name and «نشط»",
+     "owner_sees": "On a slow connection ⋮ looks dead (dimmed, no response) even though the chat header has already loaded.",
+     "fix_plan": "Once the menu is a popover built from the header's own agent/group (see the container gap), drop menuReady/disabled. Build items that need members (group) lazily, or show the popover with the items available so far.",
+     "files": [
+      "apps/web/src/shell/ChatHeader.tsx",
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/Shell.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "The simplest fix is to drop `disabled={!menuReady}` and keep the `if (!ready) return` guard in openPage. The tap then does nothing until data arrives, which is the existing behaviour of the avatar and name, and nothing needs a skeleton. It is better to have the tap queue, or to open the sheet once ready, than to leave the button dimmed. Remove the now-unused `menuReady` prop from ChatHeader and the Shell.tsx:723 call, and check ChatHeader and Shell tests that assert the button is disabled. The auditor's fix_plan mentions a separate popover-container gap, so check that gap in this batch before building on it. Nothing here touches money safety."
+    },
+    {
+     "id": "sheets_overlays-3",
+     "title": "Knowledge and Goals open as old legacy screens inside the sheet, with a duplicated title and a native select",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE:206-211: everything that is not a page opens as a sheet built from the sheet's own rows (normal or bar, with inner pages). Knowledge and goals are agent-page rows that open their own pages (DESIGN_TREE sections tree; Comparison row 29). The reference has no sheet with a second in-content H1 or a native <select>, because syncSelectMenus at line 9560 converts every select.",
+     "app_evidence": "ChatMenu.tsx:199-208 puts `<Knowledge>` (pages/Knowledge) and `<TradingGoals>` in `<div className=\"legacy-surface\">`. The live sheet shows «المعرفة» twice, once in the bar and once as a large in-content heading, plus a native agent select and old pill tabs. Screenshot: /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/sheets/p-menu-knowledge.png",
+     "owner_sees": "A second inner page with a different look (old tabs, a duplicated heading, browser select) inside an otherwise clean sheet.",
+     "fix_plan": "Remove the knowledge and goals pages from ChatMenu. Link to the agent's knowledge and goals pages (shell/domain/GoalsKnowledgePages.tsx already exists) through nav.go from the agent page. If the menu must keep them, render GoalsKnowledgePages bodies instead of pages/Knowledge and drop the legacy-surface wrapper.",
+     "files": [
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/shell/domain/GoalsKnowledgePages.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix is deleting the knowledge/goals/info pages and rows from ChatMenu (reference menu has none); no new code needed. Do together with gap 1 so ChatMenu loses the legacy imports. Make sure the knowledge page opened from the agent page keeps the right agent query."
+    }
+   ]
+  },
+  {
+   "name": "wallpaper-and-status",
+   "lead_notes": "The wallpaper choice is a per-device preference: store it the way the other device preferences are stored (find the existing module; do not add a second storage scheme). Build the sheet with the existing sheet system: the reference's patterns and intensity levels, the 0.3 s change fade, and the fade-in when a conversation opens. Add the «خلفية المحادثة» row to the ⋮ menu and to the settings root under the appearance group (SettingsRoot.tsx is edited by other packages too: keep your hunk to that one row).\nchat_header-12: the status vocabulary lives in packages/core and is shared with mobile; keep `pnpm check` green for mobile.",
+   "gaps": [
+    {
+     "id": "chat_header-4",
+     "title": "Chat background cannot be chosen: wallpaper hard-coded to «Lonora» at «خفيفة», no picker sheet, no 0.3s fade",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:4947-4950 wallMarkup reads wallState() (id + level), none renders nothing; 4955-4961 wallSheet(): .wall-grid of five .wall-opt radio cards with .wall-prev previews (pattern at 60% scale, fake bubbles .wb/.wb.out/.wb.short) + «وضوح الرسومات» .tabs.wall-levels disabled when «بدون»; 9124-9125 wall-sheet / set-wall re-render live; CSS 849-865 (.chat-wall.page-enter{animation:wall-in .3s}, @keyframes wall-in, 3-col grid, 5-col from 900px, .wall-opt.on ring). Menu item 9257 `popItem(\"image\",\"خلفية المحادثة\",\"wall-sheet\")`. DESIGN_TREE_37.md:96-97, 221, 285 «خلفية المحادثة | ظهور تدريجي | 0.3». Screenshot shots/chathead/ref-phone-wall.png",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:1011-1018 `<svg className=\"chat-wall\" style={{\"--wa\": WALL_LEVELS.light.a[...]}}><rect fill=\"url(#lw-p-lonora)\"/></svg>` fixed id and level; conversation/prefs.ts:5-13 CHAT_PREFS_DEFAULT has no wall key; no .wall-grid/.wall-opt/.wall-prev/wall-in CSS in apps/web/src (conversation.css:4706-4723 only #lw-defs and .chat-wall); wallpaper.ts:69-156 holds the five patterns and three levels with hard-coded Arabic names (not Lingui); ChatMenu.tsx has no «خلفية المحادثة» row",
+     "owner_sees": "The doodle background is always the same at the faintest level; «الوكلاء», «السوق», «هادئ», «بدون» and the stronger levels from the reference are unreachable, and the background pops in rather than fading.",
+     "fix_plan": "Add `wall: { id: \"lonora\", level: \"light\" }` to CHAT_PREFS_DEFAULT (per-device, as the capability map says). Export WALLS ids from wallpaper.ts and move the display names to Lingui (t`Lonora`, t`Agents`, t`Market`, t`Calm`, t`None`, t`Light`, t`Medium`, t`Stronger`). Conversation.tsx renders the svg from prefs.wall (nothing for \"none\") with className \"chat-wall page-enter\" on change. New conversation/sheets/WallSheet.tsx (useWallSheet) ported from wallSheet(): radiogroup grid of .wall-opt with .wall-art preview at scale(.6) and opacity min(.5, alpha*2.3), check on the chosen one, then «وضوح الرسومات» segmented .tabs disabled for none; selecting updates setChatPref live. Port CSS 849-865 into conversation.css. Add the «خلفية المحادثة» PopItem (icon image) to the ⋮ menu before the separator.",
+     "files": [
+      "apps/web/src/conversation/prefs.ts",
+      "apps/web/src/conversation/wallpaper.ts",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/sheets/WallSheet.tsx",
+      "apps/web/src/conversation/conversation.css",
+      "apps/web/src/shell/ChatMenu.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      18
+     ],
+     "verifier_note": "Purely cosmetic and per-device, so not high. Store it in the chat prefs (localStorage, never the server). The wallpaper.ts names are hard-coded Arabic and need Lingui. The level alpha depends on the theme (light vs dark: WALL_LV a[1]/a[0]), keep that. The preview uses scale(.6) with opacity min(.5, alpha*2.3). Must not hurt message legibility: keep the layer behind the messages, aria-hidden. The «none» choice must disable the level tabs. The row in the ⋮ menu (gap 0) and the settings row (gap 4) depend on this sheet existing, so build it first."
+    },
+    {
+     "id": "chat_header-5",
+     "title": "Settings has no «خلفية المحادثة» row under the appearance group",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md:86 «المظهر والكتابة: لغة الواجهة ومفتاح الوضع الليلي في صف واحد · خلفية المحادثة · تجربة المحادثة · سهولة الاستخدام»; 96-97 the row shows the current pattern; Lonora-Desktop-37.html:4953 wallRow(): .row with image icon, «خلفية المحادثة», .value = current pattern name, chevron, opens wall-sheet; 221 «خلفية المحادثة | ⋮ أو الإعدادات»",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:311-315 the group is PrefsRow (language + dark mode) · «تجربة المحادثة» · «سهولة الاستخدام» with nothing between",
+     "owner_sees": "The settings appearance group skips the chat background; the owner cannot find or change it from settings.",
+     "fix_plan": "After the wallpaper sheet exists, add a NavRow-style row (icon image, label t`Chat background`, value = current pattern name from useChatPrefs().wall) between PrefsRow and «تجربة المحادثة» that calls useWallSheet() instead of navigating.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/ui.tsx"
+     ],
+     "report_rows": [
+      18
+     ],
+     "verifier_note": "Blocked on gap 3 (the sheet and the wall pref). The value should show the current pattern name. Use a button row like NavRow that opens the wall sheet instead of navigating; check whether NavRow supports onClick and value, otherwise add a small row in SettingsRoot. Needs Lingui strings."
+    },
+    {
+     "id": "settings_root-1",
+     "title": "«خلفية المحادثة» row and sheet are missing; the wallpaper is fixed to Lonora at the light level",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 3687: `<div class=\"group\">${prefsRow()}${wallRow()}${R(\"تجربة المحادثة\"...`; 4953 wallRow() «خلفية المحادثة» with the current pattern name as its value; 4955-4960 wallSheet(): a .wall-grid of five .wall-opt previews (Lonora · الوكلاء · السوق · هادئ · بدون) and «وضوح الرسومات» .tabs.wall-levels (خفيفة · متوسطة · أوضح, disabled with «بدون»). DESIGN_TREE_37.md 86, 96-97, 153 (also in the chat ⋮ menu), 285 (0.3s fade-in).",
+     "app_evidence": "apps/web/src/shell/settings/SettingsRoot.tsx:311-315: the group holds PrefsRow, chat-prefs and accessibility only. apps/web/src/conversation/Conversation.tsx:1011-1017 always paints `url(#lw-p-lonora)` with `WALL_LEVELS.light`. apps/web/src/conversation/wallpaper.ts already builds all five patterns (wallDefs 273-291), but nothing chooses between them, and the catalogs contain no «خلفية المحادثة» string. Screenshots: shots/settings/app-phone-root-0.png vs ref-phone-root-0.png.",
+     "owner_sees": "The doodle wallpaper sits behind every conversation, but no setting can change or remove it. The row the reference puts under the language and theme row is not there.",
+     "fix_plan": "Add a wall device preference (`useDevicePref(\"wall\", {id:\"lonora\", level:\"light\"})` in apps/web/src/shell/settings/device-prefs.ts). Add a WallRow to SettingsRoot.tsx right after <PrefsRow/>, with icon image, label «خلفية المحادثة» and the current name as its value, that opens a sheet ported from wallSheet(): .wall-grid/.wall-opt with the scaled pattern preview and three .wb bubbles, plus the .tabs.wall-levels radiogroup. Port the .wall-* CSS (reference around 846-870) into settings.css. Make Conversation.tsx read the preference (id, then level by theme, nothing for «none»). Add the same entry to the chat ⋮ menu (conversation area). Add the ar/en strings.",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/settings/device-prefs.ts",
+      "apps/web/src/shell/settings/settings.css",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/wallpaper.ts",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      18
+     ],
+     "verifier_note": "It is a preference, not navigation or money safety, so medium. Port wallSheet with the ref's set-wall semantics (id and level patched independently, level tabs disabled for none). Preview art uses scale .6 and opacity min(.5, alpha*2.3). Wire the chat menu entry and Conversation.tsx to the same pref. wallpaper.ts already defines all five patterns. Check that the ar/en po catalogs are updated and the existing i18n and visual tests still pass."
+    },
+    {
+     "id": "calls_motion-6",
+     "title": "The chat wallpaper does not fade in when a conversation opens",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 850-851 `.chat-wall.page-enter{animation:wall-in .3s var(--ease) both}` `@keyframes wall-in{from{opacity:0}}`; 4950 the wall svg gets the same `${enter}` class as the page. DESIGN_TREE_37 «خلفية المحادثة | ظهور تدريجي | 0.3».",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:1011-1018 renders `<svg className=\"chat-wall\">` with no enter class; conversation.css:4715-4723 has no animation, and no app CSS defines wall-in. Shell.tsx:730 adds page-enter only to main.",
+     "owner_sees": "When a chat opens, the messages slide up but the doodle wallpaper is already fully there behind them, instead of fading in over 0.3s.",
+     "fix_plan": "Add `.chat-wall.page-enter { animation: wall-in .3s var(--ease) both } @keyframes wall-in { from { opacity: 0 } }` to conversation.css and give the svg the `page-enter` class when the page enters (pass Shell's `enter` flag down, or add the class on mount). The global reduced-motion rule already turns it off.",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Smallest fix is a `.chat-wall` animation in conversation.css (`wall-in .3s var(--ease) both`, keyframes `from{opacity:0}`). That needs no prop plumbing, but it would also replay on remounts that are not page enters, such as a conversation switch. If you want parity with the reference, pass Shell's enter flag down instead. The animation fills 'both', and the wall's `opacity: var(--wa)` is its resting state, so the keyframe must only use `from`. Check that `contain: strict` does not interfere."
+    },
+    {
+     "id": "chat_header-10",
+     "title": "Gold star after Lonora's name in the chat header uses a lucide icon, a hard-coded colour and inline styles",
+     "category": "cleanliness",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:3576 `<button type=\"button\" class=\"chat-name\" ${attrs(\"chat-info\")}>${E(name)}</button>`: the header name is plain, with no badge; .chat-name 322 is single-line ellipsis",
+     "app_evidence": "apps/web/src/shell/ChatHeader.tsx:145 `<PersonalAgentBadge agent={agent} />`; components/ai/PersonalAgentBadge.tsx:1-22 `import { Star } from \"lucide-react\"` with `style={{ color: \"#b8860b\", … }}`, outside the token system and the reference icon set. Screenshot shots/chathead/app-phone-lonora.png («Lonora ★»)",
+     "owner_sees": "A dark-gold lucide star beside «Lonora» that the reference does not have, in a colour that matches no other token in either theme.",
+     "fix_plan": "Remove PersonalAgentBadge from ChatHeader (the reference header has none; Lonora is already set apart by its own avatar, Q42). If the owner wants a mark, keep it on the agent page only, drawn with the reference Icon set and a theme token (e.g. var(--amber)) in a CSS class instead of inline style. Then delete the component if nothing else uses it (bot-settings.tsx:79 goes with the legacy info sheet).",
+     "files": [
+      "apps/web/src/shell/ChatHeader.tsx",
+      "apps/web/src/components/ai/PersonalAgentBadge.tsx"
+     ],
+     "report_rows": [
+      6
+     ],
+     "verifier_note": "Remove only the ChatHeader import and usage. Do NOT delete the component: pages/shell/bot-settings.tsx:79 still uses it. If a mark is kept there, move the colour into a CSS token class. The messages.po references update on the next i18n extract. Check tests or e2e that look for the 'Personal Agent' label before removing it."
+    },
+    {
+     "id": "chat_header-12",
+     "title": "The detailed status line can show words outside the reference vocabulary («يعمل», «الخدمة تحتاج إلى انتباه»)",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37.md:150 detailed status: «يحلّل · يبحث · يراقب … · بانتظار تأكيد الوسيط · بانتظار قرارك · متوقف مؤقتًا · عملية غير مؤكَّدة», idle = «نشط»; CAPABILITY_MAP.md:100 priority list ends at idle «نشط»",
+     "app_evidence": "packages/core/src/agent-status.ts:197 `return text[state.state]` falls through to `working: \"يعمل\"` (line 60 of the ar table) and `degraded: \"الخدمة تحتاج إلى انتباه\"` (66) when the server state is working (e.g. a task run in another thread) or degraded",
+     "owner_sees": "With «حالة الوكيل التفصيلية» on, the header can read «يعمل» or a long service-health sentence where the reference only uses its seven state words or «نشط».",
+     "fix_plan": "In agentStatusLine map state \"working\" without explicit work to «يحلّل» (the reference's word for an agent busy on its own) and \"degraded\" to «نشط», and leave service health to the AgentSheet. Or ask the owner whether a degraded word belongs there. Update the core unit tests for agentStatusLine.",
+     "files": [
+      "packages/core/src/agent-status.ts"
+     ],
+     "report_rows": [
+      31
+     ],
+     "verifier_note": "Map `working` to `text.analysing` and `degraded` to `text.idle` inside agentStatusLine only. Do not change the ar table, because other consumers such as the AgentSheet and the capsule may use the working and degraded words. Check with grep (`agentStatusText`, `text.working`, `text.degraded`) before editing. Update the core unit tests for agentStatusLine. Mapping `degraded` to «نشط» hides a service-health problem from the header, so make sure the AgentSheet or the capsule still shows it and nothing safety-related is lost. The English table is not covered by the reference, so leave it unless a parity test requires otherwise."
+    },
+    {
+     "id": "calls_motion-3",
+     "title": "During a call the chat header cuts off the call duration («في مكالمة · …»)",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html: `header{...gap:6px;padding:8px 10px}` (element selector) is overridden by `.chat-head{gap:2px;padding-inline:6px}` (search `.chat-head{gap:2px`). The presence line during a call is `في مكالمة · <span data-clock>` (3574). At 390px the reference title column is 126px wide and the line reads «في مكالمة · 00:03».",
+     "app_evidence": "apps/web/src/shell/shell.css:240 `.topbar header` (gap 6px, padding 8px 10px, specificity 0,1,1) beats shell.css:1010 `.chat-head { gap: 2px; padding-inline: 6px }` (0,1,0). Measured during a call: app chat-head gap 6px / padding 8px 10px, title 102px, presence scrollWidth 97 > clientWidth 90 with text-overflow ellipsis. Reference: gap 2px / padding 8px 6px, title 126px. Shot: shots/calls/cmp-capsule.png (app top, reference bottom). The app shows «في مكالمة · …», and the clock appears only when muted, because «مكتومة» is shorter.",
+     "owner_sees": "In a call with an agent, the header never shows how long the call has lasted; the clock becomes «…».",
+     "fix_plan": "In shell.css make the chat header override win, for example `.topbar header.chat-head { gap: 2px; padding-inline: 6px; }`, or lower the base rule to `:where(.topbar) header`. Keep the desktop `.desktop-content .chat-head { padding-inline: 14px }`. Check that the capsule (124px) and the clock both fit at 390px, as in the reference.",
+     "files": [
+      "apps/web/src/shell/shell.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix is to change shell.css:1010 to `.topbar header.chat-head` (0,2,1) and leave the base rule alone. Verify visually at 390px during a call that the capsule and «في مكالمة · 00:03» fit. Check that the group-chat header and RTL are unchanged. No overlap with other gaps except that it changes the width available to the capsule."
+    }
+   ]
+  }
+ ]
+}

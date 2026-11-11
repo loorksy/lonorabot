@@ -1,0 +1,248 @@
+{
+ "package": "popover",
+ "title": "The popover system and the composer permission menu",
+ "wave": 1,
+ "port": 8842,
+ "worktree": "/home/user/wt/popover",
+ "branch": "fx/popover",
+ "owns": [
+  "apps/web/src/shell/lists/Popover.tsx",
+  "apps/web/src/conversation/PermissionMenu.tsx",
+  "the popover and permission-menu rules in the CSS files",
+  "the overlay-history hook"
+ ],
+ "steps": [
+  {
+   "name": "history-and-polish",
+   "lead_notes": "Back and Esc belong in one place: the popover hook. An open popover takes one history layer (reuse the overlay-history hook the sheets use), so system Back closes the popover and stays on the page; in the permission menu, Back on the «النموذج» page returns to its first page (design tree, back-order rules). Every popover in the app gets this from the hook, not from its call sites.\nshell_desktop-7: the reference lets the dismissing click through to the row underneath. The owner's own report calls that a bug, so do the sound thing: the click that dismisses a menu does nothing else. Keep it tightly scoped so no later click is swallowed.\nsettings_root-11: the language menu in the settings root (SettingsRoot.tsx is edited by other packages too: keep your hunk to the language control).",
+   "gaps": [
+    {
+     "id": "navigation-1",
+     "title": "System Back with the permission menu (or any popover) open leaves the chat and leaves the menu floating on the next page",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:9517 popstate: `if(pop){if(pop.morph&&mpPage()===2)mpGo(1);else closePop();history.pushState({lonora:{...U}},\"\",\"#\"+U.route);return}`; back() 3160 `if(pop){if(pop.morph&&mpPage()===2)return mpGo(1);closePop();return}`. DESIGN_TREE_37.md:335 «قائمة منبثقة مفتوحة: صفحة «النموذج» تعود إلى الصفحة الأولى، وإلا تُغلق القائمة». Live ref (scripts/nav/ref-back.mjs): menu open then goBack gives hash=#chat, pop=false; on the model page goBack gives page 1 and the second goBack closes the menu, still on #chat.",
+     "app_evidence": "shell/lists/Popover.tsx:80-110 closes only on pointerdown/scroll/resize/Escape and never registers a history layer (useOverlayHistory is used by sheets and selection only: shell/sheets/SheetHost.tsx:555, shell/lists/state.tsx:77). navigation.tsx:151-167 back() has no popover step. Live: phone goBack with the menu open went /app/<gold>?thread=… to /app, and the menu stayed open over the chats list (shots/nav/phone-perm-after-back.png). Desktop on the «النموذج» page: goBack went to /app with `.pop.mode-pop.show` still showing page 2 over the home screen (shots/nav/desktop-perm-model-after-back.png).",
+     "owner_sees": "They open the permission menu, press the phone's Back or swipe back, and the chat closes, but the permission menu stays floating over the chats list with nothing behind it. From «النموذج», Back closes the chat instead of returning to the menu's first page.",
+     "fix_plan": "Give the popover a history layer the way sheets have one. In Popover.tsx call useOverlayHistory(pop !== null, handleBack), where handleBack runs an optional `onBack()` from the open() options. If onBack returns true (handled internally), the popover stays open and the layer is installed again; otherwise close(). In PermissionMenu.tsx pass onBack, which calls setPage({kind:'ladder'}) and returns true when page.kind !== 'ladder'. Make navigation.tsx back() check an exported `popoverIsOpen()/popoverBack()` before the sheet check, matching the reference's back() order. Add a Playwright case in tests/web (chat → mode-chip → «النموذج» → page.goBack() goes to page 1 → goBack closes the menu → URL unchanged).",
+     "files": [
+      "apps/web/src/shell/lists/Popover.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/shell/navigation.tsx",
+      "apps/web/src/hooks/useOverlayHistory.ts",
+      "tests/web/"
+     ],
+     "report_rows": [
+      16,
+      8
+     ],
+     "verifier_note": "Use useOverlayHistory in Popover.tsx. Check the dirty-guard order: popover first, then sheet, then dirty. Add a popoverBack hook so PermissionMenu page 2 returns to page 1 before closing. Make sure the popover's onClose and the history layer do not double-pop the history entry (look at how SheetHost handles it). Do not touch the money-safety approval flows in AgentPermissions."
+    },
+    {
+     "id": "sheets_overlays-8",
+     "title": "System Back does not close an open popover menu first",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:9516-9517 `window.addEventListener(\"popstate\",e=>{ if(pop){if(pop.morph&&mpPage()===2)mpGo(1);else closePop();history.pushState(...);return} …`. DESIGN_TREE:335 (back order): «قائمة منبثقة مفتوحة: صفحة «النموذج» تعود إلى الصفحة الأولى، وإلا تُغلق القائمة.»",
+     "app_evidence": "shell/lists/Popover.tsx:37-110 closes on pointerdown, scroll, resize and Escape, but registers no history layer: useOverlayHistory is used only by SheetHost, lists/state (selection), FilePreviewPanel and AgentPermissions. navigation.tsx:54 only guards dirty forms and open sheets. conversation/PermissionMenu.tsx has no popstate or overlay-history handling either. Comparison row 16 observed Back closing the permission menu and leaving the thread at the same time.",
+     "owner_sees": "With a ⋮ or message menu open, the phone's back gesture leaves the page instead of just closing the menu.",
+     "fix_plan": "In PopoverProvider, call useOverlayHistory(pop !== null, close), as SheetHost.tsx:555 does. In PermissionMenu, register the same hook for open, and for the model page step it back to page 1 before closing (mpGo(1) semantics).",
+     "files": [
+      "apps/web/src/shell/lists/Popover.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/hooks/useOverlayHistory.ts"
+     ],
+     "report_rows": [
+      16
+     ],
+     "verifier_note": "Add useOverlayHistory(pop !== null, close) in PopoverProvider. Check the hook's token and layer stacking so a popover opened over a sheet closes before the sheet. In PermissionMenu, add the hook and make Back go from the model page to page 1 first. Add a test to the existing Playwright back-navigation specs."
+    },
+    {
+     "id": "composer-13",
+     "title": "Permission menu: Esc on «النموذج» closes everything and a second chip tap reopens instead of closing",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 3160: Escape with pop.morph on page 2 -> mpGo(1); 3903: «if(pop?.morph)return closePop(); // the chip toggles it».",
+     "app_evidence": "Popover.tsx:91-97 Escape always closes; outside-press ignores the anchor (Popover.tsx:81-85) and the chip onClick (PermissionMenu.tsx:155) reopens. Live: after Esc on page 2 pop open=false; after a second chip tap pop open=true.",
+     "owner_sees": "Esc on the model page loses the whole menu; tapping the chip again does not close it.",
+     "fix_plan": "Let the menu register an Escape handler that goes back to page 1 when data-page=2; in PermissionChip close when the popover is already open for this anchor (expose isOpen/toggle from Popover).",
+     "files": [
+      "apps/web/src/shell/lists/Popover.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Fix in two small parts. (1) Chip toggle: expose the current popover anchor or isOpen from Popover and have the chip call close if pop.anchor is this chip. (2) Esc page-back: let the open() options accept an optional onEscape that returns true if it handled it, and have PermissionMenu use it when data-page=2. Keep stopPropagation. Popover.tsx is shared by many menus, so keep the change additive and run the popover and permission specs."
+    },
+    {
+     "id": "shell_desktop-7",
+     "title": "Clicking outside the ⋮ list menu also opens the chat row under the pointer",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "desktop",
+     "effort": "S",
+     "reference_evidence": "The reference behaves the same way: Lonora-Desktop-37.html:4076 closes the popover on a capture-phase pointerdown and lets the click through. Live: clicking a row with the menu open sets the hash to #chat. The owner's comparison report (row 13) calls this a bug, so it would only be an improvement over the reference.",
+     "app_evidence": "apps/web/src/shell/lists/Popover.tsx:101 closes on a capture-phase pointerdown and does not swallow the click that follows. Live: with the menu open, clicking the Lonora row navigated to /app/be640c87…?thread=… (s3 run).",
+     "owner_sees": "Tapping outside to dismiss the menu also opens whichever chat was under the pointer.",
+     "fix_plan": "In Popover.tsx's `outside` handler, when the pointerdown lands outside both the menu and the anchor, add a one-shot capture listener for the next `click` on document that calls preventDefault() and stopPropagation(), and remove it on the next pointerdown or after 400 ms. Add a Playwright case in tests/web (list menu, then click a row: the URL stays /app).",
+     "files": [
+      "apps/web/src/shell/lists/Popover.tsx",
+      "tests/web/lists.spec.mjs"
+     ],
+     "report_rows": [
+      13
+     ],
+     "verifier_note": "In the `outside` handler, after close(), add a one-shot capture-phase `click` listener on document that calls preventDefault and stopPropagation, removed after the first click or a ~400 ms timeout. Keep the listener scoped so it cannot swallow legitimate later clicks, and make sure it is cleaned up in the effect cleanup. Do not swallow clicks that land on the anchor itself, since the existing early return already skips those (toggling the menu closed). Add the Playwright case in tests/web/lists.spec.mjs. Independent of gap 5."
+    },
+    {
+     "id": "composer-6",
+     "title": "Permission menu page 1 bleeds outside the menu while «النموذج» is open",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 1722: .pop.morph .mp-in:has(.mp-pages){padding:0;overflow:hidden;border-radius:24px 24px 0 0} clips the sliding pages.",
+     "app_evidence": "The clipping rule only exists under .pop.morph (conversation.css:2499), which the app never applies; .mode-pop (conversation.css:753) has no overflow:hidden. Page 1 is moved translateX(30%) (conversation.css:2545) and its text shows past the menu's right edge (shots/composer/app-gold-model-edge.png).",
+     "owner_sees": "Fragments of the ladder text stick out beside the menu when the model page slides in.",
+     "fix_plan": "Fixed by the morph gap; until then add .mode-pop{overflow:hidden;padding:0} and keep padding on .mp-page.",
+     "files": [
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Smallest fix: .mode-pop:has(.mp-pages){padding:0;overflow:hidden} with the .mp-page padding kept (it already has padding:8px at 2509). Confirm lists.css:432 sets no padding or radius that clashes. Do not copy the whole .pop.morph block unless the morph gap is also done, because that block also hides children with opacity:0 until .in is set. Cosmetic only, no money-safety risk."
+    },
+    {
+     "id": "calls_motion-7",
+     "title": "Select menus and the skin-tone picker appear without their pop-in",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 168 `.select-popup{...animation:pop-in .14s ease}`; 1623 `.emo-tones{...animation:pop-in .16s var(--ease) both}`; 177 `@keyframes pop-in{from{opacity:0;transform:translateY(-4px)}}`. DESIGN_TREE_37 «القوائم المنبثقة | ظهور مع انزياح خفيف | 0.14 إلى 0.16».",
+     "app_evidence": "apps/web/src/shell/domain/domain.css:265-280 `.select-popup` has no animation (rendered by shell/domain/ui.tsx:252); apps/web/src/shell/lists/lists.css:1058-1070 `.emo-tones` has no animation. pop-in is defined in shell.css:1514 but used only by #toast.",
+     "owner_sees": "The settings dropdowns (language, time zone…) and the long-press skin-tone strip in the emoji panel appear at once, while every other popup slides in.",
+     "fix_plan": "Add `animation: pop-in .14s ease` to `.select-popup` in domain.css and `animation: pop-in .16s var(--ease) both` to `.emo-tones` in lists.css. The shared keyframes in shell.css cover both, and the global reduced-motion rule turns them off.",
+     "files": [
+      "apps/web/src/shell/domain/domain.css",
+      "apps/web/src/shell/lists/lists.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add the two animation lines. Use `.app-shell .select-popup` or the existing selector, depending on which wins. The popup uses the popover API and `position: fixed`; pop-in only translates Y by 4px, so it does not break positioning, but check that it does not fight any inline transform. `.emo-tones[hidden]` display:none works with the animation because it replays on each unhide. Do not use `animation: none` for the popover-open state."
+    },
+    {
+     "id": "settings_root-11",
+     "title": "Language menu is a generic menu-pop, not the reference's lang-pop matched to the pill",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 4421-4424 langMenu(): `openPop(anchor, …, {cls:\"lang-pop\", prefer:\"below\", match:true})`, so the popover is at least as wide as the pill (232px at 390w).",
+     "app_evidence": "SettingsRoot.tsx:126-157 `pop.open(anchor, body, label)` with no cls, so the class is `pop menu-pop` and the width is 220px. settings.css:200 already has `.lang-pop` rules that never apply. Screenshots shots/settings/app-lang.png vs ref-lang.png.",
+     "owner_sees": "The language dropdown is narrower than its pill and not aligned to it, so it looks like a context menu, not a select.",
+     "fix_plan": "Pass `{cls: \"lang-pop\"}` in SettingsRoot.tsx and add a `match` option to apps/web/src/shell/lists/Popover.tsx that sets min-width to the anchor width. English stays enabled (Q7).",
+     "files": [
+      "apps/web/src/shell/settings/SettingsRoot.tsx",
+      "apps/web/src/shell/lists/Popover.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Popover.tsx already supports extra.cls (line 31, used at 120) but has no match option. Add match to extra and set min-width from anchor.getBoundingClientRect().width on the popover element. Pass {cls:'lang-pop'} from SettingsRoot. Check that lists.css .pop sizing does not impose a fixed width that overrides min-width, and that a custom cls drops the menu-pop styles you still need. Other pop.open callers with a cls are unaffected. English must stay enabled."
+    }
+   ]
+  },
+  {
+   "name": "permission-morph",
+   "lead_notes": "One piece of work: the permission menu takes shape out of the composer chip (the morph), can be dragged closed, and can be dragged sideways between its pages, with the springs, thresholds and reduced-motion behaviour in the design tree. Use shell/spring.ts. Keyboard and screen-reader behaviour of the menu must not get worse, and Back/Esc from the previous step must still work. Measure the motion in the browser against the reference (sample the element's rect over frames) and report the numbers.",
+   "gaps": [
+    {
+     "id": "composer-2",
+     "title": "The permission menu is a plain popover, not the morph out of the composer; no drag-to-close or side-drag back",
+     "category": "animation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Desktop-37 1709-1745 (.pop.morph, .mp-glass, .mp-line, staggered rows at 18ms), 4048-4053 openPop(...,{morph:true}) -> morphOpen, 7390-7460 morphSpring/morphRun (under-damped spring ~6% overshoot). DESIGN_TREE_37 line 275: «قائمة الصلاحية تتشكّل من المؤلّف | ζ 0.66 · ω 17.5 | تجاوز 6% وتستقر في 330 ... الصفوف عند 80% بفارق 18 ... وتُغلق في 190»; line 356: drag down 28% or fling returns to the composer, side drag 35% from «النموذج» back.",
+     "app_evidence": "apps/web/src/conversation/PermissionMenu.tsx:155-167 opens usePopover with {cls:\"mode-pop\", above:true}; apps/web/src/shell/lists/Popover.tsx has no morph/spring/drag code. The .pop.morph rules at conversation.css:2425-2600 are dead (no element ever gets class morph). Live: the menu is a free-floating 330px box anchored to the chip that covers the composer's text line (shots/composer/app-gold-perm.png) instead of sitting on and growing out of the composer card (ref-gold-perm.png).",
+     "owner_sees": "Tapping the permission chip pops a generic menu over the text field; in the reference the composer itself stretches up into the menu with a springy settle, and dragging it down or flinging folds it back.",
+     "fix_plan": "Add a morph mode to Popover.tsx (or a dedicated MorphMenu in conversation/) that ports morphOpen/morphRun/morphSettle/morphClose (Desktop-37 7390-7470): measure .composer-card, draw .mp-glass/.mp-line, run the ζ0.66 ω17.5 spring, add .in to stagger rows by --i*18ms, close in 190ms; add pointer handlers for vertical drag (28% or fling closes) and, on page 2, horizontal drag on .mp-pages (35% or fling -> page 1, with .swiping). Open it from PermissionChip with {morph:true}. Reuse the existing .pop.morph CSS.",
+     "files": [
+      "apps/web/src/shell/lists/Popover.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Before building, check how ChatMenu.tsx:221 and ListSheets.tsx:316 use {morph}. The mechanism may already exist in a sheets or popover provider outside Popover.tsx (grep found no 'morph' in Popover.tsx or shell/*.ts*), and the fix could be as small as passing {morph:true} from PermissionChip and anchoring to .composer-card. Do not write a new spring if one exists. Keep prefers-reduced-motion handling. Effort is probably M, not L."
+    },
+    {
+     "id": "calls_motion-2",
+     "title": "The permission menu does not take shape out of the composer; it opens as a small floating popover",
+     "category": "animation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Lonora-Desktop-37.html 7391-7486 morphSpring/morphGeom/morphOpen/morphClose: a fill reshaped every frame from the composer card and its chip, with a scrim (`.mp-scrim`), glass once settled, rows appearing in order (`--i`), and a retreat into the composer on close. Reduced motion uses a simple fade (`el.classList.add(\"fade\")`) and `leaving` with removal after 130ms. DESIGN_TREE_37: «قائمة الصلاحية تتشكّل من المؤلّف | ζ 0.66 · ω 17.5 | تجاوز 6% وتستقر في 330 مللي ثانية، وتظهر الصفوف عند 80% بفارق 18 مللي ثانية، وتُغلق في 190».",
+     "app_evidence": "apps/web/src/conversation/PermissionMenu.tsx:155-167 opens `<PermissionMenu>` through the generic `usePopover` (shell/lists/Popover.tsx) with `{ cls: \"mode-pop\", above: true }`, so it gets the list popover's `opacity .14s, transform .16s` scale-in (lists.css:432-455). conversation.css:2425-2605 already has the `.pop.morph`, `.mp-glass`, `.mp-line`, `.mp-in`, `.fade` and `.leaving` rules, but no code adds them; `morph` does not appear in any conversation .ts/.tsx file. Side by side at 40/120/400ms: shots/motion/cmp-perm.png. The app shows a 340px-wide card anchored at the chip, while the reference shows a panel as wide as the composer growing out of it over a scrim.",
+     "owner_sees": "Tapping the permission chip («تنفيذ بموافقة») pops up a small card instead of the reference's glass panel that grows out of the composer and settles with a slight overshoot.",
+     "fix_plan": "Port morphSpring/morphGeom/morphOutline/morphDraw/morphRun/morphSettle/morphOpen/morphClose (reference 7391-7600, MORPH constants) into a new apps/web/src/conversation/morph.ts. Give Popover.tsx a `morph` option, as ChatMenu/SheetHost already accept one, that wraps the body in `.mp-glass` + `svg.mp-line` + `.mp-in`, adds the `.mp-scrim` and `composer-card.mp-open`, runs the spring from the `.composer .mode-chip` geometry, and on close runs it back over 190ms. Under reducedMotion() use the `.fade` and `.leaving` classes that are already styled. Pass `morph: true` from PermissionChip. The CSS in conversation.css 2425-2605 is already there.",
+     "files": [
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/shell/lists/Popover.tsx",
+      "apps/web/src/conversation/morph.ts (new)",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Severity lowered to low: a functional menu with a different entrance. It is the only L-sized item in this batch. Reuse the morph machinery already built for ChatMenu (ChatMenu.tsx:221 passes morph: true) and SheetHost.tsx:546 (morphing) instead of writing a new morph.ts. Check what Popover.tsx or ChatMenu already exports before porting the reference code. Keep reducedMotion on the .fade / .leaving path. Do not change menu content, the level-change handlers, or the testids (permission-chip), because Playwright and the money-safety flow depend on them."
+    }
+   ]
+  },
+  {
+   "name": "model-page",
+   "lead_notes": "composer-4: the two links in the permission menu go to `/app/providers` («ربط مزوّد نماذج») and `/app/broker` (choose or link a trading account); see the contracts table. Package `settings` retargets the same kind of link everywhere else and leaves PermissionMenu.tsx to you.\ncomposer-5: the 7-day usage bars and the cost total need real data. Look at what the usage API already returns (the usage settings page reads it). If the data is there, render it in the reference's container. If one more field or filter is needed, add it to the existing route with a pytest. Never show invented numbers; when there is no usage, show the reference's empty line.",
+   "gaps": [
+    {
+     "id": "composer-5",
+     "title": "Model page has no 7-day usage bars and no cost total",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 8418-8426 modelPage: «استهلاك {name} · آخر 7 أيام» with .mp-usage bars (.mp-bar, today highlighted, weekday letters) and «$x خلال 7 أيام · دون سقف لهذا الوكيل». DESIGN_TREE_37 line 194.",
+     "app_evidence": "apps/web/src/conversation/PermissionMenu.tsx:473-484 shows only a title and «{requests} طلبات · دون سقف لهذا الوكيل»; no bars. AgentModelSummary.usage (packages/contracts/src/models.ts:93-97) drops cost_usd and has no per-day buckets, though GET /usage/agents?bucket=day returns UsageDay buckets (models.ts:77-85).",
+     "owner_sees": "The «النموذج» page lists models but the usage chart the reference shows under them is missing; only a request count.",
+     "fix_plan": "In ModelPage fetch /usage/agents?days=7&bucket=day (or add buckets + cost_usd to the summary route) and render the reference's .mp-usage/.mp-bar markup with --h heights and narrow weekday labels, plus the cost total in .mp-tot. Port .mp-usage/.mp-bar CSS from Desktop-37 if not already in conversation.css.",
+     "files": [
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/conversation/conversation.css",
+      "packages/contracts/src/models.ts"
+     ],
+     "report_rows": [
+      26
+     ],
+     "verifier_note": "The CSS already exists, so port only the markup. Either add buckets and cost_usd to the summary route, or fetch the day-bucket usage endpoint on the page. Do not show a cost total when cost_usd is null or there are unpriced_requests (UsageDay and AgentUsage carry unpriced_requests). Show a dash or 'unpriced' instead, to avoid misstating money. Use localized weekday letters via Intl and honor RTL."
+    },
+    {
+     "id": "composer-4",
+     "title": "Composer menu links land on the old legacy Settings tabs («ربط مزوّد نماذج», «اختيار حساب التداول»)",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 8425 modelPage: «ربط مزوّد نماذج» -> go {route:\"providers\"}; 8159 sf-noacct: «اختيار حساب التداول» -> acct-pick-for (pick for this agent) or «ربط حساب تداول» -> go {route:\"broker\"}.",
+     "app_evidence": "apps/web/src/conversation/PermissionMenu.tsx:492 go(\"/app/settings?tab=models\") and :112 nav.go(`/app/${id}?settings=trading`) -> pages.tsx:67 settingsTabs models/trading render the old Settings inside <Legacy> (legacy-surface). Live: «ربط مزوّد نماذج» opens a page with old tab strip «النماذج العالمية · الصوت · التداول», no back button, root tab bar (shots/composer/app-nav-provider.png).",
+     "owner_sees": "From the permission menu, one tap drops them into an older-looking settings screen with different tabs and no way back to the chat except the tab bar.",
+     "fix_plan": "Point «ربط مزوّد نماذج» at /app/providers; in the no-account sheet offer «اختيار حساب التداول» -> the agent's trading account picker (/app/trading?agent= or the agent page's account row) when accounts exist, else «ربط حساب تداول» -> /app/broker, matching sf-noacct's two texts.",
+     "files": [
+      "apps/web/src/conversation/PermissionMenu.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Change :492 to /app/providers. The no-account button at :112 should go to /app/broker when no accounts exist, otherwise to the agent's account picker (check the agent page for an existing route). Do not change the Q19 trading-only gating. Fixing gap 2's PermissionMenu edit in the same file is likely to conflict, so land them together. Keep the .po strings in sync if the button text changes."
+    }
+   ]
+  }
+ ]
+}

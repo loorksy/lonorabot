@@ -1,0 +1,346 @@
+{
+ "package": "messages",
+ "title": "Messages: bubbles, cards, streaming, reply preferences, rich content",
+ "wave": 1,
+ "port": 8844,
+ "worktree": "/home/user/wt/messages",
+ "branch": "fx/messages",
+ "owns": [
+  "apps/web/src/conversation/Conversation.tsx",
+  "apps/web/src/conversation/Message.tsx",
+  "apps/web/src/conversation/Cards.tsx",
+  "apps/web/src/conversation/prefs.ts",
+  "apps/web/src/conversation/ChatPrefsPage.tsx",
+  "the reply stream helper",
+  "the bubble, card and transcript rules in conversation.css"
+ ],
+ "steps": [
+  {
+   "name": "bubbles-and-cards",
+   "lead_notes": "Other packages make small edits in Conversation.tsx at the same time (wallpaper, link targets, the empty-chat greeting): stay inside the parts your gaps need.\nmessages-3: the «أُنشئت مهمة · عرض المهمة» card must be a real, durable part of the conversation (it is still there after a reload), not client-only decoration. Look at how the task is created from a message and what the server writes; «عرض المهمة» opens `/app/tasks/<taskId>`.",
+   "gaps": [
+    {
+     "id": "messages-4",
+     "title": "Bubble width ignores the reference's 68% (desktop) and 88% (phone ≤430px) caps",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 334 `.msg-line{…max-width:84%}`, 605 (inside the ≥900px block) `.msg-line{max-width:68%}`, 623 `@media(max-width:430px){.msg-line{max-width:88%}}`.",
+     "app_evidence": "apps/web/src/conversation/conversation.css:42-48 sets `.msg-line{max-width:84%}` with no desktop or phone override. Measured with the same message: reference desktop bubble 445px wide against app 558px; reference phone line 322px against app 307px. Screenshots /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/messages/app-gold-desktop-menu.png and ref-gold-desktop-menu.png.",
+     "owner_sees": "On desktop the bubbles stretch much wider than in the reference, so lines are long, the hover chevron covers the end of the first line, and it reads less like a chat. On phones the bubbles are a little narrower than in the reference.",
+     "fix_plan": "In conversation.css add `@media (min-width:900px){.msg-line{max-width:68%}}` and `@media (max-width:430px){.msg-line{max-width:88%}}`. Place them before the k-card, k-ui, k-oa and k-line overrides so those keep their own widths.",
+     "files": [
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "The k-card (width min(340px,92%)), k-oa (min(400px,80%)) and k-ui (4762) rules are more specific (.msg.k-x .msg-line) so they already win; just place the plain .msg-line media queries right after the base rule at line 42. Check the existing Playwright visual and layout specs and any wide-bubble classes (.bubble.wide, line 3722) for regressions. Check that the 430px override does not widen cards beyond the owner's card width."
+    },
+    {
+     "id": "messages-6",
+     "title": "Unstyled raw error line «تعذر إكمال الطلب. أعد المحاولة.» appears in the transcript when offline",
+     "category": "cleanliness",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "DESIGN_TREE_37 states table, «انقطاع الشبكة | شريط داخل الرأس | لا يوجد اتصال بالإنترنت · N رسائل تنتظر … الرسائل تنتظر بأيقونة ساعة ثم تُرسَل»: offline appears only as the amber band and the clock on waiting messages.",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:1084-1089 renders `<p className=\"fail-inline\" role=\"alert\">{userError(thread.error ?? …)}</p>` inside the scroller. No CSS rule exists for .fail-inline anywhere in apps/web/src. Going offline makes the background refetches fail, which prints this bare line under the messages in addition to the amber band. Screenshot /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/messages/app-offline-send2-phone.png (a second error band also appears under the header).",
+     "owner_sees": "A stray line of plain error text, unstyled and with no action, sitting in the chat as if it were a message, every time the connection drops.",
+     "fix_plan": "Do not surface thread, approvals or owner-action refetch errors while the client is disconnected (useClient().connected false), because the header band already explains it. For real non-network errors use the app toast or the reference error-card styling instead of a bare <p>, and delete the .fail-inline node.",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Simplest fix: drop the error line when the client is disconnected or navigator.onLine is false (NetworkStrip already explains it). For real errors, replace the <p> with toast() or reference error-card styling, and remove the .fail-inline node. Do not hide errors that block money-safety flows: approvals.error and ownerActions.error on a live connection must stay visible. Keep actionError visible (it comes from a user action, not a background refetch). Only Conversation.tsx needs changing."
+    },
+    {
+     "id": "messages-11",
+     "title": "Answered question card keeps all its option rows instead of collapsing to a check badge",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 3770: `${c.answer?`<span class=\"badge\">${I(\"check\")}${E(c.answer)}</span>`:`<div class=\"opt-list\">…`}`. DESIGN_TREE_37 line 162 «بعد الإجابة شارة بالاختيار». CAPABILITY_MAP: «the answered state shows a check badge with the answer; custom text is accepted as the answer».",
+     "app_evidence": "apps/web/src/conversation/Cards.tsx:139-172 always renders .opt-list. Once answered, the rows are disabled and only the chosen row gets `.on`. For a free-text answer (selected_choice_id null) every row is disabled and nothing shows what was answered.",
+     "owner_sees": "Old questions stay as a stack of greyed buttons in the history, and a typed answer leaves no visible trace on the card.",
+     "fix_plan": "When request.status !== 'pending' (or a choice was just picked), replace .opt-list and the form with `<span className=\"badge\"><Icon name=\"check\"/>{chosen label ?? answer text}</span>`. Read the free-text answer from the answer_message_id message via ctx.byId.",
+     "files": [
+      "apps/web/src/conversation/Cards.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Cards.tsx only. When chosen/answered, render the badge in place of .opt-list. For a choice use the choice label. For free text, use the answer message content if it is available, and otherwise a plain check badge. Keep data-input-request and data-question-id on the card, because Playwright and the answer flow depend on them. The optimistic `picked` state should also show the badge."
+    },
+    {
+     "id": "messages-12",
+     "title": "Live steps header shows «N خطوات» without «· Xث» until the reply is committed",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 5817: when the steps phase ends, `m.stepsSec=Math.max(1,Math.round((Date.now()-st.t0)/1000))`, so the folded header reads «N خطوات · Xث» while the text is still streaming. DESIGN_TREE_37 line 158.",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:939-946 passes `seconds={0}` for the streaming row (and 906 for the progress row), so Cards.tsx:516-518 omits the seconds until the committed message (done.seconds) replaces it.",
+     "owner_sees": "The steps line changes text at the end of each reply («3 خطوات» becomes «3 خطوات · 4 ث»), a small jump the reference does not have.",
+     "fix_plan": "Compute the seconds for the live row from the run start (run.started_at or the first tool.started) to the first text delta (stream.started_at or the first delta cursor time) and pass them to <Steps>.",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Only the streaming row needs it. The progress row has no text yet and is still running, so it shows a spinner and no seconds. Derive the seconds from run/stream timestamps once stream.text is non-empty, and make it at least 1. Verify the field names on run and stream before using them. Cosmetic only, with no money-safety impact."
+    },
+    {
+     "id": "messages-13",
+     "title": "Waiting and sending bubbles drop their time",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 3800: meta is always `${note}<time>${E(m.time)}</time>${ticks(m)}`, and 3746 renders the clock tick for queued and uploading next to the time.",
+     "app_evidence": "apps/web/src/conversation/Message.tsx meta: `{!outgoing && <time …>}`, so a queued or sending bubble shows only the clock. Seen in /tmp/claude-0/-home-user-lonorabot/5d377f24-3ac2-5c89-bb02-ed3686a435ad/scratchpad/audit/shots/messages/app-offline-send2-phone.png.",
+     "owner_sees": "Messages waiting for the network have no time stamp, so their bubbles are shorter than the others.",
+     "fix_plan": "Always render <time> from the outgoing message's created_at (the local send time) before <Ticks/>.",
+     "files": [
+      "apps/web/src/conversation/Message.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Message.tsx:559: drop the `!outgoing &&` guard. Check that outgoing messages carry created_at, since they are local optimistic messages. Existing Playwright or unit tests that assert queued bubbles have no time may need updating."
+    },
+    {
+     "id": "messages-14",
+     "title": "«تحويل إلى مهمة» offered on photo and file messages",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 3885: `(m.kind?\"\":popItem(\"task\",\"تحويل إلى مهمة\",…))`, so the item is offered only for plain text and steps messages, not image, file, voice, card or ui.",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:534-536 hides it only for genUI and voice. A photo or file message without text creates a task titled «مهمة» (toTask uses `message.content.slice(0,160) || t`Task``).",
+     "owner_sees": "They can make a task from a photo and get an untitled «مهمة» with no description.",
+     "fix_plan": "Also hide the item when message.attachment_ids.length > 0 (matching the reference's !m.kind rule).",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add `!message.attachment_ids.length` to the condition at 534-536. There is already an equivalent check in ownText at line 522. Beyond the reference, consider also hiding it for card messages, but only if hasGenUi does not already cover them."
+    },
+    {
+     "id": "messages-3",
+     "title": "«تحويل إلى مهمة» only shows a toast; no «أُنشئت مهمة · عرض المهمة» card in the chat",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 3767 task card: `<div class=\"mcard\"><div class=\"mcard-kicker\">${I(\"task\")}أُنشئت مهمة</div><strong>…</strong><div class=\"mcard-actions\">${B(\"عرض المهمة\",\"go\",{route:\"task\",item:c.task},\"sm\")}`. 4010/4029 push that card into the chat. DESIGN_TREE_37 line 163 «مهمة | أُنشئت مهمة + عرض المهمة». CAPABILITY_MAP chat.messages.task-card.",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:389-402 toTask posts /tasks and then calls `toast(t`Task created`)`. No task card is rendered in the timeline, and the timeline row kinds at Conversation.tsx:100-105 have no task kind.",
+     "owner_sees": "After turning a message into a task, the only trace is a toast that disappears. The chat holds no record and no link to open the task, and tasks created by agents leave nothing in the chat either.",
+     "fix_plan": "Add a `{kind:'task', task, at}` timeline row in Conversation.tsx, filled from the POST /tasks response and from task.created events that carry this thread_id, the same way approvals and owner actions are anchored. Render a TaskCard in Cards.tsx with the reference markup (.mcard, .mcard-kicker with the task icon and «أُنشئت مهمة», the title, and a «عرض المهمة» button that navigates to /app/tasks/:id) inside Message with cardKind='card'. Drop the success toast.",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/Cards.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Agent-created tasks may not carry a thread_id event, so scope the fix to the owner's own conversion plus task.created events that carry this thread_id. A new timeline row kind must be merged in server order via conversationTimeline (line 305), and persisted across reload only if tasks can be re-fetched by thread; otherwise it vanishes on reload, so check this before choosing a design. Keep the toast removal optional. Make sure the Cards.tsx button routes to the existing /app/tasks route."
+    }
+   ]
+  },
+  {
+   "name": "reply-prefs",
+   "lead_notes": "The five switches (stream word by word, formatted replies, interactive elements, why this interface, haptics) are per-device preferences in the existing prefs module, with the reference's defaults (design tree, settings defaults table). Each one must really change behaviour: stream off shows the reply when it is complete; formatting off shows plain text; interactive elements off renders generated UI as text; haptics off silences every vibration (wrap the one vibrate call so no caller can forget).\nmessages-1: the reveal is paced on the client, two words every 34 to 68 ms as in the reference, and it must never hold back a finished reply: when the final message arrives, what is left appears at once. Reduced motion and «بث الرد» off both skip the pacing. Put the pacing in a small pure helper with unit tests.\nUiCard.tsx (generated UI) is shared with other packages: keep hunks small.",
+   "gaps": [
+    {
+     "id": "settings_a-1",
+     "title": "«تجربة المحادثة» is missing «بث الرد كلمة بكلمة» and «تنسيق الردود» under الردود",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 5748 PREF_DEFAULT={stream:true,steps:true,stepsOpen:false,markdown:true,...}; 5756: row(\"stream\",\"بث الرد كلمة بكلمة\",\"يظهر الرد أثناء كتابته، مع زر «إيقاف»\") ... row(\"markdown\",\"تنسيق الردود\",\"عناوين وقوائم وجداول وكود مع زر نسخ\"); 3991 `if(lead&&prefs().stream){...streamAnswer...}`; textBody `useMd=prefs().markdown&&agent`. DESIGN_TREE_37 lines 98 and 101.",
+     "app_evidence": "apps/web/src/conversation/ChatPrefsPage.tsx:16-33 renders only steps and stepsOpen under الردود. prefs.ts:8 declares `markdown: true`, but nothing reads it: grep finds no `prefs.markdown` anywhere, and there is no `stream` key. The live page shows two rows where the reference shows four (shots/settings1/app-chat-prefs-desk.png vs ref-chat-prefs-desk.png).",
+     "owner_sees": "The page lists two reply options instead of four. Streaming and Markdown are always on and cannot be turned off.",
+     "fix_plan": "Add `stream: true` to CHAT_PREFS_DEFAULT in conversation/prefs.ts. In ChatPrefsPage.tsx, add ToggleRow «بث الرد كلمة بكلمة» before the steps row and «تنسيق الردود» after stepsOpen, with the reference sub texts. Wire them: in Conversation.tsx, when stream is off, show the typing bubble instead of the partial text and reveal the reply on completion; the composer stop button stays. In conversation/Markdown.tsx TextBody, render plain inline text for agent messages when markdown is off, like the reference's textBody. Add the strings to the ar/en catalogs.",
+     "files": [
+      "apps/web/src/conversation/prefs.ts",
+      "apps/web/src/conversation/ChatPrefsPage.tsx",
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/Markdown.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      23
+     ],
+     "verifier_note": "Markdown is cheap: pass prefs.markdown into TextBody where agent messages render. Streaming is the real work: gate streamVisible/streamForRun in Conversation.tsx (around lines 36-37 and 250). Do not hide runs that need a decision or broker receipt, and keep the stop button. Never delay or drop a final message, since the app has had lost-message and loss-limit races before. Overlaps gaps 1-3, which all edit ChatPrefsPage.tsx, prefs.ts and the .po files, so do them together. Run lingui extract."
+    },
+    {
+     "id": "settings_a-2",
+     "title": "The «الواجهات التفاعلية» section (عناصر تفاعلية في الردود · سبب اختيار الواجهة) is missing",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 5758: `<h3>الواجهات التفاعلية</h3>` row(\"genui\",\"عناصر تفاعلية في الردود\",\"حاسبات ونماذج ورسوم واختيارات يرسلها الوكيل عندما تكون أوضح من النص\") and row(\"genuiWhy\",\"سبب اختيار الواجهة\",\"زر «لماذا هذه الواجهة؟» يشرح قرار الوكيل\",!P.genui). 6552: `if(!prefs().genui||m.ui.asText)return ...md(m.ui.fallback)`. 6542: `why=prefs().genuiWhy&&u.why`. DESIGN_TREE_37 102-103. CAPABILITY_MAP settings.chat-prefs: «genui off» shows the markdown fallback.",
+     "app_evidence": "ChatPrefsPage.tsx has no such section, and prefs.ts has no genui or genuiWhy keys. components/genui/UiCard.tsx:550 and 613-628 always render the card and the why button, with no preference check.",
+     "owner_sees": "There is no way to switch interactive cards to text, or to hide the «لماذا هذه الواجهة؟» button.",
+     "fix_plan": "Add `genui: true, genuiWhy: true` to prefs.ts. Add the section to ChatPrefsPage.tsx after الردود, with genuiWhy disabled when genui is off (same pattern as stepsOpen). In UiCard.tsx, read useChatPrefs(): when genui is off, render `<div class=\"md ux-alt\">` with doc.fallback through TextBody; gate the why button and panel on prefs.genuiWhy. Add catalog strings.",
+     "files": [
+      "apps/web/src/conversation/prefs.ts",
+      "apps/web/src/conversation/ChatPrefsPage.tsx",
+      "apps/web/src/components/genui/UiCard.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po",
+      "apps/web/src/i18n/locales/en/messages.po"
+     ],
+     "report_rows": [
+      23
+     ],
+     "verifier_note": "When genui is off, render doc.fallback as text, as the part.cut===0 branch at UiCard.tsx:550 already does. Make sure the fallback still shows any actionable content, so a pending approval or an order button is not hidden. Interactive cards that carry decisions need a visible text fallback with the same facts. Overlaps gaps 0 and 2 in ChatPrefsPage.tsx and prefs.ts."
+    },
+    {
+     "id": "settings_a-3",
+     "title": "The «اللمس · الاهتزاز» switch is missing and vibration ignores any preference",
+     "category": "missing",
+     "sev": "low",
+     "platform": "phone",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 5760: `<h3>اللمس</h3>` row(\"haptics\",\"الاهتزاز\",\"اهتزاز خفيف عند الضغط المطوّل والتحديد والإرسال\"); 5750 wraps navigator.vibrate globally: `navigator.vibrate=(...a)=>prefs().haptics?v(...a):false`. DESIGN_TREE_37 107.",
+     "app_evidence": "prefs.ts:11 declares `haptics: true`, but nothing reads it. ChatPrefsPage.tsx has no اللمس section. These call vibration unconditionally: shell/spring.ts haptic() (used by pager.ts:141 and FloatingTabBar.tsx:107), components/genui/UiCard.tsx:480 and 508, and shell/settings/AppLock.tsx:63.",
+     "owner_sees": "On a phone the app vibrates on tab drags, UI picks and the PIN pad, with no setting to turn it off.",
+     "fix_plan": "Add the اللمس group with the الاهتزاز ToggleRow to ChatPrefsPage.tsx. Gate every vibration through one helper: make spring.ts haptic() check the haptics preference (a non-hook read of the prefs store), and route the UiCard and AppLock calls through haptic(). Alternatively, wrap navigator.vibrate once in main.tsx, as the reference does at line 5750. Add catalog strings.",
+     "files": [
+      "apps/web/src/conversation/ChatPrefsPage.tsx",
+      "apps/web/src/conversation/prefs.ts",
+      "apps/web/src/shell/spring.ts",
+      "apps/web/src/components/genui/UiCard.tsx",
+      "apps/web/src/shell/settings/AppLock.tsx"
+     ],
+     "report_rows": [
+      23
+     ],
+     "verifier_note": "Simplest fix: wrap navigator.vibrate once at startup, as the reference does at 5750, reading the pref store without a hook. That covers all call sites, including the ones the auditor missed (EmojiPanel, ListSheets), without editing each file. Overlaps gaps 0 and 1 in ChatPrefsPage.tsx and prefs.ts."
+    },
+    {
+     "id": "settings_a-4",
+     "title": "The «الكتابة» heading shows «يكتب»: a shared msgid takes the typing-status translation",
+     "category": "text",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 5760: `<h3>الكتابة</h3>`; DESIGN_TREE_37 105-106 «تجربة المحادثة · الكتابة».",
+     "app_evidence": "ChatPrefsPage.tsx:46 `<Trans>Writing</Trans>`. In ar/messages.po:8574-8578, msgid \"Writing\" is shared with components/ai/primitives.tsx:76 and TurnActivity.tsx:33, and its msgstr is \"يكتب\". The live chat-prefs page shows «يكتب» as the section title (shots/settings1/s2.txt).",
+     "owner_sees": "A section heading that reads «يكتب» (\"is typing\") instead of «الكتابة».",
+     "fix_plan": "Give the heading its own context: in ChatPrefsPage.tsx use `<Trans context=\"settings section\">Writing</Trans>` (or a distinct msgid such as \"Writing and sending\"). Then run lingui extract and set the ar msgstr to «الكتابة».",
+     "files": [
+      "apps/web/src/conversation/ChatPrefsPage.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      23
+     ],
+     "verifier_note": "Use a context-qualified Trans (`context=\"settings section\"`) or a new msgid in ChatPrefsPage.tsx:46 only. Do not change the shared msgstr, because the typing indicators need «يكتب». Then run lingui extract and set the new entry to «الكتابة»."
+    },
+    {
+     "id": "messages-1",
+     "title": "Streaming reply arrives in bursts, not two words every 34-68ms",
+     "category": "animation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 5806-5830 streamAnswer: `st.pos=Math.min(st.parts.length,st.pos+2)` then `setTimeout(tick,(34+Math.random()*34)*slow)`, caret appended in paintStream; header note 2338 «answer revealed two tokens per 34–68ms with a caret». DESIGN_TREE_37 line 158 and the recurring-motion table («مؤشّر النص أثناء البث · وميض · 1»).",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:920-930 passes `stream.text` straight to Message (`text: stream.text`), and Message.tsx renders it through TextBody with the caret, so nothing paces the reveal on the client. The server sends text at most every 200ms, in whole-word chunks of any length (packages/agent-runtime/src/lonora_agent/public_stream.py:40-60), and sends it all at once when incremental streaming is turned off (model_runtime.py:105-108). The result is the ~5 bursts the comparison report measured. The ■ stop button is present (Composer.tsx:428-835), so only the pacing is still missing.",
+     "owner_sees": "Every agent answer appears in a few large jumps instead of flowing in word by word the way it does in the reference. This happens on every reply.",
+     "fix_plan": "Add a small client reveal hook (for example useRevealedText in packages/core/src/reply-stream.ts or apps/web/src/conversation/Message.tsx). It keeps a cursor into the live text and moves it forward two whitespace-split parts every 34-68ms (setTimeout with jitter) until it catches up with stream.text. It shows everything at once when the stream commits, is cancelled or stopped, or when prefers-reduced-motion is set. Use it for the live text in Conversation.tsx (the previews branch) before building LiveReply. Keep the caret until the cursor reaches the end. For generated UI, reveal the text first and then let GenUiPart add the blocks, matching the reference's st.phase==='ui' (230-350ms per block).",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/Message.tsx",
+      "packages/core/src/reply-stream.ts"
+     ],
+     "report_rows": [
+      24
+     ],
+     "verifier_note": "Client-side pacing only; do not touch server stream or commit logic. Reveal fully on commit/cancel/stop and under prefers-reduced-motion, keep the caret until caught up, and make sure tests that read final text (Playwright) are not delayed or flaky. Pacing must never delay the final committed message or a stop. Not high: cosmetic, no navigation or money impact."
+    },
+    {
+     "id": "messages-2",
+     "title": "Message menu lacks «عرض كنص / عرض الواجهة» for generated-UI messages",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html 3885 openMsgMenu: `(m.kind===\"ui\"&&m.ui&&prefs().genui?popItem(m.ui.asText?\"grid\":\"news\",m.ui.asText?\"عرض الواجهة\":\"عرض كنص\",\"ux-text\",{mid}):\"\")`. DESIGN_TREE_37 line 177 lists «عرض كنص أو عرض الواجهة».",
+     "app_evidence": "apps/web/src/conversation/Conversation.tsx:526-536 builds the menu with reply, copy, edit and task items only. No toggle exists anywhere (grep for asText or «as text» in conversation/ and components/genui finds nothing).",
+     "owner_sees": "An interactive card cannot be read as plain text, and the menu has one item fewer than in the reference.",
+     "fix_plan": "Keep a per-thread Set of message ids shown as text in Conversation.tsx and expose it through context.ts. Add the menu item `item(asText?'grid':'news', asText?t`Show the interface`:t`Show as text`, toggle)` when hasGenUi(message). In Message.tsx, render TextBody(message.content) instead of GenUiPart when the id is in the set. Add Lingui strings ar «عرض كنص» / «عرض الواجهة».",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/conversation/context.ts",
+      "apps/web/src/conversation/Message.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use the existing hasGenUi(message) gate. Per-thread local Set state is enough; the reference stores asText on the message, but a client-only toggle is fine. Add both Lingui strings (ar and en .po). Menu already hides «Turn into a task» for GenUI messages, which matches the reference only partly (ref hides task for any m.kind), so leave that alone."
+    }
+   ]
+  },
+  {
+   "name": "rich-content",
+   "lead_notes": "messages-8 and messages-10 need data from the agent's structured reply. Check what the server already sends (the visual response contract in packages/core and the Python side). Render it in the reference's containers when the data exists; extend the contract only if that is small and clean, with tests on both sides. Do not invent evidence or suggestions on the client.\nsheets_overlays-5: opening an image or a file from a chat uses the app's own sheet system with the reference's «صورة» and file sheets, not the old workspace dialog.",
+   "gaps": [
+    {
+     "id": "messages-8",
+     "title": "Supervisor answers have no evidence rows (.ev-list) inside the bubble",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Lonora-Desktop-37.html 8490 evMarkup: `<div class=\"ev-list\" role=\"list\" aria-label=\"الأدلة\">` rows (.ev-row: icon · text · time · chevron) opening the order sheet, watches sheet, a message jump, or the «دليل» sheet. 3799 places them in the bubble; CSS 2209-2217. DESIGN_TREE_37 line 172 «جواب المشرف | أدلة في صفوف داخل الفقاعة، كل دليل يفتح ورقة». CAPABILITY_MAP chat.messages.supervisor-evidence.",
+     "app_evidence": "No .ev-list or evidence-row rendering exists in apps/web/src/conversation (grep). VisualAction in packages/contracts/src/visual-response.ts:65-66 only has follow_up, open_chart and open_artifact, so an agent cannot point a row at an order, watch or message.",
+     "owner_sees": "When asking Lonora or another supervisor «ماذا فعل …؟», the answer is plain prose with no tappable proof rows leading to the orders, watches or messages it cites.",
+     "fix_plan": "Add an evidence-list part to RichContent (items: icon, text, at, target {order|watch|message|evidence}) in packages/contracts (TS and py) and the agent-runtime projector. Render it in Message.tsx after the body as the reference .ev-list/.ev-row markup (copy CSS 2209-2217 into conversation.css). Wire the targets: the order sheet (OrderSheetBody), the watches sheet, ctx.onJump for messages, and a generic «دليل» sheet.",
+     "files": [
+      "packages/contracts/src/visual-response.ts",
+      "packages/contracts/src/lonora_contracts/visual_response.py",
+      "apps/web/src/conversation/Message.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Needs a contract change in both TS and Python, plus the agent-runtime projector, so it is a feature rather than a UI fix. Evidence rows must be built from real order and watch ids from the ledger and must never be fabricated. In the reference the data comes from a mocked supervisor answer. Only do it if the supervisor runtime can emit real targets; otherwise defer. Overlaps with gap 9, which extends the same RichContent and VisualAction contract, so do both in one contract change."
+    },
+    {
+     "id": "messages-10",
+     "title": "Out-of-scope replies have no suggestion rows (.qr-list) under the bubble",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 3799 `qr=m.chips?.length&&!st?qrMarkup(m):\"\"`, appended after the reactions. DESIGN_TREE_37 line 173 «رد خارج النطاق | سطر مهذّب + قائمة اقتراحات قصيرة تحت الفقاعة». CAPABILITY_MAP chat.messages.out-of-scope-reply: rows, «never pill clouds».",
+     "app_evidence": "No .qr-list rendering in apps/web/src/conversation. The only follow-ups are generated-UI buttons inside the card (VisualAction follow_up), and there is no open_agent or open_journal action.",
+     "owner_sees": "When an agent declines a request outside its scope, nothing offers the next step as tappable rows under the reply.",
+     "fix_plan": "Add a `suggestions` part (rows of {label, action: follow_up | open_agent | open_journal}) to RichContent and render it in Message.tsx after <Reactions/> as the reference .qr-list rows. Extend VisualAction with open_agent and open_journal (read-only navigation).",
+     "files": [
+      "packages/contracts/src/visual-response.ts",
+      "apps/web/src/conversation/Message.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "The reference chips come from mocked out-of-scope replies. The app would need agent-runtime emission of a suggestions part, so it is a contract feature like gap 7. Do both in one RichContent change. Navigation actions must be read-only and must never trigger a trade or an owner action."
+    },
+    {
+     "id": "sheets_overlays-5",
+     "title": "Opening a file or image from a chat uses the old workspace-dialog overlay instead of a «صورة» / file sheet",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html:5046-5048 `function openImage(mid){… sheet(\"صورة\",`<div class=\"sheet-photo-box\"><img class=\"sheet-photo\" …>`,{bar:true,id:\"photo\"})}`. DESIGN_TREE:222 «صورة · ملف | النقر على صورة أو ملف | الصورة كاملة، أو محتوى الملف» is in the sheets table. DESIGN_TREE:394 adds a shimmer at the image's size until it loads.",
+     "app_evidence": "Conversation.tsx:1136 `{preview && <FilePreviewPanel …/>}`, opened from Message.tsx:212 (onOpenFile) and from a genui open_artifact action (Conversation.tsx:460). FilePreviewPanel.tsx:57-90 renders `workspace-dialog-backdrop` / `workspace-dialog workspace-file-preview` with lucide `<Download>` and `<X>` icons and `workspace-button` classes, and handles its own focus trap and Escape. It has no handle, no drag-to-dismiss, no spring and no bar header. The seed has no artifacts, so this is judged from the code; the Files page is empty.",
+     "owner_sees": "Tapping an image or file in a chat opens a differently styled full overlay with other icons and no sheet motion. It cannot be swiped down.",
+     "fix_plan": "Replace the overlay with sheets.open({id:\"photo\", bar:true, expand:true, title: name, body: …}). The body keeps ImageGallery, PdfViewer and SandboxedHtmlViewer inside a `.sheet-photo-box` and adds a «تنزيل» action row using the shell Icon set. Port .sheet-photo-box and .sheet-photo from the reference CSS into conversation CSS, and add the .sk shimmer at the image's dimensions. Delete the workspace-dialog markup and its CSS once Artifacts.tsx also uses the sheet.",
+     "files": [
+      "apps/web/src/conversation/Conversation.tsx",
+      "apps/web/src/components/common/FilePreviewPanel.tsx",
+      "apps/web/src/pages/Artifacts.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Not seen in practice with seed data (no artifacts). Reference only specifies images; keeping the PDF/HTML viewers inside a sheet is an extrapolation but fine. Rendering via sheets.open must preserve Escape/close and the sandboxed HTML viewer; Artifacts.tsx shares the component so migrate both or keep the panel for Artifacts. Check tests that target workspace-file-preview. Independent of the other gaps."
+    }
+   ]
+  }
+ ]
+}

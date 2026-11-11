@@ -1,0 +1,278 @@
+{
+ "package": "composer",
+ "title": "Composer: the + sheet, mentions, slash commands, uploads",
+ "wave": 1,
+ "port": 8843,
+ "worktree": "/home/user/wt/composer",
+ "branch": "fx/composer",
+ "owns": [
+  "apps/web/src/conversation/Composer.tsx",
+  "apps/web/src/conversation/ToolsSheet.tsx",
+  "the composer helpers in packages/core (composer-mentions and new command helpers)",
+  "the composer rules in conversation.css"
+ ],
+ "steps": [
+  {
+   "name": "sheet-and-mentions",
+   "lead_notes": "Targets for the + sheet rows are in the contracts table (skills: `/app/skills?agent=<id>`; schedule: `/app/new-schedule?agent=<id>`). Leave the «الصلاحية» row as it is: a later step turns it into a page inside the sheet. Message.tsx belongs to package `messages`.",
+   "gaps": [
+    {
+     "id": "composer-3",
+     "title": "«المهارات» in the + sheet throws the owner out of the chat to the Settings root",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 4993-4995: addRow(\"bolt\",\"المهارات\",…,\"go\",{route:\"skills\"}) opens the agent's skills page.",
+     "app_evidence": "apps/web/src/conversation/ToolsSheet.tsx:192 go(`${agentPath}?settings=skills`) -> apps/web/src/shell/pages.tsx:497-503 useSettingsRedirect -> /app/settings?tab=skills; «skills» is in neither settingsTabs nor settingsMoved (pages.tsx:67-74), so SettingsRoot renders. Live: lands on http://localhost:8832/app/settings?tab=skills showing the Settings tab (shots/composer/app-nav-skills.png).",
+     "owner_sees": "Tapping «المهارات» leaves the conversation and shows the general Settings list with the Settings tab selected, not the agent's skills.",
+     "fix_plan": "Navigate to the skills page for the agent: go(`/app/skills?agent=${encodeURIComponent(agent.id)}`) (route «skills» exists in routes.ts PAGES).",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx"
+     ],
+     "report_rows": [
+      28
+     ],
+     "verifier_note": "The one-line change is go(`/app/skills?agent=${encodeURIComponent(agent.id)}`) in ToolsSheet.tsx:192. First check useAgentParam in shell/domain/SkillsPages.tsx to confirm it reads the `agent` query param and not another key. Also check whether other callers use ?settings=skills (grep) and add 'skills' to settingsMoved as a safety net. Add or adjust an e2e test for the navigation."
+    },
+    {
+     "id": "cleanliness-1",
+     "title": "«المهارات» in the + sheet opens the Settings root (dead end)",
+     "category": "navigation",
+     "sev": "high",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:4995 addRow(\"bolt\",\"المهارات\",…,\"go\",{route:\"skills\"}): the + sheet row opens the agent's skills page.",
+     "app_evidence": "apps/web/src/conversation/ToolsSheet.tsx:192 go(`${agentPath}?settings=skills`) → useSettingsRedirect (shell/pages.tsx:494-500) → /app/settings?tab=skills. 'skills' is in neither settingsMoved nor settingsTabs (pages.tsx:67-74), so SettingsRoot renders. Live probe: «المهارات» → /app/settings?tab=skills. Screenshot shots/clean/p-plus-skills.png shows the Settings root with the Settings tab now selected in the bottom bar.",
+     "owner_sees": "In a chat, «+» then «المهارات» drops them out of the conversation onto the Settings home with the tab bar switched to Settings. No skills appear, and Back does not lead to skills.",
+     "fix_plan": "ToolsSheet.tsx:192: go(`/app/skills?agent=${encodeURIComponent(input.agent.id)}`). Also show the reference's subtitle counts on Skills, Knowledge and Integrations (\"N مهارات مفعّلة\", \"N ملاحظات\", \"N مرتبطة\"). Add a Playwright step in tests/web that clicks + → المهارات and expects /app/skills.",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx",
+      "tests/web"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use go(`/app/skills?agent=${encodeURIComponent(input.agent.id)}`); the row is already guarded by !input.isGroup so input.agent is set. Also check the Knowledge row just below uses the new /app/knowledge route, not the same ?settings= redirect. The subtitle counts are optional polish, so keep them out of this fix. Optionally map settings tab 'skills' in settingsMoved as a safety net (useSettingsRedirect has no agent, so the direct link is better)."
+    },
+    {
+     "id": "composer-9",
+     "title": "«جدولة» opens the routines list instead of the new-schedule form",
+     "category": "navigation",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 4989: addRow(\"clock\",\"جدولة\",\"موعد واحد أو متكرر\",\"go\",{route:\"new-schedule\",item:null}).",
+     "app_evidence": "apps/web/src/conversation/ToolsSheet.tsx:121 go(\"/app/routines\"); live lands on «المهام المجدولة» list. Route new-schedule exists (routes.ts PAGES).",
+     "owner_sees": "An extra step: a list page instead of the «موعد واحد أو متكرر» form for this agent.",
+     "fix_plan": "go(`/app/new-schedule?agent=${agent.id}`) (check NewSchedule reads ?agent=).",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Change line 121 to go(`/app/new-schedule${input.agent ? `?agent=${encodeURIComponent(input.agent.id)}` : \"\"}`), the same pattern as the Knowledge row. For a group there is no agent, so the page falls back to the first agent. Decide whether a group should keep /app/routines instead. Same file as gaps 6 and 7."
+    },
+    {
+     "id": "cleanliness-7",
+     "title": "+ sheet «جدولة» opens an empty schedules list instead of the new-schedule form",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Lonora-Desktop-37.html:4989 addRow(\"clock\",\"جدولة\",\"موعد واحد أو متكرر\",\"go\",{route:\"new-schedule\",item:null}).",
+     "app_evidence": "conversation/ToolsSheet.tsx:121 go(\"/app/routines\") with no ?agent=. Live probe: + → جدولة → /app/routines. Screenshot shots/clean/d-routines.png: «لا توجد مهام مجدولة.» with a folder icon, even when the current agent has schedules. The ⋮ menu (ChatMenu.tsx:167) and the agent page (AgentPage.tsx:293) also open this list.",
+     "owner_sees": "Asking to schedule something from a chat shows 'no scheduled tasks' and needs one more tap, not the form for this agent.",
+     "fix_plan": "ToolsSheet.tsx:121 → go(`/app/new-schedule${input.agent ? `?agent=${encodeURIComponent(input.agent.id)}` : \"\"}`). Also check that «مهمة جديدة» (ToolsSheet.tsx:115, ChatMenu.tsx:175 → /app/tasks?new=1) lands on the new-task form with the agent preselected, as the reference does (route new-task).",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx",
+      "apps/web/src/shell/ChatMenu.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use `/app/new-schedule?agent=<id>` as planned. For the task row, TasksPages.tsx:57 redirects without carrying ?agent=. Either preserve the param there or link directly to /app/new-task?agent=. Check that NewTaskPage reads ?agent=. In group chats there is no single agent, so omit the param. ChatMenu.tsx:167 and AgentPage.tsx:293 open the list, which is arguably correct for a menu (the reference's list vs add distinction), so change only the + sheet."
+    },
+    {
+     "id": "composer-8",
+     "title": "+ sheet rows lack subtitles and keep an extra «رسالة صوتية» row",
+     "category": "extra",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 4993-4997: «التكاملات» sub «N مرتبطة»/«غير مرتبطة», «المهارات» sub «مهارة واحدة مفعّلة…»/«لا توجد مهارات مفعّلة», «المعرفة» sub «ملاحظة واحدة…»/«فارغة»; the work group is only مهمة جديدة · جدولة (no voice row). DESIGN_TREE_37 line 196. Live ref: shots/composer/ref-gold-plus.png.",
+     "app_evidence": "apps/web/src/conversation/ToolsSheet.tsx:123-130 adds «رسالة صوتية» (duplicate of the mic long press); :182-203 Integrations/Skills/Knowledge AddRow have no sub. Live: shots/composer/app-gold-plus.png.",
+     "owner_sees": "The tools sheet has an extra row the reference does not, and the three bottom rows give no status (how many integrations/skills/notes).",
+     "fix_plan": "Remove the voice-message AddRow and the now-unused onVoiceNote/startLocked plumbing (Composer.tsx:756, 1202). Load counts (integrations: brokers+providers+MCP from the existing settings queries; skills: GET /agents/{id}/skills enabled count; knowledge: agent's notes count) and pass them as sub with Arabic plural forms via Lingui plural.",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx",
+      "apps/web/src/conversation/Composer.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [
+      28
+     ],
+     "verifier_note": "Split the work in two. (1) Removing the voice row is trivial, but check that input.onVoiceNote and startLocked have no other user and that no Playwright spec clicks the row. Remove only what becomes orphaned. (2) The counts need data in the sheet. Reuse hooks the shell already loads (useShellData for agents/accounts; skills and knowledge via existing domainApi/useLoad) and show no sub until loaded, never a fake 0 or «غير مرتبطة» flash. Use Lingui plural with Arabic categories and update the ar .po and the catalog. Overlaps gap 6 and gap 8 (same file, so do them in one pass)."
+    },
+    {
+     "id": "composer-10",
+     "title": "@ list shows the raw role «personal» for Lonora and rows do not fill the list width",
+     "category": "visual",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 5138-5143 assistRow: <div class=\"as-row\"> with <strong> title (bold) and sub = agent role text («مساعدك الشخصي»); rows span the full list (shots/composer/ref-group-at.png).",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx:511 <small>{row.description || row.role}</small> prints the enum «personal» (live text: «@Lonora personal»); :487-508 rows are <button> and the title uses <span className=\"as-t\"> instead of <strong>, so .as-body strong styles (conversation.css:1513) never apply and the highlighted row shrinks to its content (shots/composer/app-group-at.png).",
+     "owner_sees": "An English word «personal» under Lonora, thin-weight names, and a highlight pill that covers only part of the row.",
+     "fix_plan": "Use the localized role label (the helper used in the chat head/agent page for role names) instead of row.role; render the title inside <strong>; add width:100%; text-align:start; border:0; background:none to button.as-row (or render as div role=option like the reference).",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Use agentRole(row) from shell/lists/ThreadRow.tsx, and render nothing when it is empty (non-personal roles such as «delegated» would otherwise print raw too). Change span.as-t to <strong> and keep the inner span dir=auto, which the strong > span rule supports. For the layout, add width:100%;border:0;background:none;text-align:start;font:inherit to button.as-row, or switch to div role=option as the reference does. The listbox keeps its ARIA wiring (id assist-..., aria-selected), and mouseDown preventDefault must stay so the textarea keeps focus. Check that no spec relies on the button tag."
+    },
+    {
+     "id": "composer-12",
+     "title": "Picked @mentions are not drawn as chips in the field (mirror layer left empty)",
+     "category": "visual",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 5249-5265 assistMirror(): the .ta-mirror behind the textarea marks tokens with <mark> (and commands with mark.cmd + a ghost hint for the argument).",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx:622 renders <div className=\"ta-mirror\"/> but never fills it; live after picking @رفيق the mirror innerHTML is \"\". CSS .ta-mirror mark exists at conversation.css:1605-1630 unused.",
+     "owner_sees": "After choosing an agent, «@رفيق» stays plain text in the field instead of a highlighted chip.",
+     "fix_plan": "Render the mirror from text + committed ranges (escaped text with <mark> around each valid MentionRange), sync scrollTop on textarea scroll; same layer later carries mark.cmd/ghost for slash commands.",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Render the mirror in React from the value and the committed mention ranges. Escape the text, sync scrollTop and keep the trailing zero-width space so heights match. Slash-command mark.cmd and ghost hint are a separate extension. Touching only Composer.tsx is fine; check the textarea and mirror share font and padding, and re-run the composer Playwright specs."
+    },
+    {
+     "id": "composer-14",
+     "title": "One-time mic hint («اضغط للإملاء / اضغط مطولًا لتسجيل رسالة صوتية») never shows",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "S",
+     "reference_evidence": "Desktop-37 4816-4831 micTip() shown 700ms after the first chat open (4686), dismissed on any press or after 5.2s; CSS 839-844.",
+     "app_evidence": "apps/web/src/conversation/conversation.css:1170-1200 has .mic-tip styles but no component creates it (grep mic-tip in .tsx: none).",
+     "owner_sees": "Nothing tells a new owner that the mic has two gestures (tap = dictation, hold = voice note).",
+     "fix_plan": "In Composer.tsx, on mount when a per-device flag (localStorage, try/catch) is unset and no assist is open, render a body-level .mic-tip positioned above the mic with --ax, add .show next frame, remove on pointerdown or after 5200ms, set the flag.",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Add it in Composer.tsx with a per-device localStorage flag in try/catch. Skip it when the assist menu is open or a voice recording is active. Position it with --ax above the composer card. Lingui-wrap the two strings. Make sure it does not intercept clicks in Playwright specs, which is the main risk: use pointer-events none and mark the flag as seen in test setups if needed."
+    }
+   ]
+  },
+  {
+   "name": "slash-commands",
+   "lead_notes": "Build slash commands properly, not half. The reference list is مهمة · بحث · ملخص · جدولة · شارت · اتصال · صلاحيات · مسح, then the agent's skills. Commands that act at once (جدولة, شارت, اتصال, صلاحيات, مسح) call the actions the app already has; «مسح» uses the existing hide-history confirm (Q1), «اتصال» follows Q58 when voice is not configured. Commands that take text (مهمة, بحث, ملخص, a skill) must reach the agent as a real, server-validated part of the message: extend the message-create contract (Python and TypeScript) and show the command chip in the owner's bubble. A command must never bypass permission or money-safety gates: it only says what the owner asked for; the agent run is admitted exactly as any other message. Put parsing and option logic in packages/core with unit tests. If a text command cannot be given honest server meaning in this step, leave that one out of the list and say so; the shortcuts sheet must advertise only what works.",
+   "gaps": [
+    {
+     "id": "composer-1",
+     "title": "Slash commands (/) are missing entirely, but the shortcuts sheet still advertises them",
+     "category": "missing",
+     "sev": "high",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Desktop-37 5049-5245: commandOptions() (5089-5104) lists مهمة · بحث · ملخص · جدولة · شارت · اتصال · صلاحيات · مسح under «الأوامر», then «مهارات {agent}»; assistDetect() 5112-5119 opens it on «/» at the very start; parseCommand/submitMessage/runCommand 5192-5232; cmd-chip in sent messages 5243-5247. DESIGN_TREE_37 line 200: «/ في بداية الرسالة: مهمة · بحث · ملخص · جدولة · شارت · اتصال · صلاحيات · مسح، ثم مهارات الوكيل المفعّلة». CAPABILITY_MAP row chat.composer.slash-commands (line 149) plans MessageCreate.command. No owner decision removes it.",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx:208-267 and 471-537: the .assist list only handles @ (readMentionQuery); no / detection anywhere in apps/web/src/conversation. packages/contracts/src/lonora_contracts/domain.py:108 MessageCreate has no command field. apps/web/src/shell/ShortcutsSheet.tsx:19 still lists «/ الأوامر في بداية الرسالة». Live: typing «/» or «/مل» in محلل الذهب opens nothing (shots/composer/app-gold-slash.png vs ref-gold-slash.png).",
+     "owner_sees": "Typing / at the start of a message does nothing; the reference opens a command list. The shortcuts sheet promises a feature that does not exist.",
+     "fix_plan": "Port commandOptions/assistDetect/assistPick/parseCommand into packages/core/src/composer-mentions.ts (or a new composer-commands.ts) and extend Composer.tsx's assist to a second type data-type=\"command\" (section «الأوامر», /en end tag, <em> arg hint). Commands that run at once map to existing actions: جدولة -> /app/new-schedule?agent=, شارت -> lonora:open-chart, اتصال -> lonora:start-call, صلاحيات -> click .mode-chip (group: lonora:members-permissions), مسح -> the existing clear-history confirm. Text-taking commands (مهمة, بحث, ملخص, skills) need MessageCreate.command {name, argument, skill_id} in domain.py + TS contracts + the run preselect, and a .cmd-chip in Message.tsx (GenUiPart already has the class). Until the backend lands, drop the ShortcutsSheet row rather than advertise it.",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx",
+      "packages/core/src/composer-mentions.ts",
+      "packages/contracts/src/lonora_contracts/domain.py",
+      "packages/contracts/src/messages.ts",
+      "apps/web/src/conversation/Message.tsx",
+      "apps/web/src/shell/ShortcutsSheet.tsx",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "Split it. (1) Now, S: drop or hide the ShortcutsSheet row (line 19) so the app stops advertising a missing feature. (2) Later, L: the full command list. The client-only commands (جدولة, شارت, اتصال, صلاحيات, مسح) need no backend. The text-taking commands (مهمة/بحث/ملخص/skills) need MessageCreate.command in domain.py and the TS contracts. Keep those server-validated and make sure they cannot bypass the permission or money-safety gates. «اتصال» must respect the calls provider-unavailable state, and «صلاحيات» must stay trading-only (Q19). Overlaps with gap 2: both open from the composer, and the «صلاحيات» command should reuse the same PermissionChip popover."
+    },
+    {
+     "id": "messages-9",
+     "title": "Slash-command chip never appears in the owner's bubble (no / commands at all)",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 3797 `m.cmd?cmdMarkup(m)`, CSS 957 `.cmd-chip{…border-radius:999px;background:color-mix(in srgb,var(--text) 10%,transparent)…}`, header note 2548 «.cmd-chip; mentions render as .mention chips». DESIGN_TREE_37 line 159 «أمر مائل | شريحة الأمر داخل الفقاعة» and line 200 (/ menu: مهمة · بحث · ملخص · جدولة · شارت · اتصال · صلاحيات · مسح).",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx has an @ mention menu (208-250) but no '/' command menu (grep for slash or startsWith('/') finds nothing). Markdown.tsx richText marks only links and @mentions, and .cmd-chip is used only by GenUiSubmitQuote (GenUiPart.tsx:38).",
+     "owner_sees": "Typing «/مهمة …» does nothing special and the sent bubble shows raw text. The reference's command chip with its icon never appears.",
+     "fix_plan": "In Markdown.tsx richText (owner text), render a leading `/command` that matches the known command list as `<span class=\"cmd-chip\"><Icon/>{label}</span>`. Add the '/' menu to Composer.tsx, reusing the @ menu popover with the reference's commands. The composer menu belongs to the composer area; this row covers the bubble rendering.",
+     "files": [
+      "apps/web/src/conversation/Markdown.tsx",
+      "apps/web/src/conversation/Composer.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "The chip alone is meaningless without the / menu and without server semantics for the commands. In the reference, task, search, summary and skill answers are local demo behaviour. Real commands would need backend support, so a chip rendered from plain text risks implying behaviour that does not exist. Scope it to the composer / menu (Composer.tsx) as a separate feature. Do not render a chip for text the user typed that no command handles. Pure bubble rendering is not worth doing alone."
+    }
+   ]
+  },
+  {
+   "name": "all-mention-and-upload",
+   "lead_notes": "composer-11: «@الكل» in group chats needs the server to address every member; check how group routing reads mentions (packages and apps/api messages code) and add it with pytest coverage.\nmessages-7 and auth_states-6 are one feature: an attachment shows in the owner's bubble at once with a progress ring, the percentage and a cancel control, and the composer stays usable. Use XMLHttpRequest upload progress or the existing API helper if it exposes progress; cancelling aborts the request and removes the pending bubble. Message.tsx belongs to package `messages`: keep your hunk there small.",
+   "gaps": [
+    {
+     "id": "composer-11",
+     "title": "No «@الكل» in group chats",
+     "category": "missing",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 5081-5085 mentionOptions(): in a group, members (lead tagged «القائد») plus {name:\"الكل\", sub:\"تنبيه N وكلاء\", icon:\"users\"}. DESIGN_TREE_37 line 199.",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx:225-230 offers «@الكل» only when !isGroup && collaborationSessionId; packages/db/src/lonora_db/messages.py:353-365 treats mention_all only as a collaboration-session address. Live group list ends after members (app-group-at.png vs ref-group-at.png).",
+     "owner_sees": "In «فريق التداول» there is no way to address every member at once from the @ list.",
+     "fix_plan": "Server: accept mention_all on group threads and dispatch to all group members. Client: in Composer.tsx include the «@الكل» option when isGroup, with sub «تنبيه N وكلاء» (Lingui plural) and the users icon.",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx",
+      "packages/db/src/lonora_db/messages.py",
+      "apps/web/src/i18n/locales/ar/messages.po"
+     ],
+     "report_rows": [],
+     "verifier_note": "No server change needed: messages.py:478-497 already dispatches to every id in request.mention_agent_ids for a group thread, validated as group members, and mention_all is server-gated to collaboration sessions (messages.py:353-365). So in Composer, when isGroup, picking «@الكل» should insert the token and send all member ids as mention_agent_ids, and not set mention_all. Do not make mention_all accept group threads; it would hit collaboration_session_required. Each run costs money, so respect existing per-agent paused skip (already done at the dispatch loop). Update Composer.tsx and the ar messages.po. Add a Lingui plural for the sub line."
+    },
+    {
+     "id": "messages-7",
+     "title": "No upload ring with cancel in the bubble; uploads block the composer instead",
+     "category": "behaviour",
+     "sev": "low",
+     "platform": "both",
+     "effort": "L",
+     "reference_evidence": "Lonora-Desktop-37.html 5919-5922: the image or file message is pushed immediately with `status:\"uploading\",upload:{p:0}`. 5532 uploadMarkup: `<span class=\"up\" style=\"--p:…\"><span class=\"up-ring\"></span><span class=\"up-n\">…%</span><button class=\"up-x\" aria-label=\"إلغاء الرفع\">`. 3783 file chip «جارٍ الرفع · kb». DESIGN_TREE_37 line 400 «الرفع | الفقاعة | حلقة تقدّم مع إلغاء؛ بعد إعادة التحميل تصبح إعادة محاولة», and line 174 status «تُرفَع».",
+     "app_evidence": "apps/web/src/conversation/Composer.tsx:279-296 uploads in the composer tray and disables send (`canSend … && !uploading`). Message.tsx FileChip (203-222) and Attachments (164-201) have no uploading state. The CSS for .up-ring, .up-x, .img-msg.busy and .file-chip.uploading (conversation.css:1762-1831) has no markup that uses it.",
+     "owner_sees": "They cannot send a photo or file and move on. The composer waits, with no progress ring on the bubble and no cancel, unlike the reference.",
+     "fix_plan": "Choose one of two fixes. (a) Match the reference: add an outgoing delivery 'uploading' with progress (XHR upload.onprogress) in apps/web/src/lib/outgoing-messages.ts, push the bubble at once, render `.up` with `--p`, `.up-ring` and the `.up-x` cancel in Attachments and FileChip, and turn the bubble into a retry after a reload. (b) If the tray flow is kept on purpose, delete the unused .up* CSS so the code stays clean, and record the deviation.",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx",
+      "apps/web/src/conversation/Message.tsx",
+      "apps/web/src/lib/outgoing-messages.ts",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Large and cuts across the outgoing-message queue. Prefer option (b): keep the tray flow and delete the unused .up*, .img-msg.busy and .file-chip.uploading CSS. Then record the deviation in OWNER_DECISIONS or a note. Not met constantly, and it does not misstate money or safety. If option (a) is chosen, uploaded files must still carry the ids the server accepts, and an upload cancelled mid-flight must never leave an orphan message."
+    },
+    {
+     "id": "auth_states-6",
+     "title": "No upload ring with percentage and cancel for attachments",
+     "category": "missing",
+     "sev": "low",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Lonora-Desktop-37.html 5530-5535 uploadMarkup(): .up with conic .up-ring, .up-n «NN%», .up-x «إلغاء الرفع» → toast «أُلغي الرفع»; healUploads turns an interrupted upload into a retry; DESIGN_TREE_37.md 400 «الرفع | الفقاعة | حلقة تقدّم مع إلغاء؛ بعد إعادة التحميل تصبح إعادة محاولة».",
+     "app_evidence": "conversation/Composer.tsx:270-293 awaits api.upload (lib/api.ts:131, plain fetch without progress) and only adds the chip when finished; meanwhile the attach button is disabled (735) and send is blocked (296). No component renders .up/.up-ring/.up-x although the CSS exists (conversation/conversation.css:1762-1830).",
+     "owner_sees": "Attaching a large photo shows nothing for several seconds, with no progress and no way to cancel it.",
+     "fix_plan": "Upload with XMLHttpRequest (progress events + abort) in lib/api.ts, add the chip immediately with an uploading state, render the reference .up markup (ring with --p, percent, cancel button) on the composer chip, cancel → abort + remove chip + toast «أُلغي الرفع»; a draft upload cut by reload shows as failed with retry (pendingDraftUploads already tracks it).",
+     "files": [
+      "apps/web/src/conversation/Composer.tsx",
+      "apps/web/src/lib/api.ts",
+      "apps/web/src/conversation/conversation.css"
+     ],
+     "report_rows": [],
+     "verifier_note": "Needs XHR with progress/abort in api.upload (bypassing request()'s 401/maintenance handling, so reimplement session-expired dispatch). Keep startDraftUpload/finishDraftUpload bookkeeping and the send block while uploading. Medium effort, not M-critical; do after the cheap gaps."
+    }
+   ]
+  }
+ ]
+}

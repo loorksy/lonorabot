@@ -1,0 +1,37 @@
+{
+ "package": "permsheet",
+ "title": "«الصلاحية» as a page inside the + sheet",
+ "wave": 2,
+ "port": 8852,
+ "worktree": "/home/user/wt/permsheet",
+ "branch": "fx/permsheet",
+ "owns": [
+  "the «الصلاحية» row of ToolsSheet.tsx"
+ ],
+ "steps": [
+  {
+   "name": "permission-page",
+   "lead_notes": "Reuse the permission menu content from PermissionMenu.tsx as a page inside the sheet; one implementation, two hosts.",
+   "gaps": [
+    {
+     "id": "composer-7",
+     "title": "«الصلاحية» in the + sheet is not a page inside the sheet",
+     "category": "navigation",
+     "sev": "medium",
+     "platform": "both",
+     "effort": "M",
+     "reference_evidence": "Desktop-37 4980-4984 toolsSheet(\"permission\"): the sheet slides (dir fwd, sheetMorph) to «صلاحيات {name}» with the three level rows (checked) and «الهوية والنموذج», back returns to the main page. DESIGN_TREE_37 line 197: «الصلاحية (صفحة داخل الورقة)».",
+     "app_evidence": "apps/web/src/conversation/ToolsSheet.tsx:143-154 closes the sheet then programmatically clicks .composer .mode-chip in the next frame (shots/composer/app-plus-permission.png).",
+     "owner_sees": "The sheet disappears and a separate popover appears instead of the sheet turning its page.",
+     "fix_plan": "Give ToolsBody a second page: open with sheets.open(..., {morph:true}) like ChatMenu.tsx:221 / ListSheets.tsx:316, render the ladder rows (role=menuitemradio, LEVEL_ICON, levelName/levelHint, check), reuse PermissionMenu's setLevel/mandate/downgrade logic (export it), add «الهوية والنموذج» -> /app/identity/<agent>, and a back that returns to the main page.",
+     "files": [
+      "apps/web/src/conversation/ToolsSheet.tsx",
+      "apps/web/src/conversation/PermissionMenu.tsx"
+     ],
+     "report_rows": [],
+     "verifier_note": "Risk: PermissionMenu holds the money-safety logic (setLevel, mandate, downgrade confirmation). Export and reuse it; do not copy it. The page must show the same unknown/failed state and the same blocking rules as the popover. A morph sheet is already used by shell/ChatMenu.tsx:221 and shell/lists/ListSheets.tsx:316. Keep the .mode-chip in the composer as the desktop trigger. e2e specs may click the sheet row and then expect the popover, so grep the Playwright specs for tools-sheet permission flows. Also check the sub text for the unknown level."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,488 @@
+{
+ "chat": {
+  "title": "Chat header, the ⋮ chat menu, agent and group info, chat wallpaper",
+  "port": 8841,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/ChatMenu.tsx",
+   "apps/web/src/shell/ChatHeader.tsx",
+   "the chat-menu, agent-info and members-permissions wiring in apps/web/src/shell/Shell.tsx",
+   "apps/web/src/conversation/wallpaper.ts and the wallpaper rules in conversation.css",
+   "the new wallpaper sheet",
+   "the agent status line in packages/core"
+  ],
+  "steps": [
+   {
+    "name": "info-and-menu",
+    "gaps": [
+     "agent_pages-1",
+     "agent_pages-2",
+     "chat_header-2",
+     "sheets_overlays-1",
+     "cleanliness-2",
+     "chat_header-1",
+     "sheets_overlays-2",
+     "chat_header-3",
+     "chat_header-6",
+     "cleanliness-3",
+     "chat_header-7",
+     "chat_header-8",
+     "chat_header-9",
+     "chat_header-11",
+     "sheets_overlays-3"
+    ]
+   },
+   {
+    "name": "wallpaper-and-status",
+    "gaps": [
+     "chat_header-4",
+     "chat_header-5",
+     "settings_root-1",
+     "calls_motion-6",
+     "chat_header-10",
+     "chat_header-12",
+     "calls_motion-3"
+    ]
+   }
+  ]
+ },
+ "popover": {
+  "title": "The popover system and the composer permission menu",
+  "port": 8842,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/lists/Popover.tsx",
+   "apps/web/src/conversation/PermissionMenu.tsx",
+   "the popover and permission-menu rules in the CSS files",
+   "the overlay-history hook"
+  ],
+  "steps": [
+   {
+    "name": "history-and-polish",
+    "gaps": [
+     "navigation-1",
+     "sheets_overlays-8",
+     "composer-13",
+     "shell_desktop-7",
+     "composer-6",
+     "calls_motion-7",
+     "settings_root-11"
+    ]
+   },
+   {
+    "name": "permission-morph",
+    "gaps": [
+     "composer-2",
+     "calls_motion-2"
+    ]
+   },
+   {
+    "name": "model-page",
+    "gaps": [
+     "composer-5",
+     "composer-4"
+    ]
+   }
+  ]
+ },
+ "composer": {
+  "title": "Composer: the + sheet, mentions, slash commands, uploads",
+  "port": 8843,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/conversation/Composer.tsx",
+   "apps/web/src/conversation/ToolsSheet.tsx",
+   "the composer helpers in packages/core (composer-mentions and new command helpers)",
+   "the composer rules in conversation.css"
+  ],
+  "steps": [
+   {
+    "name": "sheet-and-mentions",
+    "gaps": [
+     "composer-3",
+     "cleanliness-1",
+     "composer-9",
+     "cleanliness-7",
+     "composer-8",
+     "composer-10",
+     "composer-12",
+     "composer-14"
+    ]
+   },
+   {
+    "name": "slash-commands",
+    "gaps": [
+     "composer-1",
+     "messages-9"
+    ]
+   },
+   {
+    "name": "all-mention-and-upload",
+    "gaps": [
+     "composer-11",
+     "messages-7",
+     "auth_states-6"
+    ]
+   }
+  ]
+ },
+ "messages": {
+  "title": "Messages: bubbles, cards, streaming, reply preferences, rich content",
+  "port": 8844,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/conversation/Conversation.tsx",
+   "apps/web/src/conversation/Message.tsx",
+   "apps/web/src/conversation/Cards.tsx",
+   "apps/web/src/conversation/prefs.ts",
+   "apps/web/src/conversation/ChatPrefsPage.tsx",
+   "the reply stream helper",
+   "the bubble, card and transcript rules in conversation.css"
+  ],
+  "steps": [
+   {
+    "name": "bubbles-and-cards",
+    "gaps": [
+     "messages-4",
+     "messages-6",
+     "messages-11",
+     "messages-12",
+     "messages-13",
+     "messages-14",
+     "messages-3"
+    ]
+   },
+   {
+    "name": "reply-prefs",
+    "gaps": [
+     "settings_a-1",
+     "settings_a-2",
+     "settings_a-3",
+     "settings_a-4",
+     "messages-1",
+     "messages-2"
+    ]
+   },
+   {
+    "name": "rich-content",
+    "gaps": [
+     "messages-8",
+     "messages-10",
+     "sheets_overlays-5"
+    ]
+   }
+  ]
+ },
+ "settings": {
+  "title": "Settings: replace the old tabbed screen, integrations, providers, trading account",
+  "port": 8845,
+  "wave": 1,
+  "owns": [
+   "the route table for settings pages (shell/routes.ts, shell/pages.tsx)",
+   "apps/web/src/shell/settings/IntegrationsPage.tsx",
+   "apps/web/src/shell/settings/ConnectionPages.tsx",
+   "apps/web/src/shell/settings/UsagePage.tsx",
+   "the new models page",
+   "the three old rows in SettingsRoot.tsx",
+   "the old settings overlay files"
+  ],
+  "steps": [
+   {
+    "name": "legacy-trio",
+    "gaps": [
+     "navigation-3",
+     "settings_root-2",
+     "settings_root-3",
+     "settings_root-4",
+     "settings_root-5",
+     "settings_root-6",
+     "settings_b-2",
+     "settings_b-3",
+     "settings_b-4",
+     "cleanliness-4",
+     "cleanliness-6"
+    ]
+   },
+   {
+    "name": "integrations-detail",
+    "gaps": [
+     "settings_b-1",
+     "settings_b-8",
+     "settings_b-9",
+     "settings_b-6",
+     "settings_b-13",
+     "settings_b-12",
+     "settings_b-10"
+    ]
+   },
+   {
+    "name": "skills-and-old-pages",
+    "gaps": [
+     "settings_b-7",
+     "navigation-4",
+     "cleanliness-5",
+     "tokens-3"
+    ]
+   }
+  ]
+ },
+ "profile": {
+  "title": "Owner profile, notifications, device pages, owner name, theme switch",
+  "port": 8846,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/settings/OwnerPage.tsx",
+   "apps/web/src/shell/settings/NotifyPages.tsx",
+   "apps/web/src/shell/settings/DevicePages.tsx",
+   "the owner name and avatar helper",
+   "the theme switch, sign-out sheet and version footer in SettingsRoot.tsx",
+   "apps/web/src/hooks/useTheme.ts"
+  ],
+  "steps": [
+   {
+    "name": "owner-and-notify",
+    "gaps": [
+     "shell_desktop-1",
+     "shell_desktop-2",
+     "settings_a-9",
+     "messages-5",
+     "settings_a-7",
+     "cleanliness-10",
+     "settings_a-8",
+     "settings_a-11",
+     "settings_a-12",
+     "settings_a-13",
+     "settings_a-14",
+     "settings_root-10",
+     "settings_a-6",
+     "settings_root-9",
+     "settings_root-12"
+    ]
+   },
+   {
+    "name": "theme-switch",
+    "gaps": [
+     "settings_root-7",
+     "calls_motion-1",
+     "tokens-7"
+    ]
+   }
+  ]
+ },
+ "updates": {
+  "title": "Updates, tasks, schedules and search results",
+  "port": 8847,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/domain/UpdatesPages.tsx",
+   "apps/web/src/shell/domain/TasksPages.tsx",
+   "apps/web/src/shell/domain/SchedulesPages.tsx",
+   "the attention provider and the attention routes on the server",
+   "apps/web/src/shell/lists/UnifiedSearch.tsx",
+   "the domain skeletons in shell/Skeleton.tsx"
+  ],
+  "steps": [
+   {
+    "name": "alerts",
+    "gaps": [
+     "updates_tasks-1",
+     "updates_tasks-3",
+     "updates_tasks-2",
+     "updates_tasks-4",
+     "updates_tasks-10"
+    ]
+   },
+   {
+    "name": "tasks-and-search",
+    "gaps": [
+     "updates_tasks-5",
+     "updates_tasks-6",
+     "updates_tasks-7",
+     "chats_list-1",
+     "cleanliness-9"
+    ]
+   }
+  ]
+ },
+ "shell": {
+  "title": "Shell: scroll memory, tab lens, routes, desktop behaviour, call motion",
+  "port": 8848,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/navigation.tsx",
+   "apps/web/src/shell/pager.ts",
+   "apps/web/src/shell/lens.ts",
+   "apps/web/src/shell/FloatingTabBar.tsx",
+   "apps/web/src/shell/chrome.ts",
+   "apps/web/src/shell/flip.ts",
+   "aliases, redirects and section mapping in shell/routes.ts",
+   "keyboard shortcuts and search dismissal in Shell.tsx",
+   "apps/web/src/shell/ShortcutsSheet.tsx",
+   "the call CSS"
+  ],
+  "steps": [
+   {
+    "name": "scroll-and-lens",
+    "gaps": [
+     "navigation-2",
+     "shell_phone-2",
+     "shell_phone-1",
+     "shell_phone-4",
+     "calls_motion-8"
+    ]
+   },
+   {
+    "name": "desktop-and-routes",
+    "gaps": [
+     "shell_desktop-3",
+     "shell_desktop-4",
+     "shell_desktop-6",
+     "chats_list-3",
+     "navigation-5",
+     "navigation-6",
+     "auth_states-8",
+     "calls_motion-4",
+     "calls_motion-5"
+    ]
+   }
+  ]
+ },
+ "tokens": {
+  "title": "Tokens, the old palette, boot and failure screens, icons",
+  "port": 8849,
+  "wave": 1,
+  "owns": [
+   "packages/ui-tokens",
+   "apps/web/src/styles.css",
+   "apps/web/src/theme.overrides.css",
+   "apps/web/src/App.tsx",
+   "apps/web/index.html and the manifest",
+   "apps/web/src/shell/StatePage.tsx",
+   "the rich-response (visual) CSS"
+  ],
+  "steps": [
+   {
+    "name": "palette",
+    "gaps": [
+     "tokens-1",
+     "cleanliness-12",
+     "tokens-4",
+     "tokens-2",
+     "tokens-5",
+     "agent_pages-7",
+     "updates_tasks-9",
+     "updates_tasks-8",
+     "settings_a-10",
+     "settings_root-8",
+     "auth_states-9"
+    ]
+   },
+   {
+    "name": "boot-and-states",
+    "gaps": [
+     "shell_desktop-5",
+     "cleanliness-15",
+     "auth_states-2",
+     "auth_states-1",
+     "auth_states-7",
+     "tokens-6",
+     "tokens-8"
+    ]
+   },
+   {
+    "name": "icons",
+    "gaps": [
+     "cleanliness-11"
+    ]
+   }
+  ]
+ },
+ "agent": {
+  "title": "Agent, group and identity pages; the new-agent flow",
+  "port": 8850,
+  "wave": 1,
+  "owns": [
+   "apps/web/src/shell/agent/ (AgentPage, GroupPage, IdentityPage, AgentSheet, WatchesSheet, MandateSheet, the avatar sheet)",
+   "the new-agent and new-group flow"
+  ],
+  "steps": [
+   {
+    "name": "agent-page",
+    "gaps": [
+     "agent_pages-3",
+     "agent_pages-8",
+     "agent_pages-4",
+     "settings_b-5",
+     "sheets_overlays-4",
+     "sheets_overlays-9"
+    ]
+   },
+   {
+    "name": "new-agent-flow",
+    "gaps": [
+     "agent_pages-5",
+     "agent_pages-6"
+    ]
+   }
+  ]
+ },
+ "forms": {
+  "title": "Forms: the select control, field errors, skeletons, autocomplete",
+  "port": 8851,
+  "wave": 2,
+  "owns": [
+   "apps/web/src/shell/settings/ui.tsx (SelectField and field primitives)"
+  ],
+  "steps": [
+   {
+    "name": "select",
+    "gaps": [
+     "sheets_overlays-7",
+     "sheets_overlays-6"
+    ]
+   },
+   {
+    "name": "errors-and-loading",
+    "gaps": [
+     "auth_states-3",
+     "auth_states-4",
+     "cleanliness-14"
+    ]
+   }
+  ]
+ },
+ "permsheet": {
+  "title": "«الصلاحية» as a page inside the + sheet",
+  "port": 8852,
+  "wave": 2,
+  "owns": [
+   "the «الصلاحية» row of ToolsSheet.tsx"
+  ],
+  "steps": [
+   {
+    "name": "permission-page",
+    "gaps": [
+     "composer-7"
+    ]
+   }
+  ]
+ },
+ "cleanup": {
+  "title": "Dead code, the second overlay system, duplicate requests",
+  "port": 8853,
+  "wave": 2,
+  "owns": [
+   "whatever nothing imports any more"
+  ],
+  "steps": [
+   {
+    "name": "dead-code",
+    "gaps": [
+     "cleanliness-13",
+     "sheets_overlays-11",
+     "cleanliness-8"
+    ]
+   }
+  ]
+ }
+}
