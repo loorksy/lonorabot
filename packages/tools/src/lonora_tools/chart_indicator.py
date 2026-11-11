@@ -7,7 +7,7 @@ from pydantic import Field
 from .base import Tool
 from .context import ToolContext
 from .market import CandlesInput
-from .symbols import canonical_broker_symbol
+from .symbols import read_symbol
 
 
 class IndicatorInput(CandlesInput):
@@ -17,7 +17,7 @@ class IndicatorInput(CandlesInput):
 
 async def calculate(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     broker = await context.brokers.get(context.owner_id, args["account_id"])
-    symbol = await canonical_broker_symbol(broker, args["symbol"])
+    symbol, _ = await read_symbol(broker, args["symbol"])
     provider = await broker_market(context.brokers, context.owner_id, args["account_id"])
     candles = await provider.candles(symbol, args["timeframe"], args["limit"])
     return {

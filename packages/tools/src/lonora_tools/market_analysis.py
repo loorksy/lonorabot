@@ -23,7 +23,7 @@ from pydantic import Field, model_validator
 from .base import Tool, eager_for
 from .context import ToolContext
 from .market import CandlesInput, QuoteInput
-from .symbols import canonical_broker_symbol
+from .symbols import read_symbol
 from .workspace import access, workspace_available
 
 READ_TIMEOUT_SECONDS = 20
@@ -137,7 +137,7 @@ async def snapshot(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     params = SnapshotInput.model_validate(args)
     timeframes = list(dict.fromkeys(validate_timeframe(item) for item in params.timeframes))
     broker = await context.brokers.get(context.owner_id, params.account_id)
-    symbol = await canonical_broker_symbol(broker, params.symbol, require_exists=True)
+    symbol, stated = await read_symbol(broker, params.symbol, require_exists=True)
     instrument = await broker.instrument(symbol)
     daily_limit = max(params.atr_period + 5, 10)
     # Only a bar closed before the read began counts as closed.
@@ -163,7 +163,7 @@ async def snapshot(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     daily, weekly = series["1d"], bars[-1]
     if extra:
         series.pop("1d")
-    return market_snapshot(
+    return stated | market_snapshot(
         account_id=params.account_id,
         symbol=symbol,
         now=utcnow(),
@@ -212,7 +212,7 @@ async def _broker_hours(
     try:
         async with asyncio.timeout(READ_TIMEOUT_SECONDS):
             broker = await context.brokers.get(context.owner_id, account_id)
-            symbol = await canonical_broker_symbol(broker, requested, require_exists=True)
+            symbol, _ = await read_symbol(broker, requested, require_exists=True)
             if not isinstance(broker, TradingHoursReader):
                 return {"symbol": symbol, "state": "unknown", "reason": "broker_hours_not_exposed"}
             return broker_trading_state(await broker.trading_hours(symbol), at)
@@ -302,7 +302,7 @@ async def candles_to_workspace(context: ToolContext, args: dict[str, Any]) -> di
 
     async def produce() -> tuple[bytes, dict[str, Any]]:
         broker = await context.brokers.get(context.owner_id, params.account_id)
-        symbol = await canonical_broker_symbol(broker, params.symbol, require_exists=True)
+        symbol, _ = await read_symbol(broker, params.symbol, require_exists=True)
         requested_at = utcnow()
         provider = await broker_market(context.brokers, context.owner_id, params.account_id)
         try:
@@ -357,7 +357,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "market_snapshot",
-            "One compact multi-timeframe summary for an exact broker symbol: bid/ask/spread and "
+            "One compact multi-timeframe summary for one instrument: bid/ask/spread and "
             "freshness; per timeframe closed-bar trend slope, swing structure, range, ATR with "
             "percentile volatility regime and RSI; previous day/week high-low with distances in "
             "price and daily ATR. Forming bars are excluded and reported separately. Numbers "

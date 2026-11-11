@@ -328,7 +328,10 @@ async def test_discovery_does_not_execute_aliases_or_invent_missing_capabilities
         await catalog.execute(
             ToolCall(id="alias", name="MARKET_QUOTE", arguments={}), cast(ToolContext, None)
         )
-    assert (await inspect(catalog, {"query": "market quantum-never-configured"}))["tools"] == []
+    # Words the catalog never uses invent nothing, and no longer empty a search either.
+    assert (await inspect(catalog, {"query": "quantum-xylophone"}))["tools"] == []
+    found = await inspect(catalog, {"query": "market quantum-xylophone"})
+    assert "market_quote" in [tool["name"] for tool in found["tools"]]
     assert (await inspect(catalog, {"query": "   "}))["tools"] == []
 
 
@@ -386,6 +389,32 @@ def test_real_catalog_discovers_supported_work_from_business_terms(query: str, e
     assert expected in search_definitions(catalog.definitions(), query)
     if query == "terminal":
         assert search_definitions(catalog.definitions(), query)[0] == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("حذف المتابعات", "watch_cancel"),
+        ("delete watch", "watch_cancel"),
+        ("امسح المهام", "task_control"),
+        ("remove the alert", "watch_cancel"),
+        ("ألغِ المتابعة", "watch_cancel"),
+        ("أوقف الهدف", "goal_control"),
+    ],
+)
+def test_everyday_words_in_the_owners_language_find_the_tool(query: str, expected: str):
+    catalog = load_tools()
+    terms = {name: tool.search_terms for name, tool in catalog.tools.items()}
+    assert search_definitions(catalog.definitions(), query, terms=terms)[0] == expected
+
+
+def test_the_production_query_that_found_nothing_finds_the_cancel_tools():
+    catalog = load_tools()
+    terms = {name: tool.search_terms for name, tool in catalog.tools.items()}
+    found = search_definitions(
+        catalog.definitions(), "watch cancel task routines goals", terms=terms
+    )
+    assert {"watch_cancel", "task_control"} <= set(found)
 
 
 def inventory_names(inventory: str) -> set[str]:

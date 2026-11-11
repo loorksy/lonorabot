@@ -10,6 +10,8 @@ from .domain import Contract
 class Instrument(Contract):
     symbol: str = Field(min_length=1, max_length=80)
     description: str = ""
+    # The broker's own category for the symbol (MetaTrader: "Forex/Metals/XAUUSDm" with backslashes).
+    path: str | None = Field(default=None, max_length=240)
     digits: int = Field(ge=0, le=12)
     tick_size: Decimal = Field(gt=0)
     volume_min: Decimal = Field(gt=0)

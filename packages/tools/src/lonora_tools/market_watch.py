@@ -253,6 +253,7 @@ def tools() -> list[Tool]:
             True,
             poller=True,
             eager=eager_for("market"),
+            search_terms="list show alerts متابعة المتابعة متابعات المتابعات مراقبة المراقبة تنبيه التنبيه تنبيهات التنبيهات اعرض قائمة",
         ),
         Tool(
             "watch_cancel",
@@ -261,6 +262,7 @@ def tools() -> list[Tool]:
             cancel,
             replay_safe=True,
             eager=eager_for("market"),
+            search_terms="delete remove cancel stop clear erase حذف احذف امسح مسح ألغ ألغِ الغ إلغاء الغاء أوقف وقف ايقاف إيقاف شيل ازل أزل إزالة watch watches alert alerts متابعة المتابعة متابعات المتابعات مراقبة المراقبة تنبيه التنبيه تنبيهات التنبيهات",
         ),
         Tool(
             "watch_pause",
@@ -268,6 +270,7 @@ def tools() -> list[Tool]:
             WatchReference,
             pause,
             replay_safe=True,
+            search_terms="suspend hold علق علّق تعليق أوقف مؤقتا مؤقتًا متابعة المتابعة المتابعات",
         ),
         Tool(
             "watch_resume",

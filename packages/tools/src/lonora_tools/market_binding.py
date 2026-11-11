@@ -10,8 +10,16 @@ from lonora_db.agent_binding import (
     same_binding,
 )
 from lonora_db.runs import require_lease
-from lonora_db.schema import AgentRow, CloudChartRow, TradingGoalRow
+from lonora_db.schema import (
+    AccountAuthorityRow,
+    AgentRow,
+    BrokerSessionRow,
+    CloudChartRow,
+    TradingGoalRow,
+)
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .context import ToolContext
 
@@ -79,6 +87,30 @@ def fill_bound_fields(agent: AgentRow, args: dict[str, Any], fields: set[str]) -
     return filled
 
 
+async def default_account(session: AsyncSession, owner_id: str, agent: AgentRow) -> str | None:
+    """The account a call means when it names none: the agent's own account, else the
+    one account it holds a signed authority for, else the owner's only account. Never a
+    choice between several: then the call fails on its missing argument as before."""
+    if agent.trading_account_id:
+        return agent.trading_account_id
+    for query in (
+        select(AccountAuthorityRow.account_id)
+        .where(
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.agent_id == agent.id,
+            AccountAuthorityRow.status == "active",
+        )
+        .distinct(),
+        select(BrokerSessionRow.id).where(BrokerSessionRow.owner_id == owner_id),
+    ):
+        accounts = list(await session.scalars(query.limit(2)))
+        if len(accounts) == 1:
+            return accounts[0]
+        if accounts:
+            return None
+    return None
+
+
 async def prepare_market_arguments(
     context: ToolContext, name: str, args: dict[str, Any], model: type[BaseModel]
 ) -> dict[str, Any]:
@@ -87,7 +119,11 @@ async def prepare_market_arguments(
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if not agent.trading_account_id or not agent.trading_symbol:
-            return args
+            field = model.model_fields.get("account_id")
+            if field is None or not field.is_required() or args.get("account_id"):
+                return args
+            account_id = await default_account(session, context.owner_id, agent)
+            return args if account_id is None else {**args, "account_id": account_id}
         aligned = args if flexible_scope(agent) else align_payload(agent, args)
         if not isinstance(aligned, dict):
             return args

@@ -366,6 +366,7 @@ class ToolRegistry:
                 [tool.definition() for tool in allowed],
                 arguments["query"],
                 min(limit, MAX_SEARCH_RESULTS),
+                {tool.name: tool.search_terms for tool in allowed},
             )
             found = [self.tools[name] for name in names]
             unavailable = await self.availability(context, found)

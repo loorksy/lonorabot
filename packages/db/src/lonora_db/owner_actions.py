@@ -773,9 +773,9 @@ async def grant_facts(
         session, owner_id, {draft.agent_id, *(item.agent_id for item, _ in conflicts)}
     )
     grantee = await session.get(AgentRow, draft.agent_id)
-    facts["account"] = account_facts(
-        await session.get(BrokerSessionRow, draft.account_id), draft.account_id
-    )
+    account = await session.get(BrokerSessionRow, draft.account_id)
+    facts["account"] = account_facts(account, draft.account_id)
+    known: dict[str, Any] = account.state.get("contracts", {}) if account is not None else {}
     # Full delegation always includes the owner's own positions; under Custom the
     # owner's switch, once sent with a challenge, is what is signed.
     allow_manual = (
@@ -788,6 +788,8 @@ async def grant_facts(
         "agent_is_personal": grantee is not None and grantee.role == "personal",
         "symbol_scope": draft.symbol_scope,
         "symbols": list(draft.symbols),
+        # The broker's own specification of each named symbol, as read for this account.
+        "contracts": [known[symbol] for symbol in draft.symbols if symbol in known],
         "actions": list(draft.actions),
         "all_actions": set(draft.actions) == set(ALL_ACTIONS),
         "duration": draft.duration,

@@ -40,6 +40,7 @@ def instrument(value: dict[str, Any]) -> Instrument:
     return Instrument(
         symbol=value["symbol"],
         description=value.get("description", ""),
+        path=value["path"][:240] if isinstance(value.get("path"), str) and value["path"] else None,
         digits=value["digits"],
         tick_size=Decimal(str(value.get("tickSize", value.get("point")))),
         volume_min=value["minVolume"],
