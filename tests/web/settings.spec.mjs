@@ -268,6 +268,8 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
     await page.goto("/app/usage");
     await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
+    // Nothing used yet: each ranking says so, not an empty box.
+    await expect(page.getByText("No usage in this period.").first()).toBeVisible();
     await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
     const csv = page.getByRole("link", { name: "Export CSV" });
     await expect(csv).toHaveAttribute("href", /period=month/);
@@ -277,6 +279,69 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(
       "date,cost_usd,tokens,requests",
     );
+    // A browser quota in gigabytes reads in gigabytes.
+    await page.addInitScript(() => {
+      navigator.storage.estimate = async () => ({ usage: 2048, quota: 3 * 1024 ** 3 });
+    });
+    await page.goto("/app/storage");
+    await expect(page.getByText("3.00 GB")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("a trading account page shows the broker's own balance, name, server and pair icons", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const row = {
+      id,
+      agent_id: null,
+      thread_id: null,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+      state: {},
+      payload: { provider: "metaapi", account_id: "meta-1", region: "london", enabled: true },
+    };
+    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+    // The server's own shape: the account under `account`, beside its positions and orders.
+    await page.route(`**/api/trading/accounts/${id}`, (route) =>
+      route.fulfill({
+        json: {
+          account: {
+            id,
+            broker: "Northwind Markets",
+            login: "50012345",
+            server: "Northwind-Demo4",
+            currency: "USD",
+            balance: "10000.00",
+            equity: "10000.00",
+            margin: "0",
+            free_margin: "10000.00",
+            observed_at: now,
+          },
+          positions: [],
+          orders: [],
+        },
+      }),
+    );
+    await page.route("**/api/market/symbols?*", (route) =>
+      route.fulfill({ json: ["XAUUSDm", "EURUSDm"] }),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/app/broker-account/${id}`);
+    await expect(page.getByText("10000.00 USD")).toBeVisible();
+    await expect(page.getByText("Northwind Markets")).toBeVisible();
+    await expect(page.getByText("50012345")).toBeVisible();
+    await expect(page.getByText("Northwind-Demo4")).toBeVisible();
+    await expect(page.locator(".sym-cell")).toHaveCount(2);
+    await expect(page.locator(".sym-cell .pair-ic img").first()).toBeVisible();
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

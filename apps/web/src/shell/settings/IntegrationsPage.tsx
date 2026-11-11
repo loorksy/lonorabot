@@ -13,6 +13,7 @@ import { tradingSafetyText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { type FormEvent, useState } from "react";
 import { api } from "../../lib/api";
+import { brokerIdentity } from "../../lib/broker-identity";
 import { readControls, resumeTrading, stopNewTrading, tradingStopped } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
@@ -517,6 +518,8 @@ export function IntegrationsPage() {
       <div className="group">
         {linked.map((row) => {
           const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
+          const identity = brokerIdentity(row);
+          const demo = row.payload.provider === "simulation";
           return (
             <NavRow
               key={row.id}
@@ -525,11 +528,18 @@ export function IntegrationsPage() {
                   <Icon name="trend" />
                 </span>
               }
-              label={<span className="ltr">{row.payload.account_id}</span>}
+              label={
+                <>
+                  <bdi>{identity?.broker ?? (demo ? t`Demo account` : "MetaApi")}</bdi> ·{" "}
+                  <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                </>
+              }
               sub={
-                row.payload.provider === "simulation"
+                demo
                   ? t`Demo · ${agentsCount(count)}`
-                  : `MetaApi · ${agentsCount(count)}`
+                  : identity?.broker
+                    ? `MetaApi · ${agentsCount(count)}`
+                    : agentsCount(count)
               }
               to={`/app/broker-account/${row.id}`}
             />

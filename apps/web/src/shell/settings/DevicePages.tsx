@@ -101,7 +101,9 @@ const bytes = (value: number) =>
     ? t`${Math.round(value)} B`
     : value < 1048576
       ? t`${(value / 1024).toFixed(1)} KB`
-      : t`${(value / 1048576).toFixed(2)} MB`;
+      : value < 1073741824
+        ? t`${(value / 1048576).toFixed(2)} MB`
+        : t`${(value / 1073741824).toFixed(2)} GB`;
 
 /** What this browser keeps for Lonora: drafts and unsent messages, settings, and the rest. */
 function measure() {
