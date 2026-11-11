@@ -332,6 +332,13 @@ test("watches: pause, resume and cancel with undo, each through the watch's cont
   await watch.getByRole("button", { name: "Extend two hours", exact: true }).click();
   expect((await sent).postDataJSON()).toEqual({ action: "extend", hours: 2 });
   await expect(page.locator("#toast")).toContainText("Extended until");
+  // Q31: the extend has an Undo, the expiry before it at the revision it left.
+  const extended = await (await page.request.get(`/api/watches/${data.watch}`)).json();
+  sent = control();
+  await page.locator("#toast").getByRole("button", { name: "Undo" }).click();
+  const restore = await sent;
+  expect(restore.postDataJSON()).toMatchObject({ action: "restore", revision: extended.version });
+  expect((await restore.response()).ok()).toBe(true);
   await main.getByRole("button", { name: "New watch", exact: true }).click();
   await expect(page).toHaveURL(
     new RegExp(`/app/new-schedule\\?agent=${data.trader.id}&kind=condition$`),
@@ -351,11 +358,14 @@ test("«وكيل جديد»: the supervision switch sends the agents it supervis
     .getByLabel("Agent name", { exact: true })
     .fill(`Watcher ${data.trader.id.slice(0, 6)}`);
   await main.getByLabel("Description", { exact: true }).fill("Keeps an eye on the desk");
+  // The capability is stored as its grants: at least one agent is picked.
+  const create = main.getByRole("button", { name: "Create the agent", exact: true });
+  await expect(create).toBeDisabled();
   await main.getByRole("switch", { name: data.trader.name }).check();
   const creation = page.waitForResponse(
     (response) => new URL(response.url()).pathname === "/api/agents/create",
   );
-  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
+  await create.click();
   const response = await creation;
   const agent = await response.json();
   data.agents.push(agent.id);
@@ -364,6 +374,16 @@ test("«وكيل جديد»: the supervision switch sends the agents it supervis
   expect(body).not.toHaveProperty("model");
   await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
+  // Its last supervisee removed, it is still a supervisor: the section stays to add others.
+  await main
+    .locator(".row", { hasText: data.trader.name })
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await expect(main).toContainText("It does not supervise any agent now.");
+  await page.reload();
+  await expect(
+    main.getByRole("button", { name: "Add agents to supervise", exact: true }),
+  ).toBeVisible();
 });
 
 test("«تعديل الوقف والهدف»: one operation per body, a retry reuses it, a clear is explicit", async ({

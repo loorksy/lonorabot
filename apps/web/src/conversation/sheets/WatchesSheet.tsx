@@ -10,7 +10,7 @@ import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useRead } from "../../shell/agent/shared";
-import { SkRows } from "../../shell/Skeleton";
+import { SkPage, SkRows } from "../../shell/Skeleton";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
 
@@ -25,7 +25,6 @@ export function WatchList({ agent, onNew }: { agent: Agent; onNew: () => void })
   const [busy, setBusy] = useState<string | null>(null);
   const send = async (id: string, body: Record<string, unknown>) => {
     const row = await api.post<Resource>(`/watches/${encodeURIComponent(id)}/control`, body);
-    watches.reload();
     refresh();
     return row;
   };
@@ -33,7 +32,7 @@ export function WatchList({ agent, onNew }: { agent: Agent; onNew: () => void })
     id: string,
     body: Record<string, unknown>,
     done: (row: Resource) => string,
-    undo?: () => Promise<unknown>,
+    undo?: (row: Resource) => Promise<unknown>,
   ) => {
     setBusy(id);
     try {
@@ -43,7 +42,8 @@ export function WatchList({ agent, onNew }: { agent: Agent; onNew: () => void })
         ...(undo && {
           action: {
             label: t`Undo`,
-            run: () => void undo().catch((failure) => toast(userError(failure), { type: "error" })),
+            run: () =>
+              void undo(row).catch((failure) => toast(userError(failure), { type: "error" })),
           },
         }),
       });
@@ -61,7 +61,9 @@ export function WatchList({ agent, onNew }: { agent: Agent; onNew: () => void })
       {watches.error != null ? (
         <p role="alert">{userError(watches.error)}</p>
       ) : !watches.value ? (
-        <SkRows count={1} />
+        <SkPage>
+          <SkRows count={1} />
+        </SkPage>
       ) : list.length ? (
         <div className="group">
           {list.map((row) => {
@@ -102,10 +104,23 @@ export function WatchList({ agent, onNew }: { agent: Agent; onNew: () => void })
                       className="btn sm outline"
                       disabled={busy === w.id || !w.expires_at}
                       onClick={() =>
-                        void control(w.id, { action: "extend", hours: 2 }, (next) => {
-                          const until = readinessTime(String(next.payload.expires_at), i18n.locale);
-                          return t`Extended until ${until}`;
-                        })
+                        void control(
+                          w.id,
+                          { action: "extend", hours: 2 },
+                          (next) => {
+                            const until = readinessTime(
+                              String(next.payload.expires_at),
+                              i18n.locale,
+                            );
+                            return t`Extended until ${until}`;
+                          },
+                          (next) =>
+                            send(w.id, {
+                              action: "restore",
+                              expires_at: w.expires_at,
+                              revision: next.version,
+                            }),
+                        )
                       }
                     >
                       <Trans>Extend two hours</Trans>
