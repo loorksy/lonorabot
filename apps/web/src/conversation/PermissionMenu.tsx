@@ -1,13 +1,22 @@
 import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
-import type { AgentModelSummary, AgentPermissionLevel, PermissionState } from "@lonora/contracts";
+import type {
+  AgentModelSummary,
+  AgentPermissionLevel,
+  AgentUsageReport,
+  PermissionState,
+  UsageDay,
+} from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useEffect, useRef, useState } from "react";
-import type { Agent } from "../lib/api";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import type { Agent, Resource } from "../lib/api";
 import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
+import { isTrader } from "../shell/agent/shared";
 import { usePopover, usePopoverPage } from "../shell/lists/Popover";
 import { useNavigation } from "../shell/navigation";
+import { usd } from "../shell/settings/UsagePage";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
 import { useMandateSheet } from "./sheets/MandateSheet";
@@ -56,7 +65,6 @@ export function PermissionChip({
   onChanged: (state: PermissionState) => void;
 }) {
   const popover = usePopover();
-  const sheets = useSheets();
   const nav = useNavigation();
   if (isGroup)
     return (
@@ -84,51 +92,7 @@ export function PermissionChip({
       </span>
     );
   if (!agent.trading_account_id && agent.role !== "personal")
-    return (
-      <button
-        type="button"
-        className="no-trade"
-        aria-label={t`No execution: no trading account is chosen`}
-        onClick={() =>
-          sheets.open({
-            id: "no-account",
-            title: t`No execution`,
-            body: (
-              <>
-                <div className="state-hero">
-                  <Icon name="eye" />
-                </div>
-                <p className="state-lead">
-                  <Trans>
-                    {agent.name} is not linked to a trading account, so it works without execution:
-                    it analyses and follows only.
-                  </Trans>
-                </p>
-                <button
-                  type="button"
-                  className="btn full primary"
-                  onClick={() => {
-                    sheets.close();
-                    nav.go(`/app/${encodeURIComponent(agent.id)}?settings=trading`);
-                  }}
-                >
-                  <Trans>Choose the trading account</Trans>
-                </button>
-                <p className="note">
-                  <Trans>
-                    Then the permission levels appear beside the text field: no execution · execute
-                    with approval · delegated execution.
-                  </Trans>
-                </p>
-              </>
-            ),
-          })
-        }
-      >
-        <Icon name="eye" />
-        <span>{levelName("analysis")}</span>
-      </button>
-    );
+    return <NoAccountChip agent={agent} />;
   // Until the level is read (or when it cannot be), the chip says so: never a guessed level.
   if (!permission)
     return (
@@ -170,6 +134,85 @@ export function PermissionChip({
       <Icon name={level === "autonomous" ? "alert" : LEVEL_ICON[level]} />
       <span>{levelName(level)}</span>
       <Icon name="down" />
+    </button>
+  );
+}
+
+/** «دون تنفيذ» for a trading agent with no account: its sheet leads to choosing one of the
+ * linked accounts, or to linking the first (reference sf-noacct). */
+function NoAccountChip({ agent }: { agent: Agent }) {
+  const sheets = useSheets();
+  const nav = useNavigation();
+  // Unknown until read: the wording then assumes an account exists, and the agent's own
+  // page says so if none does.
+  const [linked, setLinked] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<Resource[]>("/trading/connections")
+      .then((rows) => live && setLinked(rows.some((row) => row.payload.enabled !== false)))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  const id = encodeURIComponent(agent.id);
+  return (
+    <button
+      type="button"
+      className="no-trade"
+      aria-label={
+        linked
+          ? t`No execution: no trading account is chosen`
+          : t`No execution: no trading account is linked`
+      }
+      onClick={() =>
+        sheets.open({
+          id: "no-account",
+          title: t`No execution`,
+          body: (
+            <>
+              <div className="state-hero">
+                <Icon name="eye" />
+              </div>
+              <p className="state-lead">
+                {linked ? (
+                  <Trans>
+                    {agent.name} is not linked to a trading account, so it works without execution:
+                    it analyses and follows only.
+                  </Trans>
+                ) : (
+                  <Trans>
+                    No trading account is linked, so {agent.name} works without execution: it
+                    analyses and follows only.
+                  </Trans>
+                )}
+              </p>
+              <button
+                type="button"
+                className="btn full primary"
+                onClick={() => {
+                  sheets.close();
+                  nav.go(
+                    linked ? `/app/${isTrader(agent) ? "identity" : "agent"}/${id}` : "/app/broker",
+                  );
+                }}
+              >
+                {linked ? t`Choose the trading account` : t`Link a trading account`}
+              </button>
+              <p className="note">
+                <Trans>
+                  Then the permission levels appear beside the text field: no execution · execute
+                  with approval · delegated execution.
+                </Trans>
+              </p>
+            </>
+          ),
+        })
+      }
+    >
+      <Icon name="eye" />
+      <span>{levelName("analysis")}</span>
     </button>
   );
 }
@@ -472,18 +515,7 @@ function ModelPage({
           </button>
         );
       })}
-      {summary && (
-        <>
-          <div className="pop-title">
-            <Trans>
-              Usage of {agent.name} · last {summary.usage.days} days
-            </Trans>
-          </div>
-          <p className="mp-tot">
-            <Trans>{summary.usage.requests} requests · no cap for this agent</Trans>
-          </p>
-        </>
-      )}
+      <ModelUsage agent={agent} />
       <div className="pop-sep" />
       <button
         type="button"
@@ -491,7 +523,7 @@ function ModelPage({
         role="menuitem"
         onClick={() => {
           popover.close();
-          go("/app/settings?tab=models");
+          go("/app/providers");
         }}
       >
         <Icon name="plus" />
@@ -499,6 +531,79 @@ function ModelPage({
           <Trans>Connect a model provider</Trans>
         </span>
       </button>
+    </>
+  );
+}
+
+/** What the agent cost over the last seven days, a bar a day with today last (reference
+ * modelPage). Days with requests that have no list price show no amount: a total that leaves
+ * them out would read as the whole cost. */
+function ModelUsage({ agent }: { agent: Agent }) {
+  const { i18n } = useLingui();
+  const [days, setDays] = useState<UsageDay[]>();
+  useEffect(() => {
+    let live = true;
+    void api
+      .get<AgentUsageReport>(
+        `/usage/agents?days=7&bucket=day&agent_id=${encodeURIComponent(agent.id)}`,
+      )
+      .then((report) => live && setDays(report.buckets ?? []))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [agent.id]);
+  const title = (
+    <div className="pop-title">
+      <Trans>Usage of {agent.name} · last 7 days</Trans>
+    </div>
+  );
+  // The box keeps its height while the days load, so the page does not jump.
+  if (!days)
+    return (
+      <>
+        {title}
+        <div className="mp-usage" />
+      </>
+    );
+  const most = Math.max(...days.map((day) => day.cost_usd), 0.0001);
+  const unpriced = days.reduce((sum, day) => sum + day.unpriced_requests, 0);
+  const total = unpriced ? "—" : usd(days.reduce((sum, day) => sum + day.cost_usd, 0));
+  const weekday = (date: string, width: "narrow" | "long") => {
+    // A calendar date, not an instant: parsed as text it would be UTC midnight.
+    const [year, month, day] = date.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString(`${i18n.locale}-u-nu-latn`, {
+      weekday: width,
+    });
+  };
+  return (
+    <>
+      {title}
+      <div className="mp-usage" role="img" aria-label={t`Usage over the last 7 days: ${total}`}>
+        {days.map((day, index) => (
+          <span
+            key={day.date}
+            className={`mp-bar${index === days.length - 1 ? " today" : ""}`}
+            style={
+              { "--h": `${Math.max(4, Math.round((day.cost_usd / most) * 100))}%` } as CSSProperties
+            }
+            title={`${weekday(day.date, "long")}: ${day.unpriced_requests ? "—" : usd(day.cost_usd)}`}
+          >
+            <i />
+            <small>{weekday(day.date, "narrow")}</small>
+          </span>
+        ))}
+      </div>
+      <p className="mp-tot">
+        <Trans>
+          <span className="ltr">{total}</span> over 7 days · no cap for this agent
+        </Trans>
+      </p>
+      {unpriced > 0 && (
+        <p className="mp-tot">
+          <Trans>{unpriced} requests have no list price</Trans>
+        </p>
+      )}
     </>
   );
 }

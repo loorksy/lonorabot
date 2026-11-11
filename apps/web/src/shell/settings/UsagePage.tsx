@@ -21,7 +21,7 @@ import { useLoad } from "./ui";
    /usage/rank, /usage/export.csv). No spend cap (D4, Q22): the budget card shows month-to-date
    usage and its projection, never a limit; nothing here blocks a request. */
 
-const usd = (value: number | null | undefined) => {
+export const usd = (value: number | null | undefined) => {
   const v = value ?? 0;
   return `$${
     v >= 1000

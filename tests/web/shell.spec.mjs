@@ -449,6 +449,131 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+  test("«النموذج» shows seven days of usage, hides a total it cannot price, and leads to the providers", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      const costs = [0, 0.5, 1, 0.25, 0, 2, 0.1];
+      let unpriced = 0;
+      const asked = [];
+      await page.route("**/api/usage/agents**", (route) => {
+        asked.push(new URL(route.request().url()).searchParams.toString());
+        return route.fulfill({
+          json: {
+            days: 7,
+            bucket: "day",
+            agents: [],
+            buckets: costs.map((cost_usd, index) => ({
+              date: `2026-11-${String(5 + index).padStart(2, "0")}`,
+              cost_usd,
+              requests: cost_usd ? 3 : 0,
+              unpriced_requests: index === 2 ? unpriced : 0,
+            })),
+          },
+        });
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${agent.id}`);
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const bars = menu.locator(".mp-bar");
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(bars).toHaveCount(7);
+      expect(asked[0]).toBe(`days=7&bucket=day&agent_id=${agent.id}`);
+      await expect(menu.locator(".p2 .pop-title")).toContainText("آخر 7 أيام");
+      await expect(bars.last()).toHaveClass(/\btoday\b/);
+      // The dearest day fills the height; a day with no cost keeps a sliver.
+      expect(
+        await bars.evaluateAll((all) => all.map((bar) => bar.style.getPropertyValue("--h"))),
+      ).toEqual(["4%", "25%", "50%", "13%", "4%", "100%", "5%"]);
+      await expect(bars.first().locator("small")).toHaveText("خ");
+      await expect(menu.locator(".mp-tot")).toHaveText("$3.85 خلال 7 أيام · دون سقف لهذا الوكيل");
+      await expect(menu.locator(".mp-usage")).toHaveAttribute(
+        "aria-label",
+        "استهلاك آخر 7 أيام: $3.85",
+      );
+      // Requests with no list price: no amount is shown as if it were the whole cost.
+      await chip.click();
+      await expect(menu).toHaveCount(0);
+      unpriced = 4;
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(menu.locator(".mp-tot")).toHaveText([
+        "— خلال 7 أيام · دون سقف لهذا الوكيل",
+        "4 طلبات دون سعر معلن",
+      ]);
+      await expect(bars.nth(2)).toHaveAttribute("title", /: —$/);
+      await menu.getByRole("menuitem", { name: "ربط مزوّد نماذج" }).click();
+      await expect(page).toHaveURL(/\/app\/providers$/);
+      await expect(menu).toHaveCount(0);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("a trading agent with no account is led to choose one, or to link the first", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      // The server gives a trading agent its account when it is created; one whose account
+      // is gone is what this agent looks like on the wire.
+      await page.route("**/api/agents", async (route) => {
+        const response = await route.fetch();
+        const rows = await response.json();
+        return route.fulfill({
+          response,
+          json: rows.map((row) =>
+            row.id === agent.id
+              ? { ...row, template: "trading", trading_account_id: null, trading_symbol: null }
+              : row,
+          ),
+        });
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${agent.id}`);
+      const chip = page.locator("button.no-trade");
+      const sheet = page.locator("#dialog");
+      // The fixture's account is linked: the agent only has to choose it.
+      await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لم يُختر حساب تداول");
+      await chip.click();
+      await expect(sheet.locator(".state-lead")).toContainText("لا يرتبط");
+      await sheet.getByRole("button", { name: "اختيار حساب التداول" }).click();
+      await expect(page).toHaveURL(new RegExp(`/app/identity/${agent.id}$`));
+      await expect(page.locator("select[name=account]")).toBeVisible();
+      // No linked account at all (a switched-off one does not count): link the first.
+      await page.route("**/api/trading/connections", (route) =>
+        route.fulfill({ json: [{ id: "off", payload: { enabled: false }, state: {} }] }),
+      );
+      await page.goto(`/app/${agent.id}`);
+      await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لا يوجد حساب تداول مرتبط");
+      await chip.click();
+      await expect(sheet.locator(".state-lead")).toContainText("لا يوجد حساب تداول مرتبط");
+      await sheet.getByRole("button", { name: "ربط حساب تداول" }).click();
+      await expect(page).toHaveURL(/\/app\/broker$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
 });
 
 test.describe("phone with touch (390×844, Arabic)", () => {

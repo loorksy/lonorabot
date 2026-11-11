@@ -67,7 +67,7 @@ msgid "{0} h ago"
 msgstr "قبل {0} ساعة"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:102
+#: src/conversation/PermissionMenu.tsx:179
 msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
 msgstr "لا يرتبط {0} بحساب تداول، لذلك يعمل دون تنفيذ: يحلّل ويتابع فقط."
 
@@ -98,8 +98,8 @@ msgstr "{0} من {1}"
 
 #. placeholder {0}: summary.usage.requests
 #: src/conversation/PermissionMenu.tsx:483
-msgid "{0} requests · no cap for this agent"
-msgstr "{0} طلبًا · دون سقف لهذا الوكيل"
+#~ msgid "{0} requests · no cap for this agent"
+#~ msgstr "{0} طلبًا · دون سقف لهذا الوكيل"
 
 #. placeholder {0}: totals.unpriced_requests
 #: src/shell/settings/UsagePage.tsx:436
@@ -225,6 +225,10 @@ msgstr "{symbol} فقط: كل الإجراءات وصفقاتك أنت حتى ا
 msgid "{typingName} is typing…"
 msgstr "{typingName} يكتب…"
 
+#: src/conversation/PermissionMenu.tsx:605
+msgid "{unpriced} requests have no list price"
+msgstr "{unpriced} طلبات دون سعر معلن"
+
 #: src/shell/settings/IntegrationsPage.tsx:39
 msgid "{writes} non-financial write"
 msgstr "{writes} كتابة غير مالية"
@@ -241,6 +245,10 @@ msgstr "<0>{0}</0> توكن أُعيد استخدامها"
 #: src/shell/settings/UsagePage.tsx:613
 msgid "<0>{share}%</0> of the total"
 msgstr "<0>{share}%</0> من الإجمالي"
+
+#: src/conversation/PermissionMenu.tsx:599
+msgid "<0>{total}</0> over 7 days · no cap for this agent"
+msgstr "<0>{total}</0> خلال 7 أيام · دون سقف لهذا الوكيل"
 
 #: src/conversation/sheets/MandateSheet.tsx:43
 msgid "12 hours"
@@ -844,7 +852,7 @@ msgstr "حدث خطأ غير متوقع"
 msgid "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 msgstr "حدث خطأ غير متوقع أثناء العرض. بياناتك محفوظة ولم يُفقد شيء."
 
-#: src/conversation/PermissionMenu.tsx:35
+#: src/conversation/PermissionMenu.tsx:44
 msgid "Analyses and follows the market without sending any order."
 msgstr "يحلّل السوق ويتابعه دون إرسال أي أمر."
 
@@ -1033,8 +1041,8 @@ msgstr "المصادقة"
 msgid "Auto-lock"
 msgstr "القفل التلقائي"
 
-#: src/conversation/PermissionMenu.tsx:246
-#: src/conversation/PermissionMenu.tsx:444
+#: src/conversation/PermissionMenu.tsx:290
+#: src/conversation/PermissionMenu.tsx:488
 msgid "Automatic"
 msgstr "تلقائي"
 
@@ -1099,7 +1107,7 @@ msgctxt "task status"
 msgid "Awaiting review"
 msgstr "بانتظار المراجعة"
 
-#: src/conversation/PermissionMenu.tsx:318
+#: src/conversation/PermissionMenu.tsx:362
 #: src/pages/shell/bot-panel.tsx:277
 #: src/shell/ChatHeader.tsx:125
 #: src/shell/sheets/SheetHost.tsx:580
@@ -1121,7 +1129,7 @@ msgstr "العودة إلى المحادثات"
 #~ msgid "Back to conversations"
 #~ msgstr "العودة إلى المحادثات"
 
-#: src/conversation/PermissionMenu.tsx:426
+#: src/conversation/PermissionMenu.tsx:470
 msgid "Back to the permissions"
 msgstr "رجوع إلى الصلاحيات"
 
@@ -1510,7 +1518,7 @@ msgstr "تغيير الرمز"
 msgid "Change the model"
 msgstr "تغيير النموذج"
 
-#: src/conversation/PermissionMenu.tsx:324
+#: src/conversation/PermissionMenu.tsx:368
 msgid "Change the permission level"
 msgstr "تغيير مستوى الصلاحية"
 
@@ -1778,7 +1786,7 @@ msgstr "اختر المزود أولاً"
 msgid "Choose the task's date."
 msgstr "اختر تاريخ المهمة."
 
-#: src/conversation/PermissionMenu.tsx:115
+#: src/conversation/PermissionMenu.tsx:202
 msgid "Choose the trading account"
 msgstr "اختيار حساب التداول"
 
@@ -1883,7 +1891,7 @@ msgstr "الإغلاق مسموح"
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
 
-#: src/conversation/PermissionMenu.tsx:304
+#: src/conversation/PermissionMenu.tsx:348
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا."
 
@@ -2018,7 +2026,7 @@ msgid "Confirm the installation."
 msgstr "أكّد التثبيت."
 
 #. placeholder {0}: levelName(page.level)
-#: src/conversation/PermissionMenu.tsx:352
+#: src/conversation/PermissionMenu.tsx:396
 msgid "Confirm: {0}"
 msgstr "تأكيد: {0}"
 
@@ -2030,7 +2038,7 @@ msgstr "تأكيد: {0}"
 msgid "Connect a broker account before creating a trading agent."
 msgstr "اربط حساب الوسيط قبل إنشاء بوت التداول."
 
-#: src/conversation/PermissionMenu.tsx:499
+#: src/conversation/PermissionMenu.tsx:532
 msgid "Connect a model provider"
 msgstr "ربط مزوّد نماذج"
 
@@ -2409,7 +2417,7 @@ msgstr "افتراضي"
 msgid "Default market"
 msgstr "سوق افتراضي"
 
-#: src/conversation/PermissionMenu.tsx:30
+#: src/conversation/PermissionMenu.tsx:39
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Delegated execution"
 msgstr "تنفيذ مفوَّض"
@@ -2966,11 +2974,11 @@ msgstr "كل حسابات التداول المرتبطة تستجيب طبيع�
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "أي قائمة تنشئها تصير فلترًا أعلى قائمة المحادثات."
 
-#: src/conversation/PermissionMenu.tsx:357
+#: src/conversation/PermissionMenu.tsx:401
 msgid "Every order is shown to you for approval before it is sent"
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله"
 
-#: src/conversation/PermissionMenu.tsx:36
+#: src/conversation/PermissionMenu.tsx:45
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله."
 
@@ -2987,11 +2995,11 @@ msgstr "متحمس"
 msgid "Execute"
 msgstr "تنفيذ"
 
-#: src/conversation/PermissionMenu.tsx:29
+#: src/conversation/PermissionMenu.tsx:38
 msgid "Execute with approval"
 msgstr "تنفيذ بموافقة"
 
-#: src/conversation/PermissionMenu.tsx:37
+#: src/conversation/PermissionMenu.tsx:46
 msgid "Executes within a mandate signed with your passkey and within the account's limits."
 msgstr "ينفّذ ضمن تفويض موقَّع بمفتاح المرور وضمن حدود الحساب."
 
@@ -3645,7 +3653,7 @@ msgstr "يبدأ بمستوى «تنفيذ بموافقة»: يُعرض عليك
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته."
 
-#: src/conversation/PermissionMenu.tsx:356
+#: src/conversation/PermissionMenu.tsx:400
 msgid "It stops executing and only analyses and follows"
 msgstr "يتوقف عن التنفيذ ويكتفي بالتحليل والمتابعة"
 
@@ -3666,7 +3674,7 @@ msgstr "دور ونموذج وصلاحيات خاصة به"
 #~ msgstr "الانتقال إلى الأحدث"
 
 #. placeholder {0}: levelName("autonomous")
-#: src/conversation/PermissionMenu.tsx:364
+#: src/conversation/PermissionMenu.tsx:408
 msgid "Keep «{0}»"
 msgstr "الإبقاء على «{0}»"
 
@@ -3826,6 +3834,7 @@ msgid "Link"
 msgstr "رابط"
 
 #: src/components/trading/BrokerPairPicker.tsx:153
+#: src/conversation/PermissionMenu.tsx:202
 #: src/shell/settings/ConnectionPages.tsx:239
 #: src/shell/settings/IntegrationsPage.tsx:792
 msgid "Link a trading account"
@@ -4023,7 +4032,7 @@ msgstr "إدارة الوكلاء"
 msgid "Manage manual trades"
 msgstr "إدارة الصفقات اليدوية"
 
-#: src/conversation/PermissionMenu.tsx:298
+#: src/conversation/PermissionMenu.tsx:342
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Mandate details"
 msgstr "تفاصيل التفويض"
@@ -4130,7 +4139,7 @@ msgstr "خادم MCP · {0}"
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات الكتابة غير مالية (ملاحظات وتنبيهات)."
 
-#: src/conversation/PermissionMenu.tsx:71
+#: src/conversation/PermissionMenu.tsx:79
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:86
 #: src/shell/agent/GroupPage.tsx:302
@@ -4264,8 +4273,8 @@ msgstr "مكالمة صوتية فائتة"
 msgid "Mode"
 msgstr "الوضع"
 
-#: src/conversation/PermissionMenu.tsx:282
-#: src/conversation/PermissionMenu.tsx:432
+#: src/conversation/PermissionMenu.tsx:326
+#: src/conversation/PermissionMenu.tsx:476
 #: src/pages/shell/bot-panel.tsx:226
 #: src/shell/agent/IdentityPage.tsx:211
 #: src/shell/settings/ConnectionPages.tsx:758
@@ -4533,7 +4542,7 @@ msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمن
 msgid "No candles for this timeframe yet."
 msgstr "لا توجد شموع لهذا الإطار الزمني بعد."
 
-#: src/conversation/PermissionMenu.tsx:367
+#: src/conversation/PermissionMenu.tsx:411
 #: src/shell/settings/UsagePage.tsx:68
 msgid "No change"
 msgstr "دون تغيير"
@@ -4555,14 +4564,18 @@ msgstr "لا توجد محادثات."
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
-#: src/conversation/PermissionMenu.tsx:28
-#: src/conversation/PermissionMenu.tsx:95
+#: src/conversation/PermissionMenu.tsx:37
+#: src/conversation/PermissionMenu.tsx:171
 msgid "No execution"
 msgstr "دون تنفيذ"
 
-#: src/conversation/PermissionMenu.tsx:91
+#: src/conversation/PermissionMenu.tsx:165
 msgid "No execution: no trading account is chosen"
 msgstr "دون تنفيذ: لم يُختر حساب تداول"
+
+#: src/conversation/PermissionMenu.tsx:166
+msgid "No execution: no trading account is linked"
+msgstr "دون تنفيذ: لا يوجد حساب تداول مرتبط"
 
 #: src/pages/RoutineRunHistory.tsx:47
 #~ msgid "No executions yet"
@@ -4753,7 +4766,7 @@ msgstr "دون أدوات"
 msgid "No tools."
 msgstr "لا أدوات."
 
-#: src/conversation/PermissionMenu.tsx:82
+#: src/conversation/PermissionMenu.tsx:90
 msgid "No trading"
 msgstr "لا يتداول"
 
@@ -4769,6 +4782,11 @@ msgstr "دون تنفيذ · تحليل ومتابعة"
 #: src/shell/agent/AgentPage.tsx:321
 msgid "No trading account chosen · choose an account"
 msgstr "لم يُختر حساب تداول · اختر حسابًا"
+
+#. placeholder {0}: agent.name
+#: src/conversation/PermissionMenu.tsx:184
+msgid "No trading account is linked, so {0} works without execution: it analyses and follows only."
+msgstr "لا يوجد حساب تداول مرتبط، لذلك يعمل {0} دون تنفيذ: يحلّل ويتابع فقط."
 
 #: src/shell/settings/ConnectionPages.tsx:236
 msgid "No trading account is linked."
@@ -5359,22 +5377,22 @@ msgstr "الفترة"
 msgid "Permission"
 msgstr "الصلاحية"
 
-#: src/conversation/PermissionMenu.tsx:165
+#: src/conversation/PermissionMenu.tsx:128
 msgid "Permission level"
 msgstr "مستوى الصلاحية"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:252
+#: src/conversation/PermissionMenu.tsx:296
 msgid "Permission level · {0}"
 msgstr "مستوى الصلاحية · {0}"
 
-#: src/conversation/PermissionMenu.tsx:142
+#: src/conversation/PermissionMenu.tsx:105
 #: src/conversation/ToolsSheet.tsx:186
 msgid "Permission unknown"
 msgstr "الصلاحية غير معروفة"
 
 #. placeholder {0}: levelName(next)
-#: src/conversation/PermissionMenu.tsx:228
+#: src/conversation/PermissionMenu.tsx:272
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
@@ -5387,7 +5405,7 @@ msgid "Permissions are independent for each agent"
 msgstr "الصلاحيات مستقلة لكل وكيل"
 
 #. placeholder {0}: levelName(level)
-#: src/conversation/PermissionMenu.tsx:152
+#: src/conversation/PermissionMenu.tsx:115
 msgid "Permissions: {0}"
 msgstr "الصلاحيات: {0}"
 
@@ -6182,7 +6200,7 @@ msgid "Running"
 msgstr "جارٍ التنفيذ"
 
 #. placeholder {0}: current.name
-#: src/conversation/PermissionMenu.tsx:448
+#: src/conversation/PermissionMenu.tsx:492
 msgid "Running on «{0}» now · the routing picks the best fit for each task"
 msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنسب لكل مهمة"
 
@@ -7606,7 +7624,7 @@ msgstr "رُفع القيد"
 msgid "The result is no longer available."
 msgstr "لم تعد النتيجة متاحة."
 
-#: src/conversation/PermissionMenu.tsx:449
+#: src/conversation/PermissionMenu.tsx:493
 msgid "The routing picks the best fit for each task"
 msgstr "يختار التوجيه الأنسب لكل مهمة"
 
@@ -7646,7 +7664,7 @@ msgstr "تغيّر مخطط الخادم. راجع الأدوات قبل اعت�
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/conversation/PermissionMenu.tsx:332
+#: src/conversation/PermissionMenu.tsx:376
 msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "يُلغى التفويض الموقَّع، ويتطلّب الرجوع إليه توقيعًا جديدًا."
 
@@ -7708,7 +7726,7 @@ msgstr "تعذر اتصال الصوت. أعد محاولة المكالمة."
 #~ msgid "Theme"
 #~ msgstr "المظهر"
 
-#: src/conversation/PermissionMenu.tsx:118
+#: src/conversation/PermissionMenu.tsx:205
 msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
 msgstr "بعدها تظهر مستويات الصلاحية بجانب حقل الكتابة: دون تنفيذ · تنفيذ بموافقة · تنفيذ مفوَّض."
 
@@ -8411,8 +8429,17 @@ msgstr "تفاصيل الاستهلاك"
 #. placeholder {0}: agent.name
 #. placeholder {1}: summary.usage.days
 #: src/conversation/PermissionMenu.tsx:478
-msgid "Usage of {0} · last {1} days"
-msgstr "استهلاك {0} · آخر {1} يومًا"
+#~ msgid "Usage of {0} · last {1} days"
+#~ msgstr "استهلاك {0} · آخر {1} يومًا"
+
+#. placeholder {0}: agent.name
+#: src/conversation/PermissionMenu.tsx:559
+msgid "Usage of {0} · last 7 days"
+msgstr "استهلاك {0} · آخر 7 أيام"
+
+#: src/conversation/PermissionMenu.tsx:583
+msgid "Usage over the last 7 days: {total}"
+msgstr "استهلاك آخر 7 أيام: {total}"
 
 #: src/shell/settings/UsagePage.tsx:343
 msgid "Use the arrows to move between the columns."
