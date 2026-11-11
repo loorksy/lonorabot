@@ -556,7 +556,7 @@ export function Message({
           {!card && (
             <span className="meta">
               {note}
-              {!outgoing && <time dateTime={message.created_at}>{clock(message.created_at)}</time>}
+              <time dateTime={message.created_at}>{clock(message.created_at)}</time>
               <Ticks message={message} />
             </span>
           )}
