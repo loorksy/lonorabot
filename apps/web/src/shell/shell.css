@@ -1505,7 +1505,7 @@ html[dir="ltr"] .sheet-page.go-back {
   font-size: var(--fs-sm);
   font-weight: 600;
   text-align: center;
-  transform: translateX(-50%);
+  translate: -50%;
 }
 #toast.show {
   display: flex;
@@ -1514,11 +1514,7 @@ html[dir="ltr"] .sheet-page.go-back {
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%);
+    transform: translateY(-4px);
   }
 }
 #toast .t-ic {

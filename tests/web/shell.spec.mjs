@@ -298,9 +298,128 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+  test("popover menus: Back and Escape leave «النموذج» first, then close; the chip toggles its menu", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/app");
+      await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`/app/${agent.id}`));
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const pages = menu.locator(".mp-pages");
+      // Back closes the menu and stays in the chat.
+      await chip.click();
+      await expect(menu).toBeVisible();
+      await page.goBack();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      // From «النموذج», Back returns to the first page, then closes the menu.
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await page.goBack();
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu.locator(".mp-model-row")).toBeFocused();
+      await page.goBack();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      // Escape does the same, and a second tap on the chip closes its menu.
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await page.keyboard.press("Escape");
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu).toBeVisible();
+      await chip.click();
+      await expect(menu).toHaveCount(0);
+      // Menus closed in the page leave no dead Back: one Back leaves the chat.
+      await page.goBack();
+      await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
+test.describe("phone with touch (390×844, Arabic)", () => {
+  test.use({ hasTouch: true });
+  test("the tap that dismisses the chip menu does not also go back", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const back = page.locator(".chat-back");
+      await chip.tap();
+      await expect(menu).toBeVisible();
+      await back.tap();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      await back.tap();
+      await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
 });
 
 test.describe("desktop shell (1280×800, Arabic)", () => {
+  test("the press that dismisses the list menu does not open the row beneath", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/app");
+      const more = page.locator(".desktop-list [aria-haspopup=menu]");
+      const menu = page.locator(".pop[role=menu]");
+      const row = page.locator(`.desktop-list [data-inbox-agent-id="${trading.agent.id}"]`);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await more.click();
+      await expect(menu).toHaveCount(0);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await row.click();
+      await expect(menu).toHaveCount(0);
+      await expect(page).toHaveURL(/\/app$/);
+      await row.click();
+      await expect(page).toHaveURL(new RegExp(`/app/${trading.agent.id}`));
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+
   for (const theme of ["dark", "light"]) {
     test(`rail, list pane, welcome and the solid header (${theme})`, async ({ page, context }) => {
       const data = fixture({ action: "init", empty: true });

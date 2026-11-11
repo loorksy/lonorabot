@@ -93,6 +93,14 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   await page.goto(`/app/new-schedule?agent=${agent.id}`);
   let form = page.locator('form[data-form="schedule"]');
   await form.getByLabel("Task", { exact: true }).fill(`${prefix} brief`);
+  // The select menu pops in like the reference's (opacity and a 4px rise).
+  const repeat = form.getByRole("button", { name: /^Repeat: / });
+  await repeat.click();
+  const popup = page.locator(".select-popup");
+  await expect(popup).toBeVisible();
+  expect(await popup.evaluate((node) => getComputedStyle(node).animationName)).toBe("pop-in");
+  await repeat.click();
+  await expect(popup).toHaveCount(0);
   await form.getByLabel("Repeat", { exact: true }).selectOption("workdays");
   await form.getByLabel("Time", { exact: true }).fill("07:15");
   let created = saved(page, "POST", new RegExp(`^/api/routines/${agent.id}$`));

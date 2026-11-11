@@ -10,10 +10,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { useOverlayHistory } from "../../hooks/useOverlayHistory";
 
 /* The reference's popover menu (openPop): glass, fixed beside its anchor (below unless it
    does not fit), the first item focused; a press outside, a scroll, a resize or Escape
-   closes it. One at a time. */
+   closes it, and the press that closes it does nothing else. One at a time. It takes one
+   history layer: Back and Escape return from a second page (usePopoverPage), else close. */
 type Pop = {
   anchor: HTMLElement;
   body: ReactNode;
@@ -21,6 +23,7 @@ type Pop = {
   serial: number;
   cls?: string;
   above?: boolean;
+  match?: boolean;
   onClose?: () => void;
 };
 type Api = {
@@ -28,9 +31,11 @@ type Api = {
     anchor: HTMLElement,
     body: ReactNode,
     label: string,
-    extra?: { cls?: string; above?: boolean; onClose?: () => void },
+    extra?: { cls?: string; above?: boolean; match?: boolean; onClose?: () => void },
   ) => void;
   close: () => void;
+  back: () => boolean;
+  page: { current: (() => void) | null };
 };
 const Context = createContext<Api | null>(null);
 
@@ -38,14 +43,33 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
   const [pop, setPop] = useState<Pop | null>(null);
   const element = useRef<HTMLDivElement>(null);
   const serial = useRef(0);
+  const shown = useRef<Pop | null>(null);
+  const page = useRef<(() => void) | null>(null);
   const close = useCallback(() => setPop(null), []);
   const open = useCallback<Api["open"]>((anchor, body, label, extra) => {
     serial.current += 1;
-    setPop({ anchor, body, label, serial: serial.current, ...extra });
+    const next = { anchor, body, label, serial: serial.current, ...extra };
+    // A menu button toggles its own menu.
+    setPop((current) =>
+      current?.anchor === anchor && anchor.matches("[aria-haspopup]") ? null : next,
+    );
   }, []);
+  const back = useCallback(() => {
+    const current = shown.current;
+    if (!current) return false;
+    if (page.current) page.current();
+    else {
+      close();
+      current.anchor.focus({ preventScroll: true });
+    }
+    return true;
+  }, [close]);
+  useOverlayHistory(pop !== null, close);
   useLayoutEffect(() => {
+    shown.current = pop;
     const el = element.current;
     if (!pop || !el) return;
+    if (pop.match) el.style.minWidth = `${Math.round(pop.anchor.getBoundingClientRect().width)}px`;
     const r = pop.anchor.getBoundingClientRect();
     const w = el.offsetWidth;
     const h = el.offsetHeight;
@@ -84,6 +108,20 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       const target = event.target as Node | null;
       if (element.current?.contains(target) || pop.anchor.contains(target)) return;
       close();
+      // The click that follows this press only dismisses: it must not reach the row beneath.
+      const swallow = (click: Event) => {
+        click.preventDefault();
+        click.stopPropagation();
+      };
+      const release = () => {
+        document.removeEventListener("click", swallow, true);
+        document.removeEventListener("pointerup", settle, true);
+        document.removeEventListener("pointercancel", release, true);
+      };
+      const settle = () => setTimeout(release);
+      document.addEventListener("click", swallow, { capture: true, once: true });
+      document.addEventListener("pointerup", settle, { capture: true, once: true });
+      document.addEventListener("pointercancel", release, { capture: true, once: true });
     };
     const scrolled = (event: Event) => {
       if (!element.current?.contains(event.target as Node | null)) close();
@@ -95,8 +133,7 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      close();
-      pop.anchor.focus({ preventScroll: true });
+      back();
     };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("scroll", scrolled, true);
@@ -108,8 +145,8 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("resize", resized);
       window.removeEventListener("keydown", onEscape, true);
     };
-  }, [pop, close]);
-  const api = useMemo(() => ({ open, close }), [open, close]);
+  }, [pop, close, back]);
+  const api = useMemo(() => ({ open, close, back, page }), [open, close, back]);
   return (
     <Context.Provider value={api}>
       {children}
@@ -128,10 +165,29 @@ export function PopoverProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function usePopover() {
+function usePopoverContext() {
   const value = useContext(Context);
   if (!value) throw new Error("popover_context_missing");
   return value;
+}
+
+export function usePopover(): Omit<Api, "page"> {
+  return usePopoverContext();
+}
+
+/** A second page inside the open popover: Back and Escape return from it to the first page. */
+export function usePopoverPage(open: boolean, onBack: () => void) {
+  const { page } = usePopoverContext();
+  const latest = useRef(onBack);
+  latest.current = onBack;
+  useOverlayHistory(open, onBack);
+  useEffect(() => {
+    if (!open) return;
+    page.current = () => latest.current();
+    return () => {
+      page.current = null;
+    };
+  }, [open, page]);
 }
 
 export function PopItem({
