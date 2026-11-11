@@ -95,7 +95,11 @@ def test_creation_tools_are_not_financial_and_helpers_cannot_reach_them() -> Non
     for name in STEERING:
         tool = registry.tools[name]
         assert not tool.financial and not tool.read_only and tool.replay_safe, name
-        assert tool.toolset == "market" and not tool.eager, name
+        # Stopping a watch is offered beside creating one; the other steering stays long-tail.
+        assert tool.toolset == "market", name
+        assert tool.eager == (
+            registry.tools["watch_create"].eager if name == "watch_cancel" else frozenset()
+        ), name
         assert tool.permitted("observe_only") and not tool.permitted("helper"), name
     assert "own" in registry.tools["routine_toggle"].description
 
