@@ -1,6 +1,6 @@
 # Status for the next agent — T7, UI phase 6 (calls), branch `ui/phase-6-calls`
 
-Web only: no backend change and no migration (reserved id 0059 unused). No PR is open yet.
+Web only: no backend change and no migration (reserved id 0059 unused).
 
 ## Finished
 - **call.screen** `/app/call`: `apps/web/src/shell/call/CallPages.tsx` (`CallPage`, `CallHeader`,
@@ -29,13 +29,13 @@ Web only: no backend change and no migration (reserved id 0059 unused). No PR is
   No extra toast.
 
 ## Open
-1. Open the PR into main and run the final gate once: `pytest tests -q` on a fresh `*_test` DB;
-   `pnpm lint`, `pnpm check`, `pnpm build`, `pnpm --filter @lonora/web i18n`; the full Playwright web suite.
+None on this branch. The local gate has run; GitHub Actions jobs still end with zero steps.
 
 ## Last test runs (fresh `_ci` DB, `LONORA_UI_TEST_BROWSER_PATH=/usr/bin/google-chrome`)
-- `npx playwright test tests/web/calls.spec.mjs` → 4/4; `tests/web/voice.spec.mjs` → 1/1.
-- `npx playwright test --trace off` (full web) → 149 passed, 10 failed: 7 known baselines
-  (agent-permissions:391, group-status:14, skills-management:122, visual-response:64 ×4);
-  avatar-studio:6, owner-actions:326, workspace:414 passed 5/5 when rerun alone.
-- `npx tsx --test tests/web/shell-routes.test.ts` → 3/3; tsc, biome, i18n clean (0 missing Arabic).
-- pytest not run (no Python touched).
+- Local gate `docs/handoff/gate/gate.sh`: install, lint, check, build, web unit, migrate,
+  pytest and the eight named checks all rc=0. Playwright 194 passed, 10 failed (20.2m).
+- The 10: account-authority en:131 and the bounded WebAuthn case (cleanup DELETE timeout;
+  both passed when rerun alone), calls Q58 before the aria-disabled click (fixed; `calls.spec`
+  then 4/4), and the same four baselines as main (agent-permissions account-wide unsigned,
+  group-status:14, skills-management:122, visual-response:64 ×4).
+- i18n extract: Arabic 0 missing.
