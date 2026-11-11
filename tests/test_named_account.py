@@ -108,3 +108,55 @@ async def test_a_call_that_names_no_account_means_the_only_one_or_asks_which(
     assert await prepare_market_arguments(
         context, "task_inspect", {"account_id": "x"}, NeedsAccount
     ) == ({"account_id": "x"}, None)
+
+
+@pytest.mark.asyncio
+async def test_a_name_travels_the_whole_way_through_a_market_tool(task_db: Fixture) -> None:
+    """Preparation, validation, the market guard, the handler, then the note in the result."""
+    from lonora_adapter_kit.types import ToolCall
+    from lonora_tools.base import Tool
+    from lonora_tools.registry import ToolRegistry
+
+    db, owner, agent, _thread = task_db
+    gold = await account(db, owner, login="12345", broker="Exness Technologies Ltd", name="Ahmed")
+    await account(db, owner, login="777", broker="Other Markets", name="Second")
+    seen: list[dict[str, Any]] = []
+
+    async def handler(_: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+        seen.append(args)
+        return {"read": args["account_id"]}
+
+    read = Tool("market_probe", "A read of one account", NeedsAccount, handler, True)
+    write = Tool("watch_probe", "A change on one account", NeedsAccount, handler)
+    registry = ToolRegistry([read, write])
+
+    def for_call(_: str) -> None:
+        return None
+
+    context = cast(
+        ToolContext, SimpleNamespace(db=db, owner_id=owner, agent_id=agent, for_call=for_call)
+    )
+    result = await registry.dispatch(
+        read, ToolCall(id="r", name="market_probe", arguments={"account_id": "exness"}), context
+    )
+    assert seen == [{"account_id": gold}] and result["read"] == gold
+    assert result["reference_resolution"] == [
+        {
+            "argument": "account_id",
+            "requested": "exness",
+            "id": gold,
+            "label": "Exness Technologies Ltd",
+        }
+    ]
+    # The same words on a change reach no handler.
+    with pytest.raises(NotResolved) as refused:
+        await registry.dispatch(
+            write, ToolCall(id="w", name="watch_probe", arguments={"account_id": "exness"}), context
+        )
+    assert len(seen) == 1
+    assert refused.value.details["next_actions"] == [{"repeat_with": {"account_id": gold}}]
+    # The id is the id: nothing is stated.
+    plain = await registry.dispatch(
+        write, ToolCall(id="i", name="watch_probe", arguments={"account_id": gold}), context
+    )
+    assert plain == {"read": gold}
