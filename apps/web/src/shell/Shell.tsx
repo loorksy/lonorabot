@@ -341,7 +341,7 @@ function ShellBody() {
       ? turnActivity(currentRun, events).avatar
       : liveAvatarState(liveState)
     : undefined;
-  const section = sectionOf(route);
+  const section = sectionOf(route, location.search);
   const conversation = route.kind === "chat" || route.kind === "group";
   /* Phase 6: the call screen is the expanded call. On /app/call it is open; leaving the route
      folds it; expanding it anywhere else (the strip, the header's call) opens the route and
