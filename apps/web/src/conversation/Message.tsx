@@ -6,10 +6,12 @@ import { type ReactNode, useRef } from "react";
 import { SubmitMark } from "../components/genui";
 import type { Agent, Message as ApiMessage, Resource } from "../lib/api";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
+import { CommandChip } from "./commands";
 import {
   type ConversationMessage,
   callPart,
   clock,
+  commandPart,
   partsOf,
   speakerColor,
   useConversation,
@@ -333,6 +335,7 @@ export function Message({
   const outgoing = isOutgoingMessage(message) ? message : undefined;
   const failed = outgoing?.delivery === "failed";
   const voice = voicePart(message);
+  const command = mine ? commandPart(message) : null;
   const genUi =
     !mine &&
     (hasGenUi(message) ||
@@ -371,6 +374,22 @@ export function Message({
   if (card) body = card;
   else if (submitted) body = <GenUiSubmitQuote message={message} />;
   else if (voice) body = <VoiceNote part={voice} messageId={message.id} />;
+  else if (command)
+    // A / command the server kept: its chip, then the owner's words after it.
+    body = (
+      <span className="text">
+        <CommandChip part={command} />
+        {command.argument ? (
+          <>
+            {" "}
+            <TextBody text={command.argument} agent={false} mentions={ctx.mentions} />
+          </>
+        ) : (
+          command.name === "summary" &&
+          ` ${t({ message: "the conversation", context: "summary command" })}`
+        )}
+      </span>
+    );
   else if (genUi)
     body = (
       <GenUiPart

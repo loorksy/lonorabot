@@ -62,6 +62,7 @@ import {
   type ConversationApi,
   ConversationContext,
   type ConversationMessage,
+  commandPart,
   type MessageReaction,
   REACTIONS,
   voicePart,
@@ -549,6 +550,8 @@ export function Conversation({
         message.role === "user" &&
         !message.attachment_ids.length &&
         !voicePart(message) &&
+        // An edit is sent as plain text: a command is resent from the composer instead.
+        !commandPart(message) &&
         !message.superseded_by &&
         message.origin !== "ui_submit";
       popover.open(

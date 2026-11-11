@@ -728,7 +728,8 @@ function ShellBody() {
   const title = routeTitle(route, agent, group);
   const onNewTask = useCallback(() => nav.go("/app/tasks?new=1"), [nav]);
   const onOpenChart = useCallback((id: string) => menu.openChart(id), [menu]);
-  // The conversation's own controls ask the shell for the call, the chart and the members.
+  // The conversation's own controls ask the shell for the call, the chart, the members and
+  // the clear confirm.
   useEffect(() => {
     const call = () => {
       if (voice.target) voice.expand();
@@ -736,13 +737,16 @@ function ShellBody() {
     };
     const chart = () => menu.openChart();
     const members = () => menu.openMembers();
+    const clear = () => menu.confirmClear();
     window.addEventListener("lonora:start-call", call);
     window.addEventListener("lonora:open-chart", chart);
     window.addEventListener("lonora:members-permissions", members);
+    window.addEventListener("lonora:clear-chat", clear);
     return () => {
       window.removeEventListener("lonora:start-call", call);
       window.removeEventListener("lonora:open-chart", chart);
       window.removeEventListener("lonora:members-permissions", members);
+      window.removeEventListener("lonora:clear-chat", clear);
     };
   }, [voice, agent, location.search, menu]);
   const header = conversation ? (

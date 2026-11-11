@@ -281,5 +281,5 @@ export function useChatMenu({
     waiting.current = null;
     if (anchor.isConnected) openMenu(anchor);
   }, [openMenu, agent, group]);
-  return { openMenu, openInfo, openChart, openMembers };
+  return { openMenu, openInfo, openChart, openMembers, confirmClear };
 }

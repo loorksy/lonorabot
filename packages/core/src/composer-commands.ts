@@ -81,7 +81,7 @@ function score(option: CommandOption, query: string): number | null {
  * The options a query matches: commands before skills, then the better match, then the given
  * order. Null when the query has run past a whole name, so the list closes.
  */
-export function rankCommands(options: CommandOption[], query: string): CommandOption[] | null {
+export function rankCommands<T extends CommandOption>(options: T[], query: string): T[] | null {
   const wanted = foldSearch(query);
   if (!wanted) return options;
   const ranked = options
@@ -119,10 +119,10 @@ function typed(body: string, label: string): number | null {
  * ends in `text`. The longest name or alias wins. A command that takes no text is not one
  * when text follows it, so nothing the owner typed is dropped.
  */
-export function parseCommand(
+export function parseCommand<T extends CommandOption>(
   text: string,
-  options: CommandOption[],
-): { option: CommandOption; argument: string; start: number; end: number } | null {
+  options: T[],
+): { option: T; argument: string; start: number; end: number } | null {
   const start = new RegExp(`^[${MARKS}\\s]*`).exec(text)?.[0].length ?? 0;
   if (text[start] !== "/") return null;
   const body = text.slice(start + 1);

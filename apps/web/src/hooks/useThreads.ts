@@ -1,4 +1,4 @@
-import type { InputAnswer } from "@lonora/contracts";
+import type { InputAnswer, MessageCommand } from "@lonora/contracts";
 import {
   isPlainOutgoing,
   type MentionAddress,
@@ -242,6 +242,7 @@ export function useThreads(
     extra?: {
       edited_from?: string;
       voice?: { artifact_id: string; duration: number; peaks: number[] };
+      command?: MessageCommand;
     },
   ): OutgoingIntent {
     if (!threadId) throw new Error("thread_not_found");

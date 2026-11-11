@@ -17,7 +17,7 @@ export function partsOf(message: Message): Array<{ type: string } & Record<strin
   const parts = (message.rich_content as { parts?: unknown } | null | undefined)?.parts;
   return Array.isArray(parts) ? (parts as Array<{ type: string } & Record<string, unknown>>) : [];
 }
-export { callPart, voicePart } from "@lonora/core";
+export { callPart, commandPart, voicePart } from "@lonora/core";
 
 /** HH:mm in Latin digits, as the reference's meta row. */
 export const clock = (iso: string | Date) =>

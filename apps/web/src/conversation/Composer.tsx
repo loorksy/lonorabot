@@ -1,19 +1,23 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState } from "@lonora/contracts";
+import type { MessageCommand, PermissionState } from "@lonora/contracts";
 import {
+  commandQuery,
   guestCandidates,
+  highlightRange,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
   mentionCandidates,
   mentionSegments,
+  parseCommand,
+  rankCommands,
   mentionQuery as readMentionQuery,
   rebaseMentions,
   showsTradingControl,
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentAvatar } from "../components/ai/AgentAvatar";
 import type { Agent, Message, Resource } from "../lib/api";
@@ -33,6 +37,7 @@ import { useClient } from "../providers/ClientProvider";
 import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
+import { type CommandRow, useComposerCommands } from "./commands";
 import { speakerColor } from "./context";
 import { snippet } from "./Message";
 import { PermissionChip } from "./PermissionMenu";
@@ -54,6 +59,7 @@ export type ComposerSend = (
   extra?: {
     edited_from?: string;
     voice?: { artifact_id: string; duration: number; peaks: number[] };
+    command?: MessageCommand;
   },
 ) => void;
 
@@ -111,9 +117,14 @@ export function Composer({
   const [mention, setMention] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(0);
+  // What follows a «/» that starts the message; Esc closes its list until the «/» is gone.
+  const [command, setCommand] = useState<string | null>(null);
+  const [commandOff, setCommandOff] = useState(false);
+  const [slashed, setSlashed] = useState(false);
   const [listening, setListening] = useState(false);
   const committed = useRef<MentionRange[]>(initial.current.mentions);
   const caret = useRef(0);
+  const settling = useRef(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
   const micButton = useRef<HTMLButtonElement>(null);
@@ -222,6 +233,16 @@ export function Composer({
     };
   }, []);
 
+  const trading = agent
+    ? agent.template === "trading" ||
+      showsTradingControl({
+        role: agent.role,
+        trading_account_id: agent.trading_account_id,
+        level: permission?.effective_level,
+        grants: permission?.active_authorities.length,
+      })
+    : false;
+
   /* ---- mentions: group members (+ القائد, متوقف); a direct chat: other agents (+ @الكل while
      a collaboration session is open) */
   const memberIds = isGroup
@@ -246,15 +267,60 @@ export function Composer({
     mention !== dismissed &&
     "الكلall".includes(mention.toLowerCase());
   const options_: Array<Agent | null> = [...candidates, ...(all ? [null] : [])];
-  const assistOpen = prefs.assist && options_.length > 0;
-  const active = Math.min(highlight, Math.max(0, options_.length - 1));
 
+  /* ---- / commands: only as the first thing in the message. The list is the same floating
+     list as @; a command that needs text stays in the field as plain text. */
+  const commands = useComposerCommands({
+    threadId,
+    agent,
+    name,
+    isGroup,
+    trading,
+    wanted: slashed,
+  });
+  const ranked =
+    prefs.assist && command !== null && !commandOff ? rankCommands(commands.rows, command) : null;
+  const commandOpen = ranked !== null;
+  const commandRows = ranked ?? [];
+  // An edit or a caption is never a command: it is sent as the text it is.
+  const typedCommand = editing || files.length ? null : parseCommand(text, commands.rows);
+  const assistOpen = commandOpen || (prefs.assist && options_.length > 0);
+  const listed = commandOpen ? commandRows.length : options_.length;
+  const active = Math.min(highlight, Math.max(0, listed - 1));
+
+  const readCommand = (before: string) => {
+    const typed = commandQuery(before);
+    setCommand(typed);
+    if (typed === null) setCommandOff(false);
+    else setSlashed(true);
+  };
   const update = (value: string, position = value.length) => {
     committed.current = rebaseMentions(text, value, committed.current);
     caret.current = position;
     setText(value);
     setMention(readMentionQuery(value.slice(0, position)));
+    readCommand(value.slice(0, position));
     setHighlight(0);
+  };
+  const runCommand = (row: CommandRow) => {
+    if (row.command !== "summary") return commands.run(row.command, form.current);
+    onSend(`/${row.name}`, [], reply?.id ?? null, undefined, { command: { name: "summary" } });
+    if (reply) onClearReply();
+  };
+  const pickCommand = (row: CommandRow) => {
+    // What was typed of the command goes; anything after it stays.
+    const rest = text.slice(caret.current).replace(/^\S*[ \t]*/, "");
+    const position = row.argument ? row.name.length + 2 : 0;
+    // A select event still queued for the text before the pick must not reopen the list.
+    settling.current = true;
+    update(row.argument ? `/${row.name} ${rest}` : rest, position);
+    if (!row.argument) runCommand(row);
+    requestAnimationFrame(() => {
+      settling.current = false;
+      if (!row.argument) return;
+      field.current?.focus();
+      field.current?.setSelectionRange(position, position);
+    });
   };
   const pick = (target: Agent | null) => {
     const before = text.slice(0, caret.current);
@@ -313,15 +379,48 @@ export function Composer({
   const canSend = Boolean(text.trim() || files.length) && !uploading;
   const send = () => {
     if (!canSend) return;
+    const sent = typedCommand?.option;
+    if (
+      sent &&
+      typedCommand &&
+      sent.argument &&
+      sent.command !== "skill" &&
+      !typedCommand.argument
+    ) {
+      // An LRM keeps the «/» before the command's name inside Arabic text.
+      const slash = `\u200e/${sent.name}`;
+      toast(
+        sent.command === "task"
+          ? t`Write the task title after ${slash}`
+          : t`Write what you are looking for after ${slash}`,
+        { type: "warn" },
+      );
+      return;
+    }
     const ids = files.map((file) => file.id);
     const body = text.trim() || (ids.length ? t`Attached files` : "");
-    onSend(body, ids, reply?.id ?? null, mentionAddress(text, committed.current), {
-      ...(editing ? { edited_from: editing.id } : {}),
-    });
+    const message =
+      sent?.command === "task" ||
+      sent?.command === "search" ||
+      sent?.command === "summary" ||
+      sent?.command === "skill"
+        ? {
+            name: sent.command,
+            argument: typedCommand?.argument ?? "",
+            ...(sent.command === "skill" ? { skill_id: sent.id } : {}),
+          }
+        : null;
+    if (sent && !message) runCommand(sent);
+    else
+      onSend(body, ids, reply?.id ?? null, mentionAddress(text, committed.current), {
+        ...(editing ? { edited_from: editing.id } : {}),
+        ...(message ? { command: message } : {}),
+      });
     navigator.vibrate?.(6);
     setText("");
     committed.current = [];
     setMention(null);
+    setCommand(null);
     setFiles([]);
     current.current = { text: "", files: [], mentions: [], reply: null };
     saveComposerDraft(storageKey, current.current);
@@ -437,16 +536,9 @@ export function Composer({
     if (micTip && micBusy) setMicTip(false);
   }, [micTip, micBusy]);
 
-  const trading = agent
-    ? agent.template === "trading" ||
-      showsTradingControl({
-        role: agent.role,
-        trading_account_id: agent.trading_account_id,
-        level: permission?.effective_level,
-        grants: permission?.active_authorities.length,
-      })
-    : false;
   const replyTarget = editing ?? reply;
+  // Where the mirror's ordinary text starts: after a typed command.
+  const shown = typedCommand?.end ?? 0;
   const showSuggestion =
     Boolean(suggestion) &&
     !text.trim() &&
@@ -503,54 +595,120 @@ export function Composer({
       }}
     >
       {assistOpen && (
-        <div className="assist" data-type="mention">
+        <div className="assist" data-type={commandOpen ? "command" : "mention"}>
           <div
             className="as-list"
             role="listbox"
             id={`assist-${threadId}`}
-            aria-label={t`Mention an agent`}
+            aria-label={
+              commandOpen
+                ? t({ message: "Commands", context: "composer list" })
+                : t`Mention an agent`
+            }
           >
-            <div className="as-sec" role="presentation">
-              {isGroup ? (
-                <Trans>Group members</Trans>
-              ) : (
-                <Trans>Bring an agent into the conversation</Trans>
-              )}
-            </div>
-            {options_.map((row, index) => (
-              <button
-                key={row?.id ?? "all"}
-                id={`assist-${threadId}-${index}`}
-                type="button"
-                role="option"
-                aria-selected={index === active}
-                className={`as-row${index === active ? " on" : ""}`}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseMove={() => setHighlight(index)}
-                onClick={() => pick(row)}
-              >
-                {row ? (
-                  <span className="as-av">
-                    <AgentAvatar agent={row} />
-                  </span>
+            {commandOpen && !commandRows.length && (
+              <div className="as-empty">
+                <Trans>No command by that name</Trans>
+              </div>
+            )}
+            {commandRows.map((row, index) => {
+              const skill = row.command === "skill";
+              const mark = command ? highlightRange(row.name, command) : null;
+              return (
+                <Fragment key={row.id}>
+                  {(index === 0 || skill !== (commandRows[index - 1].command === "skill")) && (
+                    <div className="as-sec" role="presentation">
+                      {skill ? (
+                        <Trans>
+                          <bdi>{name}</bdi>'s skills
+                        </Trans>
+                      ) : (
+                        t({ message: "Commands", context: "composer list" })
+                      )}
+                    </div>
+                  )}
+                  <button
+                    id={`assist-${threadId}-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === active}
+                    className={`as-row${index === active ? " on" : ""}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseMove={() => setHighlight(index)}
+                    onClick={() => pickCommand(row)}
+                  >
+                    <span className={`as-ic${row.command === "clear" ? " danger" : ""}`}>
+                      <Icon name={row.icon} />
+                    </span>
+                    <span className="as-body">
+                      <strong>
+                        <span dir="auto">
+                          /
+                          {mark ? (
+                            <>
+                              {row.name.slice(0, mark[0])}
+                              <b>{row.name.slice(mark[0], mark[1])}</b>
+                              {row.name.slice(mark[1])}
+                            </>
+                          ) : (
+                            row.name
+                          )}
+                        </span>
+                        {row.hint && <em>{row.hint}</em>}
+                      </strong>
+                      {row.sub && <small>{row.sub}</small>}
+                    </span>
+                    {row.alias && row.alias !== row.name && (
+                      <span className="as-end ltr">/{row.alias}</span>
+                    )}
+                  </button>
+                </Fragment>
+              );
+            })}
+            {!commandOpen && (
+              <div className="as-sec" role="presentation">
+                {isGroup ? (
+                  <Trans>Group members</Trans>
                 ) : (
-                  <span className="as-ic">
-                    <Icon name="users" />
+                  <Trans>Bring an agent into the conversation</Trans>
+                )}
+              </div>
+            )}
+            {!commandOpen &&
+              options_.map((row, index) => (
+                <button
+                  key={row?.id ?? "all"}
+                  id={`assist-${threadId}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === active}
+                  className={`as-row${index === active ? " on" : ""}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseMove={() => setHighlight(index)}
+                  onClick={() => pick(row)}
+                >
+                  {row ? (
+                    <span className="as-av">
+                      <AgentAvatar agent={row} />
+                    </span>
+                  ) : (
+                    <span className="as-ic">
+                      <Icon name="users" />
+                    </span>
+                  )}
+                  <span className="as-body">
+                    <strong>
+                      <span dir="auto">@{row ? row.name : t`all`}</span>
+                    </strong>
+                    {row && agentRole(row) && <small>{agentRole(row)}</small>}
                   </span>
-                )}
-                <span className="as-body">
-                  <strong>
-                    <span dir="auto">@{row ? row.name : t`all`}</span>
-                  </strong>
-                  {row && agentRole(row) && <small>{agentRole(row)}</small>}
-                </span>
-                {row && (row.id === groupLead || row.paused) && (
-                  <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
-                )}
-              </button>
-            ))}
+                  {row && (row.id === groupLead || row.paused) && (
+                    <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
+                  )}
+                </button>
+              ))}
           </div>
-          {fine() && (
+          {fine() && listed > 0 && (
             <div className="as-foot" aria-hidden="true">
               <span>
                 <kbd>↑</kbd>
@@ -654,13 +812,30 @@ export function Composer({
         )}
         <div className="ta-wrap">
           <div className="ta-mirror" aria-hidden="true" ref={mirror}>
-            {mentionSegments(text, committed.current).map((part, index) =>
+            {typedCommand && (
+              <>
+                {text.slice(0, typedCommand.start)}
+                <mark className="cmd">{text.slice(typedCommand.start, typedCommand.end)}</mark>
+              </>
+            )}
+            {mentionSegments(
+              text.slice(shown),
+              committed.current
+                .filter((range) => range.start >= shown)
+                .map((range) => ({ ...range, start: range.start - shown, end: range.end - shown })),
+            ).map((part, index) =>
               part.mark ? (
                 // biome-ignore lint/suspicious/noArrayIndexKey: the segments of one text, in order
                 <mark key={index}>{part.text}</mark>
               ) : (
                 part.text
               ),
+            )}
+            {typedCommand?.option.hint && !typedCommand.argument && (
+              <span className="ghost">
+                {text.length === typedCommand.end && " "}
+                {typedCommand.option.hint}
+              </span>
             )}
             {"\u200b"}
           </div>
@@ -683,8 +858,10 @@ export function Composer({
               if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
             }}
             onSelect={(event) => {
+              if (settling.current) return;
               caret.current = event.currentTarget.selectionStart;
               setMention(readMentionQuery(text.slice(0, caret.current)));
+              readCommand(text.slice(0, caret.current));
             }}
             onPaste={(event) => {
               const picked = Array.from(event.clipboardData.files);
@@ -694,13 +871,21 @@ export function Composer({
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-              if (assistOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+              if (assistOpen && listed && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                 event.preventDefault();
                 const delta = event.key === "ArrowDown" ? 1 : -1;
-                setHighlight((active + delta + options_.length) % options_.length);
+                setHighlight((active + delta + listed) % listed);
                 return;
               }
-              if (assistOpen && (event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+              const picks = (event.key === "Enter" || event.key === "Tab") && !event.shiftKey;
+              if (commandOpen && picks && commandRows.length) {
+                event.preventDefault();
+                pickCommand(commandRows[active]);
+                return;
+              }
+              // No command by that name: the list closes and Enter sends the text as it is.
+              if (commandOpen && picks) setCommandOff(true);
+              else if (assistOpen && picks) {
                 event.preventDefault();
                 const row = options_[active];
                 if (row !== undefined) pick(row);
@@ -709,7 +894,8 @@ export function Composer({
               if (assistOpen && event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
-                setDismissed(mention);
+                if (commandOpen) setCommandOff(true);
+                else setDismissed(mention);
                 return;
               }
               if (event.key === "Escape" && replyTarget) {
