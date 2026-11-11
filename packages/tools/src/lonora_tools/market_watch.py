@@ -249,6 +249,7 @@ def tools() -> list[Tool]:
             read,
             True,
             poller=True,
+            eager=eager_for("market"),
         ),
         Tool(
             "watch_cancel",
@@ -256,6 +257,7 @@ def tools() -> list[Tool]:
             WatchReference,
             cancel,
             replay_safe=True,
+            eager=eager_for("market"),
         ),
         Tool(
             "watch_pause",
