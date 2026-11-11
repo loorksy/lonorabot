@@ -3,8 +3,8 @@ import { reducedMotion } from "./motion";
 
 /* Layout changes the chrome makes (the tab bar folding, the chats header giving the search its
    room, a sheet changing pages) happen at once; the motion that carries each element from where
-   it was is transform only (FLIP: first, last, invert, play), on the compositor. The chrome moves
-   on the reference's --ease; a sheet's height change keeps its own curve (EASE). */
+   it was is transform only (FLIP: first, last, invert, play), on the compositor, on the
+   reference's --ease. EASE is the curve of a sheet's height change and the desktop list collapse. */
 export const EASE = "cubic-bezier(.2,.8,.2,1)";
 export type FlipItem = {
   el: HTMLElement;
