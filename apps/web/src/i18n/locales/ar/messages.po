@@ -52,7 +52,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:509
+#: src/shell/agent/AgentPage.tsx:507
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
@@ -74,7 +74,7 @@ msgstr "{0} يكتب"
 #. placeholder {0}: (value / 1024).toFixed(1)
 #. placeholder {0}: Math.max(1, Math.ceil(Number(file.payload.size ?? 0) / 1024))
 #. placeholder {0}: kilobytes(row.payload.size)
-#: src/conversation/Composer.tsx:625
+#: src/conversation/Composer.tsx:626
 #: src/shell/domain/FilesPages.tsx:175
 #: src/shell/settings/DevicePages.tsx:103
 msgid "{0} KB"
@@ -262,7 +262,7 @@ msgstr "شريط أعلى الشاشة عند وصول رد في محادثة أ
 msgid "A call rings this device · registered for the passkey"
 msgstr "تصل المكالمة إلى هذا الجهاز · مسجَّل لمفتاح المرور"
 
-#: src/pages/shell/bot-panel.tsx:104
+#: src/pages/shell/bot-panel.tsx:105
 msgid "A capability added to any template, not a separate type"
 msgstr "قدرة تُضاف إلى أي قالب، وليست نوعًا مستقلًا"
 
@@ -322,7 +322,7 @@ msgstr "نغمة قصيرة عند وصول رد"
 msgid "A trade still has no confirmed broker result"
 msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 
-#: src/conversation/sheets/WatchesSheet.tsx:170
+#: src/conversation/sheets/WatchesSheet.tsx:185
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "تنتهي المراقبة تلقائيًا في موعدها، ويمكن إيقافها مؤقتًا أو تمديدها أو إلغاؤها."
 
@@ -476,7 +476,7 @@ msgstr "تم تحديث النشاط"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:556
+#: src/shell/agent/AgentPage.tsx:554
 #: src/shell/agent/GroupPage.tsx:243
 #: src/shell/settings/IntegrationsPage.tsx:268
 #: src/shell/settings/IntegrationsPage.tsx:356
@@ -503,7 +503,7 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/agent/AgentPage.tsx:473
+#: src/shell/agent/AgentPage.tsx:471
 msgid "Add agents to supervise"
 msgstr "إضافة وكلاء للإشراف"
 
@@ -681,7 +681,7 @@ msgstr "معلومات الوكيل"
 msgid "Agent market scope"
 msgstr "نطاق الوكيل"
 
-#: src/pages/shell/bot-panel.tsx:190
+#: src/pages/shell/bot-panel.tsx:191
 msgid "Agent name"
 msgstr "اسم الوكيل"
 
@@ -694,7 +694,7 @@ msgstr "اسم الوكيل"
 msgid "Agent status"
 msgstr "حالة الوكيل"
 
-#: src/pages/shell/bot-panel.tsx:75
+#: src/pages/shell/bot-panel.tsx:76
 msgid "Agent template"
 msgstr "قالب الوكيل"
 
@@ -718,7 +718,7 @@ msgstr "الوكلاء"
 msgid "Agents and groups"
 msgstr "الوكلاء والمجموعات"
 
-#: src/pages/shell/bot-panel.tsx:242
+#: src/pages/shell/bot-panel.tsx:243
 msgid "Agents it supervises"
 msgstr "الوكلاء تحت إشرافه"
 
@@ -735,7 +735,7 @@ msgid "Alert channel"
 msgstr "قناة التنبيه"
 
 #: src/conversation/Composer.tsx:252
-#: src/conversation/Composer.tsx:530
+#: src/conversation/Composer.tsx:531
 msgid "all"
 msgstr "الكل"
 
@@ -998,12 +998,12 @@ msgstr "ملفات مرفقة"
 #~ msgid "Attachment"
 #~ msgstr "مرفق"
 
-#: src/conversation/Composer.tsx:606
+#: src/conversation/Composer.tsx:607
 msgid "Attachments"
 msgstr "المرفقات"
 
-#: src/conversation/Composer.tsx:767
 #: src/conversation/Composer.tsx:768
+#: src/conversation/Composer.tsx:769
 msgid "Attachments and tools"
 msgstr "مرفقات وأدوات"
 
@@ -1025,7 +1025,7 @@ msgstr "القفل التلقائي"
 msgid "Automatic"
 msgstr "تلقائي"
 
-#: src/pages/shell/bot-panel.tsx:228
+#: src/pages/shell/bot-panel.tsx:229
 #: src/shell/agent/IdentityPage.tsx:219
 msgctxt "model"
 msgid "Automatic"
@@ -1087,7 +1087,7 @@ msgid "Awaiting review"
 msgstr "بانتظار المراجعة"
 
 #: src/conversation/PermissionMenu.tsx:318
-#: src/pages/shell/bot-panel.tsx:276
+#: src/pages/shell/bot-panel.tsx:277
 #: src/shell/ChatHeader.tsx:128
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
@@ -1197,7 +1197,7 @@ msgstr "رمز البوت"
 #~ msgid "Bring agents together in a group."
 #~ msgstr "اجمع الوكلاء في مجموعة."
 
-#: src/conversation/Composer.tsx:504
+#: src/conversation/Composer.tsx:505
 msgid "Bring an agent into the conversation"
 msgstr "إشراك وكيل في المحادثة"
 
@@ -1396,7 +1396,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/components/skills/SkillEditor.tsx:141
 #: src/conversation/sheets/AgentSheet.tsx:437
 #: src/conversation/sheets/LimitsSheet.tsx:288
-#: src/conversation/sheets/WatchesSheet.tsx:126
+#: src/conversation/sheets/WatchesSheet.tsx:141
 #: src/pages/Board.tsx:576
 #: src/shell/agent/AvatarSheet.tsx:132
 #: src/shell/agent/TradesPage.tsx:339
@@ -1421,11 +1421,11 @@ msgstr "إلغاء الهدف"
 msgid "Cancel order"
 msgstr "إلغاء الأمر"
 
-#: src/conversation/Composer.tsx:591
+#: src/conversation/Composer.tsx:592
 msgid "Cancel the edit"
 msgstr "إلغاء التعديل"
 
-#: src/conversation/Composer.tsx:591
+#: src/conversation/Composer.tsx:592
 msgid "Cancel the reply"
 msgstr "إلغاء الرد"
 
@@ -1791,7 +1791,7 @@ msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
 #: src/components/common/FilePreviewPanel.tsx:99
-#: src/conversation/Composer.tsx:553
+#: src/conversation/Composer.tsx:554
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
 #: src/pages/shell/bot-settings.tsx:147
@@ -2062,7 +2062,7 @@ msgstr "المحتوى"
 #~ msgid "Context panel"
 #~ msgstr "لوحة السياق"
 
-#: src/conversation/Composer.tsx:1254
+#: src/conversation/Composer.tsx:1257
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
@@ -2220,7 +2220,7 @@ msgctxt "submit"
 msgid "Create task"
 msgstr "إنشاء المهمة"
 
-#: src/pages/shell/bot-panel.tsx:288
+#: src/pages/shell/bot-panel.tsx:290
 msgid "Create the agent"
 msgstr "إنشاء الوكيل"
 
@@ -2429,7 +2429,7 @@ msgstr "حذف المعلومة"
 msgid "Delete the list"
 msgstr "حذف القائمة"
 
-#: src/conversation/Composer.tsx:1227
+#: src/conversation/Composer.tsx:1230
 msgid "Delete the recording"
 msgstr "حذف التسجيل"
 
@@ -2485,7 +2485,7 @@ msgstr "اعتمادية غير متاحة"
 
 #: src/pages/Board.tsx:390
 #: src/pages/Board.tsx:392
-#: src/pages/shell/bot-panel.tsx:201
+#: src/pages/shell/bot-panel.tsx:202
 #: src/pages/shell/bot-settings.tsx:105
 #: src/shell/domain/GoalsKnowledgePages.tsx:131
 #: src/shell/domain/SkillsPages.tsx:316
@@ -2538,7 +2538,7 @@ msgstr "الإملاء غير متاح في هذا المتصفح؛ اضغط م�
 msgid "Dictation needs an internet connection"
 msgstr "الإملاء يحتاج اتصالًا بالإنترنت"
 
-#: src/conversation/Composer.tsx:824
+#: src/conversation/Composer.tsx:825
 msgid "Dictation, or hold to record a voice message"
 msgstr "إملاء صوتي، أو اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -2604,7 +2604,7 @@ msgstr "المسودات والرسائل غير المرسلة"
 msgid "Dreamy"
 msgstr "حالم"
 
-#: src/conversation/Composer.tsx:884
+#: src/conversation/Composer.tsx:885
 msgid "Drop here to attach"
 msgstr "أفلت هنا للإرفاق"
 
@@ -2654,7 +2654,7 @@ msgstr "تعديل"
 msgid "Edit and resend"
 msgstr "تعديل وإعادة الإرسال"
 
-#: src/pages/shell/bot-panel.tsx:172
+#: src/pages/shell/bot-panel.tsx:173
 #: src/pages/shell/bot-settings.tsx:64
 #: src/shell/agent/AgentPage.tsx:200
 #: src/shell/agent/AvatarSheet.tsx:167
@@ -2711,7 +2711,7 @@ msgstr "تعديل الحدود"
 msgid "Edit the list"
 msgstr "تعديل القائمة"
 
-#: src/conversation/Composer.tsx:578
+#: src/conversation/Composer.tsx:579
 msgid "Edit the message"
 msgstr "تعديل الرسالة"
 
@@ -2984,7 +2984,7 @@ msgstr "منتهي الصلاحية"
 msgid "Export CSV"
 msgstr "تصدير CSV"
 
-#: src/conversation/sheets/WatchesSheet.tsx:111
+#: src/conversation/sheets/WatchesSheet.tsx:126
 msgid "Extend two hours"
 msgstr "تمديد ساعتين"
 
@@ -2992,7 +2992,7 @@ msgstr "تمديد ساعتين"
 #~ msgid "Extended by two hours"
 #~ msgstr "مُدّدت ساعتين"
 
-#: src/conversation/sheets/WatchesSheet.tsx:107
+#: src/conversation/sheets/WatchesSheet.tsx:115
 msgid "Extended until {until}"
 msgstr "مُدّدت حتى {until}"
 
@@ -3142,7 +3142,7 @@ msgstr "متابعة السعر المباشر"
 msgid "Follow your agents’ runs and pick up unfinished work."
 msgstr "تابع تنفيذ وكلائك واستكمل العمل غير المنجز."
 
-#: src/pages/shell/bot-panel.tsx:53
+#: src/pages/shell/bot-panel.tsx:54
 msgid "Follows one pair and trades within your permissions"
 msgstr "يتابع زوجًا واحدًا وينفّذ ضمن صلاحياتك"
 
@@ -3211,7 +3211,7 @@ msgstr "تفويض كامل"
 msgid "Full screen"
 msgstr "ملء الشاشة"
 
-#: src/pages/shell/bot-panel.tsx:65
+#: src/pages/shell/bot-panel.tsx:66
 msgid "Gathers information and summarises it without trading"
 msgstr "يجمع المعلومات ويلخّصها دون تنفيذ"
 
@@ -3220,15 +3220,15 @@ msgid "Gathers sources before replying"
 msgstr "يجمع المصادر قبل الرد"
 
 #: src/components/trading/AgentMarketPicker.tsx:29
-#: src/pages/shell/bot-panel.tsx:58
+#: src/pages/shell/bot-panel.tsx:59
 msgid "General agent"
 msgstr "وكيل عام"
 
-#: src/pages/shell/bot-panel.tsx:60
+#: src/pages/shell/bot-panel.tsx:61
 msgid "General role · Flexible scope"
 msgstr "دور عام · نطاق مرن"
 
-#: src/pages/shell/bot-panel.tsx:59
+#: src/pages/shell/bot-panel.tsx:60
 msgid "Gets daily tasks done without a set pair"
 msgstr "ينجز المهام اليومية دون زوج محدد"
 
@@ -3311,7 +3311,7 @@ msgstr "مجموعة من المحددين"
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
-#: src/conversation/Composer.tsx:502
+#: src/conversation/Composer.tsx:503
 msgid "Group members"
 msgstr "أعضاء المجموعة"
 
@@ -3369,7 +3369,7 @@ msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البي
 msgid "Hold the microphone to record, release to send."
 msgstr "اضغط مطولًا على الميكروفون للتسجيل، وأفلت للإرسال."
 
-#: src/conversation/Composer.tsx:941
+#: src/conversation/Composer.tsx:944
 msgid "Hold to record a voice message"
 msgstr "اضغط مطولًا لتسجيل رسالة صوتية"
 
@@ -3571,11 +3571,11 @@ msgstr "القيمة غير صحيحة."
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/shell/agent/AgentPage.tsx:468
+#: src/shell/agent/AgentPage.tsx:466
 msgid "It does not supervise any agent now."
 msgstr "لا يشرف على أي وكيل حاليًا."
 
-#: src/pages/shell/bot-panel.tsx:270
+#: src/pages/shell/bot-panel.tsx:271
 msgid "It gathers information and summarises it, and needs no permissions."
 msgstr "يجمع المعلومات ويلخّصها، ولا يحتاج إلى صلاحيات."
 
@@ -3583,11 +3583,11 @@ msgstr "يجمع المعلومات ويلخّصها، ولا يحتاج إلى 
 msgid "It opens in its own window like any app."
 msgstr "سيفتح في نافذة مستقلة مثل أي تطبيق."
 
-#: src/pages/shell/bot-panel.tsx:268
+#: src/pages/shell/bot-panel.tsx:269
 msgid "It starts at «Ask me»: every order is shown to you before it is sent. The level is changed from its chat."
 msgstr "يبدأ بمستوى «تنفيذ بموافقة»: يُعرض عليك كل أمر قبل إرساله. يُغيَّر المستوى من محادثته."
 
-#: src/pages/shell/bot-panel.tsx:271
+#: src/pages/shell/bot-panel.tsx:272
 msgid "It starts at «No trading». The level is changed from its chat."
 msgstr "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته."
 
@@ -3728,7 +3728,7 @@ msgstr "آخر الإجراءات"
 msgid "Laugh"
 msgstr "ضاحك"
 
-#: src/conversation/Composer.tsx:535
+#: src/conversation/Composer.tsx:536
 msgid "Lead"
 msgstr "القائد"
 
@@ -3844,7 +3844,7 @@ msgstr "عرض القائمة"
 msgid "Listening to you"
 msgstr "أستمع إليك"
 
-#: src/conversation/Composer.tsx:659
+#: src/conversation/Composer.tsx:660
 msgid "Listening… speak now"
 msgstr "أستمع إليك… تكلّم الآن"
 
@@ -4094,7 +4094,7 @@ msgstr "الذاكرة"
 msgid "Mention agents with @name. Without a mention, the first member responds."
 msgstr "اذكر الوكلاء باستخدام ‎@الاسم. عند عدم تحديد وكيل، يرد العضو الأول."
 
-#: src/conversation/Composer.tsx:498
+#: src/conversation/Composer.tsx:499
 #: src/shell/ShortcutsSheet.tsx:18
 msgid "Mention an agent"
 msgstr "الإشارة إلى وكيل"
@@ -4108,7 +4108,7 @@ msgstr "الإشارة إلى وكيل"
 msgid "Message"
 msgstr "الرسالة"
 
-#: src/conversation/Composer.tsx:659
+#: src/conversation/Composer.tsx:660
 msgid "Message {name}"
 msgstr "راسل {name}"
 
@@ -4116,7 +4116,7 @@ msgstr "راسل {name}"
 #~ msgid "Message {recipientName}"
 #~ msgstr "راسل {recipientName}"
 
-#: src/conversation/Composer.tsx:465
+#: src/conversation/Composer.tsx:466
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
@@ -4126,7 +4126,7 @@ msgstr "محرر الرسالة"
 msgid "Message options"
 msgstr "خيارات الرسالة"
 
-#: src/conversation/Composer.tsx:658
+#: src/conversation/Composer.tsx:659
 msgid "Message to {name}"
 msgstr "رسالة إلى {name}"
 
@@ -4201,7 +4201,7 @@ msgstr "الوضع"
 
 #: src/conversation/PermissionMenu.tsx:282
 #: src/conversation/PermissionMenu.tsx:432
-#: src/pages/shell/bot-panel.tsx:225
+#: src/pages/shell/bot-panel.tsx:226
 #: src/shell/agent/IdentityPage.tsx:211
 #: src/shell/settings/ModelsPage.tsx:270
 msgid "Model"
@@ -4247,7 +4247,7 @@ msgstr "جارٍ المراقبة"
 msgid "More"
 msgstr "المزيد"
 
-#: src/conversation/Composer.tsx:545
+#: src/conversation/Composer.tsx:546
 msgid "Move"
 msgstr "تنقّل"
 
@@ -4388,7 +4388,7 @@ msgstr "استُؤنفت الصفقات الجديدة"
 msgid "New trading stopped"
 msgstr "التداول الجديد متوقف"
 
-#: src/conversation/sheets/WatchesSheet.tsx:140
+#: src/conversation/sheets/WatchesSheet.tsx:155
 msgid "New watch"
 msgstr "مراقبة جديدة"
 
@@ -4405,7 +4405,7 @@ msgstr "نطاقات الأخبار"
 #~ msgid "News or RSS feed"
 #~ msgstr "موجز أخبار أو RSS"
 
-#: src/pages/shell/bot-panel.tsx:118
+#: src/pages/shell/bot-panel.tsx:119
 #: src/pages/SkillsSection.tsx:140
 #: src/shell/settings/AuthFlow.tsx:152
 msgid "Next"
@@ -4727,7 +4727,7 @@ msgstr "لا توجد رسائل غير مقروءة."
 msgid "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
 
-#: src/conversation/sheets/WatchesSheet.tsx:136
+#: src/conversation/sheets/WatchesSheet.tsx:151
 msgid "No watches."
 msgstr "لا توجد مراقبات."
 
@@ -5193,11 +5193,11 @@ msgstr "إيقاف مؤقت"
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/conversation/sheets/WatchesSheet.tsx:98
+#: src/conversation/sheets/WatchesSheet.tsx:100
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
-#: src/conversation/Composer.tsx:1254
+#: src/conversation/Composer.tsx:1257
 msgid "Pause recording"
 msgstr "إيقاف التسجيل مؤقتًا"
 
@@ -5205,7 +5205,7 @@ msgstr "إيقاف التسجيل مؤقتًا"
 #~ msgid "paused"
 #~ msgstr "موقوفة مؤقتًا"
 
-#: src/conversation/Composer.tsx:535
+#: src/conversation/Composer.tsx:536
 #: src/lib/goal-status.ts:42
 #: src/pages/Board.tsx:29
 #: src/shell/ChatHeader.tsx:121
@@ -5229,7 +5229,7 @@ msgctxt "task status"
 msgid "Paused"
 msgstr "متوقفة مؤقتًا"
 
-#: src/conversation/sheets/WatchesSheet.tsx:85
+#: src/conversation/sheets/WatchesSheet.tsx:87
 msgid "Paused for now"
 msgstr "موقوفة مؤقتًا"
 
@@ -5297,7 +5297,7 @@ msgstr "الصلاحية غير معروفة"
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
-#: src/shell/agent/AgentPage.tsx:352
+#: src/shell/agent/AgentPage.tsx:350
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "تُغيَّر الصلاحيات من الشريحة بجانب حقل الكتابة في المحادثة. ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -5335,15 +5335,15 @@ msgstr "صورة، اضغط لعرضها"
 msgid "Photos"
 msgstr "صور"
 
-#: src/conversation/Composer.tsx:887
+#: src/conversation/Composer.tsx:888
 msgid "Photos and files up to 8 MB"
 msgstr "صور وملفات حتى 8 ميغابايت"
 
-#: src/conversation/Composer.tsx:549
+#: src/conversation/Composer.tsx:550
 msgid "Pick"
 msgstr "اختيار"
 
-#: src/pages/shell/bot-panel.tsx:73
+#: src/pages/shell/bot-panel.tsx:74
 msgid "Pick a template; the agent's type follows from its role and scope."
 msgstr "اختر قالبًا؛ يُشتق نوع الوكيل من دوره ونطاق عمله."
 
@@ -5689,7 +5689,7 @@ msgstr "مسجَّل من تصريحك، وليس تأكيدًا من الوسي
 msgid "Recorded in Updates without any alert"
 msgstr "يُسجَّل في المستجدات دون أي تنبيه"
 
-#: src/conversation/Composer.tsx:1233
+#: src/conversation/Composer.tsx:1236
 msgid "Recording length"
 msgstr "مدة التسجيل"
 
@@ -5762,7 +5762,7 @@ msgstr "إعادة تحميل"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
-#: src/shell/agent/AgentPage.tsx:460
+#: src/shell/agent/AgentPage.tsx:458
 msgid "Remove"
 msgstr "إزالة"
 
@@ -5776,7 +5776,7 @@ msgstr "إزالة"
 msgid "Remove {0}"
 msgstr "إزالة {0}"
 
-#: src/conversation/Composer.tsx:632
+#: src/conversation/Composer.tsx:633
 msgid "Remove {label}"
 msgstr "إزالة {label}"
 
@@ -5826,7 +5826,7 @@ msgid "Reply"
 msgstr "رد"
 
 #. placeholder {0}: replyAgent?.name ?? "Lonora"
-#: src/conversation/Composer.tsx:583
+#: src/conversation/Composer.tsx:584
 msgid "Reply to {0}"
 msgstr "ردّ على {0}"
 
@@ -5835,7 +5835,7 @@ msgstr "ردّ على {0}"
 #~ msgid "Reply to an earlier message"
 #~ msgstr "رد على رسالة سابقة"
 
-#: src/conversation/Composer.tsx:581
+#: src/conversation/Composer.tsx:582
 msgid "Reply to your message"
 msgstr "ردّ على رسالتك"
 
@@ -5875,7 +5875,7 @@ msgstr "الأدوات المطلوبة"
 msgid "Research"
 msgstr "البحث المعمق"
 
-#: src/pages/shell/bot-panel.tsx:64
+#: src/pages/shell/bot-panel.tsx:65
 msgid "Research agent"
 msgstr "وكيل بحث"
 
@@ -5975,7 +5975,7 @@ msgstr "فُرض قيد"
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:436
 #: src/conversation/sheets/AgentSheet.tsx:502
-#: src/conversation/sheets/WatchesSheet.tsx:98
+#: src/conversation/sheets/WatchesSheet.tsx:100
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
 #: src/shell/domain/TasksPages.tsx:237
@@ -6385,7 +6385,7 @@ msgstr "بيع عند الكسر"
 msgid "Semantic memory · optional"
 msgstr "الذاكرة الدلالية · اختيارية"
 
-#: src/conversation/Composer.tsx:858
+#: src/conversation/Composer.tsx:859
 msgid "Send"
 msgstr "إرسال"
 
@@ -6402,11 +6402,11 @@ msgstr "إرسال (Shift+Enter لسطر جديد)"
 msgid "Send the answer"
 msgstr "إرسال الإجابة"
 
-#: src/conversation/Composer.tsx:857
+#: src/conversation/Composer.tsx:858
 msgid "Send the message"
 msgstr "إرسال الرسالة"
 
-#: src/conversation/Composer.tsx:1275
+#: src/conversation/Composer.tsx:1278
 msgid "Send the voice message"
 msgstr "إرسال الرسالة الصوتية"
 
@@ -6460,7 +6460,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/agent/AgentPage.tsx:353
+#: src/shell/agent/AgentPage.tsx:351
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -6708,7 +6708,7 @@ msgstr "تخطي"
 msgid "Sleepy"
 msgstr "نعسان"
 
-#: src/conversation/Composer.tsx:1248
+#: src/conversation/Composer.tsx:1251
 msgid "Slide to cancel"
 msgstr "اسحب للإلغاء"
 
@@ -6748,11 +6748,11 @@ msgstr "السماعة"
 msgid "Speaking"
 msgstr "يتحدث"
 
-#: src/pages/shell/bot-panel.tsx:54
+#: src/pages/shell/bot-panel.tsx:55
 msgid "Specialist role · Fixed market"
 msgstr "دور متخصّص · سوق محدَّد"
 
-#: src/pages/shell/bot-panel.tsx:66
+#: src/pages/shell/bot-panel.tsx:67
 msgid "Specialist role · Flexible scope"
 msgstr "دور متخصّص · نطاق مرن"
 
@@ -6826,7 +6826,7 @@ msgstr "الحالة: {text}"
 msgid "Still unknown"
 msgstr "لا تزال غير معروفة"
 
-#: src/conversation/Composer.tsx:866
+#: src/conversation/Composer.tsx:867
 #: src/pages/ActivityList.tsx:259
 msgid "Stop"
 msgstr "إيقاف"
@@ -6860,11 +6860,11 @@ msgstr "أمر إيقاف"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/agent/AgentPage.tsx:363
+#: src/shell/agent/AgentPage.tsx:361
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
-#: src/conversation/Composer.tsx:865
+#: src/conversation/Composer.tsx:866
 msgid "Stop the reply"
 msgstr "إيقاف الرد"
 
@@ -6942,8 +6942,8 @@ msgstr "القيمة المقترحة 3%"
 msgid "Superseded version"
 msgstr "إصدار مستبدل"
 
-#: src/pages/shell/bot-panel.tsx:101
-#: src/pages/shell/bot-panel.tsx:112
+#: src/pages/shell/bot-panel.tsx:102
+#: src/pages/shell/bot-panel.tsx:113
 msgid "Supervise other agents"
 msgstr "الإشراف على وكلاء آخرين"
 
@@ -6957,13 +6957,13 @@ msgstr "الإشراف على وكلاء آخرين"
 msgid "Supervised by {0}"
 msgstr "تحت إشراف {0}"
 
-#: src/shell/agent/AgentPage.tsx:390
-#: src/shell/agent/AgentPage.tsx:432
+#: src/shell/agent/AgentPage.tsx:388
+#: src/shell/agent/AgentPage.tsx:430
 msgid "Supervises"
 msgstr "يشرف على"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:416
+#: src/shell/agent/AgentPage.tsx:414
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
@@ -7024,11 +7024,11 @@ msgstr "اضغط زر المشاركة أسفل المتصفح."
 msgid "Tap to call back"
 msgstr "اضغط لمعاودة الاتصال"
 
-#: src/conversation/Composer.tsx:938
+#: src/conversation/Composer.tsx:941
 msgid "Tap to dictate"
 msgstr "اضغط للإملاء"
 
-#: src/conversation/Composer.tsx:825
+#: src/conversation/Composer.tsx:826
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
@@ -7972,7 +7972,7 @@ msgstr "حساب التداول"
 msgid "Trading accounts"
 msgstr "حسابات التداول"
 
-#: src/pages/shell/bot-panel.tsx:52
+#: src/pages/shell/bot-panel.tsx:53
 msgid "Trading agent"
 msgstr "وكيل تداول"
 
@@ -8062,7 +8062,7 @@ msgstr "إعادة المحاولة"
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
-#: src/shell/agent/AgentPage.tsx:363
+#: src/shell/agent/AgentPage.tsx:361
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
 
@@ -8078,7 +8078,7 @@ msgstr "تشغيل الوكيل"
 msgid "Two steps"
 msgstr "خطوتان"
 
-#: src/pages/shell/bot-panel.tsx:213
+#: src/pages/shell/bot-panel.tsx:214
 #: src/shell/domain/GoalsKnowledgePages.tsx:238
 msgid "Type"
 msgstr "النوع"
@@ -8121,7 +8121,7 @@ msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 msgid "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows"
 msgstr "تحت اسم الوكيل: يحلّل، يبحث، يراقب، بانتظار تأكيد الوسيط، بانتظار قرارك، متوقف مؤقتًا، عملية غير مؤكَّدة — وتتغيّر صورته معها. عند الإيقاف يظهر «نشط» فقط"
 
-#: src/conversation/sheets/WatchesSheet.tsx:45
+#: src/conversation/sheets/WatchesSheet.tsx:44
 #: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
@@ -8300,11 +8300,11 @@ msgstr "استخدم الأسهم للتنقل بين الأعمدة."
 msgid "Use the configured secure website for device authentication."
 msgstr "استخدم الموقع الآمن المعتمد لمصادقة الجهاز."
 
-#: src/conversation/Composer.tsx:741
+#: src/conversation/Composer.tsx:742
 msgid "Use the suggestion (Tab)"
 msgstr "استخدم الاقتراح (Tab)"
 
-#: src/conversation/Composer.tsx:740
+#: src/conversation/Composer.tsx:741
 msgid "Use the suggestion: {suggestion}"
 msgstr "استخدم الاقتراح: {suggestion}"
 
@@ -8392,8 +8392,8 @@ msgstr "مكالمة صوتية"
 msgid "Voice calls"
 msgstr "المكالمات الصوتية"
 
-#: src/conversation/Composer.tsx:833
 #: src/conversation/Composer.tsx:834
+#: src/conversation/Composer.tsx:835
 msgid "Voice conversation"
 msgstr "محادثة صوتية"
 
@@ -8486,7 +8486,7 @@ msgstr "بانتظار الإرسال"
 #~ msgid "Watch"
 #~ msgstr "مراقبة"
 
-#: src/conversation/sheets/WatchesSheet.tsx:121
+#: src/conversation/sheets/WatchesSheet.tsx:136
 msgid "Watch cancelled"
 msgstr "أُلغيت المراقبة"
 
@@ -8498,11 +8498,11 @@ msgstr "تغيّر شرط المراقبة"
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
-#: src/conversation/sheets/WatchesSheet.tsx:94
+#: src/conversation/sheets/WatchesSheet.tsx:96
 msgid "Watch paused"
 msgstr "أُوقفت المراقبة مؤقتًا"
 
-#: src/conversation/sheets/WatchesSheet.tsx:94
+#: src/conversation/sheets/WatchesSheet.tsx:96
 msgid "Watch resumed"
 msgstr "استُؤنفت المراقبة"
 
@@ -8517,7 +8517,7 @@ msgid "Watches"
 msgstr "المراقبات"
 
 #. placeholder {0}: agent.name
-#: src/conversation/sheets/WatchesSheet.tsx:155
+#: src/conversation/sheets/WatchesSheet.tsx:170
 msgid "Watches · {0}"
 msgstr "المراقبات · {0}"
 
@@ -8533,17 +8533,17 @@ msgstr "لم نعثر على نتائج لـ «{q}». جرّب كلمة أقصر
 msgid "We heard nothing. Try again."
 msgstr "لم نسمع شيئًا. حاول مرة أخرى."
 
-#: src/conversation/Composer.tsx:810
+#: src/conversation/Composer.tsx:811
 #: src/conversation/ToolsSheet.tsx:204
 #: src/shell/domain/SkillsPages.tsx:22
 msgid "Web search"
 msgstr "البحث في الويب"
 
-#: src/conversation/Composer.tsx:809
+#: src/conversation/Composer.tsx:810
 msgid "Web search is on, tap to turn it off"
 msgstr "البحث في الويب مفعّل، اضغط لإيقافه"
 
-#: src/conversation/Composer.tsx:813
+#: src/conversation/Composer.tsx:814
 msgid "Web search turned off"
 msgstr "أُوقف البحث في الويب"
 
