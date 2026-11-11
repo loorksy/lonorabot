@@ -4,6 +4,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { ArtifactFileCard } from "./artifact-file-card";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
@@ -14,7 +15,6 @@ import {
   nativeRichImageIds,
 } from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
-import { colors } from "./ui";
 export function MessageBubble({
   message,
   body,
@@ -46,6 +46,7 @@ export function MessageBubble({
   onReply?: (message: Message) => void;
 }) {
   const { rtl, locale, t } = useSession();
+  const shell = useShellColors();
   const [expanded, setExpanded] = useState(false);
   const isOwner = message.role === "user";
   const tool = message.role === "tool";
@@ -78,7 +79,7 @@ export function MessageBubble({
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
         maxWidth: isOwner ? "88%" : "100%",
-        backgroundColor: isOwner ? colors.chatUser : "transparent",
+        backgroundColor: isOwner ? shell.chatUser : "transparent",
         borderRadius: 18,
         padding: isOwner ? 14 : 0,
         gap: 8,
@@ -95,10 +96,10 @@ export function MessageBubble({
               size={24}
             />
           ) : null}
-          <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }}>
+          <Text style={{ color: shell.foreground, fontSize: 13, fontWeight: "600" }}>
             {agent?.name ?? t("system")}
           </Text>
-          <Text style={{ color: colors.secondary, fontSize: 11 }}>
+          <Text style={{ color: shell.secondary, fontSize: 11 }}>
             {new Date(message.created_at).toLocaleTimeString(locale, {
               hour: "2-digit",
               minute: "2-digit",
@@ -110,11 +111,11 @@ export function MessageBubble({
       {tool ? (
         <View
           style={{
-            backgroundColor: colors.muted,
+            backgroundColor: shell.muted,
             borderRadius: 12,
             overflow: "hidden",
             borderWidth: 0.5,
-            borderColor: colors.border,
+            borderColor: shell.border,
           }}
         >
           <Pressable
@@ -129,21 +130,15 @@ export function MessageBubble({
               gap: 10,
             }}
           >
-            <NativeSymbol name="check" size={16} color={colors.secondary} />
-            <Text style={{ flex: 1, color: colors.secondary, fontSize: 13 }}>
-              {t("toolResult")}
-            </Text>
-            <NativeSymbol
-              name={expanded ? "close" : "chevron"}
-              size={14}
-              color={colors.secondary}
-            />
+            <NativeSymbol name="check" size={16} color={shell.secondary} />
+            <Text style={{ flex: 1, color: shell.secondary, fontSize: 13 }}>{t("toolResult")}</Text>
+            <NativeSymbol name={expanded ? "close" : "chevron"} size={14} color={shell.secondary} />
           </Pressable>
           {expanded ? (
             <Text
               selectable
               style={{
-                color: colors.secondary,
+                color: shell.secondary,
                 padding: 12,
                 fontSize: 13,
                 lineHeight: 20,
@@ -168,19 +163,19 @@ export function MessageBubble({
         ) : message.content ? (
           <Markdown content={peerOutcome(message.content).body} onChartLink={onChartLink} />
         ) : partLine ? (
-          <Text style={{ color: colors.secondary, fontSize: 14, writingDirection: "auto" }}>
+          <Text style={{ color: shell.secondary, fontSize: 14, writingDirection: "auto" }}>
             {partLine}
           </Text>
         ) : null))
       )}
       {mark ? (
-        <Text testID="ui-submit-mark" style={{ color: colors.secondary, fontSize: 12 }}>
+        <Text testID="ui-submit-mark" style={{ color: shell.secondary, fontSize: 12 }}>
           {t(mark === "superseded" ? "uiSubmitEdited" : "uiSubmitNotRun")}
         </Text>
       ) : null}
       {isOutgoingMessage(message) ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ color: colors.secondary, fontSize: 12 }}>
+          <Text style={{ color: shell.secondary, fontSize: 12 }}>
             {t(message.delivery === "failed" ? "sendFailed" : "sending")}
           </Text>
           {message.delivery === "failed" && onRetry ? (
@@ -190,7 +185,7 @@ export function MessageBubble({
               onPress={() => onRetry(message.retry_nonce)}
               style={{ minHeight: 44, minWidth: 44, justifyContent: "center" }}
             >
-              <Text style={{ color: colors.link, fontSize: 13 }}>{t("retry")}</Text>
+              <Text style={{ color: shell.link, fontSize: 13 }}>{t("retry")}</Text>
             </Pressable>
           ) : null}
         </View>

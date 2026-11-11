@@ -57,3 +57,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 export const useTheme = () => useContext(Context);
+
+/** The conversation screens use the same colours as the shell, under the names the
+    older components already read (`background`, `chatUser`, …). */
+export function useShellColors() {
+  const { c } = useTheme();
+  return {
+    background: c.bg,
+    foreground: c.text,
+    muted: c.fill,
+    secondary: c.muted,
+    border: c.line,
+    accent: c.accent,
+    chatUser: c["bubble-out"],
+    error: c.red,
+    primary: c.primary,
+    primaryForeground: c["on-primary"],
+    success: c.accent,
+    warning: c.amber,
+    overlay: c.glass,
+    link: c["accent-ink"],
+  };
+}

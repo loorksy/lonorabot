@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { EventConnection } from "../lib/events";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { BotAvatar } from "./bot-avatar";
 import { NativeSymbol } from "./native-symbol";
-import { colors } from "./ui";
 
 /** Observable execution only: no generated reasoning or fabricated tool steps. */
 export function TurnActivity({
@@ -21,20 +21,21 @@ export function TurnActivity({
   agent?: Agent;
 }) {
   const { t, rtl, locale } = useSession();
+  const shell = useShellColors();
   const [expanded, setExpanded] = useState(false);
   const activity = turnActivity(run, events);
   const reconnecting = isWorking(run.status) && connection !== "connected";
   const needsReply = activity.phase === "waiting_input" || activity.phase === "waiting_external";
   const tint =
     activity.phase === "failed"
-      ? colors.error
+      ? shell.error
       : reconnecting || needsReply
-        ? colors.warning
+        ? shell.warning
         : activity.phase === "completed"
-          ? colors.success
+          ? shell.success
           : activity.phase === "cancelled"
-            ? colors.secondary
-            : colors.foreground;
+            ? shell.secondary
+            : shell.foreground;
   const label = reconnecting ? t(connection) : t(`activity_${activity.phase}`);
   const hasDetails = Boolean(activity.calls.length || activity.observedAt);
   return (
@@ -64,8 +65,8 @@ export function TurnActivity({
           paddingVertical: 9,
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: tint === colors.foreground ? colors.border : `${tint}44`,
-          backgroundColor: pressed ? colors.accent : colors.muted,
+          borderColor: tint === shell.foreground ? shell.border : `${tint}44`,
+          backgroundColor: pressed ? shell.accent : shell.muted,
         })}
       >
         {agent ? (
@@ -81,7 +82,7 @@ export function TurnActivity({
           {agent?.name ? (
             <Text
               numberOfLines={1}
-              style={{ color: colors.secondary, fontSize: 11, textAlign: rtl ? "right" : "left" }}
+              style={{ color: shell.secondary, fontSize: 11, textAlign: rtl ? "right" : "left" }}
             >
               {agent.name}
             </Text>
@@ -113,7 +114,7 @@ export function TurnActivity({
         </View>
         {hasDetails ? (
           <View style={{ transform: [{ rotate: expanded ? "90deg" : rtl ? "180deg" : "0deg" }] }}>
-            <NativeSymbol name="chevron" size={12} color={colors.secondary} />
+            <NativeSymbol name="chevron" size={12} color={shell.secondary} />
           </View>
         ) : null}
       </Pressable>
@@ -125,11 +126,11 @@ export function TurnActivity({
             paddingVertical: 10,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: shell.border,
           }}
         >
           {activity.observedAt ? (
-            <Text style={{ color: colors.secondary, fontSize: 12 }}>
+            <Text style={{ color: shell.secondary, fontSize: 12 }}>
               {new Date(activity.observedAt).toLocaleTimeString(locale)}
             </Text>
           ) : null}
@@ -140,20 +141,20 @@ export function TurnActivity({
             >
               <Text
                 testID={`turn-step-${call.name}`}
-                style={{ color: colors.foreground, fontSize: 12, flex: 1 }}
+                style={{ color: shell.foreground, fontSize: 12, flex: 1 }}
               >
                 {activityCallLabel(call, locale)}
               </Text>
               <Text
                 style={{
-                  color: call.status === "failed" ? colors.error : colors.secondary,
+                  color: call.status === "failed" ? shell.error : shell.secondary,
                   fontSize: 12,
                 }}
               >
                 {t(`activity_call_${call.status}`)}
               </Text>
               {call.completed_at || call.started_at ? (
-                <Text style={{ color: colors.secondary, fontSize: 11 }}>
+                <Text style={{ color: shell.secondary, fontSize: 11 }}>
                   {new Date(call.completed_at ?? (call.started_at as string)).toLocaleTimeString(
                     locale,
                   )}

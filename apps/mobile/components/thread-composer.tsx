@@ -21,10 +21,10 @@ import {
   View,
 } from "react-native";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
 import { NativeSymbol } from "./native-symbol";
-import { colors } from "./ui";
 export function ThreadComposer({
   draft,
   onChange,
@@ -69,6 +69,7 @@ export function ThreadComposer({
   permissionControl?: ReactNode;
 }) {
   const { rtl, t } = useSession();
+  const shell = useShellColors();
   const [inputHeight, setInputHeight] = useState(32);
   const [cursor, setCursor] = useState(0);
   const committed = useRef<MentionRange[]>([]);
@@ -97,12 +98,12 @@ export function ThreadComposer({
         paddingBottom: 12,
         paddingTop: 8,
         gap: 8,
-        backgroundColor: colors.background,
+        backgroundColor: shell.background,
       }}
     >
       {reply ? <ComposerReplyPreview message={reply} onClose={onCancelReply} /> : null}
       {candidates.length ? (
-        <View style={{ backgroundColor: colors.muted, borderRadius: 14, overflow: "hidden" }}>
+        <View style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (
             <Pressable
               key={agent?.id ?? "session-all"}
@@ -132,20 +133,18 @@ export function ThreadComposer({
                 gap: 10,
                 paddingHorizontal: 14,
                 paddingVertical: 10,
-                backgroundColor: pressed ? colors.accent : "transparent",
+                backgroundColor: pressed ? shell.accent : "transparent",
               })}
             >
               <BotAvatar
                 identity={agent?.id ?? "all"}
-                color={agent?.color ?? colors.accent}
+                color={agent?.color ?? shell.accent}
                 variant={agent?.avatar}
                 size={24}
               />
-              <Text style={{ color: colors.foreground, fontSize: 15 }}>
-                {agent?.name ?? "@all"}
-              </Text>
+              <Text style={{ color: shell.foreground, fontSize: 15 }}>{agent?.name ?? "@all"}</Text>
               {agent?.trading_symbol ? (
-                <Text style={{ color: colors.secondary, writingDirection: "ltr" }}>
+                <Text style={{ color: shell.secondary, writingDirection: "ltr" }}>
                   {agent.trading_symbol}
                 </Text>
               ) : null}
@@ -172,15 +171,15 @@ export function ThreadComposer({
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
-                backgroundColor: colors.muted,
+                backgroundColor: shell.muted,
                 maxWidth: 220,
               }}
             >
-              <NativeSymbol name="file" size={16} color={colors.secondary} />
+              <NativeSymbol name="file" size={16} color={shell.secondary} />
               <Text
                 numberOfLines={1}
                 style={{
-                  color: colors.foreground,
+                  color: shell.foreground,
                   fontSize: 13,
                   flexShrink: 1,
                   writingDirection: "auto",
@@ -188,7 +187,7 @@ export function ThreadComposer({
               >
                 {file.payload.name}
               </Text>
-              <NativeSymbol name="close" size={14} color={colors.secondary} />
+              <NativeSymbol name="close" size={14} color={shell.secondary} />
             </Pressable>
           ))}
         </ScrollView>
@@ -206,9 +205,9 @@ export function ThreadComposer({
             gap: 8,
             paddingHorizontal: 11,
             paddingVertical: 11,
-            backgroundColor: colors.muted,
+            backgroundColor: shell.muted,
             borderWidth: 0.5,
-            borderColor: colors.border,
+            borderColor: shell.border,
           }}
         >
           <View
@@ -224,9 +223,9 @@ export function ThreadComposer({
               disabled={busy || uploading || disabled || attachments.length >= 10}
             >
               {uploading ? (
-                <ActivityIndicator color={colors.secondary} size="small" />
+                <ActivityIndicator color={shell.secondary} size="small" />
               ) : (
-                <NativeSymbol name="plus" size={18} color={colors.secondary} />
+                <NativeSymbol name="plus" size={18} color={shell.secondary} />
               )}
             </Pressable>
           </View>
@@ -267,11 +266,11 @@ export function ThreadComposer({
             }
             maxLength={30000}
             editable={!disabled}
-            placeholderTextColor={colors.secondary}
+            placeholderTextColor={shell.secondary}
             blurOnSubmit={false}
             textAlignVertical="top"
             underlineColorAndroid="transparent"
-            selectionColor={colors.foreground}
+            selectionColor={shell.foreground}
             style={{
               flex: 1,
               minHeight: 32,
@@ -284,7 +283,7 @@ export function ThreadComposer({
               borderWidth: 0,
               backgroundColor: "transparent",
               includeFontPadding: false,
-              color: colors.foreground,
+              color: shell.foreground,
               textAlign: rtl ? "right" : "left",
               writingDirection: "auto",
             }}
@@ -300,16 +299,16 @@ export function ThreadComposer({
               width: 32,
               height: 32,
               borderRadius: 16,
-              backgroundColor: colors.primary,
+              backgroundColor: shell.primary,
               alignItems: "center",
               justifyContent: "center",
               opacity: pressed || !canSend ? 0.4 : 1,
             })}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={colors.primaryForeground} />
+              <ActivityIndicator size="small" color={shell.primaryForeground} />
             ) : (
-              <NativeSymbol name="send" size={16} color={colors.primaryForeground} />
+              <NativeSymbol name="send" size={16} color={shell.primaryForeground} />
             )}
           </Pressable>
           {working && onStop ? (
@@ -318,7 +317,7 @@ export function ThreadComposer({
                 width: 32,
                 height: 32,
                 borderRadius: 16,
-                backgroundColor: colors.primary,
+                backgroundColor: shell.primary,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -330,7 +329,7 @@ export function ThreadComposer({
                 disabled={busy}
                 style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
               >
-                <NativeSymbol name="stop" size={16} color={colors.primaryForeground} />
+                <NativeSymbol name="stop" size={16} color={shell.primaryForeground} />
               </Pressable>
             </View>
           ) : null}

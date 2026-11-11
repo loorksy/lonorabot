@@ -2,8 +2,9 @@ import type { InputAnswer, InputRequest } from "@lonora/contracts";
 import { useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { NativeSymbol } from "./native-symbol";
-import { colors, ErrorNotice } from "./ui";
+import { ErrorNotice } from "./ui";
 
 export function ConversationQuestion({
   request,
@@ -13,6 +14,7 @@ export function ConversationQuestion({
   onAnswer: (answer: InputAnswer, label: string, messageId: string) => Promise<void>;
 }) {
   const { rtl, t, errorText } = useSession();
+  const shell = useShellColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
@@ -37,13 +39,13 @@ export function ConversationQuestion({
   return (
     <View
       testID={`question-${request.id}`}
-      style={{ backgroundColor: colors.muted, borderRadius: 20, padding: 16, gap: 12 }}
+      style={{ backgroundColor: shell.muted, borderRadius: 20, padding: 16, gap: 12 }}
     >
-      <Text style={{ color: colors.foreground, fontSize: 16, textAlign: rtl ? "right" : "left" }}>
+      <Text style={{ color: shell.foreground, fontSize: 16, textAlign: rtl ? "right" : "left" }}>
         {request.question}
       </Text>
       <View
-        style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 16, overflow: "hidden" }}
+        style={{ borderWidth: 1, borderColor: shell.border, borderRadius: 16, overflow: "hidden" }}
       >
         {request.choices.map((choice, index) => (
           <Pressable
@@ -63,20 +65,20 @@ export function ConversationQuestion({
               gap: 10,
               padding: 14,
               minHeight: 48,
-              backgroundColor: colors.background,
+              backgroundColor: shell.background,
               borderTopWidth: index ? 1 : 0,
-              borderTopColor: colors.border,
+              borderTopColor: shell.border,
               opacity:
                 request.status !== "pending" && request.selected_choice_id !== choice.id ? 0.55 : 1,
             }}
           >
-            <Text style={{ color: colors.secondary, fontSize: 12 }}>
+            <Text style={{ color: shell.secondary, fontSize: 12 }}>
               {String.fromCharCode(65 + index)}
             </Text>
             <Text
               style={{
                 flex: 1,
-                color: colors.foreground,
+                color: shell.foreground,
                 fontSize: 16,
                 textAlign: rtl ? "right" : "left",
               }}
@@ -84,12 +86,12 @@ export function ConversationQuestion({
               {choice.label}
             </Text>
             {request.selected_choice_id === choice.id && (
-              <NativeSymbol name="check" size={18} color={colors.foreground} />
+              <NativeSymbol name="check" size={18} color={shell.foreground} />
             )}
           </Pressable>
         ))}
       </View>
-      <Text accessibilityLiveRegion="polite" style={{ color: colors.secondary, fontSize: 12 }}>
+      <Text accessibilityLiveRegion="polite" style={{ color: shell.secondary, fontSize: 12 }}>
         {t(
           request.status === "pending"
             ? "questionPending"

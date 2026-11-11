@@ -41,9 +41,19 @@ export function applyLegacyTheme(mode: "dark" | "light") {
   Object.assign(styles, makeStyles());
   for (const refresh of refreshers) refresh();
 }
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({
+  children,
+  background,
+}: {
+  children: ReactNode;
+  /** The conversation passes the shell background; other screens keep the legacy palette. */
+  background?: string;
+}) {
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <SafeAreaView
+      style={[styles.screen, background ? { backgroundColor: background } : null]}
+      edges={["top", "bottom"]}
+    >
       {children}
     </SafeAreaView>
   );

@@ -1,8 +1,8 @@
 import type { Message } from "@lonora/contracts";
 import { Pressable, Text, View } from "react-native";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { NativeSymbol } from "./native-symbol";
-import { colors } from "./ui";
 export function ComposerReplyPreview({
   message,
   onClose,
@@ -11,6 +11,7 @@ export function ComposerReplyPreview({
   onClose?: () => void;
 }) {
   const { rtl, t } = useSession();
+  const shell = useShellColors();
   return (
     <View
       style={{
@@ -19,18 +20,18 @@ export function ComposerReplyPreview({
         gap: 10,
         padding: 12,
         borderRadius: 12,
-        backgroundColor: colors.muted,
+        backgroundColor: shell.muted,
       }}
     >
-      <View style={{ width: 2, height: 32, backgroundColor: colors.secondary, borderRadius: 1 }} />
+      <View style={{ width: 2, height: 32, backgroundColor: shell.secondary, borderRadius: 1 }} />
       <View style={{ flex: 1, gap: 3 }}>
-        <Text style={{ color: colors.secondary, fontSize: 12, textAlign: rtl ? "right" : "left" }}>
+        <Text style={{ color: shell.secondary, fontSize: 12, textAlign: rtl ? "right" : "left" }}>
           {t("reply")}
         </Text>
         <Text
           numberOfLines={2}
           style={{
-            color: colors.foreground,
+            color: shell.foreground,
             fontSize: 13,
             lineHeight: 18,
             writingDirection: "auto",
@@ -47,7 +48,7 @@ export function ComposerReplyPreview({
           hitSlop={8}
           onPress={onClose}
         >
-          <NativeSymbol name="close" size={16} color={colors.secondary} />
+          <NativeSymbol name="close" size={16} color={shell.secondary} />
         </Pressable>
       ) : null}
     </View>

@@ -14,7 +14,6 @@ import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
-  canCancel,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
@@ -24,6 +23,7 @@ import {
   projectRunEvents,
   runStatusText,
   seedStream,
+  stopTargets,
   streamForRun,
   submitMark,
   turnActivity,
@@ -57,7 +57,7 @@ import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
 import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
-import { Button, colors, ErrorNotice, Loading, Screen } from "../components/ui";
+import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, upload } from "../lib/api";
 import {
@@ -84,6 +84,7 @@ import {
   subscribeOutgoing,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
+import { useShellColors } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
 function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
@@ -93,8 +94,11 @@ function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
 }
 
 export default function Conversation({ threadId }: { threadId?: string } = {}) {
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; around?: string | string[] }>();
   const id = threadId ?? params.id;
+  const aroundRaw = Array.isArray(params.around) ? params.around[0] : params.around;
+  const aroundNum = Number(aroundRaw);
+  const around = Number.isInteger(aroundNum) && aroundNum > 0 ? aroundNum : null;
   const { ready, owner, server, rtl, locale, t, errorText } = useSession();
   const scope = useMemo(
     () => (owner ? conversationCache.activate(server, owner.id) : null),
@@ -124,8 +128,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [hasOlder, setHasOlder] = useState(true);
   const [actionsVisible, setActionsVisible] = useState(false);
   const list = useRef<FlatList<ConversationItem>>(null);
-  const following = useRef(true);
-  const [atEnd, setAtEnd] = useState(true);
+  const following = useRef(around == null);
+  const jumped = useRef<number | null>(null);
+  const shell = useShellColors();
+  const [atEnd, setAtEnd] = useState(around == null);
   const [loaded, setLoaded] = useState(false);
   const [permissionRevision, setPermissionRevision] = useState(0);
   const permissionAgent = useRef(thread?.agent_id);
@@ -162,6 +168,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   }, [outboxKey]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
+  const say = useRef(t);
+  say.current = t;
 
   const snapshot = useCallback(
     async (stillLive: () => boolean = () => true) => {
@@ -533,6 +541,44 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
   };
 
+  // A search hit: load the page centred on it, then leave the latest-message pin so the
+  // list can rest on that message instead of the bottom.
+  useEffect(() => {
+    if (around == null || !id) return;
+    let live = true;
+    following.current = false;
+    setAtEnd(false);
+    void api
+      .get<Message[]>(`/threads/${encodeURIComponent(id)}/messages?around=${around}`)
+      .then((rows) => {
+        if (!live) return;
+        setMessages((old) => mergeMessages(old, rows));
+        if (!rows.some((row) => row.seq === around)) setError(say.current("messageGone"));
+      })
+      .catch((reason) => {
+        if (live) setError(reportError.current(reason));
+      });
+    return () => {
+      live = false;
+    };
+  }, [around, id]);
+  useEffect(() => {
+    if (around == null || !loaded || jumped.current === around) return;
+    const index = conversationTimeline(
+      visibleMessages,
+      approvals.filter((row) => row.thread_id === id),
+      ownerActions.filter((row) => row.thread_id === id),
+    )
+      .reverse()
+      .findIndex((item) => item.kind === "message" && item.seq === around);
+    if (index < 0) return;
+    jumped.current = around;
+    following.current = false;
+    requestAnimationFrame(() => {
+      list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
+    });
+  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
@@ -641,11 +687,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) setUploading(false);
     }
   };
-  const changeRun = async (run: Run, action: "cancel" | "resume") => {
+  // Stop cancels every cancellable Run of the thread, a queued card submission included,
+  // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
+  const stopActive = async () => {
+    if (!id) return;
+    const active = stopTargets(runs, id);
+    if (!active.length) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/runs/${run.id}/${action}`, {});
+      await Promise.all(active.map((run) => api.post(`/runs/${run.id}/cancel`, {})));
       await snapshot();
     } catch (reason) {
       setError(errorText(reason));
@@ -653,15 +704,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       setBusy(false);
     }
   };
-  /** Stop cancels every cancellable Run of the thread, a queued card submission included,
-   * as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a). */
-  const stopAll = async () => {
-    const cancellable = runs.filter((run) => run.thread_id === id && canCancel(run.status));
-    if (!cancellable.length) return;
+  const changeRun = async (run: Run, action: "cancel" | "resume") => {
     setBusy(true);
     setError(null);
     try {
-      await Promise.all(cancellable.map((run) => api.post(`/runs/${run.id}/cancel`, {})));
+      await api.post(`/runs/${run.id}/${action}`, {});
       await snapshot();
     } catch (reason) {
       setError(errorText(reason));
@@ -686,7 +733,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
   };
   return (
-    <Screen>
+    <Screen background={shell.background}>
       <ThreadHeader
         title={title}
         settingsLabel={group ? t("groupSettings") : t("agentSettings")}
@@ -793,7 +840,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             <Text
               style={{
                 flex: 1,
-                color: run.status === "failed" ? colors.error : colors.secondary,
+                color: run.status === "failed" ? shell.error : shell.secondary,
                 textAlign: rtl ? "right" : "left",
               }}
             >
@@ -859,6 +906,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               onContentSizeChange={() => {
                 if (following.current) list.current?.scrollToOffset({ offset: 0, animated: false });
               }}
+              onScrollToIndexFailed={(info) => {
+                list.current?.scrollToOffset({
+                  offset: info.averageItemLength * info.index,
+                  animated: false,
+                });
+              }}
               contentContainerStyle={{
                 paddingHorizontal: 16,
                 paddingVertical: 14,
@@ -876,7 +929,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 ) : null
               }
               ListEmptyComponent={
-                <Text style={{ color: colors.secondary, textAlign: "center", padding: 24 }}>
+                <Text style={{ color: shell.secondary, textAlign: "center", padding: 24 }}>
                   {t("waitingMessage")}
                 </Text>
               }
@@ -917,7 +970,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   ? runs.find((run) => `preview:${run.id}` === message.id)
                   : undefined;
                 return (
-                  <View>
+                  <View testID={item.seq === around ? "around-message" : undefined}>
                     {needsTimeSeparator(message.created_at, previous?.created_at) ? (
                       <TimeSeparator createdAt={message.created_at} />
                     ) : null}
@@ -1005,7 +1058,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 outgoing.some((row) => row.message.delivery === "sending") ? (
                   <Text
                     accessibilityLiveRegion="polite"
-                    style={{ color: colors.secondary, padding: 8 }}
+                    style={{ color: shell.secondary, padding: 8 }}
                   >
                     {t("sending")}
                   </Text>
@@ -1031,8 +1084,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 borderRadius: 22,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: colors.accent,
-                borderColor: colors.border,
+                backgroundColor: shell.accent,
+                borderColor: shell.border,
                 borderWidth: 1,
               }}
             >
@@ -1073,7 +1126,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           uploading={uploading}
           disabled={!thread}
           working={runs.some((run) => activeStatuses.includes(run.status))}
-          onStop={() => void stopAll()}
+          onStop={() => void stopActive()}
         />
       </KeyboardAvoidingView>
     </Screen>

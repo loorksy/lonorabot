@@ -542,6 +542,7 @@ export const labels = {
   tool: ["الأداة", "Tool"],
   system: ["النظام", "System"],
   waitingMessage: ["لا توجد رسائل بعد. ابدأ المحادثة.", "No messages yet. Start the conversation."],
+  messageGone: ["الرسالة لم تعد متاحة.", "The message is no longer available."],
   paused: ["متوقف مؤقتًا", "Paused"],
   queued: ["في الانتظار", "Queued"],
   leased: ["بدأ العمل", "Starting"],
