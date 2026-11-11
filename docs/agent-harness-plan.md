@@ -120,6 +120,27 @@ reply that only offers ("shall I set an alert?") makes no call, so there is noth
 the offer is a record: phase 3c. A watch or routine created with a placeholder prompt is free text:
 only `enabled: false` is refused.
 
+**D14. An offer is a question whose choices are bound to calls, and a pick is checked by count,
+once.** This is how D3 is built (phase 3c), with what its review changed:
+
+- Only a Run that answers the owner's typed message and has read nothing others wrote may bind
+  calls to a choice. A page, a feed or another agent can therefore not put an action behind a label.
+- A trade is never bound. Consent to a trade is the confirmation of `trade_execute`; consent to an
+  offer inside the mandate (the protection of D10) is decided with the mandate, in phase 3g.
+- A bound call counts as made when a call of its tool succeeded after the pick, or ended with an
+  unknown outcome. Arguments are not compared, so a change that went through is never asked for a
+  second time.
+- What is missing is raised once. A reply that still leaves it undone gets one fixed line; the
+  gate never issues the call (D13).
+- The offer is open for the owner's next message only: any later message of the owner closes it
+  unchecked. A typed answer to the question is the owner's words and leaves nothing to check.
+- A 👍 is not an answer in this phase. A reaction starts no work today, and on a question with
+  several choices it names none of them; the card's own buttons are the short consent.
+- The card shows what a pick does (which kind of action, how many), never the calls themselves.
+- Not changed here: a pick's message is stored as the owner's own, as every choice answer was, so
+  the tools that require the owner's typed words accept a label the owner tapped. That is decided
+  with owner scope, in phase 3d.
+
 Already settled by the decisions above: the reply gates the brief asks for are the structural checks
 and exact lookups of D2, not wording vetoes; a short consent or a 👍 carries out an offer that is a
 read or inside the mandate, while an offer of money outside the mandate is a card whose own button is
@@ -138,8 +159,8 @@ Message numbers are those of the evidence conversation. "Now" is `main` at `792d
 | 3 | A turn ends with a result, or continues ([12], about 25 replies ending in an offer) | Only in opt-in goal mode, keyed on a stored flag, unbounded | "Narration is not an answer"; a labelled nudge, three times | The stop gate works for Tasks only (`stop_gates.py:178`) | A bounded gate for conversations, keyed on structure (D2) | `stop_gates.py`, `loop_outcomes.py` | 3b |
 | 4 | "Done" and promises match what ran ([63], [43], [47], [57]) | Prompt only | Verify by listing; offline grading | Only financial results are checked (`uncertain_outcome.py`) | The same structural check for every effect class; a failed check replaces the claim with a fixed true sentence | `uncertain_outcome.py`, `model_runtime.py` | 3b |
 | 5 | A condition becomes a standing trigger ([40], [46], [52]) | Time triggers only | A watch with no model call, confirmed after it is seen in the list | Watches on a position's profit exist and were not used | A promise is valid only with a saved trigger in the same Run; the confirmation line states the computed level | policy text, `stop_gates.py` | 3b |
-| 6 | An accepted offer is carried out ([36] «طيب», [68], [76] «جرب») | Nothing | Cards pause the Run and the answer resumes it | An answered question leaves no obligation (`messages.py:537`) | D3: the offer record and its obligation | thread state, `executor.py`, context builder | 3c |
-| 7 | An unfinished request is kept ([78]-[81]) | A flag and a note, with "resume only if asked" | An open-work list always in context | `reply_outcome: "limited"` exists; nothing is carried to the next turn | An open-request record per conversation, shown on the next turn with "resume or mention" | thread state, context builder, `loop_outcomes.py` | 3c |
+| 6 | An accepted offer is carried out ([36] «طيب», [68], [76] «جرب») | Nothing | Cards pause the Run and the answer resumes it | An answered question leaves no obligation (`messages.py:537`) | D3, D14: the offer record and its obligation | `offers.py`, `messages.py`, `conversation_gate.py` | 3c |
+| 7 | An unfinished request is kept ([78]-[81]) | A flag and a note, with "resume only if asked" | An open-work list always in context | `reply_outcome: "limited"` exists; nothing is carried to the next turn | An open-request record per conversation, shown on the next turn with "resume or mention" | thread state, context builder, `loop_outcomes.py` | 3c-2 |
 | 8 | No claim of inability while a tool exists ([71], [75]) | Every schema in every request | A search that cannot come back empty | The search gate is fixed and the counterparts are native; nothing checks that a found tool was used | A found tool that was never called continues the turn; an empty search says so and lists the group | `tool_discovery.py`, `registry.py`, `stop_gates.py` | 3b |
 | 9 | Lonora acts on every resource of the owner ([62]-[77]) | Single user | Only in a Run the owner started that read no outside content | Cancel, extend and create are tied to the calling agent | D4 | `market_watch.py`, `tasks.py`, `routine.py`, `trading_goal.py` | 3d |
 | 10 | Every owner action has a tool or a card (68 gaps) | n/a | n/a | 50 covered by tools, 12 by cards, 68 gaps | Section 5; D5 | tools, `owner_actions.py` | 3d, 3e |
@@ -164,7 +185,8 @@ How each binding principle of the brief is met. "Done" means merged and held by 
    result is a failure whose next step is a read or a repeat that was not taken, when a search found
    a tool that was not called, or when an obligation (principle 4) is unmet. Two nudges at most, each
    marked as automated; never past a permission result or an approval.
-4. **A short consent carries out the offer.** Phase 3c (D3).
+4. **A short consent carries out the offer.** Phase 3c (D3, D14): the consent is the pick of a
+   choice that was bound to its calls.
 5. **A condition becomes a trigger.** Phase 3b: a watch, a routine or a broker-side stop saved in the
    same Run is what makes a promise true. The profit watch on a position and `modify_position`
    already exist; the policy text shows the two forms and the confirmation line.
@@ -175,7 +197,7 @@ How each binding principle of the brief is met. "Done" means merged and held by 
 8. **No "done" and no promise without a successful result; no trial calls.** Phase 3b. A tool that
    creates a resource cannot be called with a placeholder: the watch and routine tools refuse
    `enabled: false` on creation and a prompt that is not the owner's task.
-9. **Open requests are durable.** Phase 3c.
+9. **Open requests are durable.** Phase 3c-2.
 10. **Owner scope.** Phase 3d (D4).
 11. **Live reads for state.** Phase 3f, by the provenance of numbers.
 12. **Reply guard on the server.** Phase 3f. Bold markers are done (#60).
@@ -264,14 +286,15 @@ flip, and `bash scripts/build.sh` passes before it opens.
 | 3a (merged, #62) | The error contract for every error: class, whether to repeat and a truthful hint; a handler's own guidance is kept instead of overwritten; D1; an order size the contract cannot take is refused before any card | `tool_dispatch.py`, `environment.py`, `failure_view.py`, `symbols.py`, `trade.py` | X_unknown, X_rate, X_args (structural): done |
 | 3a-2 | One resolver for accounts, agents, watches, tasks, routines and positions; the durable symbol map; single-candidate reads repeat inside the tool; the class of a refusal comes from the tool, not from the spelling of its code | new `lonora_tools/resolve.py`, `symbols.py`, raising tools | new resolver probes |
 | 3b | The conversation gate (D13): a named read left untaken, a found tool left unused, changes that all failed; a wrong tool name and an empty search say what exists; no creation switched off as a trial; an interrupted change that is not a trade is reported as unconfirmed; the market and trading chapters are read before the first call; a promise to watch needs a saved watch (policy text) | `conversation_gate.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `registry.py`, `market_watch.py`, `routine.py`, `system_policy.py` | the `trial_side_effect` check of M62, M68, M76 and X_owner; `claims_inability` where the tool was one call away (live) |
-| 3c | The offer record and its obligation; the open-request record; a Task that needs the owner asks in the owner's chat; a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M40, M42, M46, M52, M54, M62, M68-M80 (live) |
+| 3c | The offer record and its obligation (D14): a question's choices bound to calls, checked when asked; the pick is told to the Run, counted at the end of the turn, raised once, then one fixed line | `input_request.py`, new `offers.py`, `tool_dispatch.py`, `messages.py`, `steering.py`, `conversation_gate.py`, `loop_outcomes.py` | none alone: no recorded scenario contains a bound question. The live evaluation counts the turns that ask and how many bind |
+| 3c-2 | The open-request record, kept until a structural fact closes it and shown on every turn with when it was made; a Task that needs the owner asks in the owner's chat (a tap or a reply to the question reaches the Task, free text starts a normal turn); a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M40, M42, M46, M52, M54, M62, M68-M80 (live, with the seeded results reported apart) |
 | 3d | Owner scope for the personal assistant; the owner-wide reads | `market_watch.py`, `tasks.py`, `routine.py`, `trading_goal.py`, `supervision.py` | X_owner (structural), M62-M76 (live) |
 | 3e | The 45 actions with no tool: tools and cards as in 5.3 | `lonora_tools/*`, `owner_actions.py`, `capability_cards.py`, client cards | new parity probes, one per action |
 | 3f | The reply guard by exact lookup; the provenance of numbers; the reply's language (Arabic when the profile names none); state tools return owner-ready labels; the guidance to present broker, login and server is removed; the failed-run card uses the sentence of its own code | `public_reply.py`, `model_runtime.py`, voice upload | M64, M70, M74 internal_term; M28, M56, M58 live read; M50 language (live) |
 | 3g | Mandate defaults (D9), targets at the broker (D10) and the plan (D12); the notice about repeated calls corrected for financial tools; the policy text for "answer the question asked" | `trade.py`, `account_authority.py`, `owner_actions.py`, `resources/system/lonora.md` | M11, M23, M30, M34 (live) |
 | Final | The live evaluation on a real model; the same conversation on the demo account; the before and after report | `scripts/agent_eval`, `docs/agent-eval.md` | all 42 |
 
-Order: 3a, 3a-2, 3b, 3c, 3d, 3f, 3e, 3g. 3e is the largest and does not block the others.
+Order: 3a, 3a-2, 3b, 3c, 3c-2, 3d, 3f, 3e, 3g. 3e is the largest and does not block the others.
 
 ## 7. Rules that hold in every pull request
 

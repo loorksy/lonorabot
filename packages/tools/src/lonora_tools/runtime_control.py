@@ -22,13 +22,13 @@ from .memory import Empty
 class WaitInput(Contract):
     purpose: Literal["clarification", "execution_authorization"] = Field(
         default="clarification",
-        description="Ask for missing information only. Financial consent must use trade_execute, never this question mechanism.",
+        description="Missing information only. Financial consent is trade_execute, never a question.",
     )
     question: str = Field(min_length=1, max_length=8000)
     choices: list[InputChoice] = Field(
         default_factory=list[InputChoice],
         max_length=6,
-        description="Generate relevant options specifically for this question in the conversation language. Do not supply a fixed generic Approve/Reject list. The owner may instead type a free-text reply.",
+        description="Options for this question, in the conversation language; never a generic Approve/Reject list. Free text is always allowed.",
     )
 
     @model_validator(mode="after")
@@ -97,7 +97,12 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "code": "trade_confirmation_already_pending",
                 "approval_id": pending,
             }
-    return {"_runtime_wait": True, "question": args["question"], "choices": args.get("choices", [])}
+    # A choice that binds nothing is stored as before: its id and label.
+    choices = [
+        {key: value for key, value in choice.items() if key != "actions" or value}
+        for choice in args.get("choices", [])
+    ]
+    return {"_runtime_wait": True, "question": args["question"], "choices": choices}
 
 
 async def silence(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -198,7 +203,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "wait_for_input",
-            "Use this whenever a genuinely missing owner decision blocks progress; do not write numbered menus or ask for numeric/letter replies in plain chat. First recover previous answers and continue work already requested. Generate optional question-specific choices in the user's language; free text is always allowed. If a trade already has its required parameters, call trade_execute directly instead of asking whether the owner wants execution. Never use Approve/Reject questions as financial consent. These answers cannot grant or transfer authority or approve trades. Do not ask again while real trade confirmation is pending. In user-facing prose, ask naturally without mentioning tools, cards or internal processing.",
+            "Ask the owner one question when a decision that is really the owner's blocks progress; never a numbered or lettered menu. First recover earlier answers and finish the work already asked for. A choice that makes you act lists its exact calls in actions (never a trade): the pick is carried out as bound. With a trade's parameters known, call trade_execute instead of asking: an answer never approves a trade or grants authority, and nothing is asked while a trade confirmation is pending. Ask naturally, without naming tools, cards or internal processing.",
             WaitInput,
             wait,
             eager=eager_for("core"),

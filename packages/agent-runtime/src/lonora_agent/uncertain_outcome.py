@@ -174,8 +174,14 @@ def appended_parts(parts: list[Any], line: str) -> list[Any]:
 
 
 def append_uncertain_line(state: dict[str, Any], messages: list[ModelMessage], text: str) -> str:
+    """The reply with the uncertain-outcome line, when one is owed."""
+    return append_line(state, messages, text, uncertain_line(state, messages))
+
+
+def append_line(
+    state: dict[str, Any], messages: list[ModelMessage], text: str, line: str | None
+) -> str:
     """The reply with the line appended once (text, stored message and card text)."""
-    line = uncertain_line(state, messages)
     if line is None or line in text:
         return text
     text = (text.rstrip() + "\n\n" + line) if text.strip() else line

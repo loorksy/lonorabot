@@ -7,6 +7,7 @@ from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
 
 from .context.attachments import attachment_context
+from .offers import merge_answer
 from .stop_gates import reset_stop_gate
 from .tool_guardrails import reset_guardrails
 
@@ -38,6 +39,7 @@ async def merge_steering(
                     images=images,
                 )
             )
+            merge_answer(state, messages, str(row.id), owner=row.role == "user")
         if fresh:
             if any(
                 row.role == "user"

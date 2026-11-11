@@ -39,6 +39,18 @@ def is_runtime_notice(message: ModelMessage) -> bool:
     )
 
 
+def notice_kind(message: ModelMessage) -> str | None:
+    """The kind a trailing runtime notice was written with, or ``None``."""
+    if not is_runtime_notice(message):
+        return None
+    try:
+        payload: Any = json.loads(message.content[len(NOTICE_OPEN) : -len(NOTICE_CLOSE)])
+    except ValueError:
+        return None
+    kind = cast(dict[str, Any], payload).get("kind") if isinstance(payload, dict) else None
+    return kind if isinstance(kind, str) else None
+
+
 # history_context prefixes another Agent's message in a shared thread with this.
 PEER_PREFIX = "[Peer "
 

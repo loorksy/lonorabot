@@ -12,7 +12,7 @@ from .cancellation import cancel_run
 from .events import emit
 from .reactions import reactions_by_message
 from .rich_response import server_rich_content
-from .runs import run_data
+from .runs import OFFER_OBLIGATION, run_data
 from .schema import (
     AgentRow,
     ArtifactRow,
@@ -550,6 +550,26 @@ async def admit_runs(
                 ]
                 state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
                 state.pop("pending_input_request", None)
+                # A picked choice that was bound to calls is what the resumed Run answers
+                # for. Any other answer closes the offer: it was open for this message only.
+                state.pop(OFFER_OBLIGATION, None)
+                picked = request.input_answer.choice_id if request.input_answer else None
+                bound = next(
+                    (
+                        choice.get("actions")
+                        for choice in pending_question.get("choices", [])
+                        if picked is not None and choice.get("id") == picked
+                    ),
+                    None,
+                )
+                if bound:
+                    state[OFFER_OBLIGATION] = {
+                        "question_id": pending_question["id"],
+                        "choice_id": picked,
+                        "answer_message_id": message.id,
+                        "actions": bound,
+                        "status": "open",
+                    }
                 active.execution_state = state
             if active.model_metadata.get("ui_submit_origin") and message.origin == "owner":
                 # A card's send that has not run yet holds the owner's words for it; if

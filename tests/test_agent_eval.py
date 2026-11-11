@@ -349,6 +349,26 @@ def test_the_question_card_is_part_of_what_the_owner_sees():
     assert found == {"internal_term": "waiting"}
 
 
+def test_a_question_and_its_bound_calls_are_counted_not_judged():
+    def turn(*results: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "transcript": [
+                {"role": "assistant", "content": ""},
+                *({"role": "tool", "content": json.dumps(result)} for result in results),
+            ]
+        }
+
+    plain = {"ok": True, "_runtime_wait": True, "question": "?", "choices": [{"id": "a"}]}
+    binds = {**plain, "effects": {"a": [{"name": "watch_cancel", "count": 1}]}}
+    # A binding that was refused published no question at all.
+    refused = {"ok": False, "code": "offer_action_invalid", "class": "input"}
+    assert score.asked(turn({"ok": True, "bid": 1.0})) == (False, False)
+    assert score.asked(turn(refused)) == (False, False)
+    assert score.asked(turn(refused, plain)) == (True, False)
+    assert score.asked(turn(plain, binds)) == (True, True)
+    assert score.asked({"tool_calls": []}) == (False, False)
+
+
 def test_rounds_are_bounded():
     assert "rounds" in score.conditions(ANY, record("مرحبًا.", rounds=score.MAX_ROUNDS + 1))
     assert score.conditions({**ANY, "max_rounds": 12}, record("مرحبًا.", rounds=12)) == {}
