@@ -1,4 +1,4 @@
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { MessageCommand, PermissionState } from "@lonora/contracts";
 import {
@@ -7,6 +7,7 @@ import {
   highlightRange,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
   mentionSegments,
@@ -68,6 +69,15 @@ const svg = (name: IconName) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 const fine = () => matchMedia("(pointer: fine)").matches;
 const ATTACH = { items: 6, bytes: 8 * 1024 * 1024 };
+/** «تنبيه 3 وكلاء»: who «@الكل» alerts in a group (reference mentionOptions, 5085-5094). */
+const alertText = (count: number) =>
+  plural(count, {
+    one: "Alerts one agent",
+    two: "Alerts two agents",
+    few: "Alerts # agents",
+    many: "Alerts # agents",
+    other: "Alerts # agents",
+  });
 
 export function Composer({
   threadId,
@@ -243,8 +253,8 @@ export function Composer({
       })
     : false;
 
-  /* ---- mentions: group members (+ القائد, متوقف); a direct chat: other agents (+ @الكل while
-     a collaboration session is open) */
+  /* ---- mentions: group members (+ القائد, متوقف), then @الكل; a direct chat: other agents
+     (+ @الكل while a collaboration session is open) */
   const memberIds = isGroup
     ? agents.map((row) => row.id)
     : agents.filter((row) => row.id !== agent?.id).map((row) => row.id);
@@ -258,14 +268,15 @@ export function Composer({
           agent?.id,
         ).slice(0, 6)
       : [];
-  // «@الكل» addresses everyone in this chat's open collaboration session (a direct chat with
-  // guests); the server refuses it anywhere else, so it is offered only there.
+  // «@الكل» addresses every member of a group, or everyone in a direct chat's open
+  // collaboration session (guests); it is offered only where one of the two exists.
   const all =
-    Boolean(collaborationSessionId) &&
-    !isGroup &&
+    (isGroup || Boolean(collaborationSessionId)) &&
     mention !== null &&
     mention !== dismissed &&
-    "الكلall".includes(mention.toLowerCase());
+    matchesEveryone(mention);
+  // A paused member is not alerted: the count says who will be.
+  const alerted = agents.filter((row) => !row.paused).length;
   const options_: Array<Agent | null> = [...candidates, ...(all ? [null] : [])];
 
   /* ---- / commands: only as the first thing in the message. The list is the same floating
@@ -412,10 +423,16 @@ export function Composer({
         : null;
     if (sent && !message) runCommand(sent);
     else
-      onSend(body, ids, reply?.id ?? null, mentionAddress(text, committed.current), {
-        ...(editing ? { edited_from: editing.id } : {}),
-        ...(message ? { command: message } : {}),
-      });
+      onSend(
+        body,
+        ids,
+        reply?.id ?? null,
+        mentionAddress(text, committed.current, isGroup ? memberIds : undefined),
+        {
+          ...(editing ? { edited_from: editing.id } : {}),
+          ...(message ? { command: message } : {}),
+        },
+      );
     navigator.vibrate?.(6);
     setText("");
     committed.current = [];
@@ -710,6 +727,7 @@ export function Composer({
                       <span dir="auto">@{row ? row.name : t`all`}</span>
                     </strong>
                     {row && agentRole(row) && <small>{agentRole(row)}</small>}
+                    {!row && isGroup && <small>{alertText(alerted)}</small>}
                   </span>
                   {row && (row.id === groupLead || row.paused) && (
                     <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>

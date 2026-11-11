@@ -1,4 +1,5 @@
 import type { Agent } from "@lonora/contracts";
+import { foldSearch } from "./search-fold";
 
 export function mentionQuery(textBeforeCaret: string): string | null {
   const match = /(?:^|\s)@([^\s@]*)$/.exec(textBeforeCaret);
@@ -48,13 +49,33 @@ export function rebaseMentions(
   );
 }
 
-export function mentionAddress(text: string, ranges: MentionRange[]): MentionAddress {
+/** Whether what follows «@» starts «الكل» or one of its other names («all», «everyone», «الجميع»). */
+export function matchesEveryone(query: string): boolean {
+  const wanted = foldSearch(query);
+  return ["الكل", "all", "everyone", "الجميع"].some((name) => foldSearch(name).startsWith(wanted));
+}
+
+/**
+ * Who a message addresses. In a group «@الكل» names every member (`everyone`): the server
+ * skips a paused one. In a direct chat it addresses the open collaboration session.
+ */
+export function mentionAddress(
+  text: string,
+  ranges: MentionRange[],
+  everyone?: readonly string[],
+): MentionAddress {
   const valid = ranges.filter((range) => text.slice(range.start, range.end) === range.token);
+  const all = valid.some((range) => range.agent_id === null);
+  const named = valid.flatMap((range) => (range.agent_id ? [range.agent_id] : []));
+  if (all && everyone)
+    return {
+      agent_ids: [...new Set([...named, ...everyone])].slice(0, 16),
+      all: false,
+      collaboration_session_id: undefined,
+    };
   return {
-    agent_ids: [
-      ...new Set(valid.flatMap((range) => (range.agent_id ? [range.agent_id] : []))),
-    ].slice(0, 16),
-    all: valid.some((range) => range.agent_id === null),
+    agent_ids: [...new Set(named)].slice(0, 16),
+    all,
     collaboration_session_id: valid.find((range) => range.agent_id === null)?.session_id,
   };
 }

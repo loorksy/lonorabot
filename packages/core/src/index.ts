@@ -91,6 +91,7 @@ export {
   MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
+  matchesEveryone,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
