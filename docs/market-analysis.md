@@ -169,7 +169,7 @@ symbol a request names is decided by code, never by the model:
   currency are not the pair the code names is dropped.
 - **Reads** (`market_instrument`, `market_quote`, `market_candles`, `market_snapshot`,
   `market_structure`, `market_sessions`, `market_candles_to_workspace`,
-  `chart_indicator`) call `lonora_tools.symbols.read_symbol`. They use the account's
+  `chart_indicator`, the candle-only `chart_snapshot`) call `lonora_tools.symbols.read_symbol`. They use the account's
   symbol and state it: the result carries `symbol_resolution` (`requested`, `symbol`)
   whenever the request named it another way. When several contracts match, the read
   uses the first (shortest name) and lists the others with a note that an order needs
@@ -179,7 +179,9 @@ symbol a request names is decided by code, never by the model:
   `trade_close_positions`, `market_position_size`, grant drafts,
   `trade_restriction_create`) name a symbol the catalogue lists exactly, letter case
   aside (`order_symbol`, `canonical_broker_symbol`, `restriction_symbol`). They are
-  never resolved to another symbol, so resolution cannot move an order to another
+  never resolved to another symbol (an exit or a change to an existing ticket is not
+  checked against the catalogue at all: preflight requires the ticket's own symbol, and
+  a failed or shortened listing never holds back a close), so resolution cannot move an order to another
   instrument or widen what a grant, a restriction or an agent's binding covers: those
   still compare the exact symbol.
 - **A request that is not listed** fails with `symbol_not_found` (no match, or exactly
@@ -197,7 +199,7 @@ symbol a request names is decided by code, never by the model:
   a message about the account itself is `broker_account_not_found`.
 
 `tests/test_instrument_resolution.py`, `tests/test_market_symbol_resolution.py`,
-`tests/test_metaapi_unknown_symbol.py` and the behaviour case
+`tests/test_trade_symbol_strictness.py`, `tests/test_metaapi_unknown_symbol.py` and the behaviour case
 `tests/check_gold_journey.py` («كيف وضع الذهب؟» on a suffixed account) cover it.
 
 ## Verification

@@ -43,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .symbols import order_symbol
+from .symbols import canonical_broker_symbol, order_symbol
 
 # Results whose operation reached, or may have reached, the broker: never asked twice.
 REACHED_BROKER = {"confirmed", "submitted", "ambiguous", "resolved"}
@@ -653,7 +653,13 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await require_lease(session, context.lease)
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
-        args["symbol"] = await order_symbol(broker, str(args["symbol"]))
+        # A new order names the catalogue's exact symbol. An exit or a change to an
+        # existing ticket is never held back by the catalogue: preflight requires the
+        # ticket's own symbol.
+        managing = args.get("position_id") or args.get("order_id")
+        args["symbol"] = await (canonical_broker_symbol if managing else order_symbol)(
+            broker, str(args["symbol"])
+        )
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
     return await approved_execution(context, [TradeRequest.model_validate(args)])
 
@@ -671,8 +677,12 @@ async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[st
             requests = []
     if previous is None:
         broker = await context.brokers.get(context.owner_id, args["account_id"])
-        symbol = await order_symbol(broker, args["symbol"]) if args.get("symbol") else None
         positions = await broker.positions()
+        symbol = args.get("symbol")
+        if symbol is not None and not any(p.symbol == symbol for p in positions):
+            # No open position under that name: the catalogue's spelling, or the
+            # account's real candidates. A listed position is never held back.
+            symbol = await order_symbol(broker, symbol)
         requests = [
             TradeRequest(
                 account_id=args["account_id"],
