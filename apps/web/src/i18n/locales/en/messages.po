@@ -533,6 +533,10 @@ msgstr "Add chats"
 msgid "Add chats to your favourites: press and hold a chat, then ⋮."
 msgstr "Add chats to your favourites: press and hold a chat, then ⋮."
 
+#: src/pages/shell/chat-context.tsx:826
+msgid "Add direction while the agent works…"
+msgstr "Add direction while the agent works…"
+
 #: src/pages/shell/chat-context.tsx:825
 #~ msgid "Add direction while the agent works…"
 #~ msgstr "Add direction while the agent works…"
@@ -627,16 +631,31 @@ msgstr "After linking, the account's trading symbols are fetched from the broker
 #: src/pages/Board.tsx:416
 #: src/pages/Board.tsx:418
 #: src/pages/shell/bot-picker.tsx:16
+#: src/pages/shell/chat-context.tsx:285
+#: src/pages/shell/message-cards.tsx:41
+#: src/pages/shell/message-cards.tsx:106
+#: src/pages/shell/message-cards.tsx:267
+#: src/pages/shell/message-cards.tsx:270
+#: src/pages/shell/message-cards.tsx:275
+#: src/pages/shell/message-cards.tsx:278
+#: src/pages/shell/message-cards.tsx:345
+
 #: src/shell/domain/SchedulesPages.tsx:479
 #: src/shell/domain/TasksPages.tsx:197
 msgid "Agent"
 msgstr "Agent"
+
+#: src/components/genui/UiCard.tsx:238
+msgid "Agent call"
+msgstr "Agent call"
 
 #: src/shell/settings/NotifyPages.tsx:347
 msgid "Agent calls"
 msgstr "Agent calls"
 
 #: src/components/ai/CollaborationMarker.tsx:11
+#: src/pages/shell/message-cards.tsx:259
+
 #: src/conversation/Cards.tsx:610
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
@@ -954,6 +973,19 @@ msgstr "Ask this agent to create a trading goal. Its plan, watches and execution
 msgid "Assign work to your agents and follow each task."
 msgstr "Assign work to your agents and follow each task."
 
+#: src/pages/shell/chat-context.tsx:803
+#: src/pages/shell/chat-context.tsx:804
+msgid "Attach file"
+msgstr "Attach file"
+
+#: src/pages/shell/chat-context.tsx:626
+msgid "Attached files"
+msgstr "Attached files"
+
+#: src/pages/shell/message-cards.tsx:171
+msgid "Attachment"
+msgstr "Attachment"
+
 #: src/conversation/Cards.tsx:296
 #: src/shell/agent/TradesPage.tsx:67
 #: src/shell/agent/TradesPage.tsx:75
@@ -968,10 +1000,6 @@ msgstr "At most two other agents can join one message."
 #: src/pages/shell/chat-context.tsx:803
 #~ msgid "Attach file"
 #~ msgstr "Attach file"
-
-#: src/conversation/Composer.tsx:300
-msgid "Attached files"
-msgstr "Attached files"
 
 #: src/pages/shell/message-cards.tsx:161
 #~ msgid "Attachment"
@@ -1398,6 +1426,8 @@ msgstr "Cancel the selection"
 #: src/components/ToolActivityDisclosure.tsx:23
 #: src/lib/goal-status.ts:44
 #: src/pages/Board.tsx:27
+#: src/pages/shell/message-cards.tsx:288
+
 msgid "Cancelled"
 msgstr "Cancelled"
 
@@ -1865,12 +1895,18 @@ msgstr "Commands at the start of the message"
 msgid "Compared with {compare} · <0>{0}</0>"
 msgstr "Compared with {compare} · <0>{0}</0>"
 
+#: src/components/genui/UiCard.tsx:469
+msgid "Complete «{label}» first"
+msgstr "Complete «{label}» first"
+
 #: src/components/ai/primitives.tsx:49
 #: src/components/ai/TurnActivity.tsx:36
 #: src/components/ai/TurnActivity.tsx:95
 #: src/components/ToolActivityDisclosure.tsx:27
 #: src/lib/goal-status.ts:36
 #: src/pages/Board.tsx:21
+#: src/pages/shell/message-cards.tsx:292
+
 msgid "Completed"
 msgstr "Completed"
 
@@ -2024,6 +2060,8 @@ msgstr "Continue recording"
 
 #: src/conversation/Conversation.tsx:1005
 #: src/pages/ModelRoutingSettings.tsx:10
+#: src/pages/shell/chat-context.tsx:1088
+
 msgid "Conversation"
 msgstr "Conversation"
 
@@ -2513,6 +2551,10 @@ msgstr "Disconnect account"
 msgid "Discovered models"
 msgstr "Discovered models"
 
+#: src/pages/shell/chat-context.tsx:699
+msgid "Dismiss error"
+msgstr "Dismiss error"
+
 #: src/pages/shell/chat-context.tsx:698
 #~ msgid "Dismiss error"
 #~ msgstr "Dismiss error"
@@ -2595,6 +2637,7 @@ msgstr "Economic calendar"
 msgid "Economic calendar feed"
 msgstr "Economic calendar feed"
 
+#: src/components/genui/UiCard.tsx:603
 #: src/shell/domain/FilesPages.tsx:121
 msgid "Edit"
 msgstr "Edit"
@@ -2653,6 +2696,12 @@ msgstr "Edit the limits"
 #: src/shell/lists/ListSheets.tsx:398
 msgid "Edit the list"
 msgstr "Edit the list"
+
+#: src/components/genui/UiCard.tsx:542
+msgid "Edit, then send again"
+msgstr "Edit, then send again"
+
+#: src/components/genui/index.tsx:60
 
 #: src/conversation/Composer.tsx:557
 msgid "Edit the message"
@@ -2787,6 +2836,10 @@ msgstr "Enter the server name"
 #: src/shell/domain/SkillsPages.tsx:277
 msgid "Enter the skill's name and instructions."
 msgstr "Enter the skill's name and instructions."
+
+#: src/pages/shell/chat-context.tsx:906
+msgid "Enter to send · Shift+Enter for a new line"
+msgstr "Enter to send · Shift+Enter for a new line"
 
 #: src/pages/shell/chat-context.tsx:905
 #~ msgid "Enter to send · Shift+Enter for a new line"
@@ -2926,6 +2979,8 @@ msgstr "Face"
 #: src/components/ToolActivityDisclosure.tsx:25
 #: src/lib/goal-status.ts:38
 #: src/pages/Board.tsx:31
+#: src/pages/shell/message-cards.tsx:290
+
 msgid "Failed"
 msgstr "Failed"
 
@@ -3340,6 +3395,7 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "In progress"
 
+#: src/components/genui/UiCard.tsx:235
 #: src/shell/domain/SchedulesPages.tsx:200
 #: src/shell/domain/SchedulesPages.tsx:248
 #: src/shell/domain/SchedulesPages.tsx:505
@@ -3427,6 +3483,10 @@ msgstr "Instructions"
 msgid "Integrations"
 msgstr "Integrations"
 
+#: src/components/genui/UiCard.tsx:560
+msgid "Interactive interface"
+msgstr "Interactive interface"
+
 #: src/conversation/GenUiPart.tsx:39
 msgid "Interface"
 msgstr "Interface"
@@ -3453,6 +3513,10 @@ msgstr "Interrupted"
 #: src/pages/RoutineSchedule.tsx:26
 #~ msgid "Interval"
 #~ msgstr "Interval"
+
+#: src/components/genui/UiCard.tsx:351
+msgid "Invalid value."
+msgstr "Invalid value."
 
 #: src/components/SandboxedHtmlViewer.tsx:6
 msgid "Isolated document preview"
@@ -3493,6 +3557,10 @@ msgstr "It was not executed"
 #: src/shell/NewChatSheet.tsx:27
 msgid "Its own role, model and permissions"
 msgstr "Its own role, model and permissions"
+
+#: src/pages/shell/chat-context.tsx:1224
+msgid "Jump to latest"
+msgstr "Jump to latest"
 
 #: src/pages/shell/chat-context.tsx:1215
 #~ msgid "Jump to latest"
@@ -3594,6 +3662,10 @@ msgstr "Larger"
 #: src/shell/settings/DevicePages.tsx:29
 msgid "Largest"
 msgstr "Largest"
+
+#: src/components/genui/UiCard.tsx:459
+msgid "Last updated"
+msgstr "Last updated"
 
 #: src/shell/agent/RecoveryPage.tsx:110
 msgid "Last successful read"
@@ -3734,6 +3806,10 @@ msgstr "Listening… speak now"
 #~ msgid "Live observations"
 #~ msgstr "Live observations"
 
+#: src/pages/shell/chat-context.tsx:1125
+msgid "Load earlier messages"
+msgstr "Load earlier messages"
+
 #: src/pages/shell/chat-context.tsx:1116
 #~ msgid "Load earlier messages"
 #~ msgstr "Load earlier messages"
@@ -3784,6 +3860,8 @@ msgstr "Loading preview…"
 #: src/pages/Artifacts.tsx:271
 #: src/pages/Board.tsx:202
 #: src/pages/ScratchpadSection.tsx:94
+#: src/pages/shell/chat-context.tsx:1122
+
 #: src/pages/SkillsSection.tsx:101
 #: src/shell/agent/AgentPage.tsx:318
 #: src/shell/pages.tsx:77
@@ -3976,6 +4054,12 @@ msgstr "Mention agents with @name. Without a mention, the first member responds.
 msgid "Mention an agent"
 msgstr "Mention an agent"
 
+#: src/pages/shell/chat-context.tsx:752
+msgid "Mentions"
+msgstr "Mentions"
+
+#: src/pages/shell/chat-context.tsx:816
+
 #: src/pages/shell/chat-context.tsx:751
 #~ msgid "Mentions"
 #~ msgstr "Mentions"
@@ -3985,6 +4069,18 @@ msgstr "Mention an agent"
 msgid "Message"
 msgstr "Message"
 
+#: src/pages/shell/chat-context.tsx:828
+msgid "Message {recipientName}"
+msgstr "Message {recipientName}"
+
+#: src/pages/shell/chat-context.tsx:665
+msgid "Message composer"
+msgstr "Message composer"
+
+#: src/pages/shell/chat-context.tsx:829
+msgid "Message your agent…"
+msgstr "Message your agent…"
+
 #: src/conversation/Composer.tsx:628
 msgid "Message {name}"
 msgstr "Message {name}"
@@ -3992,10 +4088,6 @@ msgstr "Message {name}"
 #: src/pages/shell/chat-context.tsx:827
 #~ msgid "Message {recipientName}"
 #~ msgstr "Message {recipientName}"
-
-#: src/conversation/Composer.tsx:444
-msgid "Message composer"
-msgstr "Message composer"
 
 #: src/conversation/Conversation.tsx:513
 #: src/conversation/Conversation.tsx:536
@@ -4585,6 +4677,10 @@ msgstr "Not added yet"
 msgid "Not approved"
 msgstr "Not approved"
 
+#: src/components/genui/index.tsx:60
+msgid "Not carried out"
+msgstr "Not carried out"
+
 #: src/shell/agent/IdentityPage.tsx:311
 msgid "Not linked"
 msgstr "Not linked"
@@ -4632,6 +4728,13 @@ msgstr "Nothing yet."
 #: src/shell/settings/NotifyPages.tsx:21
 msgid "Notification"
 msgstr "Notification"
+
+#: src/components/genui/UiCard.tsx:215
+msgid "Notification method"
+msgstr "Notification method"
+
+#: src/components/ai/AttentionInbox.tsx:69
+#: src/components/ai/AttentionInbox.tsx:71
 
 #: src/components/ai/AttentionInbox.tsx:70
 #: src/components/ai/AttentionInbox.tsx:72
@@ -5125,6 +5228,12 @@ msgstr "Persistent child agent"
 msgid "Personal Agent"
 msgstr "Personal Agent"
 
+#: src/components/genui/UiCard.tsx:237
+msgid "Phone notification"
+msgstr "Phone notification"
+
+#: src/pages/shell/bot-panel.tsx:54
+
 #: src/conversation/Conversation.tsx:480
 msgid "Photo"
 msgstr "Photo"
@@ -5336,6 +5445,8 @@ msgstr "Question from the agent"
 #: src/components/ai/primitives.tsx:33
 #: src/components/ai/primitives.tsx:81
 #: src/components/ai/TurnActivity.tsx:26
+#: src/pages/shell/message-cards.tsx:296
+
 msgid "Queued"
 msgstr "Queued"
 
@@ -5575,6 +5686,10 @@ msgstr "Remove"
 msgid "Remove {0}"
 msgstr "Remove {0}"
 
+#: src/pages/shell/chat-context.tsx:738
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
 #: src/conversation/Composer.tsx:611
 msgid "Remove {label}"
 msgstr "Remove {label}"
@@ -5586,6 +5701,10 @@ msgstr "Remove {label}"
 #: src/shell/lists/Selection.tsx:222
 msgid "Remove from favourites"
 msgstr "Remove from favourites"
+
+#: src/pages/shell/chat-context.tsx:721
+msgid "Remove reply"
+msgstr "Remove reply"
 
 #: src/pages/shell/chat-context.tsx:720
 #~ msgid "Remove reply"
@@ -5615,14 +5734,20 @@ msgstr "Removed from favourites"
 msgid "Repeat"
 msgstr "Repeat"
 
+#: src/pages/shell/message-cards.tsx:212
+#: src/pages/shell/message-cards.tsx:213
+#: src/shell/lists/HeadsUp.tsx:235
+msgid "Reply"
+msgstr "Reply"
+
+#: src/pages/shell/chat-context.tsx:710
+#: src/pages/shell/message-cards.tsx:122
+msgid "Reply to an earlier message"
+msgstr "Reply to an earlier message"
+
 #: src/conversation/ChatPrefsPage.tsx:17
 msgid "Replies"
 msgstr "Replies"
-
-#: src/conversation/Conversation.tsx:529
-#: src/shell/lists/HeadsUp.tsx:253
-msgid "Reply"
-msgstr "Reply"
 
 #. placeholder {0}: replyAgent?.name ?? "Lonora"
 #: src/conversation/Composer.tsx:562
@@ -5773,6 +5898,8 @@ msgstr "Restriction set"
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
+#: src/pages/shell/chat-context.tsx:292
+
 #: src/shell/agent/AgentPage.tsx:397
 #: src/shell/domain/TasksPages.tsx:230
 msgid "Resume"
@@ -5790,6 +5917,8 @@ msgstr "Retried. The state updates when the broker answers."
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
+#: src/pages/shell/message-cards.tsx:196
+
 #: src/shell/lists/ChatList.tsx:353
 #: src/shell/pages.tsx:392
 #: src/shell/pages.tsx:403
@@ -6169,6 +6298,9 @@ msgstr "Sell stop"
 msgid "Semantic memory · optional"
 msgstr "Semantic memory · optional"
 
+#: src/pages/shell/chat-context.tsx:881
+#: src/pages/shell/chat-context.tsx:882
+
 #: src/conversation/Composer.tsx:824
 msgid "Send"
 msgstr "Send"
@@ -6177,8 +6309,22 @@ msgstr "Send"
 msgid "Send (Shift+Enter for a new line)"
 msgstr "Send (Shift+Enter for a new line)"
 
-#: src/pages/shell/chat-context.tsx:880
 #: src/pages/shell/chat-context.tsx:881
+#: src/pages/shell/chat-context.tsx:882
+msgid "Send direction"
+msgstr "Send direction"
+
+#: src/components/ai/primitives.tsx:74
+#: src/components/ai/TurnActivity.tsx:25
+#: src/pages/shell/message-cards.tsx:204
+msgid "Sending…"
+msgstr "Sending…"
+
+#. placeholder {0}: agent?.name ?? "Lonora"
+#: src/components/genui/UiCard.tsx:600
+msgid "Sent to {0}"
+msgstr "Sent to {0}"
+
 #~ msgid "Send direction"
 #~ msgstr "Send direction"
 
@@ -6197,11 +6343,6 @@ msgstr "Send the voice message"
 #: src/conversation/ChatPrefsPage.tsx:50
 msgid "Send with Enter"
 msgstr "Send with Enter"
-
-#: src/components/ai/primitives.tsx:74
-#: src/components/ai/TurnActivity.tsx:25
-msgid "Sending…"
-msgstr "Sending…"
 
 #: src/conversation/Cards.tsx:226
 #: src/conversation/Message.tsx:82
@@ -6255,6 +6396,8 @@ msgstr "Set by you"
 #: src/shell/settings/AuthFlow.tsx:237
 msgid "Set up Lonora"
 msgstr "Set up Lonora"
+
+#: src/pages/shell/chat-context.tsx:777
 
 #: src/shell/FloatingTabBar.tsx:25
 #: src/shell/settings/DevicePages.tsx:139
@@ -6319,6 +6462,9 @@ msgstr "Show as a chart"
 #: src/shell/settings/UsagePage.tsx:272
 msgid "Show as a table"
 msgstr "Show as a table"
+
+#: src/components/genui/UiCard.tsx:363
+#: src/shell/domain/UpdatesPages.tsx:129
 
 #: src/shell/domain/UpdatesPages.tsx:130
 #: src/shell/lists/UnifiedSearch.tsx:379
@@ -6510,6 +6656,10 @@ msgstr "Sounds"
 msgid "Source"
 msgstr "Source"
 
+#: src/components/genui/UiCard.tsx:631
+msgid "Sources"
+msgstr "Sources"
+
 #: src/components/call/VoiceStatus.tsx:26
 msgid "Speaking"
 msgstr "Speaking"
@@ -6594,6 +6744,9 @@ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
+#: src/pages/shell/chat-context.tsx:897
+#: src/pages/shell/chat-context.tsx:898
+
 msgid "Stop"
 msgstr "Stop"
 
@@ -6655,6 +6808,8 @@ msgstr "Stop unnecessary animations and transitions"
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
 #~ msgstr "Stopped"
+
+#: src/pages/shell/message-cards.tsx:294
 
 #: src/conversation/sheets/AgentSheet.tsx:460
 msgid "Stopped · no new orders are sent"
@@ -7101,6 +7256,10 @@ msgstr "The file no longer exists."
 msgid "The file preview could not be displayed"
 msgstr "The file preview could not be displayed"
 
+#: src/pages/shell/message-cards.tsx:375
+msgid "The full response will appear when complete."
+msgstr "The full response will appear when complete."
+
 #: src/pages/shell/message-cards.tsx:364
 #~ msgid "The full response will appear when complete."
 #~ msgstr "The full response will appear when complete."
@@ -7124,6 +7283,9 @@ msgstr "the last 30 days"
 #: src/shell/settings/UsagePage.tsx:86
 msgid "the last 7 days"
 msgstr "the last 7 days"
+
+#: src/pages/shell/chat-context.tsx:115
+#: src/pages/shell/chat-context.tsx:118
 
 #: src/conversation/ChatPrefsPage.tsx:57
 msgid "The list of agents while you write"
@@ -7327,6 +7489,10 @@ msgstr "The steps stay open instead of folding into one line"
 #: src/shell/domain/TasksPages.tsx:141
 msgid "The task no longer exists."
 msgstr "The task no longer exists."
+
+#: src/pages/shell/message-cards.tsx:307
+msgid "The task resumed from its saved state after reconnection."
+msgstr "The task resumed from its saved state after reconnection."
 
 #: src/pages/shell/message-cards.tsx:296
 #~ msgid "The task resumed from its saved state after reconnection."
@@ -7617,6 +7783,8 @@ msgstr "To do"
 
 #: src/conversation/Conversation.tsx:86
 #: src/pages/Artifacts.tsx:235
+#: src/pages/shell/chat-context.tsx:1176
+
 #: src/shell/settings/UsagePage.tsx:85
 #: src/shell/settings/UsagePage.tsx:234
 #: src/shell/settings/UsagePage.tsx:319
@@ -8194,6 +8362,9 @@ msgstr "Waiting for reconciliation"
 msgid "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 msgstr "Waiting for the broker to report the entry position. The accepted order will not be submitted again."
 
+#: src/pages/shell/message-cards.tsx:199
+#: src/shell/ChatHeader.tsx:45
+
 #: src/conversation/Cards.tsx:429
 msgid "Waiting for the broker's answer…"
 msgstr "Waiting for the broker's answer…"
@@ -8331,6 +8502,12 @@ msgctxt "schedule type"
 msgid "When a condition is met"
 msgstr "When a condition is met"
 
+#: src/components/genui/UiCard.tsx:621
+msgid "Why this interface?"
+msgstr "Why this interface?"
+
+#: src/components/ai/AvatarStudio.tsx:64
+
 #: src/components/ai/AvatarStudio.tsx:26
 msgid "Wink"
 msgstr "Wink"
@@ -8403,6 +8580,8 @@ msgstr "Wrong code"
 msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
+#: src/pages/shell/chat-context.tsx:1177
+
 #: src/conversation/Conversation.tsx:87
 #: src/shell/settings/OwnerPage.tsx:36
 #: src/shell/settings/UsagePage.tsx:234
@@ -8454,6 +8633,10 @@ msgstr "You reached the name's maximum length"
 #: src/shell/domain/UpdatesPages.tsx:39
 msgid "You rejected a request"
 msgstr "You rejected a request"
+
+#: src/components/genui/UiCard.tsx:610
+msgid "You stopped the reply before the interface was complete"
+msgstr "You stopped the reply before the interface was complete"
 
 #: src/conversation/sheets/MandateSheet.tsx:140
 msgid "You set the markets, actions, duration and money limit"

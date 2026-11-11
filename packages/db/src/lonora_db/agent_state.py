@@ -195,6 +195,8 @@ async def current_work(
                         MessageRow.thread_id == run.thread_id,
                         MessageRow.seq == run.input_seq,
                         MessageRow.role == "user",
+                        # Card text is written by the server; the status line quotes the owner only.
+                        MessageRow.origin == "owner",
                     )
                 )
                 or ""

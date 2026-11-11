@@ -14,6 +14,7 @@ import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
+  canCancel,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
@@ -24,6 +25,7 @@ import {
   runStatusText,
   seedStream,
   streamForRun,
+  submitMark,
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
@@ -651,6 +653,22 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       setBusy(false);
     }
   };
+  /** Stop cancels every cancellable Run of the thread, a queued card submission included,
+   * as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a). */
+  const stopAll = async () => {
+    const cancellable = runs.filter((run) => run.thread_id === id && canCancel(run.status));
+    if (!cancellable.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await Promise.all(cancellable.map((run) => api.post(`/runs/${run.id}/cancel`, {})));
+      await snapshot();
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
   const older = async () => {
     if (!messages.length || busy) return;
     following.current = false;
@@ -915,6 +933,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       />
                     ) : null}
                     <MessageBubble
+                      mark={submitMark(message)}
                       onChartLink={(value) => {
                         try {
                           const url = new URL(value, server);
@@ -1054,10 +1073,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           uploading={uploading}
           disabled={!thread}
           working={runs.some((run) => activeStatuses.includes(run.status))}
-          onStop={() => {
-            const run = runs.find((value) => activeStatuses.includes(value.status));
-            if (run) void changeRun(run, "cancel");
-          }}
+          onStop={() => void stopAll()}
         />
       </KeyboardAvoidingView>
     </Screen>

@@ -64,11 +64,49 @@ def message_data(row: MessageRow) -> dict[str, Any]:
         "attachment_ids": row.attachment_ids,
         "created_at": row.created_at.isoformat(),
         "client_nonce": row.client_nonce,
+        "origin": row.origin or "owner",
+        "ui_submit": public_submit(row.ui_submit),
+        "ui_state": row.ui_state,
         "suggested_reply": row.suggested_reply,
         "edited_from": row.edited_from,
         "superseded_by": None,
         "reactions": [],
     }
+
+
+def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What a client may see of a card submission (GENUI_PLAN §8.2 step 4)."""
+    if not submit:
+        return None
+    keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")
+    shown = {key: submit[key] for key in keys if key in submit}
+    for key in ("started_at", "superseded_at", "mark"):
+        if submit.get(key):
+            shown[key] = submit[key]
+    return shown
+
+
+async def follow_up_tap(session: AsyncSession, thread_id: str, content: str) -> bool:
+    """A plain message equal to a v1 follow-up action text of a card among the thread's
+    last 20 assistant messages was a tap, not the owner's typed words (§8.4)."""
+    rows = await session.scalars(
+        select(MessageRow.rich_content)
+        .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
+        .order_by(MessageRow.seq.desc())
+        .limit(20)
+    )
+
+    def found(value: Any) -> bool:
+        if isinstance(value, dict):
+            item = cast(dict[str, Any], value)
+            if item.get("kind") == "follow_up" and item.get("text") == content:
+                return True
+            return any(found(child) for child in item.values())
+        if isinstance(value, list):
+            return any(found(child) for child in cast(list[Any], value))
+        return False
+
+    return any(found(rich) for rich in rows if rich)
 
 
 async def messages_data(session: AsyncSession, rows: list[MessageRow]) -> list[dict[str, Any]]:
@@ -178,6 +216,12 @@ async def send_message(
     )
     if existing:
         receipt = await session.get(EffectReceiptRow, "message:" + existing.id)
+        supplied_submit = request.ui_submit.model_dump(mode="json") if request.ui_submit else None
+        original_submit = receipt.result.get("ui_submit") if receipt else None
+        if (supplied_submit is not None or original_submit is not None) and (
+            supplied_submit != original_submit
+        ):
+            raise LonoraError("ui_submit_conflict", 409)
         supplied_answer = request.input_answer.model_dump() if request.input_answer else None
         original_answer = receipt.result.get("input_answer") if receipt else None
         if (supplied_answer is not None or original_answer is not None) and (
@@ -225,6 +269,22 @@ async def send_message(
             "run_ids": receipt.result.get("run_ids", []),
             "runs": await acknowledged_runs(session, receipt.result.get("run_ids", [])),
             "deduplicated": True,
+        }
+    if request.ui_submit is not None:
+        # A card's send: its own queued Run, never folded into an active one (§8.2).
+        from .genui_submit import submit_card, submit_receipt
+
+        # ``create_run`` emitted ``run.queued``.
+        message, run = await submit_card(session, owner_id, thread, request)
+        session.add(submit_receipt(message, run, request))
+        emit(
+            session, owner_id, "message.created", thread_id=thread_id, payload=message_data(message)
+        )
+        return {
+            "message": message_data(message),
+            "run_ids": [run.id],
+            "runs": await acknowledged_runs(session, [run.id]),
+            "deduplicated": False,
         }
     answer_run: RunRow | None = None
     answer_question: dict[str, Any] | None = None
@@ -345,6 +405,7 @@ async def send_message(
                 "mention_all",
                 "collaboration_session_id",
                 "input_answer",
+                "ui_submit",
                 "voice",
             }
         ),
@@ -358,6 +419,8 @@ async def send_message(
     )
     if answer_question:
         message.reply_to = answer_question["message_id"]
+    elif await follow_up_tap(session, thread_id, request.content):
+        message.origin = "ui_follow_up"
     # reply_to/attachment_ids are part of the message; no model or provider is selected here.
     thread.next_seq += 1
     if not thread.title:
@@ -488,6 +551,14 @@ async def admit_runs(
                 state: dict[str, Any] = {**active.execution_state, "input_requests": updated}
                 state.pop("pending_input_request", None)
                 active.execution_state = state
+            if active.model_metadata.get("ui_submit_origin") and message.origin == "owner":
+                # A card's send that has not run yet holds the owner's words for it; if
+                # «تعديل» or the lifetime cancels it, they are re-queued (genui_submit).
+                held = list(active.model_metadata.get("folded_message_ids", []))[-20:]
+                active.model_metadata = {
+                    **active.model_metadata,
+                    "folded_message_ids": [*held, message.id],
+                }
             if active.status == "queued":
                 active.input_seq = message.seq
                 if active.execution_state:

@@ -6,13 +6,14 @@ from typing import Any, cast
 from lonora_adapter_kit.context_sections import ContextSection, replace_context_sections
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
+from lonora_db.owner_words import ui_submit_origin
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, AnalyticalWorkspaceRow, CloudChartRow, MessageRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..skills.document import skill_document
@@ -158,12 +159,16 @@ async def read_skill_context(
 ) -> SkillContext:
     run = await require_lease(session, context.lease)
     rows = (await session.scalars(select(SkillRow).where(SkillRow.agent_id == agent.id))).all()
+    origin = ui_submit_origin(run)
+    own = str(origin.get("message_id")) if origin else None
     latest = await session.scalar(
         select(MessageRow.content)
         .where(
             MessageRow.thread_id == context.thread_id,
             MessageRow.role == "user",
             MessageRow.seq <= run.input_seq,
+            # Another Run's card submission never selects this Run's instructions (rule V).
+            or_(MessageRow.origin != "ui_submit", MessageRow.id == own),
         )
         .order_by(MessageRow.seq.desc())
         .limit(1)

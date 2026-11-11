@@ -4,6 +4,7 @@ from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
+from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import create_run, inherited_authority, require_lease, run_data
 from lonora_db.schema import EffectReceiptRow
 from lonora_db.threads import create_thread
@@ -50,6 +51,8 @@ async def start_ticket(
                 **inherited_authority(starter),
             },
         )
+        # Tainted work that starts a ticket taints it, then the Run inherits it.
+        await taint_row_from(session, starter, "ticket", ticket.id)
         run = await create_run(session, owner_id, request)
         ticket.payload = {**ticket.payload, "status": "working", "run_id": run.id}
         ticket.version += 1

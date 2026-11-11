@@ -8,6 +8,7 @@ export type * from "./devices";
 export type * from "./domain";
 export { REACTION_EMOJIS } from "./domain";
 export type * from "./events";
+export type * from "./genui";
 export type * from "./models";
 export type * from "./notifications";
 export type * from "./owner-actions";

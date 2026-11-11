@@ -303,6 +303,11 @@ async def test_keep_archived_off_returns_an_archived_chat_on_a_new_message():
 
     fixture = await Fixture().open()
     try:
+        # The tick applies a bounded batch; drain what earlier tests in this shared
+        # database left, so each tick below reads only this test's own events.
+        for _ in range(100):
+            if not await tick(fixture):
+                break
         agent = await fixture.agent("Archive")
         thread = await fixture.conversation(agent)
         await fixture.request("PUT", "/threads/settings", {"keep_archived": True})
