@@ -1,0 +1,4394 @@
+{
+ "anchor": "2026-11-09T23:13:33+00:00",
+ "tools": {
+  "list_accounts": {
+   "result": {
+    "accounts": [
+     {
+      "connection_id": "{account_id}",
+      "broker_identity": {
+       "broker": "Lonora Simulation",
+       "login": "7001234",
+       "server": "Lonora-Demo",
+       "name": "تجريبي",
+       "platform": "mt5",
+       "observed_at": "2026-11-09T20:13:25+00:00",
+       "connection_version": 1
+      },
+      "provider": "simulation",
+      "enabled": true,
+      "credentials_configured": false
+     }
+    ],
+    "guidance": "Use connection_id as account_id in account, market and trading tools. Present accounts to the user using broker_identity broker/login/server, never transport IDs as account numbers. Missing identity means it has not been observed. Verify using account_read, which refreshes native identity; a saved connection is not proof of live broker connectivity."
+   }
+  },
+  "market_symbols": {
+   "result": {
+    "symbols": [
+     "EURUSD",
+     "XAGUSD",
+     "XAUUSD"
+    ]
+   }
+  },
+  "market_quote": {
+   "by": [
+    "symbol"
+   ],
+   "results": {
+    "XAUUSD": {
+     "symbol": "XAUUSD",
+     "bid": "2368.40",
+     "ask": "2368.75",
+     "observed_at": "2026-11-09T23:13:29Z",
+     "source": "simulation",
+     "profit_tick_value": "1",
+     "loss_tick_value": "1",
+     "tick_value_basis": "account_currency_per_lot",
+     "account_currency_exchange_rate": "1"
+    },
+    "XAGUSD": {
+     "symbol": "XAGUSD",
+     "bid": "28.92",
+     "ask": "28.95",
+     "observed_at": "2026-11-09T23:13:29Z",
+     "source": "simulation",
+     "profit_tick_value": "5",
+     "loss_tick_value": "5",
+     "tick_value_basis": "account_currency_per_lot",
+     "account_currency_exchange_rate": "1"
+    },
+    "EURUSD": {
+     "symbol": "EURUSD",
+     "bid": "1.0842",
+     "ask": "1.0843",
+     "observed_at": "2026-11-09T23:13:29Z",
+     "source": "simulation",
+     "profit_tick_value": "1",
+     "loss_tick_value": "1",
+     "tick_value_basis": "account_currency_per_lot",
+     "account_currency_exchange_rate": "1"
+    }
+   },
+   "otherwise": {
+    "error": "quote_unavailable"
+   }
+  },
+  "market_instrument": {
+   "by": [
+    "symbol"
+   ],
+   "results": {
+    "XAUUSD": {
+     "symbol": "XAUUSD",
+     "description": "Gold vs US Dollar",
+     "digits": 2,
+     "tick_size": "0.01",
+     "volume_min": "0.01",
+     "volume_max": "100",
+     "volume_step": "0.01",
+     "stops_level": 0,
+     "point_size": "0.01",
+     "contract_size": "100",
+     "base_currency": "XAU",
+     "profit_currency": "USD"
+    },
+    "XAGUSD": {
+     "symbol": "XAGUSD",
+     "description": "Silver vs US Dollar",
+     "digits": 3,
+     "tick_size": "0.001",
+     "volume_min": "0.01",
+     "volume_max": "100",
+     "volume_step": "0.01",
+     "stops_level": 0,
+     "point_size": "0.001",
+     "contract_size": "5000",
+     "base_currency": "XAG",
+     "profit_currency": "USD"
+    },
+    "EURUSD": {
+     "symbol": "EURUSD",
+     "description": "Euro vs US Dollar",
+     "digits": 5,
+     "tick_size": "0.00001",
+     "volume_min": "0.01",
+     "volume_max": "100",
+     "volume_step": "0.01",
+     "stops_level": 0,
+     "point_size": "0.00001",
+     "contract_size": "100000",
+     "base_currency": "EUR",
+     "profit_currency": "USD"
+    }
+   },
+   "otherwise": {
+    "error": "instrument_unavailable"
+   }
+  },
+  "market_candles": {
+   "by": [
+    "symbol",
+    "timeframe"
+   ],
+   "results": {
+    "XAUUSD:1d": {
+     "candles": [
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-09-29T00:00:00Z",
+       "open": "2385.61",
+       "high": "2407.18",
+       "low": "2383.84",
+       "close": "2400.63",
+       "volume": "137113"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-09-30T00:00:00Z",
+       "open": "2400.63",
+       "high": "2416.51",
+       "low": "2385.99",
+       "close": "2410.09",
+       "volume": "134210"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-01T00:00:00Z",
+       "open": "2410.09",
+       "high": "2433.10",
+       "low": "2402.24",
+       "close": "2415.58",
+       "volume": "122448"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-02T00:00:00Z",
+       "open": "2415.58",
+       "high": "2416.94",
+       "low": "2381.92",
+       "close": "2388.02",
+       "volume": "110663"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-05T00:00:00Z",
+       "open": "2388.02",
+       "high": "2414.90",
+       "low": "2331.58",
+       "close": "2335.81",
+       "volume": "140085"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-06T00:00:00Z",
+       "open": "2335.81",
+       "high": "2355.32",
+       "low": "2333.76",
+       "close": "2336.81",
+       "volume": "139331"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-07T00:00:00Z",
+       "open": "2336.81",
+       "high": "2361.35",
+       "low": "2335.91",
+       "close": "2336.55",
+       "volume": "126893"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-08T00:00:00Z",
+       "open": "2336.55",
+       "high": "2368.50",
+       "low": "2330.23",
+       "close": "2343.61",
+       "volume": "133175"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-09T00:00:00Z",
+       "open": "2343.61",
+       "high": "2366.31",
+       "low": "2330.46",
+       "close": "2340.57",
+       "volume": "125260"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-12T00:00:00Z",
+       "open": "2340.57",
+       "high": "2350.37",
+       "low": "2328.02",
+       "close": "2337.99",
+       "volume": "136095"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-13T00:00:00Z",
+       "open": "2337.99",
+       "high": "2340.77",
+       "low": "2297.46",
+       "close": "2312.92",
+       "volume": "144310"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-14T00:00:00Z",
+       "open": "2312.92",
+       "high": "2344.31",
+       "low": "2309.44",
+       "close": "2314.35",
+       "volume": "137110"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-15T00:00:00Z",
+       "open": "2314.35",
+       "high": "2314.50",
+       "low": "2266.09",
+       "close": "2276.68",
+       "volume": "134626"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-16T00:00:00Z",
+       "open": "2276.68",
+       "high": "2280.29",
+       "low": "2241.91",
+       "close": "2246.42",
+       "volume": "122988"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-19T00:00:00Z",
+       "open": "2246.42",
+       "high": "2256.18",
+       "low": "2233.27",
+       "close": "2244.91",
+       "volume": "125931"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-20T00:00:00Z",
+       "open": "2244.91",
+       "high": "2249.92",
+       "low": "2222.08",
+       "close": "2225.05",
+       "volume": "133273"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-21T00:00:00Z",
+       "open": "2225.05",
+       "high": "2232.56",
+       "low": "2200.98",
+       "close": "2212.11",
+       "volume": "125915"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-22T00:00:00Z",
+       "open": "2212.11",
+       "high": "2221.91",
+       "low": "2199.27",
+       "close": "2213.84",
+       "volume": "136307"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-23T00:00:00Z",
+       "open": "2213.84",
+       "high": "2238.01",
+       "low": "2208.04",
+       "close": "2220.04",
+       "volume": "116710"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-26T00:00:00Z",
+       "open": "2220.04",
+       "high": "2241.68",
+       "low": "2220.04",
+       "close": "2230.19",
+       "volume": "136111"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-27T00:00:00Z",
+       "open": "2230.19",
+       "high": "2263.16",
+       "low": "2226.40",
+       "close": "2238.36",
+       "volume": "130774"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-28T00:00:00Z",
+       "open": "2238.36",
+       "high": "2292.70",
+       "low": "2238.36",
+       "close": "2287.52",
+       "volume": "136050"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-29T00:00:00Z",
+       "open": "2287.52",
+       "high": "2312.32",
+       "low": "2255.56",
+       "close": "2299.98",
+       "volume": "130873"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-10-30T00:00:00Z",
+       "open": "2299.98",
+       "high": "2344.44",
+       "low": "2297.78",
+       "close": "2323.39",
+       "volume": "120214"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-02T00:00:00Z",
+       "open": "2323.39",
+       "high": "2376.64",
+       "low": "2323.27",
+       "close": "2373.56",
+       "volume": "130505"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-03T00:00:00Z",
+       "open": "2373.56",
+       "high": "2412.25",
+       "low": "2370.48",
+       "close": "2397.59",
+       "volume": "138278"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-04T00:00:00Z",
+       "open": "2397.59",
+       "high": "2412.84",
+       "low": "2383.27",
+       "close": "2383.27",
+       "volume": "136529"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-05T00:00:00Z",
+       "open": "2383.27",
+       "high": "2395.80",
+       "low": "2370.75",
+       "close": "2391.27",
+       "volume": "131674"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-06T00:00:00Z",
+       "open": "2391.27",
+       "high": "2393.10",
+       "low": "2356.16",
+       "close": "2362.89",
+       "volume": "133740"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "1d",
+       "time": "2026-11-09T00:00:00Z",
+       "open": "2362.89",
+       "high": "2391.32",
+       "low": "2359.39",
+       "close": "2368.40",
+       "volume": "122416"
+      }
+     ]
+    },
+    "XAGUSD:1d": {
+     "candles": [
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-09-29T00:00:00Z",
+       "open": "29.861",
+       "high": "29.945",
+       "low": "29.056",
+       "close": "29.262",
+       "volume": "135517"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-09-30T00:00:00Z",
+       "open": "29.262",
+       "high": "30.229",
+       "low": "29.214",
+       "close": "30.203",
+       "volume": "133056"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-01T00:00:00Z",
+       "open": "30.203",
+       "high": "30.468",
+       "low": "29.575",
+       "close": "29.866",
+       "volume": "135267"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-02T00:00:00Z",
+       "open": "29.866",
+       "high": "30.287",
+       "low": "29.653",
+       "close": "29.820",
+       "volume": "116015"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-05T00:00:00Z",
+       "open": "29.820",
+       "high": "30.398",
+       "low": "29.816",
+       "close": "29.943",
+       "volume": "142170"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-06T00:00:00Z",
+       "open": "29.943",
+       "high": "30.322",
+       "low": "29.529",
+       "close": "29.825",
+       "volume": "139495"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-07T00:00:00Z",
+       "open": "29.825",
+       "high": "29.847",
+       "low": "29.246",
+       "close": "29.825",
+       "volume": "140872"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-08T00:00:00Z",
+       "open": "29.825",
+       "high": "29.892",
+       "low": "29.138",
+       "close": "29.194",
+       "volume": "133260"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-09T00:00:00Z",
+       "open": "29.194",
+       "high": "29.366",
+       "low": "27.950",
+       "close": "28.402",
+       "volume": "124841"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-12T00:00:00Z",
+       "open": "28.402",
+       "high": "28.680",
+       "low": "27.886",
+       "close": "28.055",
+       "volume": "133713"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-13T00:00:00Z",
+       "open": "28.055",
+       "high": "28.101",
+       "low": "27.449",
+       "close": "27.548",
+       "volume": "142913"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-14T00:00:00Z",
+       "open": "27.548",
+       "high": "27.990",
+       "low": "27.507",
+       "close": "27.755",
+       "volume": "142316"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-15T00:00:00Z",
+       "open": "27.755",
+       "high": "28.815",
+       "low": "27.686",
+       "close": "28.815",
+       "volume": "145860"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-16T00:00:00Z",
+       "open": "28.815",
+       "high": "29.150",
+       "low": "28.292",
+       "close": "28.390",
+       "volume": "111215"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-19T00:00:00Z",
+       "open": "28.390",
+       "high": "28.622",
+       "low": "27.982",
+       "close": "28.093",
+       "volume": "135074"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-20T00:00:00Z",
+       "open": "28.093",
+       "high": "29.044",
+       "low": "28.076",
+       "close": "29.037",
+       "volume": "140794"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-21T00:00:00Z",
+       "open": "29.037",
+       "high": "29.135",
+       "low": "28.432",
+       "close": "28.594",
+       "volume": "128764"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-22T00:00:00Z",
+       "open": "28.594",
+       "high": "29.465",
+       "low": "28.557",
+       "close": "29.307",
+       "volume": "130204"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-23T00:00:00Z",
+       "open": "29.307",
+       "high": "29.726",
+       "low": "28.988",
+       "close": "29.070",
+       "volume": "121256"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-26T00:00:00Z",
+       "open": "29.070",
+       "high": "29.306",
+       "low": "28.912",
+       "close": "29.131",
+       "volume": "129387"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-27T00:00:00Z",
+       "open": "29.131",
+       "high": "29.131",
+       "low": "28.554",
+       "close": "28.851",
+       "volume": "140308"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-28T00:00:00Z",
+       "open": "28.851",
+       "high": "29.287",
+       "low": "28.431",
+       "close": "29.200",
+       "volume": "127875"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-29T00:00:00Z",
+       "open": "29.200",
+       "high": "29.204",
+       "low": "28.595",
+       "close": "29.124",
+       "volume": "114582"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-10-30T00:00:00Z",
+       "open": "29.124",
+       "high": "29.854",
+       "low": "29.065",
+       "close": "29.784",
+       "volume": "106359"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-02T00:00:00Z",
+       "open": "29.784",
+       "high": "30.139",
+       "low": "29.544",
+       "close": "29.551",
+       "volume": "142159"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-03T00:00:00Z",
+       "open": "29.551",
+       "high": "30.121",
+       "low": "29.306",
+       "close": "29.625",
+       "volume": "143509"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-04T00:00:00Z",
+       "open": "29.625",
+       "high": "29.699",
+       "low": "29.066",
+       "close": "29.169",
+       "volume": "126539"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-05T00:00:00Z",
+       "open": "29.169",
+       "high": "29.414",
+       "low": "28.975",
+       "close": "29.351",
+       "volume": "136283"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-06T00:00:00Z",
+       "open": "29.351",
+       "high": "29.574",
+       "low": "29.070",
+       "close": "29.353",
+       "volume": "118031"
+      },
+      {
+       "symbol": "XAGUSD",
+       "timeframe": "1d",
+       "time": "2026-11-09T00:00:00Z",
+       "open": "29.353",
+       "high": "29.445",
+       "low": "28.437",
+       "close": "28.92",
+       "volume": "129669"
+      }
+     ]
+    },
+    "EURUSD:1d": {
+     "candles": [
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-09-29T00:00:00Z",
+       "open": "1.09676",
+       "high": "1.10164",
+       "low": "1.09128",
+       "close": "1.10030",
+       "volume": "131600"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-09-30T00:00:00Z",
+       "open": "1.10030",
+       "high": "1.10167",
+       "low": "1.09550",
+       "close": "1.09684",
+       "volume": "126069"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-01T00:00:00Z",
+       "open": "1.09684",
+       "high": "1.09975",
+       "low": "1.09492",
+       "close": "1.09671",
+       "volume": "137327"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-02T00:00:00Z",
+       "open": "1.09671",
+       "high": "1.09763",
+       "low": "1.08508",
+       "close": "1.08689",
+       "volume": "125349"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-05T00:00:00Z",
+       "open": "1.08689",
+       "high": "1.08893",
+       "low": "1.08377",
+       "close": "1.08716",
+       "volume": "120150"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-06T00:00:00Z",
+       "open": "1.08716",
+       "high": "1.08800",
+       "low": "1.08207",
+       "close": "1.08223",
+       "volume": "135202"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-07T00:00:00Z",
+       "open": "1.08223",
+       "high": "1.08262",
+       "low": "1.07222",
+       "close": "1.07272",
+       "volume": "126052"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-08T00:00:00Z",
+       "open": "1.07272",
+       "high": "1.07731",
+       "low": "1.07124",
+       "close": "1.07610",
+       "volume": "134100"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-09T00:00:00Z",
+       "open": "1.07610",
+       "high": "1.08246",
+       "low": "1.07409",
+       "close": "1.07418",
+       "volume": "117455"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-12T00:00:00Z",
+       "open": "1.07418",
+       "high": "1.07783",
+       "low": "1.07383",
+       "close": "1.07537",
+       "volume": "130140"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-13T00:00:00Z",
+       "open": "1.07537",
+       "high": "1.08192",
+       "low": "1.07437",
+       "close": "1.07985",
+       "volume": "120199"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-14T00:00:00Z",
+       "open": "1.07985",
+       "high": "1.08079",
+       "low": "1.07526",
+       "close": "1.07526",
+       "volume": "141937"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-15T00:00:00Z",
+       "open": "1.07526",
+       "high": "1.08271",
+       "low": "1.07254",
+       "close": "1.08249",
+       "volume": "129568"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-16T00:00:00Z",
+       "open": "1.08249",
+       "high": "1.08777",
+       "low": "1.08028",
+       "close": "1.08727",
+       "volume": "118654"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-19T00:00:00Z",
+       "open": "1.08727",
+       "high": "1.08904",
+       "low": "1.08284",
+       "close": "1.08678",
+       "volume": "132471"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-20T00:00:00Z",
+       "open": "1.08678",
+       "high": "1.09188",
+       "low": "1.08373",
+       "close": "1.09056",
+       "volume": "128612"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-21T00:00:00Z",
+       "open": "1.09056",
+       "high": "1.09702",
+       "low": "1.08903",
+       "close": "1.09240",
+       "volume": "138714"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-22T00:00:00Z",
+       "open": "1.09240",
+       "high": "1.09759",
+       "low": "1.09134",
+       "close": "1.09484",
+       "volume": "122470"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-23T00:00:00Z",
+       "open": "1.09484",
+       "high": "1.09572",
+       "low": "1.08869",
+       "close": "1.08944",
+       "volume": "118337"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-26T00:00:00Z",
+       "open": "1.08944",
+       "high": "1.09170",
+       "low": "1.08262",
+       "close": "1.08738",
+       "volume": "146280"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-27T00:00:00Z",
+       "open": "1.08738",
+       "high": "1.08878",
+       "low": "1.08200",
+       "close": "1.08623",
+       "volume": "130256"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-28T00:00:00Z",
+       "open": "1.08623",
+       "high": "1.08854",
+       "low": "1.08371",
+       "close": "1.08417",
+       "volume": "121191"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-29T00:00:00Z",
+       "open": "1.08417",
+       "high": "1.08965",
+       "low": "1.08303",
+       "close": "1.08339",
+       "volume": "145000"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-10-30T00:00:00Z",
+       "open": "1.08339",
+       "high": "1.08363",
+       "low": "1.07830",
+       "close": "1.07913",
+       "volume": "116140"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-02T00:00:00Z",
+       "open": "1.07913",
+       "high": "1.08712",
+       "low": "1.07789",
+       "close": "1.08576",
+       "volume": "147116"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-03T00:00:00Z",
+       "open": "1.08576",
+       "high": "1.08635",
+       "low": "1.08121",
+       "close": "1.08182",
+       "volume": "137943"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-04T00:00:00Z",
+       "open": "1.08182",
+       "high": "1.09092",
+       "low": "1.07924",
+       "close": "1.08590",
+       "volume": "134666"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-05T00:00:00Z",
+       "open": "1.08590",
+       "high": "1.08737",
+       "low": "1.07785",
+       "close": "1.08136",
+       "volume": "127347"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-06T00:00:00Z",
+       "open": "1.08136",
+       "high": "1.08485",
+       "low": "1.07980",
+       "close": "1.08143",
+       "volume": "126245"
+      },
+      {
+       "symbol": "EURUSD",
+       "timeframe": "1d",
+       "time": "2026-11-09T00:00:00Z",
+       "open": "1.08143",
+       "high": "1.08420",
+       "low": "1.07916",
+       "close": "1.0842",
+       "volume": "127502"
+      }
+     ]
+    },
+    "XAUUSD:4h": {
+     "candles": [
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T00:00:00Z",
+       "open": "2230.19",
+       "high": "2250.49",
+       "low": "2226.40",
+       "close": "2250.14",
+       "volume": "23547"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T04:00:00Z",
+       "open": "2250.14",
+       "high": "2252.51",
+       "low": "2242.13",
+       "close": "2250.28",
+       "volume": "21385"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T08:00:00Z",
+       "open": "2250.28",
+       "high": "2263.16",
+       "low": "2249.49",
+       "close": "2254.84",
+       "volume": "22153"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T12:00:00Z",
+       "open": "2254.84",
+       "high": "2259.00",
+       "low": "2246.12",
+       "close": "2252.56",
+       "volume": "19567"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T16:00:00Z",
+       "open": "2252.56",
+       "high": "2254.12",
+       "low": "2235.67",
+       "close": "2240.90",
+       "volume": "23702"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-27T20:00:00Z",
+       "open": "2240.90",
+       "high": "2251.13",
+       "low": "2237.76",
+       "close": "2238.36",
+       "volume": "20420"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T00:00:00Z",
+       "open": "2238.36",
+       "high": "2257.39",
+       "low": "2238.36",
+       "close": "2255.34",
+       "volume": "26720"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T04:00:00Z",
+       "open": "2255.34",
+       "high": "2278.37",
+       "low": "2254.95",
+       "close": "2278.37",
+       "volume": "29369"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T08:00:00Z",
+       "open": "2278.37",
+       "high": "2292.70",
+       "low": "2277.78",
+       "close": "2292.70",
+       "volume": "21303"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T12:00:00Z",
+       "open": "2292.70",
+       "high": "2292.70",
+       "low": "2283.00",
+       "close": "2285.66",
+       "volume": "21449"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T16:00:00Z",
+       "open": "2285.66",
+       "high": "2290.95",
+       "low": "2278.56",
+       "close": "2278.56",
+       "volume": "22249"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-28T20:00:00Z",
+       "open": "2278.56",
+       "high": "2287.52",
+       "low": "2270.45",
+       "close": "2287.52",
+       "volume": "14960"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T00:00:00Z",
+       "open": "2287.52",
+       "high": "2293.70",
+       "low": "2281.72",
+       "close": "2281.72",
+       "volume": "18740"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T04:00:00Z",
+       "open": "2281.72",
+       "high": "2282.79",
+       "low": "2263.22",
+       "close": "2268.56",
+       "volume": "21755"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T08:00:00Z",
+       "open": "2268.56",
+       "high": "2268.56",
+       "low": "2255.56",
+       "close": "2267.28",
+       "volume": "18718"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T12:00:00Z",
+       "open": "2267.28",
+       "high": "2282.51",
+       "low": "2267.28",
+       "close": "2282.51",
+       "volume": "21819"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T16:00:00Z",
+       "open": "2282.51",
+       "high": "2301.44",
+       "low": "2282.51",
+       "close": "2299.38",
+       "volume": "22255"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-29T20:00:00Z",
+       "open": "2299.38",
+       "high": "2312.32",
+       "low": "2298.44",
+       "close": "2299.98",
+       "volume": "27586"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T00:00:00Z",
+       "open": "2299.98",
+       "high": "2315.19",
+       "low": "2297.78",
+       "close": "2315.19",
+       "volume": "22091"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T04:00:00Z",
+       "open": "2315.19",
+       "high": "2341.16",
+       "low": "2315.19",
+       "close": "2338.40",
+       "volume": "19103"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T08:00:00Z",
+       "open": "2338.40",
+       "high": "2344.44",
+       "low": "2333.54",
+       "close": "2336.73",
+       "volume": "23330"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T12:00:00Z",
+       "open": "2336.73",
+       "high": "2344.17",
+       "low": "2328.85",
+       "close": "2332.18",
+       "volume": "21370"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T16:00:00Z",
+       "open": "2332.18",
+       "high": "2336.50",
+       "low": "2326.52",
+       "close": "2328.19",
+       "volume": "24986"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-10-30T20:00:00Z",
+       "open": "2328.19",
+       "high": "2328.19",
+       "low": "2322.07",
+       "close": "2323.39",
+       "volume": "9334"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T00:00:00Z",
+       "open": "2323.39",
+       "high": "2340.29",
+       "low": "2323.27",
+       "close": "2335.34",
+       "volume": "22670"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T04:00:00Z",
+       "open": "2335.34",
+       "high": "2348.96",
+       "low": "2332.96",
+       "close": "2348.89",
+       "volume": "22228"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T08:00:00Z",
+       "open": "2348.89",
+       "high": "2354.17",
+       "low": "2345.21",
+       "close": "2345.31",
+       "volume": "18769"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T12:00:00Z",
+       "open": "2345.31",
+       "high": "2373.01",
+       "low": "2345.31",
+       "close": "2369.11",
+       "volume": "18258"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T16:00:00Z",
+       "open": "2369.11",
+       "high": "2369.28",
+       "low": "2357.34",
+       "close": "2365.95",
+       "volume": "23970"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-02T20:00:00Z",
+       "open": "2365.95",
+       "high": "2376.64",
+       "low": "2365.27",
+       "close": "2373.56",
+       "volume": "24610"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T00:00:00Z",
+       "open": "2373.56",
+       "high": "2382.94",
+       "low": "2370.48",
+       "close": "2381.23",
+       "volume": "24272"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T04:00:00Z",
+       "open": "2381.23",
+       "high": "2404.70",
+       "low": "2381.23",
+       "close": "2401.56",
+       "volume": "20908"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T08:00:00Z",
+       "open": "2401.56",
+       "high": "2411.88",
+       "low": "2398.99",
+       "close": "2404.87",
+       "volume": "22380"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T12:00:00Z",
+       "open": "2404.87",
+       "high": "2411.76",
+       "low": "2404.87",
+       "close": "2411.15",
+       "volume": "21463"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T16:00:00Z",
+       "open": "2411.15",
+       "high": "2412.25",
+       "low": "2399.61",
+       "close": "2402.44",
+       "volume": "22859"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-03T20:00:00Z",
+       "open": "2402.44",
+       "high": "2403.10",
+       "low": "2396.40",
+       "close": "2397.59",
+       "volume": "26396"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T00:00:00Z",
+       "open": "2397.59",
+       "high": "2406.32",
+       "low": "2396.95",
+       "close": "2402.18",
+       "volume": "26045"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T04:00:00Z",
+       "open": "2402.18",
+       "high": "2407.84",
+       "low": "2395.14",
+       "close": "2401.65",
+       "volume": "22799"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T08:00:00Z",
+       "open": "2401.65",
+       "high": "2408.69",
+       "low": "2398.78",
+       "close": "2404.97",
+       "volume": "20438"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T12:00:00Z",
+       "open": "2404.97",
+       "high": "2410.36",
+       "low": "2400.22",
+       "close": "2401.58",
+       "volume": "19447"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T16:00:00Z",
+       "open": "2401.58",
+       "high": "2412.84",
+       "low": "2399.91",
+       "close": "2406.80",
+       "volume": "21806"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-04T20:00:00Z",
+       "open": "2406.80",
+       "high": "2407.88",
+       "low": "2383.27",
+       "close": "2383.27",
+       "volume": "25994"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T00:00:00Z",
+       "open": "2383.27",
+       "high": "2384.45",
+       "low": "2371.10",
+       "close": "2376.56",
+       "volume": "16624"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T04:00:00Z",
+       "open": "2376.56",
+       "high": "2384.46",
+       "low": "2370.75",
+       "close": "2379.40",
+       "volume": "19251"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T08:00:00Z",
+       "open": "2379.40",
+       "high": "2383.32",
+       "low": "2372.15",
+       "close": "2377.12",
+       "volume": "28137"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T12:00:00Z",
+       "open": "2377.12",
+       "high": "2386.99",
+       "low": "2373.42",
+       "close": "2386.99",
+       "volume": "28525"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T16:00:00Z",
+       "open": "2386.99",
+       "high": "2390.95",
+       "low": "2379.33",
+       "close": "2389.57",
+       "volume": "16606"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-05T20:00:00Z",
+       "open": "2389.57",
+       "high": "2395.80",
+       "low": "2387.53",
+       "close": "2391.27",
+       "volume": "22531"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T00:00:00Z",
+       "open": "2391.27",
+       "high": "2393.10",
+       "low": "2382.68",
+       "close": "2388.04",
+       "volume": "27481"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T04:00:00Z",
+       "open": "2388.04",
+       "high": "2392.74",
+       "low": "2379.18",
+       "close": "2384.86",
+       "volume": "23214"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T08:00:00Z",
+       "open": "2384.86",
+       "high": "2386.31",
+       "low": "2376.23",
+       "close": "2383.17",
+       "volume": "26753"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T12:00:00Z",
+       "open": "2383.17",
+       "high": "2384.65",
+       "low": "2375.08",
+       "close": "2378.22",
+       "volume": "21422"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T16:00:00Z",
+       "open": "2378.22",
+       "high": "2378.62",
+       "low": "2358.54",
+       "close": "2360.21",
+       "volume": "25971"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-06T20:00:00Z",
+       "open": "2360.21",
+       "high": "2364.95",
+       "low": "2356.16",
+       "close": "2362.89",
+       "volume": "8899"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T00:00:00Z",
+       "open": "2362.89",
+       "high": "2378.79",
+       "low": "2359.39",
+       "close": "2378.71",
+       "volume": "22657"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T04:00:00Z",
+       "open": "2378.71",
+       "high": "2383.83",
+       "low": "2372.91",
+       "close": "2377.21",
+       "volume": "22903"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T08:00:00Z",
+       "open": "2377.21",
+       "high": "2387.85",
+       "low": "2375.15",
+       "close": "2387.35",
+       "volume": "23723"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T12:00:00Z",
+       "open": "2387.35",
+       "high": "2391.32",
+       "low": "2373.36",
+       "close": "2373.36",
+       "volume": "17454"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T16:00:00Z",
+       "open": "2373.36",
+       "high": "2373.36",
+       "low": "2362.00",
+       "close": "2365.21",
+       "volume": "21797"
+      },
+      {
+       "symbol": "XAUUSD",
+       "timeframe": "4h",
+       "time": "2026-11-09T20:00:00Z",
+       "open": "2365.21",
+       "high": "2371.61",
+       "low": "2363.39",
+       "close": "2368.40",
+       "volume": "13882"
+      }
+     ]
+    }
+   },
+   "otherwise": {
+    "error": "eval_fixture_missing"
+   }
+  },
+  "market_snapshot": {
+   "by": [
+    "symbol"
+   ],
+   "results": {
+    "XAUUSD": {
+     "methodology": "closed_bar_market_snapshot_v1",
+     "account_id": "{account_id}",
+     "symbol": "XAUUSD",
+     "observed_at": "2026-11-09T23:13:31+00:00",
+     "bars_requested_at": "2026-11-09T23:13:31+00:00",
+     "data_freshness": "healthy",
+     "quote": {
+      "available": true,
+      "freshness": "healthy",
+      "reason": null,
+      "bid": "2368.40",
+      "ask": "2368.75",
+      "spread": "0.35",
+      "spread_ticks": 35.0,
+      "observed_at": "2026-11-09T23:13:29+00:00",
+      "age_seconds": 2.0
+     },
+     "reference_price": "2368.575",
+     "reference_basis": "quote_mid",
+     "timeframes": [
+      {
+       "timeframe": "15m",
+       "available": true,
+       "freshness": "healthy",
+       "closed_bars": 200,
+       "last_closed_bar": {
+        "opened_at": "2026-11-09T22:45:00+00:00",
+        "closed_at": "2026-11-09T23:00:00+00:00",
+        "close": "2368.40"
+       },
+       "trend": {
+        "bars": 20,
+        "regression_change": 1.227,
+        "change_atr": 0.51,
+        "label": "flat"
+       },
+       "structure": {
+        "swing_bars": 2,
+        "last_swing_high": {
+         "price": "2371.61",
+         "time": "2026-11-09T21:15:00+00:00",
+         "confirmed_at": "2026-11-09T22:00:00+00:00"
+        },
+        "previous_swing_high": {
+         "price": "2370.12",
+         "time": "2026-11-09T17:30:00+00:00",
+         "confirmed_at": "2026-11-09T18:15:00+00:00"
+        },
+        "last_swing_low": {
+         "price": "2363.39",
+         "time": "2026-11-09T20:15:00+00:00",
+         "confirmed_at": "2026-11-09T21:00:00+00:00"
+        },
+        "previous_swing_low": {
+         "price": "2362.00",
+         "time": "2026-11-09T19:00:00+00:00",
+         "confirmed_at": "2026-11-09T19:45:00+00:00"
+        },
+        "label": "higher_high_higher_low",
+        "last_close_beyond": null
+       },
+       "range": {
+        "bars": 20,
+        "high": "2371.61",
+        "low": "2362.00",
+        "size_atr": 4.0,
+        "close_position": 0.67
+       },
+       "volatility": {
+        "atr": 2.405,
+        "atr_period": 14,
+        "atr_method": "simple_mean_true_range",
+        "atr_percentile": 23.5,
+        "percentile_sample": 100,
+        "regime": "normal"
+       },
+       "rsi": {
+        "period": 14,
+        "value": 49.1
+       },
+       "last_close_change_atr": 1.83
+      },
+      {
+       "timeframe": "1h",
+       "available": true,
+       "freshness": "healthy",
+       "closed_bars": 200,
+       "last_closed_bar": {
+        "opened_at": "2026-11-09T22:00:00+00:00",
+        "closed_at": "2026-11-09T23:00:00+00:00",
+        "close": "2368.40"
+       },
+       "trend": {
+        "bars": 20,
+        "regression_change": -14.767,
+        "change_atr": -2.59,
+        "label": "falling"
+       },
+       "structure": {
+        "swing_bars": 2,
+        "last_swing_high": {
+         "price": "2391.32",
+         "time": "2026-11-09T12:00:00+00:00",
+         "confirmed_at": "2026-11-09T15:00:00+00:00"
+        },
+        "previous_swing_high": {
+         "price": "2383.31",
+         "time": "2026-11-09T08:00:00+00:00",
+         "confirmed_at": "2026-11-09T11:00:00+00:00"
+        },
+        "last_swing_low": {
+         "price": "2362.00",
+         "time": "2026-11-09T19:00:00+00:00",
+         "confirmed_at": "2026-11-09T22:00:00+00:00"
+        },
+        "previous_swing_low": {
+         "price": "2375.15",
+         "time": "2026-11-09T10:00:00+00:00",
+         "confirmed_at": "2026-11-09T13:00:00+00:00"
+        },
+        "label": "higher_high_lower_low",
+        "last_close_beyond": null
+       },
+       "range": {
+        "bars": 20,
+        "high": "2391.32",
+        "low": "2362.00",
+        "size_atr": 5.14,
+        "close_position": 0.22
+       },
+       "volatility": {
+        "atr": 5.704,
+        "atr_period": 14,
+        "atr_method": "simple_mean_true_range",
+        "atr_percentile": 16.5,
+        "percentile_sample": 100,
+        "regime": "low"
+       },
+       "rsi": {
+        "period": 14,
+        "value": 42.4
+       },
+       "last_close_change_atr": 0.1
+      },
+      {
+       "timeframe": "4h",
+       "available": true,
+       "freshness": "healthy",
+       "closed_bars": 199,
+       "last_closed_bar": {
+        "opened_at": "2026-11-09T16:00:00+00:00",
+        "closed_at": "2026-11-09T20:00:00+00:00",
+        "close": "2365.21"
+       },
+       "trend": {
+        "bars": 20,
+        "regression_change": -22.817,
+        "change_atr": -1.79,
+        "label": "falling"
+       },
+       "structure": {
+        "swing_bars": 2,
+        "last_swing_high": {
+         "price": "2395.80",
+         "time": "2026-11-05T20:00:00+00:00",
+         "confirmed_at": "2026-11-06T08:00:00+00:00"
+        },
+        "previous_swing_high": {
+         "price": "2412.84",
+         "time": "2026-11-04T16:00:00+00:00",
+         "confirmed_at": "2026-11-05T04:00:00+00:00"
+        },
+        "last_swing_low": {
+         "price": "2356.16",
+         "time": "2026-11-06T20:00:00+00:00",
+         "confirmed_at": "2026-11-09T08:00:00+00:00"
+        },
+        "previous_swing_low": {
+         "price": "2370.75",
+         "time": "2026-11-05T04:00:00+00:00",
+         "confirmed_at": "2026-11-05T16:00:00+00:00"
+        },
+        "label": "lower_high_lower_low",
+        "last_close_beyond": null
+       },
+       "range": {
+        "bars": 20,
+        "high": "2412.84",
+        "low": "2356.16",
+        "size_atr": 4.45,
+        "close_position": 0.16
+       },
+       "volatility": {
+        "atr": 12.736,
+        "atr_period": 14,
+        "atr_method": "simple_mean_true_range",
+        "atr_percentile": 28.5,
+        "percentile_sample": 100,
+        "regime": "normal"
+       },
+       "rsi": {
+        "period": 14,
+        "value": 45.7
+       },
+       "last_close_change_atr": -0.64,
+       "forming_bar": {
+        "opened_at": "2026-11-09T20:00:00+00:00",
+        "closes_at": "2026-11-10T00:00:00+00:00",
+        "high": "2371.61",
+        "low": "2363.39",
+        "last": "2368.40",
+        "unfinished": true
+       }
+      },
+      {
+       "timeframe": "1d",
+       "available": true,
+       "freshness": "healthy",
+       "closed_bars": 130,
+       "last_closed_bar": {
+        "opened_at": "2026-11-06T00:00:00+00:00",
+        "closed_at": "2026-11-07T00:00:00+00:00",
+        "close": "2362.89"
+       },
+       "trend": {
+        "bars": 20,
+        "regression_change": 107.154,
+        "change_atr": 2.91,
+        "label": "rising"
+       },
+       "structure": {
+        "swing_bars": 2,
+        "last_swing_high": {
+         "price": "2412.84",
+         "time": "2026-11-04T00:00:00+00:00",
+         "confirmed_at": "2026-11-07T00:00:00+00:00"
+        },
+        "previous_swing_high": {
+         "price": "2368.50",
+         "time": "2026-10-08T00:00:00+00:00",
+         "confirmed_at": "2026-10-13T00:00:00+00:00"
+        },
+        "last_swing_low": {
+         "price": "2199.27",
+         "time": "2026-10-22T00:00:00+00:00",
+         "confirmed_at": "2026-10-27T00:00:00+00:00"
+        },
+        "previous_swing_low": {
+         "price": "2331.58",
+         "time": "2026-10-05T00:00:00+00:00",
+         "confirmed_at": "2026-10-08T00:00:00+00:00"
+        },
+        "label": "higher_high_lower_low",
+        "last_close_beyond": null
+       },
+       "range": {
+        "bars": 20,
+        "high": "2412.84",
+        "low": "2199.27",
+        "size_atr": 5.81,
+        "close_position": 0.77
+       },
+       "volatility": {
+        "atr": 36.778,
+        "atr_period": 14,
+        "atr_method": "simple_mean_true_range",
+        "atr_percentile": 85.5,
+        "percentile_sample": 100,
+        "regime": "high"
+       },
+       "rsi": {
+        "period": 14,
+        "value": 57.8
+       },
+       "last_close_change_atr": -0.77,
+       "forming_bar": {
+        "opened_at": "2026-11-09T00:00:00+00:00",
+        "closes_at": "2026-11-10T00:00:00+00:00",
+        "high": "2391.32",
+        "low": "2359.39",
+        "last": "2368.40",
+        "unfinished": true
+       }
+      }
+     ],
+     "levels": {
+      "previous_day": {
+       "available": true,
+       "bar_opened_at": "2026-11-06T00:00:00+00:00",
+       "high": "2393.10",
+       "low": "2356.16"
+      },
+      "previous_week": {
+       "available": true,
+       "bar_opened_at": "2026-11-02T00:00:00+00:00",
+       "high": "2412.84",
+       "low": "2323.27"
+      },
+      "atr_basis": "1d",
+      "daily_atr": 36.778,
+      "distances": [
+       {
+        "level": "previous_day_high",
+        "price": "2393.10",
+        "distance": 24.525,
+        "distance_atr": 0.67,
+        "side": "above"
+       },
+       {
+        "level": "previous_day_low",
+        "price": "2356.16",
+        "distance": -12.415,
+        "distance_atr": -0.34,
+        "side": "below"
+       },
+       {
+        "level": "current_day_high_so_far",
+        "price": "2391.32",
+        "distance": 22.745,
+        "distance_atr": 0.62,
+        "side": "above"
+       },
+       {
+        "level": "current_day_low_so_far",
+        "price": "2359.39",
+        "distance": -9.185,
+        "distance_atr": -0.25,
+        "side": "below"
+       },
+       {
+        "level": "previous_week_high",
+        "price": "2412.84",
+        "distance": 44.265,
+        "distance_atr": 1.2,
+        "side": "above"
+       },
+       {
+        "level": "previous_week_low",
+        "price": "2323.27",
+        "distance": -45.305,
+        "distance_atr": -1.23,
+        "side": "below"
+       }
+      ]
+     },
+     "execution_authorized": false,
+     "limitations": [
+      "Measured from broker bars only; forming bars are excluded from every calculation.",
+      "Daily and weekly bars follow the broker server's day boundary.",
+      "Labels describe measurements, not entry signals or forecasts."
+     ]
+    }
+   },
+   "otherwise": {
+    "error": "eval_fixture_missing"
+   }
+  },
+  "market_sessions": {
+   "result": {
+    "methodology": "iana_conventional_fx_sessions_v1",
+    "observed_at": "2026-11-09T23:13:25+00:00",
+    "fx_market": {
+     "state": "open",
+     "reason": null,
+     "week_hours": "Sunday 17:00 to Friday 17:00 America/New_York",
+     "opened_at": "2026-11-08T22:00:00+00:00",
+     "closes_at": "2026-11-13T22:00:00+00:00",
+     "minutes_to_close": 5686
+    },
+    "sessions": [
+     {
+      "name": "sydney",
+      "zone": "Australia/Sydney",
+      "local_hours": "07:00-16:00",
+      "local_time": "Tue 10:13",
+      "utc_offset": "+1100",
+      "dst": true,
+      "active": true,
+      "opened_at": "2026-11-09T20:00:00+00:00",
+      "closes_at": "2026-11-10T05:00:00+00:00",
+      "minutes_to_close": 346
+     },
+     {
+      "name": "tokyo",
+      "zone": "Asia/Tokyo",
+      "local_hours": "09:00-18:00",
+      "local_time": "Tue 08:13",
+      "utc_offset": "+0900",
+      "dst": false,
+      "active": false,
+      "next_opens_at": "2026-11-10T00:00:00+00:00",
+      "next_closes_at": "2026-11-10T09:00:00+00:00",
+      "minutes_to_open": 46
+     },
+     {
+      "name": "london",
+      "zone": "Europe/London",
+      "local_hours": "08:00-17:00",
+      "local_time": "Mon 23:13",
+      "utc_offset": "+0000",
+      "dst": false,
+      "active": false,
+      "next_opens_at": "2026-11-10T08:00:00+00:00",
+      "next_closes_at": "2026-11-10T17:00:00+00:00",
+      "minutes_to_open": 526
+     },
+     {
+      "name": "new_york",
+      "zone": "America/New_York",
+      "local_hours": "08:00-17:00",
+      "local_time": "Mon 18:13",
+      "utc_offset": "-0500",
+      "dst": false,
+      "active": false,
+      "next_opens_at": "2026-11-10T13:00:00+00:00",
+      "next_closes_at": "2026-11-10T22:00:00+00:00",
+      "minutes_to_open": 826
+     }
+    ],
+    "active_sessions": [
+     "sydney"
+    ],
+    "active_overlaps": [],
+    "next_overlaps": [
+     {
+      "sessions": [
+       "sydney",
+       "tokyo"
+      ],
+      "starts_at": "2026-11-10T00:00:00+00:00",
+      "ends_at": "2026-11-10T05:00:00+00:00",
+      "minutes_to_start": 46
+     },
+     {
+      "sessions": [
+       "tokyo",
+       "london"
+      ],
+      "starts_at": "2026-11-10T08:00:00+00:00",
+      "ends_at": "2026-11-10T09:00:00+00:00",
+      "minutes_to_start": 526
+     },
+     {
+      "sessions": [
+       "london",
+       "new_york"
+      ],
+      "starts_at": "2026-11-10T13:00:00+00:00",
+      "ends_at": "2026-11-10T17:00:00+00:00",
+      "minutes_to_start": 826
+     }
+    ],
+    "limitations": [
+     "Session hours are conventional local-time FX centre hours, not exchange or broker schedules.",
+     "Public holidays, early closes and liquidity are not modelled."
+    ],
+    "broker_trading_hours": {
+     "state": "unknown",
+     "reason": "no_instrument_requested"
+    }
+   }
+  },
+  "account_read": {
+   "result": {
+    "account": {
+     "id": "{account_id}",
+     "broker": "Lonora Simulation",
+     "login": "7001234",
+     "server": "Lonora-Demo",
+     "name": "تجريبي",
+     "platform": "mt5",
+     "trade_allowed": true,
+     "investor_mode": false,
+     "currency": "USD",
+     "balance": "9841.69",
+     "equity": "10001.69",
+     "margin": "542.10",
+     "free_margin": "9459.59",
+     "observed_at": "2026-11-09T23:13:30Z"
+    },
+    "positions": [
+     {
+      "id": "51299999",
+      "symbol": "EURUSD",
+      "side": "buy",
+      "volume": "0.50",
+      "open_price": "1.08100",
+      "profit": "160.00",
+      "stop_loss": "1.07800",
+      "take_profit": "1.09000",
+      "operation_id": "b188fae4-775a-59c0-9e5f-01b2dba5c736"
+     }
+    ],
+    "orders": []
+   }
+  },
+  "account_history": {
+   "result": {
+    "history": [
+     {
+      "id": "40100001",
+      "type": "DEAL_TYPE_BALANCE",
+      "profit": 10000.0,
+      "commission": 0.0,
+      "swap": 0.0,
+      "time": "2026-08-14T07:00:00+00:00"
+     },
+     {
+      "id": "40100002",
+      "orderId": "49100002",
+      "positionId": "51200000",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 27.903,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-18T09:00:00+00:00"
+     },
+     {
+      "id": "40100003",
+      "orderId": "49100003",
+      "positionId": "51200000",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 27.963,
+      "profit": 15.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-18T11:00:00+00:00"
+     },
+     {
+      "id": "40100004",
+      "orderId": "49100004",
+      "positionId": "51200001",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2359.53,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-20T13:45:00+00:00"
+     },
+     {
+      "id": "40100005",
+      "orderId": "49100005",
+      "positionId": "51200001",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2359.8,
+      "profit": -1.35,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-20T18:45:00+00:00"
+     },
+     {
+      "id": "40100006",
+      "orderId": "49100006",
+      "positionId": "51200002",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.07193,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-08-21T07:45:00+00:00"
+     },
+     {
+      "id": "40100007",
+      "orderId": "49100007",
+      "positionId": "51200002",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.07313,
+      "profit": 36.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-08-21T11:00:00+00:00"
+     },
+     {
+      "id": "40100008",
+      "orderId": "49100008",
+      "positionId": "51200003",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2382.53,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-08-24T07:30:00+00:00"
+     },
+     {
+      "id": "40100009",
+      "orderId": "49100009",
+      "positionId": "51200003",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2383.68,
+      "profit": 23.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-08-24T09:45:00+00:00"
+     },
+     {
+      "id": "40100010",
+      "orderId": "49100010",
+      "positionId": "51200004",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.07274,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-08-26T09:00:00+00:00"
+     },
+     {
+      "id": "40100011",
+      "orderId": "49100011",
+      "positionId": "51200004",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.07423,
+      "profit": 44.7,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-08-26T14:15:00+00:00"
+     },
+     {
+      "id": "40100012",
+      "orderId": "49100012",
+      "positionId": "51200005",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2353.44,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-27T13:15:00+00:00"
+     },
+     {
+      "id": "40100013",
+      "orderId": "49100013",
+      "positionId": "51200005",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2354.34,
+      "profit": -4.5,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-08-27T15:45:00+00:00"
+     },
+     {
+      "id": "40100014",
+      "orderId": "49100014",
+      "positionId": "51200006",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2338.79,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-08-28T08:15:00+00:00"
+     },
+     {
+      "id": "40100015",
+      "orderId": "49100015",
+      "positionId": "51200006",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2338.75,
+      "profit": -0.8,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-08-28T15:45:00+00:00"
+     },
+     {
+      "id": "40100016",
+      "orderId": "49100016",
+      "positionId": "51200007",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 2307.47,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-03T11:30:00+00:00"
+     },
+     {
+      "id": "40100017",
+      "orderId": "49100017",
+      "positionId": "51200007",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 2319.45,
+      "profit": 119.8,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-03T17:00:00+00:00"
+     },
+     {
+      "id": "40100018",
+      "orderId": "49100018",
+      "positionId": "51200008",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 28.798,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-04T11:15:00+00:00"
+     },
+     {
+      "id": "40100019",
+      "orderId": "49100019",
+      "positionId": "51200008",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 28.71,
+      "profit": -44.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-04T14:45:00+00:00"
+     },
+     {
+      "id": "40100020",
+      "orderId": "49100020",
+      "positionId": "51200009",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2404.22,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-07T08:45:00+00:00"
+     },
+     {
+      "id": "40100021",
+      "orderId": "49100021",
+      "positionId": "51200009",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2395.81,
+      "profit": -168.2,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-07T11:00:00+00:00"
+     },
+     {
+      "id": "40100022",
+      "orderId": "49100022",
+      "positionId": "51200010",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.08411,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-08T07:00:00+00:00"
+     },
+     {
+      "id": "40100023",
+      "orderId": "49100023",
+      "positionId": "51200010",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.08604,
+      "profit": -57.9,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-08T14:45:00+00:00"
+     },
+     {
+      "id": "40100024",
+      "orderId": "49100024",
+      "positionId": "51200011",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 28.995,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-10T12:45:00+00:00"
+     },
+     {
+      "id": "40100025",
+      "orderId": "49100025",
+      "positionId": "51200011",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 29.241,
+      "profit": -61.5,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-10T17:30:00+00:00"
+     },
+     {
+      "id": "40100026",
+      "orderId": "49100026",
+      "positionId": "51200012",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2441.02,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-11T06:00:00+00:00"
+     },
+     {
+      "id": "40100027",
+      "orderId": "49100027",
+      "positionId": "51200012",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2421.88,
+      "profit": -95.7,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-11T12:45:00+00:00"
+     },
+     {
+      "id": "40100028",
+      "orderId": "49100028",
+      "positionId": "51200013",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 28.528,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-14T08:00:00+00:00"
+     },
+     {
+      "id": "40100029",
+      "orderId": "49100029",
+      "positionId": "51200013",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 28.414,
+      "profit": -57.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-14T11:00:00+00:00"
+     },
+     {
+      "id": "40100030",
+      "orderId": "49100030",
+      "positionId": "51200014",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 1.08484,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-15T10:30:00+00:00"
+     },
+     {
+      "id": "40100031",
+      "orderId": "49100031",
+      "positionId": "51200014",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 1.08549,
+      "profit": -13.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-15T14:30:00+00:00"
+     },
+     {
+      "id": "40100032",
+      "orderId": "49100032",
+      "positionId": "51200015",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2369.39,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-17T08:15:00+00:00"
+     },
+     {
+      "id": "40100033",
+      "orderId": "49100033",
+      "positionId": "51200015",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2380.53,
+      "profit": -55.7,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-17T12:15:00+00:00"
+     },
+     {
+      "id": "40100034",
+      "orderId": "49100034",
+      "positionId": "51200016",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 2405.66,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-18T13:45:00+00:00"
+     },
+     {
+      "id": "40100035",
+      "orderId": "49100035",
+      "positionId": "51200016",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 2415.96,
+      "profit": 103.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-18T21:30:00+00:00"
+     },
+     {
+      "id": "40100036",
+      "orderId": "49100036",
+      "positionId": "51200017",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.08574,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-21T08:45:00+00:00"
+     },
+     {
+      "id": "40100037",
+      "orderId": "49100037",
+      "positionId": "51200017",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.09022,
+      "profit": 134.4,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-21T14:15:00+00:00"
+     },
+     {
+      "id": "40100038",
+      "orderId": "49100038",
+      "positionId": "51200018",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.08932,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-22T09:00:00+00:00"
+     },
+     {
+      "id": "40100039",
+      "orderId": "49100039",
+      "positionId": "51200018",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.09084,
+      "profit": 45.6,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-09-22T12:00:00+00:00"
+     },
+     {
+      "id": "40100040",
+      "orderId": "49100040",
+      "positionId": "51200019",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2387.05,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-23T06:30:00+00:00"
+     },
+     {
+      "id": "40100041",
+      "orderId": "49100041",
+      "positionId": "51200019",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2382.85,
+      "profit": 21.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-09-23T14:30:00+00:00"
+     },
+     {
+      "id": "40100042",
+      "orderId": "49100042",
+      "positionId": "51200020",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.5,
+      "price": 1.09353,
+      "profit": 0.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-09-28T09:15:00+00:00"
+     },
+     {
+      "id": "40100043",
+      "orderId": "49100043",
+      "positionId": "51200020",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.5,
+      "price": 1.09625,
+      "profit": -136.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-09-28T13:15:00+00:00"
+     },
+     {
+      "id": "40100044",
+      "orderId": "49100044",
+      "positionId": "51200021",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 1.09168,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-29T11:45:00+00:00"
+     },
+     {
+      "id": "40100045",
+      "orderId": "49100045",
+      "positionId": "51200021",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 1.09501,
+      "profit": -66.6,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-09-29T15:00:00+00:00"
+     },
+     {
+      "id": "40100046",
+      "orderId": "49100046",
+      "positionId": "51200022",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 29.657,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-30T11:30:00+00:00"
+     },
+     {
+      "id": "40100047",
+      "orderId": "49100047",
+      "positionId": "51200022",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 29.639,
+      "profit": 9.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-09-30T18:00:00+00:00"
+     },
+     {
+      "id": "40100048",
+      "orderId": "49100048",
+      "positionId": "51200023",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2398.83,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-02T10:15:00+00:00"
+     },
+     {
+      "id": "40100049",
+      "orderId": "49100049",
+      "positionId": "51200023",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2391.94,
+      "profit": 137.8,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-02T14:00:00+00:00"
+     },
+     {
+      "id": "40100050",
+      "orderId": "49100050",
+      "positionId": "51200024",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2343.17,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-12T09:45:00+00:00"
+     },
+     {
+      "id": "40100051",
+      "orderId": "49100051",
+      "positionId": "51200024",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2343.02,
+      "profit": -3.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-12T17:45:00+00:00"
+     },
+     {
+      "id": "40100052",
+      "orderId": "49100052",
+      "positionId": "51200025",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.15,
+      "price": 2324.3,
+      "profit": 0.0,
+      "commission": -0.53,
+      "swap": 0.0,
+      "time": "2026-10-13T12:00:00+00:00"
+     },
+     {
+      "id": "40100053",
+      "orderId": "49100053",
+      "positionId": "51200025",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.15,
+      "price": 2310.47,
+      "profit": 207.45,
+      "commission": -0.53,
+      "swap": 0.0,
+      "time": "2026-10-13T18:15:00+00:00"
+     },
+     {
+      "id": "40100054",
+      "orderId": "49100054",
+      "positionId": "51200026",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.3,
+      "price": 1.07812,
+      "profit": 0.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-10-14T10:45:00+00:00"
+     },
+     {
+      "id": "40100055",
+      "orderId": "49100055",
+      "positionId": "51200026",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.3,
+      "price": 1.07822,
+      "profit": -3.0,
+      "commission": -1.05,
+      "swap": 0.0,
+      "time": "2026-10-14T14:00:00+00:00"
+     },
+     {
+      "id": "40100056",
+      "orderId": "49100056",
+      "positionId": "51200027",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.5,
+      "price": 1.08622,
+      "profit": 0.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-10-20T09:30:00+00:00"
+     },
+     {
+      "id": "40100057",
+      "orderId": "49100057",
+      "positionId": "51200027",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.5,
+      "price": 1.08525,
+      "profit": -48.5,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-10-20T14:45:00+00:00"
+     },
+     {
+      "id": "40100058",
+      "orderId": "49100058",
+      "positionId": "51200028",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.5,
+      "price": 1.09327,
+      "profit": 0.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-10-21T12:00:00+00:00"
+     },
+     {
+      "id": "40100059",
+      "orderId": "49100059",
+      "positionId": "51200028",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.5,
+      "price": 1.09593,
+      "profit": 133.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-10-21T19:45:00+00:00"
+     },
+     {
+      "id": "40100060",
+      "orderId": "49100060",
+      "positionId": "51200029",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 1.09346,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-22T07:45:00+00:00"
+     },
+     {
+      "id": "40100061",
+      "orderId": "49100061",
+      "positionId": "51200029",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 1.09672,
+      "profit": -65.2,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-22T12:45:00+00:00"
+     },
+     {
+      "id": "40100062",
+      "orderId": "49100062",
+      "positionId": "51200030",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2225.86,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-10-23T11:00:00+00:00"
+     },
+     {
+      "id": "40100063",
+      "orderId": "49100063",
+      "positionId": "51200030",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2215.01,
+      "profit": -54.25,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-10-23T19:00:00+00:00"
+     },
+     {
+      "id": "40100064",
+      "orderId": "49100064",
+      "positionId": "51200031",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 1.08503,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-27T06:30:00+00:00"
+     },
+     {
+      "id": "40100065",
+      "orderId": "49100065",
+      "positionId": "51200031",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 1.08459,
+      "profit": 8.8,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-27T09:45:00+00:00"
+     },
+     {
+      "id": "40100066",
+      "orderId": "49100066",
+      "positionId": "51200032",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 28.755,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-10-29T12:15:00+00:00"
+     },
+     {
+      "id": "40100067",
+      "orderId": "49100067",
+      "positionId": "51200032",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 28.812,
+      "profit": -28.5,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-10-29T15:00:00+00:00"
+     },
+     {
+      "id": "40100068",
+      "orderId": "49100068",
+      "positionId": "51200033",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 1.08131,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-30T07:15:00+00:00"
+     },
+     {
+      "id": "40100069",
+      "orderId": "49100069",
+      "positionId": "51200033",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 1.08081,
+      "profit": 10.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-10-30T09:15:00+00:00"
+     },
+     {
+      "id": "40100070",
+      "orderId": "49100070",
+      "positionId": "51200034",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 2347.05,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-11-02T06:15:00+00:00"
+     },
+     {
+      "id": "40100071",
+      "orderId": "49100071",
+      "positionId": "51200034",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 2364.27,
+      "profit": 86.1,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-11-02T14:15:00+00:00"
+     },
+     {
+      "id": "40100072",
+      "orderId": "49100072",
+      "positionId": "51200035",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2397.15,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-11-03T07:00:00+00:00"
+     },
+     {
+      "id": "40100073",
+      "orderId": "49100073",
+      "positionId": "51200035",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2400.41,
+      "profit": 65.2,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-11-03T09:30:00+00:00"
+     },
+     {
+      "id": "40100074",
+      "orderId": "49100074",
+      "positionId": "51200036",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 2407.32,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-04T08:45:00+00:00"
+     },
+     {
+      "id": "40100075",
+      "orderId": "49100075",
+      "positionId": "51200036",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 2401.56,
+      "profit": 57.6,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-04T10:30:00+00:00"
+     },
+     {
+      "id": "40100076",
+      "orderId": "49100076",
+      "positionId": "51200037",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 29.207,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-05T13:30:00+00:00"
+     },
+     {
+      "id": "40100077",
+      "orderId": "49100077",
+      "positionId": "51200037",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 29.319,
+      "profit": 56.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-05T20:45:00+00:00"
+     },
+     {
+      "id": "40100078",
+      "orderId": "49100078",
+      "positionId": "51200038",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.05,
+      "price": 29.502,
+      "profit": 0.0,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-11-06T10:45:00+00:00"
+     },
+     {
+      "id": "40100086",
+      "orderId": "49100086",
+      "positionId": "51299999",
+      "symbol": "EURUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.5,
+      "price": 1.081,
+      "profit": 0.0,
+      "commission": -1.75,
+      "swap": 0.0,
+      "time": "2026-11-06T13:45:00+00:00"
+     },
+     {
+      "id": "40100079",
+      "orderId": "49100079",
+      "positionId": "51200038",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.05,
+      "price": 29.275,
+      "profit": 56.75,
+      "commission": -0.18,
+      "swap": 0.0,
+      "time": "2026-11-06T17:15:00+00:00"
+     },
+     {
+      "id": "40100080",
+      "orderId": "49100080",
+      "positionId": "51200039",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.2,
+      "price": 2382.21,
+      "profit": 0.0,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-11-09T08:45:00+00:00"
+     },
+     {
+      "id": "40100081",
+      "orderId": "49100081",
+      "positionId": "51200039",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.2,
+      "price": 2362.1,
+      "profit": -402.2,
+      "commission": -0.7,
+      "swap": 0.0,
+      "time": "2026-11-09T19:15:00+00:00"
+     },
+     {
+      "id": "40100082",
+      "orderId": "49100082",
+      "positionId": "51200040",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 2369.43,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-09T21:00:00+00:00"
+     },
+     {
+      "id": "40100083",
+      "orderId": "49100083",
+      "positionId": "51200040",
+      "symbol": "XAUUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 2368.85,
+      "profit": -5.8,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-09T21:45:00+00:00"
+     },
+     {
+      "id": "40100084",
+      "orderId": "49100084",
+      "positionId": "51200041",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_SELL",
+      "entryType": "DEAL_ENTRY_IN",
+      "volume": 0.1,
+      "price": 28.768,
+      "profit": 0.0,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-09T22:00:00+00:00"
+     },
+     {
+      "id": "40100085",
+      "orderId": "49100085",
+      "positionId": "51200041",
+      "symbol": "XAGUSD",
+      "type": "DEAL_TYPE_BUY",
+      "entryType": "DEAL_ENTRY_OUT",
+      "volume": 0.1,
+      "price": 28.973,
+      "profit": -102.5,
+      "commission": -0.35,
+      "swap": 0.0,
+      "time": "2026-11-09T22:45:00+00:00"
+     }
+    ],
+    "start": "2026-08-11T23:13:25+00:00",
+    "end": "2026-11-09T23:13:25+00:00"
+   }
+  },
+  "trade_record_history": {
+   "result": {
+    "records": [
+     {
+      "operation_id": "b59ef078-dc4d-5677-b583-035eb348e9b7",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-09T22:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "a43b9480-50bd-5336-8b84-5d2949476e91",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-09T22:00:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "edcf33df-9a68-5e35-8e43-c3b58d34f5dd",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-09T21:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "b91aaae1-743d-52a7-ae10-91f195cb3c6e",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-09T21:00:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "3359b63d-aba4-5eff-80ee-6328370e6292",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-09T08:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "243d72f7-b112-55bd-a053-509a254dbb40",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-06T17:15:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "b188fae4-775a-59c0-9e5f-01b2dba5c736",
+      "symbol": "EURUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-06T13:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "cbacae11-b835-5d23-9ec5-8bd629e63754",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-06T10:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "23d73144-3f50-5cad-9c5a-735424ad4df7",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-05T13:30:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "e91e232d-3ee0-5173-9b67-d7cb4ed31ca6",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-04T08:45:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "a6ebd067-0a1c-505e-9fc2-e5dd5a0bc181",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-03T09:30:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "59b20303-6c68-5449-86d9-ccfe01ab58ed",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-03T07:00:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "e00d4b89-eae0-5434-9dc7-a24be032f671",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-11-02T06:15:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "d236a418-aa05-5b77-94ff-e4b3ba6f3671",
+      "symbol": "EURUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-30T09:15:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "e58d8873-33e0-5526-b2d7-211983fe1247",
+      "symbol": "EURUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-30T07:15:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "84fcbe70-ba03-5398-9568-ac50c281858c",
+      "symbol": "XAGUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-29T12:15:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "1f8f6d47-1765-5df1-8184-80dc8d86b3cb",
+      "symbol": "EURUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "sell",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-27T06:30:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "a58704f5-5276-55c0-8a20-33b30b40e48d",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-23T19:00:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "1e8e3859-8022-558e-96fd-70eec6b0f487",
+      "symbol": "XAUUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "buy",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-23T11:00:00+00:00",
+      "historical_evidence_available": true
+     },
+     {
+      "operation_id": "36ff3c1a-2bc0-5f80-938d-5f015e35290e",
+      "symbol": "EURUSD",
+      "account_id": "{account_id}",
+      "execution_mode": "live",
+      "action": "close_position",
+      "status": "confirmed",
+      "code": null,
+      "recorded_at": "2026-10-22T12:45:00+00:00",
+      "historical_evidence_available": true
+     }
+    ],
+    "more_available": true,
+    "details_tool": "trade_record_read",
+    "execution_authorized": false
+   }
+  },
+  "market_position_size": {
+   "result": {
+    "account_id": "{account_id}",
+    "currency": "USD",
+    "symbol": "XAUUSD",
+    "side": "buy",
+    "risk_budget": "100",
+    "entry": "2368.75",
+    "stop_loss": "2358.40",
+    "volume": "0.09",
+    "modeled_stop_loss": "93.15",
+    "per_lot_stop_loss": "1035",
+    "tick_size": "0.01",
+    "loss_tick_value": "1",
+    "tick_value_basis": "account_currency_per_lot",
+    "quote_at": "2026-11-09T23:13:29Z",
+    "account_at": "2026-11-09T23:13:30Z",
+    "observed_at": "2026-11-09T23:13:31.085901Z",
+    "source": "simulation",
+    "instrument": {
+     "symbol": "XAUUSD",
+     "description": "Gold vs US Dollar",
+     "digits": 2,
+     "tick_size": "0.01",
+     "volume_min": "0.01",
+     "volume_max": "100",
+     "volume_step": "0.01",
+     "stops_level": 0,
+     "point_size": "0.01",
+     "contract_size": "100",
+     "base_currency": "XAU",
+     "profit_currency": "USD"
+    },
+    "execution_authorized": false,
+    "exclusions": [
+     "gaps",
+     "slippage",
+     "commission",
+     "swap",
+     "margin_validation"
+    ]
+   }
+  },
+  "watch_create": {
+   "result": {
+    "id": "47a32ccd-c721-5382-b3b1-9ba4d335db1e",
+    "agent_id": "{lonora_id}",
+    "thread_id": "{thread_id}",
+    "payload": {
+     "goal_id": null,
+     "step_id": null,
+     "goal_plan_version": null,
+     "kind": "price",
+     "detector": null,
+     "expires_at": null,
+     "confirmation_ttl_seconds": null,
+     "required_observations": 1,
+     "debounce_seconds": 0,
+     "evaluation_mode": "tick",
+     "account_id": "{account_id}",
+     "symbol": "XAUUSD",
+     "condition": "above",
+     "level": "2400",
+     "prompt": "الذهب صعد فوق 2400: أبلغ المالك بالسعر الحالي ووقت التحقق.",
+     "enabled": true,
+     "cooldown_seconds": 300,
+     "interval_seconds": 30,
+     "timeframe": "1h",
+     "indicator": "rsi",
+     "period": 14,
+     "series": "value",
+     "metric": "equity",
+     "position_id": null,
+     "integration_id": null,
+     "currency": null,
+     "event_id": null,
+     "dedupe_key": "alert:XAUUSD:above:2400"
+    },
+    "state": {},
+    "version": 1,
+    "created_at": "2026-11-09T23:13:25+00:00",
+    "updated_at": "2026-11-09T23:13:25+00:00"
+   },
+   "echo": "payload"
+  },
+  "watch_list": {
+   "result": {
+    "watches": []
+   },
+   "contexts": {
+    "A01_sent": {
+     "watches": [
+      {
+       "id": "23b65da1-9add-5042-855d-717e9d0c964e",
+       "agent_id": "{lonora_id}",
+       "thread_id": "{thread_id}",
+       "payload": {
+        "goal_id": null,
+        "step_id": null,
+        "goal_plan_version": null,
+        "kind": "price",
+        "detector": null,
+        "expires_at": null,
+        "confirmation_ttl_seconds": null,
+        "required_observations": 1,
+        "debounce_seconds": 0,
+        "evaluation_mode": "tick",
+        "account_id": "{account_id}",
+        "symbol": "XAUUSD",
+        "condition": "above",
+        "level": "2400",
+        "prompt": "الذهب صعد فوق 2400: أبلغ المالك بالسعر الحالي ووقت التحقق.",
+        "enabled": true,
+        "cooldown_seconds": 300,
+        "interval_seconds": 30,
+        "timeframe": "1h",
+        "indicator": "rsi",
+        "period": 14,
+        "series": "value",
+        "metric": "equity",
+        "position_id": null,
+        "integration_id": null,
+        "currency": null,
+        "event_id": null,
+        "dedupe_key": "alert:XAUUSD:above:2400"
+       },
+       "state": {},
+       "version": 1,
+       "created_at": "2026-11-09T22:53:25+00:00",
+       "updated_at": "2026-11-09T22:53:25+00:00"
+      }
+     ]
+    }
+   }
+  },
+  "watch_cancel": {
+   "result": {
+    "id": "23b65da1-9add-5042-855d-717e9d0c964e",
+    "agent_id": "{lonora_id}",
+    "thread_id": "{thread_id}",
+    "payload": {
+     "goal_id": null,
+     "step_id": null,
+     "goal_plan_version": null,
+     "kind": "price",
+     "detector": null,
+     "expires_at": null,
+     "confirmation_ttl_seconds": null,
+     "required_observations": 1,
+     "debounce_seconds": 0,
+     "evaluation_mode": "tick",
+     "account_id": "{account_id}",
+     "symbol": "XAUUSD",
+     "condition": "above",
+     "level": "2400",
+     "prompt": "الذهب صعد فوق 2400: أبلغ المالك بالسعر الحالي ووقت التحقق.",
+     "enabled": false,
+     "cooldown_seconds": 300,
+     "interval_seconds": 30,
+     "timeframe": "1h",
+     "indicator": "rsi",
+     "period": 14,
+     "series": "value",
+     "metric": "equity",
+     "position_id": null,
+     "integration_id": null,
+     "currency": null,
+     "event_id": null,
+     "dedupe_key": "alert:XAUUSD:above:2400"
+    },
+    "state": {
+     "code": "watch_cancelled"
+    },
+    "version": 2,
+    "created_at": "2026-11-09T22:53:25+00:00",
+    "updated_at": "2026-11-09T23:13:25+00:00",
+    "undo": "watch_resume"
+   }
+  },
+  "watch_update": {
+   "result": {
+    "id": "23b65da1-9add-5042-855d-717e9d0c964e",
+    "agent_id": "{lonora_id}",
+    "thread_id": "{thread_id}",
+    "payload": {
+     "goal_id": null,
+     "step_id": null,
+     "goal_plan_version": null,
+     "kind": "price",
+     "detector": null,
+     "expires_at": null,
+     "confirmation_ttl_seconds": null,
+     "required_observations": 1,
+     "debounce_seconds": 0,
+     "evaluation_mode": "tick",
+     "account_id": "{account_id}",
+     "symbol": "XAUUSD",
+     "condition": "above",
+     "level": "2450",
+     "prompt": "الذهب صعد فوق 2400: أبلغ المالك بالسعر الحالي ووقت التحقق.",
+     "enabled": true,
+     "cooldown_seconds": 300,
+     "interval_seconds": 30,
+     "timeframe": "1h",
+     "indicator": "rsi",
+     "period": 14,
+     "series": "value",
+     "metric": "equity",
+     "position_id": null,
+     "integration_id": null,
+     "currency": null,
+     "event_id": null,
+     "dedupe_key": "alert:XAUUSD:above:2400"
+    },
+    "state": {},
+    "version": 2,
+    "created_at": "2026-11-09T22:53:25+00:00",
+    "updated_at": "2026-11-09T23:13:25+00:00"
+   }
+  },
+  "watch_pause": {
+   "result": {
+    "id": "23b65da1-9add-5042-855d-717e9d0c964e",
+    "agent_id": "{lonora_id}",
+    "thread_id": "{thread_id}",
+    "payload": {
+     "goal_id": null,
+     "step_id": null,
+     "goal_plan_version": null,
+     "kind": "price",
+     "detector": null,
+     "expires_at": null,
+     "confirmation_ttl_seconds": null,
+     "required_observations": 1,
+     "debounce_seconds": 0,
+     "evaluation_mode": "tick",
+     "account_id": "{account_id}",
+     "symbol": "XAUUSD",
+     "condition": "above",
+     "level": "2400",
+     "prompt": "الذهب صعد فوق 2400: أبلغ المالك بالسعر الحالي ووقت التحقق.",
+     "enabled": false,
+     "cooldown_seconds": 300,
+     "interval_seconds": 30,
+     "timeframe": "1h",
+     "indicator": "rsi",
+     "period": 14,
+     "series": "value",
+     "metric": "equity",
+     "position_id": null,
+     "integration_id": null,
+     "currency": null,
+     "event_id": null,
+     "dedupe_key": "alert:XAUUSD:above:2400"
+    },
+    "state": {
+     "code": "watch_paused"
+    },
+    "version": 2,
+    "created_at": "2026-11-09T22:53:25+00:00",
+    "updated_at": "2026-11-09T22:53:25+00:00",
+    "undo": "watch_resume"
+   }
+  },
+  "routine_create": {
+   "result": {
+    "id": "6c18e970-c9a6-5b71-87ee-11189236e704",
+    "agent_id": "{lonora_id}",
+    "thread_id": "{thread_id}",
+    "prompt": "ذكّر المالك بمراجعة الصفقات.",
+    "goal_id": null,
+    "step_id": null,
+    "interval_seconds": null,
+    "cron": "0 9 11 11 *",
+    "timezone": "Asia/Riyadh",
+    "enabled": true,
+    "next_run_at": "2026-11-11T06:00:00+00:00"
+   },
+   "echo": ""
+  },
+  "routine_list": {
+   "result": {
+    "routines": []
+   }
+  },
+  "board_list": {
+   "result": {
+    "boards": [
+     {
+      "id": "0fd8a70d-7165-55ce-ac33-8150e7130c8e",
+      "agent_id": "{lonora_id}",
+      "thread_id": null,
+      "payload": {
+       "title": "مهامي",
+       "columns": [
+        "todo",
+        "working",
+        "done"
+       ]
+      },
+      "state": {},
+      "version": 1,
+      "created_at": "2026-10-10T23:13:25+00:00",
+      "updated_at": "2026-10-10T23:13:25+00:00"
+     }
+    ]
+   }
+  },
+  "ticket_create": {
+   "result": {
+    "id": "dd01eba9-a2c8-507a-bab9-0279f6c4e7ad",
+    "agent_id": "{lonora_id}",
+    "thread_id": null,
+    "payload": {
+     "board_id": "0fd8a70d-7165-55ce-ac33-8150e7130c8e",
+     "title": "مراجعة صفقات الأسبوع",
+     "description": "",
+     "status": "todo",
+     "run_id": null
+    },
+    "state": {},
+    "version": 1,
+    "created_at": "2026-11-09T23:13:25+00:00",
+    "updated_at": "2026-11-09T23:13:25+00:00"
+   },
+   "echo": "payload"
+  },
+  "memory_read": {
+   "result": {
+    "agent_id": "{lonora_id}",
+    "content": "# MEMORY.md\n- يفضّل المالك الردود القصيرة بالعربية.\n- الحساب التجريبي بالدولار.\n",
+    "version": 7,
+    "updated_at": "2026-11-07T23:13:25+00:00",
+    "document_sections": [
+     "MEMORY.md",
+     "OPERATING.md"
+    ],
+    "provenance": {
+     "source": "agent",
+     "source_run_id": "e6c98aa9-3b67-513d-85b1-75f1cfbe1ff4",
+     "event_cursor": 1042,
+     "recorded_at": "2026-11-07T23:13:25+00:00",
+     "authority": "untrusted_memory_content"
+    },
+    "owner_profile": {
+     "content": "",
+     "profile_version": 1,
+     "chars": 0,
+     "limit": 8000,
+     "shared_with": "every_agent",
+     "preferences": {
+      "reply_language": "ar",
+      "reach_me": "notify",
+      "quiet_start_hour": null,
+      "quiet_end_hour": null,
+      "timezone": "Asia/Riyadh",
+      "device_selected": false,
+      "opportunity_calls": false,
+      "action_required_calls": false,
+      "delivery": "in_app_only"
+     }
+    }
+   }
+  },
+  "memory_write": {
+   "result": {
+    "changed": true,
+    "memory": {
+     "agent_id": "{lonora_id}",
+     "version": 8,
+     "updated_at": "2026-11-09T23:13:25+00:00",
+     "chars": 128,
+     "limit": 30000,
+     "changed": true,
+     "applied": [
+      {
+       "index": 0,
+       "action": "add",
+       "section": "MEMORY.md"
+      }
+     ]
+    }
+   }
+  },
+  "web_search": {
+   "result": {
+    "provider": "searxng",
+    "observed_at": "2026-11-09T23:13:22+00:00",
+    "partial": false,
+    "sources": [
+     {
+      "title": "Gold holds near $2,370 as traders await Fed minutes",
+      "url": "https://www.example-news.com/markets/gold-fed-minutes",
+      "excerpt": "Spot gold traded around $2,368 after the previous session's slide from last week's high near $2,412, with the dollar steady ahead of the FOMC minutes."
+     },
+     {
+      "title": "الذهب يستقر بعد تراجع الجمعة مع ترقب محضر الفيدرالي",
+      "url": "https://www.example-arabic-news.com/economy/gold-today",
+      "excerpt": "استقرت أسعار الذهب قرب 2368 دولارًا للأونصة بعد خسائر الجلسة السابقة، فيما يترقب المستثمرون محضر اجتماع الفيدرالي."
+     },
+     {
+      "title": "Silver rebounds toward $29 on industrial demand hopes",
+      "url": "https://www.example-news.com/markets/silver-rebound",
+      "excerpt": "Silver rose to about $28.9 an ounce, recovering part of the previous session's drop."
+     }
+    ]
+   }
+  },
+  "web_fetch": {
+   "result": {
+    "source": "https://www.example-news.com/markets/gold-fed-minutes",
+    "observed_at": "2026-11-09T23:13:25+00:00",
+    "untrusted_content": "Gold holds near $2,370 as traders await Fed minutes. Spot gold was little changed at $2,368.40 ..."
+   }
+  },
+  "news_feed_read": {
+   "result": {
+    "feeds": [],
+    "configured": false,
+    "untrusted_content": true,
+    "authority": "external_evidence_not_instructions",
+    "guidance": "No subscribed feeds: subscribe one with news_feed_subscribe or read a public feed URL once."
+   }
+  },
+  "economic_calendar_read": {
+   "result": {
+    "configured": true,
+    "reason": null,
+    "observed_at": "2026-11-09T23:13:25+00:00",
+    "window": {
+     "from": "2026-11-09T11:13:25+00:00",
+     "to": "2026-11-16T23:13:25+00:00"
+    },
+    "sources": [
+     {
+      "integration_id": "cef591e1-d233-58ad-a7a2-e6e89887603e",
+      "name": "التقويم الاقتصادي",
+      "status": "ok",
+      "events": 4,
+      "rejected_without_timezone": 0
+     }
+    ],
+    "events": [
+     {
+      "id": "ecb-president-speech",
+      "name": "ECB President Lagarde Speaks",
+      "currency": "EUR",
+      "impact": "medium",
+      "scheduled_at": "2026-11-10T14:00:00+00:00",
+      "minutes_from_now": 886,
+      "status": "upcoming",
+      "actual": null,
+      "forecast": null,
+      "source": "calendar",
+      "observed_at": "2026-11-09T23:08:25+00:00",
+      "integration_id": "cef591e1-d233-58ad-a7a2-e6e89887603e"
+     },
+     {
+      "id": "fed-chair-speech",
+      "name": "Fed Chair Powell Speaks",
+      "currency": "USD",
+      "impact": "high",
+      "scheduled_at": "2026-11-11T15:30:00+00:00",
+      "minutes_from_now": 2416,
+      "status": "upcoming",
+      "actual": null,
+      "forecast": null,
+      "source": "calendar",
+      "observed_at": "2026-11-09T23:08:25+00:00",
+      "integration_id": "cef591e1-d233-58ad-a7a2-e6e89887603e"
+     },
+     {
+      "id": "fomc-minutes",
+      "name": "FOMC Meeting Minutes",
+      "currency": "USD",
+      "impact": "high",
+      "scheduled_at": "2026-11-12T19:00:00+00:00",
+      "minutes_from_now": 4066,
+      "status": "upcoming",
+      "actual": null,
+      "forecast": null,
+      "source": "calendar",
+      "observed_at": "2026-11-09T23:08:25+00:00",
+      "integration_id": "cef591e1-d233-58ad-a7a2-e6e89887603e"
+     },
+     {
+      "id": "us-cpi-mm",
+      "name": "CPI m/m",
+      "currency": "USD",
+      "impact": "high",
+      "scheduled_at": "2026-11-13T13:30:00+00:00",
+      "minutes_from_now": 5176,
+      "status": "upcoming",
+      "actual": null,
+      "forecast": "0.3%",
+      "source": "calendar",
+      "observed_at": "2026-11-09T23:08:25+00:00",
+      "integration_id": "cef591e1-d233-58ad-a7a2-e6e89887603e"
+     }
+    ],
+    "total_matches": 4,
+    "truncated": false
+   }
+  },
+  "list_agents": {
+   "result": {
+    "agents": [
+     {
+      "id": "{lonora_id}",
+      "name": "Lonora",
+      "title": "",
+      "description": "",
+      "paused": false,
+      "is_self": true,
+      "role": "personal",
+      "scope": {
+       "mode": "flexible",
+       "role": "personal",
+       "account_id": null,
+       "broker_symbol": null,
+       "visibility": "owner_accounts",
+       "execution_authority": "existing_server_controls"
+      },
+      "trading_account_id": null,
+      "trading_symbol": null,
+      "template": null,
+      "reports_to": [],
+      "you_supervise": false,
+      "supervises_you": false
+     },
+     {
+      "id": "{gold_agent_id}",
+      "name": "وكيل الذهب",
+      "title": "متداول الذهب",
+      "description": "يحلل الذهب ويقترح الصفقات بموافقتك",
+      "paused": false,
+      "is_self": false,
+      "role": "specialist",
+      "scope": {
+       "mode": "fixed_market",
+       "role": "specialist",
+       "account_id": "{account_id}",
+       "broker_symbol": "XAUUSD",
+       "visibility": "bound_market",
+       "execution_authority": "existing_server_controls"
+      },
+      "trading_account_id": "{account_id}",
+      "trading_symbol": "XAUUSD",
+      "template": "trading",
+      "reports_to": [
+       "{lonora_id}"
+      ],
+      "you_supervise": true,
+      "supervises_you": false
+     },
+     {
+      "id": "{euro_agent_id}",
+      "name": "وكيل اليورو",
+      "title": "متداول اليورو",
+      "description": "يتابع اليورو دولار ويدير صفقته المفتوحة",
+      "paused": false,
+      "is_self": false,
+      "role": "specialist",
+      "scope": {
+       "mode": "fixed_market",
+       "role": "specialist",
+       "account_id": "{account_id}",
+       "broker_symbol": "EURUSD",
+       "visibility": "bound_market",
+       "execution_authority": "existing_server_controls"
+      },
+      "trading_account_id": "{account_id}",
+      "trading_symbol": "EURUSD",
+      "template": "trading",
+      "reports_to": [
+       "{lonora_id}"
+      ],
+      "you_supervise": true,
+      "supervises_you": false
+     },
+     {
+      "id": "{research_agent_id}",
+      "name": "باحث السوق",
+      "title": "باحث",
+      "description": "يجمع الأخبار والتقارير",
+      "paused": false,
+      "is_self": false,
+      "role": "general",
+      "scope": {
+       "mode": "fixed_market",
+       "role": "general",
+       "account_id": null,
+       "broker_symbol": null,
+       "visibility": "legacy",
+       "execution_authority": "existing_server_controls"
+      },
+      "trading_account_id": null,
+      "trading_symbol": null,
+      "template": "research",
+      "reports_to": [
+       "{lonora_id}"
+      ],
+      "you_supervise": true,
+      "supervises_you": false
+     }
+    ]
+   }
+  },
+  "agent_inspect": {
+   "result": {
+    "agent": {
+     "id": "{gold_agent_id}",
+     "name": "وكيل الذهب",
+     "title": "متداول الذهب",
+     "description": "يحلل الذهب ويقترح الصفقات بموافقتك",
+     "paused": false,
+     "is_self": false,
+     "role": "specialist",
+     "scope": {
+      "mode": "fixed_market",
+      "role": "specialist",
+      "account_id": "{account_id}",
+      "broker_symbol": "XAUUSD",
+      "visibility": "bound_market",
+      "execution_authority": "existing_server_controls"
+     },
+     "trading_account_id": "{account_id}",
+     "trading_symbol": "XAUUSD",
+     "template": "trading",
+     "reports_to": [
+      "{lonora_id}"
+     ],
+     "you_supervise": true,
+     "supervises_you": false
+    },
+    "section": "overview",
+    "status": "idle",
+    "trading_level": "ask_me",
+    "last_run_at": "2026-11-09T21:38:25+00:00",
+    "open_positions": 0,
+    "active_watches": 1
+   }
+  },
+  "agent_create": {
+   "result": {
+    "created": true,
+    "deduplicated": false,
+    "agent": {
+     "id": "1e3786d1-a334-530c-829b-e30a371ec8ac",
+     "name": "وكيل النفط",
+     "template": "trading",
+     "focus": {
+      "account_id": "{account_id}",
+      "symbol": "XTIUSD"
+     },
+     "trading_level": "ask_me",
+     "reports_to": [
+      "{lonora_id}"
+     ],
+     "supervises": []
+    },
+    "undo_card_shown": true,
+    "money_authority": "none: every trade waits for the owner's tap until the owner signs a grant",
+    "next": "It works when it has a task: send its first task with peer_send, then say in one line what was created and what is still missing."
+   }
+  },
+  "owner_notify": {
+   "result": {
+    "status": "pending",
+    "attention_id": "46958e13-ab52-552f-a284-28e088899dc0",
+    "delivery": "in_app",
+    "attention": {
+     "id": "46958e13-ab52-552f-a284-28e088899dc0",
+     "agent_id": "{lonora_id}",
+     "thread_id": "{thread_id}",
+     "importance": "important_change",
+     "code": "agent_notification",
+     "status": "pending",
+     "parameters": {
+      "execution_authorized": false,
+      "summary": "الذهب صعد فوق 2400 (2,401.20 الآن)",
+      "evidence_refs": [],
+      "dedupe_key": "alert:XAUUSD:above:2400",
+      "delivery": "in_app"
+     },
+     "source_events": [],
+     "source_count": 1,
+     "version": 1,
+     "created_at": "2026-11-09T23:13:25+00:00",
+     "updated_at": "2026-11-09T23:13:25+00:00"
+    },
+    "note": "Shown in the app's notifications and this Agent's conversation. Off-app delivery (push, messaging channels) is not available yet.",
+    "execution_authorized": false
+   }
+  },
+  "owner_action_propose": {
+   "result": {
+    "owner_action": {
+     "id": "3856f36a-affa-5582-a9bc-7404937d62db",
+     "kind": "<args.kind>",
+     "status": "pending",
+     "expires_at": "2026-11-10T23:13:25+00:00"
+    },
+    "already_shown": false,
+    "shown_in_conversation": true,
+    "owner_must_tap": true,
+    "passkey_required": true,
+    "execution_authorized": false
+   }
+  },
+  "trade_restriction_create": {
+   "result": {
+    "restriction": {
+     "id": "0df47660-ee7d-58b0-ba54-a3cbf0a47d42",
+     "account_id": "{account_id}",
+     "agent_id": null,
+     "all_agents": true,
+     "symbol": null,
+     "all_symbols": true,
+     "symbol_verified": true,
+     "action_class": "no_new_entries",
+     "state": "active",
+     "valid_from": "2026-11-09T23:13:25+00:00",
+     "valid_until": "2026-11-10T21:00:00+00:00",
+     "ended_at": null,
+     "applies_to_owner_manual": false,
+     "source": "owner_message",
+     "source_message_id": "b897aa79-0a28-537f-a9c6-3d59063871c0",
+     "source_run_id": "7393d3f9-c934-581c-95df-34ec1e52d6e8",
+     "reason": "طلب المالك إيقاف الصفقات الجديدة اليوم",
+     "created_by": "agent",
+     "created_by_agent_id": "{lonora_id}",
+     "created_at": "2026-11-09T23:13:25+00:00",
+     "revoked_at": null,
+     "revoked_reason": null,
+     "lift": "owner_only"
+    },
+    "unresolved_operations_in_scope": [],
+    "existing_positions_and_orders_unchanged": true,
+    "lift": "owner_only"
+   }
+  },
+  "model_list": {
+   "result": {
+    "agent_id": "{gold_agent_id}",
+    "mode": "automatic",
+    "chosen_by": null,
+    "answering": {
+     "provider": "openai",
+     "model": "gpt-5.4-mini",
+     "name": "GPT-5.4 mini"
+    },
+    "allowed": [
+     {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "name": "GPT-5.4 mini"
+     }
+    ],
+    "connected_providers": [
+     "openai"
+    ]
+   }
+  },
+  "model_request": {
+   "result": {
+    "changed": false,
+    "owner_must_tap": true,
+    "owner_action": {
+     "id": "5b5a3c23-4716-5aec-b325-598347843bf7",
+     "kind": "agent_model",
+     "status": "pending"
+    },
+    "already_shown": false,
+    "why": "owner_choice",
+    "allowed_models": [
+     {
+      "provider": "openai",
+      "model": "gpt-5.4-mini"
+     }
+    ]
+   }
+  },
+  "trade_execute": {
+   "result": {
+    "_runtime_wait": true,
+    "_runtime_retry": true,
+    "question": "",
+    "approval_id": "590e2fcf-3479-5372-84a3-a812172da68b"
+   }
+  },
+  "trade_close_positions": {
+   "result": {
+    "_runtime_wait": true,
+    "_runtime_retry": true,
+    "question": "",
+    "approval_id": "e385329b-4cd6-5aa3-b541-533c03b808c3"
+   }
+  }
+ }
+}

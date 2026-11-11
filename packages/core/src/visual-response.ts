@@ -13,6 +13,7 @@ import type {
   VisualValue,
   VoiceTranscriptStatus,
 } from "@lonora/contracts";
+import { validateUiPart } from "./genui/spec";
 import { unsafeVisualText } from "./visual-private-text";
 
 export const MAX_VISUAL_BYTES = 64000;
@@ -522,6 +523,11 @@ export function validateRichContent(value: unknown): RichContent | null {
         )
           return null;
         parts.push({ type: "text", text: part.text });
+      } else if (part.type === "ui" && object(part.document) && part.document.v === 2) {
+        // A lonora-ui v2 card (GENUI_PLAN §2.2), validated by its own fail-closed checker.
+        const card = validateUiPart(part);
+        if (!card) return null;
+        parts.push(card);
       } else if (part.type === "voice") {
         if (
           !fieldsOnly(part, ["type", "artifact_id", "duration", "peaks", "transcript_status"]) ||

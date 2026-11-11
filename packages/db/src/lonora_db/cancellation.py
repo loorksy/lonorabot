@@ -32,6 +32,9 @@ async def cancel_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRo
             agent_id=row.agent_id,
             run_id=row.id,
         )
+        from .genui_submit import settle_unstarted
+
+        await settle_unstarted(session, row)
     children = list(
         (
             await session.scalars(

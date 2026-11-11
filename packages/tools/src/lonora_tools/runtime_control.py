@@ -5,6 +5,7 @@ from lonora_contracts.input_request import InputChoice
 from lonora_core.public_reply import public_reply_violation
 from lonora_core.run_state import is_conversational
 from lonora_db.boards import BoardRepository
+from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import ThreadRow, TradeApprovalRow
 from lonora_db.tickets import TicketRepository
@@ -148,7 +149,7 @@ async def board_create(context: ToolContext, args: dict[str, Any]) -> dict[str, 
 
 async def ticket_create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
         existing = await session.get(TicketRepository.row_type, context.resource_id)
         row = existing or await TicketRepository().create(
             session,
@@ -157,6 +158,8 @@ async def ticket_create(context: ToolContext, args: dict[str, Any]) -> dict[str,
             agent_id=context.agent_id,
             resource_id=context.resource_id,
         )
+        # A ticket tainted work wrote starts tainted, whoever starts it (GENUI_PLAN §8.5).
+        await taint_row_from(session, run, "ticket", row.id)
         return resource_data(row)
 
 

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from lonora_db.owner_words import visible_to_recall
 from lonora_db.schema import MessageRow, ThreadRow
 from lonora_db.transactions import owned_thread
 from sqlalchemy import and_, func, or_, select
@@ -77,6 +78,7 @@ async def conversation_candidates(
             MessageRow.seq,
             MessageRow.role,
             MessageRow.created_at,
+            MessageRow.origin,
             func.substr(MessageRow.content, 1, CONVERSATION_TEXT_CHARS + 1).label("text"),
         )
         .join(ThreadRow, ThreadRow.id == MessageRow.thread_id)
@@ -95,6 +97,7 @@ async def conversation_candidates(
             ),
             # Peer outcome/request transport is not an owner/Agent conversation turn.
             or_(MessageRow.client_nonce.is_(None), ~MessageRow.client_nonce.startswith("peer:")),
+            visible_to_recall(),
         )
     )
     if neighbor_seq is None:
@@ -134,7 +137,11 @@ async def conversation_candidates(
                     "seq": row["seq"],
                     "role": row["role"],
                     "author_id": row["agent_id"] if row["role"] == "assistant" else owner_id,
-                    "author_kind": "agent" if row["role"] == "assistant" else "owner",
+                    "author_kind": "agent"
+                    if row["role"] == "assistant"
+                    else "owner_via_card"
+                    if row["origin"] in {"ui_submit", "ui_follow_up"}
+                    else "owner",
                     "source": "canonical_message",
                     "neighbor_of_seq": neighbor_seq,
                 },

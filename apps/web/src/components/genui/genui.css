@@ -1,0 +1,613 @@
+/* lonora-ui v2 cards: the reference's aa_genui look (Desktop-37 1311-1539, 2230-2237), ported
+   verbatim for the S-A01 node set (GENUI_PLAN §2.4, §5.1). Unlayered on purpose: it beats
+   Tailwind's preflight (a cascade layer) and every zero-specificity legacy and shell element
+   rule, and loses to every class rule. */
+
+/* The three names `.legacy-surface` overrides (tokens.css:83-94), re-declared with the
+   reference values (Desktop-37:19-27) while cards still sit inside the legacy wrapper. */
+.ux {
+  --primary: #f7f5ef;
+  --accent: #22e3a8;
+  --muted: #8b919e;
+}
+[data-theme="light"] .ux {
+  --primary: #0b0c10;
+  --accent: #22e3a8;
+  --muted: #5d6270;
+}
+[data-contrast="high"] .ux {
+  --muted: #c9cdd5;
+}
+[data-theme="light"][data-contrast="high"] .ux {
+  --muted: #3b3f48;
+}
+
+/* The card's own element reset at one element's specificity (§2.4): the reference's element
+   defaults (Desktop-37:62-72, 147-151), plus explicit values for every property the legacy
+   rules set (styles.css:87-200), so a card looks the same wherever it is mounted. */
+/* The card starts from the reference's body text and border colour, never the bubble's. */
+:where(.ux) {
+  font: 400 var(--fs-md) / 1.6 var(--font);
+  color: var(--text);
+}
+:where(.ux) *,
+:where(.ux) ::before,
+:where(.ux) ::after {
+  border-color: currentColor;
+}
+:where(.ux) button {
+  display: inline-block;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  transition: none;
+  cursor: pointer;
+}
+:where(.ux) button:where(:disabled) {
+  opacity: 0.45;
+  cursor: default;
+}
+:where(.ux) button:where(:hover) {
+  background: none;
+}
+:where(.ux) :where(button, a, input, select, [tabindex]):where(:focus-visible) {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+:where(.ux) input,
+:where(.ux) select {
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+}
+:where(.ux) label {
+  display: block;
+  /* The legacy label rule stacks its children (styles.css); the reference never does,
+     so a Number's hint stays beside its label (review U4). */
+  flex-direction: row;
+  margin: 0;
+}
+:where(.ux) p {
+  margin: 0;
+}
+:where(.ux) svg {
+  display: inline;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+:where(.ux) button svg {
+  pointer-events: none;
+}
+
+/* A ui message's row (Desktop-37 1312-1313, review U3): the message frame that holds a card. */
+.template-message:has(> .template-message-frame .ux) > .template-message-frame {
+  width: min(440px, 94%);
+  max-width: 94%;
+}
+@media (min-width: 900px) {
+  .template-message:has(> .template-message-frame .ux) > .template-message-frame {
+    width: min(460px, 78%);
+    max-width: 78%;
+  }
+}
+
+/* ---- Desktop-37 1311-1539 (the rules this release renders) ---- */
+.ux {
+  --ux-card: color-mix(in srgb, var(--text) 3.5%, var(--bubble-in));
+  --ux-raise: color-mix(in srgb, var(--text) 5%, transparent);
+  --ux-track: color-mix(in srgb, var(--text) 9%, transparent);
+  --ux-thumb: #3a3d46;
+  --ux-s0: var(--accent-ink);
+  --ux-s1: #3987e5;
+  --ux-s2: #d95926;
+  --ux-s3: #199e70;
+  --ux-pos: var(--accent-ink);
+  --ux-neg: #e66767;
+  position: relative;
+  margin: 8px 0 2px;
+  border-radius: 16px;
+  background: var(--ux-card);
+  border: 1px solid var(--line);
+  text-align: start;
+  line-height: 1.5;
+  transition: box-shadow 0.3s;
+}
+@media (hover: hover) {
+  .ux {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+[data-theme="light"] .ux {
+  --ux-card: color-mix(in srgb, var(--text) 2%, #fff);
+  --ux-raise: color-mix(in srgb, var(--text) 3.5%, transparent);
+  --ux-track: #e6e2d8;
+  --ux-thumb: #fff;
+  --ux-s1: #2a78d6;
+  --ux-s2: #eb6834;
+  --ux-s3: #1baf7a;
+  --ux-neg: #e34948;
+}
+.ux.ux-glow {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.ux-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 2px;
+}
+.ux-ic {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-ink);
+}
+.ux-ic svg {
+  width: 19px;
+  height: 19px;
+}
+.ux-ht {
+  display: grid;
+  min-width: 0;
+}
+.ux-ht b {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.ux-ht small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.ux-body {
+  display: grid;
+  gap: 14px;
+  padding: 10px 12px 12px;
+}
+.ux [data-ux-new] {
+  animation: ux-in 0.38s var(--ease) both;
+}
+@keyframes ux-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.ux-skel {
+  display: grid;
+  gap: 8px;
+  padding: 2px 0;
+}
+.ux-skel i {
+  display: block;
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    var(--ux-track) 25%,
+    color-mix(in srgb, var(--text) 14%, transparent) 50%,
+    var(--ux-track) 75%
+  );
+  background-size: 300% 100%;
+  animation: sk 1.2s ease-in-out infinite;
+}
+.ux-skel i + i {
+  width: 62%;
+}
+.ux-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-xs);
+}
+.ux-sent,
+.ux-cut {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.ux-cut {
+  color: var(--muted);
+  font-weight: 500;
+}
+.ux-sent svg,
+.ux-cut svg {
+  width: 15px;
+  height: 15px;
+}
+.ux-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-strong);
+  padding: 4px 2px;
+}
+.ux-why-b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: auto;
+  padding: 4px 2px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.ux-why-b svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-ink);
+}
+.ux-why-b[aria-expanded="true"] {
+  color: var(--text);
+}
+.ux-why {
+  margin: 0;
+  padding: 0 12px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  animation: ux-in 0.25s var(--ease) both;
+}
+.ux.is-sent .ux-body {
+  opacity: 0.82;
+}
+.ux-col {
+  display: grid;
+  gap: 12px;
+}
+.ux-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ux-row > .btn {
+  flex: 1 1 auto;
+}
+.ux-hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+.ux-text {
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+.ux-text.sm {
+  font-size: 13px;
+}
+.t-muted {
+  color: var(--muted);
+}
+.ux-text.t-accent {
+  color: var(--accent-ink);
+}
+.ux-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ux-raise);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ux-note svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--muted);
+}
+.ux-note.t-warn {
+  background: color-mix(in srgb, var(--amber) 13%, transparent);
+}
+.ux-note.t-warn svg {
+  color: var(--amber);
+}
+.ux-note.t-good {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.ux-note.t-good svg {
+  color: var(--accent-ink);
+}
+.ux-note.t-bad {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+.ux-note.t-bad svg {
+  color: var(--red);
+}
+.ux-kv {
+  display: grid;
+  font-size: var(--fs-sm);
+}
+.ux-kv > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ux-kv > div:last-child {
+  border-bottom: 0;
+}
+.ux-kv span {
+  color: var(--muted);
+}
+.ux-kv b {
+  font-weight: 600;
+  text-align: end;
+}
+.ux-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.ux-field > label,
+.ux-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ux-field > label small {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.ux-field output {
+  color: var(--text);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.ux-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  transition: border-color 0.15s;
+}
+[data-theme="light"] .ux-input {
+  background: #fff;
+}
+.ux-input:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.ux-input:has([aria-invalid="true"]) {
+  border-color: var(--red);
+}
+.ux-input input,
+.ux-input select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--fs-md);
+  outline: none;
+}
+.ux-input input[dir="ltr"] {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.ux-affix {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.ux-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--ux-track);
+}
+.ux-seg::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  inset-inline-start: calc(3px + (100% - 6px) / var(--n) * var(--i));
+  width: calc((100% - 6px) / var(--n));
+  border-radius: 9px;
+  background: var(--ux-thumb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: inset-inline-start 0.28s var(--ease);
+}
+.ux-seg button {
+  position: relative;
+  z-index: 1;
+  min-height: 36px;
+  padding: 4px 6px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s;
+}
+.ux-seg button[aria-checked="true"] {
+  color: var(--text);
+}
+.ux-seg button:disabled {
+  opacity: 1;
+}
+.ux-radio {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  transition: border 0.15s;
+}
+.ux-box {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 2px solid var(--line-strong);
+  color: transparent;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.ux-box svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 3;
+}
+.ux .btn.sm {
+  min-height: 40px;
+}
+.ux .btn.outline {
+  background: transparent;
+}
+.ux-full {
+  width: 100%;
+}
+
+/* ---- Desktop-37 2230-2237: choices and the read-only delivery row as pick rows (Q59) ---- */
+.ux-picks {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ux-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+.ux-pick:last-child {
+  border-bottom: 0;
+}
+.ux-pick[aria-checked="true"] {
+  font-weight: 600;
+}
+.ux-pick[aria-checked="true"] .ux-radio {
+  border: 5.5px solid var(--accent);
+}
+.ux-pick[aria-checked="true"] .ux-box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.ux-pick:disabled {
+  opacity: 0.7;
+}
+/* The delivery row is read-only: no hover (§4.4). */
+.ux-pick[aria-disabled="true"] {
+  cursor: default;
+}
+
+/* Desktop-37:130 .btn.sm, scoped: the shell has no .btn.sm (it has .btn.small). */
+.ux .btn.sm {
+  padding: 6px 14px;
+}
+
+/* ---- Lonora additions, built from the same tokens ---- */
+/* The fold expands in place like the reference's .search-more (549). */
+.ux-more {
+  justify-self: start;
+  padding: 4px 2px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-strong);
+}
+/* Desktop-37 1053-1054 .field-err, scoped: a field's own error under it. */
+.ux .field-err {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.ux .field-err svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.ux-notice {
+  margin: 0;
+  padding: 0 12px 10px;
+  color: var(--amber);
+  font-size: 13px;
+}
+.ux-sources {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ux [data-ux-new],
+  .ux-why {
+    animation: none;
+  }
+  .ux-skel i {
+    animation: none;
+  }
+  .ux-seg::before {
+    transition: none;
+  }
+}
+@keyframes sk {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}

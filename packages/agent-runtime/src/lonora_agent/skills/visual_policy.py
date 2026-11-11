@@ -1,5 +1,6 @@
 """Stable, bounded response vocabulary; presentation remains the existing model's choice."""
 
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -11,6 +12,52 @@ from .loader import resources_root
 VISUAL_MARKER = "<lonora_native_visual_response>"
 VISUAL_END = "</lonora_native_visual_response>"
 MAX_VISUAL_GUIDANCE_CHARS = 6500
+# The v2 generative-UI block (GENUI_PLAN §9.5): decision guidance, rules, the generated
+# vocabulary and the worked programs. Off by default (§9.8): the server setting
+# ``LONORA_GENUI_V2`` switches it on only after the live evaluation passes.
+MAX_GENUI_GUIDANCE_CHARS = 18000
+
+
+def genui_v2_enabled() -> bool:
+    return os.environ.get("LONORA_GENUI_V2", "").strip().lower() in {"1", "true", "on", "yes"}
+
+
+def genui_v2_variant() -> str:
+    """The answer-shape teaching: P (the plan's) or O (Open Intelligent UI's, adapted).
+    The decision evaluation chooses; LONORA_GENUI_PROMPT overrides it for an A/B run."""
+    value = os.environ.get("LONORA_GENUI_PROMPT", "P").strip().upper()
+    return value if value in {"P", "O"} else "P"
+
+
+@lru_cache(maxsize=8)
+def _read_v2(path: Path, modified: int, variant: str) -> str:
+    del modified, variant
+    from ..genui_vocabulary import genui_vocabulary
+
+    teaching = (path.parent / f"genui_v2_teaching_{genui_v2_variant().lower()}.md").read_text()
+    # Authoring comments (attribution, what was dropped) never reach the model.
+    teaching = re.sub(r"<!--.*?-->\s*", "", teaching, flags=re.S).strip()
+    text = (
+        path.read_text()
+        .strip()
+        .replace("{teaching}", teaching)
+        .replace("{vocabulary}", genui_vocabulary())
+    )
+    if (
+        not text.startswith(VISUAL_MARKER)
+        or not text.endswith(VISUAL_END)
+        or len(text) > MAX_GENUI_GUIDANCE_CHARS
+    ):
+        raise LonoraError("visual_policy_invalid", 500)
+    return text
+
+
+def genui_v2_policy() -> str:
+    path = resources_root() / "prompts" / "genui_v2.md"
+    try:
+        return _read_v2(path, path.stat().st_mtime_ns, genui_v2_variant())
+    except OSError:
+        raise LonoraError("visual_policy_invalid", 500) from None
 
 
 @lru_cache(maxsize=4)
@@ -27,6 +74,8 @@ def _read(path: Path, modified: int) -> str:
 
 
 def native_visual_policy() -> str:
+    if genui_v2_enabled():
+        return genui_v2_policy()
     path = resources_root() / "prompts" / "native_visual_response.md"
     try:
         return _read(path, path.stat().st_mtime_ns)

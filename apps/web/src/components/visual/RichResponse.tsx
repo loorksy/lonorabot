@@ -15,6 +15,7 @@ import {
   expandVisualAction,
   filterVisualRows,
   initialVisualState,
+  isUiPart,
   updateVisualState,
   validateRichContent,
   visualDocumentKey,
@@ -46,6 +47,7 @@ import {
 import type { Resource } from "../../lib/api";
 import { artifactUrl } from "../../lib/artifacts";
 import { userError } from "../../lib/user_error";
+import { renderUiPart } from "../genui";
 import { VisualChart, VisualDiagram } from "./VisualGraphics";
 import { VisualNumberInput } from "./VisualNumberInput";
 import { VisualTable } from "./VisualTable";
@@ -102,7 +104,9 @@ export function RichResponse(props: Props) {
   return (
     <div className="native-rich-response" data-rich-response-version="1">
       {rich.parts.map((part, index) =>
-        part.type === "text" ? (
+        isUiPart(part) ? (
+          renderUiPart(part, index, { messageId: props.messageId, threadId: props.threadId })
+        ) : part.type === "text" ? (
           <div className="native-rich-text" key={`text:${index}`}>
             <ChatMarkdown>{part.text}</ChatMarkdown>
           </div>
