@@ -85,6 +85,7 @@ export {
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  mentionSegments,
   rebaseMentions,
 } from "./composer-mentions";
 export {

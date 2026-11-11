@@ -7,6 +7,7 @@ import {
   type MentionRange,
   mentionAddress,
   mentionCandidates,
+  mentionSegments,
   mentionQuery as readMentionQuery,
   rebaseMentions,
   showsTradingControl,
@@ -28,6 +29,7 @@ import {
 } from "../lib/composer-drafts";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
+import { agentRole } from "../shell/lists/ThreadRow";
 import { usePermissionSheet } from "../shell/PermissionSheet";
 import { useToast } from "../shell/Toast";
 import { speakerColor } from "./context";
@@ -112,6 +114,7 @@ export function Composer({
   const committed = useRef<MentionRange[]>(initial.current.mentions);
   const caret = useRef(0);
   const field = useRef<HTMLTextAreaElement>(null);
+  const mirror = useRef<HTMLDivElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const dictation = useRef<{ stop: () => void } | null>(null);
@@ -505,10 +508,10 @@ export function Composer({
                   </span>
                 )}
                 <span className="as-body">
-                  <span className="as-t">
+                  <strong>
                     <span dir="auto">@{row ? row.name : t`all`}</span>
-                  </span>
-                  {row && <small>{row.description || row.role}</small>}
+                  </strong>
+                  {row && agentRole(row) && <small>{agentRole(row)}</small>}
                 </span>
                 {row && (row.id === groupLead || row.paused) && (
                   <span className="as-end tag">{row.id === groupLead ? t`Lead` : t`Paused`}</span>
@@ -619,7 +622,17 @@ export function Composer({
           </div>
         )}
         <div className="ta-wrap">
-          <div className="ta-mirror" aria-hidden="true" />
+          <div className="ta-mirror" aria-hidden="true" ref={mirror}>
+            {mentionSegments(text, committed.current).map((part, index) =>
+              part.mark ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the segments of one text, in order
+                <mark key={index}>{part.text}</mark>
+              ) : (
+                part.text
+              ),
+            )}
+            {"\u200b"}
+          </div>
           <textarea
             ref={field}
             name="message"
@@ -635,6 +648,9 @@ export function Composer({
             aria-activedescendant={assistOpen ? `assist-${threadId}-${active}` : undefined}
             value={text}
             onChange={(event) => update(event.target.value, event.target.selectionStart)}
+            onScroll={(event) => {
+              if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop;
+            }}
             onSelect={(event) => {
               caret.current = event.currentTarget.selectionStart;
               setMention(readMentionQuery(text.slice(0, caret.current)));

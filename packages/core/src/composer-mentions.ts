@@ -59,6 +59,26 @@ export function mentionAddress(text: string, ranges: MentionRange[]): MentionAdd
   };
 }
 
+/** The field's text cut at its committed tokens, for the mirror that draws them as chips. */
+export function mentionSegments(
+  text: string,
+  ranges: MentionRange[],
+): { text: string; mark: boolean }[] {
+  const valid = ranges
+    .filter((range) => text.slice(range.start, range.end) === range.token)
+    .sort((a, b) => a.start - b.start);
+  const segments: { text: string; mark: boolean }[] = [];
+  let at = 0;
+  for (const range of valid) {
+    if (range.start < at) continue;
+    if (range.start > at) segments.push({ text: text.slice(at, range.start), mark: false });
+    segments.push({ text: range.token, mark: true });
+    at = range.end;
+  }
+  if (at < text.length) segments.push({ text: text.slice(at), mark: false });
+  return segments;
+}
+
 /** A direct chat invites at most this many guest agents per message (server MAX_DIRECT_GUESTS,
     code ``collaboration_guest_limit``). */
 export const MAX_DIRECT_GUESTS = 2;

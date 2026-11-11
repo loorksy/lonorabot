@@ -300,6 +300,27 @@ test("the + sheet: rows with their counts, each opening this agent's own page", 
   await expect(page).toHaveURL(new RegExp(`/app/new-task\\?agent=${id}$`));
 });
 
+test("the @ list: the role in words, full-width rows, and a picked name drawn as a chip", async ({
+  page,
+  context,
+  conversation,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("lonora.locale", "en"));
+  const agents = await (await context.request.get("/api/agents")).json();
+  const lonora = agents.find((row) => row.role === "personal");
+  await page.goto(`/app/${conversation.agent.id}`);
+  await page.getByRole("combobox").fill(`Hi @${lonora.name.slice(0, 3)}`);
+  const row = page.getByRole("option", { name: new RegExp(lonora.name) });
+  await expect(row.locator("strong")).toHaveText(`@${lonora.name}`);
+  await expect(row.locator("small")).toHaveText(
+    lonora.title || lonora.description || "Your personal assistant",
+  );
+  const list = await page.locator(".as-list").boundingBox();
+  expect((await row.boundingBox()).width).toBeGreaterThan(list.width - 24);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".ta-mirror mark")).toHaveText(`@${lonora.name}`);
+});
+
 test("M10: older history keeps paging page after page, and a failed read does not end it", async ({
   page,
   conversation,

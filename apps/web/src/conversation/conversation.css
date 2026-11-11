@@ -1459,6 +1459,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   color: var(--faint);
 }
 .as-row {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1466,6 +1467,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 7px 10px;
   border-radius: 15px;
   color: var(--text);
+  text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.12s;
