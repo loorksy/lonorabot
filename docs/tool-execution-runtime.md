@@ -47,9 +47,9 @@ A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
 the members: an observe-only wake keeps every non-financial member (no financial
 effects), and a helper (subagent) keeps the read-only members plus
 `workspace_execute` and `artifact_create`. The eager set
-is at most `EAGER_SCHEMA_BUDGET` (27,000) characters of serialized schema for
+is at most `EAGER_SCHEMA_BUDGET` (26,950) characters of serialized schema for
 every profile combination (largest today: the Personal Agent's conversation
-with coordination, 26,943, and market Task Runs, 26,937; a market conversation
+with coordination, 26,929, and market Task Runs, 26,923; a market conversation
 about 25,600; a general conversation about 9,000), against
 about 97,500 for the whole catalog. `tests/test_tool_discovery.py` enforces the
 budget, so adding an eager tool fails fast when it does not fit. The budget rose
@@ -62,14 +62,15 @@ market) and the DST-correct `market_sessions` clock, while `market_structure`
 left it: the snapshot reports swing structure per timeframe with the same rule,
 and exact anchors and lines are a follow-up through `tool_call` (and a remembered
 tool once used). `PROMOTED_SCHEMA_BUDGET` gave up the same 900 characters, so
-the worst-case native set is unchanged. It rose to 27,000 when the market set
+the worst-case native set is unchanged. It rose to 26,950 when the market set
 gained the counterparts of what it already offered: `watch_list` and
 `watch_cancel` beside `watch_create`, and `trade_close_positions` beside
 `trade_execute`. A Run that may create a watch or open a position lists, stops
 and closes the same way, so an exit is never the harder tool to find (offering
 a tool authorizes nothing: every call is still validated).
-`PROMOTED_SCHEMA_BUDGET` gave up the same 1,300 characters (4,100 to 2,800),
-which those three tools no longer need from it. Owner restrictions and monetary limits
+`PROMOTED_SCHEMA_BUDGET` gave up the same 1,250 characters (4,100 to 2,850),
+which those three tools no longer need from it; it still holds `trade_execute`
+beside two reads for an agent that is not a market agent. Owner restrictions and monetary limits
 are shown in the permission frame on every turn, so `trade_restriction_create`
 and `trade_restriction_list` stay long-tail. A tool whose backend is not
 configured reports it through `availability`: `economic_calendar_read` without
@@ -85,7 +86,7 @@ nothing: a helper Run carries its parent's agent id, and observe-only wakes are
 automated, so neither displaces the agent's own tools. When the agent's next
 Run starts, its most recent remembered tools are promoted into that Run's
 native set, at most `MAX_PROMOTED_TOOLS` (6) and `PROMOTED_SCHEMA_BUDGET`
-(2,800 characters); tools that are unavailable,
+(2,850 characters); tools that are unavailable,
 out of scope or larger than the remaining budget are skipped. A follow-up turn
 therefore calls the long-tail tool it used last time directly. The native set
 is bounded by about 29,800 characters in the worst case.

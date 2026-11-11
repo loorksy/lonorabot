@@ -82,9 +82,10 @@ BRIDGE_TOOLS = frozenset({INSPECTOR, BRIDGE})
 # long-tail schemas), so the worst-case native set stays at 29,800 characters.
 # The market set also carries the counterparts of what it creates and opens
 # (watch_list, watch_cancel, trade_close_positions): the promoted budget gave up
-# their 1,300 characters, which those three no longer need from it.
-EAGER_SCHEMA_BUDGET = 27000
-PROMOTED_SCHEMA_BUDGET = 2800
+# their 1,250 characters, which those three no longer need from it. It still holds
+# trade_execute beside two reads for an agent that is not a market agent.
+EAGER_SCHEMA_BUDGET = 26950
+PROMOTED_SCHEMA_BUDGET = 2850
 MAX_PROMOTED_TOOLS = 6
 # Search results carry input schemas up to this many characters in total;
 # later results name their required fields and are inspected exactly.
