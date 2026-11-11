@@ -58,9 +58,13 @@ class SymbolNotResolved(LonoraError):
         self.candidates = candidates
         self.names = names
         self.details: dict[str, Any] = {
+            # The unified error contract: a resolution failure the loop recovers from.
+            "class": "resolution",
+            "retryable": len(candidates) == 1,
+            "hint": _hint(candidates),
             "requested_symbol": requested[:MAXIMUM_TEXT],
             "candidates": [{"symbol": name} for name in candidates[:MAXIMUM_CANDIDATES]],
-            "next": _next_step(candidates),
+            "next_actions": _next_actions(candidates),
         }
         if not candidates:
             # Not matches: the account's nearest names, for the model to judge.
@@ -72,7 +76,15 @@ class SymbolNotResolved(LonoraError):
             ][:MAXIMUM_CANDIDATES]
 
 
-def _next_step(candidates: list[str]) -> str:
+def _next_actions(candidates: list[str]) -> list[dict[str, Any]]:
+    if not candidates:
+        return [{"tool": "market_symbols"}]
+    if len(candidates) > 1:
+        return [{"ask_owner": "which_contract"}]
+    return [{"repeat_with": {"symbol": candidates[0]}}]
+
+
+def _hint(candidates: list[str]) -> str:
     if not candidates:
         return NOT_LISTED
     if len(candidates) > 1:
@@ -140,7 +152,7 @@ async def _described(broker: Any, error: SymbolNotResolved) -> SymbolNotResolved
     described = SymbolNotResolved(error.requested, [name for name, _ in verified], error.names)
     described.details["candidates"] = [_facts(name, instrument) for name, instrument in verified]
     if len(verified) == 1 and not confirms(instrument_codes(error.requested)[0], verified[0][1]):
-        described.details["next"] = CHECK_THE_SYMBOL.format(symbol=verified[0][0])
+        described.details["hint"] = CHECK_THE_SYMBOL.format(symbol=verified[0][0])
     return described
 
 

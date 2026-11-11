@@ -112,9 +112,12 @@ async def test_a_read_never_takes_a_look_alike_the_broker_prices_in_another_curr
     with pytest.raises(SymbolNotResolved) as failure:
         await read_symbol(account, "gold")
     assert failure.value.code == "symbol_not_found" and failure.value.details == {
+        "class": "resolution",
+        "retryable": False,
+        "hint": NOT_LISTED,
         "requested_symbol": "gold",
         "candidates": [],
-        "next": NOT_LISTED,
+        "next_actions": [{"tool": "market_symbols"}],
         "similar_symbols": ["XAUUSDT", "XAUUSDm"],
     }
 
@@ -170,6 +173,10 @@ async def test_an_order_for_an_unlisted_code_gets_the_real_symbol_and_the_next_c
         await order_symbol(Account(EXNESS), "XAUUSD")
     assert failure.value.code == "symbol_not_found"
     assert failure.value.details == {
+        "class": "resolution",
+        "retryable": True,
+        "hint": USE_THE_SYMBOL.format(symbol="XAUUSDm"),
+        "next_actions": [{"repeat_with": {"symbol": "XAUUSDm"}}],
         "requested_symbol": "XAUUSD",
         "candidates": [
             {
@@ -182,7 +189,6 @@ async def test_an_order_for_an_unlisted_code_gets_the_real_symbol_and_the_next_c
                 "profit_currency": "USD",
             }
         ],
-        "next": USE_THE_SYMBOL.format(symbol="XAUUSDm"),
     }
 
 
@@ -202,7 +208,7 @@ async def test_an_order_never_chooses_between_two_contracts(
         with pytest.raises(SymbolNotResolved) as failure:
             await order_symbol(Account(specs), requested)
         assert failure.value.code == "symbol_ambiguous"
-        assert failure.value.details["next"] == ASK_WHICH_CONTRACT
+        assert failure.value.details["hint"] == ASK_WHICH_CONTRACT
         assert {item["symbol"] for item in failure.value.details["candidates"]} == set(specs)
 
 
@@ -222,7 +228,7 @@ async def test_a_single_match_the_broker_does_not_confirm_is_offered_not_asserte
         account: Specs = dict(specs)
         with pytest.raises(SymbolNotResolved) as failure:
             await order_symbol(Account(account), requested)
-        assert failure.value.details["next"] == CHECK_THE_SYMBOL.format(symbol=listed)
+        assert failure.value.details["hint"] == CHECK_THE_SYMBOL.format(symbol=listed)
         assert (await read_symbol(Account(account), requested))[0] == listed
 
 

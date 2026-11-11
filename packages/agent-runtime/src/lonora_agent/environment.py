@@ -32,6 +32,29 @@ def route_key(call: ToolCall) -> str:
     return request_hash({"tool": call.name, "arguments": call.arguments})
 
 
+ERROR_CLASSES: dict[str, str] = {
+    "invalid_tool_arguments": "input",
+    "result_too_large": "input",
+    "not_found": "resolution",
+    "version_conflict": "resolution",
+    "stale_state": "resolution",
+    "temporary_unavailable": "connection",
+    "authorization_required": "permission",
+    "permission_denied": "permission",
+    "risk_limit_blocked": "permission",
+    "not_configured": "provider",
+    "health_blocked": "provider",
+    "ambiguous_mutation": "provider",
+}
+
+
+def error_class(code: str, category: str) -> str:
+    """input | resolution | connection | permission | provider | internal."""
+    if category in ERROR_CLASSES:
+        return ERROR_CLASSES[category]
+    return "provider" if code.startswith("broker_") else "internal"
+
+
 def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     category: FailureCategory = "terminal_domain_failure"
     action = "alternate_route"
@@ -77,6 +100,9 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
         "research_provider_not_configured",
     }:
         category, action = "not_configured", "inspect_authorized_alternative"
+    elif code in {"symbol_not_found", "symbol_ambiguous"}:
+        # The result carries the account's candidates and a hint: act on them.
+        category, action = "not_found", "follow_hint"
     elif code.endswith("_not_found"):
         category, action = "not_found", "inspect_existing_state"
     elif code in {
@@ -208,6 +234,9 @@ def observe(
             recovery["next_action"] = "alternate_route_or_wait"
             recovery["retry_exhausted"] = True
         result["recovery"] = recovery
+        # The unified error contract; a tool's own class and retryable are kept.
+        result.setdefault("class", error_class(code, recovery["category"]))
+        result.setdefault("retryable", recovery["safe_to_retry"])
     elif unconfirmed:
         # Not a success to build on: read the account again before any next decision.
         result["recovery"] = ToolRecovery(

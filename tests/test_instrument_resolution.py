@@ -101,3 +101,23 @@ def test_the_brokers_own_currencies_reject_a_look_alike() -> None:
     assert confirms("XAUUSD", spec("XAUUSDm", "XAU", "USD"))
     assert not confirms("XAUUSD", spec("XAUUSDm", "USD", "USD"))
     assert not confirms("XAUUSD", None)
+
+
+@pytest.mark.parametrize(
+    ("requested", "catalogue", "symbol"),
+    [
+        ("XAU", ["XAUUSDm", "XAUEURm"], "XAUUSDm"),
+        ("الفضة", ["XAGUSDm", "XAUUSDm"], "XAGUSDm"),
+        ("silver", ["SILVER.pro", "GOLD.pro"], "SILVER.pro"),
+        ("النفط", ["USOILm", "UKOILm", "XAUUSDm"], "USOILm"),
+        ("oil", ["XTIUSD.r", "XBRUSD.r"], "XTIUSD.r"),
+        ("نفط", ["WTI+", "BRENT+"], "WTI+"),
+        ("برنت", ["USOILm", "UKOILm"], "UKOILm"),
+        ("البيتكوين", ["BTCUSDm", "ETHUSDm"], "BTCUSDm"),
+        ("btc", ["BTCUSD#", "ETHUSD#"], "BTCUSD#"),
+    ],
+)
+def test_everyday_words_normalise_to_the_codes_brokers_use(
+    requested: str, catalogue: list[object], symbol: str
+) -> None:
+    assert catalogue_matches(catalogue, requested) == [symbol]

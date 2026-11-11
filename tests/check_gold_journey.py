@@ -236,7 +236,7 @@ async def main() -> None:
                 )
             except SymbolNotResolved as failure:
                 assert failure.code == "symbol_ambiguous"
-                assert failure.details["next"] == ASK_WHICH_CONTRACT
+                assert failure.details["hint"] == ASK_WHICH_CONTRACT
                 assert [
                     (item["symbol"], item["contract_size"])
                     for item in failure.details["candidates"]
@@ -278,7 +278,10 @@ async def main() -> None:
         with patch.object(context.router, "complete", order_model):
             await execute_run(context, load_tools(), 120, 12)
         assert refusal["ok"] is False and refusal["code"] == "symbol_not_found"
-        assert refusal["next"] == USE_THE_SYMBOL.format(symbol=GOLD)
+        assert refusal["class"] == "resolution" and refusal["retryable"] is True
+        assert refusal["next_actions"] == [{"repeat_with": {"symbol": GOLD}}]
+        assert refusal["recovery"]["next_action"] == "follow_hint"
+        assert refusal["hint"] == USE_THE_SYMBOL.format(symbol=GOLD)
         assert refusal["candidates"] == [
             {
                 "symbol": GOLD,

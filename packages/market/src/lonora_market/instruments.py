@@ -38,12 +38,35 @@ _BY_NAME: dict[str, InstrumentName] = {
 }
 
 
+# Everyday words the name table does not carry, and the codes brokers use for them, the
+# usual one first. These normalise a request; the account's catalogue decides the symbol.
+_OIL = ["USOIL", "XTIUSD", "WTI", "CRUDE", "OIL"]
+_BRENT = ["UKOIL", "XBRUSD", "BRENT"]
+_ALIASES: dict[str, list[str]] = {
+    "xau": ["XAUUSD", "Gold"],
+    "xag": ["XAGUSD", "Silver"],
+    "btc": ["BTCUSD", "Bitcoin"],
+    "eth": ["ETHUSD", "Ethereum"],
+    "ethereum": ["ETHUSD", "Ethereum"],
+    "إيثيريوم": ["ETHUSD", "Ethereum"],
+    "oil": _OIL,
+    "crude": _OIL,
+    "wti": _OIL,
+    "نفط": _OIL,
+    "خام": _OIL,
+    "brent": _BRENT,
+    "برنت": _BRENT,
+}
+
+
 def instrument_codes(requested: str) -> list[str]:
     """The codes a request stands for, the canonical one first: a known instrument's
     code and its English word (some brokers list gold as "GOLD"), else the request."""
     entry = _BY_NAME.get(_folded(requested))
     if entry is not None:
         return [entry.symbol, entry.en]
+    if _folded(requested) in _ALIASES:
+        return list(_ALIASES[_folded(requested)])
     return ["".join(requested.split()).replace("/", "")]
 
 
