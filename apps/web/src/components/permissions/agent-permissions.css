@@ -34,7 +34,7 @@
   cursor: pointer;
 }
 .permission-trigger:hover {
-  background: var(--lonora-surface, var(--muted));
+  background: var(--lonora-surface, var(--legacy-muted));
 }
 .permission-effective {
   overflow: hidden;
@@ -89,8 +89,8 @@
   border-color: #8d7bff;
   background: linear-gradient(
     105deg,
-    color-mix(in srgb, #8d7bff 16%, var(--lonora-surface, var(--muted))),
-    color-mix(in srgb, #6d5ce7 8%, var(--lonora-surface, var(--muted)))
+    color-mix(in srgb, #8d7bff 16%, var(--lonora-surface, var(--legacy-muted))),
+    color-mix(in srgb, #6d5ce7 8%, var(--lonora-surface, var(--legacy-muted)))
   );
   box-shadow:
     0 0 0 1px color-mix(in srgb, #8d7bff 45%, transparent),
@@ -124,7 +124,7 @@
   background: radial-gradient(
     circle at 35% 25%,
     color-mix(in srgb, var(--lonora-text, var(--foreground)) 24%, transparent),
-    color-mix(in srgb, var(--lonora-surface, var(--muted)) 76%, transparent) 65%
+    color-mix(in srgb, var(--lonora-surface, var(--legacy-muted)) 76%, transparent) 65%
   );
   box-shadow:
     inset 0 1px 1px color-mix(in srgb, white 14%, transparent),
@@ -232,7 +232,7 @@
   cursor: pointer;
 }
 .permission-authority-list button[aria-pressed="true"] {
-  background: var(--lonora-surface, var(--muted));
+  background: var(--lonora-surface, var(--legacy-muted));
   border-color: var(--ring, #8b7aff);
 }
 .permission-authority-list strong,
@@ -353,7 +353,7 @@
 }
 .permission-checkbox input {
   margin-top: 3px;
-  accent-color: var(--primary, #8373ff);
+  accent-color: var(--legacy-primary);
   flex: none;
   width: 16px;
   height: 16px;
@@ -469,11 +469,11 @@
 }
 .permission-primary {
   color: var(--primary-foreground);
-  background: var(--primary);
+  background: var(--legacy-primary);
 }
 .permission-secondary,
 .permission-enrollment > button {
-  background: var(--lonora-surface, var(--muted));
+  background: var(--lonora-surface, var(--legacy-muted));
   color: var(--lonora-text, var(--foreground));
   border: 1px solid var(--lonora-line, var(--border));
 }
@@ -661,7 +661,7 @@
   padding: 10px 12px;
   border-inline-start: 3px solid var(--warning);
   border-radius: 8px;
-  background: var(--muted);
+  background: var(--legacy-muted);
 }
 .permission-downgrade p {
   margin: 0;

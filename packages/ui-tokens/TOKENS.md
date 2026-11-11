@@ -40,11 +40,11 @@ initial value and is included.
 
 ## Legacy screens inside the ported shell
 
-Phase 2 imports `reference.css` after `tokens.css`, so the reference set wins at the root and the
-three colliding names (`--primary`, `--accent`, `--muted`) carry the reference's roles everywhere
-the shell is drawn. Screens not yet ported are wrapped in `.legacy-surface`, where `tokens.css`
-(generated) re-declares those three with their legacy values for both themes; the wrapper goes
-away with the phase that ports each screen.
+Three legacy names collide with reference names that mean something else (`--primary`,
+`--accent`, `--muted`). The plain names belong to the reference everywhere; `tokens.css` emits the
+legacy values as `--legacy-primary`, `--legacy-accent` and `--legacy-muted`, and the Tailwind
+`@theme` (`bg-primary`, `bg-accent`, `bg-muted`) and the old screens' CSS read those. Nothing
+re-declares a reference name inside `.legacy-surface`.
 
 ## Mapping to the legacy set
 
@@ -64,12 +64,12 @@ side by side and `reference.css` is not yet imported by `apps/web`.
 | `--line` | #23252c | #e3dfd5 | `--border`, `--sidebar-border` |
 | `--line-strong` | #343741 | #cfcac0 | — |
 | `--text` | #f7f5ef | #0b0c10 | `--foreground` and every legacy `*-foreground` on a neutral surface |
-| `--muted` | #8b919e | #5d6270 | `--muted-foreground` (**name collision**: legacy `--muted` is a background, #141518) |
+| `--muted` | #8b919e | #5d6270 | `--muted-foreground` (legacy `--legacy-muted` is a background, #141518) |
 | `--faint` | #6a707c | #868b97 | — |
-| `--primary` | #f7f5ef | #0b0c10 | `--primary` (same role, different value: #f1f1ef / #1a1a1a) |
+| `--primary` | #f7f5ef | #0b0c10 | `--legacy-primary` (same role, different value: #f1f1ef / #1a1a1a) |
 | `--on-primary` | #0b0c10 | #f7f5ef | `--primary-foreground` |
 | `--primary-hi`, `--primary-lo` | | | — (primary button gradient ends) |
-| `--accent` | #22e3a8 | #22e3a8 | — (**name collision**: legacy `--accent` is the neutral hover fill, #1a1b20, whose role is the reference's `--hover`) |
+| `--accent` | #22e3a8 | #22e3a8 | — (legacy `--legacy-accent` is the neutral hover fill, #1a1b20, whose role is the reference's `--hover`) |
 | `--accent-ink` | #22e3a8 | #087a57 | — (accent as ink: text, caret, selection) |
 | `--on-accent`, `--wave-accent`, `--mint` | | | — |
 | `--bubble-in` | #15161b | #ffffff | — (agent bubble) |
@@ -78,7 +78,7 @@ side by side and `reference.css` is not yet imported by `apps/web`.
 | `--danger-fill` | #e5484d | #e5484d | `--destructive` |
 | `--amber` | #f2c46b | #9a6a00 | `--warning` |
 | `--violet` | #a99aff | #6c55ba | — |
-| `--hover` | rgba(255,255,255,.05) | rgba(11,12,16,.05) | `--accent`, `--sidebar-accent` (legacy role) |
+| `--hover` | rgba(255,255,255,.05) | rgba(11,12,16,.05) | `--legacy-accent`, `--sidebar-accent` |
 | `--lens` | | | — |
 | `--glass`, `--glass-bar`, `--glass-card`, `--glass-pop`, `--glass-line`, `--blur` | | | — |
 | `--stage`, `--thumb`, `--viz-dim`, `--viz-ink`, `--wall-ink`, `--add-card`, `--add-ic`, `--add-press` | | | — |

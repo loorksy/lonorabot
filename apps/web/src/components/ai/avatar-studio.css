@@ -31,7 +31,7 @@
   box-shadow: 0 4px 14px #0003;
 }
 .avatar-studio-trigger:hover .avatar-studio-pencil {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 .avatar-studio-trigger:focus-visible {
   outline: 2px solid var(--foreground);
@@ -208,7 +208,7 @@
   font-weight: 550;
 }
 .avatar-studio-done:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 .avatar-studio-dialog button:focus-visible,
 .avatar-studio-custom-color:focus-within {

@@ -303,7 +303,7 @@
   border-radius: 10px;
   border: 1px solid var(--border);
   color: var(--primary-foreground);
-  background: var(--primary);
+  background: var(--legacy-primary);
   padding: 8px 14px;
   font: inherit;
   font-weight: 500;

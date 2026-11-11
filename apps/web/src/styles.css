@@ -15,9 +15,7 @@
   --lonora-line: var(--border);
   --lonora-text: var(--foreground);
   --lonora-muted: var(--muted-foreground);
-  --lonora-accent: var(--primary);
   --lonora-danger: var(--destructive);
-  --lonora-glow: var(--accent);
 }
 * {
   box-sizing: border-box;
@@ -104,7 +102,7 @@ body {
   transition: background 150ms;
 }
 :where(button:hover, .button:hover):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(button:focus-visible, a:focus-visible):where(:not(.app-shell *), .legacy-surface *) {
   outline: 2px solid var(--ring);
@@ -115,7 +113,7 @@ body {
   cursor: default;
 }
 :where(button.primary):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--primary);
+  background: var(--legacy-primary);
   color: var(--primary-foreground);
   border-color: transparent;
   font-weight: 550;
@@ -124,7 +122,7 @@ body {
   color: var(--destructive);
 }
 :where(button.selected):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(button svg):where(:not(.app-shell *), .legacy-surface *) {
   width: 17px;
@@ -151,7 +149,7 @@ body {
 :where(input[type="checkbox"]):where(:not(.app-shell *), .legacy-surface *) {
   width: 16px;
   height: 16px;
-  accent-color: var(--primary);
+  accent-color: var(--legacy-primary);
 }
 :where(input[type="color"]):where(:not(.app-shell *), .legacy-surface *) {
   height: 42px;
@@ -292,7 +290,7 @@ body {
   align-items: center;
   border-radius: 5px;
   padding: 2px 7px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--muted-foreground);
   font-size: 11px;
 }
@@ -468,7 +466,7 @@ body {
   background: transparent;
 }
 :where(.settings-nav button.selected):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(.tabs):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
@@ -493,7 +491,7 @@ body {
 :where(.notice):where(:not(.app-shell *), .legacy-surface *) {
   border-radius: 8px;
   padding: 10px 15px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   font-size: 12px;
 }
 :where(.quote-card):where(:not(.app-shell *), .legacy-surface *) {
