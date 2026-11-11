@@ -91,17 +91,21 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
     const agent = (await (await context.request.get("/api/agents")).json())[0];
     if (agent) {
       await page.goto(`/app/communication/${agent.id}`);
-      await page.getByRole("switch", { name: "Agent calls" }).click();
-      await page.getByLabel("Daily notification limit").fill("5");
+      // The reference defaults: messages and alerts, no calls, 5 a day.
+      const calls = page.getByRole("switch", { name: "Agent calls" });
+      await expect(calls).toHaveAttribute("aria-checked", "false");
+      await expect(page.getByLabel("Daily notification limit")).toHaveValue("5");
+      await calls.click();
+      await page.getByLabel("Daily notification limit").fill("7");
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await expect
         .poll(async () =>
           (await context.request.get(`/api/agents/${agent.id}/notifications`)).json(),
         )
-        .toMatchObject({ calls: false, daily_limit: 5 });
+        .toMatchObject({ calls: true, daily_limit: 7 });
       await context.request.put(`/api/agents/${agent.id}/notifications`, {
         headers,
-        data: { calls: true, daily_limit: null },
+        data: { calls: false, daily_limit: 5 },
       });
     }
     expect(errors).toEqual([]);

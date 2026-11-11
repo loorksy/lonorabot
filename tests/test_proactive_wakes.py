@@ -1028,6 +1028,8 @@ async def test_owner_notify_follows_dedupe_quiet_hours_rate_and_reach_me():
                 )
             )
         await reach_me(fixture, channel="call", device_id=device)
+        # Agents never call until the owner turns «مكالمات الوكيل» on for them.
+        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"calls": True})
         ring = await call(
             context,
             "owner_call_request",
