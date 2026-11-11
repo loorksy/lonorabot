@@ -80,7 +80,7 @@ export function useChatMenu({
   const statusSheet = useAgentSheet((id) =>
     window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
   );
-  const watchesSheet = useWatchesSheet();
+  const watchesSheet = useWatchesSheet(nav.go);
   // Lonora (the personal agent) trades too (Q19): its chat has the capsule and the sheet's
   // trading section like any trading agent's.
   const trading = Boolean(

@@ -52,7 +52,7 @@ msgid "{0} deleted"
 msgstr "{0} deleted"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:589
+#: src/shell/agent/AgentPage.tsx:509
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 
@@ -189,12 +189,12 @@ msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messag
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
 #: src/shell/agent/shared.tsx:75
-msgid "{symbol} above {level}"
-msgstr "{symbol} above {level}"
+#~ msgid "{symbol} above {level}"
+#~ msgstr "{symbol} above {level}"
 
 #: src/shell/agent/shared.tsx:72
-msgid "{symbol} below {level}"
-msgstr "{symbol} below {level}"
+#~ msgid "{symbol} below {level}"
+#~ msgstr "{symbol} below {level}"
 
 #: src/conversation/sheets/MandateSheet.tsx:142
 msgid "{symbol} only: all actions and your own positions until cancelled; the account's limits still apply"
@@ -310,7 +310,7 @@ msgstr "A short tone when a reply arrives"
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
-#: src/conversation/sheets/WatchesSheet.tsx:105
+#: src/conversation/sheets/WatchesSheet.tsx:171
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "A watch ends on its own at its time; you can pause, extend or cancel it."
 
@@ -359,8 +359,8 @@ msgid "Accessibility"
 msgstr "Accessibility"
 
 #: src/conversation/Cards.tsx:462
-#: src/shell/agent/IdentityPage.tsx:239
-#: src/shell/agent/IdentityPage.tsx:308
+#: src/shell/agent/IdentityPage.tsx:255
+#: src/shell/agent/IdentityPage.tsx:324
 #: src/shell/agent/RecoveryPage.tsx:96
 msgid "Account"
 msgstr "Account"
@@ -464,8 +464,8 @@ msgstr "Activity updated"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:636
-#: src/shell/agent/GroupPage.tsx:222
+#: src/shell/agent/AgentPage.tsx:556
+#: src/shell/agent/GroupPage.tsx:243
 #: src/shell/settings/IntegrationsPage.tsx:260
 #: src/shell/settings/IntegrationsPage.tsx:348
 msgid "Add"
@@ -491,12 +491,12 @@ msgstr "Add a trading account"
 msgid "Add agents or groups"
 msgstr "Add agents or groups"
 
-#: src/shell/agent/AgentPage.tsx:553
+#: src/shell/agent/AgentPage.tsx:473
 msgid "Add agents to supervise"
 msgstr "Add agents to supervise"
 
-#: src/shell/agent/GroupPage.tsx:115
-#: src/shell/agent/GroupPage.tsx:127
+#: src/shell/agent/GroupPage.tsx:116
+#: src/shell/agent/GroupPage.tsx:128
 msgid "Add an agent"
 msgstr "Add an agent"
 
@@ -592,7 +592,7 @@ msgstr "added {0}"
 msgid "Added to favourites"
 msgstr "Added to favourites"
 
-#: src/pages/shell/bot-settings.tsx:122
+#: src/pages/shell/bot-settings.tsx:115
 msgid "Advanced"
 msgstr "Advanced"
 
@@ -746,7 +746,7 @@ msgstr "All"
 msgid "All already in «{0}»"
 msgstr "All already in «{0}»"
 
-#: src/shell/agent/AgentPage.tsx:74
+#: src/shell/agent/AgentPage.tsx:75
 msgid "All pairs"
 msgstr "All pairs"
 
@@ -828,7 +828,7 @@ msgstr "Analyses and follows the market without sending any order."
 msgid "Analyzing"
 msgstr "Analyzing"
 
-#: src/components/ai/AvatarStudio.tsx:29
+#: src/shell/agent/AvatarSheet.tsx:27
 msgid "Angry"
 msgstr "Angry"
 
@@ -951,7 +951,7 @@ msgctxt "level"
 msgid "Ask me"
 msgstr "Ask me"
 
-#: src/shell/agent/AgentPage.tsx:83
+#: src/shell/agent/AgentPage.tsx:84
 msgid "Ask me on every order"
 msgstr "Ask me on every order"
 
@@ -1014,7 +1014,7 @@ msgid "Automatic"
 msgstr "Automatic"
 
 #: src/pages/shell/bot-panel.tsx:228
-#: src/shell/agent/IdentityPage.tsx:203
+#: src/shell/agent/IdentityPage.tsx:219
 msgctxt "model"
 msgid "Automatic"
 msgstr "Automatic"
@@ -1045,13 +1045,13 @@ msgstr "Available symbols · {0}"
 #~ msgid "Avatar"
 #~ msgstr "Avatar"
 
-#: src/shell/agent/AvatarSheet.tsx:167
+#: src/shell/agent/AvatarSheet.tsx:188
 msgid "Avatar saved"
 msgstr "Avatar saved"
 
 #: src/components/ai/AvatarStudio.tsx:116
-msgid "Avatar Studio"
-msgstr "Avatar Studio"
+#~ msgid "Avatar Studio"
+#~ msgstr "Avatar Studio"
 
 #: src/shell/settings/UsagePage.tsx:431
 msgid "Average cost per request"
@@ -1333,7 +1333,7 @@ msgstr "bytes"
 #~ msgid "Cached"
 #~ msgstr "Cached"
 
-#: src/shell/agent/AgentPage.tsx:273
+#: src/shell/agent/AgentPage.tsx:246
 #: src/shell/settings/NotifyPages.tsx:23
 msgid "Call"
 msgstr "Call"
@@ -1361,11 +1361,11 @@ msgstr "Call with {0}"
 #~ msgid "Call with {name}"
 #~ msgstr "Call with {name}"
 
-#: src/shell/agent/AgentPage.tsx:154
+#: src/shell/agent/AgentPage.tsx:157
 msgid "Calling an agent needs a voice provider. Add one in the voice settings."
 msgstr "Calling an agent needs a voice provider. Add one in the voice settings."
 
-#: src/shell/agent/AgentPage.tsx:150
+#: src/shell/agent/AgentPage.tsx:153
 #: src/shell/call/CallPages.tsx:411
 msgid "Calls are not set up"
 msgstr "Calls are not set up"
@@ -1379,16 +1379,14 @@ msgid "Camera not allowed"
 msgstr "Camera not allowed"
 
 #: src/components/ai/AgentLiveStatus.tsx:127
-#: src/components/ai/AvatarStudio.tsx:225
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
 #: src/conversation/sheets/AgentSheet.tsx:437
 #: src/conversation/sheets/LimitsSheet.tsx:288
-#: src/conversation/sheets/WatchesSheet.tsx:91
+#: src/conversation/sheets/WatchesSheet.tsx:127
 #: src/pages/Board.tsx:576
-#: src/shell/agent/AgentPage.tsx:404
-#: src/shell/agent/AvatarSheet.tsx:111
+#: src/shell/agent/AvatarSheet.tsx:132
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/call/CallPages.tsx:422
 #: src/shell/domain/FilesPages.tsx:63
@@ -1492,7 +1490,7 @@ msgstr "Changes"
 #~ msgid "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 #~ msgstr "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 
-#: src/shell/agent/IdentityPage.tsx:294
+#: src/shell/agent/IdentityPage.tsx:310
 msgid "Changing the market makes this agent's account and pair a flexible default. A signed grant stays on its own account and pair: outside it, every order is shown to you for approval before it is sent."
 msgstr "Changing the market makes this agent's account and pair a flexible default. A signed grant stays on its own account and pair: outside it, every order is shown to you for approval before it is sent."
 
@@ -1529,7 +1527,7 @@ msgstr "Chart could not be displayed."
 #~ msgid "Charts"
 #~ msgstr "Charts"
 
-#: src/shell/agent/AgentPage.tsx:263
+#: src/shell/agent/AgentPage.tsx:236
 msgid "Chat"
 msgstr "Chat"
 
@@ -1660,8 +1658,8 @@ msgid "Choose a file smaller than 600 KB."
 msgstr "Choose a file smaller than 600 KB."
 
 #: src/components/ai/AvatarStudio.tsx:128
-msgid "Choose a glowing face and color. Preview your changes before applying them."
-msgstr "Choose a glowing face and color. Preview your changes before applying them."
+#~ msgid "Choose a glowing face and color. Preview your changes before applying them."
+#~ msgstr "Choose a glowing face and color. Preview your changes before applying them."
 
 #: src/shell/domain/SchedulesPages.tsx:163
 #: src/shell/domain/SchedulesPages.tsx:449
@@ -1672,7 +1670,7 @@ msgstr "Choose a time that has not passed."
 msgid "Choose a valid time zone for the trading day."
 msgstr "Choose a valid time zone for the trading day."
 
-#: src/shell/agent/IdentityPage.tsx:227
+#: src/shell/agent/IdentityPage.tsx:243
 msgid "Choose an account"
 msgstr "Choose an account"
 
@@ -1706,7 +1704,7 @@ msgstr "Choose an option or write your reply"
 msgid "Choose at least one action"
 msgstr "Choose at least one action"
 
-#: src/shell/agent/GroupPage.tsx:261
+#: src/shell/agent/GroupPage.tsx:378
 msgid "Choose at least one member."
 msgstr "Choose at least one member."
 
@@ -1779,12 +1777,11 @@ msgstr "Click the install icon in the address bar."
 
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
-#: src/components/ai/AvatarStudio.tsx:121
 #: src/components/common/FilePreviewPanel.tsx:99
 #: src/conversation/Composer.tsx:532
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
-#: src/pages/shell/bot-settings.tsx:154
+#: src/pages/shell/bot-settings.tsx:147
 #: src/shell/sheets/SheetHost.tsx:587
 #: src/shell/sheets/SheetHost.tsx:615
 msgid "Close"
@@ -1871,14 +1868,14 @@ msgstr "Collapse the chat list"
 #: src/components/ai/AvatarStudio.tsx:187
 #: src/components/ai/AvatarStudio.tsx:190
 #: src/components/ai/AvatarStudio.tsx:196
-msgid "Color"
-msgstr "Color"
+#~ msgid "Color"
+#~ msgstr "Color"
 
-#: src/shell/agent/AvatarSheet.tsx:79
+#: src/shell/agent/AvatarSheet.tsx:100
 msgid "Colour"
 msgstr "Colour"
 
-#: src/shell/agent/AvatarSheet.tsx:88
+#: src/shell/agent/AvatarSheet.tsx:109
 msgid "Colour {color}"
 msgstr "Colour {color}"
 
@@ -2078,8 +2075,9 @@ msgstr "Conversation transcript"
 msgid "Conversations"
 msgstr "Conversations"
 
-#: src/shell/agent/GroupPage.tsx:100
-#: src/shell/agent/GroupPage.tsx:345
+#: src/shell/agent/GroupPage.tsx:101
+#: src/shell/agent/GroupPage.tsx:324
+#: src/shell/agent/GroupPage.tsx:462
 msgid "Coordinator"
 msgstr "Coordinator"
 
@@ -2213,7 +2211,7 @@ msgstr "Create task"
 msgid "Create the agent"
 msgstr "Create the agent"
 
-#: src/shell/agent/GroupPage.tsx:358
+#: src/shell/agent/GroupPage.tsx:475
 msgid "Create the group"
 msgstr "Create the group"
 
@@ -2264,10 +2262,10 @@ msgstr "Current work"
 
 #: src/components/ai/AvatarStudio.tsx:202
 #: src/components/ai/AvatarStudio.tsx:205
-msgid "Custom color"
-msgstr "Custom color"
+#~ msgid "Custom color"
+#~ msgstr "Custom color"
 
-#: src/shell/agent/AvatarSheet.tsx:95
+#: src/shell/agent/AvatarSheet.tsx:116
 msgid "Custom colour"
 msgstr "Custom colour"
 
@@ -2276,8 +2274,8 @@ msgid "Custom mandate"
 msgstr "Custom mandate"
 
 #: src/components/ai/AvatarStudio.tsx:99
-msgid "Customize avatar"
-msgstr "Customize avatar"
+#~ msgid "Customize avatar"
+#~ msgstr "Customize avatar"
 
 #: src/shell/domain/SchedulesPages.tsx:103
 #: src/shell/domain/SchedulesPages.tsx:496
@@ -2298,7 +2296,7 @@ msgid "Daily loss limit"
 msgstr "Daily loss limit"
 
 #. placeholder {0}: isolate(daily.currency ? `${daily.amount} ${daily.currency}` : daily.amount)
-#: src/shell/agent/AgentPage.tsx:78
+#: src/shell/agent/AgentPage.tsx:79
 msgid "Daily loss limit {0}"
 msgstr "Daily loss limit {0}"
 
@@ -2475,7 +2473,7 @@ msgstr "Dependency unavailable"
 #: src/pages/Board.tsx:390
 #: src/pages/Board.tsx:392
 #: src/pages/shell/bot-panel.tsx:201
-#: src/pages/shell/bot-settings.tsx:112
+#: src/pages/shell/bot-settings.tsx:105
 #: src/shell/domain/GoalsKnowledgePages.tsx:131
 #: src/shell/domain/SkillsPages.tsx:316
 msgid "Description"
@@ -2485,7 +2483,7 @@ msgstr "Description"
 msgid "Detailed agent status"
 msgstr "Detailed agent status"
 
-#: src/components/ai/AvatarStudio.tsx:37
+#: src/shell/agent/AvatarSheet.tsx:35
 msgid "Determined"
 msgstr "Determined"
 
@@ -2589,7 +2587,7 @@ msgstr "Download this file to view it"
 msgid "Drafts and unsent messages"
 msgstr "Drafts and unsent messages"
 
-#: src/components/ai/AvatarStudio.tsx:33
+#: src/shell/agent/AvatarSheet.tsx:31
 msgid "Dreamy"
 msgstr "Dreamy"
 
@@ -2621,7 +2619,7 @@ msgstr "e.g. 7310"
 msgid "Each agent has its own permissions"
 msgstr "Each agent has its own permissions"
 
-#: src/shell/agent/GroupPage.tsx:138
+#: src/shell/agent/GroupPage.tsx:159
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "Each member keeps its own permissions. The group has no shared financial authority."
 
@@ -2644,9 +2642,10 @@ msgid "Edit and resend"
 msgstr "Edit and resend"
 
 #: src/pages/shell/bot-panel.tsx:172
-#: src/shell/agent/AgentPage.tsx:227
-#: src/shell/agent/AvatarSheet.tsx:146
-#: src/shell/agent/IdentityPage.tsx:158
+#: src/pages/shell/bot-settings.tsx:64
+#: src/shell/agent/AgentPage.tsx:200
+#: src/shell/agent/AvatarSheet.tsx:167
+#: src/shell/agent/IdentityPage.tsx:161
 msgid "Edit avatar"
 msgstr "Edit avatar"
 
@@ -2680,6 +2679,11 @@ msgstr "Edit skill"
 #: src/shell/agent/TradesPage.tsx:375
 msgid "Edit stop and target"
 msgstr "Edit stop and target"
+
+#: src/shell/agent/GroupPage.tsx:137
+#: src/shell/agent/GroupPage.tsx:149
+msgid "Edit the group"
+msgstr "Edit the group"
 
 #: src/conversation/Cards.tsx:83
 #~ msgid "Edit the limit"
@@ -2792,7 +2796,7 @@ msgstr "Ending call"
 msgid "Enter a link that starts with https://"
 msgstr "Enter a link that starts with https://"
 
-#: src/shell/agent/IdentityPage.tsx:103
+#: src/shell/agent/IdentityPage.tsx:105
 msgid "Enter a name."
 msgstr "Enter a name."
 
@@ -2822,7 +2826,7 @@ msgstr "Enter the API key"
 msgid "Enter the code again"
 msgstr "Enter the code again"
 
-#: src/shell/agent/GroupPage.tsx:257
+#: src/shell/agent/GroupPage.tsx:374
 msgid "Enter the group's name."
 msgstr "Enter the group's name."
 
@@ -2832,7 +2836,7 @@ msgstr "Enter the group's name."
 msgid "Enter the lock code"
 msgstr "Enter the lock code"
 
-#: src/shell/agent/IdentityPage.tsx:104
+#: src/shell/agent/IdentityPage.tsx:106
 msgid "Enter the role."
 msgstr "Enter the role."
 
@@ -2904,7 +2908,7 @@ msgstr "Every order is shown to you for approval before it is sent."
 msgid "Exact broker symbol"
 msgstr "Exact broker symbol"
 
-#: src/components/ai/AvatarStudio.tsx:31
+#: src/shell/agent/AvatarSheet.tsx:29
 msgid "Excited"
 msgstr "Excited"
 
@@ -2962,17 +2966,19 @@ msgstr "Expired"
 msgid "Export CSV"
 msgstr "Export CSV"
 
-#: src/conversation/sheets/WatchesSheet.tsx:81
+#: src/conversation/sheets/WatchesSheet.tsx:112
 msgid "Extend two hours"
 msgstr "Extend two hours"
 
 #: src/conversation/sheets/WatchesSheet.tsx:78
-msgid "Extended by two hours"
-msgstr "Extended by two hours"
+#~ msgid "Extended by two hours"
+#~ msgstr "Extended by two hours"
 
-#: src/components/ai/AvatarStudio.tsx:142
-#: src/components/ai/AvatarStudio.tsx:158
-#: src/shell/agent/AvatarSheet.tsx:46
+#: src/conversation/sheets/WatchesSheet.tsx:108
+msgid "Extended until {until}"
+msgstr "Extended until {until}"
+
+#: src/shell/agent/AvatarSheet.tsx:67
 msgid "Face"
 msgstr "Face"
 
@@ -3015,7 +3021,7 @@ msgstr "Fetched from the broker account, and shown in the pair pickers when crea
 msgid "Fetching the symbols from <0>{broker}</0>…"
 msgstr "Fetching the symbols from <0>{broker}</0>…"
 
-#: src/shell/agent/IdentityPage.tsx:251
+#: src/shell/agent/IdentityPage.tsx:267
 msgid "Fetching the symbols from <0>{brokerName}</0>…"
 msgstr "Fetching the symbols from <0>{brokerName}</0>…"
 
@@ -3031,7 +3037,7 @@ msgstr "File"
 msgid "File name"
 msgstr "File name"
 
-#: src/shell/agent/AgentPage.tsx:295
+#: src/shell/agent/AgentPage.tsx:268
 #: src/shell/lists/UnifiedSearch.tsx:275
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
@@ -3103,7 +3109,7 @@ msgstr "Fingerprint or face unlock is on"
 msgid "Flags"
 msgstr "Flags"
 
-#: src/components/ai/AvatarStudio.tsx:34
+#: src/shell/agent/AvatarSheet.tsx:32
 msgid "Focused"
 msgstr "Focused"
 
@@ -3181,7 +3187,7 @@ msgstr "From the cache"
 msgid "From the conversation"
 msgstr "From the conversation"
 
-#: src/shell/agent/IdentityPage.tsx:284
+#: src/shell/agent/IdentityPage.tsx:300
 msgid "From the symbols of the account <0>{brokerName}</0>, fetched automatically."
 msgstr "From the symbols of the account <0>{brokerName}</0>, fetched automatically."
 
@@ -3259,7 +3265,7 @@ msgstr "Goal added"
 msgid "Goal title"
 msgstr "Goal title"
 
-#: src/shell/agent/AgentPage.tsx:289
+#: src/shell/agent/AgentPage.tsx:262
 #: src/shell/ChatMenu.tsx:123
 #: src/shell/ChatMenu.tsx:157
 #: src/shell/pages.tsx:117
@@ -3299,7 +3305,8 @@ msgstr "Group members"
 
 #: src/pages/GroupPanel.tsx:53
 #: src/pages/GroupPanel.tsx:128
-#: src/shell/agent/GroupPage.tsx:294
+#: src/shell/agent/GroupPage.tsx:291
+#: src/shell/agent/GroupPage.tsx:411
 msgid "Group name"
 msgstr "Group name"
 
@@ -3318,7 +3325,7 @@ msgctxt "page title"
 msgid "Groups"
 msgstr "Groups"
 
-#: src/components/ai/AvatarStudio.tsx:25
+#: src/shell/agent/AvatarSheet.tsx:23
 msgid "Happy"
 msgstr "Happy"
 
@@ -3364,7 +3371,7 @@ msgstr "How to reach you"
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
-#: src/shell/agent/AgentPage.tsx:280
+#: src/shell/agent/AgentPage.tsx:253
 msgid "Identity and model"
 msgstr "Identity and model"
 
@@ -3492,7 +3499,9 @@ msgstr "Instruction budget exceeded"
 msgid "Instruction version"
 msgstr "Instruction version"
 
-#: src/pages/shell/bot-settings.tsx:126
+#: src/pages/shell/bot-settings.tsx:119
+#: src/shell/agent/IdentityPage.tsx:198
+#: src/shell/agent/IdentityPage.tsx:202
 #: src/shell/domain/SkillsPages.tsx:322
 msgid "Instructions"
 msgstr "Instructions"
@@ -3546,7 +3555,7 @@ msgstr "Invalid value."
 msgid "Isolated document preview"
 msgstr "Isolated document preview"
 
-#: src/shell/agent/AgentPage.tsx:548
+#: src/shell/agent/AgentPage.tsx:468
 msgid "It does not supervise any agent now."
 msgstr "It does not supervise any agent now."
 
@@ -3627,7 +3636,7 @@ msgstr "Kind of mandate"
 
 #: src/conversation/ToolsSheet.tsx:196
 #: src/pages/Knowledge.tsx:20
-#: src/shell/agent/AgentPage.tsx:285
+#: src/shell/agent/AgentPage.tsx:258
 #: src/shell/ChatMenu.tsx:122
 #: src/shell/ChatMenu.tsx:151
 #: src/shell/pages.tsx:111
@@ -3699,7 +3708,7 @@ msgstr "Later"
 msgid "Latest actions"
 msgstr "Latest actions"
 
-#: src/components/ai/AvatarStudio.tsx:36
+#: src/shell/agent/AvatarSheet.tsx:34
 msgid "Laugh"
 msgstr "Laugh"
 
@@ -3753,7 +3762,7 @@ msgstr "Link"
 msgid "Link a trading account"
 msgstr "Link a trading account"
 
-#: src/shell/agent/IdentityPage.tsx:316
+#: src/shell/agent/IdentityPage.tsx:332
 msgid "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 msgstr "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 
@@ -3785,7 +3794,7 @@ msgstr "Linked · messages to the bot reach {telegramAgent}"
 msgid "Linked · messages to the bot reach an agent"
 msgstr "Linked · messages to the bot reach an agent"
 
-#: src/shell/agent/IdentityPage.tsx:329
+#: src/shell/agent/IdentityPage.tsx:345
 msgid "Linked symbol"
 msgstr "Linked symbol"
 
@@ -3881,7 +3890,7 @@ msgstr "Loading preview…"
 #: src/pages/Board.tsx:202
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/agent/AgentPage.tsx:318
+#: src/shell/agent/AgentPage.tsx:291
 #: src/shell/pages.tsx:78
 msgid "Loading…"
 msgstr "Loading…"
@@ -4046,8 +4055,9 @@ msgstr "MCP servers are never given a financial tool; write tools are non-financ
 
 #: src/conversation/PermissionMenu.tsx:71
 #: src/pages/GroupPanel.tsx:63
-#: src/shell/agent/GroupPage.tsx:85
-#: src/shell/agent/GroupPage.tsx:318
+#: src/shell/agent/GroupPage.tsx:86
+#: src/shell/agent/GroupPage.tsx:302
+#: src/shell/agent/GroupPage.tsx:435
 msgid "Members"
 msgstr "Members"
 
@@ -4175,7 +4185,7 @@ msgstr "Mode"
 #: src/conversation/PermissionMenu.tsx:275
 #: src/conversation/PermissionMenu.tsx:430
 #: src/pages/shell/bot-panel.tsx:225
-#: src/shell/agent/IdentityPage.tsx:195
+#: src/shell/agent/IdentityPage.tsx:211
 msgid "Model"
 msgstr "Model"
 
@@ -4245,8 +4255,8 @@ msgstr "Muted"
 #~ msgid "My device"
 #~ msgstr "My device"
 
-#: src/pages/shell/bot-settings.tsx:99
-#: src/shell/agent/IdentityPage.tsx:167
+#: src/pages/shell/bot-settings.tsx:92
+#: src/shell/agent/IdentityPage.tsx:170
 #: src/shell/domain/SkillsPages.tsx:309
 #: src/shell/settings/OwnerPage.tsx:187
 msgid "Name"
@@ -4341,6 +4351,10 @@ msgstr "New trades resumed"
 #: src/components/ai/AttentionInbox.tsx:15
 msgid "New trading stopped"
 msgstr "New trading stopped"
+
+#: src/conversation/sheets/WatchesSheet.tsx:141
+msgid "New watch"
+msgstr "New watch"
 
 #: src/shell/settings/IntegrationsPage.tsx:568
 msgid "News and channels"
@@ -4512,7 +4526,7 @@ msgstr "No matching emojis"
 msgid "No microphone was found on this device"
 msgstr "No microphone was found on this device"
 
-#: src/shell/agent/AgentPage.tsx:79
+#: src/shell/agent/AgentPage.tsx:80
 msgid "No money limit"
 msgstr "No money limit"
 
@@ -4641,11 +4655,11 @@ msgctxt "level"
 msgid "No trading"
 msgstr "No trading"
 
-#: src/shell/agent/AgentPage.tsx:85
+#: src/shell/agent/AgentPage.tsx:86
 msgid "No trading · analysis and follow-up"
 msgstr "No trading · analysis and follow-up"
 
-#: src/shell/agent/AgentPage.tsx:349
+#: src/shell/agent/AgentPage.tsx:321
 msgid "No trading account chosen · choose an account"
 msgstr "No trading account chosen · choose an account"
 
@@ -4653,7 +4667,7 @@ msgstr "No trading account chosen · choose an account"
 msgid "No trading account is linked."
 msgstr "No trading account is linked."
 
-#: src/shell/agent/AgentPage.tsx:350
+#: src/shell/agent/AgentPage.tsx:322
 msgid "No trading account linked · link an account"
 msgstr "No trading account linked · link an account"
 
@@ -4673,8 +4687,7 @@ msgstr "No unread messages."
 msgid "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 msgstr "No voice provider is configured yet. Add an OpenAI key in the model providers to make calls."
 
-#: src/conversation/sheets/WatchesSheet.tsx:101
-#: src/shell/agent/AgentPage.tsx:414
+#: src/conversation/sheets/WatchesSheet.tsx:137
 msgid "No watches."
 msgstr "No watches."
 
@@ -4699,7 +4712,7 @@ msgstr "Not approved"
 msgid "Not carried out"
 msgstr "Not carried out"
 
-#: src/shell/agent/IdentityPage.tsx:311
+#: src/shell/agent/IdentityPage.tsx:327
 msgid "Not linked"
 msgstr "Not linked"
 
@@ -4872,7 +4885,7 @@ msgstr "One time or repeating"
 msgid "Ongoing call"
 msgstr "Ongoing call"
 
-#: src/shell/agent/AvatarSheet.tsx:101
+#: src/shell/agent/AvatarSheet.tsx:122
 msgid "Only a preview until you press save."
 msgstr "Only a preview until you press save."
 
@@ -4936,7 +4949,7 @@ msgstr "Open risk limit"
 msgid "Open the ⋮ menu of the browser."
 msgstr "Open the ⋮ menu of the browser."
 
-#: src/shell/agent/GroupPage.tsx:135
+#: src/shell/agent/GroupPage.tsx:156
 msgid "Open the group chat"
 msgstr "Open the group chat"
 
@@ -4952,7 +4965,7 @@ msgstr "Open the steps automatically"
 msgid "Open trading settings"
 msgstr "Open trading settings"
 
-#: src/shell/agent/AgentPage.tsx:164
+#: src/shell/agent/AgentPage.tsx:167
 msgid "Open voice settings"
 msgstr "Open voice settings"
 
@@ -5077,7 +5090,7 @@ msgstr "Owner-supplied source"
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/shell/agent/IdentityPage.tsx:260
+#: src/shell/agent/IdentityPage.tsx:276
 msgid "Pair"
 msgstr "Pair"
 
@@ -5115,7 +5128,6 @@ msgstr "Paste the value here"
 #: src/components/goals/TradingGoals.tsx:258
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:434
-#: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/conversation/Voice.tsx:133
 #: src/pages/Board.tsx:572
 msgid "Pause"
@@ -5131,11 +5143,11 @@ msgctxt "task"
 msgid "Pause"
 msgstr "Pause"
 
-#: src/pages/shell/bot-settings.tsx:143
+#: src/pages/shell/bot-settings.tsx:136
 msgid "Pause agent and scheduled work"
 msgstr "Pause agent and scheduled work"
 
-#: src/shell/agent/AgentPage.tsx:397
+#: src/conversation/sheets/WatchesSheet.tsx:99
 msgid "Pause for now"
 msgstr "Pause for now"
 
@@ -5144,8 +5156,8 @@ msgid "Pause recording"
 msgstr "Pause recording"
 
 #: src/conversation/sheets/WatchesSheet.tsx:56
-msgid "paused"
-msgstr "paused"
+#~ msgid "paused"
+#~ msgstr "paused"
 
 #: src/conversation/Composer.tsx:514
 #: src/lib/goal-status.ts:42
@@ -5171,7 +5183,7 @@ msgctxt "task status"
 msgid "Paused"
 msgstr "Paused"
 
-#: src/shell/agent/AgentPage.tsx:389
+#: src/conversation/sheets/WatchesSheet.tsx:86
 msgid "Paused for now"
 msgstr "Paused for now"
 
@@ -5239,7 +5251,7 @@ msgstr "Permission unknown"
 msgid "Permission: {0}"
 msgstr "Permission: {0}"
 
-#: src/shell/agent/AgentPage.tsx:432
+#: src/shell/agent/AgentPage.tsx:352
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 
@@ -5252,7 +5264,7 @@ msgstr "Permissions are independent for each agent"
 msgid "Permissions: {0}"
 msgstr "Permissions: {0}"
 
-#: src/pages/shell/bot-settings.tsx:147
+#: src/pages/shell/bot-settings.tsx:140
 msgid "Persistent child agent"
 msgstr "Persistent child agent"
 
@@ -5323,7 +5335,7 @@ msgstr "Playback position"
 msgid "Playback speed"
 msgstr "Playback speed"
 
-#: src/components/ai/AvatarStudio.tsx:30
+#: src/shell/agent/AvatarSheet.tsx:28
 msgid "Playful"
 msgstr "Playful"
 
@@ -5460,7 +5472,7 @@ msgid "Providers and official catalog"
 msgstr "Providers and official catalog"
 
 #: src/components/skills/CreateSkill.tsx:101
-#: src/shell/agent/GroupPage.tsx:308
+#: src/shell/agent/GroupPage.tsx:425
 msgid "Purpose"
 msgstr "Purpose"
 
@@ -5701,7 +5713,7 @@ msgstr "Reload"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "Remote servers only. You review and approve its tools before any agent uses them."
 
-#: src/shell/agent/AgentPage.tsx:540
+#: src/shell/agent/AgentPage.tsx:460
 msgid "Remove"
 msgstr "Remove"
 
@@ -5822,10 +5834,10 @@ msgid "Research tools"
 msgstr "Research tools"
 
 #: src/components/ai/AvatarStudio.tsx:155
-msgid "Reset"
-msgstr "Reset"
+#~ msgid "Reset"
+#~ msgstr "Reset"
 
-#: src/shell/agent/AvatarSheet.tsx:54
+#: src/shell/agent/AvatarSheet.tsx:75
 msgctxt "avatar"
 msgid "Reset"
 msgstr "Reset"
@@ -5913,10 +5925,9 @@ msgstr "Restriction set"
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:436
 #: src/conversation/sheets/AgentSheet.tsx:502
-#: src/conversation/sheets/WatchesSheet.tsx:71
+#: src/conversation/sheets/WatchesSheet.tsx:99
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
-#: src/shell/agent/AgentPage.tsx:397
 #: src/shell/domain/TasksPages.tsx:230
 msgid "Resume"
 msgstr "Resume"
@@ -5999,7 +6010,7 @@ msgstr "Review the tools"
 msgid "Review version block"
 msgstr "Review version block"
 
-#: src/shell/agent/IdentityPage.tsx:181
+#: src/shell/agent/IdentityPage.tsx:184
 msgid "Role"
 msgstr "Role"
 
@@ -6037,14 +6048,14 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #~ msgid "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 #~ msgstr "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 
-#: src/components/ai/AvatarStudio.tsx:235
 #: src/components/skills/SkillEditor.tsx:123
 #: src/conversation/sheets/LimitsSheet.tsx:285
 #: src/pages/Board.tsx:486
 #: src/pages/KnowledgeSection.tsx:187
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:167
-#: src/shell/agent/IdentityPage.tsx:339
+#: src/pages/shell/bot-settings.tsx:160
+#: src/shell/agent/GroupPage.tsx:339
+#: src/shell/agent/IdentityPage.tsx:355
 #: src/shell/agent/TradesPage.tsx:440
 #: src/shell/domain/GoalsKnowledgePages.tsx:103
 #: src/shell/domain/GoalsKnowledgePages.tsx:211
@@ -6058,7 +6069,7 @@ msgstr "Save"
 msgid "Save and discover models"
 msgstr "Save and discover models"
 
-#: src/shell/agent/AvatarSheet.tsx:129
+#: src/shell/agent/AvatarSheet.tsx:150
 msgid "Save avatar"
 msgstr "Save avatar"
 
@@ -6105,7 +6116,7 @@ msgstr "Save with the passkey"
 #: src/components/skills/SkillEditor.tsx:119
 #: src/pages/KnowledgeSection.tsx:96
 #: src/pages/ModelRoutingSettings.tsx:161
-#: src/shell/agent/IdentityPage.tsx:135
+#: src/shell/agent/IdentityPage.tsx:138
 #: src/shell/settings/ConnectionPages.tsx:639
 #: src/shell/settings/NotifyPages.tsx:329
 #: src/shell/settings/OwnerPage.tsx:136
@@ -6128,7 +6139,6 @@ msgstr "Saved file"
 msgid "Saved securely"
 msgstr "Saved securely"
 
-#: src/components/ai/AvatarStudio.tsx:235
 #: src/pages/Board.tsx:194
 #: src/pages/Board.tsx:486
 msgid "Saving…"
@@ -6174,7 +6184,7 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "Scheduled"
 
-#: src/shell/agent/AgentPage.tsx:292
+#: src/shell/agent/AgentPage.tsx:265
 #: src/shell/ChatMenu.tsx:164
 #: src/shell/pages.tsx:109
 msgid "Scheduled tasks"
@@ -6396,7 +6406,7 @@ msgstr "Servers and repositories"
 #~ msgid "Service needs attention"
 #~ msgstr "Service needs attention"
 
-#: src/shell/agent/AgentPage.tsx:433
+#: src/shell/agent/AgentPage.tsx:353
 msgid "Services are linked from Settings → Integrations."
 msgstr "Services are linked from Settings → Integrations."
 
@@ -6532,7 +6542,7 @@ msgstr "Sign out"
 msgid "Sign-in failed. Check your email and password."
 msgstr "Sign-in failed. Check your email and password."
 
-#: src/components/ai/AvatarStudio.tsx:22
+#: src/shell/agent/AvatarSheet.tsx:20
 msgid "Signals"
 msgstr "Signals"
 
@@ -6566,7 +6576,7 @@ msgstr "Simulation with an imported snapshot"
 msgid "Since"
 msgstr "Since"
 
-#: src/components/ai/AvatarStudio.tsx:32
+#: src/shell/agent/AvatarSheet.tsx:30
 msgid "Skeptical"
 msgstr "Skeptical"
 
@@ -6613,7 +6623,7 @@ msgstr "Skill version controls could not be verified. Reload before making chang
 
 #: src/conversation/ToolsSheet.tsx:191
 #: src/pages/Knowledge.tsx:44
-#: src/shell/agent/AgentPage.tsx:288
+#: src/shell/agent/AgentPage.tsx:261
 #: src/shell/pages.tsx:127
 #: src/shell/settings/IntegrationsPage.tsx:637
 msgid "Skills"
@@ -6640,7 +6650,7 @@ msgstr "Skin tone {tone}"
 msgid "Skip"
 msgstr "Skip"
 
-#: src/components/ai/AvatarStudio.tsx:27
+#: src/shell/agent/AvatarSheet.tsx:25
 msgid "Sleepy"
 msgstr "Sleepy"
 
@@ -6656,7 +6666,7 @@ msgstr "Small"
 msgid "Smart agents working for you, all in one conversation."
 msgstr "Smart agents working for you, all in one conversation."
 
-#: src/components/ai/AvatarStudio.tsx:23
+#: src/shell/agent/AvatarSheet.tsx:21
 msgid "Smile"
 msgstr "Smile"
 
@@ -6796,7 +6806,7 @@ msgstr "Stop order"
 #~ msgid "Stop Super Bot"
 #~ msgstr "Stop Super Bot"
 
-#: src/shell/agent/AgentPage.tsx:443
+#: src/shell/agent/AgentPage.tsx:363
 msgid "Stop the agent"
 msgstr "Stop the agent"
 
@@ -6889,17 +6899,17 @@ msgstr "Supervise other agents"
 #~ msgstr "Supervised"
 
 #. placeholder {0}: isolate(supervisor.name ?? "")
-#: src/shell/agent/AgentPage.tsx:253
+#: src/shell/agent/AgentPage.tsx:226
 msgid "Supervised by {0}"
 msgstr "Supervised by {0}"
 
-#: src/shell/agent/AgentPage.tsx:470
-#: src/shell/agent/AgentPage.tsx:512
+#: src/shell/agent/AgentPage.tsx:390
+#: src/shell/agent/AgentPage.tsx:432
 msgid "Supervises"
 msgstr "Supervises"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:496
+#: src/shell/agent/AgentPage.tsx:416
 msgid "Supervision · {0}"
 msgstr "Supervision · {0}"
 
@@ -6915,7 +6925,7 @@ msgstr "Supervision started"
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 
-#: src/components/ai/AvatarStudio.tsx:28
+#: src/shell/agent/AvatarSheet.tsx:26
 msgid "Surprised"
 msgstr "Surprised"
 
@@ -7231,7 +7241,7 @@ msgstr "The connection works · {count} tools"
 msgid "The connection works · <0>{who}</0>"
 msgstr "The connection works · <0>{who}</0>"
 
-#: src/shell/agent/GroupPage.tsx:264
+#: src/shell/agent/GroupPage.tsx:381
 msgid "The coordinator must be one of the group's members."
 msgstr "The coordinator must be one of the group's members."
 
@@ -7528,16 +7538,16 @@ msgid "The voice connection failed. Retry the call."
 msgstr "The voice connection failed. Retry the call."
 
 #: src/conversation/sheets/WatchesSheet.tsx:67
-msgid "The watch is paused"
-msgstr "The watch is paused"
+#~ msgid "The watch is paused"
+#~ msgstr "The watch is paused"
 
 #: src/conversation/sheets/WatchesSheet.tsx:67
-msgid "The watch resumed"
-msgstr "The watch resumed"
+#~ msgid "The watch resumed"
+#~ msgstr "The watch resumed"
 
 #: src/conversation/sheets/WatchesSheet.tsx:88
-msgid "The watch was cancelled"
-msgstr "The watch was cancelled"
+#~ msgid "The watch was cancelled"
+#~ msgstr "The watch was cancelled"
 
 #: src/pages/LocalSettings.tsx:26
 #: src/pages/LocalSettings.tsx:28
@@ -7749,7 +7759,7 @@ msgstr "This task is waiting for an uncertain external operation to be reconcile
 msgid "This week"
 msgstr "This week"
 
-#: src/components/ai/AvatarStudio.tsx:24
+#: src/shell/agent/AvatarSheet.tsx:22
 msgid "Thoughtful"
 msgstr "Thoughtful"
 
@@ -7783,7 +7793,7 @@ msgstr "Timeframe"
 #: src/components/skills/CreateSkill.tsx:92
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
-#: src/pages/shell/bot-settings.tsx:108
+#: src/pages/shell/bot-settings.tsx:101
 #: src/shell/domain/GoalsKnowledgePages.tsx:236
 msgid "Title"
 msgstr "Title"
@@ -7866,7 +7876,7 @@ msgstr "Trade order"
 msgid "Trade risk limit"
 msgstr "Trade risk limit"
 
-#: src/shell/agent/AgentPage.tsx:299
+#: src/shell/agent/AgentPage.tsx:272
 #: src/shell/pages.tsx:107
 msgid "Trades"
 msgstr "Trades"
@@ -7891,12 +7901,12 @@ msgstr "Trades on its own"
 msgid "Trading"
 msgstr "Trading"
 
-#: src/shell/agent/AgentPage.tsx:320
+#: src/shell/agent/AgentPage.tsx:293
 msgid "Trading · New trades · Restrictions · Account limits"
 msgstr "Trading · New trades · Restrictions · Account limits"
 
-#: src/shell/agent/AgentPage.tsx:328
-#: src/shell/agent/IdentityPage.tsx:217
+#: src/shell/agent/AgentPage.tsx:300
+#: src/shell/agent/IdentityPage.tsx:233
 #: src/shell/pages.tsx:161
 msgid "Trading account"
 msgstr "Trading account"
@@ -7914,7 +7924,7 @@ msgstr "Trading agent"
 #~ msgstr "Trading and operation journal"
 
 #: src/conversation/sheets/AgentSheet.tsx:671
-#: src/shell/agent/AgentPage.tsx:307
+#: src/shell/agent/AgentPage.tsx:280
 msgid "Trading and safety"
 msgstr "Trading and safety"
 
@@ -7946,7 +7956,7 @@ msgstr "Trading is stopped"
 #~ msgid "Trading ON"
 #~ msgstr "Trading ON"
 
-#: src/pages/shell/bot-settings.tsx:83
+#: src/pages/shell/bot-settings.tsx:76
 msgid "Trading pair"
 msgstr "Trading pair"
 
@@ -7993,7 +8003,7 @@ msgstr "Try again"
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
-#: src/shell/agent/AgentPage.tsx:443
+#: src/shell/agent/AgentPage.tsx:363
 msgid "Turn the agent on"
 msgstr "Turn the agent on"
 
@@ -8052,7 +8062,7 @@ msgstr "Unconfirmed operation · not confirmed by the broker"
 msgid "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows"
 msgstr "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows"
 
-#: src/shell/agent/AgentPage.tsx:198
+#: src/conversation/sheets/WatchesSheet.tsx:46
 #: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
@@ -8140,16 +8150,16 @@ msgstr "Until"
 
 #. placeholder {0}: clockTime(until)
 #: src/shell/agent/AgentPage.tsx:383
-msgid "Until <0>{0}</0>"
-msgstr "Until <0>{0}</0>"
+#~ msgid "Until <0>{0}</0>"
+#~ msgstr "Until <0>{0}</0>"
 
 #: src/conversation/sheets/MandateSheet.tsx:46
 msgid "Until cancelled"
 msgstr "Until cancelled"
 
 #: src/shell/agent/AgentPage.tsx:387
-msgid "Until you stop it"
-msgstr "Until you stop it"
+#~ msgid "Until you stop it"
+#~ msgstr "Until you stop it"
 
 #: src/lib/broker-identity.ts:10
 #: src/lib/broker-identity.ts:18
@@ -8406,10 +8416,10 @@ msgid "Waiting to send"
 msgstr "Waiting to send"
 
 #: src/shell/agent/shared.tsx:77
-msgid "Watch"
-msgstr "Watch"
+#~ msgid "Watch"
+#~ msgstr "Watch"
 
-#: src/shell/agent/AgentPage.tsx:195
+#: src/conversation/sheets/WatchesSheet.tsx:122
 msgid "Watch cancelled"
 msgstr "Watch cancelled"
 
@@ -8421,11 +8431,11 @@ msgstr "Watch condition changed"
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
-#: src/shell/agent/AgentPage.tsx:209
+#: src/conversation/sheets/WatchesSheet.tsx:95
 msgid "Watch paused"
 msgstr "Watch paused"
 
-#: src/shell/agent/AgentPage.tsx:209
+#: src/conversation/sheets/WatchesSheet.tsx:95
 msgid "Watch resumed"
 msgstr "Watch resumed"
 
@@ -8434,13 +8444,13 @@ msgid "Watch source"
 msgstr "Watch source"
 
 #: src/conversation/sheets/AgentSheet.tsx:364
-#: src/shell/agent/AgentPage.tsx:359
+#: src/shell/agent/AgentPage.tsx:329
 #: src/shell/ChatMenu.tsx:145
 msgid "Watches"
 msgstr "Watches"
 
 #. placeholder {0}: agent.name
-#: src/conversation/sheets/WatchesSheet.tsx:115
+#: src/conversation/sheets/WatchesSheet.tsx:156
 msgid "Watches · {0}"
 msgstr "Watches · {0}"
 
@@ -8504,7 +8514,8 @@ msgstr "What shall we do today with {name}?"
 msgid "What shall we do today with your agents?"
 msgstr "What shall we do today with your agents?"
 
-#: src/pages/shell/bot-settings.tsx:130
+#: src/pages/shell/bot-settings.tsx:123
+#: src/shell/agent/IdentityPage.tsx:205
 msgid "What should this agent know about its work?"
 msgstr "What should this agent know about its work?"
 
@@ -8526,7 +8537,7 @@ msgstr "When a condition is met"
 msgid "Why this interface?"
 msgstr "Why this interface?"
 
-#: src/components/ai/AvatarStudio.tsx:26
+#: src/shell/agent/AvatarSheet.tsx:24
 msgid "Wink"
 msgstr "Wink"
 
@@ -8565,7 +8576,7 @@ msgstr "Workspace files"
 #~ msgid "Workspace settings"
 #~ msgstr "Workspace settings"
 
-#: src/components/ai/AvatarStudio.tsx:35
+#: src/shell/agent/AvatarSheet.tsx:33
 msgid "Worried"
 msgstr "Worried"
 
