@@ -118,7 +118,7 @@ async def test_the_registry_refuses_a_removed_tool_name_before_using_the_context
     for name in REMOVED_TOOLS:
         with pytest.raises(LonoraError) as error:
             await registry.execute(ToolCall(id="legacy", name=name, arguments={}), context)
-        assert error.value.code == "tool_not_allowed"
+        assert error.value.code == "tool_call_target_unknown"
 
 
 def test_old_history_with_a_removed_tool_call_loads_no_stale_guidance():
@@ -199,7 +199,7 @@ async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes(
     interrupted call to an unknown tool: the removed tools had no broker effect, but
     the loop cannot know that and conservatively refuses to replay it. The call
     that was still only pending reaches the registry and is refused as
-    tool_not_allowed. Neither removed handler runs after the resume.
+    tool_call_target_unknown. Neither removed handler runs after the resume.
     """
     if not os.environ.get("LONORA_DATABASE_URL"):
         pytest.skip("Set an explicit disposable PostgreSQL *_test URL for integration checks.")
@@ -293,5 +293,5 @@ async def test_a_run_checkpointed_across_the_removal_gets_unknown_tool_outcomes(
     inflight, pending = observed["legacy-inflight"], observed["legacy-pending"]
     assert inflight["ok"] is False and inflight["reason"] == "tool execution uncertain"
     assert inflight["recovery"]["safe_to_retry"] is False
-    assert pending["ok"] is False and pending["reason"] == "tool not allowed"
-    assert pending["recovery"]["category"] == "permission denied"
+    assert pending["ok"] is False and pending["reason"] == "tool call target unknown"
+    assert pending["recovery"]["category"] == "not found"
