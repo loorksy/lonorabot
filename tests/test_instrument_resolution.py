@@ -43,7 +43,7 @@ def test_the_usual_broker_affixes_resolve_from_the_catalogue(name: str) -> None:
 
 
 def test_the_exact_name_wins_and_letter_case_alone_is_the_same_symbol() -> None:
-    catalogue = ["XAUUSD", "XAUUSDc", "XAUUSD.r"]
+    catalogue: list[object] = ["XAUUSD", "XAUUSDc", "XAUUSD.r"]
     assert catalogue_matches(catalogue, "XAUUSD") == ["XAUUSD"]
     assert catalogue_matches(catalogue, "xauusdC") == ["XAUUSDc"]
     assert catalogue_matches(["GOLD", "XAUEUR"], "gold") == ["GOLD"]
