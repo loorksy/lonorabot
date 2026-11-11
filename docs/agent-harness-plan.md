@@ -9,7 +9,7 @@ Nothing here rewrites the runtime. Every item names the module it extends.
 
 ## 1. Where things stand
 
-`main` at `20ab760`, 2026-11-11.
+`main` at `53b6c8d`, 2026-11-11.
 
 | Merged | What it changed |
 |---|---|
@@ -18,9 +18,10 @@ Nothing here rewrites the runtime. Every item names the module it extends.
 | #57 | A default model is chosen once when a key exists and no routing; a reply that failed for lack of a model is answered when one is connected (never for an agent holding a signed grant); a cancelled or completed Task stops its watches; `watch_list`, `watch_cancel` and `trade_close_positions` are offered beside their creators. |
 | #58 | The acceptance harness: 42 scenarios from the owner's conversation, a fake MetaApi terminal, a deterministic scorer. |
 | #61, phase 1 | The three research reports and the evidence they cite. |
+| #62, phase 3a | Every tool failure carries its class, whether to repeat it and a truthful hint; a handler's own guidance is kept; the model reads failures in words, the record keeps the codes; an order size the contract cannot take is refused before any card, on a first attempt only; a broker rate limit on a read is retried. |
 
-Measured by the harness, structural layer (no model): 8 of 22 probes passed before, 18 of 22 on
-`main`, 21 of 22 on the phase 3a branch. The one left is owner scope, phase 3d. The live layer (a real
+Measured by the harness, structural layer (no model): 8 of 22 probes passed before, 18 of 22 after
+phase 0, 21 of 22 now. The one left is owner scope, phase 3d. The live layer (a real
 model) scored 7 of 42 before the fixes; it is run again for the final report, because the later
 phases are what change behaviour.
 
@@ -247,7 +248,7 @@ flip, and `bash scripts/build.sh` passes before it opens.
 
 | PR | Scope | Main files | Must flip |
 |---|---|---|---|
-| 3a | The error contract for every error: class, whether to repeat and a truthful hint; a handler's own guidance is kept instead of overwritten; D1; an order size the contract cannot take is refused before any card | `tool_dispatch.py`, `environment.py`, `failure_view.py`, `symbols.py`, `trade.py` | X_unknown, X_rate, X_args (structural) |
+| 3a (merged, #62) | The error contract for every error: class, whether to repeat and a truthful hint; a handler's own guidance is kept instead of overwritten; D1; an order size the contract cannot take is refused before any card | `tool_dispatch.py`, `environment.py`, `failure_view.py`, `symbols.py`, `trade.py` | X_unknown, X_rate, X_args (structural): done |
 | 3a-2 | One resolver for accounts, agents, watches, tasks, routines and positions; the durable symbol map; single-candidate reads repeat inside the tool; the class of a refusal comes from the tool, not from the spelling of its code | new `lonora_tools/resolve.py`, `symbols.py`, raising tools | new resolver probes |
 | 3b | The conversation gate; the effect check for "done" and promises; no trial calls; a found tool must be used; a call to a tool that exists but is not offered says how to reach it; the policy lines that decide behaviour are loaded before the first call of their domain | `stop_gates.py`, `loop_outcomes.py`, `uncertain_outcome.py`, `market_watch.py`, `routine.py` | M36, M40, M42, M46, M52, M54, M62, M68, M76 (live) |
 | 3c | The offer record and its obligation; the open-request record; a Task that needs the owner asks in the owner's chat; a watch or routine that fails says so once in the owner's language | thread state (one migration), `executor.py`, `messages.py`, context builder | M36, M38, M68-M80 (live) |
