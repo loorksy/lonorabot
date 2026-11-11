@@ -86,7 +86,7 @@ side by side and `reference.css` is not yet imported by `apps/web`.
 | `--r-sm` 10 · `--r-md` 16 · `--r-lg` 24 · `--r-pill` · `--r-tail` 6 · `--r-bar` 33 · `--r-composer` 26 | | | `--radius` (0.75rem) and the derived Tailwind `--radius-*` scale have no equal step |
 | `--fs-xs` 12 · `--fs-sm` 14 · `--fs-md` 16 · `--fs-lg` 20 · `--fs-xl` 28 | | | — (Tailwind `text-*`) |
 | `--fw-*`, `--ease`, `--spring`, `--app-height` | | | — |
-| `--font` | system stack | | `apps/web` `:root{font-family}` loads Geist Variable (see questions) |
+| `--font` | system stack | | — (`apps/web` `body` uses it) |
 
 Legacy tokens with no reference counterpart, to retire or decide when their screens are ported:
 `--ring`, `--link`, `--success` (the reference uses the accent for success states), `--status-working`,
@@ -97,12 +97,8 @@ Legacy tokens with no reference counterpart, to retire or decide when their scre
 
 ## Open owner questions (recorded, not decided)
 
-1. **Font.** The reference's `--font` is the system stack (`system-ui, -apple-system, "Segoe UI",
-   "Noto Sans Arabic", Tahoma, Arial, sans-serif`); the current Web app loads Geist Variable (OFL,
-   see THIRD_PARTY_NOTICES.md). The token carries the reference's value; whether Geist stays is the
-   owner's call.
-2. **Aliasing time.** Pointing the legacy names at the reference values restyles the current screens;
+1. **Aliasing time.** Pointing the legacy names at the reference values restyles the current screens;
    phase 1 keeps the sets apart (above). Confirm that the aliases land per ported screen.
-3. **Pair icon licence.** github.com/nvstly/icons publishes no licence file (THIRD_PARTY_NOTICES.md,
+2. **Pair icon licence.** github.com/nvstly/icons publishes no licence file (THIRD_PARTY_NOTICES.md,
    "Pair icons"). The eleven marks are embedded as in the reference; their terms of use need the
    owner's confirmation or a replacement source.

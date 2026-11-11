@@ -3,12 +3,10 @@
 @import "@lonora/ui-web/styles.css";
 @import "@lonora/ui-tokens/tokens.css";
 @import "@lonora/ui-tokens/reference.css";
-@import "@fontsource-variable/geist/wght.css";
 @import "./pages/shell/shell.css";
 @import "./theme.overrides.css";
 @source "../../../packages/ui-web/src";
 :root {
-  font-family: "Geist Variable", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
   --lonora-surface: var(--background);
   --lonora-panel: var(--card);
   --lonora-raised: var(--secondary);
@@ -77,10 +75,9 @@ body,
   margin: 0;
 }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-size: 14px;
-  line-height: 1.65;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 var(--fs-md) / 1.6 var(--font);
 }
 /* The legacy element and component styles reach screens outside the reference shell and the
    legacy screens it still mounts (.legacy-surface); the shell's chrome keeps its own defaults. */
