@@ -61,6 +61,7 @@ from lonora_db.supervision import (
     personal_agent_id,
     require_supervision,
     revoke_supervision,
+    supervised_ids,
     supervisor_ids,
 )
 from lonora_db.tasks import snapshot
@@ -72,6 +73,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
 
 PAGE_ITEMS = 10
@@ -405,29 +407,61 @@ SECTIONS = {
 }
 
 
+async def named_agent(
+    session: AsyncSession, context: ToolContext, requested: str, *, read: bool
+) -> tuple[str, dict[str, Any] | None]:
+    """The agent a call named by its id, or by its name among this agent and those it
+    supervises now. An agent it does not supervise is never offered. Only a read takes
+    the one agent that fits; a pause, a resume or a message is refused with it."""
+    found = await session.get(AgentRow, requested)
+    if found is not None and found.owner_id == context.owner_id:
+        return requested, None
+    reach = [context.agent_id, *await supervised_ids(session, context.owner_id, context.agent_id)]
+    names = await agent_names(session, context.owner_id, reach)
+    options = [
+        Option(identifier, (names[identifier],), {"name": names[identifier]})
+        for identifier in reach
+        if identifier in names
+    ]
+    return resolve(
+        requested,
+        options,
+        missing="agent_not_found",
+        argument="agent_id",
+        use="any" if read else "refuse",
+        listing="list_agents",
+    )
+
+
 async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentInspectInput.model_validate(args)
     async with context.db.sessions() as session:
-        if params.agent_id == context.agent_id:
+        agent_id, named = await named_agent(session, context, params.agent_id, read=True)
+        if agent_id == context.agent_id:
             agent = await owned_agent(session, context.owner_id, context.agent_id)
         else:
             # Re-checked on every call: a revoked grant ends the reads at once.
-            agent = await require_supervision(
-                session, context.owner_id, context.agent_id, params.agent_id
-            )
+            agent = await require_supervision(session, context.owner_id, context.agent_id, agent_id)
         data = await SECTIONS[params.section](session, context, agent, params.page)
-    return {
-        "agent": {"id": agent.id, "name": agent.name, "you": agent.id == context.agent_id},
-        "section": params.section,
-        "page": params.page,
-        "authority": INSPECT_AUTHORITY,
-        "notice": INSPECT_NOTICE,
-        **data,
-    }
+    return stating(
+        {
+            "agent": {"id": agent.id, "name": agent.name, "you": agent.id == context.agent_id},
+            "section": params.section,
+            "page": params.page,
+            "authority": INSPECT_AUTHORITY,
+            "notice": INSPECT_NOTICE,
+            **data,
+        },
+        named,
+    )
 
 
 async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentControlInput.model_validate(args)
+    async with context.db.sessions() as session:
+        # A name is never acted on here: the refusal carries the agent it fits.
+        agent_id, _ = await named_agent(session, context, params.agent_id, read=False)
+    params = params.model_copy(update={"agent_id": agent_id})
     if params.action == "message":
         from lonora_agent.collaboration.peer_messages import delegate_peer
 

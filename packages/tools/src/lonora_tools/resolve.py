@@ -101,6 +101,11 @@ def _matches(requested: str, options: Sequence[Option]) -> tuple[list[tuple[Opti
     return list(once.values()), exact
 
 
+def _telling(word: str) -> bool:
+    """A word long enough to tell two names apart: "the" and "في" are shared by most."""
+    return len(word) >= (4 if word.isascii() else 3)
+
+
 def several(code: str, requested: str, argument: str, options: Sequence[Option]) -> NotResolved:
     """The refusal for more than one item: the caller never chooses between them."""
     return _refusal(
@@ -159,7 +164,7 @@ def resolve(
             argument,
             [option for option, _ in found],
         )
-    words = {word for word in fold(requested).split() if len(word) >= MINIMUM_PARTIAL}
+    words = {word for word in fold(requested).split() if _telling(word)}
     near = [
         option
         for option in options
