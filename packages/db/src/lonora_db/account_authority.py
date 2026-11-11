@@ -216,7 +216,7 @@ async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> Accou
 async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) -> None:
     """Stop only this grant's existing Task; preserve all broker journal effects."""
     from .market_watches import settle_task_watches
-    from .tasks import finish_task
+    from .tasks import finish_task, save_task, task_state
 
     task = await session.get(
         TicketRow,
@@ -226,4 +226,9 @@ async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) 
     )
     if task and task.owner_id == row.owner_id and task.agent_id == row.agent_id:
         finish_task(session, task, "cancelled")
+        state = task_state(task)
+        if state.status == "failed":
+            # A failed Task could be resumed: without its grant it is over.
+            state.status, state.phase = "cancelled", "cancelled"
+            save_task(session, task, state)
         await settle_task_watches(session, task)

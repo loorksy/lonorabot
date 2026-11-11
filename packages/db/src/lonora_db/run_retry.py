@@ -27,6 +27,10 @@ from .voice_provenance import carry_voice_handoff
 RETRYABLE_TRIGGERS = frozenset({"user", "group"})
 
 
+# How long after it failed a reply is still answered on its own once a model is connected.
+UNCONFIGURED_RETRY_WINDOW = timedelta(hours=48)
+
+
 class RunRetryTooEarly(LonoraError):
     """The provider asked to wait (Retry-After) and the wait has not elapsed."""
 
@@ -157,7 +161,9 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
     written (a worker claims a conversation's Runs oldest first); the owner does not
     have to find and tap every card. The same rules as the owner's own retry apply
     (``retry_run``), and a reply that cannot be retried is left as it is. A failure the
-    conversation has moved past (a later message there was answered) stays history.
+    conversation has moved past (a later message there was answered or is being
+    answered) stays history, and so does an old one: an instruction from days ago is
+    not carried out today because a key was saved.
     """
     later = aliased(RunRow)
     moved_on = (
@@ -165,7 +171,7 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
         .where(
             later.thread_id == RunRow.thread_id,
             later.input_seq > RunRow.input_seq,
-            later.status == "completed",
+            later.status.not_in(["failed", "cancelled"]),
             later.trigger.in_(RETRYABLE_TRIGGERS),
         )
         .exists()
@@ -179,6 +185,7 @@ async def retry_unconfigured(session: AsyncSession, owner_id: str) -> list[RunRo
                 RunRow.status == "failed",
                 RunRow.error_code == "model_not_configured",
                 RunRow.trigger.in_(RETRYABLE_TRIGGERS),
+                RunRow.created_at >= utcnow() - UNCONFIGURED_RETRY_WINDOW,
                 ~moved_on,
             )
             .order_by(RunRow.input_seq, RunRow.created_at)

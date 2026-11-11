@@ -14,6 +14,7 @@ import pytest
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskControl, TaskCreate
+from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import stop_management_task
 from lonora_db.client import Database
 from lonora_db.market_watches import control_watch
@@ -301,3 +302,96 @@ async def _stored(session: Any, owner: str, agent: str, args: dict[str, Any]) ->
     from lonora_db.market_watches import MarketWatchRepository
 
     return await MarketWatchRepository().stored_payload(session, owner, agent, args)
+
+
+@pytest.mark.asyncio
+async def test_a_watch_of_an_ended_task_is_settled_even_if_paused_and_cannot_be_resumed(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db, owner, agent, thread = task_db
+    task, owned, other = await task_with_watch(db, owner, agent, thread)
+    async with db.sessions() as session, session.begin():
+        await control_watch(session, owner, owned, "pause")
+        await control_task(
+            session,
+            owner,
+            TaskControl(task_id=task.id, action="cancel", expected_version=task.version),
+        )
+    async with db.sessions() as session:
+        watch = await session.get(MarketWatchRow, owned)
+        assert watch is not None and watch.state["code"] == "task_terminal"
+    for by in (None, agent):
+        async with db.sessions() as session, session.begin():
+            with pytest.raises(LonoraError) as refused:
+                await control_watch(session, owner, owned, "resume", agent_id=by)
+            assert refused.value.code == "watch_task_ended"
+    assert await polled(db, monkeypatch) == {other}
+
+
+@pytest.mark.asyncio
+async def test_revoking_the_grant_ends_a_failed_management_task_and_its_watches(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    grant = SimpleNamespace(id="grant-2", owner_id=owner, agent_id=agent)
+    task, owned, _ = await task_with_watch(
+        db, owner, agent, thread, stable_id(grant.id, "account-management-task")
+    )
+    async with db.sessions() as session, session.begin():
+        row = await session.get(TicketRow, task.id)
+        assert row is not None
+        state = task_state(row)
+        state.status, state.phase = "failed", "failed"
+        save_task(session, row, state)
+    async with db.sessions() as session, session.begin():
+        await stop_management_task(session, cast(AccountAuthorityRow, grant))
+    async with db.sessions() as session:
+        row = await session.get(TicketRow, task.id)
+        watch = await session.get(MarketWatchRow, owned)
+    assert row is not None and task_state(row).status == "cancelled"
+    assert watch is not None and watch.payload["enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_stopped_watch_is_not_evidence_for_an_opportunity(task_db: Fixture) -> None:
+    from lonora_db.schema import TradingOpportunityRow
+    from lonora_trading.opportunities import evidence_state
+
+    db, owner, agent, thread = task_db
+    now = utcnow()
+    later = (now + timedelta(hours=8)).isoformat()
+    async with db.sessions() as session, session.begin():
+        watch = MarketWatchRow(
+            owner_id=owner,
+            agent_id=agent,
+            thread_id=thread,
+            payload=payload(),
+            state={
+                "lifecycle": "confirmed",
+                "confirmation_valid_until": later,
+                "evaluation_status": "suspended_health",
+            },
+        )
+        session.add(watch)
+    definition = {
+        "direction": "BUY",
+        "rationale": "r",
+        "entry_condition": "e",
+        "invalidation_condition": "i",
+        "strategy_version": "1",
+        "expires_at": later,
+    }
+    opportunity = cast(
+        TradingOpportunityRow,
+        SimpleNamespace(
+            owner_id=owner,
+            expires_at=now + timedelta(hours=8),
+            payload={"definition": definition, "watch_id": watch.id},
+        ),
+    )
+    async with db.sessions() as session, session.begin():
+        await control_watch(session, owner, watch.id, "cancel")
+    async with db.sessions() as session:
+        codes, _ = await evidence_state(session, opportunity, now)
+    # Stopping the watch dropped its health flag; it must still not count as confirmed.
+    assert "thesis_watch_unconfirmed" in codes

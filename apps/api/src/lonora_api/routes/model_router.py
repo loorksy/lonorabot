@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.model_backups import ModelBackups
 from lonora_contracts.model_context import ModelContextPolicy
-from lonora_contracts.model_routing import AllowedModels, RoutingPolicy
+from lonora_contracts.model_routing import AllowedModels, Capability, RoutingPolicy
+from lonora_core.user_error import LonoraError
 from lonora_db.agent_models import added_models, routed_models, save_added_models
 from lonora_db.run_retry import retry_unconfigured
 from lonora_db.transactions import SettingsRepository
@@ -14,9 +15,15 @@ router = APIRouter(prefix="/settings/models")
 
 
 async def answer_unconfigured(request: Request, owner: OwnerIdentity) -> None:
-    """A model may be available now: the replies that failed only for lack of one are
-    queued again, in order, so no message of that time is left without an answer."""
-    async with runtime(request).db.sessions() as session, session.begin():
+    """Once a conversation has a model, the replies that failed only for lack of one are
+    queued again, in order, so no message of that time is left without an answer. With
+    a key and no routing this is also where the default model is chosen and shown."""
+    rt = runtime(request)
+    try:
+        await rt.services(owner.id).router.usable_route(Capability.CONVERSATION)
+    except LonoraError:
+        return
+    async with rt.db.sessions() as session, session.begin():
         await retry_unconfigured(session, owner.id)
 
 

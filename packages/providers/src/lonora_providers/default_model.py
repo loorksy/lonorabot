@@ -64,6 +64,12 @@ async def choose_default_model(
     """Choose and record the unified model, or return ``None`` when nothing can be
     chosen. A provider that could not be asked is passed over; if no other provider
     gives a model, its failure is raised, so an outage reads as an outage."""
+    async with db.sessions() as session:
+        stored = await SettingsRepository().get(session, "model_routing")
+    current = RoutingPolicy.model_validate(stored)
+    if current.mode != "unified" or current.unified is not None:
+        # The owner's own routing (a unified model, or custom routes) is never filled in.
+        return None
     unreachable: LonoraError | None = None
     for provider in PROVIDERS:
         try:

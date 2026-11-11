@@ -194,6 +194,10 @@ async def control_watch(
     expires = row.payload.get("expires_at")
     if expires and datetime.fromisoformat(str(expires)) <= utcnow():
         raise LonoraError("watch_expired", 409)
+    task = await session.get(TicketRow, row.state.get("task_id") or "")
+    if task is not None and task_ended(task):
+        # It could only poll: its Task is over, so it would stop itself when it fired.
+        raise LonoraError("watch_task_ended", 409)
     state = {key: value for key, value in row.state.items() if key != "code"}
     if state.get("lifecycle") == "expired":
         state["lifecycle"] = "pending"
@@ -204,30 +208,39 @@ async def control_watch(
     return row
 
 
+def task_ended(task: TicketRow) -> bool:
+    """Cancelled or completed, or the owner asked for either while a worker holds the Run."""
+    state: dict[str, Any] = task.state.get("task", {})
+    return state.get("status") in {"cancelled", "completed"} or state.get("control_requested") in {
+        "cancel",
+        "complete",
+    }
+
+
 async def settle_task_watches(session: AsyncSession, task: TicketRow) -> None:
     """Stop the watches a Task's Runs created once the Task is cancelled or completed.
 
     The owner's request counts from the moment it is made, also while a worker still
     holds the Run: a watch can wake an Agent that holds a signed mandate, so a Task the
-    owner ended leaves no trigger behind. A paused or failed Task keeps its watches (it
-    resumes); another Task's and the conversation's watches are not this Task's.
+    owner ended leaves no trigger behind. A watch already paused or cancelled is settled
+    too, so it cannot be resumed into a Task that is over (``control_watch``). A paused
+    or failed Task keeps its watches (it resumes); another Task's and the conversation's
+    watches are not this Task's.
     """
-    state: dict[str, Any] = task.state.get("task", {})
-    if state.get("status") not in {"cancelled", "completed"} and state.get(
-        "control_requested"
-    ) not in {"cancel", "complete"}:
+    if not task_ended(task):
         return
     for row in await session.scalars(
         select(MarketWatchRow)
         .where(
             MarketWatchRow.owner_id == task.owner_id,
             MarketWatchRow.state["task_id"].as_string() == task.id,
-            MarketWatchRow.payload["enabled"].as_boolean().is_not(False),
         )
+        .order_by(MarketWatchRow.id)
         .with_for_update()
     ):
-        stop_watch(row, "task_terminal")
-        _changed(session, row, "task")
+        if row.payload.get("enabled", True) or row.state.get("code") != "task_terminal":
+            stop_watch(row, "task_terminal")
+            _changed(session, row, "task")
 
 
 async def update_watch(

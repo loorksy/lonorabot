@@ -61,7 +61,9 @@ a provider failure, and it is never shown as one.
   snapshot. An id the provider does not list is never chosen, so a stale preference
   chooses nothing rather than a model that does not exist. Speech routes, a
   consultation's named models, and reads of the route (the model card, `model_list`)
-  never choose. An owner's own route, backup or allowed model is never replaced.
+  never choose. An owner's own route, backup or allowed model is never replaced, and
+  custom routing is never filled in. A search that chose nothing is not repeated for
+  60 seconds, and concurrent first requests choose once.
 - **Nothing to choose.** No key, or no listed family: the Run fails with
   `model_not_configured`. The Web error card then reads «لم يُضبط نموذج بعد» with the
   existing notice («اربط مزودًا واختر نموذجًا…») and one action that opens the model
@@ -72,14 +74,17 @@ a provider failure, and it is never shown as one.
   outage backs off and retries like any other, and a rejected key reads as a rejected
   key.
 - **What failed is answered.** When the owner saves a provider key, the global routes,
-  the backups or the allowed models, every conversational reply that failed with
-  `model_not_configured` and was not retried yet is queued again
+  the backups or the allowed models, and a conversation now has a model (with a key and
+  no routing the default is chosen at that moment), every conversational reply that
+  failed with `model_not_configured` in the last 48 hours and was not retried yet is
+  queued again
   (`run_retry.retry_unconfigured`), oldest message first, under the same rules as the
   owner's own retry (never a Run with a financial operation or one that started other
   work). The owner no longer has to find and tap each card: before, each failed message
   needed its own tap, and a message whose retry had failed again stayed unanswered. A
-  failure the conversation has moved past (a later message there was answered) stays
-  history.
+  failure the conversation has moved past (a later message there was answered or is
+  being answered) stays history, and so does an older one: an instruction from days ago
+  is not carried out because a key was saved.
 - **Installing.** `scripts/install.sh` writes no provider key; keys arrive through
   Settings, the environment (`LONORA_<PROVIDER>_API_KEY`) or the one-off import in
   `docs/handoff/vps/import_secrets.py`, which now chooses the default as its last

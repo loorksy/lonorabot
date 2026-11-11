@@ -60,6 +60,8 @@ log = logging.getLogger("lonora.model_router")
 
 # Distinct candidates one request may try, primary included.
 MAXIMUM_CANDIDATES = 6
+# After no default model could be chosen, how long before the providers are asked again.
+UNCHOOSABLE_SECONDS = 60.0
 # A request without streaming keeps its budget where an HTTP read cannot stall.
 NON_STREAM_OUTPUT_TOKENS = 16384
 NON_STREAM_BOOST_TOKENS = 32768
@@ -140,6 +142,7 @@ class GlobalModelRouter:
         self.sleep, self.jitter = sleep, jitter
         self.health = ProviderHealth(clock)
         self.choosing = asyncio.Lock()
+        self.clock, self.unchoosable_until = clock, 0.0
 
     async def route(
         self,
@@ -242,7 +245,17 @@ class GlobalModelRouter:
             ):
                 raise
         async with self.choosing:
-            await choose_default_model(self.db, self.credentials, self.factory)
+            try:
+                # Another request chose while this one waited.
+                return await self.route(
+                    capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
+                )
+            except LonoraError as error:
+                if error.code != "model_not_configured" or self.clock() < self.unchoosable_until:
+                    raise
+            if await choose_default_model(self.db, self.credentials, self.factory) is None:
+                # Nothing to choose: do not ask the providers again on every request.
+                self.unchoosable_until = self.clock() + UNCHOOSABLE_SECONDS
         return await self.route(
             capability, owner_id=owner_id, agent_id=agent_id, run_choice=run_choice
         )

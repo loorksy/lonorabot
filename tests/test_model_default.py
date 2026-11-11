@@ -276,3 +276,55 @@ async def test_a_failure_the_conversation_moved_past_is_not_answered_late(
         )
     async with db.sessions() as session, session.begin():
         assert await retry_unconfigured(session, owner) == []
+
+
+@pytest.mark.asyncio
+async def test_custom_routes_are_never_filled_in_and_a_fruitless_search_is_not_repeated(
+    router_db: Database,
+) -> None:
+    custom = {"mode": "custom", "routes": {"conversation": {"provider": "zai", "model": "glm-4.6"}}}
+    await settings(router_db, {"model_routing": custom})
+    openai = Provider("openai", ["gpt-5-mini"])
+    route = router(router_db, Keys("openai", "zai"), openai, Provider("zai", ["glm-4.6"]))
+    with pytest.raises(LonoraError):
+        await route.complete(Capability.VISION, USER, [])
+    assert openai.discovered == 0
+    assert (await read_policy(router_db)).model_dump(mode="json")["unified"] is None
+    # A key whose catalog lists nothing preferred is asked once, not on every request.
+    await settings(router_db, {"model_routing": {}})
+    empty = Provider("openai", ["text-embedding-3-small"])
+    route = router(router_db, Keys("openai"), empty)
+    for _ in range(3):
+        with pytest.raises(LonoraError):
+            await route.context_limits(Capability.CONVERSATION)
+        with pytest.raises(LonoraError):
+            await route.complete(Capability.CONVERSATION, USER, [])
+    assert empty.discovered == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_requests_choose_once(router_db: Database) -> None:
+    import asyncio
+
+    openai = Provider("openai", ["gpt-5-mini"])
+    route = router(router_db, Keys("openai"), openai)
+    await asyncio.gather(*(route.complete(Capability.CONVERSATION, USER, []) for _ in range(5)))
+    assert openai.discovered == 1
+
+
+@pytest.mark.asyncio
+async def test_an_old_failure_is_not_answered_when_a_key_is_saved(
+    task_db: tuple[Database, str, str, str],
+) -> None:
+    from datetime import timedelta
+
+    from lonora_contracts.domain import utcnow
+
+    db, owner, agent, thread = task_db
+    old = await failed(db, thread, agent, 1)
+    async with db.sessions() as session, session.begin():
+        run = await session.get(RunRow, old)
+        assert run is not None
+        run.created_at = utcnow() - timedelta(days=3)
+    async with db.sessions() as session, session.begin():
+        assert await retry_unconfigured(session, owner) == []
