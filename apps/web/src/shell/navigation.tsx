@@ -189,23 +189,14 @@ export function useScrollMemory(ref: React.RefObject<HTMLElement | null>, key: s
     const saved = scrollMemory.get(key);
     if (saved !== undefined) element.scrollTop = saved;
   }, [ref, key]);
-  useEffect(() => {
+  // Saved as it scrolls, from the commit on (where the page places itself counts too): by the
+  // time the entry changes, its scroller has left the page.
+  useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    let frame = 0;
-    const save = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        scrollMemory.set(key, element.scrollTop);
-      });
-    };
+    const save = () => scrollMemory.set(key, element.scrollTop);
     element.addEventListener("scroll", save, { passive: true });
-    return () => {
-      element.removeEventListener("scroll", save);
-      if (frame) cancelAnimationFrame(frame);
-      scrollMemory.set(key, element.scrollTop);
-    };
+    return () => element.removeEventListener("scroll", save);
   }, [ref, key]);
 }
 export const rememberedScroll = (key: string) => scrollMemory.get(key);

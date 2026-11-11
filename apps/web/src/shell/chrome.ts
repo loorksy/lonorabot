@@ -45,15 +45,20 @@ export function syncFilters(main: HTMLElement) {
       : "";
   filters.style.pointerEvents = v < 0.4 ? "none" : "";
 }
-/** A fresh visit rests with the filters hidden; short lists get room to rest that way. */
-export function hideFiltersInitially(main: HTMLElement) {
+/** Short lists get room to rest with the filters hidden, on every visit. */
+export function roomForFilters(main: HTMLElement) {
   const filters = listFilters(main);
   const rows = main.querySelector<HTMLElement>("#chat-rows");
-  if (!filters || !rows || isDesktop()) return false;
+  if (!filters || !rows || isDesktop()) return null;
   const style = getComputedStyle(main);
   const pad = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
   rows.style.minHeight = `${Math.max(0, main.clientHeight - pad + filters.offsetHeight)}px`;
-  if (filters.dataset.rest !== "1") return false;
+  return filters;
+}
+/** A fresh visit rests with the filters hidden. */
+export function hideFiltersInitially(main: HTMLElement) {
+  const filters = roomForFilters(main);
+  if (filters?.dataset.rest !== "1") return false;
   main.scrollTop = filters.offsetHeight;
   return true;
 }

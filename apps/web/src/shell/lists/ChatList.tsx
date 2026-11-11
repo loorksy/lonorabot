@@ -29,7 +29,7 @@ import {
 } from "../../lib/outgoing-messages";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
-import { hideFiltersInitially, syncFilters } from "../chrome";
+import { hideFiltersInitially, roomForFilters, syncFilters } from "../chrome";
 import { useShellData } from "../data";
 import { isDesktop } from "../motion";
 import { useNavigation } from "../navigation";
@@ -320,7 +320,7 @@ export function ChatList({ selectedKey }: { selectedKey?: string }) {
     if (!placed.has(entry)) {
       placed.add(entry);
       hideFiltersInitially(main);
-    }
+    } else roomForFilters(main);
     syncFilters(main);
   }, [entry]);
   useLayoutEffect(() => {

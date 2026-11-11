@@ -298,9 +298,85 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+
+  test("every page keeps its scroll: back, a tab round trip, a chat and back", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await settingsScrollRoundTrip(page);
+      const main = page.locator("#view-scroll");
+      const nav = page.locator("nav.tabbar");
+      await main.evaluate((element) => {
+        element.scrollTop = 250;
+      });
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      await nav.locator('button[data-root="tasks"]').click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await expect.poll(() => page.locator(".pager-ghost").count()).toBe(0);
+      await nav.locator('button[data-root="settings"]').click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(250);
+      // The chat list rests past its filters, and stays so after a round trip or a chat.
+      const filters = () =>
+        main.evaluate((element) => ({
+          top: element.scrollTop,
+          rest: element.querySelector(".list-filters").offsetHeight,
+          opacity: element.querySelector(".list-filters").style.opacity,
+        }));
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(async () => (await filters()).opacity).toBe("0");
+      const rest = (await filters()).rest;
+      await nav.locator('button[data-root="updates"]').click();
+      await expect(page).toHaveURL(/\/app\/updates$/);
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0" });
+      await page.locator("#chat-rows .row.thread").first().click();
+      await expect(page.locator(".composer")).toBeVisible();
+      await page.goBack();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0" });
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
 });
 
+/** Leave the settings page scrolled, open an inner page, come back: the list is where it was. */
+async function settingsScrollRoundTrip(page) {
+  await page.goto("/app/settings");
+  const main = page.locator("#view-scroll");
+  await expect(page.getByText("الإشعارات والتواصل")).toBeVisible();
+  await main.evaluate((element) => {
+    element.scrollTop = 300;
+  });
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+  await page.getByText("الإشعارات والتواصل").click();
+  await expect(page).toHaveURL(/\/app\/notify-settings$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/settings$/);
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(300);
+}
+
 test.describe("desktop shell (1280×800, Arabic)", () => {
+  test("the settings page keeps its scroll across an inner page and back", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await settingsScrollRoundTrip(page);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
   for (const theme of ["dark", "light"]) {
     test(`rail, list pane, welcome and the solid header (${theme})`, async ({ page, context }) => {
       const data = fixture({ action: "init", empty: true });
