@@ -28,6 +28,7 @@ async def handler(_: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
         "tool_read_timeout",
         "broker_candles_unavailable",
         "tool_connection_failure",
+        "broker_rate_limited",
     ],
 )
 def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
@@ -177,3 +178,35 @@ def test_resolved_financial_outcome_is_settled_but_never_reported_as_confirmed()
     }
     observe(state, ToolCall(id="batch", name="financial", arguments={}), tool, batch)
     assert batch["recovery"]["next_action"] == "reload_authoritative_state"
+
+
+def test_every_failure_tells_the_model_its_class_whether_to_repeat_and_what_to_do() -> None:
+    """The unified error contract: no failure reaches the model as a bare code."""
+    read = Tool("account_read", "Read", Contract, handler, True)
+    limited: dict[str, Any] = {"ok": False, "code": "broker_rate_limited"}
+    observe({}, ToolCall(id="a", name="account_read", arguments={}), read, limited)
+    assert (limited["class"], limited["retryable"]) == ("connection", True)
+    assert "tried" in limited["hint"]
+    for code in ("volume_out_of_range", "volume_step_mismatch", "price_tick_mismatch"):
+        refused: dict[str, Any] = {"ok": False, "code": code}
+        observe({}, ToolCall(id=code, name="trade_execute", arguments={}), None, refused)
+        assert (refused["class"], refused["retryable"]) == ("input", False), code
+    stopped: dict[str, Any] = {"ok": False, "code": "trading_restriction_active"}
+    observe({}, ToolCall(id="r", name="trade_execute", arguments={}), None, stopped)
+    assert stopped["class"] == "permission" and "another way" in stopped["hint"]
+
+
+def test_a_failed_operation_is_not_an_ok_call_and_a_tools_own_words_are_kept() -> None:
+    order = Tool("trade_execute", "Trade", Contract, handler, financial=True)
+    failed: dict[str, Any] = {"ok": True, "status": "failed", "code": "volume_out_of_range"}
+    observe({}, ToolCall(id="o", name="trade_execute", arguments={}), order, failed)
+    assert failed["ok"] is False and failed["class"] == "input"
+    authored: dict[str, Any] = {
+        "ok": False,
+        "code": "symbol_not_found",
+        "class": "resolution",
+        "retryable": True,
+        "hint": "This account lists it as XAUUSDm.",
+    }
+    observe({}, ToolCall(id="s", name="market_quote", arguments={}), None, authored)
+    assert authored["retryable"] is True and authored["hint"].endswith("XAUUSDm.")

@@ -48,6 +48,33 @@ ERROR_CLASSES: dict[str, str] = {
 }
 
 
+# An order the contract cannot take as written: the arguments are wrong, nothing else is.
+ORDER_ARGUMENT_CODES = frozenset(
+    {
+        "volume_out_of_range",
+        "volume_step_mismatch",
+        "price_tick_mismatch",
+        "position_volume_exceeded",
+        "position_remaining_volume_invalid",
+    }
+)
+
+# What the model does next when a failure brings no hint of its own, by class.
+CLASS_HINTS: dict[str, str] = {
+    "input": "The arguments are not acceptable as written. Correct them and call again.",
+    "resolution": "What the call named was not found as written. Read what exists, then "
+    "call again with the exact name; ask the owner only if several fit.",
+    "connection": "A temporary failure of the connection. The same read can be tried "
+    "again; do not report it to the owner as a refusal.",
+    "permission": "A rule of the owner's or the account's forbids this. Do not look for "
+    "another way to do the same thing: tell the owner what is needed, or raise the card for it.",
+    "provider": "The service did not carry this out. Do not send it again as it is; read "
+    "the current state before deciding the next step.",
+    "internal": "The tool failed on its side. Try another route to the same information "
+    "or say plainly what could not be read.",
+}
+
+
 def error_class(code: str, category: str) -> str:
     """input | resolution | connection | permission | provider | internal."""
     if category in ERROR_CLASSES:
@@ -60,6 +87,8 @@ def classify(code: str, tool: Tool | None) -> dict[str, Any]:
     action = "alternate_route"
     if code == "tool_arguments_invalid":
         category, action = "invalid_tool_arguments", "inspect_schema_and_repair"
+    elif code in ORDER_ARGUMENT_CODES:
+        category, action = "invalid_tool_arguments", "correct_arguments"
     elif code == "tool_result_too_large":
         category, action = "result_too_large", "narrow_query"
     elif code in AMBIGUOUS:
@@ -234,9 +263,13 @@ def observe(
             recovery["next_action"] = "alternate_route_or_wait"
             recovery["retry_exhausted"] = True
         result["recovery"] = recovery
-        # The unified error contract; a tool's own class and retryable are kept.
+        if result.get("status") in {"failed", "rejected"}:
+            # A refused or failed operation is not a success of the call.
+            result["ok"] = False
+        # The unified error contract; a tool's own class, retryable and hint are kept.
         result.setdefault("class", error_class(code, recovery["category"]))
         result.setdefault("retryable", recovery["safe_to_retry"])
+        result.setdefault("hint", CLASS_HINTS[result["class"]])
     elif unconfirmed:
         # Not a success to build on: read the account again before any next decision.
         result["recovery"] = ToolRecovery(

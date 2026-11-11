@@ -200,16 +200,10 @@
    "X_gold": [],
    "X_code": [],
    "X_alias": [],
-   "X_unknown": [
-    "refusal:candidates"
-   ],
+   "X_unknown": [],
    "X_drop": [],
-   "X_rate": [
-    "refusal:retryable"
-   ],
-   "X_args": [
-    "refusal:input"
-   ],
+   "X_rate": [],
+   "X_args": [],
    "X_permission": [],
    "X_owner": [
     "call:watch_cancel",

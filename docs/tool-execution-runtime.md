@@ -217,11 +217,29 @@ Receipts, ambiguous financial route records and same-operation reconciliation
 keep their priority over all of this. Checkpoints written by the previous
 single-slot code resume unchanged.
 
-A failed call's observation is `{ok: false, code, class, retryable}` plus `recovery`; `class` is one of input, resolution, connection, permission, provider, internal (`environment.error_class`, from the recovery category). Two failures add
-what the model needs to continue by itself: `tool_arguments_invalid` carries its
-`issues`, and a symbol the account does not list (`symbol_not_found`,
-`symbol_ambiguous`) carries the account's real `candidates` and a `hint` and `next_actions`
-(`docs/market-analysis.md`, Instrument resolution).
+A failed call's observation is `{ok: false, code, class, retryable, hint}` plus `recovery`;
+`class` is one of input, resolution, connection, permission, provider, internal
+(`environment.error_class`, from the recovery category). An operation the executor
+refused or the broker failed (`status` failed or rejected) is `ok: false` too. Every
+failure has a `hint`: the tool's own when it wrote one, else the general sentence of its
+class (`environment.CLASS_HINTS`); the permission hint says not to look for another way.
+
+A tool writes its own fields by raising `ToolRefusal` (`lonora_core.user_error`), whose
+`details` `tool_dispatch` forwards: authored text and the account's own data, never
+exception text. Today: `tool_arguments_invalid` carries its `issues`; a symbol the
+account does not list (`symbol_not_found`, `symbol_ambiguous`) carries the account's
+`candidates`, a `hint` and `next_actions` (`docs/market-analysis.md`, Instrument
+resolution); a new order whose size the contract cannot take (`volume_out_of_range`,
+`volume_step_mismatch`) is refused by `trade.require_order_size` before the executor,
+with the contract's `limits`. A partial close is never checked there: an exit is the
+executor's alone. A broker rate limit (`broker_rate_limited`) is a transient read
+failure: a read is retried after a short wait like a dropped connection.
+
+**What the model reads.** The Run record keeps the whole envelope. The request to the
+model carries every failed result through `failure_view`: `code` becomes `reason` with
+its words spelled out ("symbol not found"), and the recovery labels likewise. Tool names
+stay exact. A reply cannot repeat a machine code the model never read; the gates, the
+scorer and the logs still read the codes in the record.
 
 ## Dispatch deadlines
 
