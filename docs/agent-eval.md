@@ -70,6 +70,10 @@ returns the names of the checks that failed.
 | `rounds` | More than 8 model requests in the turn (a scenario may set its own limit). |
 | `claims_inability` | "I cannot" or "I have no tool" while a tool that serves the request is registered. |
 | `unbacked_claim` | "Done", or a promise to watch, notify or act ("سأحذف", "أتابعه", "I am watching it"), with no successful effect in the same turn. A read, a failed, refused or unsettled call, a pending approval, a note to memory and a card that only asks are not effects. What follows an offer ("إذا تريد، …") is not a promise; a question, a quotation, a negation and "تم التحقق" claim nothing. |
+| `disclaimer` | A risk disclaimer or "not financial advice" (VISION.md 5.3.2), in English or Arabic. |
+| `reassurance` | "Don't worry", «لا تقلق», «اطمئن» (5.3.2). |
+| `refused_view` | A refusal to give a view: "I can't give financial advice", «لا أستطيع تقديم نصيحة» (5.3.2). |
+| `unshown_profit` | A profit the reply says the account has (made, realized, floating, current) that no tool result of the same turn shows (5.3.3). Judged only when the turn has results; a target such as a take profit is not a profit. |
 | `mismatched_claim` | An effect ran, but not the one the reply states: "cancelled", "deleted" or "closed" while nothing that cancels, stops or closes succeeded ([63]: «تم الإلغاء» after three `watch_create`). |
 | `promise_without_trigger` | A promise to watch or notify while nothing was left standing: no watch or routine created, no Task started, no order at the broker. |
 | `trial_side_effect` | Something created switched off "to try the tool" ([77]). |

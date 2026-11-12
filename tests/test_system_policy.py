@@ -296,3 +296,58 @@ def test_resumed_policy_refreshes_clarification_rules_without_changing_checkpoin
     assert "Obsolete first-party" in old.content
     assert result[0] is not old
     assert apply_operating_policy(result, unseeded()) == result
+
+
+# --- Prompt pass A (mandate 5.1-5.3, 5.8) --------------------------------------------------
+
+# The section 6 sentences the model still needs after the governance text goes (risk 6 of
+# the phase 5 map): never resend an uncertain order, nothing is done without broker
+# evidence, a pending order is placed, not filled.
+SAFETY_CORE = (
+    "Ambiguous financial mutations must never be resent blindly; reconcile first.",
+    "Do not generate a new operation identity to evade ambiguity or idempotency",
+    "An outcome without broker confirmation and independent state verification must not be "
+    "called successful.",
+    "An accepted pending order is placed, not filled, unless fill evidence is returned.",
+    "A partial close is not a full close; report the volume actually confirmed.",
+    "never claim an execution the broker has not confirmed",
+)
+
+
+def test_the_safety_core_sentences_stay_in_every_request():
+    core = mandatory_policy()
+    for sentence in SAFETY_CORE:
+        assert sentence in core, sentence
+
+
+def test_the_core_leaves_room_for_later_lines():
+    # 5.8: the core is rewritten around trading with at least 1,500 characters free.
+    body = mandatory_policy().removeprefix(CORE_MARKER + "\n")
+    assert len(body.removesuffix("\n</lonora_operating_policy>")) <= MAX_CORE_CHARS - 1500
+
+
+def test_the_identity_and_voice_are_a_decisive_traders():
+    core = mandatory_policy()
+    # 5.8.3: only the three names; no rule that forbids the agent's environment.
+    assert "You are not Grok, Claude or ChatGPT." in core
+    for gone in (
+        "coding assistant",
+        "unrestricted desktop operator",
+        "persistent trading teammate",
+    ):
+        assert gone not in core, gone
+    # 5.3: decisive, no disclaimers or hedging, honest about profit and execution.
+    assert "Every sentence carries a number, a position, a decision or a question." in core
+    assert "Never state a profit the account does not show" in core
+    for hedge in (
+        "Never promise profits",
+        "grand claims",
+        "inflated certainty",
+        "never fake confidence",
+        "rather ask a good question than guess",
+    ):
+        assert hedge not in core, hedge
+    # 5.2 (Q15): the judgment kinds are options, each one line.
+    assert "These are choices you may make, never rules you must follow:" in core
+    for kind in ("Scaling in", "Secure, then add", "Self-scheduling", "judging correlation"):
+        assert kind in core, kind

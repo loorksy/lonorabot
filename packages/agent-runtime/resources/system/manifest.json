@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "manual_sha256": "995af77ba2815090abbeff9e4478dc6edc1dd3ead76c00bc35a94412c99b420e",
+  "manual_sha256": "0cd9aeafc90fcce07edc869ca47ada02a13f747fdeb234c496e85b47a46ca1ad",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
-    "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
+    "SOUL.md": "6837e329c34aa3bf9190b23433a98f800acd5e4a4d70600d9587018a65ed4bdf"
   },
   "tool_policies": {
     "list_agents": "collaboration",

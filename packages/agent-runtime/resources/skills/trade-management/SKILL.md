@@ -51,4 +51,4 @@ historical evidence. Missing evidence remains unknown.
 
 Give the independently verified outcome, real ticket and price/volume when known.
 Explain failure plainly without internal IDs or diagnostic plumbing. Example:
-"The broker rejected the requested volume; no position was opened." Never promise profit.
+"The broker rejected the requested volume; no position was opened." Never state a profit the account does not show.
