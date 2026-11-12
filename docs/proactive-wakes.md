@@ -132,8 +132,8 @@ reader recorded it). Agents' private memory stays private.
 ## Agents alert the owner
 
 `owner_notify` creates an owner attention item under the reach-me rules (dedupe, a
-rate limit, quiet hours, "activity only"), and `owner_call_request` can target it. An
-agent-declared critical alert passes quiet hours and "activity only"; beyond
+rate limit, quiet hours), and `owner_call_request` can target it. An
+agent-declared critical alert passes quiet hours; beyond
 `CRITICAL_LIMIT_PER_HOUR` (6) critical alerts per owner and rolling hour, across every
 agent, a critical alert counts as an important change.
 Delivery is in-app only until Wave 3. See
@@ -155,7 +155,7 @@ Delivery is in-app only until Wave 3. See
   records and decisions unfiltered) and is refused trading and watches there;
   `owner_notify` dedupe, quiet
   hours, critical bypass,
-  activity only, the rate limit and a call request from the wake.
+  the rate limit and a call request from the wake.
 - `tests/test_tool_discovery.py`: the eager budget for every scope, helper and
   observe-only membership, and the financial refusal before any work.
 - `tests/check_opportunity_runtime.py`: one opportunity wake with normal authority.

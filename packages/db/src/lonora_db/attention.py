@@ -371,7 +371,7 @@ def publish_ready(session: AsyncSession, row: AttentionRow, suppression: str | N
 # An Agent's own notifications per rolling hour; a dedupe key notifies once.
 NOTIFY_LIMIT_PER_HOUR = 6
 # Agent-declared critical alerts per owner and rolling hour, across every agent. A
-# critical alert passes quiet hours and activity-only; beyond this it is an important
+# critical alert passes quiet hours; beyond this it is an important
 # change, so injected text in many wakes cannot ring the owner without end.
 CRITICAL_LIMIT_PER_HOUR = 6
 MAX_NOTIFY_LIFETIME = timedelta(days=31)
@@ -417,7 +417,7 @@ async def notify_owner(
             "deduplicated": True,
             **({"attention": attention_data(item)} if item else {}),
         }
-    # Every alert counts, also one kept in activity only or held for quiet hours.
+    # Every alert counts, also one held for quiet hours.
     recent = await session.scalar(
         select(func.count())
         .select_from(EventRow)
