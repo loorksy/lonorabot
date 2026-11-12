@@ -542,6 +542,7 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
                 outcome = dict(row.result or {})
             if outcome.get("provisioning") in {"connected", "failed"}:
                 break
+    before_wake = len(await stage.replies(thread, lonora))
     await stage.drain()
     async with db.sessions() as session:
         connection = (
@@ -588,8 +589,8 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ),
         (
             "Lonora reports the balance",
-            any(balance in digits(text) for text in reported[len(asked) :]),
-            f"{len(reported) - len(asked)} replies after the answer",
+            any(balance in digits(text) for text in reported[before_wake:]),
+            f"{len(reported) - before_wake} replies after the provisioning wake",
         ),
         (
             "the password and token never reached a message, run, event or card",
