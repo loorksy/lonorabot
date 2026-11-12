@@ -556,7 +556,7 @@ async def main() -> None:
                 select(func.count()).select_from(TradingJournalRow)
             )
         # Only the close of the bound market was journaled; nothing on other symbols.
-        assert journal_after == journal_before + 1
+        assert journal_after == (journal_before or 0) + 1
         print(
             "PASS account-wide exposure is visible; trades, closes, watches, charts and central "
             "execution stay on the bound symbol"
