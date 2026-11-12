@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Financial execution integrity and recovery
 
 Every live broker mutation passes through `ExecutionService.execute`

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # GPT-Live voice transport
 
 Lonora uses the OpenAI Live API with `gpt-live-1` (or globally selected `gpt-live-1-mini`). Configure the OpenAI credential in Web settings; the project must have Live API access. Text and tool work retain the existing global routing and Python agent. The browser needs HTTPS, WebRTC and microphone permission. There is no separate RTC server or public RTC port.

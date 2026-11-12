@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Trading safety: one line, one brake
 
 Wave 1.5 slice W15-1. The owner and every agent can always tell, in one line, whether an

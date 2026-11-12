@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Creating and steering agents from chat
 
 Wave 1.5 slice W15-4 (corrections 17, 23 and 24). "Create a gold agent", "create a

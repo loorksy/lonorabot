@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
-/* Phase 4a (docs/ui-reference/CAPABILITY_MAP.md, Phase 4): the agent page, its identity form,
+/* The agent page, its identity form,
    supervision, the trades page with the owner's own close through the executor, the chart
    sheet with real candles, the group page and «مجموعة جديدة», on a real database. Nothing in
    the UI may delete an agent or a group (Q1, Q44). */

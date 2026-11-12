@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Usage dashboard data
 
 The «الاستهلاك» page and the model page's 7-day bars read model usage as a view of what

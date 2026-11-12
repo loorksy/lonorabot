@@ -1,11 +1,11 @@
+Superseded by VISION.md
+
 # Agent acceptance evaluation
 
-Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks
-(`docs/research/OWNER_BRIEF.md` on the research branch, §8 «القبول»). Every problem message of
+Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks. Every problem message of
 the owner's conversation with Lonora on production is one scenario: his words exactly as he
 wrote them, the state before them, and the outcome he expects. The state follows the
-production trace of that conversation (`docs/research/evidence/production-trace-2026-11-11.md`
-on the research branch). This page says how to run the
+production trace of that conversation. This page says how to run the
 harness, what each scenario checks, and what `main` scores today: the "before" column of the
 before/after report.
 
@@ -16,7 +16,7 @@ credential: the broker is a test double.
 
 | Path | What it holds |
 |---|---|
-| `tests/fixtures/agent_eval/conversation.json` | The owner's conversation, message by message, with the numbers the brief cites. The replies are the scorer's real bad examples. |
+| `tests/fixtures/agent_eval/conversation.json` | The owner's conversation, message by message, with the numbers the owner gave. The replies are the scorer's real bad examples. |
 | `tests/fixtures/agent_eval/scenarios.json` | The bank: 42 scenarios, the named states they start from and the named checks they share. |
 | `tests/fixtures/agent_eval/recordings/baseline.jsonl` | The live run on `main`, one scrubbed line per scenario. |
 | `tests/fixtures/agent_eval/BASELINE.json` | What each scenario scores today, per layer. The test suite holds it strictly. |
@@ -190,8 +190,8 @@ Options: `--model` (default `openai/gpt-5.4-mini`, the model genui_eval uses),
 ## The scenarios
 
 Sources in brackets are message numbers of the conversation; "extra" scenarios come from the
-brief's list of additional cases and from the production trace, and their messages are the
-harness's own. Groups are those of the brief's §2: A symbols and errors, B offering instead
+owner's list of additional cases and from the production trace, and their messages are the
+harness's own. Groups: A symbols and errors, B offering instead
 of doing, C agreement ignored and claims without effect, D refusal despite the full mandate,
 E voice and language, F leaks and display, G availability.
 
@@ -282,7 +282,7 @@ scores now is in the next section. Two columns, and they are not the same kind o
   and two account variants passed in one and failed in the other.
 - **Structural** uses no model. It is deterministic and says only whether the product would
   deliver if the model made the right calls. A structural pass with a live fail is a failure
-  of behaviour ([34], [40], [62], [68]: the tools exist and work, as the brief's §3.8 says).
+  of behaviour ([34], [40], [62], [68]: the tools exist and work).
   A structural fail cannot be fixed by the prompt.
 
 **Live: 7 of 42 scenarios pass. Structural: 8 of 22 probes pass.**
@@ -350,7 +350,7 @@ in another language.
   `GOLD` are refused on every account naming (M09, X_c, X_pro, X_gold, X_code, X_alias). Only
   a difference of letter case resolves (M13).
 - A refusal carries no candidates (X_unknown), and no error class or retry flag in the shape
-  the brief's §7.2 defines (X_drop, X_rate, X_args).
+  of `docs/tool-execution-runtime.md` (X_drop, X_rate, X_args).
 - The Personal Agent cancels and lists its own watches (M62, M64, M68) but not those of
   another agent of the owner (X_owner).
 - Cancelling the account Task leaves the watch it created enabled (X_task).

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Analytical container execution boundary
 
 Five ordinary tools now expose persistent analytical files and optional isolated

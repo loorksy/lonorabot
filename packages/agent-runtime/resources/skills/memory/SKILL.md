@@ -22,7 +22,7 @@ Resolve a short answer against the question it actually answered.
 
 Use the memory revision in context or from memory_read. Keep owner attributes,
 language, length and tone under `# USER.md`; verified durable trading context
-under `# MEMORY.md`. These headings share the existing document and revision.
+under `# MEMORY.md`.
 Unsectioned old content is valid; do not erase it to adopt the layout.
 Change memory with memory_write operations in one batch: add an entry to a
 section, patch a unique old_text, or remove the lines a unique old_text touches.

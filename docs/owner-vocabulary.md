@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # One vocabulary (W15-9)
 
 The owner meets one authority system and plain words. This page records what was
