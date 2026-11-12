@@ -40,20 +40,37 @@ PASSWORD_FIELD = "PASSWORD"
 TOKEN_FIELD = "METAAPI_TOKEN"
 
 
+# What a broker card is for: connect an account, store its new password at MetaApi, or
+# replace the owner's MetaApi token under every connection (9.2, 9.3).
+CONNECT, ROTATE_PASSWORD, REPLACE_TOKEN = "connect", "rotate_password", "replace_token"
+
+
 def broker_card_payload(
-    *, login: str, server: str, platform: str, token_needed: bool
+    *,
+    login: str,
+    server: str,
+    platform: str,
+    token_needed: bool,
+    purpose: str = CONNECT,
+    connection_id: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """The connect card for one trading account. The login and server are shown as
-    server facts, so the owner sees which account the password is for."""
-    fields = [{"key": PASSWORD_FIELD, "label": "Trading password", "secret": True}]
-    if token_needed:
+    """A broker card for one trading account (the token card names the account it was
+    asked from). The login and server are shown as server facts, so the owner sees which
+    account a password is for."""
+    fields: list[dict[str, Any]] = []
+    if purpose != REPLACE_TOKEN:
+        fields.append({"key": PASSWORD_FIELD, "label": "Trading password", "secret": True})
+    if token_needed or purpose == REPLACE_TOKEN:
         fields.append({"key": TOKEN_FIELD, "label": "MetaApi API token", "secret": True})
-    return "secret:broker:" + server.casefold() + ":" + login, {
+    payload: dict[str, Any] = {
         "label": login + " @ " + server,
         "fields": fields,
         "destination": BROKER,
         "account": {"login": login, "server": server, "platform": platform},
     }
+    if purpose != CONNECT:
+        payload["purpose"], payload["connection_id"] = purpose, connection_id
+    return "secret:broker:" + purpose + ":" + server.casefold() + ":" + login, payload
 
 
 def secret_facts(payload: dict[str, Any], agent_name: str | None) -> dict[str, Any]:
@@ -80,7 +97,13 @@ async def save_values(
     if row.payload["destination"] == BROKER:
         # The broker layer's own writer; the account is provisioned by the gateway, which
         # wakes the agent with the result (``lonora_trading.broker_provisioning``).
-        names = {PASSWORD_FIELD: metaapi_password_name(row.id), TOKEN_FIELD: METAAPI_TOKEN}
+        replacing = row.payload.get("purpose") == REPLACE_TOKEN
+        names = {
+            PASSWORD_FIELD: metaapi_password_name(row.id),
+            # A new token waits under its own name until the gateway checked it sees
+            # every connected account; only then does it replace the owner's token.
+            TOKEN_FIELD: "metaapi_token_next:" + row.id if replacing else METAAPI_TOKEN,
+        }
         token_saved = await session.scalar(
             select(SecretRow.id).where(
                 SecretRow.owner_id == row.owner_id,
@@ -89,7 +112,7 @@ async def save_values(
             )
         )
         for key in keys:
-            if key == TOKEN_FIELD and token_saved is not None:
+            if key == TOKEN_FIELD and token_saved is not None and not replacing:
                 # A card raised before the token was saved never replaces it: live
                 # connections use it. Replacing the token is its own action (9.3).
                 continue
@@ -121,6 +144,19 @@ def saved_prompt(row: OwnerActionRow) -> str:
 def broker_prompt(row: OwnerActionRow) -> str:
     """Fixed text and broker-observed facts only, after provisioning finished."""
     result = row.result
+    purpose = row.payload.get("purpose", CONNECT)
+    if purpose != CONNECT:
+        done = {
+            ROTATE_PASSWORD: "The new trading password is stored at MetaApi and the terminal "
+            "is redeploying with it.",
+            REPLACE_TOKEN: "The new MetaApi token now serves every connected account.",
+        }[purpose]
+        if result.get("provisioning") == "connected":
+            return done + " You never see it. Tell the owner in one line."
+        return (
+            f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
+            "You never see the values. Tell the owner in one line what went wrong."
+        )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
         return (

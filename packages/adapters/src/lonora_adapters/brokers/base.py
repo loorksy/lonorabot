@@ -60,6 +60,19 @@ class BrokerManager:
         self.connections[connection_id] = (version, broker)
         return broker
 
+    async def provisioning(self, owner_id: str, connection_id: str) -> Any:
+        """A MetaApi provisioning client on this connection's token (account-entity calls
+        only). The token stays in the broker layer; the caller gets the client."""
+        from .metaapi_provisioning import MetaApiProvisioning
+
+        async with self.db.sessions() as session:
+            row = await BrokerSessionRepository().get(session, owner_id, connection_id)
+            config = BrokerConnection.model_validate(row.payload)
+        if config.provider != "metaapi" or not config.secret_id:
+            raise LonoraError("broker_not_metaapi", 409)
+        factory = getattr(self, "provisioning_factory", MetaApiProvisioning)
+        return factory(await self._secrets.read(config.secret_id))
+
     async def account(self, owner_id: str, connection_id: str) -> AccountState:
         async with self.db.sessions() as session:
             saved = await BrokerSessionRepository().get(session, owner_id, connection_id)
