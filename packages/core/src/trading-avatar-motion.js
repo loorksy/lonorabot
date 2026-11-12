@@ -103,9 +103,9 @@ const smooth = (x) => {
 };
 const inOut = (x) => {
   x = clamp(x);
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
 };
-const outCubic = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const outCubic = (x) => 1 - (1 - clamp(x)) ** 3;
 const inCubic = (x) => {
   x = clamp(x);
   return x * x * x;
@@ -572,7 +572,7 @@ const STATES = {
     poster: 0.2,
     gaze: () => [0.2, 0],
     fn(u, B) {
-      const env = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(TAU * 4 * u - 1), 1.4),
+      const env = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(TAU * 4 * u - 1)) ** 1.4,
         f = X(16, 0, 0, 1.12),
         R = [28, 48, 68];
       f(B[0], -46, 0, 0.01, 0, 0, 22 + 10 * env, 1, 0.3 + 0.3 * env);

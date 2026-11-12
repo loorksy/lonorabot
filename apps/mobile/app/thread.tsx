@@ -23,7 +23,7 @@ import {
   mergeOwnerAction,
   needsTimeSeparator,
   projectRunEvents,
-  retriedRunIds,
+  retryableFailure,
   runStatusText,
   seedStream,
   stopTargets,
@@ -57,6 +57,7 @@ import { type MessageMenuActions, useMessageMenu } from "../components/message-m
 import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
+import { useSheets } from "../components/shell/sheets";
 import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
@@ -134,14 +135,35 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [editing, setEditing] = useState<Message | null>(null);
   // The owner's quick reactions as the server last answered them, until a snapshot carries them.
   const [reactions, setReactions] = useState<ReadonlyMap<string, MessageReaction[]>>(new Map());
+  const reactionTurns = useRef(new Map<string, number>());
+  const dropReactionOverrides = useCallback((rows: readonly Message[]) => {
+    setReactions((old) => {
+      if (!rows.some((row) => old.has(row.id))) return old;
+      const next = new Map(old);
+      for (const row of rows) if (!reactionTurns.current.has(row.id)) next.delete(row.id);
+      return next;
+    });
+  }, []);
   const toast = useToast();
   const menuActions = useRef<() => MessageMenuActions>(() => {
     throw new Error("message_menu_unset");
   });
   const menu = useMessageMenu(useCallback(() => menuActions.current(), []));
-  // An edit belongs to its conversation.
+  const sheets = useSheets();
+  const editingKey = useRef<string | null>(null);
+  const closeSheet = sheets.close;
+  // A new conversation: the open menu, the edit and the reactions belong to the last one.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `id` is the conversation that changed
-  useEffect(() => setEditing(null), [id]);
+  useEffect(() => {
+    closeSheet();
+    setEditing(null);
+    setReactions(new Map());
+    // Leaving the conversation ends an edit: its text does not stay behind as a new message.
+    return () => {
+      if (editingKey.current) editComposerDraft(editingKey.current, { text: "" });
+      editingKey.current = null;
+    };
+  }, [id]);
   const [attachments, setAttachments] = useState<Artifact[]>([]);
   const [files, setFiles] = useState<Artifact[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -220,6 +242,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           )
             return;
           setMessages((old) => mergeMessages(old, nextMessages));
+          // The server's reactions are the truth again for every message it sent.
+          dropReactionOverrides(nextMessages);
           acknowledgeOutgoing(outboxKey, nextMessages);
           setStreams((old) => {
             const next = { ...old };
@@ -297,7 +321,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setError(reportError.current(reason));
       }
     },
-    [id, scope, outboxKey],
+    [id, scope, outboxKey, dropReactionOverrides],
   );
 
   snapshotRef.current = snapshot;
@@ -617,6 +641,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       .then((rows) => {
         if (!live) return;
         setMessages((old) => mergeMessages(old, rows));
+        dropReactionOverrides(rows);
         if (!rows.some((row) => row.seq === around)) setError(say.current("messageGone"));
       })
       .catch((reason) => {
@@ -625,7 +650,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     return () => {
       live = false;
     };
-  }, [around, id]);
+  }, [around, id, dropReactionOverrides]);
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
@@ -653,7 +678,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       sendLocks.current.has(outboxKey) ||
       uploading ||
       !thread ||
-      (!followUp?.trim() && !draft.trim() && !attachments.length)
+      (!followUp?.trim() && !draft.trim() && !attachments.length) ||
+      // An edit replaces the message with new text, never with files alone.
+      (!followUp && editing && !draft.trim())
     )
       return;
     const submittedDraft = composerDraft(outboxKey);
@@ -690,7 +717,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) {
         following.current = true;
         setAtEnd(true);
-        if (edit) setEditing(null);
+        if (edit) {
+          editingKey.current = null;
+          setEditing(null);
+        }
         if (!followUp) {
           setDraft(nextDraft.text);
           setAttachments(nextDraft.attachments);
@@ -774,6 +804,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const react = async (message: Message, emoji: ReactionEmoji | null) => {
     const path = `/threads/${encodeURIComponent(id)}/messages/${encodeURIComponent(message.id)}/reactions`;
     const before = reactions.get(message.id) ?? message.reactions;
+    const turn = (reactionTurns.current.get(message.id) ?? 0) + 1;
+    reactionTurns.current.set(message.id, turn);
+    const latest = () => reactionTurns.current.get(message.id) === turn;
     setReactions((old) =>
       new Map(old).set(message.id, withOwnerReaction(before, emoji, new Date().toISOString())),
     );
@@ -784,8 +817,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             {},
           )
         : await api.delete<{ reactions: MessageReaction[] }>(path);
-      setReactions((old) => new Map(old).set(message.id, result.reactions));
+      if (latest()) setReactions((old) => new Map(old).set(message.id, result.reactions));
     } catch (reason) {
+      if (!latest()) return;
       setReactions((old) => {
         const next = new Map(old);
         if (before) next.set(message.id, before);
@@ -793,11 +827,13 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         return next;
       });
       toast(errorText(reason), { type: "error" });
+    } finally {
+      if (latest()) reactionTurns.current.delete(message.id);
     }
   };
   menuActions.current = () => ({
     onReply: (message) => {
-      setEditing(null);
+      if (editing) endEdit();
       updateDraft({ reply: message });
     },
     onCopy: (message) =>
@@ -809,6 +845,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         () => toast(t("copyFailed"), { type: "error" }),
       ),
     onEdit: (message) => {
+      editingKey.current = outboxKey;
       setEditing(message);
       updateDraft({ text: message.content, reply: null });
     },
@@ -832,11 +869,22 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     onDrop: (nonce) => dropOutgoing(outboxKey, nonce),
     reactorName: (reactor) => agents.find((row) => row.id === reactor)?.name ?? t("system"),
   });
+  /** An edit ends without sending: its text leaves the composer with it. */
+  function endEdit() {
+    editingKey.current = null;
+    setEditing(null);
+    updateDraft({ text: "" });
+  }
   // A tap on a quote: the list rests on the quoted message (loaded around it when needed).
   const jumpTo = (message: Message) => {
     jumped.current = null;
     router.setParams({ around: String(message.seq) });
   };
+  // Q22: only the newest failed reply is offered again, as on Web's error card.
+  const retry = retryableFailure(
+    runs.filter((run) => run.thread_id === id),
+    Date.now(),
+  );
   const changeRun = async (run: Run, action: "cancel" | "resume" | "retry") => {
     setBusy(true);
     setError(null);
@@ -956,7 +1004,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           (run) =>
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ||
-            (run.status === "failed" && !retriedRunIds(runs).has(run.id)),
+            (run.status === "failed" && retry?.run.id === run.id),
         )
         .slice(0, 1)
         .map((run) => (
@@ -999,11 +1047,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 onPress={() => void changeRun(run, "resume")}
               />
             ) : null}
-            {run.status === "failed" ? (
+            {retry?.run.id === run.id ? (
               <Button
                 label={t("retry")}
                 secondary
-                disabled={busy}
+                disabled={busy || !retry.ready}
                 onPress={() => void changeRun(run, "retry")}
               />
             ) : null}
@@ -1175,7 +1223,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                         message.id.startsWith("preview:")
                           ? undefined
                           : (value) => {
-                              setEditing(null);
+                              if (editing) endEdit();
                               updateDraft({ reply: value });
                             }
                       }
@@ -1267,10 +1315,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
-          onCancelEdit={() => {
-            setEditing(null);
-            updateDraft({ text: "" });
-          }}
+          onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}
           onRemove={(fileId) =>
