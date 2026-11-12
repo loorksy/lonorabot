@@ -54,6 +54,8 @@ STEPS = (
     StepSpec("calendar", 600, 120, critical=False),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
     StepSpec("closed_trades", 30, 300, critical=False),
+    # A closed trade wakes its owner for a self-review (5.5.2).
+    StepSpec("close_wakes", 10, 120, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -209,6 +211,11 @@ class Gateway:
 
         await self.for_each_owner(lambda service: cache_calendar(self.db, service.owner_id))
 
+    async def close_wakes(self) -> None:
+        from lonora_trading.close_wake import wake_for_closes
+
+        await self.for_each_owner(lambda service: wake_for_closes(self.db, service.owner_id))
+
     async def closed_trades(self) -> None:
         from lonora_trading.closed_trades import maintenance_closed_trades
 
@@ -300,6 +307,7 @@ class Gateway:
             "instrument_currencies": self.instrument_currencies,
             "calendar": self.calendar,
             "closed_trades": self.closed_trades,
+            "close_wakes": self.close_wakes,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
