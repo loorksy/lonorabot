@@ -6,7 +6,7 @@ scripted authenticator:
 
 - A position the owner opened from Lonora's own Trading page (``POST /trading/execute``,
   no agent) is the owner's own: under a D1 grant an agent's stop removal, close, close-all
-  sweep and Goal step on it each become an approval card and nothing reaches the broker.
+  sweep on it each become an approval card and nothing reaches the broker.
   A position the agent opened under its grant is still managed with no card.
 - A request that breaks another term of a signed grant (here its per-order volume cap)
   becomes an approval card instead of a refusal, and the owner's tap sends it under that
@@ -25,9 +25,7 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.runs import RunRequest
 from lonora_db.personal_agent import ensure_personal_agent
-from lonora_db.runs import create_run, run_data
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -228,57 +226,7 @@ async def main() -> None:
             "PASS a position the owner opened from Lonora's Trading page is the owner's own: an agent's stop removal, close, close-all and its own grant ask, while the agent's own position stays covered"
         )
 
-        # 5. A Goal step on the owner's own position asks too, instead of failing.
-        goal_thread = await fixture.conversation(gold)
-        goal = await fixture.request(
-            "POST",
-            "/trading/goals",
-            {
-                "agent_id": gold["id"],
-                "thread_id": goal_thread["id"],
-                "title": "Close the owner's gold",
-                "objective": "Explicit coverage fixture",
-                "account_id": account,
-                "symbol": GOLD,
-                "maximum_volume": "0.2",
-                "max_trade_actions": 3,
-                "steps": [
-                    {
-                        "id": "exit",
-                        "title": "Close the owner's position",
-                        "kind": "trade",
-                        "trade": {
-                            "account_id": account,
-                            "symbol": GOLD,
-                            "action": "close_position",
-                            "position_id": owners.id,
-                        },
-                    }
-                ],
-            },
-        )
-        async with db.sessions() as session, session.begin():
-            goal_run = await create_run(
-                session,
-                fixture.owner,
-                RunRequest(
-                    agent_id=gold["id"],
-                    thread_id=goal_thread["id"],
-                    trigger="goal",
-                    metadata={"goal_id": goal["id"]},
-                ),
-            )
-            goal_data = run_data(goal_run)
-        goal_context = await fixture.lease(goal_data)
-        before = await broker.snapshot()
-        step = await call(
-            goal_context, "goal_step_execute", goal_id=goal["id"], step_id="exit", note="Exit"
-        )
-        assert step.get("_runtime_wait") and step.get("approval_id"), step
-        assert await broker.snapshot() == before
-        print("PASS a Goal step on the owner's own position becomes an approval card")
-
-        # 6. A request over a signed grant's own cap asks, and the tap sends it once.
+        # 5. A request over a signed grant's own cap asks, and the tap sends it once.
         silver = await fixture.request(
             "POST",
             "/agents",

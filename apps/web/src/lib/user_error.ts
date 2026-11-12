@@ -61,8 +61,6 @@ export function userError(error: unknown) {
       return t`An active skill is no longer available. Review its settings before resuming this task.`;
     case "personal_agent_cannot_delete":
       return t`Your Personal Agent cannot be deleted.`;
-    case "execution_mode_changed":
-    case "goal_execution_mode_invalid":
     case "shadow_execution_forbidden":
       return t`Execution mode changed. Review the saved plan before continuing.`;
     case "device_challenge_not_found":
@@ -109,20 +107,6 @@ export function userError(error: unknown) {
       return t`The model provider returned an unreadable response. Try again.`;
     case "broker_trading_not_allowed":
       return t`This broker account does not permit trading. Check its trading permissions.`;
-    case "goal_reconciliation_required":
-    case "goal_target_ambiguous":
-    case "goal_owner_retry_required":
-      return t`This goal is waiting for broker verification. Its financial operation will not be repeated automatically.`;
-    case "goal_not_active":
-    case "goal_terminal":
-      return t`This goal is paused, cancelled or completed. Reload its current state.`;
-    case "goal_origin_deleted":
-      return t`This goal stopped because its conversation or agent was deleted. Its history is kept.`;
-    case "goal_condition_unmet":
-    case "goal_condition_stale":
-      return t`The current market no longer confirms this goal's condition. No trade was sent.`;
-    case "goal_target_pending":
-      return t`Waiting for the broker to report the entry position. The accepted order will not be submitted again.`;
     case "version_conflict":
       return t`This item changed. Reload it before saving.`;
     case "voice_transport_not_configured":

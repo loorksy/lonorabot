@@ -621,7 +621,7 @@ async def main() -> None:
 
         # Production tool metadata is conservative and never treats financial work as a safe read.
         actual = load_tools()
-        for name in ("trade_execute", "trade_close_positions", "goal_step_execute"):
+        for name in ("trade_execute", "trade_close_positions"):
             assert (
                 actual.tools[name].financial
                 and not actual.tools[name].environment()["safe_automatic_retry"]

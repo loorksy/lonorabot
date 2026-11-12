@@ -333,7 +333,7 @@ authority, an owner's message, or the record of an order already at the broker. 
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
-agents, the broker connections' enabled flags, paused or cancelled goals and tasks, and the
+agents, the broker connections' enabled flags, paused or cancelled tasks, and the
 owner's own messages in `ln_messages` (including Telegram and voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
 and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
 

@@ -160,7 +160,7 @@ reference, actor, time, `broker_confirmed: false`) and `details.prior_receipt`; 
 request, execution record and evidence stay. A durable `trading.operation_resolved`
 event records the audit fact. In-progress operations return `operation_in_progress`
 and settled ones `operation_already_settled`. The Web journal offers this form for
-ambiguous entries. A resolved Goal step stays blocked for an explicit owner decision.
+ambiguous entries.
 
 Consumers of `resolved`:
 
@@ -195,7 +195,7 @@ a restriction is reported on its own, and a lost response leaves only that close
 Any other multi-request batch is treated as a dependent sequence: both paths stop after
 the first result that is not `confirmed`, and the remaining requests are reported as
 `failed` with `batch_halted_after_unconfirmed_result` and `send_state: "not_sent"`.
-Today every other caller (`trade_execute`, Goal steps) submits a single request.
+Today every other caller (`trade_execute`) submits a single request.
 
 ## Verification
 
@@ -222,12 +222,12 @@ Today every other caller (`trade_execute`, Goal steps) submits a single request.
 
 ## Durable records and deletes
 
-Journal rows, approvals, grants, restrictions, goal decisions and retired Super Bot
-requests survive the agent, conversation, Run, goal or broker connection they name (migration
+Journal rows, approvals, grants, restrictions and retired Super Bot
+requests survive the agent, conversation, Run or broker connection they name (migration
 `0036_durable_records`). A delete of an agent, a conversation or a broker connection is
 refused with `delete_blocked_unresolved_operation` while an operation it touches has no
 confirmed broker outcome. Otherwise the delete settles what depended on the parent: a
-grant signed in a deleted conversation is revoked visibly, its goals cancelled with `goal_origin_deleted` and its waiting owner action
+grant signed in a deleted conversation is revoked visibly and its waiting owner action
 cards superseded, so no record keeps reading active while it can no longer run. A live
 operation still uncertain after fifteen minutes raises one `operation_unresolved`
 attention item from the watchdog, in the conversation of the agent that placed it,

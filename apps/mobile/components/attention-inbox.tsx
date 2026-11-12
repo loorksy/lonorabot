@@ -23,7 +23,6 @@ const labels: Record<AttentionCode, Label> = {
   setup_confirmed: "attentionSetupConfirmed",
   thesis_invalidated: "attentionThesisChanged",
   watch_condition_met: "attentionWatchChanged",
-  goal_changed: "attentionGoalChanged",
   collaboration_completed: "attentionCollaborationCompleted",
   task_review: "taskNeedsReview",
   task_degraded: "attentionTaskDegraded",

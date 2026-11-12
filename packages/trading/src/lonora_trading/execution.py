@@ -15,7 +15,6 @@ from lonora_contracts.trading import (
     TradeRequest,
     TradeResult,
 )
-from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.authority_lock import authority_lock
@@ -33,8 +32,6 @@ from .account_authority import management_target, require_account_execution
 from .admission import require_operation_scope, risk_reducing
 from .agent_permission import require_operation_permission
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
-from .goals import guard_goal_execution
-from .goals_market import fresh_goal_evidence
 from .idempotency import trade_fingerprint
 from .journal import execution_evidence
 from .manual_activity import material_state
@@ -69,7 +66,6 @@ def receipt(row: TradingJournalRow) -> TradeResult:
 async def require_goal_lineage(
     session: AsyncSession,
     lease: Lease,
-    goal: GoalExecution | None,
     owner_id: str | None = None,
     request: TradeRequest | None = None,
 ) -> None:
@@ -88,7 +84,6 @@ async def require_goal_lineage(
             request.account_id,
             request.symbol,
         )
-    linked_goal = origin_run.model_metadata.get("goal_id")
     ancestor = origin_run
     seen = {origin_run.id}
     for _ in range(16):
@@ -112,16 +107,8 @@ async def require_goal_lineage(
                 request.account_id,
                 request.symbol,
             )
-        if ancestor.model_metadata.get("goal_id"):
-            raise LonoraError("goal_delegated_trade_forbidden", 409)
     else:
         raise LonoraError("goal_run_ancestry_invalid", 409)
-    if linked_goal and (
-        goal is None
-        or goal.goal_id != linked_goal
-        or goal.step_id != origin_run.model_metadata.get("step_id")
-    ):
-        raise LonoraError("goal_step_required", 409)
 
 
 async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
@@ -149,14 +136,13 @@ class ExecutionService:
         request: TradeRequest,
         lease: Lease | None = None,
         *,
-        goal: GoalExecution | None = None,
         authorization: Callable[[], Awaitable[None]] | None = None,
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
-                await require_goal_lineage(session, lease, goal, owner_id, request)
+                await require_goal_lineage(session, lease, owner_id, request)
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
                 if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
@@ -210,8 +196,6 @@ class ExecutionService:
                     planned_snapshot,
                     expected_target,
                 )
-            if goal:
-                await guard_goal_execution(session, owner_id, goal, request, lease)
             await require_operation_scope(
                 session,
                 owner_id,
@@ -252,9 +236,7 @@ class ExecutionService:
                 details={
                     "lease": lease.model_dump() if lease else None,
                     "execution_evidence": {
-                        "planned": execution_evidence(
-                            planned_snapshot, request, phase="planned", goal=goal
-                        )
+                        "planned": execution_evidence(planned_snapshot, request, phase="planned")
                     },
                     "execution": {
                         "run_id": leased_run.id if leased_run else None,
@@ -264,16 +246,6 @@ class ExecutionService:
                         **(
                             {"account_authority_id": account_authority_id}
                             if account_authority_id
-                            else {}
-                        ),
-                        **(
-                            {
-                                "goal_id": goal.goal_id,
-                                "step_id": goal.step_id,
-                                "decision_id": goal.decision_id,
-                                "attempt": goal.attempt,
-                            }
-                            if goal
                             else {}
                         ),
                     },
@@ -325,9 +297,7 @@ class ExecutionService:
             quality = evaluate_execution(
                 request, snapshot, policy, planned_quote=planned_snapshot.quote
             )
-            observed = execution_evidence(
-                snapshot, request, phase="before_send", goal=goal, policy=policy
-            )
+            observed = execution_evidence(snapshot, request, phase="before_send", policy=policy)
             if quality.state != "executable":
                 # Persist the actual failed gate; no broker mutation is authorized.
                 await record_block(
@@ -335,18 +305,6 @@ class ExecutionService:
                     before_send=observed,
                 )
                 raise LonoraError(quality.reasons[0], 409)
-            goal_evidence = (
-                await fresh_goal_evidence(
-                    self.db,
-                    self.brokers,
-                    owner_id,
-                    goal.goal_id,
-                    goal.step_id,
-                    lease.run_id if lease else None,
-                )
-                if goal
-                else None
-            )
             # Owner monetary limits, from fresh broker economics under this account's send
             # lock. Risk-reducing requests are never blocked by a limit.
             risk = None
@@ -376,7 +334,7 @@ class ExecutionService:
                     )
                     raise LonoraError(risk.reasons[0], 409)
             try:
-                await final_admission(snapshot, reducing, observed, goal_evidence, risk, quality)
+                await final_admission(snapshot, reducing, observed, risk, quality)
             except AdmissionBlocked as blocked:
                 await record_block({"admission_block": blocked.evidence}, before_send=observed)
                 raise
@@ -386,7 +344,6 @@ class ExecutionService:
             snapshot: ExecutionSnapshot,
             reducing: bool,
             observed: dict[str, Any],
-            goal_evidence: dict[str, Any] | None,
             risk: RiskAssessment | None,
             quality: ExecutionQuality,
         ) -> None:
@@ -394,7 +351,7 @@ class ExecutionService:
             async with self.db.sessions() as session, session.begin():
                 if lease:
                     # Match owner downgrade/signature lock ordering: authority
-                    # first, then Run/approval/Goal rows. No network call runs
+                    # first, then Run/approval rows. No network call runs
                     # while the final permission decision holds this lock.
                     origin = await require_lease(session, lease)
                     await authority_lock(session, origin.agent_id)
@@ -421,7 +378,7 @@ class ExecutionService:
                 )
                 if lease:
                     await require_lease(session, lease, lock=True)
-                    await require_goal_lineage(session, lease, goal, owner_id, request)
+                    await require_goal_lineage(session, lease, owner_id, request)
                     target = (
                         next(
                             (
@@ -465,10 +422,6 @@ class ExecutionService:
                 from .opportunities import require_entry_thesis
 
                 await require_entry_thesis(session, owner_id, request)
-                if goal:
-                    await guard_goal_execution(
-                        session, owner_id, goal, request, lease, goal_evidence
-                    )
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )

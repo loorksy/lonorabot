@@ -36,7 +36,6 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
     TradeApprovalRow,
-    TradingGoalRow,
     TradingJournalRow,
     TradingOpportunityRow,
     TradingRestrictionRow,
@@ -295,12 +294,6 @@ async def candidate(
                         or not recovery.get("failures")
                     ):
                         raise LonoraError("attention_superseded_state", 409)
-        elif event.kind == "goals.updated":
-            resource = await session.get(TradingGoalRow, identifier)
-            if resource and resource.owner_id == event.owner_id:
-                agent_id, thread_id = resource.agent_id, resource.thread_id
-                if resource.version != event.payload.get("version"):
-                    raise LonoraError("attention_superseded_state", 409)
         if not event.kind.startswith("broker.") and (
             resource is None or resource.owner_id != event.owner_id
         ):
