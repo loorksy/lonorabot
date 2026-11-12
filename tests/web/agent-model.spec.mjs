@@ -55,49 +55,41 @@ for (const locale of ["en", "ar"]) {
       const allowed = await (await context.request.get("/api/settings/models/allowed")).json();
       expect(allowed.added).toContainEqual({ provider: "anthropic", model: "claude-opus-ui" });
 
-      // The same choice in the agent's settings: Fixed on one model, then Automatic.
-      await page
-        .getByRole("button", {
-          name: locale === "ar" ? "معلومات الوكيل" : "Agent info",
-          exact: true,
-        })
-        .click();
-      const model = page.locator(".lonora-agent-model");
-      await expect(model).toBeVisible();
-      await expect(model).toHaveAttribute("data-agent-model-mode", "automatic");
-      await expect(model).toContainText("Claude Opus UI");
-      await expect(model).toContainText(
-        locale === "ar" ? "لا استخدام للنماذج" : "No model use in the last",
-      );
-      // Automatic on a model someone set: one action returns it to the default model.
-      const back = model.getByRole("button", {
-        name: locale === "ar" ? "العودة إلى نموذجك الافتراضي" : "Back to your default model",
-      });
-      await back.click();
-      await expect
-        .poll(
-          async () =>
-            (await (await context.request.get(`/api/agents/${agent.id}/model`)).json()).preference
-              .primary,
-        )
-        .toBeNull();
-      await expect(back).toHaveCount(0);
-      await expect(model).toContainText("GPT Default UI");
-      await model.getByLabel(locale === "ar" ? "ثابت" : "Fixed").check();
-      await model.locator("select").selectOption("anthropic:claude-sonnet-ui");
-      await model
-        .getByRole("button", { name: locale === "ar" ? "حفظ النموذج" : "Save model", exact: true })
-        .click();
-      await expect(model).toHaveAttribute("data-agent-model-mode", "fixed");
-      const fixed = await (await context.request.get(`/api/agents/${agent.id}/model`)).json();
-      expect(fixed.mode).toBe("fixed");
+      // The same choice on the agent's «الهوية والنموذج» page: Fixed on one model, then
+      // Automatic, which drops the model the agent set and returns to the default.
+      const ar = locale === "ar";
+      const identity = async () => {
+        await page.goto(`/app/agent/${agent.id}`);
+        await page
+          .getByRole("button", { name: ar ? "الهوية والنموذج" : "Identity and model" })
+          .click();
+        await expect(page).toHaveURL(new RegExp(`/app/identity/${agent.id}$`));
+        const select = page.getByRole("combobox", { name: ar ? "النموذج" : "Model", exact: true });
+        await expect(select).toBeEnabled();
+        // The page saves the whole identity: the fixture agent has no role yet.
+        const role = page.getByRole("textbox", { name: ar ? "الدور" : "Role", exact: true });
+        if (!(await role.inputValue())) await role.fill("Model tests");
+        return select;
+      };
+      const save = () => page.getByRole("button", { name: ar ? "حفظ" : "Save", exact: true });
+      const stored = async () =>
+        (await context.request.get(`/api/agents/${agent.id}/model`)).json();
+      let model = await identity();
+      // The agent's own choice is not the owner's fixed model: the page shows Automatic.
+      await expect(model).toHaveValue("");
+      await expect(model.locator("option", { hasText: "Claude Sonnet UI" })).toHaveCount(1);
+      await model.selectOption("anthropic:claude-sonnet-ui");
+      await save().click();
+      await expect.poll(async () => (await stored()).mode).toBe("fixed");
+      const fixed = await stored();
       expect(fixed.chosen_by).toBe("owner");
       expect(fixed.preference.primary.model).toBe("claude-sonnet-ui");
-      await model.getByLabel(locale === "ar" ? "تلقائي" : "Automatic").check();
-      await model
-        .getByRole("button", { name: locale === "ar" ? "حفظ النموذج" : "Save model", exact: true })
-        .click();
-      await expect(model).toHaveAttribute("data-agent-model-mode", "automatic");
+      model = await identity();
+      await expect(model).toHaveValue("anthropic:claude-sonnet-ui");
+      await model.selectOption("");
+      await save().click();
+      await expect.poll(async () => (await stored()).mode).toBe("automatic");
+      expect((await stored()).preference.primary).toBeNull();
       if (locale === "ar") await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     } finally {
       fixture({ action: "cleanup", restore: data.restore });
