@@ -2,8 +2,8 @@
 
 The records themselves survive the delete (see migration 0036). Before the delete,
 authority and work that depended on the deleted parent are settled explicitly: open
-approvals cancelled, grants revoked, Super Bot requests stopped, goals cancelled with
-``goal_origin_deleted`` and waiting owner action cards superseded. Narrowing never needs the owner's passkey, and nothing is left
+approvals cancelled, grants revoked, Super Bot requests stopped and waiting owner action
+cards superseded. Narrowing never needs the owner's passkey, and nothing is left
 looking active while it can no longer run. A delete is refused while an operation it
 touches still has no confirmed broker outcome, because that obligation must be settled,
 not forgotten.
@@ -20,7 +20,6 @@ from .schema import (
     AccountAuthorityRow,
     RunRow,
     TradeApprovalRow,
-    TradingGoalRow,
     TradingJournalRow,
 )
 
@@ -107,7 +106,6 @@ async def prepare_delete(
     from .account_authority import changed, revoke
     from .owner_actions import settle_for_delete
     from .trade_approvals import approval_event
-    from .trading_goals import settle_orphaned_goal
 
     if await unsettled_obligation(
         session, owner_id, agent_id=agent_id, thread_id=thread_id, account_id=account_id
@@ -140,19 +138,3 @@ async def prepare_delete(
         else:
             grant.status = "revoked"
             changed(session, grant)
-    if agent_id is None and thread_id is None:
-        return
-    # A goal of a deleted conversation or agent stops and stays as history.
-    goals = select(TradingGoalRow).where(TradingGoalRow.owner_id == owner_id)
-    if agent_id is not None:
-        goals = goals.where(TradingGoalRow.agent_id == agent_id)
-    if thread_id is not None:
-        goals = goals.where(TradingGoalRow.thread_id == thread_id)
-    for goal in list(
-        await session.scalars(
-            goals.order_by(TradingGoalRow.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-    ):
-        settle_orphaned_goal(session, goal)

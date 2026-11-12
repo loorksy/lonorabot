@@ -21,7 +21,6 @@ ATTENTION_KINDS = frozenset(
         "watch.resumed_health",
         "watch.expired",
         "opportunity.transition",
-        "goals.updated",
         "collaboration.updated",
         "collaboration.completed",
         "task.failed",
@@ -89,13 +88,6 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
             result.importance, result.code = "opportunity", "setup_confirmed"
         elif payload.get("status") in {"invalidated", "degraded", "expired"}:
             result.importance, result.code = "important_change", "thesis_invalidated"
-    elif kind == "goals.updated" and payload.get("status") in {
-        "paused",
-        "blocked",
-        "completed",
-        "cancelled",
-    }:
-        result.importance, result.code = "important_change", "goal_changed"
     elif kind == "collaboration.completed":
         result.importance, result.code = "important_change", "collaboration_completed"
     elif kind == "task.failed":

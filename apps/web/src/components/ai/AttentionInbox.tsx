@@ -26,7 +26,6 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     external_broker_activity: t`Broker account changed`,
     setup_confirmed: t`Watch confirmed — review current evidence`,
     thesis_invalidated: t`Setup validity changed`,
-    goal_changed: t`Trading goal updated`,
     collaboration_completed: t`Collaboration result is ready`,
     task_review: t`Task needs review`,
     task_degraded: t`Task is retrying through a model outage`,
