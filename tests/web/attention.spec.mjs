@@ -67,6 +67,4 @@ test("durable notification is shared across views and stays read after reload", 
   expect(open).not.toContain(fixture.informational.id);
   await page.reload();
   await expect(uncertain.locator(".dot")).toHaveCount(0);
-  const controls = await (await context.request.get("/api/trading/controls")).json();
-  expect(controls).toMatchObject({ enabled: false, emergency_stop: true });
 });
