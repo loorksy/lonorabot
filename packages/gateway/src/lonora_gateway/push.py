@@ -1,0 +1,205 @@
+"""Push to the owner's phones (VISION 11.4).
+
+One push per record, at its creation, to every phone whose sign-in session is live:
+- a pending Trade Approval card (``approval_required``; a card re-raised after drift is a new
+  record and pushes again);
+- a Settle Uncertain Operation card (``operation_uncertain``).
+
+The text is the fixed catalog text of the event in the owner's language, under the agent's
+name: no price, no volume, no account number and no model text leaves the server, and the
+notification has no action button. A tap opens the conversation at the card, which reads the
+live record; a push is never an approval (6.7, 6.10). Quiet hours do not hold these items.
+
+Each push has an effect receipt written, in the same transaction that advances the owner's
+cursor, before any network call. A receipt is never sent twice: a send whose outcome is unknown
+(a timeout, a dropped connection, a restart) stays unconfirmed. So one record pushes once per
+phone across restarts and across two gateways.
+"""
+
+import asyncio
+import hashlib
+import logging
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+from lonora_bus.attention import attention_text
+from lonora_core.user_error import LonoraError
+from lonora_db.attention import mandatory_current, policy
+from lonora_db.client import Database
+from lonora_db.events import PUBLIC_CURSOR, publish_committed
+from lonora_db.push_devices import live_devices
+from lonora_db.schema import (
+    AgentRow,
+    AttentionRow,
+    EffectReceiptRow,
+    EventRow,
+    PushDeviceRow,
+    TradeApprovalRow,
+    TradingJournalRow,
+)
+from lonora_db.transactions import SettingsRepository
+from lonora_security.secrets import SecretCipher
+from sqlalchemy import delete, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+log = logging.getLogger("lonora.push")
+
+# Attention code -> the parameter that names the record a push belongs to.
+PUSH_RECORDS = {"approval_required": "approval_id", "operation_uncertain": "operation_id"}
+EVENTS_PER_TICK = 100
+BATCH = 100
+# The whole Expo call, so a slow service never holds the step past its iteration timeout.
+SEND_TIMEOUT_SECONDS = 20
+
+
+class PushTransport(Protocol):
+    async def send(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
+
+
+@dataclass(frozen=True)
+class Delivery:
+    receipt: str
+    device_row: str
+    message: dict[str, Any]
+
+
+def cursor_key(owner_id: str) -> str:
+    return "push-cursor:" + owner_id
+
+
+def receipt_key(code: str, record: str, device_id: str) -> str:
+    digest = hashlib.sha256(f"{code}\x00{record}\x00{device_id}".encode()).hexdigest()
+    return "push:" + digest
+
+
+async def push_lock(session: AsyncSession, owner_id: str) -> None:
+    """Serializes one owner's push cursor across gateways; the receipt keys back it up."""
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": "push:" + owner_id},
+        )
+
+
+async def card_anchor(session: AsyncSession, code: str, record: str) -> int | None:
+    model = TradeApprovalRow if code == "approval_required" else TradingJournalRow
+    row = await session.get(model, record)
+    return row.timeline_seq if row is not None else None
+
+
+async def dispatch_push(
+    db: Database, owner_id: str, cipher: SecretCipher, transport: PushTransport
+) -> int:
+    """Send the pushes due for one owner; returns how many messages were handed to Expo."""
+    deliveries: list[Delivery] = []
+    async with db.sessions() as session:
+        await publish_committed(session)
+        await session.commit()
+    async with db.sessions() as session, session.begin():
+        await push_lock(session, owner_id)
+        settings = SettingsRepository()
+        cursor = int((await settings.get(session, cursor_key(owner_id), fresh=True)).get("last", 0))
+        events = (
+            await session.scalars(
+                select(EventRow)
+                .where(
+                    EventRow.owner_id == owner_id,
+                    EventRow.kind == "attention.ready",
+                    EventRow.payload[PUBLIC_CURSOR].as_integer() > cursor,
+                )
+                .order_by(EventRow.payload[PUBLIC_CURSOR].as_integer())
+                .limit(EVENTS_PER_TICK)
+            )
+        ).all()
+        if not events:
+            return 0
+        devices = await live_devices(session, owner_id, cipher)
+        locale = (await policy(session, owner_id)).locale
+        for event in events:
+            cursor = int(event.payload[PUBLIC_CURSOR])
+            code = str(event.payload.get("code", ""))
+            if code not in PUSH_RECORDS or not devices:
+                continue
+            item = await session.get(AttentionRow, str(event.payload.get("id", "")))
+            if item is None or item.owner_id != owner_id or not await mandatory_current(
+                session, item
+            ):
+                continue
+            record = str(item.parameters.get(PUSH_RECORDS[code], ""))
+            if not record:
+                continue
+            agent = await session.get(AgentRow, item.agent_id)
+            data: dict[str, Any] = {"thread_id": item.thread_id}
+            anchor = await card_anchor(session, code, record)
+            if anchor:
+                data["around"] = anchor
+            for device in devices:
+                key = receipt_key(code, record, device.device_id)
+                if await session.get(EffectReceiptRow, key):
+                    continue
+                session.add(
+                    EffectReceiptRow(
+                        key=key,
+                        result={
+                            "owner_id": owner_id,
+                            "status": "submitted",
+                            "code": code,
+                            "record_id": record,
+                            "device_id": device.device_id,
+                        },
+                    )
+                )
+                deliveries.append(
+                    Delivery(
+                        key,
+                        device.id,
+                        {
+                            "to": device.token,
+                            "title": agent.name if agent else "Lonora",
+                            "body": attention_text(code, locale),
+                            "data": data,
+                            "sound": "default",
+                            "priority": "high",
+                            "channelId": "attention",
+                        },
+                    )
+                )
+        await settings.put(session, cursor_key(owner_id), {"last": cursor})
+    for start in range(0, len(deliveries), BATCH):
+        await send_batch(db, transport, deliveries[start : start + BATCH])
+    return len(deliveries)
+
+
+async def send_batch(db: Database, transport: PushTransport, batch: list[Delivery]) -> None:
+    outcomes: list[dict[str, Any]]
+    try:
+        async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+            tickets = await transport.send([delivery.message for delivery in batch])
+        outcomes = [ticket_outcome(ticket) for ticket in tickets]
+    except LonoraError as error:
+        status = "rejected" if error.code == "push_request_refused" else "ambiguous"
+        outcomes = [{"status": status, "code": error.code}] * len(batch)
+    except Exception:
+        outcomes = [{"status": "ambiguous", "code": "push_delivery_unconfirmed"}] * len(batch)
+    gone: list[str] = []
+    async with db.sessions() as session, session.begin():
+        for delivery, outcome in zip(batch, outcomes, strict=True):
+            row = await session.get(EffectReceiptRow, delivery.receipt, with_for_update=True)
+            if row is not None:
+                row.result = {**row.result, **outcome}
+            if outcome.get("code") == "DeviceNotRegistered":
+                gone.append(delivery.device_row)
+        if gone:
+            # Expo says the app is gone from that phone: stop pushing to it.
+            await session.execute(delete(PushDeviceRow).where(PushDeviceRow.id.in_(gone)))
+    failed = sum(1 for outcome in outcomes if outcome["status"] != "confirmed")
+    if failed:
+        log.warning("push_unconfirmed count=%s", failed)
+
+
+def ticket_outcome(ticket: dict[str, Any]) -> dict[str, Any]:
+    if ticket.get("status") == "ok":
+        return {"status": "confirmed", "ticket_id": str(ticket.get("id", ""))[:80]}
+    details = ticket.get("details")
+    code = details.get("error") if isinstance(details, dict) else None
+    return {"status": "rejected", "code": str(code or "push_ticket_error")[:80]}
