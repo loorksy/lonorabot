@@ -56,7 +56,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:591
+#: src/shell/agent/AgentPage.tsx:604
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
@@ -99,6 +99,11 @@ msgstr "{0} م.ب"
 #: src/conversation/Voice.tsx:146
 msgid "{0} of {1}"
 msgstr "{0} من {1}"
+
+#. placeholder {0}: isolate(agent.name)
+#: src/shell/agent/AgentPage.tsx:526
+msgid "{0} reads and steers every team agent by its role."
+msgstr "{0} تقرأ عمل كل وكيل في الفريق وتوجّهه بدورها."
 
 #. placeholder {0}: summary.usage.requests
 #: src/conversation/PermissionMenu.tsx:481
@@ -508,7 +513,7 @@ msgstr "تم تحديث النشاط"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:638
+#: src/shell/agent/AgentPage.tsx:651
 #: src/shell/agent/GroupPage.tsx:221
 #: src/shell/settings/IntegrationsPage.tsx:262
 #: src/shell/settings/IntegrationsPage.tsx:350
@@ -535,7 +540,7 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/agent/AgentPage.tsx:555
+#: src/shell/agent/AgentPage.tsx:568
 msgid "Add agents to supervise"
 msgstr "إضافة وكلاء للإشراف"
 
@@ -1400,7 +1405,7 @@ msgctxt "slash command"
 msgid "call"
 msgstr "اتصال"
 
-#: src/shell/agent/AgentPage.tsx:273
+#: src/shell/agent/AgentPage.tsx:276
 msgid "Call"
 msgstr "اتصال"
 
@@ -1432,11 +1437,11 @@ msgstr "مكالمة مع {0}"
 #~ msgid "Call with {name}"
 #~ msgstr "مكالمة مع {name}"
 
-#: src/shell/agent/AgentPage.tsx:154
+#: src/shell/agent/AgentPage.tsx:157
 msgid "Calling an agent needs a voice provider. Add one in the voice settings."
 msgstr "يحتاج الاتصال بالوكيل إلى مزود صوت. أضِفه من إعدادات الصوت."
 
-#: src/shell/agent/AgentPage.tsx:150
+#: src/shell/agent/AgentPage.tsx:153
 #: src/shell/call/CallPages.tsx:411
 msgid "Calls are not set up"
 msgstr "المكالمات غير مُعدّة"
@@ -1462,7 +1467,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
-#: src/shell/agent/AgentPage.tsx:406
+#: src/shell/agent/AgentPage.tsx:409
 #: src/shell/agent/AvatarSheet.tsx:111
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/call/CallPages.tsx:422
@@ -1618,7 +1623,7 @@ msgstr "تعذّر عرض الشارت."
 #~ msgid "Charts"
 #~ msgstr "الرسوم البيانية"
 
-#: src/shell/agent/AgentPage.tsx:263
+#: src/shell/agent/AgentPage.tsx:266
 msgid "Chat"
 msgstr "محادثة"
 
@@ -2819,7 +2824,7 @@ msgid "Edit and resend"
 msgstr "تعديل وإعادة الإرسال"
 
 #: src/pages/shell/bot-panel.tsx:172
-#: src/shell/agent/AgentPage.tsx:227
+#: src/shell/agent/AgentPage.tsx:230
 #: src/shell/agent/AvatarSheet.tsx:146
 #: src/shell/agent/IdentityPage.tsx:155
 msgid "Edit avatar"
@@ -3227,7 +3232,7 @@ msgstr "ملف"
 msgid "File name"
 msgstr "اسم الملف"
 
-#: src/shell/agent/AgentPage.tsx:297
+#: src/shell/agent/AgentPage.tsx:300
 #: src/shell/lists/UnifiedSearch.tsx:285
 #: src/shell/lists/UnifiedSearch.tsx:320
 #: src/shell/lists/UnifiedSearch.tsx:327
@@ -3462,7 +3467,7 @@ msgstr "أُضيف هدف"
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
-#: src/shell/agent/AgentPage.tsx:290
+#: src/shell/agent/AgentPage.tsx:293
 #: src/shell/pages.tsx:120
 msgid "Goals"
 msgstr "الأهداف"
@@ -3577,7 +3582,7 @@ msgstr "طريقة التواصل"
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "توقفت عند حد الخطوات لهذا التشغيل. أرسل رسالة وأكمل من حيث توقفت."
 
-#: src/shell/agent/AgentPage.tsx:280
+#: src/shell/agent/AgentPage.tsx:283
 msgid "Identity and model"
 msgstr "الهوية والنموذج"
 
@@ -3767,7 +3772,7 @@ msgstr "القيمة غير صحيحة."
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/shell/agent/AgentPage.tsx:550
+#: src/shell/agent/AgentPage.tsx:563
 msgid "It does not supervise any agent now."
 msgstr "لا يشرف على أي وكيل حاليًا."
 
@@ -3848,7 +3853,7 @@ msgstr "نوع التفويض"
 
 #: src/conversation/ToolsSheet.tsx:239
 #: src/pages/Knowledge.tsx:20
-#: src/shell/agent/AgentPage.tsx:285
+#: src/shell/agent/AgentPage.tsx:288
 #: src/shell/pages.tsx:114
 msgid "Knowledge"
 msgstr "المعرفة"
@@ -4112,7 +4117,7 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/Board.tsx:202
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/agent/AgentPage.tsx:320
+#: src/shell/agent/AgentPage.tsx:323
 #: src/shell/pages.tsx:81
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
@@ -4940,7 +4945,7 @@ msgstr "دون تنفيذ"
 msgid "No trading · analysis and follow-up"
 msgstr "دون تنفيذ · تحليل ومتابعة"
 
-#: src/shell/agent/AgentPage.tsx:351
+#: src/shell/agent/AgentPage.tsx:354
 msgid "No trading account chosen · choose an account"
 msgstr "لم يُختر حساب تداول · اختر حسابًا"
 
@@ -4953,7 +4958,7 @@ msgstr "لم يُختر حساب تداول · اختر حسابًا"
 msgid "No trading account is linked."
 msgstr "لا يوجد حساب تداول مرتبط."
 
-#: src/shell/agent/AgentPage.tsx:352
+#: src/shell/agent/AgentPage.tsx:355
 msgid "No trading account linked · link an account"
 msgstr "لا يوجد حساب تداول مرتبط · اربط حسابًا"
 
@@ -4978,7 +4983,7 @@ msgid "No voice provider is configured yet. Add an OpenAI key in the model provi
 msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
 
 #: src/conversation/sheets/WatchesSheet.tsx:101
-#: src/shell/agent/AgentPage.tsx:416
+#: src/shell/agent/AgentPage.tsx:419
 msgid "No watches."
 msgstr "لا توجد مراقبات."
 
@@ -5304,7 +5309,7 @@ msgstr "فتح الخطوات تلقائيًا"
 msgid "Open trading settings"
 msgstr "فتح إعدادات التداول"
 
-#: src/shell/agent/AgentPage.tsx:164
+#: src/shell/agent/AgentPage.tsx:167
 msgid "Open voice settings"
 msgstr "فتح إعدادات الصوت"
 
@@ -5486,7 +5491,7 @@ msgstr "إيقاف مؤقت"
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:399
+#: src/shell/agent/AgentPage.tsx:402
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
@@ -5521,7 +5526,7 @@ msgctxt "task status"
 msgid "Paused"
 msgstr "متوقفة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:391
+#: src/shell/agent/AgentPage.tsx:394
 msgid "Paused for now"
 msgstr "موقوفة مؤقتًا"
 
@@ -5594,7 +5599,7 @@ msgstr "الصلاحية: {0}"
 #~ msgid "permissions"
 #~ msgstr "صلاحيات"
 
-#: src/shell/agent/AgentPage.tsx:434
+#: src/shell/agent/AgentPage.tsx:437
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "تُغيَّر الصلاحيات من الشريحة بجانب حقل الكتابة في المحادثة. ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -6064,7 +6069,7 @@ msgstr "إعادة تحميل"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
-#: src/shell/agent/AgentPage.tsx:542
+#: src/shell/agent/AgentPage.tsx:555
 msgid "Remove"
 msgstr "إزالة"
 
@@ -6282,7 +6287,7 @@ msgstr "استُعيدت"
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
-#: src/shell/agent/AgentPage.tsx:399
+#: src/shell/agent/AgentPage.tsx:402
 #: src/shell/domain/TasksPages.tsx:249
 msgid "Resume"
 msgstr "استئناف"
@@ -6554,7 +6559,7 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "مجدولة"
 
-#: src/shell/agent/AgentPage.tsx:294
+#: src/shell/agent/AgentPage.tsx:297
 #: src/shell/pages.tsx:112
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
@@ -6784,7 +6789,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/agent/AgentPage.tsx:435
+#: src/shell/agent/AgentPage.tsx:438
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -7017,7 +7022,7 @@ msgstr "تعذر التحقق من ضوابط إصدارات المهارات. �
 
 #: src/conversation/ToolsSheet.tsx:231
 #: src/pages/Knowledge.tsx:44
-#: src/shell/agent/AgentPage.tsx:288
+#: src/shell/agent/AgentPage.tsx:291
 #: src/shell/pages.tsx:130
 #: src/shell/settings/IntegrationsPage.tsx:648
 msgid "Skills"
@@ -7218,7 +7223,7 @@ msgstr "أمر إيقاف"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/agent/AgentPage.tsx:445
+#: src/shell/agent/AgentPage.tsx:448
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
@@ -7333,17 +7338,17 @@ msgstr "الإشراف على وكلاء آخرين"
 #~ msgstr "بإشرافك"
 
 #. placeholder {0}: isolate(supervisor.name ?? "")
-#: src/shell/agent/AgentPage.tsx:253
+#: src/shell/agent/AgentPage.tsx:256
 msgid "Supervised by {0}"
 msgstr "تحت إشراف {0}"
 
-#: src/shell/agent/AgentPage.tsx:472
-#: src/shell/agent/AgentPage.tsx:514
+#: src/shell/agent/AgentPage.tsx:475
+#: src/shell/agent/AgentPage.tsx:522
 msgid "Supervises"
 msgstr "يشرف على"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:498
+#: src/shell/agent/AgentPage.tsx:506
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
@@ -8409,7 +8414,7 @@ msgstr "أمر تداول"
 msgid "Trade risk limit"
 msgstr "حد مخاطرة الصفقة"
 
-#: src/shell/agent/AgentPage.tsx:301
+#: src/shell/agent/AgentPage.tsx:304
 #: src/shell/pages.tsx:110
 msgid "Trades"
 msgstr "الصفقات"
@@ -8432,7 +8437,7 @@ msgstr "يتداول بنفسه"
 msgid "Trading"
 msgstr "التداول"
 
-#: src/shell/agent/AgentPage.tsx:322
+#: src/shell/agent/AgentPage.tsx:325
 msgid "Trading · Account limits"
 msgstr "التداول · حدود الحساب"
 
@@ -8440,7 +8445,7 @@ msgstr "التداول · حدود الحساب"
 #~ msgid "Trading · New trades · Restrictions · Account limits"
 #~ msgstr "التداول · الصفقات الجديدة · القيود · حدود الحساب"
 
-#: src/shell/agent/AgentPage.tsx:330
+#: src/shell/agent/AgentPage.tsx:333
 #: src/shell/agent/IdentityPage.tsx:214
 #: src/shell/pages.tsx:168
 msgid "Trading account"
@@ -8459,7 +8464,7 @@ msgstr "وكيل تداول"
 #~ msgstr "التداول وسجل العمليات"
 
 #: src/conversation/sheets/AgentSheet.tsx:489
-#: src/shell/agent/AgentPage.tsx:309
+#: src/shell/agent/AgentPage.tsx:312
 msgid "Trading and safety"
 msgstr "التداول والأمان"
 
@@ -8539,7 +8544,7 @@ msgstr "إعادة المحاولة"
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
-#: src/shell/agent/AgentPage.tsx:445
+#: src/shell/agent/AgentPage.tsx:448
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
 
@@ -8602,7 +8607,7 @@ msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 msgid "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows"
 msgstr "تحت اسم الوكيل: يحلّل، يبحث، يراقب، بانتظار تأكيد الوسيط، بانتظار قرارك، متوقف مؤقتًا، عملية غير مؤكَّدة — وتتغيّر صورته معها. عند الإيقاف يظهر «نشط» فقط"
 
-#: src/shell/agent/AgentPage.tsx:198
+#: src/shell/agent/AgentPage.tsx:201
 #: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
@@ -8689,7 +8694,7 @@ msgid "Until"
 msgstr "حتى"
 
 #. placeholder {0}: clockTime(until)
-#: src/shell/agent/AgentPage.tsx:385
+#: src/shell/agent/AgentPage.tsx:388
 msgid "Until <0>{0}</0>"
 msgstr "حتى <0>{0}</0>"
 
@@ -8697,7 +8702,7 @@ msgstr "حتى <0>{0}</0>"
 msgid "Until cancelled"
 msgstr "حتى الإلغاء"
 
-#: src/shell/agent/AgentPage.tsx:389
+#: src/shell/agent/AgentPage.tsx:392
 msgid "Until you stop it"
 msgstr "حتى توقفها"
 
@@ -9011,7 +9016,7 @@ msgstr "بانتظار الإرسال"
 msgid "Watch"
 msgstr "مراقبة"
 
-#: src/shell/agent/AgentPage.tsx:195
+#: src/shell/agent/AgentPage.tsx:198
 msgid "Watch cancelled"
 msgstr "أُلغيت المراقبة"
 
@@ -9023,11 +9028,11 @@ msgstr "تغيّر شرط المراقبة"
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
-#: src/shell/agent/AgentPage.tsx:209
+#: src/shell/agent/AgentPage.tsx:212
 msgid "Watch paused"
 msgstr "أُوقفت المراقبة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:209
+#: src/shell/agent/AgentPage.tsx:212
 msgid "Watch resumed"
 msgstr "استُؤنفت المراقبة"
 
@@ -9036,7 +9041,7 @@ msgid "Watch source"
 msgstr "مصدر المراقبة"
 
 #: src/conversation/sheets/AgentSheet.tsx:306
-#: src/shell/agent/AgentPage.tsx:361
+#: src/shell/agent/AgentPage.tsx:364
 #: src/shell/ChatMenu.tsx:194
 msgid "Watches"
 msgstr "المراقبات"

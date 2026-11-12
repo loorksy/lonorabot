@@ -2,9 +2,11 @@ Superseded by VISION.md
 
 # Supervision: Lonora sees everything, peers stay private
 
-Lonora, the Personal Agent, supervises every agent by default. It reads their work and
-memory on demand, messages them and pauses or resumes their work. The owner sees every
-grant and revokes any of them with one tap. Any agent becomes "supervises X and Y" from
+Lonora, the Personal Agent, leads every team agent by its built-in role
+(`lonora_db/lead.py`, mandate 3.1.6 and 14.3.15). It reads their work and memory on
+demand, messages them and pauses or resumes their work, with or without a grant; no
+revoked grant takes that away. The owner sees every other grant and revokes any of them
+with one tap. Any agent becomes "supervises X and Y" from
 one sentence of the owner. A supervisor never trades for the agents it supervises, never
 uses their grant, never lifts a brake and never edits their memory or instructions.
 Agents without a grant stay as private from each other as before (wall 5 of correction 1).
@@ -18,11 +20,11 @@ recorded it, `created_at`, and `revoked_at` / `revoked_via`. At most one grant p
 active; a revoked grant stays as the record of what was allowed. Rows cascade with
 either agent.
 
-- **Default.** The migration gives each owner's Personal Agent a `default` grant over
-  every other agent. A Personal Agent created later supervises every agent that already
-  exists (`ensure_personal_agent`), and every agent created afterwards is supervised by
-  it from its creation (`agents.create_agent`, so the owner's form, `agent_create`, child
-  agents and fixtures all get it). A revoked default grant is not recreated.
+- **Default.** The migration gave each owner's Personal Agent a `default` grant over
+  every agent that existed then. No grant is made at creation any more: Lonora reads and
+  steers every team agent by its lead role (`lonora_db.lead`), so a stored default grant
+  only shows on the profiles, and revoking it does not limit Lonora. Lonora's profile
+  offers no new grant.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
   `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
@@ -50,8 +52,9 @@ either agent.
   /api/supervision/{id}/revoke` ends one. Supervision is never money authority, so both
   take one tap and no passkey.
 
-Revoking ends every read and control at once: each tool re-reads the grants on every
-call, inside the same Run.
+Revoking ends a non-lead supervisor's reads and control at once: each tool re-reads the
+grants on every call, inside the same Run. Lonora reads and steers every team agent by
+its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lonora's.
 
 ## Reading a supervised agent
 
@@ -82,15 +85,15 @@ call, inside the same Run.
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
 It has no action that trades, grants, raises a limit or edits memory or instructions.
-Only a supervisor steers another agent's work; on the owner's message the Personal
-Agent may too without a grant, and no other agent, whatever message its Run answers
+Lonora steers every team agent's work by its lead role, with or without a grant; any
+other agent only as its supervisor, whatever message its Run answers
 (`supervision_required`). The owner's message counts only while the Run has read
-nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on a
-supervised agent's routine follows the same rules.
+nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another agent's routine follows the same
+rules.
 
 Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 
-- Pausing needs the grant, or the owner's message in the actor's Run. Repeating it
+- Pausing needs the lead role (Lonora) or the grant. Repeating it
   changes nothing and says who holds the pause (`you`, `another_agent`, `owner`).
 - **Never a trading agent's exits.** A paused agent's runs are never claimed, so it
   could no longer close a position, cancel an order, tighten a stop or run an exit the
@@ -130,8 +133,8 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   refuses while the owner holds a live pause (a holder-less hold has no place in the
   earlier schema), and the downgrade of `0041_supervision_grants` refuses while a grant
   the owner set (not `default`) or revoked, or any live hold, exists: dropping them
-  would bring a revoked default back on the re-upgrade (Lonora reading an agent the
-  owner took away from it) or resume paused work. A refused downgrade changes nothing.
+  would lose the owner's record of who supervises whom (a revoked grant would come back
+  on the re-upgrade) or resume paused work. A refused downgrade changes nothing.
 - **The owner's pause is the owner's.** The owner pausing work a supervisor holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, the
@@ -220,12 +223,13 @@ profile) do not fit and are promoted after first use like any remembered tool.
   through another agent; a cancelled watch staying cancelled; supervision from a card
   and from a sentence
   with Undo; the supervised agent refused revoking its own oversight and a revoke from
-  chat restored from its card; the Personal Agent's default grant on a new agent.
+  chat restored from its card; no default grant on a new agent.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
-  round trip, a Personal Agent created after other agents, a later agent; a real Run in
+  round trip; no grant at creation; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
   records through natively offered `agent_inspect` and `session_search`, with nothing of
-  the gold agent in its context beforehand, refused after the owner revokes the grant.
+  the gold agent in its context beforehand, and still answered after the owner revokes
+  Lonora's default grant (its lead role).
 - `tests/web/supervision.test.ts` (the supervise, Undo, Restore and pause cards in
   Arabic and English) and Playwright `supervision` (Web and Mobile, Arabic and English):
-  the cards, the profile rows, Stop and Supervise.
+  the cards, the profile rows and Stop.

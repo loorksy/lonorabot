@@ -2,13 +2,13 @@
 
 1. Migration 0041 gives the Personal Agent a default grant over every other agent;
    running its seed again adds nothing; a downgrade drops both tables and a re-upgrade
-   seeds again. A Personal Agent created after other agents supervises each of them,
-   and every agent created later is supervised from its creation.
+   seeds again. No grant is made at creation (14.3.15): a Personal Agent created after
+   other agents, and an agent created later, get none, and Lonora reaches them by role.
 2. The owner asks Lonora what the gold agent did and why it skipped the London entry.
    A real Run with a scripted model answers from the gold agent's records through
    agent_inspect and session_search, offered natively; nothing of the gold agent was
-   in Lonora's context before it asked. After the owner revokes the grant, the same
-   question is refused at once.
+   in Lonora's context before it asked. After the owner revokes the default grant, the
+   same question is still answered: Lonora's reads are its built-in lead role.
 
 No live broker, model provider or real order is involved.
 """
@@ -28,6 +28,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_agent.executor import execute_run
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.events import emit
+from lonora_db.lead import reaches
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AgentRow,
@@ -94,10 +95,10 @@ async def grants_by_default(fixture: Fixture, url: str) -> tuple[str, dict[str, 
                 )
             )
         )
-    # Created after the other agents, Lonora supervises each of them at once.
-    assert await defaults(fixture, personal_id) == everyone, everyone
+    # Created after the other agents, Lonora holds no grant over them (14.3.15).
+    assert await defaults(fixture, personal_id) == set()
     assert {gold["id"], silver["id"]} <= everyone
-    print("PASS a Personal Agent created after other agents supervises every one by default")
+    print("PASS a Personal Agent created after other agents gets no default grant")
 
     engine = create_async_engine(url)
     try:
@@ -118,9 +119,10 @@ async def grants_by_default(fixture: Fixture, url: str) -> tuple[str, dict[str, 
 
     later = await fixture.agent("Later")
     async with fixture.runtime.db.sessions() as session:
-        assert await supervises(session, fixture.owner, personal_id, later["id"])
-        assert not await supervises(session, fixture.owner, gold["id"], silver["id"])
-    print("PASS an agent created later is supervised by Lonora from its creation, peers are not")
+        assert not await supervises(session, fixture.owner, personal_id, later["id"])
+        assert await reaches(session, fixture.owner, personal_id, later["id"])
+        assert not await reaches(session, fixture.owner, gold["id"], silver["id"])
+    print("PASS an agent created later has no grant; Lonora reaches it by role, peers do not")
     return personal_id, gold
 
 
@@ -250,15 +252,16 @@ async def lonora_answers_from_the_records(
         [
             ToolCall(id="look", name="agent_inspect", arguments={"agent_id": gold["id"]}),
             ToolCall(id="said", name="session_search", arguments={"query": SENTINEL}),
-            "لا أستطيع قراءة عمله الآن.",
+            "لم يدخل لأن السبريد كان أوسع من حده.",
         ],
     )
     last = seen[-1][0]
-    refused = result_of(last, "look")
-    assert refused["ok"] is False and refused["reason"] == "supervision required", refused
+    overview = result_of(last, "look")
+    assert overview["ok"] is True and overview["agent"]["id"] == gold["id"], overview
     said = result_of(last, "said")
-    assert said["results"] == [] and said["decisions"] == [], said
-    print("PASS after the owner revokes the grant, Lonora cannot read the gold agent's work")
+    assert said["results"] and said["results"][0]["supervised_agent"]["id"] == gold["id"], said
+    # Mandate 3.1.6, 3.3.3: the lead's reads are built in, no grant gives or ends them.
+    print("PASS after the owner revokes the default grant, Lonora still reads the gold agent")
 
 
 async def main() -> None:

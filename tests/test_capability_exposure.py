@@ -608,7 +608,7 @@ async def test_trading_identities_get_the_market_working_set(
     context = await conversation_run(task_db)
     await execute_run(context, catalog, 120, 8)
     exposure = (await saved_run(context)).execution_state["tool_exposure"]
-    # Lonora supervises every agent by default: it also gets the coordination set.
+    # Lonora leads every team agent by its role: it also gets the coordination set.
     personal = role == "personal"
     assert exposure["profiles"] == ["core", "market", *(["coordination"] if personal else [])]
     offered = set(model.requests[0][1])
@@ -655,7 +655,7 @@ def test_run_profiles_follow_the_agent_identity():
     bound = agent(role="specialist", trading_account_id="account-1", trading_symbol="XAUUSD")
     assert run_profiles(bound, False) == ["core", "market"]
     assert run_profiles(bound, True) == ["core", "market", "task"]
-    # Lonora supervises every agent by default: it inspects and messages them natively.
+    # Lonora leads every team agent by its role: it inspects and messages them natively.
     assert run_profiles(agent(role="personal"), False) == ["core", "market", "coordination"]
     # A trading identity's Task Run keeps its budget for the task tools.
     assert run_profiles(agent(role="personal"), True) == ["core", "market", "task"]
