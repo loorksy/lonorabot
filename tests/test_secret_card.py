@@ -26,13 +26,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
 
 def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
-    card = OwnerActionProposal(
-        kind="secret",
-        label="Binance",
-        secret_fields=[
-            {"key": "BINANCE_API_KEY", "label": "API key"},
-            {"key": "BINANCE_USER", "label": "User", "secret": False},
-        ],
+    card = OwnerActionProposal.model_validate(
+        {
+            "kind": "secret",
+            "label": "Binance",
+            "secret_fields": [
+                {"key": "BINANCE_API_KEY", "label": "API key"},
+                {"key": "BINANCE_USER", "label": "User", "secret": False},
+            ],
+        }
     )
     assert card.secret_fields and card.secret_fields[1].secret is False
     for bad in (
@@ -84,7 +86,7 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
         )
         card_id = proposed["owner_action"]["id"]
         cards = await fixture.request("GET", "/owner-actions?thread_id=" + context.thread_id)
-        card = next(item for item in cards if item["id"] == card_id)  # type: ignore[union-attr]
+        card: dict[str, Any] = next(item for item in cards if item["id"] == card_id)  # type: ignore[union-attr]
         assert card["kind"] == "secret" and card["status"] == "pending"
         assert card["facts"]["secret"] == {
             "label": "بورصة",
