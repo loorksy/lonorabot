@@ -428,6 +428,36 @@ def check_users(stack: Stack) -> None:
     )
 
 
+def check_relay(stack: Stack) -> None:
+    """MetaApi by a hard-coded address and through a public HTTP proxy: the relay refuses
+    the name before it connects anywhere, so this needs no internet."""
+    a = stack.agent_a
+    public = "93.184.216.34"
+    before = stack.compose("logs", "workspace-net").stdout.count("relay_name_denied")
+    out = stack.run(
+        a,
+        f"curl -sS --max-time 10 -o /dev/null --connect-to {META_HOST}:443:{public}:443 https://{META_HOST}/",
+    )
+    record(
+        out["exit_code"] != 0,
+        "a hard-coded address does not reach a MetaApi name (TLS server name refused)",
+    )
+    proxy = (
+        "python3 -c \"import socket;s=socket.create_connection(('" + public + "',8080),10);"
+        "s.sendall(b'CONNECT app.metaapi.cloud:443 HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n');"
+        "s.settimeout(10);print('ANSWER' if s.recv(64) else 'CLOSED')\""
+    )
+    answered = stack.run(a, proxy)
+    record("ANSWER" not in answered["stdout"], "an HTTP proxy CONNECT to MetaApi is refused")
+    time.sleep(1)
+    after = stack.compose("logs", "workspace-net").stdout.count("relay_name_denied")
+    record(after - before >= 2, f"the relay logged both refusals ({after - before})")
+    plain = stack.run(
+        a, f"curl -sS --max-time 10 -o /dev/null -H 'Host: app.metaapi.cloud' http://{public}/"
+    )
+    record(plain["exit_code"] != 0, "an HTTP Host naming MetaApi is refused")
+
+
 def check_browser(stack: Stack) -> None:
     out = stack.run(
         stack.agent_a,
@@ -461,6 +491,21 @@ def check_persistence(stack: Stack, internet: bool) -> None:
         )
         package_ok = installed["exit_code"] == 0 and "/.local/" in installed["stdout"]
         test_import = "python3 -c 'import lonoracheck'"
+    if internet:
+        venv = stack.run(
+            a,
+            "python3 -m venv ~/venv && ~/venv/bin/pip install -q six && ~/venv/bin/python -c 'import six'",
+        )
+    else:
+        venv = stack.run(
+            a,
+            "python3 -m venv --system-site-packages ~/venv && ~/venv/bin/pip install -q --no-index"
+            " --no-build-isolation ~/src/lonoracheck && ~/venv/bin/python -c 'import lonoracheck'",
+        )
+    record(
+        venv["exit_code"] == 0,
+        f"pip works inside a virtualenv ({(venv['stdout'] + venv['stderr']).strip()[-160:]})",
+    )
     record(package_ok, f"pip install works at user level ({installed['stdout'].strip()[-120:]})")
     stack.run(
         a,
@@ -536,6 +581,15 @@ def check_limits(stack: Stack) -> None:
     record(
         fg["timed_out"] and time.time() - started < 15,
         f"a foreground command is stopped at the foreground limit ({fg['duration_ms']} ms)",
+    )
+    escaped = stack.run(a, "setsid sleep 77 & sleep 30")
+    time.sleep(1)
+    survivors = [
+        p for p in stack.call("GET", "/v1/processes")[1]["processes"] if "sleep 77" in p["command"]
+    ]
+    record(
+        escaped["timed_out"] and not survivors,
+        "a child that left the process group is stopped with its foreground command",
     )
     bg = stack.run(a, "sleep 600", background=True)["process"]
     time.sleep(8)
@@ -638,6 +692,7 @@ def main() -> None:
         check_gateway_socket(stack)
         check_users(stack)
         check_isolation(stack, args.internet_url)
+        check_relay(stack)
         internet = any(ok and "internet reachable" in text for ok, text in RESULTS)
         check_browser(stack)
         check_limits(stack)
