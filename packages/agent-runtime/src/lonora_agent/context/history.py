@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 
+from lonora_adapter_kit.context_sections import ContextSection, context_data
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.message_preview import model_content
 from lonora_db.genui_submit import NEVER_RAN_NOTE, never_ran, submit_status
@@ -14,6 +15,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 HISTORY_WINDOW = 100
+
+
+def peer_content(name: str, text: str) -> str:
+    """Another agent's message in the transcript: information, never an order (3.2.3).
+
+    The body travels in the same data frame as other third-party content (6.10), so
+    it can neither close its frame nor pass as the owner's words or system policy.
+    """
+    return (
+        "[Peer "
+        + name
+        + "]\n"
+        + context_data(
+            [ContextSection("peer_message", "peer_agent", "peer_untrusted", text or "(empty)")]
+        )
+    )
 
 
 def card_words(row: MessageRow, run: RunRow | None) -> str:
@@ -198,9 +215,7 @@ async def history_context(
             else model_content(row.content, row.rich_content)
         )
         content = (
-            "[Peer " + names.get(row.agent_id or "", row.agent_id or "") + "]\n" + text
-            if peer
-            else text
+            peer_content(names.get(row.agent_id or "", row.agent_id or ""), text) if peer else text
         )
         content += options.get(row.id, "")
         messages.append(
