@@ -116,7 +116,7 @@ from the others.
 - **Aging operations.** A live operation still `reserved`, `submitted` or `ambiguous`
   fifteen minutes after it was submitted raises exactly one `operation_unresolved`
   item ("A trade still has no confirmed broker result"). It is never resent. An
-  ambiguous operation whose resolve card still waits for the owner's answer, or whose
+  ambiguous operation whose Settle card still waits for the owner's answer, or whose
   `operation_uncertain` item is still open, raises none: the owner is asked once
   (`docs/owner-actions.md`).
 

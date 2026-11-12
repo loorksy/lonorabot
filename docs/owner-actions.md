@@ -24,7 +24,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
+| `kind` | `resume_trading`, `lift_restriction`, `settle_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -34,7 +34,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome, the stored limits) |
 
-Lifetimes: Resume, limit and grant cards 24 hours, resolve cards 7 days, Lift cards 31
+Lifetimes: Resume, limit and grant cards 24 hours, Settle cards 7 days, Lift cards 31
 days and never longer than the restriction itself, Mandate cards 3650 days. Expiry needs no scheduler: a pending
 card past `expires_at` reads as expired and is settled as expired when next touched.
 
@@ -53,7 +53,7 @@ card past `expires_at` reads as expired and is settled as expired when next touc
   - `trading.restriction_created`: a Lift card in the conversation whose run created
     the restriction, or in Lonora's conversation when the owner created it or the
     creating agent is gone.
-  - `trading.operation_updated` moving to `ambiguous`: a three-button resolve card in
+  - `trading.operation_updated` moving to `ambiguous`: a three-button Settle Uncertain Operation card in
     the responsible agent's conversation, or Lonora's for the owner's own orders. The
     same event is the owner's `operation_uncertain` attention item (`action_required`,
     one per operation).
@@ -62,7 +62,7 @@ card past `expires_at` reads as expired and is settled as expired when next touc
 - **Cards follow their record.** A lifted or ended restriction, a settled operation and
   resumed trading supersede the pending cards about them. Confirming a card supersedes
   any other pending card with the same exact effect. A settled operation also withdraws
-  its `operation_uncertain` item. While its resolve card waits for an answer (or its
+  its `operation_uncertain` item. While its Settle card waits for an answer (or its
   `operation_uncertain` item is still open), the watchdog's later `operation_unresolved`
   alert for the same operation is not raised: the owner is asked once.
 - **A delete settles them.** Deleting an agent, a conversation or a broker connection
@@ -96,14 +96,17 @@ the card says "This no longer applies" and can only be dismissed; no passkey is 
 | --- | --- | --- |
 | Resume trading | Resume trading / Not now | one tap |
 | New entries paused (Only exits allowed, Trading frozen) | Lift pause / Keep it | one tap |
-| The broker did not confirm this trade | It executed / It did not execute / Unknown: release the hold, optional note and broker ticket | one tap |
+| The broker did not confirm this trade (Settle Uncertain Operation) | It executed / It did not execute / Unknown — exactly these three; it cannot be dismissed (`owner_action_outcome_required`) | one tap |
 | Change money limits | Apply (or Confirm with passkey) / Cancel | one tap when it allows no more risk; passkey otherwise |
 | Create an agent? (an agent proposed it without an owner message) | Create agent / Not now | one tap; the agent gets no money authority |
 | Agent created | Undo / Keep it | one tap; Undo removes an agent that has done nothing yet, otherwise pauses it |
 
-Any answer on a resolve card, "Unknown" included, settles the operation and releases
-the hold it puts on its market; the hint and the settled line say so. An owner who is
-not sure yet leaves the card unanswered, and the hold stays.
+"It executed" or "It did not execute" on a Settle card settles the operation (`resolved`,
+the owner's word, never broker confirmation and never an Execution Receipt) and releases
+the hold it puts on its market. "Unknown" is recorded on the journal row
+(`details.owner_answers`) and settles nothing: the operation stays `ambiguous`, keeps its
+hold and is still reconciled from broker evidence, which later confirms it with its one
+Execution Receipt (VISION 6.3). The hint and the settled line say so.
 
 A settled card shows one line instead of buttons ("Trading resumed.", "This pause
 already ended. Nothing changed."). After a confirmation the server also writes one
@@ -132,9 +135,10 @@ require the owner's session; no tool reaches them. A decision:
 3. Runs the existing owner function in the same transaction:
    - Resume: `apply_controls` with `{enabled: true, emergency_stop: false}`.
    - Lift: `revoke_restriction`, the owner's lift.
-   - Resolve: `attest_operation`, the T2 owner attestation. The note is optional; without
-     one the statement reads "Owner attested via chat card; not broker confirmation."
-     It emits `trading.operation_resolved`, clears the scoped block and never resends.
+   - Settle: `attest_operation`, the owner attestation; the statement reads "Owner
+     attested via chat card; not broker confirmation." Executed or Not executed emits
+     `trading.operation_resolved`, clears the scoped block and never resends. Unknown
+     emits `trading.operation_answered`, keeps the block and never resends.
    - Limits: `store_execution_policy` with the card's exact changes applied to the
      account's current limits (other limits stay as they are). The account row is locked
      before the limits are read, the lock the policy route takes too, so the change is
@@ -397,8 +401,8 @@ asks to resume (the tool description says the same).
   never reaches it; lifting an ended restriction leaves the card expired with its reason;
   a pause lifted elsewhere supersedes its card; lowering a limit is one tap while raising
   or removing one needs a bound passkey; an uncertain trade raises `operation_uncertain`
-  and a resolve card whose answer emits `trading.operation_resolved`, clears the hold and
-  sends nothing; an agent's uncertain operation lands in that agent's conversation; the
+  and a Settle card whose Executed / Not executed answer emits `trading.operation_resolved`,
+  clears the hold and sends nothing; an agent's uncertain operation lands in that agent's conversation; the
   cap, expiry and crash replay; the lift line while trading is stopped; a moved trading
   day shown on the card and refused without the passkey.
 - `tests/test_owner_actions.py`: classification, the widening matrix with a visible line

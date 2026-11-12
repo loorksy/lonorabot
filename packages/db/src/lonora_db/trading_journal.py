@@ -124,6 +124,12 @@ async def persist_result(
         else:
             # An adapter response cannot invent server-captured historical evidence.
             validated.details.pop(key, None)
+    answers = row.result.get("details", {}).get("owner_answers")
+    if isinstance(answers, list):
+        # The owner's recorded answers stay beside whatever the broker later establishes.
+        validated.details = {**validated.details, "owner_answers": answers}
+    else:
+        validated.details.pop("owner_answers", None)
     if status == "resolved":
         # Settling uncertainty without the outcome keeps what was known before it.
         validated.details = {**validated.details, "prior_receipt": previous}
@@ -171,6 +177,9 @@ async def resolve_operation(
 ) -> TradingJournalRow:
     """Record an audited owner attestation for an outcome broker evidence cannot establish.
 
+    Executed or Not executed settles the operation (``resolved``). Unknown is recorded on
+    the row and leaves it ``ambiguous``: still held, still reconciled from broker evidence.
+
     Only an ``ambiguous`` live operation qualifies: an in-progress one may still receive
     its real broker response, and a settled one already has a known outcome. Nothing is
     deleted; the uncertain receipt, its evidence and the attestation stay on the row.
@@ -184,6 +193,28 @@ async def resolve_operation(
         raise LonoraError("operation_already_settled", 409)
     now = utcnow()
     details = row.result.get("details", {})
+    if resolution.outcome == "unknown":
+        # The owner's word that the outcome is still unknown settles nothing: the row stays
+        # uncertain, its hold stays, and reconciliation keeps reading the broker (6.3).
+        row.result = {
+            **row.result,
+            "details": {
+                **details,
+                "owner_answers": [
+                    *details.get("owner_answers", []),
+                    {
+                        "source": "owner",
+                        "outcome": "unknown",
+                        "statement": resolution.statement,
+                        "actor": actor,
+                        "answered_at": now.isoformat(),
+                        "broker_confirmed": False,
+                    },
+                ],
+            },
+        }
+        row.updated_at = now
+        return row
     row.status = "resolved"
     row.result = {
         **row.result,

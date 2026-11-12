@@ -47,6 +47,7 @@ from lonora_db.schema import (
 from lonora_db.trading_journal import resolve_operation
 from lonora_trading.controls import save_controls
 from lonora_trading.execution import ExecutionService
+from lonora_trading.owner_controls import attest_operation
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import delete, func, select
 
@@ -276,6 +277,38 @@ async def checks() -> None:
         )
     assert await count(db, settled.operation_id) == 0
     print("PASS the owner's Executed answer settles the operation without a receipt")
+
+    # 6b. "Unknown" is the owner's word that the outcome is still unknown: it is recorded,
+    # the operation stays uncertain, and reconciliation goes on (6.3). When the broker's
+    # evidence arrives, the operation is confirmed with its one receipt and no resend.
+    broker.mode = "timeout"
+    unknown = buy()
+    assert (await service.execute(owner_id, unknown, gold_lease)).status == "ambiguous"
+    broker.mode = "confirmed"
+    evidence = broker.receipts.pop(unknown.operation_id)
+    async with db.sessions() as session, session.begin():
+        await attest_operation(
+            session,
+            owner_id,
+            unknown.operation_id,
+            OperationResolution(outcome="unknown"),
+            {"kind": "owner", "owner_id": owner_id},
+        )
+    async with db.sessions() as session:
+        row = await session.get(TradingJournalRow, unknown.operation_id)
+        assert row is not None and row.status == "ambiguous", row and row.status
+        answers = row.result["details"]["owner_answers"]
+        assert [item["outcome"] for item in answers] == ["unknown"]
+        assert answers[0]["broker_confirmed"] is False
+    assert await count(db, unknown.operation_id) == 0
+    sent = broker.sent
+    broker.receipts[unknown.operation_id] = evidence
+    assert await reconcile_ambiguous(db, manager) == 1
+    async with db.sessions() as session:
+        row = await session.get(TradingJournalRow, unknown.operation_id)
+        assert row is not None and row.status == "confirmed"
+    assert await count(db, unknown.operation_id) == 1 and broker.sent == sent
+    print("PASS an Unknown answer keeps reconciling; later broker evidence posts one receipt")
 
     # 7. A worker killed after the broker effect, before the journal: recovery posts one.
     killed = buy()

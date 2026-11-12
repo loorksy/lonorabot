@@ -564,9 +564,9 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
         answer.result = {"outcome": "unknown"}
         held = await ack(session, answer)
         assert held.content == (
-            "Recorded: the outcome stays unknown. It will not be resent and no longer holds new "
-            "risk on that market. A trade without a confirmed broker result still holds new risk "
-            "there."
+            "Recorded: the outcome stays unknown. It will not be resent; the broker is still "
+            "checked, and new risk on that market stays held until the outcome is known. A trade "
+            "without a confirmed broker result still holds new risk there."
         )
 
 

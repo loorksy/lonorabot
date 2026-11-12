@@ -404,8 +404,7 @@ async def decide(
             session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
         )
     elif row.kind == "settle_operation":
-        if body.outcome is None:
-            raise LonoraError("owner_action_outcome_required", 422)
+        assert body.outcome is not None  # refused above without one
         await attest_operation(
             session,
             owner.id,
