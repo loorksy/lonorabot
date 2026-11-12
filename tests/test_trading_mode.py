@@ -1,16 +1,26 @@
-"""The agent's trading mode at the execution door (mandate 4.1, 4.2.3, 6.7). Offline."""
+"""The agent's trading mode at the execution door (mandate 4.1, 4.2.3, 6.7). Offline; ticket
+ownership (3.3.4) reads the journal on the shared ``task_db`` fixture."""
 
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from lonora_contracts.account import Position
+from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db import trading_mode as mode_store
-from lonora_db.schema import AgentRow, MessageRow, RunRow, TradeApprovalRow
+from lonora_db.client import Database
+from lonora_db.schema import AgentRow, MessageRow, RunRow, TradeApprovalRow, TradingJournalRow
+from lonora_session.idempotency import broker_operation_tag
 from lonora_trading import agent_permission
+from lonora_trading.account_authority import ticket_agent
+from sqlalchemy.ext.asyncio import AsyncSession
+from test_task_runtime import task_db as task_db
+
+Fixture = tuple[Database, str, str, str]
 
 
 def origin() -> RunRow:
@@ -142,6 +152,144 @@ async def test_the_three_exceptions_of_ticket_ownership(monkeypatch: pytest.Monk
     # Lonora acts on any ticket.
     session = gate(monkeypatch, mode, owner=None, role="personal")
     await door(session, close(), reducing=True, target=TICKET)
+
+
+def entry(
+    owner: str,
+    operation: str,
+    agent: str | None,
+    at: datetime,
+    *,
+    action: str = "buy",
+    position: str | None = None,
+    order: str | None = None,
+) -> TradingJournalRow:
+    """A confirmed entry journaled as the MetaApi adapter writes it: the broker's order and
+    position ids in ``details``, the sending agent in ``details.execution``."""
+    return TradingJournalRow(
+        operation_id=operation,
+        owner_id=owner,
+        account_id="account",
+        request_hash="0" * 64,
+        request={"symbol": "XAUUSD", "action": action},
+        status="confirmed",
+        result={
+            "broker_id": order or position,
+            "details": {
+                "order_id": order,
+                "position_id": position,
+                "execution": {"agent_id": agent},
+            },
+        },
+        submitted_at=at,
+        updated_at=at,
+    )
+
+
+async def two_agents(db: Database, owner: str) -> tuple[str, str]:
+    async with db.sessions() as session, session.begin():
+        rows = [AgentRow(owner_id=owner, name=name, role="specialist") for name in "AB"]
+        session.add_all(rows)
+        await session.flush()
+        return rows[0].id, rows[1].id
+
+
+def closing(position: str) -> TradeRequest:
+    return request(action="close_position", position_id=position, volume=None)
+
+
+async def closes(session: AsyncSession, owner: str, agent: str, ticket: Position) -> None:
+    """The agent's close of this ticket at the door, with the real journal attribution."""
+    run = RunRow(id="run", agent_id=agent, thread_id="chat", trigger="user", model_metadata={})
+    level = AsyncMock(return_value="supervised")
+    with patch.object(agent_permission, "effective_permission", level):
+        await agent_permission.require_operation_permission(
+            session, owner, run, closing(ticket.id), None, reducing=True, target=ticket
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tagged", [True, False])
+async def test_a_netting_fill_never_takes_the_position_from_the_agent_that_opened_it(
+    task_db: Fixture, tagged: bool
+):
+    """3.3.4: on a netting account the symbol's one position belongs to the agent whose order
+    opened it from flat. B's later fill carries the same position id; the broker's tag of
+    A's order names A, and without a tag the oldest entry on that position does."""
+    db, owner, _, _ = task_db
+    a, b = await two_agents(db, owner)
+    now = utcnow()
+    async with db.sessions() as session, session.begin():
+        session.add_all(
+            [
+                entry(owner, "open-a", a, now - timedelta(minutes=5), position="P1", order="O1"),
+                entry(owner, "fill-b", b, now, position="P1", order="O2"),
+            ]
+        )
+    ticket = TICKET.model_copy(
+        update={"id": "P1", "operation_id": broker_operation_tag("open-a") if tagged else None}
+    )
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P1"), ticket) == a
+        await closes(session, owner, a, ticket)
+        with pytest.raises(LonoraError, match="ticket_not_owned"):
+            await closes(session, owner, b, ticket)
+    # A later receipt on A's entry (a verification recheck) touches it last: the order
+    # it was sent in, not its last update, decides.
+    async with db.sessions() as session, session.begin():
+        opened = await session.get(TradingJournalRow, "open-a")
+        assert opened is not None
+        opened.updated_at = now + timedelta(minutes=1)
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P1"), ticket) == a
+
+
+@pytest.mark.asyncio
+async def test_a_pending_orders_fill_belongs_to_the_agent_that_placed_it(task_db: Fixture):
+    """3.3.4: A's buy limit fills into a position that carries the order's ticket and tag,
+    and is still A's after B's later fill nets into it."""
+    db, owner, _, _ = task_db
+    a, b = await two_agents(db, owner)
+    now = utcnow()
+    async with db.sessions() as session, session.begin():
+        session.add_all(
+            [
+                entry(
+                    owner, "limit-a", a, now - timedelta(hours=1), action="buy_limit", order="O7"
+                ),
+                entry(owner, "fill-b", b, now, position="O7", order="O8"),
+            ]
+        )
+    ticket = TICKET.model_copy(update={"id": "O7", "operation_id": broker_operation_tag("limit-a")})
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("O7"), ticket) == a
+        await closes(session, owner, a, ticket)
+        with pytest.raises(LonoraError, match="ticket_not_owned"):
+            await closes(session, owner, b, ticket)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tagged", [True, False])
+async def test_an_opening_order_deep_in_the_history_still_names_its_agent(
+    task_db: Fixture, tagged: bool
+):
+    """3.3.4: the agent's opening entry is older than a thousand later entries on the same
+    account and symbol (the owner's own orders); the position is still the agent's."""
+    db, owner, _, _ = task_db
+    a, _ = await two_agents(db, owner)
+    start = utcnow() - timedelta(days=30)
+    async with db.sessions() as session, session.begin():
+        session.add(entry(owner, "open-a", a, start, position="P1", order="O1"))
+        session.add_all(
+            entry(owner, f"own-{i}", None, start + timedelta(minutes=i + 1), position=f"Q{i}")
+            for i in range(1000)
+        )
+    ticket = TICKET.model_copy(
+        update={"id": "P1", "operation_id": broker_operation_tag("open-a") if tagged else None}
+    )
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P1"), ticket) == a
+        await closes(session, owner, a, ticket)
 
 
 @pytest.mark.asyncio
