@@ -507,6 +507,7 @@ export const labels = {
   youSaid: ["قلتَه", "You said"],
   observed: ["ملاحظة", "Observed"],
   observedBy: ["لاحظه {name}", "Observed by {name}"],
+  earlier: ["من قبل", "Earlier"],
   correctFact: ["صحّح المعلومة", "Correct the fact"],
   deleteFact: ["احذف المعلومة", "Delete the fact"],
   nothingKnown: ["لا شيء بعد.", "Nothing yet."],

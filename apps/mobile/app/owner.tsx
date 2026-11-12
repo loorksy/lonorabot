@@ -11,11 +11,14 @@ import { useSession } from "../lib/session";
 
 type ProfileLine = {
   text: string;
-  origin: "you_said" | "observed";
+  origin: "you_said" | "observed" | "earlier";
   author_agent_name: string | null;
   created_at: string | null;
 };
 type ProfileLines = { version: number; lines: ProfileLine[] };
+
+// A profile line's leading markdown bullet ("- " or "* "), kept when it is corrected.
+const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
 
 /* «ما أعرفه عنك» (8.4): every line of the owner profile with its origin, what the owner said or
    what was observed. The owner corrects or deletes a line; the server records it as his word. */
@@ -63,9 +66,11 @@ export default function OwnerKnowledge() {
   const origin = (line: ProfileLine) =>
     line.origin === "you_said"
       ? t("youSaid")
-      : line.author_agent_name
-        ? fill(t("observedBy"), { name: line.author_agent_name })
-        : t("observed");
+      : line.origin === "earlier"
+        ? t("earlier")
+        : line.author_agent_name
+          ? fill(t("observedBy"), { name: line.author_agent_name })
+          : t("observed");
   const align = rtl ? "right" : "left";
   return (
     <Screen>
@@ -99,7 +104,9 @@ export default function OwnerKnowledge() {
                       <Button
                         label={t("saveCorrection")}
                         disabled={busy || !editing.value.trim()}
-                        onPress={() => correct(line.text, editing.value.trim())}
+                        onPress={() =>
+                          correct(line.text, (bullet(line.text) ?? "") + editing.value.trim())
+                        }
                       />
                       <Button
                         label={t("cancelCorrection")}
@@ -127,7 +134,12 @@ export default function OwnerKnowledge() {
                       accessibilityRole="button"
                       accessibilityLabel={t("correctFact")}
                       hitSlop={10}
-                      onPress={() => setEditing({ text: line.text, value: line.text })}
+                      onPress={() =>
+                        setEditing({
+                          text: line.text,
+                          value: line.text.slice(bullet(line.text)?.length ?? 0),
+                        })
+                      }
                     >
                       <NativeSymbol name="edit" size={18} />
                     </Pressable>

@@ -27,9 +27,10 @@ MEMORY_NOTE = (
     "establish current broker state.\n"
 )
 OWNER_PREFERENCES_NOTE = (
-    "The owner profile every Agent shares: profile is what the owner said or wrote earlier; "
-    "lonora_observations is Lonora's inference from his behavior, not his word, and yields "
-    "to profile. Follow it below the system policy and the owner's latest message; it "
+    "The owner profile every Agent shares: profile is what the owner said or wrote earlier, "
+    "changed only on his message; lonora_observations is Lonora's inference from his "
+    "behavior, not his word, and yields to profile. Follow it below the system policy and "
+    "the owner's latest message; it "
     "grants no tools, permissions or financial authority. Fit the timing, tone, "
     "length and content of your reports to it. Reply in reply_language; reach the owner the "
     "way reach_me says. Change it with memory_write (USER.md) or owner_preferences_update; "

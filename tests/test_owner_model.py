@@ -317,7 +317,7 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
 async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_word():
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import MemoryRevisionRow
+    from lonora_db.schema import MemoryRevisionRow, OwnerProfileRow
     from sqlalchemy import select
 
     fixture = await Fixture().open()
@@ -384,6 +384,71 @@ async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_w
             json={"version": deleted["version"], "text": "- Short reports"},
         )
         assert gone.status_code == 409 and gone.json()["code"] == "owner_profile_line_not_found"
+        # His correction stands: a later routine patch back to the observation is refused.
+        back = {"action": "patch", "section": "USER.md", "old_text": "08:00", "content": "07:30"}
+        refused = await call(
+            registry,
+            await routine_run(fixture, lead["id"]),
+            "memory_write",
+            version=1,
+            observed=True,
+            operations=[back],
+        )
+        assert refused["code"] == "owner_profile_line_is_owners_word", refused
+        removed = {"action": "remove", "section": "USER.md", "old_text": "Reads at 08:00"}
+        refused = await call(
+            registry,
+            await routine_run(fixture, lead["id"]),
+            "memory_write",
+            version=1,
+            operations=[removed],
+        )
+        assert refused["code"] == "owner_profile_line_is_owners_word", refused
+        # On his own message it changes.
+        asked, _ = await owner_turn(fixture, lead, "Actually I read at 07:30")
+        patched = await call(registry, asked, "memory_write", version=1, operations=[back])
+        assert patched.get("owner_profile", patched).get("changed") is True, patched
+        # An owner revert brings an observed line back as observed, not as his word;
+        # a line no kept revision added is "earlier".
+        await call(
+            registry,
+            await routine_run(fixture, lead["id"]),
+            "memory_write",
+            version=1,
+            observed=True,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Sleeps late"}],
+        )
+        known = await fixture.request("GET", "/owner/profile/lines")
+        cut = await fixture.request(
+            "POST",
+            "/owner/profile/lines",
+            {"version": known["version"], "text": "- Sleeps late", "replacement": None},
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            correction = await session.scalar(
+                select(MemoryRevisionRow)
+                .where(
+                    MemoryRevisionRow.owner_id == fixture.owner,
+                    MemoryRevisionRow.document == "owner_profile",
+                )
+                .order_by(MemoryRevisionRow.created_at.desc())
+            )
+            assert correction is not None and correction.change == "correction"
+            correction_id = correction.id
+        await fixture.request(
+            "POST", f"/memory/revisions/{correction_id}/revert", {"version": cut["version"]}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            profile = await session.get(OwnerProfileRow, fixture.owner)
+            assert profile is not None
+            profile.content += "- Legacy line\n"
+        known = await fixture.request("GET", "/owner/profile/lines")
+        origins = {line["text"]: line["origin"] for line in known["lines"]}
+        assert origins == {
+            "- Reads at 07:30": "you_said",
+            "- Sleeps late": "observed",
+            "- Legacy line": "earlier",
+        }
     finally:
         await reset_profile(fixture)
         await fixture.close()

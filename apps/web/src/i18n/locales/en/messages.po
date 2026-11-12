@@ -1396,7 +1396,7 @@ msgstr "Camera not allowed"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
-#: src/shell/settings/OwnerPage.tsx:289
+#: src/shell/settings/OwnerPage.tsx:292
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "Cancel"
@@ -1467,7 +1467,7 @@ msgstr "Card view"
 msgid "Change a value to save it."
 msgstr "Change a value to save it."
 
-#: src/shell/settings/OwnerPage.tsx:333
+#: src/shell/settings/OwnerPage.tsx:341
 msgid "Change log"
 msgstr "Change log"
 
@@ -2108,8 +2108,8 @@ msgstr "Copy table"
 msgid "Copy text"
 msgstr "Copy text"
 
-#: src/shell/settings/OwnerPage.tsx:275
-#: src/shell/settings/OwnerPage.tsx:309
+#: src/shell/settings/OwnerPage.tsx:278
+#: src/shell/settings/OwnerPage.tsx:312
 msgid "Correct the fact"
 msgstr "Correct the fact"
 
@@ -2413,7 +2413,7 @@ msgstr "Delete schedule"
 msgid "Delete the chats?"
 msgstr "Delete the chats?"
 
-#: src/shell/settings/OwnerPage.tsx:317
+#: src/shell/settings/OwnerPage.tsx:325
 msgid "Delete the fact"
 msgstr "Delete the fact"
 
@@ -2627,6 +2627,10 @@ msgstr "Each agent has its own permissions"
 #: src/shell/agent/GroupPage.tsx:138
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "Each member keeps its own permissions. The group has no shared financial authority."
+
+#: src/shell/settings/OwnerPage.tsx:181
+msgid "Earlier"
+msgstr "Earlier"
 
 #: src/components/market/EconomicCalendar.tsx:25
 #: src/components/market/MarketWatch.tsx:137
@@ -3145,7 +3149,7 @@ msgstr "For urgent matters: the agent calls you"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "For your account's safety, sign in again. Your conversations and drafts are saved."
 
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:212
 msgid "Form of address"
 msgstr "Form of address"
 
@@ -4250,7 +4254,7 @@ msgstr "Muted"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:167
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:198
+#: src/shell/settings/OwnerPage.tsx:200
 msgid "Name"
 msgstr "Name"
 
@@ -4745,7 +4749,7 @@ msgstr "note.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
-#: src/shell/settings/OwnerPage.tsx:328
+#: src/shell/settings/OwnerPage.tsx:336
 msgid "Nothing yet."
 msgstr "Nothing yet."
 
@@ -4808,12 +4812,12 @@ msgstr "Now"
 msgid "Objects"
 msgstr "Objects"
 
-#: src/shell/settings/OwnerPage.tsx:182
+#: src/shell/settings/OwnerPage.tsx:184
 msgid "Observed"
 msgstr "Observed"
 
 #. placeholder {0}: fact.author_agent_name
-#: src/shell/settings/OwnerPage.tsx:181
+#: src/shell/settings/OwnerPage.tsx:183
 msgid "Observed by {0}"
 msgstr "Observed by {0}"
 
@@ -4871,7 +4875,7 @@ msgstr "One model for text work"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
-#: src/shell/settings/OwnerPage.tsx:392
+#: src/shell/settings/OwnerPage.tsx:400
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 
@@ -5360,8 +5364,8 @@ msgstr "Position ID"
 msgid "Positions"
 msgstr "Positions"
 
-#: src/shell/settings/OwnerPage.tsx:237
-#: src/shell/settings/OwnerPage.tsx:341
+#: src/shell/settings/OwnerPage.tsx:239
+#: src/shell/settings/OwnerPage.tsx:349
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -5901,11 +5905,11 @@ msgstr "Responsible agent"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:384
+#: src/shell/settings/OwnerPage.tsx:392
 msgid "Restore"
 msgstr "Restore"
 
-#: src/shell/settings/OwnerPage.tsx:380
+#: src/shell/settings/OwnerPage.tsx:388
 msgid "Restored"
 msgstr "Restored"
 
@@ -6066,8 +6070,8 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:442
 #: src/shell/settings/NotifyPages.tsx:382
-#: src/shell/settings/OwnerPage.tsx:249
-#: src/shell/settings/OwnerPage.tsx:282
+#: src/shell/settings/OwnerPage.tsx:251
+#: src/shell/settings/OwnerPage.tsx:285
 msgid "Save"
 msgstr "Save"
 
@@ -7793,7 +7797,7 @@ msgstr "Tightening is saved at once."
 msgid "Time"
 msgstr "Time"
 
-#: src/shell/settings/OwnerPage.tsx:221
+#: src/shell/settings/OwnerPage.tsx:223
 msgid "Time zone"
 msgstr "Time zone"
 
@@ -8518,7 +8522,7 @@ msgstr "Welcome to Lonora"
 msgid "What happened at the broker"
 msgstr "What happened at the broker"
 
-#: src/shell/settings/OwnerPage.tsx:254
+#: src/shell/settings/OwnerPage.tsx:256
 msgid "What I know about you"
 msgstr "What I know about you"
 

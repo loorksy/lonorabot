@@ -15,7 +15,7 @@ import { Note, useLoad } from "./ui";
 
 type ProfileLine = {
   text: string;
-  origin: "you_said" | "observed";
+  origin: "you_said" | "observed" | "earlier";
   author: "owner" | "agent" | "system" | null;
   author_agent_name: string | null;
   created_at: string | null;
@@ -58,6 +58,9 @@ function zones(): string[] {
     return ["UTC"];
   }
 }
+
+// A profile line's leading markdown bullet ("- " or "* "), if it has one.
+const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
 
 /* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما أعرفه عنك» (8.4:
    every profile line with its origin, "you said" or "observed", corrected or deleted as the owner's word) and «سجل التغييرات» (who · field,
@@ -174,9 +177,11 @@ export function OwnerPage() {
   const origin = (fact: ProfileLine) =>
     fact.origin === "you_said"
       ? t`You said`
-      : fact.author_agent_name
-        ? t`Observed by ${fact.author_agent_name}`
-        : t`Observed`;
+      : fact.origin === "earlier"
+        ? t`Earlier`
+        : fact.author_agent_name
+          ? t`Observed by ${fact.author_agent_name}`
+          : t`Observed`;
   const name = ownerName(profile, data.owner.email);
   return (
     <>
@@ -263,7 +268,8 @@ export function OwnerPage() {
                   onSubmit={(event) => {
                     event.preventDefault();
                     const value = editing.value.trim();
-                    if (value) void correctFact(fact.text, value);
+                    // The line keeps its markdown bullet; the field shows only the words.
+                    if (value) void correctFact(fact.text, (bullet(fact.text) ?? "") + value);
                   }}
                 >
                   <input
@@ -304,7 +310,12 @@ export function OwnerPage() {
                     type="button"
                     className="icon"
                     aria-label={t`Correct the fact`}
-                    onClick={() => setEditing({ text: fact.text, value: fact.text })}
+                    onClick={() =>
+                      setEditing({
+                        text: fact.text,
+                        value: fact.text.slice(bullet(fact.text)?.length ?? 0),
+                      })
+                    }
                   >
                     <Icon name="edit" />
                   </button>

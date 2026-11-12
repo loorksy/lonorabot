@@ -1396,7 +1396,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
-#: src/shell/settings/OwnerPage.tsx:289
+#: src/shell/settings/OwnerPage.tsx:292
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "إلغاء"
@@ -1467,7 +1467,7 @@ msgstr "عرض البطاقات"
 msgid "Change a value to save it."
 msgstr "عدّل قيمة لحفظها."
 
-#: src/shell/settings/OwnerPage.tsx:333
+#: src/shell/settings/OwnerPage.tsx:341
 msgid "Change log"
 msgstr "سجل التغييرات"
 
@@ -2108,8 +2108,8 @@ msgstr "نسخ الجدول"
 msgid "Copy text"
 msgstr "نسخ النص"
 
-#: src/shell/settings/OwnerPage.tsx:275
-#: src/shell/settings/OwnerPage.tsx:309
+#: src/shell/settings/OwnerPage.tsx:278
+#: src/shell/settings/OwnerPage.tsx:312
 msgid "Correct the fact"
 msgstr "صحّح المعلومة"
 
@@ -2413,7 +2413,7 @@ msgstr "حذف الجدول"
 msgid "Delete the chats?"
 msgstr "حذف المحادثات؟"
 
-#: src/shell/settings/OwnerPage.tsx:317
+#: src/shell/settings/OwnerPage.tsx:325
 msgid "Delete the fact"
 msgstr "حذف المعلومة"
 
@@ -2627,6 +2627,10 @@ msgstr "لكل وكيل صلاحياته الخاصة"
 #: src/shell/agent/GroupPage.tsx:138
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "كل عضو يحتفظ بصلاحياته. لا توجد صلاحية مالية مشتركة للمجموعة."
+
+#: src/shell/settings/OwnerPage.tsx:181
+msgid "Earlier"
+msgstr "من قبل"
 
 #: src/components/market/EconomicCalendar.tsx:25
 #: src/components/market/MarketWatch.tsx:137
@@ -3139,7 +3143,7 @@ msgstr "للأمور العاجلة: يتصل بك الوكيل"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "لأمان حسابك، سجّل الدخول مجددًا. محادثاتك ومسوداتك محفوظة."
 
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:212
 msgid "Form of address"
 msgstr "طريقة المخاطبة"
 
@@ -4244,7 +4248,7 @@ msgstr "مكتومة"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:167
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:198
+#: src/shell/settings/OwnerPage.tsx:200
 msgid "Name"
 msgstr "الاسم"
 
@@ -4739,7 +4743,7 @@ msgstr "ملاحظة.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور؛ تعرض الخطوة التالية ما ستوقّعه بالضبط."
 
-#: src/shell/settings/OwnerPage.tsx:328
+#: src/shell/settings/OwnerPage.tsx:336
 msgid "Nothing yet."
 msgstr "لا شيء بعد."
 
@@ -4802,12 +4806,12 @@ msgstr "الآن"
 msgid "Objects"
 msgstr "أشياء"
 
-#: src/shell/settings/OwnerPage.tsx:182
+#: src/shell/settings/OwnerPage.tsx:184
 msgid "Observed"
 msgstr "ملاحظة"
 
 #. placeholder {0}: fact.author_agent_name
-#: src/shell/settings/OwnerPage.tsx:181
+#: src/shell/settings/OwnerPage.tsx:183
 msgid "Observed by {0}"
 msgstr "لاحظه {0}"
 
@@ -4865,7 +4869,7 @@ msgstr "نموذج واحد للمهام النصية"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
-#: src/shell/settings/OwnerPage.tsx:392
+#: src/shell/settings/OwnerPage.tsx:400
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
@@ -5354,8 +5358,8 @@ msgstr "معرّف الصفقة"
 msgid "Positions"
 msgstr "الصفقات"
 
-#: src/shell/settings/OwnerPage.tsx:237
-#: src/shell/settings/OwnerPage.tsx:341
+#: src/shell/settings/OwnerPage.tsx:239
+#: src/shell/settings/OwnerPage.tsx:349
 msgid "Preferences"
 msgstr "التفضيلات"
 
@@ -5895,11 +5899,11 @@ msgstr "الوكيل المسؤول"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:384
+#: src/shell/settings/OwnerPage.tsx:392
 msgid "Restore"
 msgstr "استعادة"
 
-#: src/shell/settings/OwnerPage.tsx:380
+#: src/shell/settings/OwnerPage.tsx:388
 msgid "Restored"
 msgstr "استُعيدت"
 
@@ -6060,8 +6064,8 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:442
 #: src/shell/settings/NotifyPages.tsx:382
-#: src/shell/settings/OwnerPage.tsx:249
-#: src/shell/settings/OwnerPage.tsx:282
+#: src/shell/settings/OwnerPage.tsx:251
+#: src/shell/settings/OwnerPage.tsx:285
 msgid "Save"
 msgstr "حفظ"
 
@@ -7787,7 +7791,7 @@ msgstr "التشديد يُحفَظ مباشرةً."
 msgid "Time"
 msgstr "الوقت"
 
-#: src/shell/settings/OwnerPage.tsx:221
+#: src/shell/settings/OwnerPage.tsx:223
 msgid "Time zone"
 msgstr "المنطقة الزمنية"
 
@@ -8512,7 +8516,7 @@ msgstr "مرحبًا بك في Lonora"
 msgid "What happened at the broker"
 msgstr "ما الذي حدث لدى الوسيط"
 
-#: src/shell/settings/OwnerPage.tsx:254
+#: src/shell/settings/OwnerPage.tsx:256
 msgid "What I know about you"
 msgstr "ما أعرفه عنك"
 

@@ -17,6 +17,7 @@ from lonora_contracts.domain import Contract
 from lonora_contracts.incoming_calls import IncomingCallPolicy, ReachMe
 from lonora_core.user_error import LonoraError
 from lonora_db.memory import memory_data, memory_provenance, read_memory
+from lonora_db.owner_knowledge import profile_lines
 from lonora_db.owner_profile import (
     enrolled_devices,
     owner_preferences,
@@ -30,7 +31,7 @@ from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_memory.commit import atomic_commit, atomic_edit
-from lonora_memory.edits import MemoryEdit, MemoryEditError, MemoryOverflow
+from lonora_memory.edits import MemoryEdit, MemoryEditError, MemoryOverflow, occurrences
 from lonora_memory.profile import LEGACY_USER_VIEW, agent_memory_view, profile_documents
 from pydantic import Field, model_validator
 
@@ -125,6 +126,44 @@ PREFERENCES_MESSAGE_REQUIRED = {
 }
 
 
+OWNERS_WORD_PROTECTED = {
+    "ok": False,
+    "code": "owner_profile_line_is_owners_word",
+    "recovery": "Nothing was saved. That profile line is the owner's own word (he said or "
+    "corrected it); only his message changes it. Add your observation beside it, or ask him.",
+}
+
+
+def _touched(content: str, old_text: str) -> list[str]:
+    """The stripped lines the one match of old_text touches, as apply_edit finds them
+    (none when it is missing or ambiguous: the edit itself then fails)."""
+    old = old_text.replace("\r\n", "\n")
+    if not old.strip() or occurrences(content, old) != 1:
+        return []
+    start = content.find(old)
+    first = start + len(old) - len(old.lstrip("\n"))
+    last = start + len(old.rstrip("\n")) - 1
+    lines = content.split("\n")
+    return [
+        line.strip()
+        for line in lines[content.count("\n", 0, first) : content.count("\n", 0, last) + 1]
+    ]
+
+
+async def _changes_owners_word(context: ToolContext, edits: list[MemoryEdit]) -> bool:
+    """Whether a USER.md patch or remove touches a line whose origin is the owner's word
+    or earlier (8.4): his correction is never silently overwritten without his message."""
+    targets = [e.old_text for e in edits if e.section == "USER.md" and e.action != "add"]
+    if not targets:
+        return False
+    async with context.db.sessions() as session:
+        row = await read_owner_profile(session, context.owner_id)
+        known = (await profile_lines(session, context.owner_id))["lines"]
+    words = {line["text"] for line in known if line["origin"] != "observed"}
+    content = row.content if row else ""
+    return any(line in words for text in targets for line in _touched(content, text))
+
+
 async def _owner_message(context: ToolContext) -> tuple[str | None, bool, bool]:
     """The owner's typed message this run answers, whether the caller is Lonora, and
     whether the run is tainted for an observation without that message (6.10): another
@@ -168,6 +207,8 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             return OWNER_MESSAGE_REQUIRED
         if profile and tainted:
             return OWNER_PROFILE_TAINTED
+        if message_id is None and await _changes_owners_word(context, edits):
+            return OWNERS_WORD_PROTECTED
         if params.observed:
             # An observation is never attributed to the owner's message.
             message_id = None
