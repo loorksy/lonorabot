@@ -126,7 +126,16 @@ export async function restoreDraft(key: string): Promise<boolean> {
   return true;
 }
 
-subscribeDrafts(scheduleDraftSave);
+// A draft that empties (sent, or cleared) is removed at once: a restart right after Send must
+// not bring the sent text back. Typing is saved after a pause.
+subscribeDrafts((key) => {
+  const { text, attachments, reply } = composerDraft(key);
+  if (!text && !attachments.length && !reply) {
+    clearTimeout(timers.get(key));
+    timers.delete(key);
+    void saveDraft(key);
+  } else scheduleDraftSave(key);
+});
 registerSessionTeardown(async () => {
   generation += 1;
   editing.clear();
