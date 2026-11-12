@@ -1569,7 +1569,7 @@ async def test_model_retry_raise_is_the_existing_worker_release(
         await execute_tool_loop(context, ToolRegistry([]), 8)
 
 
-# --- 7. consult_model: bounded, advisory, budget-aware -----------------------------
+# --- 7. consult_model: advisory, no per-run budget (P1) ------------------------------
 
 
 class ConsultRouter:
