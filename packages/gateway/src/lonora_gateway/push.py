@@ -4,6 +4,7 @@ One push per record, at its creation, to every phone whose sign-in session is li
 - a pending Trade Approval card (``approval_required``);
 - a Settle Uncertain Operation card (``operation_uncertain``);
 - a Secret card an agent's run raised and is waiting on (``secret_requested``);
+- a Mandate card an agent proposed (``mandate_proposed``);
 - a broker health problem (``broker_token_rejected``, ``broker_account_undeployed``,
   ``broker_connection_lost``): one push per account and problem, the problem named by the
   account and the time it began, so a flapping connection pushes once per outage.
@@ -59,6 +60,7 @@ PUSH_CODES = frozenset(
         "approval_required",
         "operation_uncertain",
         "secret_requested",
+        "mandate_proposed",
         *BROKER_HEALTH_CODES,
     }
 )
@@ -116,7 +118,8 @@ async def push_record(session: AsyncSession, item: AttentionRow) -> tuple[str, i
         record = row.operation_id if row else ""
     else:
         row = await session.get(OwnerActionRow, str(parameters.get("owner_action_id", "")))
-        # Only a card an agent's run raised and is waiting on (11.4).
+        # Only a card an agent's run raised (11.4: "a Secret card an agent is waiting on",
+        # "a Mandate card an agent proposed"); Lonora's onboarding card is the system's.
         if row is not None and (row.source != "agent" or not row.run_id):
             return None
         record = row.id if row else ""

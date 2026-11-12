@@ -475,7 +475,12 @@ async def test_a_phone_that_registered_a_new_token_is_kept(task_db: Fixture) -> 
 
 
 async def secret_card(
-    db: Database, owner_id: str, agent_id: str, thread_id: str, source: str
+    db: Database,
+    owner_id: str,
+    agent_id: str,
+    thread_id: str,
+    source: str,
+    kind: str = "connect_credential",
 ) -> str:
     async with db.sessions() as session, session.begin():
         card_row = OwnerActionRow(
@@ -484,7 +489,7 @@ async def secret_card(
             thread_id=thread_id,
             run_id=str(uuid4()) if source == "agent" else None,
             source=source,
-            kind="connect_credential",
+            kind=kind,
             subject="secret:" + uuid4().hex,
             payload={},
             payload_hash=uuid4().hex,
@@ -501,7 +506,7 @@ async def secret_card(
             logical_key=uuid4().hex,
             coalesce_key=uuid4().hex,
             importance="action_required",
-            code="secret_requested",
+            code="secret_requested" if kind == "connect_credential" else "mandate_proposed",
             parameters={"owner_action_id": card_row.id},
             due_at=utcnow(),
         )
@@ -584,3 +589,20 @@ async def test_a_broker_problem_pushes_once_per_account_and_outage(task_db: Fixt
         broker.state = {"broker_recovery": {"status": "connected"}}
     await outage(db, owner_id, agent_id, thread_id, account, "broker_connection_lost")
     assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_mandate_card_an_agent_proposed_pushes_and_the_onboarding_one_does_not(
+    task_db: Fixture,
+) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    # Lonora's own card at onboarding is raised by the system while the owner is in the app.
+    await secret_card(db, owner_id, agent_id, thread_id, "system", "trading_mode")
+    await secret_card(db, owner_id, agent_id, thread_id, "agent", "trading_mode")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert expo.sent[0]["body"] == attention_text("mandate_proposed", "ar")
+    assert expo.sent[0]["data"] == {"thread_id": thread_id, "around": 11}
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
