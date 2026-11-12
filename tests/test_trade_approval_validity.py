@@ -243,7 +243,8 @@ async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it()
 async def test_the_agent_withdraws_its_own_card() -> None:
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import TradeApprovalRow
+    from lonora_db.schema import RunRow, TradeApprovalRow
+    from sqlalchemy import func, select
     from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
@@ -266,8 +267,19 @@ async def test_the_agent_withdraws_its_own_card() -> None:
         stranger = await fixture.lease(await fixture.run(other, await fixture.conversation(other)))
         with pytest.raises(LonoraError, match="trade_approval_not_found"):
             await call(stranger, "trade_approval_withdraw", approval_id=asked["approval_id"])
-        done = await call(context, "trade_approval_withdraw", approval_id=asked["approval_id"])
+        # A later run withdraws the card its ended run raised: no wake for what it knows.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            ended = await session.get(RunRow, context.lease.run_id, with_for_update=True)
+            assert ended is not None
+            ended.status = "completed"
+        later = await fixture.lease(await fixture.run(agent, {"id": context.thread_id}))
+        runs = select(func.count()).select_from(RunRow).where(RunRow.agent_id == agent["id"])
+        async with fixture.runtime.db.sessions() as session:
+            before = await session.scalar(runs)
+        done = await call(later, "trade_approval_withdraw", approval_id=asked["approval_id"])
         assert done["status"] == "withdrawn"
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.scalar(runs) == before, "A self-withdrawal woke the agent"
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(TradeApprovalRow, asked["approval_id"])
             assert row is not None and row.status == "withdrawn"

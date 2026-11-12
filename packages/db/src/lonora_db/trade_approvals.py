@@ -286,8 +286,8 @@ def drifted_prompt(row: TradeApprovalRow) -> str:
     reference = row.validity.get("reference", {})
     return (
         f"Your pending Trade Approval card (approval_id={row.id}) drifted: the "
-        f"{reference.get('side', 'executable')} price of {reference.get('symbol', 'its symbol')} "
-        f"moved outside {reference.get('price')} ± {row.validity.get('tolerance')}. It can no "
+        f"{'ask' if reference.get('side') == 'ask' else 'bid'} price of its symbol moved "
+        f"outside {reference.get('price')} ± {row.validity.get('tolerance')}. It can no "
         "longer be approved and nothing was sent. Re-check the market with fresh data and "
         "decide again: ask with a new card, or tell the owner in one line why not."
     )
@@ -303,13 +303,12 @@ async def withdraw_own(
     row, run = await locked_approval(session, owner_id, approval_id)
     if row.status != "pending":
         raise LonoraError("trade_approval_already_decided", 409)
-    await end_card(
-        session,
-        row,
-        run,
-        "withdrawn",
-        f"You withdrew your Trade Approval card (approval_id={row.id}). Nothing was sent.",
-    )
+    # The agent itself withdrew it: no wake for what it already knows. A run of the
+    # agent still waiting on this card continues and reads the outcome.
+    row.status, row.updated_at = "withdrawn", utcnow()
+    approval_event(session, row)
+    if run is not None and run.status == "waiting_input":
+        wake_waiting_run(session, row, run)
     return row
 
 
