@@ -361,9 +361,6 @@ async def create_package(
                 adapted_content=arguments["adapted_content"],
                 review=AdaptationReview.model_validate(arguments["review"]),
             )
-            # A skill's files reach the model: one carrying a workspace secret is refused.
-            if any(scan.found(body.encode()) for body in files.values()):
-                raise LonoraError("skill_package_contains_secret", 422)
             row = await owned_skill(session, context, entry.payload.name)
             await admit_version(session, context, row, entry, arguments["expected_version"])
             await validate_graph(
@@ -386,6 +383,12 @@ async def create_package(
                     },
                 )
             )
+        # A skill's files and paths reach the model: a package carrying a workspace
+        # secret is refused, also on a retry of one prepared before the secret existed.
+        if any(
+            scan.found(name.encode()) or scan.found(body.encode()) for name, body in files.items()
+        ):
+            raise LonoraError("skill_package_contains_secret", 422)
     return await install_entry(context, registry, arguments, digest, entry, files)
 
 

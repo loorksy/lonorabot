@@ -67,11 +67,16 @@ async def output_scan(context: ToolContext) -> SecretScan:
 
 
 def manifest(revision: int, files: dict[str, bytes], scan: SecretScan) -> dict[str, Any]:
+    names = sorted(files)
     return {
         "revision": revision,
         "files": [
-            {"path": scan.text(name), "size": len(body), "sha256": hashlib.sha256(body).hexdigest()}
-            for name, body in sorted(files.items())
+            {
+                "path": path,
+                "size": len(files[name]),
+                "sha256": hashlib.sha256(files[name]).hexdigest(),
+            }
+            for name, path in zip(names, scan.texts(names), strict=True)
         ],
     }
 
@@ -115,8 +120,9 @@ async def locked_workspace(
 
 
 async def receipt(
-    session: AsyncSession, context: ToolContext, digest: str
+    session: AsyncSession, context: ToolContext, digest: str, scan: SecretScan
 ) -> dict[str, Any] | None:
+    """The stored result of this exact call, scanned again: it may predate a secret."""
     operation = await session.get(WorkspaceOperationRow, context.resource_id)
     if operation is None:
         return None
@@ -128,7 +134,7 @@ async def receipt(
         raise LonoraError("workspace_operation_conflict", 409)
     if operation.status == "running":
         raise LonoraError("workspace_busy", 409)
-    return operation.result
+    return scan.data(operation.result)
 
 
 def require_revision(row: AnalyticalWorkspaceRow, revision: int) -> None:
@@ -207,7 +213,6 @@ class RunWorkspaceAccess:
         encode_snapshot({path: b""})
         if not 0 <= offset <= 2097152 or not 1 <= limit <= 16000:
             raise LonoraError("workspace_read_invalid", 422)
-        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
             row = await session.get(AnalyticalWorkspaceRow, context.agent_id)
@@ -216,18 +221,23 @@ class RunWorkspaceAccess:
             files = read_snapshot(row.snapshot) if row else {}
             if path not in files:
                 raise LonoraError("workspace_file_not_found", 404)
-            try:
-                content = files[path].decode("utf-8")
-            except UnicodeError:
-                raise LonoraError("workspace_file_binary", 422) from None
-            return {
-                "revision": revision,
-                "path": path,
-                "content": scan.text(content[offset : offset + limit]),
-                "offset": offset,
-                "next_offset": offset + limit if len(content) > offset + limit else None,
-                "sha256": hashlib.sha256(files[path]).hexdigest(),
-            }
+            body = files[path]
+        try:
+            text = body.decode("utf-8")
+        except UnicodeError:
+            raise LonoraError("workspace_file_binary", 422) from None
+        # The whole file is scanned before a page is cut, so no page holds part of a
+        # secret; offsets count characters of the scanned text.
+        scan = await output_scan(context)
+        content = await asyncio.to_thread(scan.text, text)
+        return {
+            "revision": revision,
+            "path": path,
+            "content": content[offset : offset + limit],
+            "offset": offset,
+            "next_offset": offset + limit if len(content) > offset + limit else None,
+            "sha256": hashlib.sha256(body).hexdigest(),
+        }
 
     async def update(
         self, context: ToolContext, revision: int, files: dict[str, str], delete: list[str]
@@ -248,7 +258,7 @@ class RunWorkspaceAccess:
         scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             row = await locked_workspace(session, context)
-            prior = await receipt(session, context, digest)
+            prior = await receipt(session, context, digest, scan)
             if prior is not None:
                 return prior
             require_revision(row, revision)
@@ -295,9 +305,10 @@ class RunWorkspaceAccess:
         digest = request_hash(
             {"kind": "workspace_generated_v1", "revision": revision, "path": path, **intent}
         )
+        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context, mutate=True)
-            prior = await receipt(session, context, digest)
+            prior = await receipt(session, context, digest, scan)
             if prior is not None:
                 return prior
             current = await session.get(AnalyticalWorkspaceRow, context.agent_id)
@@ -306,7 +317,7 @@ class RunWorkspaceAccess:
         body, summary = await produce()
         async with context.db.sessions() as session, session.begin():
             row = await locked_workspace(session, context)
-            prior = await receipt(session, context, digest)
+            prior = await receipt(session, context, digest, scan)
             if prior is not None:
                 return prior
             require_revision(row, revision)
@@ -356,9 +367,10 @@ class RunWorkspaceAccess:
                 "deadline_seconds": deadline_seconds,
             }
         )
+        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             row = await locked_workspace(session, context, helper=True)
-            prior = await receipt(session, context, digest)
+            prior = await receipt(session, context, digest, scan)
             if prior is not None:
                 return prior
             require_revision(row, revision)
@@ -395,7 +407,16 @@ class RunWorkspaceAccess:
             )
             if expected_image is not None and outcome.image != expected_image:
                 raise LonoraError("workspace_profile_changed", 409)
+            # Scanned off the event loop and before the row lock: a secret saved while
+            # the command ran is in this scan too.
             scan = await output_scan(context)
+            stdout, stderr, listing = await asyncio.to_thread(
+                lambda: (
+                    scan.text(outcome.stdout),
+                    scan.text(outcome.stderr),
+                    manifest(revision + 1, outcome.files, scan),
+                )
+            )
             encoded = encode_snapshot(outcome.files)
             async with context.db.sessions() as session, session.begin():
                 row = await locked_workspace(session, context, helper=True)
@@ -414,10 +435,10 @@ class RunWorkspaceAccess:
                 result = {
                     "operation_id": context.resource_id,
                     "exit_code": outcome.exit_code,
-                    "stdout": scan.text(outcome.stdout),
-                    "stderr": scan.text(outcome.stderr),
+                    "stdout": stdout,
+                    "stderr": stderr,
                     "image": outcome.image,
-                    **manifest(row.revision, outcome.files, scan),
+                    **listing,
                 }
                 operation.status, operation.result, operation.updated_at = (
                     "completed",
