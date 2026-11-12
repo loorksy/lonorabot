@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from lonora_agent.context.routine import wake_context
 from lonora_core.run_state import is_conversational
 from lonora_db.client import Database
 from lonora_db.personal_agent import ensure_personal_agent
@@ -17,7 +18,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_trading.morning_brief import TRIGGER as BRIEF_TRIGGER
-from lonora_trading.morning_brief import brief_tick
+from lonora_trading.morning_brief import brief_tick, plain_brief
 from lonora_trading.weekly_report import TRIGGER, latest_close, weekly_tick
 from sqlalchemy import select
 from test_task_runtime import task_db as task_db
@@ -38,6 +39,9 @@ def test_the_weekly_close_is_friday_17_00_new_york_and_an_empty_report_is_not_ac
     before = latest_close(CLOSE - timedelta(minutes=1))
     assert before is not None and before[1] == CLOSE - timedelta(days=7)
     assert is_conversational(TRIGGER)
+    # The facts hold symbols agents typed: the wake is the run's request turn (6.10).
+    run = RunRow(thread_id="t", agent_id="a", trigger=TRIGGER, prompt="Report.")
+    assert wake_context(run) == "<wake trigger='weekly_report' request='in_the_conversation_turn'/>"
 
 
 async def runs(db: Database, trigger: str) -> list[RunRow]:
@@ -155,6 +159,9 @@ async def test_the_first_brief_after_the_close_carries_the_reports_once(task_db:
     }
     assert reports["Lonora"]["state"] == "not_ready"
     assert reports["Resting"]["state"] == "paused"
+    plain = plain_brief(facts_of(brief.prompt, "brief_facts"), "ar")
+    assert "تقارير الأسبوع:" in plain
+    assert "• Task fixture: نُشر في محادثته" in plain and "• Resting: موقوف مؤقتاً، لا تقرير" in plain
     async with db.sessions() as session, session.begin():
         stored = await session.get(RunRow, brief.id)
         assert stored is not None
