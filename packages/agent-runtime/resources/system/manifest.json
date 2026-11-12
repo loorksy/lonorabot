@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "0f728094e5d35681eb078e30ac1398869f9ea96fc9b0cae1b68d4aada515661a",
+  "manual_sha256": "e9a1bef8b5e5b015d09ee9f399c373446e8fdd5a41ba922a86ac86912a991851",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -52,6 +52,7 @@
     "artifact_read": "files",
     "mcp_connections": "research",
     "mcp_tools": "research",
+    "mcp_trust": "research",
     "mcp_execute": "research",
     "news_feed_read": "research",
     "news_feed_subscribe": "research",

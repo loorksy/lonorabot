@@ -1274,7 +1274,7 @@ class TrustedSourceRow(Base):
             "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
         ),
         CheckConstraint(
-            "added_via IN ('default','operator','owner_ui','owner_card')",
+            "added_via IN ('default','operator','owner_ui','owner_card','owner_message')",
             name="ln_trusted_source_added_via",
         ),
         CheckConstraint(
