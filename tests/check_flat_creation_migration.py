@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
+# 0125 merges the heads 0170 and 0061: downgrading to 0170 undoes 0125 alone.
 BEFORE = "0170_broker_health_attention"
 
 
