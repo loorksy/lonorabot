@@ -11,7 +11,15 @@ from lonora_db.schema import RunRow
 
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
 SERVER_AUTHORED_TRIGGERS = frozenset(
-    {"goal", "broker_event", "follow_up", "activation", "agent_created", "owner_card"}
+    {
+        "goal",
+        "broker_event",
+        "follow_up",
+        "activation",
+        "agent_created",
+        "owner_card",
+        "morning_brief",
+    }
 )
 
 
