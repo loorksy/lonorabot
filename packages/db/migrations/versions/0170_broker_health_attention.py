@@ -8,7 +8,8 @@ stored recovery state. A stored ``broker_degraded`` row named no problem, so it 
 raises the current problem of each account again under its own code on its next tick.
 A ``broker_recovered`` row only said that a degraded state ended; it is deleted, as the
 projection keeps its source events and effect receipts. The downgrade restores the
-codes; the rows deleted here are not recreated.
+codes and deletes ``secret_requested`` rows, which the earlier code does not know; the
+rows deleted here are not recreated.
 """
 
 import json
@@ -58,6 +59,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.get_bind().execute(sa.text("DELETE FROM ln_attention WHERE code = 'secret_requested'"))
     op.get_bind().execute(
         sa.text(
             "UPDATE ln_attention SET code = 'broker_degraded' WHERE code IN "

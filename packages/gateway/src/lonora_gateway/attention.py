@@ -440,11 +440,21 @@ async def suppress_item(session: AsyncSession, item_id: str) -> bool:
 
 
 async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) -> int:
-    # Broker health first (9.4): it reads stored state only, never broker IO.
-    async with db.sessions() as session, session.begin():
-        await follow_broker_health(session, owner_id)
-    async with db.sessions() as session, session.begin():
-        await withdraw_ended(session, owner_id)
+    # Broker health first (9.4): it reads stored state only, never broker IO. Each step
+    # is isolated like an event, so a failure there never holds back the projection.
+    health = ItemGuard(db, "attention_health", quarantine_after=None)
+    steps = {
+        "broker_health:" + owner_id: follow_broker_health,
+        "withdraw:" + owner_id: withdraw_ended,
+    }
+    await health.prepare(steps)
+    for item_id, step in steps.items():
+
+        async def follow(step: Any = step) -> None:
+            async with db.sessions() as session, session.begin():
+                await step(session, owner_id)
+
+        await health.run(item_id, owner_id, follow)
     async with db.sessions() as session:
         await publish_committed(session)
         counter = await session.get(SettingRow, "attention-cursor:" + owner_id)

@@ -41,7 +41,7 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
     gateway_degraded: t`Background service is running late`,
     agent_notification: t`Your agent alerted you`,
-    secret_requested: t`Your agent is waiting on a secret`,
+    secret_requested: t`Your agent needs a secret from you`,
   };
 }
 export function AttentionInbox({

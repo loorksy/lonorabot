@@ -312,11 +312,11 @@ export const labels = {
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
   attentionBrokerUndeployed: [
-    "الحساب غير منشور على MetaApi",
+    "الحساب غير مُشغَّل على MetaApi",
     "The account is not deployed on MetaApi",
   ],
   attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
-  attentionSecretRequested: ["وكيلك ينتظر سرًّا", "Your agent is waiting on a secret"],
+  attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [
     "تأكد شرط المراقبة — راجع الأدلة الحالية",

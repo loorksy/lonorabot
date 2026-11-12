@@ -11,14 +11,25 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import get_args
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
+from lonora_contracts.attention import AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
+from lonora_db.attention import raise_system_attention, withdraw_ended
+from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
-from lonora_db.schema import AttentionRow, BrokerSessionRow, EventRow, OwnerActionRow
+from lonora_db.schema import (
+    AttentionRow,
+    BrokerSessionRow,
+    EventRow,
+    OwnerActionRow,
+    TradingJournalRow,
+)
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
 from lonora_tools.loader import load_tools
@@ -215,6 +226,123 @@ async def broker_health(fixture: Fixture) -> None:
     assert len(await items(fixture, "broker_account_undeployed")) == 1
     print("PASS a disabled connection has no broker health item")
 
+    # The same outage: enabled again, the problem is raised again, once.
+    await set_recovery(
+        fixture, account, "disconnected", "broker_account_undeployed", outage(undeployed)
+    )
+    await tick(fixture)
+    await tick(fixture)
+    old, again = await items(fixture, "broker_account_undeployed")
+    assert old.status == "suppressed" and again.status == "ready"
+    assert again.parameters["since"] == old.parameters["since"]
+    print("PASS a problem that comes back in the same outage is raised again, once")
+
+    # A naive or unreadable stored time never stops the owner's other items.
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(BrokerSessionRow, account, with_for_update=True)
+        assert row is not None
+        recovery = {**row.state["broker_recovery"], "since": "not a time"}
+        row.state = {**row.state, "broker_recovery": recovery}
+    await tick(fixture)
+    [_, again] = await items(fixture, "broker_account_undeployed")
+    assert again.status == "suppressed"
+    naive = (utcnow() - timedelta(minutes=5)).replace(tzinfo=None)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(BrokerSessionRow, account, with_for_update=True)
+        assert row is not None
+        recovery = {
+            **row.state["broker_recovery"],
+            "reason_code": "broker_connection_timeout",
+            "since": naive.isoformat(),
+            # An outage with an open position is critical.
+            "positions": [
+                {
+                    "id": "p1",
+                    "symbol": "EURUSD",
+                    "side": "buy",
+                    "volume": "0.1",
+                    "open_price": "1.1",
+                    "profit": "0",
+                }
+            ],
+        }
+        row.state = {**row.state, "broker_recovery": recovery}
+    await tick(fixture)
+    lost = (await items(fixture, "broker_connection_lost"))[-1]
+    assert lost.status == "ready" and lost.importance == "critical"
+    print("PASS an unreadable time raises nothing; a naive one reads as UTC; exposure is critical")
+
+    # Raised past the grace, the item stays while the outage is unchanged, whatever
+    # the clock of the gateway checking it.
+    with patch("lonora_db.attention.utcnow", lambda: utcnow() - timedelta(minutes=10)):
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            assert await withdraw_ended(session, fixture.owner) == 0
+    print("PASS a raised lost connection is not withdrawn by a gateway whose clock is behind")
+
+
+async def settle_card(fixture: Fixture) -> None:
+    """The uncertain-operation item stands for its Settle card: it ends with the card."""
+    operation_id = "op-" + uuid4().hex[:20]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=operation_id,
+                owner_id=fixture.owner,
+                account_id="acc-" + uuid4().hex[:8],
+                request_hash="h",
+                request={"symbol": "EURUSD", "action": "buy"},
+                status="ambiguous",
+            )
+        )
+        await session.flush()
+        emit(
+            session,
+            fixture.owner,
+            "trading.operation_updated",
+            payload={"operation_id": operation_id, "status": "ambiguous"},
+        )
+    await tick(fixture)
+    [item] = [
+        row
+        for row in await items(fixture, "operation_uncertain")
+        if row.parameters.get("operation_id") == operation_id
+    ]
+    assert item.status == "ready"
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        card = await session.scalar(
+            select(OwnerActionRow).where(
+                OwnerActionRow.kind == "resolve_operation",
+                OwnerActionRow.subject == "operation:" + operation_id,
+            )
+        )
+        assert card is not None and card.status == "pending"
+        card.expires_at = utcnow() - timedelta(seconds=1)
+    await tick(fixture)
+    async with fixture.runtime.db.sessions() as session:
+        row = await session.get(AttentionRow, item.id)
+        assert row is not None and row.status == "suppressed"
+    print("PASS the uncertain-operation item is withdrawn when its Settle card ends")
+
+
+async def fallbacks(fixture: Fixture) -> None:
+    """An urgent item delivered without its record (its projection kept failing) stays."""
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        item = await raise_system_attention(
+            session,
+            fixture.owner,
+            "approval_required",
+            "event:" + uuid4().hex,
+            {"reason_code": "attention_projection_failed"},
+            importance="action_required",
+        )
+        assert item is not None
+        identifier = item.id
+    await tick(fixture)
+    async with fixture.runtime.db.sessions() as session:
+        row = await session.get(AttentionRow, identifier)
+        assert row is not None and row.status == "ready"
+    print("PASS a quarantined approval alert is not withdrawn for lack of its record")
+
 
 async def migration(fixture: Fixture) -> None:
     environment = {**os.environ}
@@ -275,6 +403,9 @@ async def migration(fixture: Fixture) -> None:
     )
     # Every stored row reads through the notification contract again.
     await fixture.request("GET", "/attention/history")
+    async with fixture.runtime.db.sessions() as session:
+        codes = set(await session.scalars(select(AttentionRow.code).distinct()))
+    assert codes <= set(get_args(AttentionCode)), codes
     print("PASS migration 0170 rewrites broker_degraded rows and deletes broker_recovered rows")
 
 
@@ -283,6 +414,8 @@ async def main() -> None:
     try:
         await secret_card(fixture)
         await broker_health(fixture)
+        await settle_card(fixture)
+        await fallbacks(fixture)
         await migration(fixture)
     finally:
         await fixture.close()

@@ -133,7 +133,7 @@ def test_broker_problem_without_state() -> None:
     assert broker_problem({}, NOW) is None
 
 
-def test_the_five_events_have_one_code_set() -> None:
+def test_the_owner_events_have_one_code_set() -> None:
     assert set(BROKER_HEALTH_CODES) <= set(ATTENTION_EVENTS)
     assert set(ATTENTION_EVENTS.values()) == {
         "trade_approval",

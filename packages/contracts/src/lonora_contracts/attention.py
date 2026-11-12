@@ -39,8 +39,8 @@ AttentionCode = Literal[
 ]
 AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
 
-# The events that need the owner (mandate 11.4): each is one item, withdrawn when its
-# card ends or its problem clears, and each sends one push when it becomes ready.
+# The events of mandate 11.4 that need the owner, by code: each is one item, ready at
+# once and withdrawn when its card ends or its problem clears.
 AttentionEvent = Literal["trade_approval", "settle_operation", "secret_request", "broker_health"]
 ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
     "approval_required": "trade_approval",
@@ -59,7 +59,7 @@ BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
 
 
 class AttentionNotification(Contract):
-    """One attention item as the clients, the channels and the push sender read it.
+    """One attention item as the clients and the channels read it.
 
     It is the payload of the ``attention.updated`` and ``attention.ready`` events.
     """

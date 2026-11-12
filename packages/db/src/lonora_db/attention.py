@@ -13,7 +13,7 @@ from lonora_contracts.attention import (
 )
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
-from lonora_core.broker_health import broker_problem
+from lonora_core.broker_health import broker_problem, outage
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import func, select, text
@@ -48,23 +48,30 @@ SYSTEM_ATTENTION = {
 }
 
 
+def current_outage(recovery: dict[str, Any]) -> tuple[str, str] | None:
+    """The outage an item names, read with no grace: once raised, a lost connection is
+    withdrawn only when it ends or changes, whatever the clock of the gateway asking."""
+    found = outage(recovery)
+    return (found[0], found[1].isoformat()) if found else None
+
+
 def attention_data(row: AttentionRow) -> dict[str, Any]:
-    return AttentionNotification.model_validate(
-        {
-            "id": row.id,
-            "agent_id": row.agent_id,
-            "thread_id": row.thread_id,
-            "importance": row.importance,
-            "code": row.code,
-            "status": row.status,
-            "parameters": row.parameters,
-            "source_events": row.source_events,
-            "source_count": row.source_count,
-            "version": row.version,
-            "created_at": row.created_at,
-            "updated_at": row.updated_at,
-        }
-    ).model_dump(mode="json")
+    data: dict[str, Any] = {
+        "id": row.id,
+        "agent_id": row.agent_id,
+        "thread_id": row.thread_id,
+        "importance": row.importance,
+        "code": row.code,
+        "status": row.status,
+        "parameters": row.parameters,
+        "source_events": row.source_events,
+        "source_count": row.source_count,
+        "version": row.version,
+        "created_at": row.created_at.isoformat(),
+        "updated_at": row.updated_at.isoformat(),
+    }
+    AttentionNotification.model_validate(data)
+    return data
 
 
 async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
@@ -76,10 +83,20 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
 async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     if row.code == "operation_uncertain":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
-        return (
-            journal is not None
-            and journal.owner_id == row.owner_id
-            and journal.status == "ambiguous"
+        if journal is None or journal.owner_id != row.owner_id or journal.status != "ambiguous":
+            return False
+        # The item stands for its Settle card: once that card ended, so does the item.
+        cards = list(
+            await session.scalars(
+                select(OwnerActionRow).where(
+                    OwnerActionRow.owner_id == row.owner_id,
+                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.subject == "operation:" + journal.operation_id,
+                )
+            )
+        )
+        return not cards or any(
+            card.status == "pending" and card.expires_at > utcnow() for card in cards
         )
     if row.code == "operation_unresolved":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
@@ -107,7 +124,7 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
             broker is not None
             and broker.owner_id == row.owner_id
             and bool(broker.payload.get("enabled"))
-            and broker_problem(broker.state.get("broker_recovery", {}), utcnow())
+            and current_outage(broker.state.get("broker_recovery", {}))
             == (row.code, row.parameters.get("since"))
         )
     if row.code == "secret_requested":
@@ -747,37 +764,68 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
     """Raise one item per account and broker health problem (9.4) while it lasts.
 
     The problem is read from the account's stored recovery state, so a lost connection
-    becomes an item only once it has lasted the grace period, and an item is raised
-    once per problem episode (its start time is part of the subject). Returns how many
-    items were raised; ``withdraw_ended`` withdraws them when the problem clears.
+    becomes an item only once it has lasted the grace period. An item names its outage
+    (the time the account became disconnected): while the same outage shows the same
+    problem, its item stays the only one, and if the problem comes back after its item
+    was withdrawn (the reason flapped, the connection was disabled and enabled again),
+    it is raised again. An outage with open positions or unresolved operations is
+    critical. Returns how many items were raised; ``withdraw_ended`` withdraws them.
     """
     await lock_attention(session, owner_id)
     now = utcnow()
+    recovery = BrokerSessionRow.state["broker_recovery"]
+    accounts = await session.execute(
+        select(
+            BrokerSessionRow.id,
+            recovery["status"].as_string(),
+            recovery["reason_code"].as_string(),
+            recovery["since"].as_string(),
+        ).where(
+            BrokerSessionRow.owner_id == owner_id,
+            BrokerSessionRow.payload["enabled"].as_boolean().is_(True),
+            recovery["status"].as_string() == "disconnected",
+        )
+    )
     count = 0
-    for broker in await session.scalars(
-        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
-    ):
-        if not broker.payload.get("enabled"):
-            continue
-        problem = broker_problem(broker.state.get("broker_recovery", {}), now)
+    for account_id, status, reason, since_text in accounts:
+        problem = broker_problem(
+            {"status": status, "reason_code": reason, "since": since_text}, now
+        )
         if problem is None:
             continue
         code, since = problem
-        recovery = broker.state["broker_recovery"]
-        raised = await raise_system_attention(
+        raised = list(
+            await session.scalars(
+                select(AttentionRow).where(
+                    AttentionRow.owner_id == owner_id,
+                    AttentionRow.code == code,
+                    AttentionRow.parameters["account_id"].as_string() == account_id,
+                    AttentionRow.parameters["since"].as_string() == since,
+                )
+            )
+        )
+        if any(row.status != "suppressed" for row in raised):
+            continue
+        broker = await session.get(BrokerSessionRow, account_id)
+        assert broker is not None
+        state = broker.state["broker_recovery"]
+        exposed = bool(state.get("positions") or state.get("unresolved_operations"))
+        item = await raise_system_attention(
             session,
             owner_id,
             code,
-            broker.id + ":" + since,
-            {"account_id": broker.id, "since": since, "reason_code": recovery["reason_code"]},
+            account_id + ":" + since + ":" + str(len(raised)),
+            {"account_id": account_id, "since": since, "reason_code": reason},
+            importance="critical" if exposed else None,
         )
-        count += raised is not None
+        count += item is not None
     return count
 
 
 async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
-    """Withdraw every open item of the five owner events whose card ended or whose
-    problem cleared, including one the owner has already seen.
+    """Withdraw every open item of the 11.4 owner events whose card ended or whose
+    problem cleared, including one the owner has already seen (which keeps its
+    ``updated_at``, so the history does not reorder).
 
     A card can end without an event (a Secret card's lifetime runs out), and a broker
     problem clears with a recovery that raises no item of its own, so the current
@@ -791,12 +839,21 @@ async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
             AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
             AttentionRow.status.in_(["pending", "ready", "seen"]),
         )
+        .order_by(AttentionRow.created_at)
+        .limit(200)
         .with_for_update()
     )
     count = 0
     for row in rows:
+        # An urgent event whose projection kept failing is delivered without its record
+        # (quarantine_event); nothing can tell when it ends, so it stays for the owner.
+        if row.parameters.get("reason_code") == "attention_projection_failed":
+            continue
         if await mandatory_current(session, row):
             continue
+        updated_at = row.updated_at if row.status == "seen" else None
         suppress_superseded(session, row)
+        if updated_at is not None:
+            row.updated_at = updated_at
         count += 1
     return count

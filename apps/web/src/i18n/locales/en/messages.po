@@ -238,7 +238,7 @@ msgstr "30 days"
 msgid "7 days"
 msgstr "7 days"
 
-#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:38
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "A background item was paused after repeated errors; everything else keeps running"
 
@@ -306,7 +306,7 @@ msgstr "A removed agent"
 msgid "A short tone when a reply arrives"
 msgstr "A short tone when a reply arrives"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:40
 msgid "A trade still has no confirmed broker result"
 msgstr "A trade still has no confirmed broker result"
 
@@ -458,7 +458,7 @@ msgstr "Activity log"
 msgid "Activity log only"
 msgstr "Activity log only"
 
-#: src/components/ai/AttentionInbox.tsx:32
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "Activity updated"
 msgstr "Activity updated"
 
@@ -1104,7 +1104,7 @@ msgstr "Back to the permissions"
 #~ msgid "Back to workspace"
 #~ msgstr "Back to workspace"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:42
 msgid "Background service is running late"
 msgstr "Background service is running late"
 
@@ -1201,7 +1201,7 @@ msgstr "Broker"
 msgid "Broker account"
 msgstr "Broker account"
 
-#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:26
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
@@ -1852,7 +1852,7 @@ msgstr "closing is frozen too"
 msgid "Cloud chart"
 msgstr "Cloud chart"
 
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:30
 msgid "Collaboration result is ready"
 msgstr "Collaboration result is ready"
 
@@ -3969,7 +3969,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:149
+#: src/components/ai/AttentionInbox.tsx:154
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4119,7 +4119,7 @@ msgstr "Messages cleared"
 msgid "Messages reach"
 msgstr "Messages reach"
 
-#: src/components/ai/AttentionInbox.tsx:18
+#: src/components/ai/AttentionInbox.tsx:23
 msgid "MetaApi rejected the access token"
 msgstr "MetaApi rejected the access token"
 
@@ -4342,7 +4342,7 @@ msgstr "New trades paused until 23:59"
 msgid "New trades resumed"
 msgstr "New trades resumed"
 
-#: src/components/ai/AttentionInbox.tsx:15
+#: src/components/ai/AttentionInbox.tsx:20
 msgid "New trading stopped"
 msgstr "New trading stopped"
 
@@ -4524,7 +4524,7 @@ msgstr "No model is set up yet"
 msgid "No money limit"
 msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:110
+#: src/components/ai/AttentionInbox.tsx:115
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -4759,8 +4759,8 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:72
-#: src/components/ai/AttentionInbox.tsx:74
+#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4792,7 +4792,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:105
+#: src/components/ai/AttentionInbox.tsx:110
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -4909,7 +4909,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:140
+#: src/components/ai/AttentionInbox.tsx:145
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5046,7 +5046,7 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:138
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5793,9 +5793,9 @@ msgstr "Reply to your message"
 msgid "Reply with a message"
 msgstr "Reply with a message"
 
-#: src/components/ai/AttentionInbox.tsx:17
-#: src/components/ai/AttentionInbox.tsx:29
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:35
 msgid "Request updated"
 msgstr "Request updated"
 
@@ -6438,7 +6438,7 @@ msgstr "Settings"
 msgid "Setup token"
 msgstr "Setup token"
 
-#: src/components/ai/AttentionInbox.tsx:23
+#: src/components/ai/AttentionInbox.tsx:28
 msgid "Setup validity changed"
 msgstr "Setup validity changed"
 
@@ -7001,7 +7001,7 @@ msgstr "Task boards"
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:36
 #: src/shell/domain/TasksPages.tsx:240
 #: src/shell/domain/UpdatesPages.tsx:48
 msgid "Task completed"
@@ -7018,12 +7018,12 @@ msgstr "Task created"
 msgid "Task details"
 msgstr "Task details"
 
-#: src/components/ai/AttentionInbox.tsx:27
+#: src/components/ai/AttentionInbox.tsx:32
 msgid "Task is retrying through a model outage"
 msgstr "Task is retrying through a model outage"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:31
 #: src/conversation/sheets/AgentSheet.tsx:405
 msgid "Task needs review"
 msgstr "Task needs review"
@@ -7097,7 +7097,7 @@ msgstr "That time has passed. Choose a new time."
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 
-#: src/components/ai/AttentionInbox.tsx:20
+#: src/components/ai/AttentionInbox.tsx:25
 msgid "The account connection has been lost"
 msgstr "The account connection has been lost"
 
@@ -7105,7 +7105,7 @@ msgstr "The account connection has been lost"
 msgid "The account is linked"
 msgstr "The account is linked"
 
-#: src/components/ai/AttentionInbox.tsx:19
+#: src/components/ai/AttentionInbox.tsx:24
 msgid "The account is not deployed on MetaApi"
 msgstr "The account is not deployed on MetaApi"
 
@@ -7169,7 +7169,7 @@ msgstr "The broker connection is unavailable."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:41
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 
@@ -7942,7 +7942,7 @@ msgstr "Trading and safety"
 #~ msgid "Trading control"
 #~ msgstr "Trading control"
 
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:29
 msgid "Trading goal updated"
 msgstr "Trading goal updated"
 
@@ -8383,7 +8383,7 @@ msgid "Waiting for a condition"
 msgstr "Waiting for a condition"
 
 #: src/components/ai/AgentLiveStatus.tsx:50
-#: src/components/ai/AttentionInbox.tsx:16
+#: src/components/ai/AttentionInbox.tsx:21
 msgid "Waiting for approval"
 msgstr "Waiting for approval"
 
@@ -8433,11 +8433,11 @@ msgstr "Watch"
 msgid "Watch cancelled"
 msgstr "Watch cancelled"
 
-#: src/components/ai/AttentionInbox.tsx:14
+#: src/components/ai/AttentionInbox.tsx:19
 msgid "Watch condition changed"
 msgstr "Watch condition changed"
 
-#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:27
 msgid "Watch confirmed — review current evidence"
 msgstr "Watch confirmed — review current evidence"
 
@@ -8550,7 +8550,7 @@ msgstr "Why this interface?"
 msgid "Wink"
 msgstr "Wink"
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:39
 msgid "Work stopped after repeated interruptions"
 msgstr "Work stopped after repeated interruptions"
 
@@ -8699,13 +8699,13 @@ msgstr "You: {0}"
 msgid "You: {text}"
 msgstr "You: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:38
+#: src/components/ai/AttentionInbox.tsx:43
 msgid "Your agent alerted you"
 msgstr "Your agent alerted you"
 
-#: src/components/ai/AttentionInbox.tsx:39
-msgid "Your agent is waiting on a secret"
-msgstr "Your agent is waiting on a secret"
+#: src/components/ai/AttentionInbox.tsx:44
+msgid "Your agent needs a secret from you"
+msgstr "Your agent needs a secret from you"
 
 #: src/pages/ActivityList.tsx:166
 msgid "Your agents’ activity will appear here."

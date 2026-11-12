@@ -238,7 +238,7 @@ msgstr "30 يومًا"
 msgid "7 days"
 msgstr "7 أيام"
 
-#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:38
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
@@ -306,7 +306,7 @@ msgstr "وكيل محذوف"
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:40
 msgid "A trade still has no confirmed broker result"
 msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 
@@ -458,7 +458,7 @@ msgstr "سجل الإجراءات"
 msgid "Activity log only"
 msgstr "سجل النشاط فقط"
 
-#: src/components/ai/AttentionInbox.tsx:32
+#: src/components/ai/AttentionInbox.tsx:37
 msgid "Activity updated"
 msgstr "تم تحديث النشاط"
 
@@ -1104,7 +1104,7 @@ msgstr "رجوع إلى الصلاحيات"
 #~ msgid "Back to workspace"
 #~ msgstr "العودة إلى مساحة العمل"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:42
 msgid "Background service is running late"
 msgstr "خدمة الخلفية متأخرة"
 
@@ -1201,7 +1201,7 @@ msgstr "الوسيط"
 msgid "Broker account"
 msgstr "حساب الوسيط"
 
-#: src/components/ai/AttentionInbox.tsx:21
+#: src/components/ai/AttentionInbox.tsx:26
 msgid "Broker account changed"
 msgstr "تغيّرت حالة حساب الوسيط"
 
@@ -1852,7 +1852,7 @@ msgstr "الإغلاق مجمّد أيضًا"
 msgid "Cloud chart"
 msgstr "الشارت السحابي"
 
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:30
 msgid "Collaboration result is ready"
 msgstr "نتيجة التعاون جاهزة"
 
@@ -3963,7 +3963,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:149
+#: src/components/ai/AttentionInbox.tsx:154
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4113,7 +4113,7 @@ msgstr "مُسحت الرسائل"
 msgid "Messages reach"
 msgstr "تصل الرسائل إلى"
 
-#: src/components/ai/AttentionInbox.tsx:18
+#: src/components/ai/AttentionInbox.tsx:23
 msgid "MetaApi rejected the access token"
 msgstr "رفضت MetaApi رمز الوصول"
 
@@ -4336,7 +4336,7 @@ msgstr "عُلّقت الصفقات الجديدة حتى 23:59"
 msgid "New trades resumed"
 msgstr "استُؤنفت الصفقات الجديدة"
 
-#: src/components/ai/AttentionInbox.tsx:15
+#: src/components/ai/AttentionInbox.tsx:20
 msgid "New trading stopped"
 msgstr "التداول الجديد متوقف"
 
@@ -4518,7 +4518,7 @@ msgstr "لم يُضبط نموذج بعد"
 msgid "No money limit"
 msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:110
+#: src/components/ai/AttentionInbox.tsx:115
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -4753,8 +4753,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:72
-#: src/components/ai/AttentionInbox.tsx:74
+#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4786,7 +4786,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:105
+#: src/components/ai/AttentionInbox.tsx:110
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -4903,7 +4903,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:140
+#: src/components/ai/AttentionInbox.tsx:145
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5040,7 +5040,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:138
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5787,9 +5787,9 @@ msgstr "ردّ على رسالتك"
 msgid "Reply with a message"
 msgstr "الرد برسالة"
 
-#: src/components/ai/AttentionInbox.tsx:17
-#: src/components/ai/AttentionInbox.tsx:29
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:35
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
@@ -6432,7 +6432,7 @@ msgstr "الإعدادات"
 msgid "Setup token"
 msgstr "رمز الإعداد"
 
-#: src/components/ai/AttentionInbox.tsx:23
+#: src/components/ai/AttentionInbox.tsx:28
 msgid "Setup validity changed"
 msgstr "تغيّرت صلاحية الإعداد"
 
@@ -6995,7 +6995,7 @@ msgstr "لوحات المهام"
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:36
 #: src/shell/domain/TasksPages.tsx:240
 #: src/shell/domain/UpdatesPages.tsx:48
 msgid "Task completed"
@@ -7012,12 +7012,12 @@ msgstr "أُنشئت مهمة"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:27
+#: src/components/ai/AttentionInbox.tsx:32
 msgid "Task is retrying through a model outage"
 msgstr "المهمة تعيد المحاولة أثناء تعطل النموذج"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:31
 #: src/conversation/sheets/AgentSheet.tsx:405
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
@@ -7091,7 +7091,7 @@ msgstr "مضى هذا الوقت. اختر وقتًا جديدًا."
 msgid "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgstr "يُفصل الحساب <0>{number}</0> لدى <1>{broker}</1>."
 
-#: src/components/ai/AttentionInbox.tsx:20
+#: src/components/ai/AttentionInbox.tsx:25
 msgid "The account connection has been lost"
 msgstr "انقطع الاتصال بالحساب"
 
@@ -7099,9 +7099,9 @@ msgstr "انقطع الاتصال بالحساب"
 msgid "The account is linked"
 msgstr "رُبط الحساب"
 
-#: src/components/ai/AttentionInbox.tsx:19
+#: src/components/ai/AttentionInbox.tsx:24
 msgid "The account is not deployed on MetaApi"
-msgstr "الحساب غير منشور على MetaApi"
+msgstr "الحساب غير مُشغَّل على MetaApi"
 
 #: src/conversation/sheets/MandateSheet.tsx:303
 msgid "The account's current limits stay in force."
@@ -7163,7 +7163,7 @@ msgstr "الاتصال بالوسيط غير متاح."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:41
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت"
 
@@ -7936,7 +7936,7 @@ msgstr "التداول والأمان"
 #~ msgid "Trading control"
 #~ msgstr "التحكم بالتداول"
 
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:29
 msgid "Trading goal updated"
 msgstr "تم تحديث هدف التداول"
 
@@ -8377,7 +8377,7 @@ msgid "Waiting for a condition"
 msgstr "بانتظار تحقق شرط"
 
 #: src/components/ai/AgentLiveStatus.tsx:50
-#: src/components/ai/AttentionInbox.tsx:16
+#: src/components/ai/AttentionInbox.tsx:21
 msgid "Waiting for approval"
 msgstr "بانتظار موافقتك"
 
@@ -8427,11 +8427,11 @@ msgstr "مراقبة"
 msgid "Watch cancelled"
 msgstr "أُلغيت المراقبة"
 
-#: src/components/ai/AttentionInbox.tsx:14
+#: src/components/ai/AttentionInbox.tsx:19
 msgid "Watch condition changed"
 msgstr "تغيّر شرط المراقبة"
 
-#: src/components/ai/AttentionInbox.tsx:22
+#: src/components/ai/AttentionInbox.tsx:27
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
@@ -8544,7 +8544,7 @@ msgstr "لماذا هذه الواجهة؟"
 msgid "Wink"
 msgstr "غمزة"
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:39
 msgid "Work stopped after repeated interruptions"
 msgstr "توقف عمل بعد انقطاعات متكررة"
 
@@ -8693,13 +8693,13 @@ msgstr "أنت: {0}"
 msgid "You: {text}"
 msgstr "أنت: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:38
+#: src/components/ai/AttentionInbox.tsx:43
 msgid "Your agent alerted you"
 msgstr "نبّهك وكيلك"
 
-#: src/components/ai/AttentionInbox.tsx:39
-msgid "Your agent is waiting on a secret"
-msgstr "وكيلك ينتظر سرًّا"
+#: src/components/ai/AttentionInbox.tsx:44
+msgid "Your agent needs a secret from you"
+msgstr "وكيلك ينتظر منك بيانات سرّية"
 
 #: src/pages/ActivityList.tsx:166
 msgid "Your agents’ activity will appear here."

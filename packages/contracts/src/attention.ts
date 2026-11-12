@@ -32,9 +32,9 @@ export type AttentionCode =
   | "agent_notification"
   | "secret_requested";
 /**
- * The events that need the owner (mandate 11.4), by code: each is one item, withdrawn
- * when its card ends or its problem clears, and each sends one push when it becomes
- * ready. Mirrors ATTENTION_EVENTS in lonora_contracts.attention.
+ * The events of mandate 11.4 that need the owner, by code: each is one item, ready at
+ * once and withdrawn when its card ends or its problem clears. Mirrors ATTENTION_EVENTS
+ * in lonora_contracts.attention.
  */
 export type AttentionEvent =
   | "trade_approval"
