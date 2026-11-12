@@ -24,7 +24,7 @@ from .base import Tool, eager_for
 from .context import ToolContext
 from .market import CandlesInput, QuoteInput
 from .symbols import read_symbol
-from .workspace import access, workspace_available
+from .terminal import available, client, require_ordinary, scan
 
 READ_TIMEOUT_SECONDS = 20
 DEFAULT_TIMEFRAMES = ["15m", "1h", "4h", "1d"]
@@ -87,12 +87,12 @@ class CalendarReadInput(Contract):
 
 
 class CandlesWorkspaceInput(CandlesInput):
-    revision: int = Field(ge=0, description="Current workspace revision from workspace_inspect.")
     path: str | None = Field(
         default=None,
-        max_length=256,
+        max_length=1024,
         pattern=r"^[A-Za-z0-9_.\-/]+\.csv$",
-        description="Workspace CSV path; default market/<symbol>_<timeframe>.csv.",
+        description="Workspace CSV path (relative paths start in your home); default"
+        " market/<symbol>_<timeframe>.csv.",
     )
     start: datetime | None = Field(default=None, description="Optional aware lower bar time.")
     end: datetime | None = Field(default=None, description="Optional aware upper bar time.")
@@ -286,19 +286,8 @@ def _default_path(symbol: str, timeframe: str) -> str:
 async def candles_to_workspace(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = CandlesWorkspaceInput.model_validate(args)
     timeframe = validate_timeframe(params.timeframe)
-    workspace = access(context)
-    # The receipt identity is the request as made, so an interrupted call replays its
-    # recorded write without needing the broker again.
+    await require_ordinary(context)
     path = params.path or _default_path(params.symbol, timeframe)
-    intent = {
-        "account_id": params.account_id,
-        "symbol": params.symbol,
-        "timeframe": timeframe,
-        "limit": params.limit,
-        "start": params.start.isoformat() if params.start else None,
-        "end": params.end.isoformat() if params.end else None,
-        "include_forming": params.include_forming,
-    }
 
     async def produce() -> tuple[bytes, dict[str, Any]]:
         broker = await context.brokers.get(context.owner_id, params.account_id)
@@ -350,7 +339,12 @@ async def candles_to_workspace(context: ToolContext, args: dict[str, Any]) -> di
             "read_hint": "pandas.read_csv(path, parse_dates=['time', 'close_time'])",
         }
 
-    return await workspace.write_generated(context, params.revision, path, intent, produce)
+    body, summary = await produce()
+    # The bars come from the broker, not the model; a replay writes the current bars.
+    written = await client(context).write(await scan(context), context.agent_id, path, body)
+    if not written["ok"]:
+        raise LonoraError("workspace_file_unwritable", 409)
+    return {"path": path, **summary}
 
 
 def tools() -> list[Tool]:
@@ -397,13 +391,14 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "market_candles_to_workspace",
-            "Write broker candles for one exact symbol/timeframe into this Agent's analytical "
-            "workspace as CSV at the given revision, without passing bars through the "
-            "conversation. Returns only path, rows, time range and the new revision for "
-            "workspace_execute. Closed bars only unless include_forming. Quotas apply.",
+            "Write broker candles for one exact symbol/timeframe into a CSV file in the"
+            " workspace, without passing bars through the conversation. Returns only path,"
+            " rows and time range, for analysis with workspace_run. Closed bars only unless"
+            " include_forming.",
             CandlesWorkspaceInput,
             candles_to_workspace,
             replay_safe=True,
-            availability=workspace_available,
+            timeout_seconds=120,
+            availability=available,
         ),
     ]

@@ -20,8 +20,8 @@ from lonora_core.user_error import ToolRefusal
 from lonora_db.runs import OFFER_OBLIGATION, require_lease
 from lonora_tools.base import ToolScope
 from lonora_tools.context import ToolContext
+from lonora_tools.provenance import owner_message_id
 from lonora_tools.registry import BRIDGE_TOOLS, ToolRegistry
-from lonora_tools.restrictions import owner_message_id
 from lonora_tools.schema import ToolArgumentsError
 
 from .runtime_notices import notice_message

@@ -137,18 +137,14 @@ async def test_a_paused_tasks_run_tightens_a_stop_but_never_widens_it() -> None:
     database()
     from check_streaming import Fixture
     from lonora_contracts.tasks import TaskControl, TaskCreate
-    from lonora_contracts.trading import TradingControl
     from lonora_db.tasks import control_task, create_task, get_task
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from test_proactive_wakes import call, retire, simulation
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Paused task stops", supervised=True)
         thread = await fixture.conversation(agent)
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -202,7 +198,6 @@ async def test_a_paused_tasks_run_tightens_a_stop_but_never_widens_it() -> None:
         (position,) = await broker.positions()
         assert position.stop_loss == Decimal("97")
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -216,20 +211,16 @@ async def test_a_bound_agents_replayed_order_is_the_same_operation(
     operation id, answers from the journal and never sends twice (6.2, 6.3)."""
     database()
     from check_streaming import Fixture
-    from lonora_contracts.trading import TradingControl
     from lonora_db.schema import AgentRow, TradingJournalRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
     from test_proactive_wakes import retire, simulation
     from test_trading_mode_tools import same_call
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Bound replay", supervised=True)
         async with fixture.runtime.db.sessions() as session, session.begin():
             row = await session.get(AgentRow, agent["id"])
@@ -276,7 +267,6 @@ async def test_a_bound_agents_replayed_order_is_the_same_operation(
             )
         assert journaled == 1
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
