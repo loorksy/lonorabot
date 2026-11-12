@@ -23,11 +23,13 @@ the server.
 
 import hashlib
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.mcp.connector import McpConnector
+from lonora_adapters.mcp.oauth import Client, refresh
 from lonora_adapters.mcp.policy import (
     advertised_schema_sha256,
     declaration_for,
@@ -39,9 +41,10 @@ from lonora_adapters.mcp.policy import (
     validate_input,
 )
 from lonora_adapters.mcp.transport import HttpMcpTransport
-from lonora_contracts.domain import Contract
+from lonora_contracts.domain import Contract, utcnow
 from lonora_contracts.mcp import McpConnection
 from lonora_core.user_error import LonoraError
+from lonora_db.client import Database
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, McpConnectionRow, SecretRow, TrustedSourceRow
 from lonora_db.trusted_sources import mark_used, mcp_trust, trust_source
@@ -118,7 +121,10 @@ async def connection_config(context: ToolContext, connection_id: str) -> McpConn
             raise LonoraError("mcp_disabled", 409)
         if config.transport != "http":
             raise LonoraError("mcp_stdio_isolation_required", 403)
-        for secret_id in (config.secret_id, config.url_secret_id):
+        named = [config.secret_id, config.url_secret_id]
+        if config.oauth is not None:
+            named += [config.oauth.refresh_secret_id, config.oauth.client_secret_id]
+        for secret_id in named:
             if not secret_id:
                 continue
             secret = await session.get(SecretRow, secret_id)
@@ -130,7 +136,74 @@ async def connection_config(context: ToolContext, connection_id: str) -> McpConn
                 or secret.scope not in {"integration", "workspace"}
             ):
                 raise LonoraError("mcp_credential_scope_forbidden", 403)
-    return config
+    return await signed_in(context.db, context.secrets, context.owner_id, connection_id, config)
+
+
+# An access token is renewed when it has less than this left.
+RENEW_BEFORE = timedelta(seconds=60)
+
+
+def renewal_due(config: McpConnection) -> bool:
+    expires_at = config.oauth.expires_at if config.oauth else None
+    return expires_at is not None and expires_at <= utcnow() + RENEW_BEFORE
+
+
+async def signed_in(
+    db: Database, secrets: SecretStore, owner_id: str, connection_id: str, config: McpConnection
+) -> McpConnection:
+    """A server Lonora signed in to, its access token renewed with the refresh token when
+    it is about to expire. One renewal at a time: the connection is locked, and a token
+    another run renewed meanwhile is used as it is. A sign-in that cannot be renewed has
+    ended (``mcp_sign_in_expired``): the owner signs in again from a new Secret card."""
+    if not renewal_due(config):
+        return config
+    async with db.sessions() as session, session.begin():
+        row = await session.get(McpConnectionRow, connection_id, with_for_update=True)
+        if row is None or row.owner_id != owner_id:
+            raise LonoraError("mcp_not_found", 404)
+        current = McpConnection.model_validate(row.payload)
+        oauth = current.oauth
+        if not renewal_due(current) or oauth is None:
+            return current
+        if oauth.refresh_secret_id is None or current.secret_id is None:
+            raise LonoraError("mcp_sign_in_expired", 409)
+        secret = None
+        if oauth.client_secret_id is not None:
+            secret = await secrets.read(oauth.client_secret_id)
+        client = Client(oauth.client_id, secret, oauth.client_method)
+        try:
+            tokens = await refresh(
+                oauth.token_endpoint,
+                oauth.resource or await server_address(secrets, current),
+                client,
+                await secrets.read(oauth.refresh_secret_id),
+            )
+        except LonoraError:
+            raise LonoraError("mcp_sign_in_expired", 409) from None
+        stored = await session.execute(
+            select(SecretRow.id, SecretRow.name).where(
+                SecretRow.id.in_([current.secret_id, oauth.refresh_secret_id])
+            )
+        )
+        names = {secret_id: name for secret_id, name in stored}
+        # The new refresh token first: a renewal cut short still has the token that works.
+        if tokens.refresh_token:
+            await secrets.write(names[oauth.refresh_secret_id], tokens.refresh_token, "workspace")
+        await secrets.write(names[current.secret_id], tokens.access_token, "workspace")
+        expires = tokens.expires_in
+        renewed = current.model_copy(
+            update={
+                "oauth": oauth.model_copy(
+                    update={
+                        "expires_at": None
+                        if expires is None
+                        else utcnow() + timedelta(seconds=expires)
+                    }
+                )
+            }
+        )
+        row.payload = renewed.model_dump(mode="json")
+        return renewed
 
 
 def snapshot(row: TrustedSourceRow | None) -> Trust | None:
@@ -243,7 +316,9 @@ async def connections(context: ToolContext, args: dict[str, Any]) -> dict[str, A
         "guidance": "Pass connection_id to mcp_tools and mcp_execute. An empty list means the "
         "owner has not saved an MCP server: offer a Secret card (target mcp_server). "
         "trusted_tier null means the owner has not trusted its tools yet: mcp_trust when he "
-        "names it. read: only the tools the server marks read-only run.",
+        "names it. read: only the tools the server marks read-only run. "
+        "mcp_sign_in_expired or mcp_sign_in_required: offer a new Secret card (target "
+        "mcp_server) so the owner signs in again.",
     }
 
 

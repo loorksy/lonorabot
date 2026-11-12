@@ -30,6 +30,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .mcp_sign_ins import sign_in_failed
 from .schema import IntegrationRow, OwnerActionRow, SecretRow
 from .secrets import (
     BROKER,
@@ -56,7 +57,14 @@ CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
 }
 # The workspace name each value of a connecting card is saved under ({name}: its name).
 SAVED_AS: dict[str, dict[str, str]] = {
-    "mcp_server": {"URL": "MCP_{name}_URL", "TOKEN": "MCP_{name}_TOKEN"},
+    # A server Lonora signs in to also keeps its refresh token, and a client secret its
+    # authorization server issued.
+    "mcp_server": {
+        "URL": "MCP_{name}_URL",
+        "TOKEN": "MCP_{name}_TOKEN",
+        "REFRESH_TOKEN": "MCP_{name}_REFRESH_TOKEN",
+        "CLIENT_SECRET": "MCP_{name}_CLIENT_SECRET",
+    },
     "brave_search": {"API_KEY": "BRAVE_API_KEY"},
     "news_feed": {"URL": "FEED_{name}_URL"},
     "economic_calendar": {"URL": "CALENDAR_{name}_URL"},
@@ -224,6 +232,9 @@ async def secret_facts(
         name = payload.get("details", {}).get("name") or DEFAULT_NAME.get(target) or target
         names = await free_names(session, owner_id, target, name)
         facts["saves_as"] = [names[str(field["key"])] for field in payload["fields"]]
+        if target == "mcp_server":
+            # The server's sign-in did not finish: the owner connects again to retry.
+            facts["sign_in_failed"] = await sign_in_failed(session, row.id)
     return facts
 
 

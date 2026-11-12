@@ -1,8 +1,40 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from .domain import Contract
+
+
+class McpOAuth(Contract):
+    """A server Lonora signed in to (OAuth, VISION.md 13.1): where and how its access
+    token is renewed. The tokens are workspace secrets: the access token is the
+    connection's ``secret_id``, the refresh token ``refresh_secret_id``, and a client
+    secret the server issued ``client_secret_id``. ``resource`` is the identifier the
+    server published for itself when it is not its address (the address may carry a key,
+    so it stays only in the store); None means the address."""
+
+    issuer: str = Field(min_length=1, max_length=2048)
+    token_endpoint: str = Field(min_length=1, max_length=2048)
+    resource: str | None = Field(default=None, min_length=1, max_length=2048)
+    client_id: str = Field(min_length=1, max_length=8192)
+    client_method: Literal["none", "client_secret_basic", "client_secret_post"] = "none"
+    client_secret_id: str | None = None
+    refresh_secret_id: str | None = None
+    expires_at: datetime | None = None
+
+    @field_validator("issuer", "token_endpoint", "resource")
+    @classmethod
+    def https_only(cls, value: str | None) -> str | None:
+        if value is not None and not value.lower().startswith("https://"):
+            raise ValueError("mcp_https_required")
+        return value
+
+    @model_validator(mode="after")
+    def client_secret(self) -> "McpOAuth":
+        if (self.client_method == "none") != (self.client_secret_id is None):
+            raise ValueError("mcp_oauth_client_invalid")
+        return self
 
 
 class McpConnection(Contract):
@@ -16,6 +48,8 @@ class McpConnection(Contract):
     endpoint_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     command: list[str] = Field(default_factory=list[str], max_length=16)
     secret_id: str | None = None
+    # Signed in with OAuth from a Secret card: its access token is ``secret_id``.
+    oauth: McpOAuth | None = None
     enabled: bool = False
 
     @field_validator("url")
@@ -31,6 +65,9 @@ class McpConnection(Contract):
         stored = self.url_secret_id is not None
         if stored != (self.endpoint_sha256 is not None) or (stored and self.url is not None):
             raise ValueError("mcp_address_invalid")
+        # Only a card-saved server is signed in to, and its access token is its secret.
+        if self.oauth is not None and (not stored or self.secret_id is None):
+            raise ValueError("mcp_oauth_invalid")
         return self
 
 

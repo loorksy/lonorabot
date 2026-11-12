@@ -16,6 +16,7 @@ from .schema import (
     SettingRow,
     ThreadRow,
 )
+from .secrets import SECRET_KEYS, referenced
 
 
 def resource_data(row: ResourceRow) -> dict[str, Any]:
@@ -110,9 +111,10 @@ class ResourceRepository:
             board = await session.get(BoardRow, board_id)
             if board is None or board.owner_id != owner_id:
                 raise LonoraError("board_id_not_found", 404)
-        # The secrets a connection names: its token, and an MCP server's stored address.
-        for key in ("secret_id", "url_secret_id"):
-            secret_id = payload.get(key)
+        # The secrets a connection names: its token, an MCP server's stored address, and
+        # the refresh token and client secret of a server Lonora signed in to.
+        for key in SECRET_KEYS:
+            secret_id = referenced(payload, key)
             if not secret_id:
                 continue
             # Shared lock: a delete of this secret waits for this write, then sees it used.

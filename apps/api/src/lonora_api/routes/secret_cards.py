@@ -10,19 +10,39 @@ run once the owner trusts it, by naming it in chat (``mcp_trust``) or in Capabil
 the agent that asked is woken to tell him. A broker card's values go only to the broker
 layer's store (7.2.3); the gateway then provisions the account and wakes the agent with
 the result.
+
+An MCP server saved without a token is first asked, outside any lock, whether it needs a
+sign-in (OAuth, VISION.md 13.1). If it does, the card keeps waiting: Lonora registers with
+its authorization server, keeps the sign-in (``ln_mcp_sign_ins``) and answers with the
+page the owner's browser opens; the callback (``routes/mcp_sign_in.py``) finishes it.
 """
 
+import secrets
+from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapters.mcp.oauth import (
+    Client,
+    SignInPlan,
+    Tokens,
+    authorization_url,
+    discover,
+    needs_sign_in,
+    pkce_pair,
+    register,
+)
 from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.mcp import McpConnection
+from lonora_contracts.domain import utcnow
+from lonora_contracts.mcp import McpConnection, McpOAuth
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import feed_host, source_url
+from lonora_db.mcp_sign_ins import keep_sign_in
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -37,9 +57,11 @@ from lonora_db.schema import IntegrationRow, OwnerActionRow
 from lonora_db.secret_cards import card_values, free_names, save_values, secret_stale_reason
 from lonora_db.secrets import BROKER, WORKSPACE
 from lonora_security.network import endpoint_sha256
+from lonora_security.secrets import SecretCipher
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..env import Settings
 from ..middleware.auth import require_owner, runtime
 from .integrations import OwnerIntegrationRepository
 from .mcp import McpRepository
@@ -68,8 +90,11 @@ async def save_secret(
     async with rt.db.sessions() as session:
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
+    sign_in = None
+    if target == "mcp_server":
+        sign_in = await sign_in_start(rt.settings, peek, body.values)
     async with rt.db.sessions() as session, session.begin():
-        row = await pending_card(session, owner, card_id)
+        row = await pending_card(session, owner.id, card_id)
         if row is None:
             return await owner_action_data(session, await owned_card(session, owner.id, card_id))
         reason = await secret_stale_reason(session, owner.id, row.payload)
@@ -79,11 +104,15 @@ async def save_secret(
             # saves nothing.
             await settle(session, row, "expired", reason)
             return await owner_action_data(session, row)
+        if sign_in is not None:
+            # The server asks for a sign-in: the card waits for the owner's browser.
+            page = await begin_sign_in(session, SecretCipher(key), row, sign_in, body.return_to)
+            return {**await owner_action_data(session, row), "sign_in_url": page}
         if target is None:
             result = await save_values(session, row, body.values, write)
         else:
-            result = await connect(session, store, owner, row, card_values(row, body.values))
-        await settle_saved(session, owner, row, result)
+            result = await connect(session, store, owner.id, row, card_values(row, body.values))
+        await settle_saved(session, owner.id, row, result)
         # The agent that asked continues the work that needed the secret. A broker card's
         # agent continues once the gateway has provisioned the account.
         if row.payload["destination"] != BROKER:
@@ -91,13 +120,11 @@ async def save_secret(
         return await owner_action_data(session, row)
 
 
-async def pending_card(
-    session: AsyncSession, owner: OwnerIdentity, card_id: str
-) -> OwnerActionRow | None:
+async def pending_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow | None:
     """The Secret card, locked, while it waits; None once it is settled (a second tap
     shows it as it is and writes nothing)."""
-    await lock_owner_actions(session, owner.id)
-    row = await owned_card(session, owner.id, card_id, lock=True)
+    await lock_owner_actions(session, owner_id)
+    row = await owned_card(session, owner_id, card_id, lock=True)
     if row.kind != "secret":
         raise LonoraError("owner_action_not_secret", 409)
     status = live_status(row)
@@ -107,14 +134,14 @@ async def pending_card(
 
 
 async def settle_saved(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, result: dict[str, Any]
+    session: AsyncSession, owner_id: str, row: OwnerActionRow, result: dict[str, Any]
 ) -> None:
     """Confirmed with its result, other cards for the same record superseded, and the
     confirmation line in the conversation."""
     await settle(session, row, "confirmed", None, via="tap", result=result)
     await supersede_subject(
         session,
-        owner.id,
+        owner_id,
         row.kind,
         row.subject,
         "done_by_another_card",
@@ -139,36 +166,16 @@ def https_address(address: str, code: str) -> str:
 async def connect(
     session: AsyncSession,
     store: EncryptedSecretStore,
-    owner: OwnerIdentity,
+    owner_id: str,
     row: OwnerActionRow,
     values: dict[str, str],
 ) -> dict[str, Any]:
     """Store the values as workspace secrets and create the connection that uses them."""
     target, details = row.payload["connect"], row.payload["details"]
-    names = await free_names(session, owner.id, target, details["name"])
     if target == "mcp_server":
         address = https_address(values["URL"], "mcp_url_invalid")
-        saved = [names["URL"]]
-        address_id = await store.write_in_session(session, names["URL"], address, WORKSPACE)
-        token_id = None
-        if values.get("TOKEN"):
-            token_id = await store.write_in_session(
-                session, names["TOKEN"], values["TOKEN"], WORKSPACE
-            )
-            saved.append(names["TOKEN"])
-        server = await McpRepository().create(
-            session,
-            owner.id,
-            McpConnection(
-                name=details["name"],
-                transport="http",
-                url_secret_id=address_id,
-                endpoint_sha256=endpoint_sha256(address),
-                secret_id=token_id,
-                enabled=True,
-            ).model_dump(mode="json"),
-        )
-        return {"target": target, "connection_id": server.id, "configured": True, "saved": saved}
+        return await save_server(session, store, owner_id, row, address, values.get("TOKEN"))
+    names = await free_names(session, owner_id, target, details["name"])
     payload: dict[str, Any] = {"type": target, "name": details["name"], "enabled": True}
     if target == "brave_search":
         key = values["API_KEY"]
@@ -183,7 +190,7 @@ async def connect(
         host = urlsplit(key).hostname
         if not host:
             raise LonoraError("integration_source_invalid", 422)
-        existing = await same_source(session, store, owner, target, key)
+        existing = await same_source(session, store, owner_id, target, key)
         if existing is not None:
             # This address is already connected: nothing new is saved or created.
             return {
@@ -195,19 +202,19 @@ async def connect(
         payload["domain"] = host
     (name,) = names.values()
     payload["secret_id"] = await store.write_in_session(session, name, key, WORKSPACE)
-    created = await OwnerIntegrationRepository().create(session, owner.id, payload)
+    created = await OwnerIntegrationRepository().create(session, owner_id, payload)
     return {"target": target, "integration_id": created.id, "configured": True, "saved": [name]}
 
 
 async def same_source(
     session: AsyncSession,
     store: EncryptedSecretStore,
-    owner: OwnerIdentity,
+    owner_id: str,
     target: str,
     address: str,
 ) -> IntegrationRow | None:
     """An enabled feed or calendar of this kind already reading this address."""
-    rows = await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner.id))
+    rows = await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner_id))
     for row in rows:
         if row.payload.get("type") != target or not row.payload.get("enabled"):
             continue
@@ -217,3 +224,139 @@ async def same_source(
         except LonoraError:
             continue
     return None
+
+
+@dataclass(frozen=True)
+class SignedIn:
+    """What a finished sign-in saves with the server: its tokens, its authorization
+    server's token endpoint and resource, and Lonora's client there."""
+
+    tokens: Tokens
+    client: Client
+    issuer: str
+    token_endpoint: str
+    resource: str
+
+
+async def save_server(
+    session: AsyncSession,
+    store: EncryptedSecretStore,
+    owner_id: str,
+    row: OwnerActionRow,
+    address: str,
+    token: str | None,
+    signed_in: SignedIn | None = None,
+) -> dict[str, Any]:
+    """An MCP server from a Secret card: its address and token as workspace secrets
+    under the card's names, and, signed in, its refresh token and client secret too."""
+    name = row.payload["details"]["name"]
+    names = await free_names(session, owner_id, "mcp_server", name)
+    saved: list[str] = []
+
+    async def keep(key: str, value: str | None) -> str | None:
+        if not value:
+            return None
+        saved.append(names[key])
+        return await store.write_in_session(session, names[key], value, WORKSPACE)
+
+    address_id = await keep("URL", address)
+    oauth = None
+    if signed_in is None:
+        token_id = await keep("TOKEN", token)
+    else:
+        tokens, client = signed_in.tokens, signed_in.client
+        token_id = await keep("TOKEN", tokens.access_token)
+        expires = tokens.expires_in
+        oauth = McpOAuth(
+            issuer=signed_in.issuer,
+            token_endpoint=signed_in.token_endpoint,
+            # The address is kept only in the store: a resource that is the address is
+            # not kept again on the row.
+            resource=None if signed_in.resource == address else signed_in.resource,
+            client_id=client.client_id,
+            client_method=client.method,
+            refresh_secret_id=await keep("REFRESH_TOKEN", tokens.refresh_token),
+            client_secret_id=await keep("CLIENT_SECRET", client.client_secret),
+            expires_at=None if expires is None else utcnow() + timedelta(seconds=expires),
+        )
+    server = await McpRepository().create(
+        session,
+        owner_id,
+        McpConnection(
+            name=name,
+            transport="http",
+            url_secret_id=address_id,
+            endpoint_sha256=endpoint_sha256(address),
+            secret_id=token_id,
+            oauth=oauth,
+            enabled=True,
+        ).model_dump(mode="json"),
+    )
+    return {"target": "mcp_server", "connection_id": server.id, "configured": True, "saved": saved}
+
+
+@dataclass(frozen=True)
+class SignInStart:
+    """A server that asks for a sign-in: where, and as which client of its
+    authorization server."""
+
+    address: str
+    plan: SignInPlan
+    client: Client
+    redirect_uri: str
+
+
+def callback_address(settings: Settings) -> str:
+    """Where the authorization server sends the owner's browser back."""
+    return settings.allowed_origin.rstrip("/") + "/api/mcp/oauth/callback"
+
+
+async def sign_in_start(
+    settings: Settings, card: OwnerActionRow, values: dict[str, str]
+) -> SignInStart | None:
+    """Before any lock: a waiting MCP server card saved without a token asks the server
+    whether it needs a sign-in; if it does, discovery finds where and Lonora registers
+    with its authorization server. A server that answers, refuses otherwise or cannot be
+    reached needs none: it is saved as it is."""
+    if card.kind != "secret" or live_status(card) != "pending":
+        return None
+    typed = card_values(card, values)
+    if typed.get("TOKEN"):
+        return None
+    address = https_address(typed["URL"], "mcp_url_invalid")
+    challenge = await needs_sign_in(address)
+    if challenge is None:
+        return None
+    plan = await discover(address, challenge)
+    redirect_uri = callback_address(settings)
+    client = await register(plan.server, redirect_uri, plan.scope)
+    return SignInStart(address, plan, client, redirect_uri)
+
+
+async def begin_sign_in(
+    session: AsyncSession,
+    cipher: SecretCipher,
+    row: OwnerActionRow,
+    start: SignInStart,
+    return_to: str,
+) -> str:
+    """Keep the sign-in for the callback and answer with the page the owner's browser
+    opens: a PKCE challenge whose verifier, like the address, is kept encrypted."""
+    verifier, challenge = pkce_pair()
+    state = secrets.token_urlsafe(32)
+    server, client = start.plan.server, start.client
+    # The resource the server published may be its address, which may carry a key.
+    hidden = {"verifier": verifier, "address": start.address, "resource": start.plan.resource}
+    if client.client_secret is not None:
+        hidden["client_secret"] = client.client_secret
+    plan = {
+        "issuer": server.issuer,
+        "iss_parameter": server.iss_parameter,
+        "token_endpoint": server.token_endpoint,
+        "client_id": client.client_id,
+        "client_method": client.method,
+        "redirect_uri": start.redirect_uri,
+        "return_to": return_to,
+    }
+    await keep_sign_in(session, cipher, row.owner_id, row.id, state, plan, hidden)
+    return authorization_url(start.plan, client, start.redirect_uri, state, challenge)

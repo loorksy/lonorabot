@@ -28,7 +28,7 @@ from lonora_db.trusted_sources import (
     source_names,
     trust_source,
 )
-from lonora_tools.mcp import advertised_tools, server_address
+from lonora_tools.mcp import advertised_tools, server_address, signed_in
 
 from ..middleware.auth import require_owner, runtime
 from ..runtime import ApiRuntime
@@ -101,6 +101,7 @@ async def review(
     if config.transport != "http" or not (config.url or config.url_secret_id):
         raise LonoraError("mcp_stdio_isolation_required", 403)
     secrets = rt.services(owner_id).secrets
+    config = await signed_in(rt.db, secrets, owner_id, connection_id, config)
     endpoint = endpoint_sha256(await server_address(secrets, config))
     reviewed = review_tools(await advertised_tools(secrets, config))
     digest = review_digest(endpoint, reviewed.tools, reviewed.blocked, reviewed.read_only)

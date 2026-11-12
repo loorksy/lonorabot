@@ -447,11 +447,9 @@ async def test_a_private_address_is_refused_before_any_request(
 
 
 def test_the_callback_names_the_issuer_it_was_sent_by() -> None:
-    server = oauth.AuthorizationServer(ISSUER, ISSUER + "/a", ISSUER + "/t", None, True)
-    assert oauth.issuer_matches(server, ISSUER)
+    assert oauth.issuer_matches(ISSUER, True, ISSUER)
     # A mix-up: another issuer's response, or none where the server promised to name it.
-    assert not oauth.issuer_matches(server, "https://evil.example.test")
-    assert not oauth.issuer_matches(server, None)
-    quiet = oauth.AuthorizationServer(ISSUER, ISSUER + "/a", ISSUER + "/t", None, False)
-    assert oauth.issuer_matches(quiet, None)
-    assert not oauth.issuer_matches(quiet, "https://evil.example.test")
+    assert not oauth.issuer_matches(ISSUER, True, "https://evil.example.test")
+    assert not oauth.issuer_matches(ISSUER, True, None)
+    assert oauth.issuer_matches(ISSUER, False, None)
+    assert not oauth.issuer_matches(ISSUER, False, "https://evil.example.test")

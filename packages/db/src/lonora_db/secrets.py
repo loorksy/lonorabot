@@ -24,12 +24,27 @@ METAAPI_TOKEN = "metaapi_token"
 SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 # Where a connection names its secrets: an MCP server saved from a Secret card also
-# names the secret that holds its address.
-REFERENCES = (
+# names the secret that holds its address, and one Lonora signed in to its refresh token
+# and any client secret.
+SECRET_KEYS: tuple[str | tuple[str, str], ...] = (
+    "secret_id",
+    "url_secret_id",
+    ("oauth", "refresh_secret_id"),
+    ("oauth", "client_secret_id"),
+)
+REFERENCES: tuple[tuple[Any, tuple[str | tuple[str, str], ...]], ...] = (
     (BrokerSessionRow, ("secret_id",)),
     (IntegrationRow, ("secret_id",)),
-    (McpConnectionRow, ("secret_id", "url_secret_id")),
+    (McpConnectionRow, SECRET_KEYS),
 )
+
+
+def referenced(payload: dict[str, Any], key: str | tuple[str, str]) -> Any:
+    """The secret id a connection's payload names at ``key``, a field or a nested one."""
+    if isinstance(key, str):
+        return payload.get(key)
+    outer = payload.get(key[0])
+    return outer.get(key[1]) if isinstance(outer, dict) else None
 
 
 def require_scope(name: str, scope: str) -> None:
@@ -112,7 +127,7 @@ async def workspace_secrets(session: AsyncSession, owner_id: str) -> list[dict[s
         for connection in connections:
             kind = "mcp_server" if row_type is McpConnectionRow else connection.payload["type"]
             for key in keys:
-                secret_id = connection.payload.get(key)
+                secret_id = referenced(connection.payload, key)
                 if secret_id in users:
                     users[secret_id].append({"kind": kind, "name": connection.payload["name"]})
     return [

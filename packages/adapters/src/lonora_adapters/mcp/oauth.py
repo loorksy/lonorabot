@@ -440,9 +440,9 @@ async def refresh(token_endpoint: str, resource: str, client: Client, refresh_to
     )
 
 
-def issuer_matches(server: AuthorizationServer, iss: str | None) -> bool:
+def issuer_matches(issuer: str, names_itself: bool, iss: str | None) -> bool:
     """The callback came from the server the sign-in was sent to (RFC 9207): it names
     that issuer, or names none when the server never said it would."""
     if iss is None:
-        return not server.iss_parameter
-    return iss == server.issuer
+        return not names_itself
+    return iss == issuer

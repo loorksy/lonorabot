@@ -71,6 +71,7 @@ ROUTES = (
     "trading_restrictions",
     "owner_actions",
     "secret_cards",
+    "mcp_sign_in",
     "supervision",
     "tasks",
     "collaboration",

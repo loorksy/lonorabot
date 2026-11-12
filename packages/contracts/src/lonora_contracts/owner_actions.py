@@ -74,6 +74,9 @@ class SecretCardSave(Contract):
         Annotated[str, Field(pattern=WORKSPACE_SECRET_NAME)],
         Annotated[str, Field(min_length=1, max_length=16000)],
     ] = Field(max_length=8)
+    # Where the owner's browser comes back after an MCP server's sign-in: the web app,
+    # or the mobile app.
+    return_to: Literal["web", "app"] = "web"
 
 
 class OwnerActionProposal(Contract):

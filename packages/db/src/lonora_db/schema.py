@@ -661,6 +661,32 @@ class SecretRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class McpSignInRow(Base):
+    """A sign-in to an MCP server that the owner started from a Secret card (VISION.md
+    13.1), waiting for the authorization server to send the owner's browser back.
+
+    The callback looks it up by ``state_sha256`` and uses it once (``used_at``), only
+    before ``expires_at``. ``plan`` holds where the tokens come from; ``ciphertext`` holds
+    what must not be readable in the database: the PKCE verifier, the server's address
+    (it may carry a key) and a client secret. ``failure`` says why a sign-in did not
+    finish, so the card can say so.
+    """
+
+    __tablename__ = "ln_mcp_sign_ins"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    card_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owner_actions.id", ondelete="CASCADE"), index=True
+    )
+    state_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    plan: Mapped[dict[str, Any]] = mapped_column(JSON)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    failure: Mapped[str | None] = mapped_column(String(80))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AgentCliTokenRow(Base):
     """The agent's own `lonora` CLI token (7.3.3): one per agent, gone with the agent.
 

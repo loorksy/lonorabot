@@ -53,6 +53,9 @@ class HttpMcpTransport:
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
         async with self.client.stream("POST", self.url, headers=headers, json=payload) as response:
+            if response.status_code == 401:
+                # No credential, or one the server no longer takes: it asks for a sign-in.
+                raise LonoraError("mcp_sign_in_required", 409)
             if response.status_code >= 300:
                 raise LonoraError("mcp_request_failed", 502)
             if response.headers.get("Content-Encoding", "identity").strip().casefold() not in {
