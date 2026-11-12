@@ -1,7 +1,7 @@
 // The list's state shared by the chats tab, the archived page and the header: the rows, the
 // active filter and the selection. Every change of a conversation's state goes to the server
 // and comes back merged (the same contract as Web's lists/state).
-import type { ThreadPrefs, ThreadPrefsUpdate } from "@lonora/contracts";
+import type { Message, ThreadPrefs, ThreadPrefsUpdate } from "@lonora/contracts";
 import { type ChatRow, chatRows, type ListFilter } from "@lonora/core";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import {
@@ -16,9 +16,11 @@ import {
 } from "react";
 import { AppState, BackHandler } from "react-native";
 import { useToast } from "../components/shell/toast";
-import { ApiError } from "./api";
+import { ApiError, api } from "./api";
+import { waitingSentText } from "./i18n";
 import { ensureThread, listsApi } from "./lists-api";
 import {
+  flushQueued,
   hydrateOutgoing,
   type OutgoingIntent,
   outgoingKey,
@@ -53,11 +55,12 @@ const Context = createContext<Lists | null>(null);
 export function ListsProvider({ children }: { children: ReactNode }) {
   const data = useShellData();
   const toast = useToast();
-  const { owner, server, t, errorText } = useSession();
+  const { owner, server, t, errorText, locale } = useSession();
   const ownerId = owner?.id ?? "";
   const [version, setVersion] = useState(0);
   useEffect(() => subscribeOutgoing(() => setVersion((value) => value + 1)), []);
-  // Restored intents show as failed (Q6): they never leave by themselves after a restart.
+  // Restored intents (Q6): a message the API never answered still waits; one that was in
+  // flight when the app went away comes back failed, for the owner's retry.
   useEffect(() => {
     if (!ownerId) return;
     for (const entry of data.inbox)
@@ -87,6 +90,25 @@ export function ListsProvider({ children }: { children: ReactNode }) {
     }
     return { outgoing: map, queued: count };
   }, [rows, server, ownerId, version]);
+  /* Q6, as on Web: while the shell's reads succeed, the messages that waited for the network go
+     out by themselves under their own client_nonce, then one toast says how many. Each poll
+     (and the poll after the network returns) tries again; a refused one becomes «failed». */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each poll's inbox is the retry tick
+  useEffect(() => {
+    if (!ownerId || data.offline || !queued) return;
+    const keys = rows.flatMap((row) =>
+      row.threadId ? [outgoingKey(server, ownerId, row.threadId)] : [],
+    );
+    void flushQueued(keys, (thread, body) =>
+      api
+        .post<{ message: Message }>(`/threads/${encodeURIComponent(thread)}/messages`, body)
+        .then((accepted) => accepted.message),
+    ).then((sent) => {
+      if (!sent) return;
+      void data.refresh();
+      toast(waitingSentText(locale, sent), { type: "success" });
+    });
+  }, [data.inbox, data.offline, ownerId, server]);
   const [filter, setFilter] = useState<ListFilter>("all");
   const [selected, setSelected] = useState<ReadonlySet<string> | null>(null);
   const end = useCallback(() => setSelected(null), []);

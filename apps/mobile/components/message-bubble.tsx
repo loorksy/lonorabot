@@ -176,7 +176,13 @@ export function MessageBubble({
       {isOutgoingMessage(message) ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: shell.secondary, fontSize: 12 }}>
-            {t(message.delivery === "failed" ? "sendFailed" : "sending")}
+            {t(
+              message.delivery === "failed"
+                ? "sendFailed"
+                : message.delivery === "queued"
+                  ? "sh_waitingNetwork"
+                  : "sending",
+            )}
           </Text>
           {message.delivery === "failed" && onRetry ? (
             <Pressable

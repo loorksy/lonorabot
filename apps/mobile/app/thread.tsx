@@ -81,7 +81,9 @@ import {
   type OutgoingIntent,
   outgoingKey,
   outgoingMessages,
+  subscribeFlushed,
   subscribeOutgoing,
+  waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
@@ -166,6 +168,17 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   useEffect(() => {
     void hydrateOutgoing(outboxKey);
   }, [outboxKey]);
+  // A message that waited for the network and went out by itself (Q6) joins this transcript,
+  // and the snapshot brings the run it started.
+  useEffect(
+    () =>
+      subscribeFlushed((key, message) => {
+        if (key !== outboxKey || !conversationCache.current(scope)) return;
+        setMessages((old) => mergeMessages(old, [message]));
+        void snapshotRef.current();
+      }),
+    [outboxKey, scope],
+  );
   const reportError = useRef(errorText);
   reportError.current = errorText;
   const say = useRef(t);
@@ -511,6 +524,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       );
       if (confirmed) {
         acknowledgeOutgoing(targetKey, [confirmed]);
+        return;
+      }
+      // Q6: plain text the API never answered waits for the network and goes out by itself.
+      if (waitsForNetwork(reason, intent.body)) {
+        failOutgoing(targetKey, intent.nonce, "queued");
         return;
       }
       failOutgoing(targetKey, intent.nonce);
