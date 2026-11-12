@@ -280,7 +280,7 @@ test("search browses recent content and finds a message; the new-chat sheet lead
   await expect(row(page, key(alpha))).toBeVisible();
   await page.getByRole("button", { name: "New chat", exact: true }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.getByRole("button", { name: /^New agent/ })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /^New agent/ })).toHaveCount(0);
   await expect(sheet.getByTestId(`new-chat-agent-${alpha.id}`)).toBeVisible();
   await sheet.getByRole("button", { name: "Manage agents" }).click();
   await expect(page.getByTestId(`agent-row-${alpha.id}`)).toBeVisible();
