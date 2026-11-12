@@ -169,9 +169,6 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     await expect(card(page)).not.toHaveClass(/is-sent/);
     await expect(card(page).getByRole("textbox", { name: "السعر المستهدف" })).toBeEnabled();
     // A card goes only to the listed pages, through the shell's own navigation.
-    await receipt.getByRole("button", { name: "تفضيلات المحادثة" }).click();
-    await expect(page).toHaveURL(/\/app\/chat-prefs$/);
-    await page.goBack();
     await receipt.getByRole("button", { name: "عرض التنبيهات" }).click();
     await expect(page).toHaveURL(/\/app\/market/);
     expect(forbidden).toEqual([]);

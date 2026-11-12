@@ -41,7 +41,6 @@ const ROUTES: Record<UiRoute, string> = {
   agents: "/app/agents",
   files: "/app/artifacts",
   usage: "/app/usage",
-  "chat-prefs": "/app/chat-prefs",
 };
 const STALE_MS = 120_000;
 
