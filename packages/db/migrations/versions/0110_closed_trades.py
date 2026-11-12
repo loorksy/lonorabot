@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0110_closed_trades"
-down_revision = "0120_skill_versions_outlive_skill"
+down_revision = "0150_remove_stop"
 branch_labels = None
 depends_on = None
 
