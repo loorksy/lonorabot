@@ -11,12 +11,18 @@ Nothing here logs in anywhere or scrapes with the owner's account.
 
 import asyncio
 from typing import Any
-from urllib.parse import urlsplit
 
 from lonora_adapters.market.news_feed import FeedItem, read_feed
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
-from lonora_db.integrations import feed_host, subscribe_feed, subscribed_feed
+from lonora_db.integrations import (
+    feed_host,
+    has_source,
+    source_host,
+    source_url,
+    subscribe_feed,
+    subscribed_feed,
+)
 from lonora_db.runs import require_lease
 from lonora_db.schema import IntegrationRow
 from lonora_db.trusted_sources import feed_trusted
@@ -54,7 +60,7 @@ async def subscribed(context: ToolContext) -> list[IntegrationRow]:
             for row in rows
             if row.payload.get("type") == "news_feed"
             and row.payload.get("enabled")
-            and row.payload.get("url")
+            and has_source(row.payload)
         ]
 
 
@@ -98,15 +104,18 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if not rows:
             raise LonoraError("news_feed_not_found", 404)
     rows = rows[:MAXIMUM_FEEDS]
-    results = await asyncio.gather(
-        *(one_feed(str(row.payload["url"]), params.limit) for row in rows)
-    )
+
+    async def feed(row: IntegrationRow) -> dict[str, Any]:
+        # A feed saved from a Secret card keeps its address in the encrypted store.
+        return await one_feed(await source_url(row.payload, context.secrets.read), params.limit)
+
+    results = await asyncio.gather(*(feed(row) for row in rows))
     return {
         "feeds": [
             {
                 "feed_id": row.id,
                 "name": row.payload.get("name"),
-                "domain": urlsplit(str(row.payload["url"])).hostname,
+                "domain": source_host(row.payload),
                 **result,
             }
             for row, result in zip(rows, results, strict=True)

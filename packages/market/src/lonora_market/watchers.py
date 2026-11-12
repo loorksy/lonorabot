@@ -19,6 +19,7 @@ from lonora_db.agent_binding import agent_binding, assert_payload_binding, fixed
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
 from lonora_db.events import emit
+from lonora_db.integrations import source_url
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.market_snapshots import snapshot_id
 from lonora_db.market_watches import stop_watch
@@ -218,7 +219,9 @@ async def observe(
             source = await session.get(IntegrationRow, config.integration_id or "")
         if source is None or source.owner_id != row.owner_id or not source.payload.get("enabled"):
             raise LonoraError("calendar_integration_unavailable", 409)
-        events = await EconomicCalendarAdapter(source.payload["url"]).events()
+        # A calendar saved from a Secret card keeps its address in the encrypted store.
+        url = await source_url(source.payload, brokers.secrets.read)
+        events = await EconomicCalendarAdapter(url).events()
         now = utcnow()
         due = [
             event

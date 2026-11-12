@@ -4,9 +4,9 @@
    ``mcp_server`` entry per operator declaration in ``LONORA_MCP_DECLARATIONS`` (its
    endpoint and schema hashes pinned, its tools read-only); running its seed again adds
    nothing; a downgrade drops the table and a re-upgrade seeds again.
-2. Add an MCP server from chat: the agent offers a secure credential card; the owner's
-   form posts the URL and token straight to the owner API; the server reads the new
-   server's tools and raises the trust card (the tool that can place orders is listed as
+2. Add an MCP server from chat: the agent gives its address and offers a Secret card;
+   the owner's token goes to the card's own route, which saves it encrypted and connects
+   the server; the server reads the new server's tools and raises the trust card (the tool that can place orders is listed as
    blocked); the owner taps Trust (read only); the agent's tool runs with no operator
    declaration, and the agent is woken to continue. The token never appears in a message,
    an event, a card or a Run.
@@ -179,37 +179,21 @@ async def connect_and_trust(fixture: Fixture) -> None:
             ToolCall(id="call-" + uuid4().hex, name=tool, arguments=arguments), context
         )
 
+    # The agent gives the server's address from chat; the owner types the token into the
+    # Secret card, and saving it connects the server.
     card = await call(
-        "owner_action_propose", kind="connect_credential", target="mcp_server", service="x"
+        "owner_action_propose", kind="secret", target="mcp_server", service="x", url=URL
     )
     assert card["owner_must_tap"] and not card["execution_authorized"]
     card_id = card["owner_action"]["id"]
     taps = 0
     with patch.object(mcp, "HttpMcpTransport", transport(calls)):
-        # The owner's secure form: the token goes to the owner API, never to the card.
-        secret = await fixture.request(
-            "POST", "/integrations/secrets", {"name": "X", "value": token}
-        )
-        server = await fixture.request(
-            "POST",
-            "/mcp",
-            {
-                "payload": {
-                    "name": "X",
-                    "transport": "http",
-                    "url": URL,
-                    "secret_id": secret["id"],
-                    "enabled": True,
-                }
-            },
-        )
         connected = await fixture.request(
-            "POST",
-            f"/owner-actions/{card_id}/decision",
-            {"decision": "confirm", "connected": {"resource": "mcp", "id": server["id"]}},
+            "POST", f"/owner-actions/{card_id}/secret", {"values": {"TOKEN": token}}
         )
         taps += 1
         assert connected["status"] == "confirmed" and connected["result"]["configured"]
+        server = {"id": connected["result"]["connection_id"]}
         cards = cast(
             list[dict[str, Any]],
             await fixture.request("GET", "/owner-actions?thread_id=" + thread["id"]),
@@ -255,7 +239,7 @@ async def connect_and_trust(fixture: Fixture) -> None:
                 assert token not in dumped, model.__name__
     await fixture.request("DELETE", "/mcp/" + server["id"])
     print(
-        "PASS add an MCP server from chat: one secure card, one trust tap, the tool runs "
+        "PASS add an MCP server from chat: one Secret card, one trust tap, the tool runs "
         "without a declaration, the agent continues, the token never leaves the server"
     )
 

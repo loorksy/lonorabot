@@ -11,7 +11,7 @@ function simulation(data) {
   );
 }
 
-// A news agent whose cards ask the owner: connect Brave web search (a secure form) and
+// A news agent whose cards ask the owner: connect Brave web search (a Secret card) and
 // trust a news feed's site; as the tools raise them, with no model involved.
 function seedCards(data) {
   const script = `
@@ -21,8 +21,9 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
-from lonora_db.capability_cards import credential_payload, source_payload, trust_subject
-from lonora_db.owner_actions import propose_capability
+from lonora_contracts.owner_actions import OwnerActionProposal
+from lonora_db.capability_cards import source_payload, trust_subject
+from lonora_db.owner_actions import propose, propose_capability
 from lonora_db.schema import SkillRow
 from lonora_db.threads import conversation_thread
 async def main():
@@ -32,8 +33,7 @@ async def main():
         async with f.runtime.db.sessions() as session, session.begin():
             agent=await create_agent(session,f.owner,AgentCreate(name=data['agent'],scope_mode='flexible'))
             thread=await conversation_thread(session,f.owner,agent.id)
-            subject,payload=credential_payload('brave_search',None)
-            credential,_=await propose_capability(session,f.owner,'connect_credential',subject,payload,card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
+            credential,_=await propose(session,f.owner,OwnerActionProposal(kind='secret',target='brave_search'),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             domain=data['domain']
             trust,_=await propose_capability(session,f.owner,'trust_source',trust_subject('feed_domain',domain),source_payload('feed_domain',domain),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
             skill=data['skill']
@@ -75,7 +75,7 @@ const copy = {
 };
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: a secure credential card and a trust card, then Capabilities shows them`, async ({
+  test(`${locale}: a Secret card and a trust card, then Capabilities shows them`, async ({
     page,
     context,
   }) => {
@@ -105,12 +105,13 @@ for (const locale of ["en", "ar"])
         posted.push({ url: new URL(request.url()).pathname, body: request.postData() ?? "" });
     });
     const created = [];
+    const names = [];
     try {
       await page.goto(`/app/${seeded.agent}`);
       const card = page.locator(`[data-owner-action="${seeded.credential}"]`);
-      await expect(card).toHaveAttribute("data-owner-action-kind", "connect_credential");
+      await expect(card).toHaveAttribute("data-owner-action-kind", "secret");
       await expect(card.locator(".oa-kind")).toHaveText(text.connectTitle);
-      const key = card.locator('input[name="secret"]');
+      const key = card.locator('input[name="API_KEY"]');
       await expect(key).toHaveAttribute("type", "password");
       await expect(key).toHaveAttribute("dir", "ltr");
       if (locale === "ar") {
@@ -118,15 +119,16 @@ for (const locale of ["en", "ar"])
         await card.screenshot({ path: test.info().outputPath("credential-card-ar.png") });
       }
       await key.fill(secret);
+      const answer = page.waitForResponse((response) => response.url().endsWith("/secret"));
       await card.getByRole("button", { name: text.connect, exact: true }).click();
+      const saved = await (await answer).json();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
       await expect(card.getByRole("status")).toHaveText(text.connected);
-      // The value went only to the secrets route, never to the card or the chat.
+      // The value went only to the card's own route, never to a decision or the chat.
       const carrying = posted.filter((item) => item.body.includes(secret)).map((item) => item.url);
-      expect(carrying).toEqual(["/api/integrations/secrets"]);
-      const decision = posted.find((item) => item.url.endsWith("/decision"));
-      expect(JSON.parse(decision.body).connected.resource).toBe("integration");
-      created.push(JSON.parse(decision.body).connected.id);
+      expect(carrying).toEqual([`/api/owner-actions/${seeded.credential}/secret`]);
+      created.push(saved.result.integration_id);
+      names.push(...saved.result.saved);
 
       const trust = page.locator(`[data-owner-action="${seeded.trust}"]`);
       await expect(trust.locator(".oa-kind")).toHaveText(text.trustTitle);
@@ -156,6 +158,9 @@ for (const locale of ["en", "ar"])
     } finally {
       for (const id of created)
         await context.request.delete(`/api/integrations/${id}`, { headers });
+      const secrets = await (await context.request.get("/api/secrets")).json();
+      for (const item of secrets.filter((row) => names.includes(row.name)))
+        await context.request.delete(`/api/secrets/${item.id}`, { headers });
       await context.request.delete(`/api/agents/${seeded.agent}`, { headers });
     }
   });

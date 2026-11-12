@@ -59,8 +59,8 @@ class ResourceRepository:
     row_type: type[ResourceRow]
     payload_model: type[BaseModel] | None = None
     kind: str
-    # The scope of the secret a resource's ``secret_id`` may name; None: no secret.
-    secret_scope: str | None = None
+    # The scopes of the secret a resource's ``secret_id`` may name; empty: no secret.
+    secret_scopes: tuple[str, ...] = ()
     secret_scope_refusal = "secret_scope_forbidden"
 
     async def list(
@@ -118,7 +118,7 @@ class ResourceRepository:
                 raise LonoraError("secret_id_not_found", 404)
             # A connection uses only a secret of its own scope: a workspace or broker
             # value is never sent to a feed, search or chat service.
-            if secret.scope != self.secret_scope:
+            if secret.scope not in self.secret_scopes:
                 raise LonoraError(self.secret_scope_refusal, 403)
         if self.kind in {"charts", "watches", "cloud_charts", "market_watches"} and payload.get(
             "account_id"

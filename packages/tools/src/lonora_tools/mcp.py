@@ -101,7 +101,9 @@ async def connection_config(context: ToolContext, connection_id: str) -> McpConn
             if (
                 secret is None
                 or secret.owner_id != context.owner_id
-                or secret.scope != "integration"
+                # An owner's integration token, or a workspace secret from a Secret card;
+                # never a broker or provider value.
+                or secret.scope not in {"integration", "workspace"}
             ):
                 raise LonoraError("mcp_credential_scope_forbidden", 403)
     return config
@@ -207,7 +209,8 @@ async def connections(context: ToolContext, args: dict[str, Any]) -> dict[str, A
     return {
         "connections": listed,
         "guidance": "Pass connection_id to mcp_tools and mcp_execute. An empty list means the "
-        "owner has not saved an MCP server: offer a connect_credential card. trusted_tier "
+        "owner has not saved an MCP server: offer a Secret card (target mcp_server). "
+        "trusted_tier "
         "null means the owner has not reviewed its tools yet: propose trust_source. read: "
         "only the tools the server marks read-only run.",
     }

@@ -17,7 +17,6 @@ import {
   ownerActionCard,
   ownerActionError,
   ownerActionLabels,
-  submitCredential,
 } from "../../packages/core/src/owner-actions";
 
 const isolated = (value: string) => `⁨${value}⁩`;
@@ -74,7 +73,7 @@ test("an MCP trust card lists the reviewed tools, the writing ones and two tiers
       ],
     );
     assert.equal(spec.passkey, false);
-    assert.equal(spec.credential, null);
+    assert.equal(spec.secret, null);
   }
   // A server that offers a tool that can trade or move money is trusted to read only:
   // its blocked tools are named, its writes are not offered.
@@ -191,26 +190,33 @@ test("a repository or feed card is one tap, and a settled one says why", () => {
   assert.equal(stale.outcome, ownerActionLabels.ar.alreadyTrusted);
 });
 
-test("a credential card offers a secure form whose secret is a password field", () => {
+test("a connecting Secret card shows the agent's details and asks only for the secret", () => {
   const card: OwnerAction = {
     ...base,
-    kind: "connect_credential",
-    facts: { several_accounts: false, credential: { target: "mcp_server", service: "x" } },
+    kind: "secret",
+    facts: {
+      several_accounts: false,
+      secret: {
+        label: null,
+        connect: "mcp_server",
+        service: "x",
+        details: { name: "X", url: "https://mcp.example.test/rpc" },
+        fields: [{ key: "TOKEN", label: null, secret: true, role: "token", required: false }],
+        destination: "workspace",
+        agent_name: "News",
+      },
+    },
   };
   for (const locale of ["en", "ar"] as const) {
     const spec = ownerActionCard(card, locale);
     const text = ownerActionLabels[locale];
     assert.equal(spec.title, text.connectX);
     assert.ok(spec.hint?.includes(text.connectXHint));
-    assert.deepEqual(
-      spec.credential?.fields.map((field) => [field.key, field.type, field.required]),
-      [
-        ["name", "text", true],
-        ["url", "url", true],
-        ["secret", "password", false],
-      ],
-    );
-    assert.equal(spec.credential?.fields[0]?.initial, "X");
+    assert.ok(spec.lines.includes(`${text.fieldServerUrl}: ⁨https://mcp.example.test/rpc⁩`));
+    assert.deepEqual(spec.secret, {
+      fields: [{ key: "TOKEN", label: text.fieldToken, type: "password", required: false }],
+      submit: text.connect,
+    });
     // Connect is the form's own submit; the only button sends nothing but a cancel.
     assert.deepEqual(
       spec.buttons.map((button) => button.decision),
@@ -220,57 +226,62 @@ test("a credential card offers a secure form whose secret is a password field", 
   const broker = ownerActionCard(
     {
       ...card,
-      facts: { several_accounts: false, credential: { target: "broker", service: null } },
+      facts: {
+        several_accounts: false,
+        secret: {
+          label: null,
+          connect: "broker",
+          service: null,
+          details: { metaapi_account_id: "acct-1" },
+          fields: [
+            {
+              key: "METAAPI_TOKEN",
+              label: null,
+              secret: true,
+              role: "metaapi_token",
+              required: true,
+            },
+          ],
+          destination: "broker",
+          agent_name: null,
+        },
+      },
     },
     "en",
   );
+  assert.equal(broker.title, ownerActionLabels.en.connectBroker);
+  assert.equal(broker.hint, ownerActionLabels.en.secretBroker);
+  assert.ok(broker.lines.includes(`${ownerActionLabels.en.fieldAccount}: ⁨acct-1⁩`));
   assert.deepEqual(
-    broker.credential?.fields.map((field) => field.key),
-    ["account", "secret"],
+    broker.secret?.fields.map((field) => [field.key, field.label, field.required]),
+    [["METAAPI_TOKEN", ownerActionLabels.en.fieldBrokerToken, true]],
+  );
+  const feed = ownerActionCard(
+    {
+      ...card,
+      facts: {
+        several_accounts: false,
+        secret: {
+          label: null,
+          connect: "news_feed",
+          service: null,
+          details: { name: "Desk" },
+          fields: [{ key: "URL", label: null, secret: false, role: "feed_url", required: true }],
+          destination: "workspace",
+          agent_name: null,
+        },
+      },
+    },
+    "ar",
+  );
+  // A feed's address may carry a key: it is stored encrypted, but shown while typed.
+  assert.deepEqual(
+    feed.secret?.fields.map((field) => [field.type, field.label]),
+    [["url", ownerActionLabels.ar.fieldFeedUrl]],
   );
   const settled = ownerActionCard({ ...card, status: "confirmed" }, "en");
-  assert.equal(settled.credential, null);
+  assert.equal(settled.secret, null);
   assert.equal(settled.outcome, ownerActionLabels.en.connected);
-});
-
-test("the form posts the value only to the owner API and names what it created", async () => {
-  const calls: Array<[string, unknown]> = [];
-  const post = async (path: string, body: unknown) => {
-    calls.push([path, body]);
-    return { id: path === "/integrations/secrets" ? "secret-id" : "resource-id" };
-  };
-  const connected = await submitCredential(post, "mcp_server", {
-    name: "X",
-    url: " https://mcp.example.test/rpc ",
-    secret: "token-value",
-  });
-  assert.deepEqual(connected, { resource: "mcp", id: "resource-id" });
-  assert.deepEqual(
-    calls.map(([path]) => path),
-    ["/integrations/secrets", "/mcp"],
-  );
-  const server = calls[1]?.[1] as { payload: Record<string, unknown> };
-  assert.equal(server.payload.secret_id, "secret-id");
-  assert.equal(server.payload.url, "https://mcp.example.test/rpc");
-  assert.ok(!JSON.stringify(server).includes("token-value"));
-  calls.length = 0;
-  assert.deepEqual(
-    await submitCredential(post, "news_feed", { name: "Desk", url: "https://a.b/rss" }),
-    {
-      resource: "integration",
-      id: "resource-id",
-    },
-  );
-  assert.deepEqual(
-    calls.map(([path]) => path),
-    ["/integrations"],
-  );
-  calls.length = 0;
-  await submitCredential(post, "broker", { account: "acct", secret: "metaapi" });
-  assert.deepEqual(
-    calls.map(([path]) => path),
-    ["/trading/connections"],
-  );
 });
 
 test("capability lines name source, tier and state in both languages", () => {

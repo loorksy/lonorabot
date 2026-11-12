@@ -53,8 +53,8 @@ test("a Secret card shows the agent's label and fields and our own words", () =>
     assert.equal(spec.hint, text.secretWorkspace);
     assert.deepEqual(spec.secret, {
       fields: [
-        { key: "BINANCE_API_KEY", label: "مفتاح API", type: "password" },
-        { key: "BINANCE_USER", label: "اسم المستخدم", type: "text" },
+        { key: "BINANCE_API_KEY", label: "مفتاح API", type: "password", required: true },
+        { key: "BINANCE_USER", label: "اسم المستخدم", type: "text", required: true },
       ],
       submit: text.secretSave,
     });
@@ -63,7 +63,6 @@ test("a Secret card shows the agent's label and fields and our own words", () =>
       spec.buttons.map((button) => [button.key, button.decision]),
       [["cancel", "cancel"]],
     );
-    assert.equal(spec.credential, null);
     assert.equal(spec.outcome, null);
   }
   const broker = ownerActionCard(
@@ -101,4 +100,33 @@ test("the values go only to the card's own route", async () => {
     ["/owner-actions/card%2F1/secret", { values: { BINANCE_API_KEY: "k", BINANCE_USER: "u" } }],
   ]);
   assert.deepEqual(answer, { id: "card/1", status: "confirmed" });
+});
+
+test("a Secret card says, in our words, where each value goes and what it replaces", () => {
+  const rotating: OwnerAction = {
+    ...card,
+    facts: {
+      ...card.facts,
+      secret: {
+        ...secret,
+        saves_as: ["BINANCE_API_KEY", "BINANCE_USER"],
+        replaces: ["BINANCE_API_KEY"],
+      },
+    },
+  };
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const lines = ownerActionCard(rotating, locale).lines;
+    const separator = locale === "ar" ? "، " : ", ";
+    assert.ok(
+      lines.includes(
+        text.secretSavesAs.replace(
+          "{names}",
+          [isolated("BINANCE_API_KEY"), isolated("BINANCE_USER")].join(separator),
+        ),
+      ),
+      lines.join(" | "),
+    );
+    assert.ok(lines.includes(text.secretReplaces.replace("{names}", isolated("BINANCE_API_KEY"))));
+  }
 });

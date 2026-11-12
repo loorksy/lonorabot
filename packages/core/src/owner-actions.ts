@@ -298,6 +298,8 @@ export const ownerActionLabels = {
       "Saved encrypted for your broker connection only; it never enters the workspace or reaches an agent.",
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
+    secretSavesAs: "Saved as {names}",
+    secretReplaces: "Replaces the value saved as {names}",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
@@ -577,6 +579,8 @@ export const ownerActionLabels = {
     secretBroker: "تُحفظ مشفّرة لاتصال الوسيط فقط، ولا تدخل مساحة العمل ولا تصل إلى أي وكيل.",
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
+    secretSavesAs: "تُحفظ باسم {names}",
+    secretReplaces: "تحلّ محل القيمة المحفوظة باسم {names}",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
@@ -633,23 +637,13 @@ export type OwnerActionOption = {
   choice?: { group: "delegation"; value: GrantDelegation };
   detail?: string;
 };
-/** One field of a credential card's secure form; its value goes only to the owner API. */
-export type CredentialField = {
-  key: "name" | "url" | "secret" | "account";
+/** One field of a Secret card's form in the owner's language; ``password`` masks it. */
+export type SecretFormField = {
+  key: string;
   label: string;
-  type: "text" | "url" | "password";
+  type: "password" | "text" | "url";
   required: boolean;
-  /** Addresses, ids and keys read left to right inside Arabic text. */
-  ltr: boolean;
-  initial: string;
 };
-export type CredentialForm = {
-  target: CredentialTarget;
-  fields: CredentialField[];
-  submit: string;
-};
-/** One field of a Secret card's form, as the agent chose it; ``password`` masks it. */
-export type SecretFormField = { key: string; label: string; type: "password" | "text" };
 /** A Secret card's form while it waits; ``submitSecret`` posts its values. */
 export type SecretForm = { fields: SecretFormField[]; submit: string };
 export type OwnerActionSpec = {
@@ -663,8 +657,6 @@ export type OwnerActionSpec = {
   buttons: OwnerActionButton[];
   /** A resolve card offers an optional note and broker ticket. */
   notes: boolean;
-  /** A credential card's secure form while it waits (submitted by the client itself). */
-  credential: CredentialForm | null;
   /** A Secret card's form while it waits (submitted by the client itself). */
   secret: SecretForm | null;
   passkey: boolean;
@@ -733,10 +725,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : card.facts.source?.kind === "mcp_server" && card.result.writes
             ? text.trustedRead
             : text.trusted;
-      case "connect_credential":
-        return text.connected;
       case "secret":
-        return text.secretSaved;
+        return card.facts.secret?.connect ? text.connected : text.secretSaved;
       case "watch_changed":
         return text.watchUndone;
       case "stop_tightened":
@@ -1223,130 +1213,41 @@ function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): 
   return lines;
 }
 
-function credentialTitle(
-  credential: { target: CredentialTarget; service: "x" | null },
+function connectTitle(
+  target: CredentialTarget,
+  service: "x" | null | undefined,
   text: OwnerActionText,
 ): string {
-  if (credential.service === "x") return text.connectX;
+  if (service === "x") return text.connectX;
   return {
     mcp_server: text.connectMcp,
     news_feed: text.connectFeed,
     brave_search: text.connectBrave,
     economic_calendar: text.connectCalendar,
     broker: text.connectBroker,
-  }[credential.target];
+  }[target];
 }
 
-/** The secure form of a credential card: which fields, in the owner's language. */
-export function credentialForm(
-  credential: { target: CredentialTarget; service: "x" | null },
+/** A Secret card's form: the agent's own labels, or ours for a connecting card's role. */
+function secretForm(
+  secret: NonNullable<OwnerAction["facts"]["secret"]>,
   text: OwnerActionText,
-): CredentialForm {
-  const name = (initial: string): CredentialField => ({
-    key: "name",
-    label: text.fieldName,
-    type: "text",
-    required: true,
-    ltr: false,
-    initial,
-  });
-  const url = (label: string): CredentialField => ({
-    key: "url",
-    label,
-    type: "url",
-    required: true,
-    ltr: true,
-    initial: "",
-  });
-  const secret = (label: string, required: boolean): CredentialField => ({
-    key: "secret",
-    label,
-    type: "password",
-    required,
-    ltr: true,
-    initial: "",
-  });
-  const account: CredentialField = {
-    key: "account",
-    label: text.fieldAccount,
-    type: "text",
-    required: true,
-    ltr: true,
-    initial: "",
+): SecretForm {
+  const roles = {
+    token: text.fieldToken,
+    api_key: text.fieldApiKey,
+    feed_url: text.fieldFeedUrl,
+    metaapi_token: text.fieldBrokerToken,
   };
-  const fields: CredentialField[] = {
-    mcp_server: [
-      name(credential.service === "x" ? "X" : ""),
-      url(text.fieldServerUrl),
-      secret(text.fieldToken, false),
-    ],
-    news_feed: [name(""), url(text.fieldFeedUrl)],
-    economic_calendar: [name(""), url(text.fieldFeedUrl)],
-    brave_search: [name("Brave Search"), secret(text.fieldApiKey, true)],
-    broker: [account, secret(text.fieldBrokerToken, true)],
-  }[credential.target];
-  return { target: credential.target, fields, submit: text.connect };
-}
-
-/** A minimal POST for the client's API (Web or Mobile); it returns the created record. */
-export type CredentialPost = (path: string, body: unknown) => Promise<{ id: string }>;
-
-/**
- * Submit a credential card's form straight to the owner API and say what it created.
- * The secret goes to /integrations/secrets (stored encrypted, only its id is kept) or,
- * for a broker, to /trading/connections; it is never sent to the card or a chat route.
- */
-export async function submitCredential(
-  post: CredentialPost,
-  target: CredentialTarget,
-  values: Partial<Record<CredentialField["key"], string>>,
-): Promise<{ resource: "integration" | "mcp" | "broker"; id: string }> {
-  const name = (values.name ?? "").trim();
-  const secret = values.secret ?? "";
-  const stored = async () =>
-    secret
-      ? (await post("/integrations/secrets", { name: name || target, value: secret })).id
-      : null;
-  if (target === "broker") {
-    const account = await post("/trading/connections", {
-      provider: "metaapi",
-      account_id: (values.account ?? "").trim(),
-      region: null,
-      enabled: true,
-      secret_id: null,
-      api_key: secret,
-    });
-    return { resource: "broker", id: account.id };
-  }
-  if (target === "mcp_server") {
-    const secret_id = await stored();
-    const server = await post("/mcp", {
-      payload: {
-        name,
-        url: (values.url ?? "").trim(),
-        transport: "http",
-        command: [],
-        secret_id,
-        enabled: true,
-      },
-      agent_id: null,
-      thread_id: null,
-    });
-    return { resource: "mcp", id: server.id };
-  }
-  const secret_id = target === "brave_search" ? await stored() : null;
-  const integration = await post("/integrations", {
-    payload: {
-      type: target,
-      name,
-      url: target === "brave_search" ? null : (values.url ?? "").trim(),
-      secret_id,
-      enabled: true,
-    },
-    agent_id: null,
-    thread_id: null,
-  });
-  return { resource: "integration", id: integration.id };
+  return {
+    fields: secret.fields.map((field) => ({
+      key: field.key,
+      label: field.label ?? (field.role ? roles[field.role] : field.key),
+      type: field.secret ? "password" : field.role === "feed_url" ? "url" : "text",
+      required: field.required ?? true,
+    })),
+    submit: secret.connect ? text.connect : text.secretSave,
+  };
 }
 
 /**
@@ -1384,7 +1285,6 @@ export function ownerActionCard(
       options: [],
       buttons: model.buttons.map((item) => ({ ...item, decision: item.key })),
       notes: false,
-      credential: null,
       secret: null,
       passkey: false,
       outcome: model.outcome,
@@ -1399,8 +1299,7 @@ export function ownerActionCard(
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
   let options: OwnerActionOption[] = [];
-  let form: CredentialForm | null = null;
-  let secretForm: SecretForm | null = null;
+  let form: SecretForm | null = null;
   const pair = (confirm: string, cancel: string): OwnerActionButton[] => [
     { key: "confirm", label: confirm, decision: "confirm", primary: true },
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
@@ -1670,33 +1569,36 @@ export function ownerActionCard(
       buttons = pair(text.trust, text.notNow);
       break;
     }
-    case "connect_credential": {
-      const credential = facts.credential;
-      title = credential ? credentialTitle(credential, text) : text.connectMcp;
-      hint =
-        credential?.service === "x" ? `${text.connectHint} ${text.connectXHint}` : text.connectHint;
-      if (credential) form = credentialForm(credential, text);
-      // Connect is the form's own submit: the value goes to the owner API, never here.
-      buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
-      break;
-    }
     case "secret": {
       const secret = facts.secret;
-      title = text.secretTitle;
+      title = secret?.connect
+        ? connectTitle(secret.connect, secret.service, text)
+        : text.secretTitle;
       if (secret) {
-        // The label and field labels are the agent's words; every other word is ours.
-        lines.push(isolate(secret.label));
+        // The label, field labels and details are the agent's words; every other word is ours.
+        if (secret.label) lines.push(isolate(secret.label));
+        const details = secret.details ?? {};
+        if (details.name && secret.connect !== "brave_search")
+          lines.push(`${text.fieldName}: ${isolate(details.name)}`);
+        if (details.url) lines.push(`${text.fieldServerUrl}: ${isolate(details.url)}`);
+        if (details.metaapi_account_id)
+          lines.push(`${text.fieldAccount}: ${isolate(details.metaapi_account_id)}`);
         if (secret.agent_name)
           lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
-        hint = secret.destination === "broker" ? text.secretBroker : text.secretWorkspace;
-        secretForm = {
-          fields: secret.fields.map((field) => ({
-            key: field.key,
-            label: field.label,
-            type: field.secret ? "password" : "text",
-          })),
-          submit: text.secretSave,
-        };
+        // Where each value goes, and the saved values it would replace: never silently.
+        if (secret.saves_as?.length)
+          lines.push(fill(text.secretSavesAs, { names: nameList(secret.saves_as, lang) }));
+        if (secret.replaces?.length)
+          lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
+        hint =
+          secret.destination === "broker"
+            ? text.secretBroker
+            : !secret.connect
+              ? text.secretWorkspace
+              : secret.service === "x"
+                ? `${text.connectHint} ${text.connectXHint}`
+                : text.connectHint;
+        form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.
       buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
@@ -1735,8 +1637,7 @@ export function ownerActionCard(
     options: pending ? options : [],
     buttons: pending ? buttons : [],
     notes: pending && card.kind === "resolve_operation",
-    credential: pending ? form : null,
-    secret: pending ? secretForm : null,
+    secret: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
@@ -1844,13 +1745,9 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This server offers tools that look like they trade or move money, so only its reading tools can run.",
     ar: "يقدّم هذا الخادم أدوات يبدو أنها تتداول أو تحرّك المال، فلا تعمل إلا أدواته التي تقرأ.",
   },
-  owner_action_connection_required: {
-    en: "Fill in the form to connect it.",
-    ar: "املأ النموذج لربطه.",
-  },
-  owner_action_connection_mismatch: {
-    en: "That connection does not match this card.",
-    ar: "هذا الربط لا يطابق هذه البطاقة.",
+  owner_action_secret_values_invalid: {
+    en: "Fill in every required field.",
+    ar: "املأ كل حقل مطلوب.",
   },
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",

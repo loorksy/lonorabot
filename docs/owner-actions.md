@@ -9,17 +9,22 @@ settings page or the API. W15-3 adds the grant card (`grant_authority`, below), 
 the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
 supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 `supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
-W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
-`docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
-when some tool may change something, and a credential card for an MCP server says
-whether the trust card follows (or why not, waking the agent that asked). W15-10 adds
+W15-8 adds the trust cards (`trust_source`, `docs/trusted-sources.md`): an MCP server's
+trust card offers the read or write tier only when some tool may change something. The
+Secret card (`secret`, below) replaced W15-8's credential card; one that connects an MCP
+server says whether the trust card follows (or why not, waking the agent that asked).
+W15-10 adds
 the model cards (`agent_model`, `agent_model_changed`, `docs/provider-resilience.md`).
 
-The Secret card (`secret`, VISION.md 7.2 and 10.3) asks for any other credential. The
-agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
+The Secret card (`secret`, VISION.md 7.2 and 10.3) is how any credential reaches Lonora.
+With a `target` it connects something (an MCP server, web search, a feed, a calendar, a
+broker account) with the one field and the destination the server sets
+(`docs/trusted-sources.md`); stored `connect_credential` cards became such cards
+(migration `0071_secret_card_kinds`). Otherwise the agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
 value is saved under, and a label; `secret: false` only unmasks a field while it is
 typed). The server sets the destination: an agent's card saves to the owner's
-`workspace` secrets. Its values never pass the decision route: the card's own route,
+`workspace` secrets, and the card shows, in server words, the names its values are saved
+under and any saved value they replace. Its values never pass the decision route: the card's own route,
 `POST /owner-actions/{id}/secret`, stores them encrypted and settles the card in one
 transaction, and the card, its events, the conversation and the agent's next run keep
 only the keys. A second submit shows the card as it is and writes nothing.
@@ -33,7 +38,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `secret`, `agent_model` or `agent_model_changed` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `secret`, `agent_model` or `agent_model_changed` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
