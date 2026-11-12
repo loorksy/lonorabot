@@ -108,10 +108,16 @@ async def live_devices(
         )
         .order_by(PushDeviceRow.created_at, PushDeviceRow.id)
     )
-    return [
-        PushDevice(row.id, row.device_id, row.platform, cipher.decrypt(row.token_ciphertext))
-        for row in rows
-    ]
+    devices: list[PushDevice] = []
+    for row in rows:
+        try:
+            token = cipher.decrypt(row.token_ciphertext)
+        except LonoraError:
+            # A row the current key cannot read (a rotated key) reaches no one, and never
+            # stops the other phones; the app registers it again on its next start.
+            continue
+        devices.append(PushDevice(row.id, row.device_id, row.platform, token))
+    return devices
 
 
 async def prune_signed_out(session: AsyncSession, owner_id: str) -> None:

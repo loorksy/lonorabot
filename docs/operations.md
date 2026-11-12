@@ -495,15 +495,15 @@ turned off (`DELETE /api/push/devices/<install id>`). The token is never logged 
 shown to a model.
 
 The gateway step `push` sends one push per record, when it is created, to every phone whose
-sign-in session is live: a pending Trade Approval card (a card raised again after a price
-drift is a new card and pushes again) and a Settle Uncertain Operation card. The text is
+sign-in session is live: a pending Trade Approval card and a Settle Uncertain Operation card. The text is
 Lonora's fixed text for that event in the owner's language under the agent's name; no price,
 volume, symbol or account number leaves the server, and the notification has no button. A tap
 opens the conversation at the card, and the card itself is where the owner approves or
 settles. Quiet hours do not hold these pushes. Execution Receipts and reports never push. Each
 push has an effect receipt written before the call to Expo, and a push whose outcome is unknown
 (a timeout, a restart) is never sent again, so a record pushes once per phone even across
-restarts and two gateways. When push is first installed it starts from the end of the event
+restarts and two gateways. Each phone gets its own request, so a token Expo refuses never
+costs another phone its push. When push is first installed it starts from the end of the event
 stream: cards that were already waiting do not push.
 
 A phone receives push only while the sign-in session that registered it is live. A mobile
