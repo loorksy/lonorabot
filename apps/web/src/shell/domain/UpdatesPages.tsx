@@ -231,11 +231,7 @@ export function UpdatesPage() {
         )}
       </div>
       <div className="group">
-        {notes.error != null && !notes.data ? (
-          <p className="pad small" role="alert">
-            {userError(notes.error)}
-          </p>
-        ) : list.length ? (
+        {list.length ? (
           list.map((item) => (
             <button
               key={item.id}
@@ -265,9 +261,6 @@ export function UpdatesPage() {
                   </small>
                 )}
               </span>
-              <span className="value">
-                <span className="ltr">{when(item.created_at)}</span>
-              </span>
               {unread(item) && <span className="dot" role="img" aria-label={t`Unread`} />}
             </button>
           ))
@@ -283,11 +276,7 @@ export function UpdatesPage() {
         </h3>
       </div>
       <div className="group">
-        {routines.error != null && !routines.data ? (
-          <p className="pad small" role="alert">
-            {userError(routines.error)}
-          </p>
-        ) : upcoming.length ? (
+        {upcoming.length ? (
           upcoming.map((routine) => {
             const agent = data.agents.find((row) => row.id === routine.agent_id);
             const facts = scheduleFacts(routine);
@@ -329,11 +318,7 @@ export function UpdatesPage() {
         </h3>
       </div>
       <div className="group">
-        {feed.error != null && !feed.data ? (
-          <p className="pad small" role="alert">
-            {userError(feed.error)}
-          </p>
-        ) : acts.length ? (
+        {acts.length ? (
           <>
             {acts.map((entry) => (
               <ActivityRow key={entry.id} entry={entry} boxed />
