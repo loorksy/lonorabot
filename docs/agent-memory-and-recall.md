@@ -125,12 +125,6 @@ word (`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A line
 already present (an owner edit) does not block unrelated edits. `MEMORY.md` keeps its
 earlier contract: it is untrusted data.
 
-**Method versions.** Every write that changes `OPERATING.md` is a method version; such
-revisions are kept past the 100-revision window. `method_history` lists them and
-`method_restore` saves an earlier version's text as a new version, leaving `MEMORY.md`
-as it is. `skill_save` writes an instruction-only skill; `skill_history` and
-`skill_restore` list and restore its versions.
-
 **Uploaded PDFs.** On upload the server extracts a PDF's text layer into a file beside it
 (`text_key`) and keeps the images of scanned pages (`page_image_keys`); the owner's
 message context and `artifact_read` read them.
