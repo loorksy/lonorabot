@@ -464,7 +464,7 @@ msgstr "تم تحديث النشاط"
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
 #: src/shell/agent/AgentPage.tsx:638
-#: src/shell/agent/GroupPage.tsx:222
+#: src/shell/agent/GroupPage.tsx:221
 #: src/shell/settings/IntegrationsPage.tsx:260
 #: src/shell/settings/IntegrationsPage.tsx:348
 msgid "Add"
@@ -1704,7 +1704,7 @@ msgstr "اختر إجابة أو اكتب ردك"
 msgid "Choose at least one action"
 msgstr "اختر إجراءً واحدًا على الأقل"
 
-#: src/shell/agent/GroupPage.tsx:261
+#: src/shell/agent/GroupPage.tsx:260
 msgid "Choose at least one member."
 msgstr "اختر عضوًا واحدًا على الأقل."
 
@@ -2076,7 +2076,7 @@ msgid "Conversations"
 msgstr "المحادثات"
 
 #: src/shell/agent/GroupPage.tsx:100
-#: src/shell/agent/GroupPage.tsx:345
+#: src/shell/agent/GroupPage.tsx:344
 msgid "Coordinator"
 msgstr "المنسق"
 
@@ -2210,7 +2210,7 @@ msgstr "إنشاء المهمة"
 msgid "Create the agent"
 msgstr "إنشاء الوكيل"
 
-#: src/shell/agent/GroupPage.tsx:358
+#: src/shell/agent/GroupPage.tsx:357
 msgid "Create the group"
 msgstr "إنشاء المجموعة"
 
@@ -2819,7 +2819,7 @@ msgstr "أدخل مفتاح API"
 msgid "Enter the code again"
 msgstr "أعد إدخال الرمز"
 
-#: src/shell/agent/GroupPage.tsx:257
+#: src/shell/agent/GroupPage.tsx:256
 msgid "Enter the group's name."
 msgstr "أدخل اسم المجموعة."
 
@@ -3287,7 +3287,7 @@ msgstr "أعضاء المجموعة"
 
 #: src/pages/GroupPanel.tsx:53
 #: src/pages/GroupPanel.tsx:128
-#: src/shell/agent/GroupPage.tsx:294
+#: src/shell/agent/GroupPage.tsx:293
 msgid "Group name"
 msgstr "اسم المجموعة"
 
@@ -4038,7 +4038,7 @@ msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات ا�
 #: src/conversation/PermissionMenu.tsx:71
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:85
-#: src/shell/agent/GroupPage.tsx:318
+#: src/shell/agent/GroupPage.tsx:317
 msgid "Members"
 msgstr "الأعضاء"
 
@@ -5461,7 +5461,7 @@ msgid "Providers and official catalog"
 msgstr "المزودون والكتالوج الرسمي"
 
 #: src/components/skills/CreateSkill.tsx:101
-#: src/shell/agent/GroupPage.tsx:308
+#: src/shell/agent/GroupPage.tsx:307
 msgid "Purpose"
 msgstr "الغرض"
 
@@ -7236,7 +7236,7 @@ msgstr "الاتصال يعمل · {count} أداة"
 msgid "The connection works · <0>{who}</0>"
 msgstr "الاتصال يعمل · <0>{who}</0>"
 
-#: src/shell/agent/GroupPage.tsx:264
+#: src/shell/agent/GroupPage.tsx:263
 msgid "The coordinator must be one of the group's members."
 msgstr "يجب أن يكون المنسق من أعضاء المجموعة."
 
