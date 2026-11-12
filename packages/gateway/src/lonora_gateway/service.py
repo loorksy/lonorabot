@@ -48,7 +48,6 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
-    StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -192,11 +191,6 @@ class Gateway:
             lambda service: maintenance_account_recovery(self.db, service.brokers, service.owner_id)
         )
 
-    async def goals(self) -> None:
-        from lonora_trading.goals import recover_goals
-
-        await recover_goals(self.db)
-
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
 
@@ -278,7 +272,6 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
-            "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,

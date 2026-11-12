@@ -107,7 +107,7 @@ async def delete(
             await authority_lock(session, candidate.agent_id)
         thread = await owned_thread(session, owner.id, thread_id, lock=True)
         # Refused while a trade from this conversation is uncertain; otherwise its
-        # grants, Super Bot requests and goals are settled, and the records survive.
+        # grants and Super Bot requests are settled, and the records survive.
         await prepare_delete(session, owner.id, thread_id=thread_id)
         await session.delete(thread)
     return {"deleted": True}
