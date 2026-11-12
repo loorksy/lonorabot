@@ -12,12 +12,15 @@ the migration:
    child and supervisor agents, a stored Trade Approval and journaled tickets.
 3. A database already at 0061: an agent in Full and older pending Mandate cards.
 4. A supervisor's pause on a Task ends like any other: a pause asked of a Task whose Run a
-   worker holds is withdrawn; a paused Task waiting for takeover, one with an older
-   failure and one held for the owner's question resume exactly as the live resume
-   resumes an unheld twin; a Task paused after a failure (the live retry's to resume) is
-   released as it is and its agent is woken once with fixed server text (an agent the
-   owner paused is not woken); the update completes, and running it again wakes no one
-   twice.
+   worker holds, was queued again or waits for an answer other than the owner's question,
+   or that has no live Run, is withdrawn; a paused Task waiting for takeover, one with an
+   older failure and one paused or asked to pause while held for the owner's question
+   resume exactly as the live resume resumes an unheld twin; a Task paused after a
+   failure, or asked to pause before it failed (the live retry's to resume), is released
+   with the ask withdrawn, and its agent is woken once in the Task's thread with fixed
+   server text, after every hold has ended, and resumes it through the live retry (an
+   agent the owner paused is not woken); a hold on work no longer paused is only released;
+   the update completes, and running it again wakes no one twice.
 
 Item 8 is void under Amendment 1: no trading setting is written.
 """
@@ -1382,11 +1385,15 @@ def resumed_shape(ticket: TicketRow, run: RunRow) -> tuple[Any, ...]:
 async def task_guard(db: Database, ids: dict[str, str]) -> None:
     """Pass 4: a supervisor's pause on a Task ends like any other (14.3.18.6). The Task
     resumes exactly as the live resume (control_task) resumes the same Task no one holds;
-    a Task the live retry resumes (resume_failure) is released as it is, and its agent is
-    woken once to resume it."""
+    a pause asked of a Task whose Run has not reached its checkpoint is withdrawn; a Task
+    the live retry resumes (resume_failure) is released, a pause asked of it withdrawn, and
+    its agent is woken once to resume it; a hold on work no longer paused is only
+    released."""
     owner_id = ids["owner"]
     now = utcnow()
     question = {"id": "question-1", "kind": "owner_attention", "status": "pending"}
+    # A question that is not the owner's attention: a Trade Approval or the owner's input.
+    answer = {"id": "question-2", "question": "Which account?", "choices": [], "status": "pending"}
     shapes: dict[str, tuple[str, str, str]] = {}
     twins: dict[str, tuple[str, str]] = {}
     async with db.sessions() as session, session.begin():
@@ -1405,7 +1412,8 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
         ) -> tuple[TicketRow, RunRow]:
             thread = await seed.conversation(agent_id)
             working = run_status == "running"
-            attention = name == "attention"
+            attention = name.endswith("attention")
+            pending = question if attention else answer if name == "asked_input" else None
             run = RunRow(
                 thread_id=thread.id,
                 agent_id=agent_id,
@@ -1415,8 +1423,8 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
                 lease_fence=1,
                 # A lease left on a Run held for the owner's question ends on resume.
                 lease_expires_at=now + timedelta(minutes=5) if working or attention else None,
-                execution_state={"pending_input_request": question, "input_requests": [question]}
-                if attention
+                execution_state={"pending_input_request": pending, "input_requests": [pending]}
+                if pending
                 else {},
             )
             session.add(run)
@@ -1427,11 +1435,31 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
             failure = TaskFailure(
                 run_id=run.id, lease_fence=1, code="broker_down", attempt=1, recovery="owner"
             ).model_dump(mode="json")
+            # Failed in a provider outage: the retry resumes it on its own after a backoff.
+            backoff = {
+                "phase": "retry_wait",
+                "waiting_reason": "retry_backoff",
+                "failure": TaskFailure(
+                    run_id=run.id,
+                    lease_fence=1,
+                    code="model_provider_unavailable",
+                    attempt=1,
+                    recovery="automatic",
+                    next_retry_at=(now + timedelta(minutes=5)).isoformat(),
+                ).model_dump(mode="json"),
+            }
             changed = {
                 # It failed once, the owner resumed it, and later it was paused normally.
                 "stale": {"failure": failure},
                 "attention": {"waiting_reason": "owner_attention"},
                 "retry": {"phase": "retry_paused", "failure": failure},
+                # Asked to pause, its Run failed before its checkpoint (record_failure keeps
+                # the ask): failed, or waiting to retry.
+                "asked_failed": {"failure": failure},
+                "asked_backoff": backoff,
+                # The hold outlived its pause: the work failed since, or waits to retry.
+                "failed": {"failure": failure},
+                "backoff": backoff,
             }.get(name)
             if changed:
                 task.state = {"task": {**task.state["task"], **changed}}
@@ -1439,13 +1467,24 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
 
         for name, status, control, run_status in (
             ("asked", "running", "pause", "running"),  # a worker holds its Run
+            ("asked_queued", "running", "pause", "queued"),  # its Run queued again, unclaimed
+            ("asked_input", "running", "pause", "waiting_input"),  # its Run waits for an answer
+            ("asked_attention", "running", "pause", "waiting_input"),  # the owner's question
+            ("asked_runless", "running", "pause", "cancelled"),  # no live Run of it is left
             ("paused", "paused", None, "waiting_takeover"),
             ("stale", "paused", None, "waiting_takeover"),  # with an older failure
             ("attention", "paused", None, "waiting_takeover"),  # holds the owner's question
             ("retry", "paused", None, "failed"),  # paused after a failure
+            ("asked_failed", "failed", "pause", "failed"),
+            ("asked_backoff", "waiting", "pause", "failed"),
+            ("failed", "failed", None, "failed"),  # no longer paused
+            ("backoff", "waiting", None, "failed"),  # no longer paused
         ):
             task, run = await shape(name, status, control, run_status)
             if name == "retry":
+                # Its origin is another conversation: the wake goes to the Task's own thread.
+                origin = await seed.conversation(held.id)
+                task.state = {"task": {**task.state["task"], "origin_thread_id": origin.id}}
                 # A newer Run of the agent waits in that conversation: not the failed work.
                 waiting = RunRow(
                     thread_id=task.thread_id,
@@ -1458,7 +1497,7 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
                 refs["waiting"] = waiting.id
             hold = await seed.hold(held.id, "task", task.id, "agent", boss.id)
             shapes[name] = (task.id, run.id, hold.id)
-            if name in {"paused", "stale", "attention"}:
+            if name in {"paused", "stale", "attention", "asked_attention"}:
                 # The same Task no one holds: the live resume resumes it after the update.
                 twin, twin_run = await shape(name, status, control, run_status)
                 twins[name] = (twin.id, twin_run.id)
@@ -1468,6 +1507,27 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
         rest_task, _ = await shape("retry", "paused", None, "failed", resting.id)
         rest_hold = await seed.hold(resting.id, "task", rest_task.id, "agent", boss.id)
         refs.update(rest_task=rest_task.id, rest_hold=rest_hold.id)
+        # An agent the same supervisor paused, with its Task paused after a failure: the
+        # Task's hold ends first (the lower id), and the agent is woken once both have.
+        napping = await seed.agent("Napping", role="general", scope_mode="flexible", paused=True)
+        nap_task, nap_run = await shape("retry", "paused", None, "failed", napping.id)
+        nap_holds = ("00000000-0000-4000-8000-000000000000", "ffffffff-ffff-4fff-bfff-ffffffffffff")
+        for hold_id, kind, target_id in zip(
+            nap_holds, ("task", "agent"), (nap_task.id, napping.id), strict=True
+        ):
+            session.add(
+                SupervisionHoldRow(
+                    id=hold_id,
+                    owner_id=owner_id,
+                    holder_agent_id=boss.id,
+                    agent_id=napping.id,
+                    target_kind=kind,
+                    target_id=target_id,
+                    source="agent",
+                )
+            )
+        await session.flush()
+        refs.update(napping=napping.id, nap_task=nap_task.id, nap_run=nap_run.id)
     before: dict[str, tuple[Any, ...]] = {}
     async with db.sessions() as session:
         for name, (task_id, run_id, _) in shapes.items():
@@ -1499,11 +1559,27 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
         assert waiting_run is not None and waiting_run.status == "waiting_takeover"
         retry_thread = await session.get(ThreadRow, tasks["retry"].thread_id)
         assert retry_thread is not None
-        wakes = list(
+        # The Runs the update added to each Task's own thread.
+        seeded = [run.id for run in runs.values()] + [refs["waiting"]]
+        added = {
+            name: list(
+                await session.scalars(
+                    select(RunRow).where(
+                        RunRow.thread_id == tasks[name].thread_id, RunRow.id.not_in(seeded)
+                    )
+                )
+            )
+            for name in shapes
+        }
+        for hold_id in nap_holds:
+            hold = await session.get(SupervisionHoldRow, hold_id)
+            assert hold is not None and hold.released_at is not None
+        napping = await session.get(AgentRow, refs["napping"])
+        assert napping is not None and not napping.paused
+        nap_wakes = list(
             await session.scalars(
                 select(RunRow).where(
-                    RunRow.thread_id == retry_thread.id,
-                    RunRow.id.not_in([runs["retry"].id, refs["waiting"]]),
+                    RunRow.thread_id == nap_task.thread_id, RunRow.id != refs["nap_run"]
                 )
             )
         )
@@ -1513,6 +1589,16 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
     assert (task["status"], task["control_requested"]) == ("running", None), task
     assert tasks["asked"].version == before["asked"][2] + 1
     assert (runs["asked"].status, runs["asked"].lease_owner) == ("running", "worker-1")
+    # So is a pause asked of a Task whose Run was queued again before that checkpoint, or
+    # waits for an answer that is not the owner's question (a Trade Approval, the owner's
+    # input), or that has no live Run: the Run, as it was, reads no pause there, so none
+    # takes effect with no hold.
+    for name in ("asked_queued", "asked_input", "asked_runless"):
+        task = tasks[name].state["task"]
+        assert task == {**before[name][0]["task"], "control_requested": None}, (name, task)
+        assert tasks[name].version == before[name][2] + 1, name
+        after = (runs[name].status, runs[name].execution_state, runs[name].lease_owner)
+        assert after == before[name][3:], name
     # A paused Task waiting for takeover is queued again, as the owner's resume does.
     task = tasks["paused"].state["task"]
     assert (task["status"], task["phase"], task["control_requested"]) == (
@@ -1529,25 +1615,51 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
     assert (task["status"], task["phase"]) == ("queued", "queued"), task
     assert task["failure"] == before["stale"][0]["task"]["failure"]
     assert runs["stale"].status == "queued"
-    # Paused while its Run held the owner's question, it resumes the work, not the
-    # question: the question is cancelled and the Run queued (release_attention).
-    task = tasks["attention"].state["task"]
-    assert (task["status"], task["phase"], task["waiting_reason"]) == ("queued", "queued", None)
-    assert (runs["attention"].status, runs["attention"].lease_expires_at) == ("queued", None)
-    assert runs["attention"].execution_state == {
-        "input_requests": [{**question, "status": "cancelled"}],
-        ATTENTION_RESUMED: {"action": "resume", "question_id": question["id"]},
-    }, runs["attention"].execution_state
+    # Paused, or asked to pause, while its Run held the owner's question, it resumes the
+    # work, not the question: the question is cancelled and the Run queued
+    # (release_attention).
+    for name in ("attention", "asked_attention"):
+        task = tasks[name].state["task"]
+        assert (task["status"], task["phase"], task["waiting_reason"]) == (
+            "queued",
+            "queued",
+            None,
+        ), (name, task)
+        assert task["control_requested"] is None, name
+        assert (runs[name].status, runs[name].lease_expires_at) == ("queued", None), name
+        assert runs[name].execution_state == {
+            "input_requests": [{**question, "status": "cancelled"}],
+            ATTENTION_RESUMED: {"action": "resume", "question_id": question["id"]},
+        }, (name, runs[name].execution_state)
+    # Asked to pause and failed before its checkpoint, it is the live retry's to resume
+    # (resume_failure), which refuses a Task with any control asked: the supervisor's ask is
+    # withdrawn and nothing else changes, its Run as it was.
+    for name in ("asked_failed", "asked_backoff"):
+        task = tasks[name].state["task"]
+        assert task == {**before[name][0]["task"], "control_requested": None}, (name, task)
+        assert tasks[name].payload == before[name][1], name
+        assert tasks[name].version == before[name][2] + 1, name
+        after = (runs[name].status, runs[name].execution_state, runs[name].lease_owner)
+        assert after == before[name][3:], name
+    # A hold that outlived its pause (the work failed since, or waits to retry, unpaused)
+    # is only released, as the live control_work releases a stale hold: the Task as it
+    # was, and no wake.
+    for name in ("failed", "backoff"):
+        after = (tasks[name].state, tasks[name].payload, tasks[name].version)
+        after += (runs[name].status, runs[name].execution_state, runs[name].lease_owner)
+        assert after == before[name], name
+    changed = ("asked", "asked_queued", "asked_input", "asked_runless", "asked_attention")
+    changed += ("paused", "stale", "attention", "asked_failed", "asked_backoff")
     assert {event.payload["id"]: event.payload for event in resumed} == {
         tasks[name].id: {
             "id": tasks[name].id,
             "version": before[name][2] + 1,
             "status": tasks[name].state["task"]["status"],
-            "waiting_reason": None,
+            "waiting_reason": tasks[name].state["task"]["waiting_reason"],
         }
-        for name in ("asked", "paused", "stale", "attention")
+        for name in changed
     }, [event.payload for event in resumed]
-    assert len(resumed) == 4
+    assert len(resumed) == len(changed)
     # Exactly as the live resume resumes the same Task no one holds.
     async with db.sessions() as session, session.begin():
         for twin_id, _ in twins.values():
@@ -1568,22 +1680,39 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
     after = (tasks["retry"].state, tasks["retry"].payload, tasks["retry"].version)
     after += (runs["retry"].status, runs["retry"].execution_state, runs["retry"].lease_owner)
     assert after == before["retry"]
-    # ...and its agent is woken once in the Task's thread, with fixed server text read as
-    # the server's own, to resume it itself.
-    prompt = (
-        "Your Task (task_id=" + tasks["retry"].id + ") is no longer held: the pause a"
-        " supervising agent put on it has ended, and nothing else about it changed. Read it"
-        " with task_inspect; if the work should go on, resume it with task_control (action"
-        " resume), otherwise tell the owner in one line why not."
-    )
-    assert len(wakes) == 1, [(wake.trigger, wake.prompt) for wake in wakes]
-    wake = wakes[0]
-    assert (wake.agent_id, wake.status, wake.parent_run_id) == (refs["held"], "queued", None)
+
+    # ...and its agent is woken once in the Task's own thread (not its origin), with fixed
+    # server text read as the server's own, to resume it itself; so is the agent of a Task
+    # asked to pause before it failed. Nothing else is woken.
+    def released(task_id: str) -> str:
+        return (
+            "<wake trigger='owner_card'>\nYour Task (task_id=" + task_id + ") is no longer"
+            " held: the pause a supervising agent put on it has ended, and nothing else about"
+            " it changed. Read it with task_inspect; if the work should go on, resume it with"
+            " task_control (action resume), otherwise tell the owner in one line why not.\n"
+            "</wake>"
+        )
+
+    woken = ("retry", "asked_failed", "asked_backoff")
+    for name, new in added.items():
+        expected = 1 if name in woken else 0
+        assert len(new) == expected, (name, [(run.trigger, run.prompt) for run in new])
+    for name in woken:
+        wake = added[name][0]
+        assert (wake.agent_id, wake.status, wake.parent_run_id) == (refs["held"], "queued", None)
+        assert wake_context(wake) == released(tasks[name].id), name
+    wake = added["retry"][0]
+    assert wake.thread_id == retry_thread.id != tasks["retry"].state["task"]["origin_thread_id"]
     assert wake.input_seq == retry_thread.next_seq - 1
-    assert wake_context(wake) == "<wake trigger='owner_card'>\n" + prompt + "\n</wake>"
-    assert [(event.run_id, event.thread_id, event.agent_id, event.payload) for event in queued] == [
-        (wake.id, retry_thread.id, refs["held"], {"run": run_data(wake)})
-    ], [event.payload for event in queued]
+    # The agent the same supervisor paused runs again, and is woken once for its Task, after
+    # every hold has ended.
+    assert [(wake.agent_id, wake.status) for wake in nap_wakes] == [(napping.id, "queued")]
+    assert wake_context(nap_wakes[0]) == released(nap_task.id)
+    wakes = [added[name][0] for name in woken] + nap_wakes
+    assert {event.run_id: (event.thread_id, event.agent_id, event.payload) for event in queued} == {
+        wake.id: (wake.thread_id, wake.agent_id, {"run": run_data(wake)}) for wake in wakes
+    }, [event.payload for event in queued]
+    assert len(queued) == len(wakes)
     # An agent the owner paused is not woken: its Task, released, waits for it as it is.
     async with db.sessions() as session:
         hold = await session.get(SupervisionHoldRow, refs["rest_hold"])
@@ -1606,23 +1735,30 @@ async def task_guard(db: Database, ids: dict[str, str]) -> None:
         count = select(func.count()).select_from(RunRow)
         assert await session.scalar(count.where(RunRow.thread_id == retry_thread.id)) == 3
     assert await events_since(db, cursor, "run.queued") == []
-    # Released, the Task is the agent's own to resume, as the wake says.
+    # Released, the Task is the agent's own to resume, as the wake says: the live retry
+    # (resume_failure) takes it, also once a supervisor's ask is withdrawn.
     async with db.sessions() as session, session.begin():
-        resumed_task = await control_task(
-            session,
-            owner_id,
-            TaskControl(
-                task_id=tasks["retry"].id, action="resume", expected_version=tasks["retry"].version
-            ),
-            agent_id=refs["held"],
-        )
-        assert resumed_task.state["task"]["status"] == "queued"
+        for name in woken:
+            resumed_task = await control_task(
+                session,
+                owner_id,
+                TaskControl(
+                    task_id=tasks[name].id, action="resume", expected_version=tasks[name].version
+                ),
+                agent_id=refs["held"],
+            )
+            task = resumed_task.state["task"]
+            assert (task["status"], task["attempt"]) == ("queued", 2), (name, task)
     print(
         "PASS a supervisor's pause on a Task ends and the update completes: a pause asked of"
-        " a Task a worker holds is withdrawn; a paused Task waiting for takeover, one with an"
-        " older failure and one held for the owner's question resume exactly as the live"
-        " resume does; a Task paused after a failure is released as it is and its agent is"
-        " woken once, with fixed server text, to resume it (an agent the owner paused is not)"
+        " a Task whose Run a worker holds, was queued again or waits for another answer, or"
+        " that has no live Run, is withdrawn; a paused Task waiting for takeover, one with an"
+        " older failure and one paused or asked to pause while held for the owner's question"
+        " resume exactly as the live resume does; a Task paused after a failure, or asked to"
+        " pause before it failed, is released with the ask withdrawn and its agent is woken"
+        " once in the Task's thread, after every hold has ended, to resume it through the"
+        " live retry (an agent the owner paused is not); a hold on work no longer paused is"
+        " only released"
     )
 
 

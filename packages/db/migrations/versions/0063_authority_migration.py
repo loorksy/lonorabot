@@ -885,26 +885,48 @@ class Migration:
         self.changed_watch(owner_id, watch, {**payload, "enabled": True}, state, "agent")
 
     def resume_task(self, task_id: str) -> bool:
-        """Frozen control_task(..., 'resume') of the work a supervisor's pause holds (frozen
-        work_paused: paused, or a pause asked): a pause asked of a Task whose Run a worker
-        holds is withdrawn (the Run reads it at its next checkpoint); a paused Task whose Run
-        waits for takeover, or for the owner's question, is queued again, the question
-        cancelled (release_attention). True for a Task the live resume hands to the retry
-        (retry_control, resume_failure): it stays as it is and its agent is woken. An ended
-        Task, and work no longer paused, stay as they are."""
+        """The work a supervisor's pause holds resumes (14.3.18.6); True when its agent is
+        to be woken to resume it itself.
+
+        Only work paused, or asked to pause, is the hold's (frozen work_paused): any other
+        hold is stale and only released, as control_work releases one. A Task the live resume
+        hands to the retry (retry_control, resume_failure, which refuses a Task with a control
+        asked) has a pause asked of it withdrawn, keeps everything else, and its agent is
+        woken. Otherwise as control_task(..., 'resume'): a paused Task whose Run waits for
+        takeover, or one paused or asked to pause whose Run holds the owner's question, is
+        queued again with its Run, the question cancelled (release_attention). Any other
+        pause asked of a Task is withdrawn wherever its Run is (the Run reads it at its next
+        checkpoint), so it never takes effect with no hold. An ended Task, and a paused Task
+        the live resume refuses, stay as they are."""
         found = self.rows(
             "SELECT thread_id, agent_id, state FROM ln_tickets WHERE id = :id", id=task_id
         )
         if not found:
             return False
         task = payload_of(payload_of(found[0].state).get("task"))
+        # Frozen work_paused: a hold on work neither paused nor asked to pause is stale.
+        if task.get("status") != "paused" and task.get("control_requested") != "pause":
+            return False
         # Frozen retry_control: only a failure still being retried is the retry's.
         if task.get("failure") and (
             task.get("status") == "failed"
             or task.get("waiting_reason") == "retry_backoff"
             or task.get("phase") == "retry_paused"
         ):
-            return task.get("status") not in ("completed", "cancelled")
+            if task.get("status") in ("completed", "cancelled"):
+                return False
+            if task.get("control_requested") == "pause":
+                # Locked as resume_failure locks it: the thread, the failed Run, the Task.
+                failure = payload_of(task.get("failure"))
+                self.run(
+                    "SELECT 1 FROM ln_threads WHERE id = :id FOR UPDATE", id=found[0].thread_id
+                )
+                self.run(
+                    "SELECT 1 FROM ln_runs WHERE id = :id FOR UPDATE",
+                    id=str(failure.get("run_id") or ""),
+                )
+                self.withdraw_pause(task_id)
+            return True
         if task.get("status") in TERMINAL_TASKS:
             return False
         # Frozen task_runs: the newest live Run of the Task's agent in its conversation,
@@ -923,6 +945,7 @@ class Migration:
             None,
         )
         if live is None:
+            self.withdraw_pause(task_id)
             return False
         run = self.rows(
             "SELECT status, execution_state FROM ln_runs WHERE id = :id FOR UPDATE", id=live.id
@@ -956,12 +979,25 @@ class Migration:
             task.update(status="queued", phase="queued", control_requested=None)
             if task.get("waiting_reason") == "owner_attention":
                 task["waiting_reason"] = None
-        elif asked and run.status in ("leased", "running"):
+        elif asked:
+            # A worker holds its Run, it was queued again, or it waits for another answer.
             task["control_requested"] = None
         else:
             return False
         self.save_task(ticket, task_id, state, task)
         return False
+
+    def withdraw_pause(self, task_id: str) -> None:
+        """A pause asked of the Task is withdrawn, with task.updated; nothing else changes."""
+        ticket = self.rows(
+            "SELECT owner_id, agent_id, payload, state FROM ln_tickets WHERE id = :id FOR UPDATE",
+            id=task_id,
+        )[0]
+        state = payload_of(ticket.state)
+        task = payload_of(state.get("task"))
+        if task.get("control_requested") == "pause":
+            task["control_requested"] = None
+            self.save_task(ticket, task_id, state, task)
 
     def wake_for_task(self, task_id: str) -> None:
         """Frozen end_card's wake (create_run): one Run of the Task's agent in the Task's
