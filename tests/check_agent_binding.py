@@ -2,7 +2,7 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
@@ -263,16 +263,20 @@ async def checks() -> None:
         assert {p["symbol"]: p["in_execution_scope"] for p in account["positions"]} == {
             s: s == symbols[0] for s in symbols
         }
-        proposal = await registry.execute(
+        # The owner's standing instruction (3.3.4): this agent manages the owner's own
+        # positions. A close-all still reaches only the bound pair.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, context.agent_id)
+            assert managing is not None
+            managing.manages_all_positions = True
+        closed = await registry.execute(
             ToolCall(id="close", name="trade_close_positions", arguments={"account_id": primary}),
             context,
         )
-        cards = cast(
-            list[dict[str, Any]],
-            await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
-        )
-        card = next(c for c in cards if c["id"] == proposal["approval_id"])
-        assert len(card["requests"]) == 1 and card["requests"][0]["symbol"] == symbols[0]
+        assert "approval_id" not in closed, closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"], closed
+        broker = await context.brokers.get(fixture.owner, primary)
+        assert sorted(p.symbol for p in await broker.positions()) == sorted(symbols[1:])
         try:
             await context.trading.execute(
                 fixture.owner,

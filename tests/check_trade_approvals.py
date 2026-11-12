@@ -17,7 +17,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import ToolRefusal
-from lonora_db.schema import TradingAccountRow
+from lonora_db.schema import AgentRow, TradingAccountRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
@@ -29,6 +29,12 @@ async def main():
     connection_id = None
     try:
         agent = await fixture.agent("Financial approval", supervised=True)
+        # The owner's standing instruction (3.3.4): this agent manages the owner's own
+        # position opened in the MT5 terminal below.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, agent["id"])
+            assert managing is not None
+            managing.manages_all_positions = True
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
@@ -157,11 +163,11 @@ async def main():
         await operation(
             "modify_position", card=False, position_id=opened["broker_id"], stop_loss="91"
         )
-        await operation("close_position", position_id="manual-mt5-ticket", volume="0.1")
+        await operation("close_position", card=False, position_id="manual-mt5-ticket", volume="0.1")
         assert next(
             p for p in await broker.positions() if p.id == "manual-mt5-ticket"
         ).volume == __import__("decimal").Decimal("0.9")
-        await operation("close_position", position_id="manual-mt5-ticket")
+        await operation("close_position", card=False, position_id="manual-mt5-ticket")
         for action, price in (
             ("buy_limit", "99"),
             ("sell_limit", "102"),
@@ -227,10 +233,9 @@ async def main():
                     select(TradeApprovalRow).where(TradeApprovalRow.thread_id == thread["id"])
                 )
             )
-            # Cards for every request that adds risk or touches the owner's own ticket:
-            # 2 entries, 2 manual closes, 4 pending orders, 4 order changes, 1 rejected.
-            # The agent's own stop tightening, cancels and closes executed without one.
-            assert len(rows) >= 13 and all(r.status in {"completed", "rejected"} for r in rows)
+            # Cards for every request that adds risk: 2 entries, 4 pending orders, 4 order
+            # changes, 1 rejected. Closes, cancels and the stop tightening ran without one.
+            assert len(rows) >= 11 and all(r.status in {"completed", "rejected"} for r in rows)
         print("PASS durable approvals and real broker receipts survive service reads")
 
         class FinancialRouter(ScriptedRouter):

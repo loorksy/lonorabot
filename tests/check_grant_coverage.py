@@ -27,6 +27,7 @@ from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
 from lonora_contracts.trading import TradingControl
+from lonora_core.user_error import LonoraError
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
@@ -178,26 +179,30 @@ async def main() -> None:
             assert row.result["details"]["execution"]["agent_id"] is None, row.result
         (owners,) = await broker.positions()
 
-        # 3. Each agent request on the owner's own position asks; nothing reaches the broker.
+        # 3. The owner's own position is not the agent's (3.3.4): every request on it is
+        # refused, no card is raised, nothing reaches the broker.
         gold_context = await context_for(gold)
         before = await broker.snapshot()
         for arguments in (
             {"action": "modify_position", "clear_stop_loss": True},
             {"action": "close_position"},
         ):
-            asked = await call(
-                gold_context,
-                "trade_execute",
-                account_id=account,
-                symbol=GOLD,
-                position_id=owners.id,
-                **arguments,
-            )
-            assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
+            try:
+                await call(
+                    gold_context,
+                    "trade_execute",
+                    account_id=account,
+                    symbol=GOLD,
+                    position_id=owners.id,
+                    **arguments,
+                )
+                raise AssertionError("An agent acted on the owner's own position")
+            except LonoraError as error:
+                assert error.code == "ticket_not_owned", error.code
         swept = await call(gold_context, "trade_close_positions", account_id=account, symbol=GOLD)
-        assert swept.get("_runtime_wait") and swept.get("approval_id"), swept
+        assert [item["code"] for item in swept["results"]] == ["ticket_not_owned"], swept
         assert await broker.snapshot() == before
-        assert await approvals(gold_context) == 3
+        assert await approvals(gold_context) == 0
         (unchanged,) = await broker.positions()
         assert unchanged.stop_loss is not None and unchanged.volume == owners.volume
 
@@ -229,7 +234,7 @@ async def main() -> None:
         assert moved.get("authorization") == "account_authority", moved
         assert await approvals(own_context) == 0
         print(
-            "PASS a position the owner opened from Lonora's Trading page is the owner's own: an agent's stop removal, close, close-all and its own grant ask, while the agent's own position stays covered"
+            "PASS a position the owner opened from Lonora's Trading page is the owner's own: an agent's stop removal, close and close-all are ticket_not_owned, while the agent's own position stays covered"
         )
 
         # 5. A Goal step on the owner's own position asks too, instead of failing.

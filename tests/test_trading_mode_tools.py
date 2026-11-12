@@ -1,13 +1,15 @@
 """The trade tools under the trading mode (mandate 4.1, 3.3.4, 6.2, 6.3).
 
 Full and the Ask risk-reducing path execute without a card; a ticket the agent's own
-journaled order did not open still waits for the owner's card in either mode; a close-all
+journaled order did not open is ticket_not_owned in either mode, unless an exception of
+3.3.4 holds; a close-all
 freezes the set it read, so a replay never extends it. Runs on the real migrated
 PostgreSQL schema and the simulation broker (skipped without ``LONORA_DATABASE_URL``).
 """
 
 from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
@@ -81,7 +83,7 @@ async def test_full_closes_its_own_positions_without_a_card_and_never_extends_a_
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["full", "ask"])
 async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds(
-    mode: str,
+    mode: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """3.3.4: ticket_not_owned in either mode, never a card; the owner's standing
     instruction and Lonora are exceptions."""
@@ -127,10 +129,15 @@ async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds
         # The standing instruction is recorded only from the owner's typed words.
         with pytest.raises(LonoraError, match="owner_message_required"):
             await call(context, "positions_manage_all", enabled=True)
-        async with fixture.runtime.db.sessions() as session, session.begin():
+        # The owner's typed message in this run records it.
+        from lonora_tools import restrictions
+
+        monkeypatch.setattr(restrictions, "owner_message_id", AsyncMock(return_value="m1"))
+        recorded = await call(context, "positions_manage_all", enabled=True)
+        assert recorded["manages_all_positions"] is True, recorded
+        async with fixture.runtime.db.sessions() as session:
             row = await session.get(AgentRow, agent["id"])
-            assert row is not None
-            row.manages_all_positions = True
+            assert row is not None and row.manages_all_positions
         partial = await call(
             context,
             "trade_execute",
