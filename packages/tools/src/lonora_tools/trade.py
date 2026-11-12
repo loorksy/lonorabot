@@ -9,6 +9,7 @@ from lonora_contracts.trading import (
     TradeRequest,
     TradeResult,
     TradingControl,
+    judgment_label,
 )
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError, ToolRefusal
@@ -972,7 +973,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     annotation = TradeAnnotation(
         reason=str(args.pop("reason", "") or ""),
         tolerance=args.pop("tolerance", None),
-        label=str(args.pop("label", "") or ""),
+        label=judgment_label(str(args.pop("label", "") or "")),
     )
     key = args.pop("key", None)
     if args.get("thesis_id") is None:
