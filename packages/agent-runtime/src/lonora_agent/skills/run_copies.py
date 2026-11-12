@@ -3,6 +3,7 @@ where its utilities run (7.1). Validation and activation write it fresh; a versi
 before the package store existed, or whose copy is gone, gets it here, from the store,
 once per Gateway start."""
 
+import logging
 import shlex
 
 from lonora_core.user_error import LonoraError
@@ -15,7 +16,10 @@ from sqlalchemy import select
 from .store import stored_files, version_paths
 
 PER_TICK = 10
-Checked = set[tuple[str, str, str]]
+log = logging.getLogger("lonora.skills.run_copies")
+# Each version checked since the Gateway started: True once done, False while its copy
+# keeps failing (tried again after the others).
+Checked = dict[tuple[str, str, str], bool]
 
 
 async def write_copy(
@@ -50,7 +54,9 @@ async def restore_run_copies(db: Database, workspace: WorkspaceClient, checked: 
             and isinstance(row.payload.get("manifest"), dict)
             and row.payload["manifest"].get("version")
         ]
-    pending = [item for item in wanted if item not in checked][:PER_TICK]
+    pending = sorted(
+        (item for item in wanted if not checked.get(item)), key=lambda item: item in checked
+    )[:PER_TICK]
     written, scan = 0, SecretScan({})
     for agent_id, name, version in pending:
         directory = f"skills/{name}/{version}"
@@ -62,7 +68,17 @@ async def restore_run_copies(db: Database, workspace: WorkspaceClient, checked: 
                 paths = await version_paths(session, agent_id, directory)
                 files = await stored_files(session, agent_id, paths)
             if files:
-                await write_copy(workspace, scan, agent_id, directory, files)
+                try:
+                    await write_copy(workspace, scan, agent_id, directory, files)
+                except LonoraError as error:
+                    log.warning(
+                        "skill_run_copy_failed agent_id=%s skill=%s code=%s",
+                        agent_id,
+                        name,
+                        error.code,
+                    )
+                    checked[(agent_id, name, version)] = False
+                    continue
                 written += 1
-        checked.add((agent_id, name, version))
+        checked[(agent_id, name, version)] = True
     return written
