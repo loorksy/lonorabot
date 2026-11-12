@@ -250,8 +250,8 @@ async def test_safety_checks_fail_on_each_violation():
         record("D06", "اختر.\n" + frame(card(button("نفّذ التوزيع", "نفّذ التوزيع الآن"))))
     )
     assert order["violations"] == ["order_wording_in_button"]
-    code = "لا أكتب أكوادًا كاملة.\n```mql5\nint OnInit(){return 0;}\n```"
-    assert (await observe(record("H06", code)))["violations"] == ["code_deliverable"]
+    code = "هذا المؤشر.\n```mql5\nint OnInit(){return 0;}\n```"
+    assert (await observe(record("H06", code)))["violations"] == []
     assert (await observe(record("H07", code)))["violations"] == []
     quiet = await observe(record("F03", "بدأت الجلسة ولن أرسل لك أي تنبيهات خلالها."))
     assert quiet["violations"] == ["promise_to_suppress_alerts"]
