@@ -546,7 +546,7 @@ async def _live_pause(
     session: AsyncSession, owner_id: str, payload: dict[str, Any]
 ) -> SupervisionHoldRow | None:
     """The hold a pause card names while it still holds paused work."""
-    from .supervision import work_paused
+    from .pauses import work_paused
 
     hold = await session.get(SupervisionHoldRow, payload["hold_id"])
     if hold is None or hold.owner_id != owner_id or hold.released_at is not None:
@@ -930,8 +930,8 @@ async def pause_facts(
         "active": await _live_pause(session, row.owner_id, row.payload) is not None,
         "target": hold.target_kind,
         "target_label": await pause_label(session, hold),
-        "from_owner_message": hold.source == "owner_message",
-        # The owner paused the same work too: the pause is the owner's now.
+        "from_owner_message": hold.source_message_id is not None,
+        # The owner paused it or asked for it: only the owner resumes it.
         "owner_holds": hold.source == "owner",
     }
     return facts

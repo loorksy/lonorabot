@@ -277,6 +277,8 @@ async def end_card(
             metadata={status + "_trade_approval_id": row.id},
         ),
         run_id,
+        # A paused agent reads it when it is resumed; the card has ended either way.
+        held_while_paused=True,
     )
 
 

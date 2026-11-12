@@ -12,10 +12,7 @@ from lonora_contracts.trading import (
 )
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError, ToolRefusal
-from lonora_db.agent_binding import (
-    agent_binding,
-    require_financial_agent,
-)
+from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import raise_stop_tightened
@@ -50,7 +47,7 @@ from lonora_trading.account_authority import (
     ticket_agent,
 )
 from lonora_trading.admission import may_reduce_risk, risk_reducing
-from lonora_trading.agent_permission import acting_agent
+from lonora_trading.agent_permission import acting_agent, require_pause_allows
 from lonora_trading.exposure import direction
 from lonora_trading.idempotency import operation_id, trade_fingerprint
 from lonora_trading.journal import record_excerpt
@@ -485,7 +482,8 @@ async def approved_execution(
         # Shadow trading is removed (Q57): a Run started in it never asks or sends.
         if origin.model_metadata.get("execution_mode", "live") != "live":
             raise LonoraError("shadow_execution_forbidden", 403)
-        await require_financial_agent(reader, context.owner_id, context.agent_id)
+        # Any of the owner's agents trades, whatever its role or market (6.9, 3.1.2).
+        await acting_agent(reader, context.owner_id, context.agent_id)
         previous = await reader.get(TradeApprovalRow, approval_id)
         mode = await trading_mode(reader, context.owner_id, context.agent_id)
         if previous is None or previous.status != "completed":
@@ -533,6 +531,11 @@ async def approved_execution(
             # Never a card for what the door refuses (3.3.4); a close-all's other tickets
             # still go, each refused on its own if it is not the agent's.
             raise LonoraError("ticket_not_owned", 403)
+        if adding:
+            async with context.db.sessions() as reader:
+                # Never a card for new risk from a paused agent: the door refuses it (4.7.1).
+                paused = await acting_agent(reader, context.owner_id, context.agent_id)
+                require_pause_allows(paused, reduces=False)
         if not adding or (mode == "full" and not any(r in on_ask_tickets for r in adding)):
             if adding and await never_started(context):
                 return await start_trading_card(context)
@@ -583,10 +586,14 @@ async def approved_execution(
             current = await require_lease(session, context.lease)
             if current.agent_id != context.agent_id:
                 raise LonoraError("agent_run_mismatch", 409)
-            await require_financial_agent(session, context.owner_id, current.agent_id)
+            await acting_agent(session, context.owner_id, current.agent_id)
             visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
             # The order a mode change takes them in: authority, conversation, run.
             await authority_lock(session, context.agent_id)
+            if adding:
+                # A pause that landed since the check above refuses the card too.
+                paused = await acting_agent(session, context.owner_id, context.agent_id)
+                require_pause_allows(paused, reduces=False)
             thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
             if thread.agent_id != context.agent_id and not thread.group_id:
                 raise LonoraError("agent_thread_mismatch", 409)

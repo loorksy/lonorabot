@@ -13,7 +13,8 @@ from pydantic import Field, model_validator
 from .domain import Contract
 
 InspectSection = Literal["overview", "work", "runs", "decisions", "operations", "memory"]
-ControlAction = Literal["pause", "resume", "message"]
+# cancel_run and set_ask are Lonora's alone (mandate 3.1.2, 4.2.2).
+ControlAction = Literal["pause", "resume", "message", "cancel_run", "set_ask"]
 ControlTarget = Literal["agent", "task", "routine", "watch"]
 
 
@@ -42,7 +43,9 @@ class AgentControlInput(Contract):
     def fields_for_action(self) -> Self:
         if (self.action == "message") != (self.message is not None):
             raise ValueError("agent_control_fields_invalid")
-        if self.action == "message" and (self.target != "agent" or self.target_id):
+        if self.action in {"message", "cancel_run", "set_ask"} and (
+            self.target != "agent" or self.target_id
+        ):
             raise ValueError("agent_control_fields_invalid")
         if (self.target == "agent") != (self.target_id is None):
             raise ValueError("agent_control_fields_invalid")

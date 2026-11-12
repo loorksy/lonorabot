@@ -10,8 +10,8 @@ the reader, never its instructions.
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
 routines or watches, and messages it. It never grants, raises a limit, lifts a
 restriction, trades or edits the agent's memory or instructions; its trading is
-narrowed with ``trade_restriction_create``. A whole agent with money standing is paused
-only from the owner's message, and the Personal Agent only by the owner. The hold
+narrowed with ``trade_restriction_create``. A paused agent still reduces the risk of its
+own positions and orders; the Personal Agent is paused only by the owner. The hold
 rules and the cycle rule are in ``lonora_db.supervision``.
 
 ``supervision_change`` sets who supervises whom when the owner asks: from the owner's
@@ -30,7 +30,7 @@ from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_creation import agent_origin
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.agent_state import agent_live_state, watch_summary
-from lonora_db.lead import personal_agent_id, reached_ids
+from lonora_db.lead import is_lead, personal_agent_id, reached_ids
 from lonora_db.memory import memory_view
 from lonora_db.owner_actions import (
     live_status,
@@ -39,6 +39,7 @@ from lonora_db.owner_actions import (
     raise_supervision_card,
     raise_supervision_stopped_card,
 )
+from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
@@ -71,7 +72,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
+from .restrictions import OWNER_TRIGGERS, owner_message_id
 
 PAGE_ITEMS = 10
 # What a decisions page shows of each stored decision; the full record is one read away.
@@ -246,7 +247,7 @@ async def _work(
                 else "you"
                 if hold.holder_agent_id == context.agent_id
                 else names.get(hold.holder_agent_id),
-                "from_owner_message": hold.source == "owner_message",
+                "from_owner_message": hold.source_message_id is not None,
                 # The owner paused it too: only the owner lifts it now.
                 "owner_holds": hold.source == "owner",
             }
@@ -452,6 +453,8 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "messaged": True,
             "run": await delegate_peer(context, params.agent_id, params.message),
         }
+    if params.action in {"cancel_run", "set_ask"}:
+        return await lead_control(context, params.agent_id, params.action)
     async with context.db.sessions() as session, session.begin():
         # The order the owner's card decision takes them in: cards, then the work.
         await lock_owner_actions(session, context.owner_id)
@@ -466,10 +469,80 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             action="pause" if params.action == "pause" else "resume",
             owner_message_id=await owner_message_id(session, run),
             run_id=run.id,
+            # The owner's words this run answers, read even after other content: they only
+            # ever make a pause the owner's (4.7.2), never grant a control.
+            owner_words_id=getattr(await owner_typed_message(session, run), "id", None)
+            if run.trigger in OWNER_TRIGGERS
+            else None,
         )
+        lead = await is_lead(session, context.owner_id, context.agent_id)
         # Fenced after the conversation lock: the thread-before-run order of admission.
         await require_lease(session, context.lease, lock=True)
-    return {**result, "money_authority": "none", "lifts_owner_brakes": False}
+    return {
+        **result,
+        "money_authority": "none",
+        "lifts_owner_brakes": False,
+        # A change Lonora made to the team is reported to the owner in one line (3.1.2).
+        **({"owner_line": "required"} if result.get("changed") and lead else {}),
+    }
+
+
+async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict[str, Any]:
+    """Lonora's own powers over a team agent (mandate 3.1.2, 4.2.2): cancel its current
+    run, or switch it to Ask. Neither needs a grant, a card or the owner's message; a team
+    agent is refused, whatever its grants."""
+    from lonora_core.run_state import ACTIVE
+    from lonora_db.authority_lock import authority_lock
+    from lonora_db.cancellation import cancel_run
+    from lonora_db.trading_mode import set_trading_mode, trading_mode
+
+    async with context.db.sessions() as session, session.begin():
+        run = await require_lease(session, context.lease)
+        if not await is_lead(session, context.owner_id, context.agent_id):
+            raise LonoraError("agent_control_lead_only", 403)
+        agent = await owned_agent(session, context.owner_id, agent_id)
+        if agent.id == context.agent_id:
+            raise LonoraError("supervision_self_target", 409)
+        result: dict[str, Any] = {"agent_id": agent.id, "action": action}
+        if action == "set_ask":
+            # Read under the authority lock, so an owner's tap in between is not missed.
+            await authority_lock(session, agent.id)
+            before = await trading_mode(session, context.owner_id, agent.id)
+            await set_trading_mode(session, context.owner_id, agent.id, "ask", by="lonora")
+            result.update(changed=before != "ask", trading_mode="ask")
+        else:
+            # Its current run (started, not merely queued: a queued owner message stays),
+            # never this run or the runs that started it.
+            ancestors: set[str] = set()
+            current: RunRow | None = run
+            while current is not None:
+                ancestors.add(current.id)
+                parent = current.parent_run_id
+                current = await session.get(RunRow, parent) if parent else None
+            active = list(
+                await session.scalars(
+                    select(RunRow.id)
+                    .where(
+                        RunRow.agent_id == agent.id,
+                        RunRow.status.in_(sorted(ACTIVE - {"queued"})),
+                    )
+                    .order_by(RunRow.created_at, RunRow.id)
+                )
+            )
+            cancelled = [run_id for run_id in active if run_id not in ancestors]
+            for run_id in cancelled:
+                await cancel_run(session, context.owner_id, run_id)
+            result.update(changed=bool(cancelled), cancelled_runs=len(cancelled))
+        # Fenced last: the target's thread and run locks come before this run's own.
+        await require_lease(session, context.lease, lock=True)
+    if not result["changed"]:
+        return {**result, "money_authority": "none"}
+    return {
+        **result,
+        "money_authority": "none",
+        "owner_line": "required",
+        "next": "Tell the owner in one line what you did and why.",
+    }
 
 
 def _card_result(card: OwnerActionRow, *, created: bool) -> dict[str, Any]:
@@ -625,15 +698,14 @@ def tools() -> list[Tool]:
         Tool(
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
-            "routines or watches (target, target_id), or message it. resume lifts only a "
-            "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
-            "stay. You cannot pause an agent that holds a pause over you unless the owner "
-            "asks. A whole trading agent is paused only when the owner asks (its exits "
-            "would stop too): narrow it with trade_restriction_create (no_new_entries; it "
-            "needs that agent's grant or the owner's message, also for Lonora) and pause its "
-            "routines, watches or Tasks. Only the owner pauses Lonora itself. It "
-            "never trades, grants, raises limits, lifts restrictions or edits its memory "
-            "or instructions.",
+            "routines or watches (target, target_id), or message it. resume lifts a pause "
+            "you made on your own (Lonora: only those); a pause the owner asked for or made "
+            "is the owner's. You cannot pause an agent that holds a pause over you unless the owner "
+            "asks. A paused agent still wakes for its own positions and orders and only "
+            "reduces their risk. Only the owner pauses Lonora itself. Lonora alone may also "
+            "cancel_run (end its current run) or set_ask (switch it to Ask). It never "
+            "trades, grants, raises limits, lifts restrictions or edits its memory or "
+            "instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

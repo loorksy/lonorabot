@@ -1083,9 +1083,10 @@ class SupervisionGrantRow(Base):
 class SupervisionHoldRow(Base):
     """A pause on an agent's work (the agent itself, one of its Tasks, routines or
     watches), put there by a supervising agent or by the owner. On its own initiative
-    only the agent that set it (still supervising) lifts it; a run that answers the
-    owner's message lifts it too. The owner pausing the same work makes it the owner's
-    (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
+    only the agent that set it (still supervising) lifts it; a team agent's run that
+    answers the owner's message lifts it too, Lonora never one it did not make (4.7.2).
+    A pause made from the owner's words, or the owner pausing the same work, makes it the
+    owner's (``source='owner'``, the holder kept for attribution), lifted only by the owner; the
     owner resuming the work releases it. The owner's own pause with no supervisor is a
     hold with no holder, and a deleted supervisor's hold stays as the owner's."""
 
@@ -1095,9 +1096,7 @@ class SupervisionHoldRow(Base):
             "target_kind IN ('agent','task','routine','watch')",
             name="ln_supervision_hold_target_kind",
         ),
-        CheckConstraint(
-            "source IN ('agent','owner_message','owner')", name="ln_supervision_hold_source"
-        ),
+        CheckConstraint("source IN ('agent','owner')", name="ln_supervision_hold_source"),
         CheckConstraint(
             "released_by IS NULL OR released_by IN ('holder','owner','stale')",
             name="ln_supervision_hold_released_by",

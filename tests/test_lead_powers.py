@@ -140,3 +140,87 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
         assert directory[lonora["id"]]["supervises_you"] is True
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import OwnerActionRow, RunRow
+    from lonora_db.supervision import grant_supervision
+    from lonora_db.trading_mode import set_trading_mode, trading_mode
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        gold, peer = await fixture.agent("Gold"), await fixture.agent("Peer")
+        gold_run = await fixture.run(gold, await fixture.conversation(gold))
+        await fixture.lease(gold_run)
+        # An owner message waiting its turn is not the current run: it stays.
+        queued = await fixture.run(gold, await fixture.conversation(gold))
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+        lead = await wake(fixture, lonora)
+
+        # cancel_run ends the team agent's current run, never Lonora's own (3.1.2).
+        cancelled = await call(lead, "agent_control", agent_id=gold["id"], action="cancel_run")
+        assert cancelled["changed"] is True and cancelled["cancelled_runs"] == 1
+        assert cancelled["owner_line"] == "required"
+        async with fixture.runtime.db.sessions() as session:
+            assert (await session.get(RunRow, gold_run["id"])).status == "cancelled"  # type: ignore[union-attr]
+            assert (await session.get(RunRow, lead.lease.run_id)).status != "cancelled"  # type: ignore[union-attr]
+            assert (await session.get(RunRow, queued["id"])).status == "queued"  # type: ignore[union-attr]
+        again = await call(lead, "agent_control", agent_id=gold["id"], action="cancel_run")
+        assert again["changed"] is False and "owner_line" not in again
+
+        # set_ask switches it to Ask with no card and no owner message (4.2.2).
+        asked = await call(lead, "agent_control", agent_id=gold["id"], action="set_ask")
+        assert asked["changed"] is True and asked["trading_mode"] == "ask"
+        async with fixture.runtime.db.sessions() as session:
+            assert await trading_mode(session, fixture.owner, gold["id"]) == "ask"
+
+        # Lonora's pause raises no card (only the five fixed cards, 10.3): one line instead.
+        async def pause_cards() -> int:
+            async with fixture.runtime.db.sessions() as session:
+                return len(
+                    list(
+                        await session.scalars(
+                            select(OwnerActionRow.id).where(
+                                OwnerActionRow.owner_id == fixture.owner,
+                                OwnerActionRow.kind == "supervision_paused",
+                            )
+                        )
+                    )
+                )
+
+        cards = await pause_cards()
+        paused = await call(lead, "agent_control", agent_id=gold["id"], action="pause")
+        assert paused["changed"] is True and paused["owner_line"] == "required"
+        assert await pause_cards() == cards
+
+        # A team agent leads no one (3.2.2): Lonora's powers are refused to it.
+        team = await wake(fixture, peer)
+        silver = await fixture.agent("Silver")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await grant_supervision(
+                session, fixture.owner, peer["id"], silver["id"], via="owner_message"
+            )
+        # A granted supervisor's pause still raises its card; the one-line rule is Lonora's.
+        other = await call(team, "agent_control", agent_id=silver["id"], action="pause")
+        assert other["changed"] is True and "owner_line" not in other
+        assert await pause_cards() == cards + 1
+        for action in ("cancel_run", "set_ask"):
+            assert (
+                await refused(team, "agent_control", agent_id=gold["id"], action=action)
+                == "agent_control_lead_only"
+            )
+        assert (
+            await refused(lead, "agent_control", agent_id=lonora["id"], action="set_ask")
+            == "supervision_self_target"
+        )
+    finally:
+        await fixture.close()

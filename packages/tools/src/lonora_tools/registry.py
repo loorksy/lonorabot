@@ -579,4 +579,4 @@ class ToolRegistry:
         result = await tool.handler(context.for_call(call.id), arguments)
         if tool.read_only and market_tool(call.name):
             await remember_resolution(context.db, context.owner_id, arguments, result)
-        return stating(await scope_market_result(context, call.name, result, arguments), named)
+        return stating(await scope_market_result(context, call.name, result), named)

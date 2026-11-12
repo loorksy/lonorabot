@@ -5,10 +5,11 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.lead import reaches
 from lonora_db.owner_actions import lock_owner_actions
+from lonora_db.pauses import refuse_held
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
-from lonora_db.supervision import control_work, refuse_held
+from lonora_db.supervision import control_work
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

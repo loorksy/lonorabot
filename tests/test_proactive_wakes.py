@@ -684,7 +684,10 @@ async def test_a_stop_loss_hit_wakes_the_agent_that_opened_the_position():
 
 
 @pytest.mark.asyncio
-async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
+async def test_a_paused_agent_still_wakes_for_its_own_tickets():
+    """4.7.1: a paused agent wakes only for its own positions and orders, with its normal
+    authority (the door lets only risk-reducing requests through); a paused Lonora is not
+    woken for the owner's unattributed activity."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.broker_activity import BrokerActivity
@@ -695,29 +698,38 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
 
     fixture = await Fixture().open()
     connection = ""
+    personal_paused = False
     try:
         connection = await simulation(fixture)
         gold = await fixture.agent("Paused gold")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(AgentRow, gold["id"])
-            assert row is not None
-            row.paused = True
-            change = BrokerActivity(
+
+        def change(ticket: str, agent_id: str | None) -> BrokerActivity:
+            return BrokerActivity(
                 id=str(uuid4()),
                 account_id=connection,
                 symbol="XAUUSD",
-                ticket="T-paused",
+                ticket=ticket,
                 resource="position",
                 change="closed",
                 origin="external",
                 observed_at=utcnow(),
-                previous=position("T-paused"),
-                agent_id=gold["id"],
+                previous=position(ticket),
+                agent_id=agent_id,
             )
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, gold["id"])
+            assert row is not None
+            row.paused = True
+            own = change("T-paused", gold["id"])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             # Delivered once: the same change again creates nothing.
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             personal = await ensure_personal_agent(session, fixture.owner)
+            personal.paused = personal_paused = True
+            await wake_for_activity(
+                session, fixture.owner, connection, 100, [change("T-owner", None)]
+            )
         async with fixture.runtime.db.sessions() as session:
             runs = list(
                 await session.scalars(
@@ -726,9 +738,13 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
                     )
                 )
             )
-        assert len(runs) == 1 and runs[0].agent_id == personal.id
-        assert runs[0].model_metadata["authority"] == "observe_only"
+        assert len(runs) == 1 and runs[0].agent_id == gold["id"]
+        assert "authority" not in runs[0].model_metadata
+        assert "You are paused" in runs[0].prompt
     finally:
+        if personal_paused:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                (await ensure_personal_agent(session, fixture.owner)).paused = False
         await retire(fixture, connection)
         await fixture.close()
 
@@ -774,7 +790,7 @@ async def other_symbol_records(fixture: Any, account_id: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair():
+async def test_a_fixed_market_agent_reads_and_trades_every_account_but_watches_its_pair():
     database()
     from check_streaming import Fixture
     from lonora_db.schema import AgentRow
@@ -791,10 +807,9 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
             row.trading_account_id, row.trading_symbol = primary, "XAUUSD"
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         accounts = await call(context, "list_accounts")
-        scope = {item["connection_id"]: item["in_execution_scope"] for item in accounts["accounts"]}
-        assert scope[primary] is True and scope[secondary] is False
+        assert {primary, secondary} <= {item["connection_id"] for item in accounts["accounts"]}
         other = await call(context, "account_read", account_id=secondary)
-        assert "positions" in other and other["execution_scope"]["account_id"] == primary
+        assert "positions" in other and other["focus_pair"]["account_id"] == primary
         quote = await call(context, "market_quote", account_id=secondary, symbol="XAUUSD")
         assert quote["symbol"] == "XAUUSD"
         assert (await call(context, "account_activity", account_id=secondary))["activities"] == []
@@ -807,8 +822,11 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
         assert decisions["decisions"][0]["recorded_by"]["you"] is False
         # The focus account still defaults to the focus symbol.
         assert (await call(context, "trade_record_history"))["records"] == []
-        with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
-            await call(
+        # Its orders are not bound (3.1.2, 6.9): whatever answers, it is not the binding,
+        # and in Ask nothing is sent on its own.
+        binding = {"agent_trading_account_mismatch", "agent_trading_symbol_mismatch"}
+        try:
+            asked = await call(
                 context,
                 "trade_execute",
                 account_id=secondary,
@@ -816,6 +834,10 @@ async def test_a_fixed_market_agent_reads_every_account_and_trades_only_its_pair
                 action="buy",
                 volume="0.1",
             )
+        except LonoraError as error:
+            assert error.code not in binding, error.code
+        else:
+            assert asked.get("code") not in binding and asked.get("status") != "confirmed", asked
         with pytest.raises(LonoraError, match="agent_trading_account_mismatch"):
             await call(
                 context,

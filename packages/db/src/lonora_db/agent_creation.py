@@ -279,7 +279,7 @@ async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> N
     origin = await session.get(SettingRow, origin_key(owner_id, agent_id))
     if origin is not None:
         await session.delete(origin)
-    from .supervision import owner_holds_for
+    from .pauses import owner_holds_for
 
     # Every pause it holds on other agents' work stays, as the owner's; nothing resumes.
     await owner_holds_for(session, owner_id, agent_id)
@@ -290,7 +290,7 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
     """Stop its runs, routines and watches; nothing it did is removed."""
     from .authority_lock import authority_lock
     from .management_task import end_management_task
-    from .supervision import owner_takes_over
+    from .pauses import owner_takes_over
 
     await authority_lock(session, agent_id)
     # A paused agent's Full-mode task ends (4.5.2), before the agent's row lock: the
