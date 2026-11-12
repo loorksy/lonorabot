@@ -228,7 +228,7 @@ async def main() -> None:
             origin = await agent_origin(session, owner, gold_id)
             assert origin["created_via"] == "owner_message" and origin["source_message_id"]
             assert origin["created_by_agent_id"] == lonora_id and origin["template"] is None
-            assert origin["report_to"] == []
+            assert "report_to" not in origin
             copied = await stored_agent_model(session, owner, gold_id)
             assert copied.preference.primary == lead_model, copied
             event = await session.scalar(
@@ -323,12 +323,8 @@ async def main() -> None:
             assert "peer_send" in error.details["hint"] and "Lonora" in error.details["hint"]
         else:
             raise AssertionError("a team agent created an agent")
-        try:
-            await call(team, "child_agent_create", {"name": "Child", "task": "x"})
-        except ToolRefusal as error:
-            assert error.code == "agent_create_lead_only", error.code
-        else:
-            raise AssertionError("a team agent created a child agent")
+        # Child agents are gone (3.3.3): the tool no longer exists for anyone.
+        assert "child_agent_create" not in {tool.name for tool in load_tools().tools.values()}
         await end_runs(gold_id)
         print("PASS a team agent cannot create agents and is told to ask Lonora")
 

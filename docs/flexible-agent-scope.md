@@ -18,7 +18,9 @@ Migration `0033_flexible_agent_scope` adds scope mode and revision without chang
 existing account IDs, symbols, permissions, grants, messages or financial records.
 The owner can explicitly convert an existing root from settings. Renaming it does
 not convert it. Delegated/child identities cannot opt into owner-wide flexible
-scope. Research children of general agents remain nonfinancial.
+scope. Research children of general agents remain nonfinancial. No new child agent is created
+(`child_agent_create` is removed, mandate 3.3.3); existing ones keep these rules until
+the data migration of 14.3.18.4 turns them into ordinary team agents.
 
 ## API contract
 

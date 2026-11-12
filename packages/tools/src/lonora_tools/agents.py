@@ -318,7 +318,7 @@ def tools() -> list[Tool]:
         Tool(
             "list_agents",
             "List all of the owner's agents/colleagues with exact routing IDs, names, "
-            "paused status, template, whom each reports to and your own identity. Omit name "
+            "paused status, template and your own identity. Omit name "
             "for the full directory. Use this instead of search_internal to discover colleagues.",
             ListAgentsInput,
             list_agents,

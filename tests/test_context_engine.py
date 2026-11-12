@@ -1299,7 +1299,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "board_create", "board_list", "chart_add_indicator", "chart_annotate",
         "chart_indicator", "chart_inspect", "chart_list", "chart_open",
         "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
-        "chart_set_timeframe", "chart_snapshot", "child_agent_create",
+        "chart_set_timeframe", "chart_snapshot",
         "collaboration_finish", "collaboration_start", "group_silence", "list_accounts", "list_agents", "market_candles",
         "market_candles_to_workspace", "market_decision_compare", "market_decision_history",
         "market_decision_read", "market_decision_record", "market_instrument",

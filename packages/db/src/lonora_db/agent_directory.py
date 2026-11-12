@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .agent_binding import scope_data
-from .agent_creation import agent_origin, report_targets
+from .agent_creation import agent_origin
 from .lead import personal_agent_id, reached_ids
 from .schema import AgentRow
 
@@ -36,8 +36,6 @@ async def agent_directory(
             "trading_account_id": row.trading_account_id,
             "trading_symbol": row.trading_symbol,
             "template": origins[row.id].get("template"),
-            # Peer links: the agents this one reports important findings to.
-            "reports_to": report_targets(origins[row.id]),
             "you_supervise": row.id in supervised,
             "supervises_you": row.id in supervisors,
         }

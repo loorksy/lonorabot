@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "3c69b1cafe85b888505c863039c20c4962f23693daa3a0966a189d4f749626b2",
+  "manual_sha256": "de6398e417cc2ff410ee4abbfffbb39b053bc9f95a3426118b8514d0b85e643a",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "MEMORY.md": "740ebb142ee500336aa2169349f30b2ebf0fe3cee90bc281e2d8fa899877f361",
@@ -47,7 +47,6 @@
     "capabilities_list": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",
-    "child_agent_create": "collaboration",
     "market_symbols": "market",
     "market_instrument": "market",
     "market_instruments": "market",

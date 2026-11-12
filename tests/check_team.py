@@ -65,12 +65,12 @@ async def main() -> None:
             "trading_account_id",
             "trading_symbol",
             "template",
-            "reports_to",
             "you_supervise",
             "supervises_you",
         }
-        # An agent from before creation provenance has no template and no peer links.
-        assert rows[peer["id"]]["template"] is None and rows[peer["id"]]["reports_to"] == []
+        # An agent from before creation provenance has no template; no agent has peer links
+        # (3.3.3: no report_to hierarchy).
+        assert rows[peer["id"]]["template"] is None and "reports_to" not in rows[peer["id"]]
         assert rows[peer["id"]]["role"] == "legacy"
         assert rows[peer["id"]]["scope"]["visibility"] == "legacy"
         assert rows[peer["id"]]["title"] == "Market research"

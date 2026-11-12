@@ -308,7 +308,7 @@ async def test_observe_only_scope_keeps_every_non_financial_capability():
     assert names == {name for name, tool in catalog.tools.items() if not tool.financial}
     helper = catalog.names("helper")
     assert {"workspace_execute", "artifact_create", "web_search"} <= helper
-    assert not {"memory_write", "peer_send", "child_agent_create", "subagent_spawn"} & helper
+    assert not {"memory_write", "peer_send", "subagent_spawn"} & helper
     found = await inspect(catalog, {"query": "memory_write"}, scope="observe_only")
     assert "memory_write" in [tool["name"] for tool in found["tools"]]
     with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):

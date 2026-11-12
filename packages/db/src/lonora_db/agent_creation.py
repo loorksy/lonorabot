@@ -208,7 +208,6 @@ async def create_root_agent(
         "source_message_id": source_message_id,
         "run_id": run_id,
         "card_id": None,
-        "report_to": [],
         "trading_mode": mode,
         # The responsibility Lonora wrote: while the agent's instructions still hash to
         # it, the context shows them as Lonora's writing, never in the system role
@@ -245,7 +244,6 @@ async def record_owner_creation(session: AsyncSession, owner_id: str, row: Agent
         "source_message_id": None,
         "run_id": None,
         "card_id": None,
-        "report_to": [],
         "created_at": utcnow().isoformat(),
     }
     session.add(SettingRow(key=origin_key(owner_id, row.id), payload=origin))
@@ -327,6 +325,7 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
 
 
 def report_targets(origin: dict[str, Any]) -> list[str]:
-    """The agents an origin record says this agent reports to: its peer links."""
+    """The peer links an agent created before the flat team recorded (``report_to``); none
+    now (3.3.3). Read only to remove those links when such an agent is deleted."""
     value = origin.get("report_to")
     return [str(item) for item in cast(list[Any], value)] if isinstance(value, list) else []

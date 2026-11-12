@@ -300,7 +300,6 @@ const toolLabels: Readonly<Record<string, Label>> = {
   watch_pause: WATCH_STEER,
   watch_resume: WATCH_STEER,
   watch_update: WATCH_STEER,
-  child_agent_create: HELPER,
   subagent_spawn: HELPER,
   skill_package_control: SKILL_WORK,
   skill_package_create: SKILL_WORK,

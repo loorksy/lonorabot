@@ -99,7 +99,7 @@ def test_scopes_follow_the_run_not_the_tool_list():
     assert not {name for name, tool in catalog.tools.items() if tool.financial} & wake
     helper = catalog.names("helper")
     assert HELPER_EFFECTS <= helper
-    assert not {"memory_write", "peer_send", "child_agent_create", "owner_notify"} & helper
+    assert not {"memory_write", "peer_send", "owner_notify"} & helper
 
 
 # --- Attribution: the journal says whose position it is -----------------------------
