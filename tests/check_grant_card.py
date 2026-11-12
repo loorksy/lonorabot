@@ -351,6 +351,8 @@ async def main() -> None:
             "symbol": EURO,
             "volume": "0.1",
             "stop_loss": "90",
+            "tolerance": "5",
+            "reason": "Fixture entry",
         }
         outside = await call(gold_context, "trade_execute", **euro_args)
         assert outside.get("_runtime_wait") and outside.get("approval_id"), outside
@@ -375,34 +377,35 @@ async def main() -> None:
                 .where(TradeApprovalRow.run_id == gold_context.lease.run_id)
             )
             assert count == 1, count
-        # The owner's own position is excluded from the grant: closing it asks too.
+        # The owner's own position is not this agent's (3.3.4): refused, nothing sent.
         before = await broker.snapshot()
-        manual = await call(
-            gold_context,
-            "trade_execute",
-            action="close_position",
-            account_id=account,
-            symbol=GOLD,
-            position_id="manual-ticket",
-        )
-        assert manual.get("_runtime_wait") and manual.get("approval_id"), manual
+        try:
+            await call(
+                gold_context,
+                "trade_execute",
+                action="close_position",
+                account_id=account,
+                symbol=GOLD,
+                position_id="manual-ticket",
+            )
+            raise AssertionError("An agent closed the owner's own position")
+        except LonoraError as error:
+            assert error.code == "ticket_not_owned", error.code
         assert await broker.snapshot() == before
+        # Another out-of-grant entry: the owner refuses it.
+        refused_args = {**euro_args, "volume": "0.2"}
+        refused = await call(gold_context, "trade_execute", **refused_args)
+        assert refused.get("_runtime_wait") and refused.get("approval_id"), refused
         await fixture.request(
-            "POST", f"/trading/approvals/{manual['approval_id']}/decision", {"decision": "reject"}
+            "POST", f"/trading/approvals/{refused['approval_id']}/decision", {"decision": "reject"}
         )
-        manual_args = {
-            "action": "close_position",
-            "account_id": account,
-            "symbol": GOLD,
-            "position_id": "manual-ticket",
-        }
         # The same request right after the owner refused it returns that refusal.
-        refused_again = await call(gold_context, "trade_execute", **manual_args)
+        refused_again = await call(gold_context, "trade_execute", **refused_args)
         assert refused_again.get("status") == "rejected", refused_again
-        assert refused_again["approval_id"] == manual["approval_id"], refused_again
+        assert refused_again["approval_id"] == refused["approval_id"], refused_again
         # Once the owner writes again in the conversation, it may ask once more.
         async with db.sessions() as session, session.begin():
-            decided = await session.get(TradeApprovalRow, manual["approval_id"])
+            decided = await session.get(TradeApprovalRow, refused["approval_id"])
             assert decided is not None and decided.thread_id is not None
             conversation = await session.get(ThreadRow, decided.thread_id, with_for_update=True)
             assert conversation is not None
@@ -411,18 +414,18 @@ async def main() -> None:
                     thread_id=conversation.id,
                     seq=conversation.next_seq,
                     role="user",
-                    content="Close my own gold position after all.",
+                    content="Buy the euro after all.",
                 )
             )
             conversation.next_seq += 1
-        asked = await call(gold_context, "trade_execute", **manual_args)
-        assert asked.get("_runtime_wait") and asked["approval_id"] != manual["approval_id"], asked
+        asked = await call(gold_context, "trade_execute", **refused_args)
+        assert asked.get("_runtime_wait") and asked["approval_id"] != refused["approval_id"], asked
         assert await broker.snapshot() == before
         await fixture.request(
             "POST", f"/trading/approvals/{asked['approval_id']}/decision", {"decision": "reject"}
         )
         print(
-            "PASS under On its own an out-of-grant trade and the owner's own position become one approval card, reused while it waits, after approval and right after a refusal, never a refusal"
+            "PASS under On its own an out-of-grant trade becomes one approval card, reused while it waits, after approval and right after a refusal; the owner's own position is not the agent's"
         )
 
         # 5. Two agents on one market: the card says so and can stop the other agent.

@@ -9,8 +9,8 @@ the reader, never its instructions.
 
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
 routines or watches, and messages it. It never grants, raises a limit, trades or edits
-the agent's memory or instructions. A whole agent with money standing is paused
-only from the owner's message, and the Personal Agent only by the owner. The hold
+the agent's memory or instructions. A paused agent still reduces the risk of its own
+positions and orders; the Personal Agent is paused only by the owner. The hold
 rules and the cycle rule are in ``lonora_db.supervision``.
 
 ``supervision_change`` sets who supervises whom when the owner asks: from the owner's
@@ -241,7 +241,7 @@ async def _work(
                 else "you"
                 if hold.holder_agent_id == context.agent_id
                 else names.get(hold.holder_agent_id),
-                "from_owner_message": hold.source == "owner_message",
+                "from_owner_message": hold.source_message_id is not None,
                 # The owner paused it too: only the owner lifts it now.
                 "owner_holds": hold.source == "owner",
             }
@@ -619,13 +619,13 @@ def tools() -> list[Tool]:
         Tool(
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
-            "routines or watches (target, target_id), or message it. resume lifts only a "
-            "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
-            "stay. You cannot pause an agent that holds a pause over you unless the owner "
-            "asks. A whole trading agent is paused only when the owner asks (its exits "
-            "would stop too): pause its routines, watches or Tasks. Only the owner pauses "
-            "Lonora itself. It never trades, grants, raises limits or edits its memory or "
-            "instructions.",
+            "routines or watches (target, target_id), or message it. resume lifts a pause "
+            "you made on your own, or one the owner tells you to lift; Lonora never lifts "
+            "another agent's. You cannot pause an agent that holds a pause over you unless the owner "
+            "asks. A paused agent still wakes for its own positions and orders and only "
+            "reduces their risk; unless you are Lonora, pause a whole trading agent only "
+            "when the owner asks. Only the owner pauses Lonora itself. It "
+            "never trades, grants, raises limits or edits its memory or instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

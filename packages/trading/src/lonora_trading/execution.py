@@ -12,11 +12,11 @@ from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import (
     IN_PROGRESS_STATUSES,
     TERMINAL_STATUSES,
+    TradeAnnotation,
     TradeRequest,
     TradeResult,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
@@ -28,8 +28,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
-from .admission import AdmissionBlocked, require_operation_scope, risk_reducing
-from .agent_permission import require_operation_permission
+from .admission import AdmissionBlocked, may_reduce_risk, require_operation_scope, risk_reducing
+from .agent_permission import acting_agent, require_operation_permission
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .idempotency import trade_fingerprint
 from .journal import execution_evidence
@@ -65,23 +65,23 @@ async def require_goal_lineage(
     session: AsyncSession,
     lease: Lease,
     owner_id: str | None = None,
-    request: TradeRequest | None = None,
+    *,
+    reducing: bool = False,
 ) -> None:
+    """Run integrity (6.9): the lease, the run's Task authority, no research subagent and
+    no observe-only wake, for the run and every ancestor. ``reducing`` is the door's
+    classification of the request, which a paused Task still lets through (4.7)."""
     origin_run = await require_lease(session, lease)
     if owner_id is not None:
-        await require_financial_agent(session, owner_id, origin_run.agent_id)
+        # The owner's agent, whatever its role or bound market (6.9): the door never binds
+        # an agent to an account or symbol (3.1.2).
+        await acting_agent(session, owner_id, origin_run.agent_id)
     if (
         origin_run.trigger == "subagent"
         or origin_run.model_metadata.get("authority") == "observe_only"
     ):
         raise LonoraError("observe_only_execution_forbidden", 403)
-    await require_task_authority(session, origin_run)
-    if owner_id is not None and request is not None:
-        assert_market_binding(
-            await require_financial_agent(session, owner_id, origin_run.agent_id),
-            request.account_id,
-            request.symbol,
-        )
+    await require_task_authority(session, origin_run, reducing=reducing)
     ancestor = origin_run
     seen = {origin_run.id}
     for _ in range(16):
@@ -98,18 +98,16 @@ async def require_goal_lineage(
             or ancestor.model_metadata.get("authority") == "observe_only"
         ):
             raise LonoraError("observe_only_execution_forbidden", 403)
-        await require_task_authority(session, ancestor)
-        if owner_id is not None and request is not None:
-            assert_market_binding(
-                await require_financial_agent(session, owner_id, ancestor.agent_id),
-                request.account_id,
-                request.symbol,
-            )
+        await require_task_authority(session, ancestor, reducing=reducing)
+        if owner_id is not None:
+            await acting_agent(session, owner_id, ancestor.agent_id)
     else:
         raise LonoraError("goal_run_ancestry_invalid", 409)
 
 
-async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
+async def require_task_authority(
+    session: AsyncSession, run: RunRow, *, reducing: bool = False
+) -> None:
     # Shadow trading is removed (Q57); a Run started in it still never sends.
     if run.model_metadata.get("execution_mode", "live") != "live":
         raise LonoraError("shadow_execution_forbidden", 403)
@@ -120,6 +118,13 @@ async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
     if row is None or row.agent_id != run.agent_id or row.thread_id != run.thread_id:
         raise LonoraError("task_run_mismatch", 409)
     state = TaskState.model_validate(row.state.get("task"))
+    if (
+        reducing
+        and state.control_requested in {None, "pause"}
+        and state.status not in {"cancelled", "completed", "failed"}
+        and (state.status == "paused" or state.control_requested == "pause")
+    ):
+        return  # Paused work still reduces its risk (4.7, 6.9).
     if state.control_requested or state.status in {"paused", "cancelled", "completed", "failed"}:
         raise LonoraError("task_execution_stopped", 409)
 
@@ -137,10 +142,14 @@ class ExecutionService:
         authorization: Callable[[], Awaitable[None]] | None = None,
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
+        owner_message_id: str | None = None,
+        annotation: TradeAnnotation | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
-                await require_goal_lineage(session, lease, owner_id, request)
+                await require_goal_lineage(
+                    session, lease, owner_id, reducing=may_reduce_risk(request)
+                )
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
                 if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
@@ -171,7 +180,14 @@ class ExecutionService:
                 origin = await require_lease(session, lease)
                 await authority_lock(session, origin.agent_id)
                 await require_operation_permission(
-                    session, owner_id, origin, request, account_authority_id
+                    session,
+                    owner_id,
+                    origin,
+                    request,
+                    account_authority_id,
+                    reducing=planned_reducing,
+                    target=management_target(planned_snapshot, request),
+                    owner_message_id=owner_message_id,
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -212,6 +228,9 @@ class ExecutionService:
             )
             if not fresh:
                 return receipt(journal)
+            if annotation is not None:
+                # Beside the request, never inside it: the fingerprint stays the request's.
+                journal.annotation = annotation.model_dump(mode="json")
             if leased_run:
                 await anchor_operation(session, journal, leased_run)
             if request.thesis_id:
@@ -348,7 +367,14 @@ class ExecutionService:
                     origin = await require_lease(session, lease)
                     await authority_lock(session, origin.agent_id)
                     await require_operation_permission(
-                        session, owner_id, origin, request, account_authority_id
+                        session,
+                        owner_id,
+                        origin,
+                        request,
+                        account_authority_id,
+                        reducing=reducing,
+                        target=management_target(snapshot, request),
+                        owner_message_id=owner_message_id,
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
@@ -370,7 +396,7 @@ class ExecutionService:
                 )
                 if lease:
                     await require_lease(session, lease, lock=True)
-                    await require_goal_lineage(session, lease, owner_id, request)
+                    await require_goal_lineage(session, lease, owner_id, reducing=reducing)
                     target = (
                         next(
                             (
@@ -393,6 +419,19 @@ class ExecutionService:
                         request,
                         material_state(target) if target else None,
                     )
+                    if (
+                        not account_authority_id
+                        and (request.position_id or request.order_id)
+                        and (
+                            expected_target is None
+                            or target is None
+                            or material_state(target) != expected_target
+                        )
+                    ):
+                        # The ticket the agent read changed before the send (an owner's
+                        # intervention), or nothing records what it read: never overwrite
+                        # it, with or without a card (6.6, fail closed).
+                        raise LonoraError("broker_state_changed", 409)
                     if account_authority_id:
                         leased_run = await require_lease(session, lease)
                         await require_account_execution(

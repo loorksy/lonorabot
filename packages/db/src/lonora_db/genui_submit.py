@@ -6,7 +6,7 @@ data is computed from the stored card and the validated values (server-set field
 card's compile record); the owner's bubble is the button label (``ask``) or the intent's
 registry template filled with the server's own names. The submission is stored with
 ``origin='ui_submit'`` and always gets its own queued Run carrying ``ui_submit_origin``
-(the taint, ``genui_taint``): it never steers or answers an active Run. Its Run is claimed only after
+(its provenance, mandate 6.10): it never steers or answers an active Run. Its Run is claimed only after
 every earlier Run of its agent in the thread has ended (rule Q), reads the thread up to
 its claim (rule W), stays invisible to every other Run until it ends and for good if it
 never started (rules V and N), takes its ticks from its own Run (rule T) and is cancelled
@@ -38,10 +38,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .agent_state import watch_summary
 from .conversation_locale import conversation_locale
 from .events import emit
-from .genui_taint import SUBMIT
 from .owner_words import TERMINAL, ui_submit_origin
+from .pauses import OWNER_ADDRESSED
 from .schema import (
-    AgentRow,
     BrokerSessionRow,
     EffectReceiptRow,
     MarketWatchRow,
@@ -52,6 +51,8 @@ from .schema import (
 )
 from .transactions import owned_agent
 
+# Marks the one queued Run a card's send started (read by ``owner_words.ui_submit_origin``).
+SUBMIT = "ui_submit_origin"
 SUBMIT_LIFETIME = timedelta(minutes=30)
 WAITING = ("waiting_input", "waiting_takeover")
 NEVER_RAN_NOTE = "طلب من بطاقة لم يُنفَّذ"
@@ -299,9 +300,8 @@ async def submit_card(
     agent_id = source.agent_id or document.get("agent_id")
     if not agent_id:
         raise LonoraError("ui_submit_source_invalid", 422)
-    agent: AgentRow = await owned_agent(session, owner_id, agent_id)
-    if agent.paused:
-        raise LonoraError("agent_paused", 409)
+    # A paused agent still takes the owner's input (6.10, 3.2.5); its run only reduces risk.
+    await owned_agent(session, owner_id, agent_id)
     locks = await card_locks(session, thread.id, [source])
     if lock and submit.part in locks.get(source.id, {}):
         raise LonoraError("ui_submit_locked", 409)
@@ -391,9 +391,11 @@ async def submit_card(
             thread_id=thread.id,
             agent_id=agent_id,
             trigger="group" if thread.group_id else "user",
+            # The owner answered this agent's card: addressed to it (4.7.1).
+            metadata={OWNER_ADDRESSED: True} if thread.group_id else {},
         ),
     )
-    # Only this Run is a submission (the queue rules read it); it is also the taint's root.
+    # Only this Run is a submission (the queue rules and its provenance read it).
     run.model_metadata = {
         **run.model_metadata,
         SUBMIT: {"message_id": message.id, "intent": intent_name},
@@ -538,20 +540,16 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
 
     from .runs import create_run
 
-    try:
-        await create_run(
-            session,
-            thread.owner_id,
-            RunRequest(
-                thread_id=run.thread_id,
-                agent_id=run.agent_id,
-                trigger="group" if thread.group_id else "user",
-            ),
-        )
-    except LonoraError as error:
-        # A paused agent answers when it is resumed, as for any owner message.
-        if error.code != "agent_paused":
-            raise
+    await create_run(
+        session,
+        thread.owner_id,
+        RunRequest(
+            thread_id=run.thread_id,
+            agent_id=run.agent_id,
+            trigger="group" if thread.group_id else "user",
+            metadata={OWNER_ADDRESSED: True} if thread.group_id else {},
+        ),
+    )
 
 
 async def expire_submits(session: AsyncSession, thread_id: str | None = None) -> list[RunRow]:
@@ -560,7 +558,7 @@ async def expire_submits(session: AsyncSession, thread_id: str | None = None) ->
     query = select(RunRow).where(
         RunRow.status == "queued",
         RunRow.created_at <= utcnow() - SUBMIT_LIFETIME,
-        # Only submissions (the marker, never the taint) that have not started.
+        # Only submissions that have not started.
         RunRow.model_metadata[SUBMIT].as_string().is_not(None),
         RunRow.model_metadata["ui_submit_started"].as_string().is_(None),
     )

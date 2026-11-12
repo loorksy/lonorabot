@@ -12,6 +12,7 @@ from sqlalchemy.orm import aliased
 
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from .pauses import claimable_while_paused, runs_while_paused
 from .rich_response import validated_rich_content
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
@@ -121,17 +122,10 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
     A Task or ticket started from an observe-only wake runs observe-only too, so
     neither it nor anything it delegates can send a broker mutation. Watches,
     routines are the Agent's own later work and are not narrowed.
-    A Task or ticket a generated card's send started carries that send's taint, so it
-    can never spend a signed grant (docs/genui.md).
     """
     if starter is None:
         return {}
-    from .genui_taint import TAINT, own_taint
-
     inherited: dict[str, Any] = {}
-    taint = own_taint(starter)
-    if taint is not None:
-        inherited[TAINT] = taint
     if starter.model_metadata.get("authority") == "observe_only":
         inherited["authority"] = "observe_only"
         inherited["authority_run_id"] = str(
@@ -141,8 +135,16 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
 
 
 async def create_run(
-    session: AsyncSession, owner_id: str, request: RunRequest, run_id: str | None = None
+    session: AsyncSession,
+    owner_id: str,
+    request: RunRequest,
+    run_id: str | None = None,
+    *,
+    held_while_paused: bool = False,
 ) -> RunRow:
+    """``held_while_paused``: a server notice that must reach the agent (a card it raised
+    ended) is queued for a paused agent and held until it is resumed, instead of
+    refused (4.7.1)."""
     thread = await owned_thread(session, owner_id, request.thread_id, lock=True)
     agent = await owned_agent(session, owner_id, request.agent_id)
     if thread.agent_id and thread.agent_id != agent.id:
@@ -156,7 +158,11 @@ async def create_run(
         if parent is None:
             raise LonoraError("parent_run_not_found", 404)
         await owned_thread(session, owner_id, parent.thread_id)
-    if agent.paused:
+    if (
+        agent.paused
+        and not held_while_paused
+        and not runs_while_paused(request.trigger, request.metadata)
+    ):
         raise LonoraError("agent_paused", 409)
     row = RunRow(
         thread_id=thread.id,
@@ -180,14 +186,11 @@ async def create_run(
                 "skill_authority",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
+                # Only ``retry_run`` marks a card send's retry (provenance only, 6.10).
+                "ui_submit_retry_of",
             }
         },
     )
-    from .genui_taint import TAINT, inherited_taint
-
-    taint = await inherited_taint(session, request.metadata, request.parent_run_id)
-    if taint is not None:
-        row.model_metadata = {**row.model_metadata, TAINT: taint}
     if run_id:
         row.id = run_id
     session.add(row)
@@ -229,13 +232,19 @@ async def claim_next(
     # the thread has ended, so it never overtakes work in retry backoff, an open question
     # or an approved trade waiting for its execution (docs/genui.md).
     earlier = aliased(RunRow)
+    earlier_agent = aliased(AgentRow)
     behind = exists(
-        select(earlier.id).where(
+        select(earlier.id)
+        .join(earlier_agent, earlier_agent.id == earlier.agent_id)
+        .where(
             earlier.thread_id == RunRow.thread_id,
             earlier.agent_id == RunRow.agent_id,
             earlier.id != RunRow.id,
             earlier.created_at < RunRow.created_at,
             earlier.status.not_in(["completed", "failed", "cancelled"]),
+            # A paused agent's held run waits for its resume: the owner's card submission
+            # never waits behind it (4.7.1, 3.2.5).
+            or_(earlier_agent.paused.is_(False), claimable_while_paused(earlier)),
         )
     )
     eligible = and_(
@@ -262,7 +271,11 @@ async def claim_next(
     pending = exists(
         select(RunRow.id)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == ThreadRow.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == ThreadRow.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
     )
     # Claim the thread lock first so two queued turns cannot be claimed simultaneously.
     thread = await session.scalar(
@@ -277,7 +290,11 @@ async def claim_next(
     row = await session.scalar(
         select(RunRow)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == thread.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == thread.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
         .order_by(RunRow.created_at)
         .limit(1)
         .with_for_update(skip_locked=True)
