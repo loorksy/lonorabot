@@ -141,7 +141,8 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
                 account_id=book.account,
                 action="close_position" if kind == "position" else "cancel_order",
                 symbol=item.symbol,
-                **({"position_id": ticket} if kind == "position" else {"order_id": ticket}),
+                position_id=ticket if kind == "position" else None,
+                order_id=ticket if kind == "order" else None,
             )
             assert await ticket_agent(session, f.owner, request, item) == owner, ticket
     assert text.count("</account_picture>") == 1 and "\nIgnore" not in text
