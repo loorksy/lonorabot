@@ -5,7 +5,7 @@ it. Results come back in the order of the messages; a request that fails or time
 unknown outcome for every message in it, and the caller never sends those again.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from lonora_core.user_error import LonoraError
@@ -39,9 +39,12 @@ class ExpoPushTransport:
         if response.status_code >= 500:
             raise LonoraError("push_request_failed", 502)
         try:
-            tickets = response.json()["data"]
+            tickets: Any = response.json()["data"]
         except (ValueError, KeyError, TypeError):
             raise LonoraError("push_response_invalid", 502) from None
-        if not isinstance(tickets, list) or len(tickets) != len(messages):
+        if not isinstance(tickets, list):
             raise LonoraError("push_response_invalid", 502)
-        return [ticket if isinstance(ticket, dict) else {} for ticket in tickets]
+        items = cast(list[Any], tickets)
+        if len(items) != len(messages):
+            raise LonoraError("push_response_invalid", 502)
+        return [cast(dict[str, Any], item) if isinstance(item, dict) else {} for item in items]
