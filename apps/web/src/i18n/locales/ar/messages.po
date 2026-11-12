@@ -3647,6 +3647,10 @@ msgstr "المعرفة والمهارات"
 msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
+#: src/pages/KnowledgeSection.tsx:144
+msgid "Knowledge notes are found by their words. With an OpenAI embedding model enabled below, they are also ranked by meaning."
+msgstr "تُوجد الملاحظات المعرفية بكلماتها. وإذا فعّلت أدناه نموذج تضمين من OpenAI، تُرتَّب أيضًا حسب المعنى."
+
 #. placeholder {0}: agent.name
 #: src/shell/domain/GoalsKnowledgePages.tsx:158
 msgid "Knowledge of <0>{0}</0>"
@@ -6257,8 +6261,8 @@ msgid "Search runs"
 msgstr "البحث في عمليات التنفيذ"
 
 #: src/pages/KnowledgeSection.tsx:144
-msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
-msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
+#~ msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
+#~ msgstr "ابحث في الملاحظات المعرفية المنفصلة باستخدام تضمينات فعلية من نموذج OpenAI تختاره عالميًا."
 
 #: src/components/ai/primitives.tsx:77
 #: src/components/ai/TurnActivity.tsx:29

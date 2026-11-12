@@ -142,8 +142,8 @@ function SemanticKnowledge({ agentId }: { agentId: string }) {
       </summary>
       <p className="muted">
         <Trans>
-          Search separate knowledge notes using real embeddings from a globally selected OpenAI
-          model.
+          Knowledge notes are found by their words. With an OpenAI embedding model enabled below,
+          they are also ranked by meaning.
         </Trans>
       </p>
       <form
@@ -205,7 +205,7 @@ function SemanticKnowledge({ agentId }: { agentId: string }) {
           <Trans>Knowledge note</Trans>
           <textarea rows={4} required value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="submit" disabled={!configuration.enabled || !configuration.model || busy}>
+        <button type="submit" disabled={busy}>
           <Trans>Index note</Trans>
         </button>
       </form>
