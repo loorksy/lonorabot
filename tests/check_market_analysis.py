@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -21,7 +21,13 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market import CalendarEvent
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import BrokerSessionRow, RunRow, TradingAccountRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    BrokerSessionRow,
+    RunRow,
+    TradingAccountRow,
+    TradingJournalRow,
+)
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.market_analysis import calendar_available
@@ -429,7 +435,7 @@ async def main() -> None:
         assert exported["symbol"] == DOLLAR and exported["rows"] == 219
         catalog = await call("market_symbols", {}, actor=specialist)
         assert set(catalog["symbols"]) == {GOLD, DOLLAR, EURO}
-        assert catalog["execution_scope"]["symbol"] == GOLD
+        assert catalog["focus_pair"]["symbol"] == GOLD
         # Reading is open: another owned account is readable too.
         for name, args in (
             ("market_quote", {"account_id": secondary, "symbol": DOLLAR}),
@@ -458,12 +464,8 @@ async def main() -> None:
                 ],
             }
         account = await call("account_read", {}, actor=specialist)
-        assert {item["symbol"]: item["in_execution_scope"] for item in account["positions"]} == {
-            GOLD: True,
-            DOLLAR: False,
-            EURO: False,
-        }
-        assert account["execution_scope"]["symbol"] == GOLD
+        assert {item["symbol"] for item in account["positions"]} == {GOLD, DOLLAR, EURO}
+        assert account["focus_pair"]["symbol"] == GOLD
         history = await call(
             "account_history",
             {"start": (now - timedelta(days=1)).isoformat(), "end": now.isoformat()},
@@ -474,9 +476,17 @@ async def main() -> None:
             journal_before = await session.scalar(
                 select(func.count()).select_from(TradingJournalRow)
             )
+        # Orders are never bound to the focus pair (3.1.2, 6.9): whatever refuses these,
+        # it is the mode or ticket ownership, never the binding.
         for name, args in (
             ("trade_execute", {"symbol": DOLLAR, "action": "buy", "volume": "0.1"}),
             ("trade_close_positions", {"symbol": DOLLAR}),
+        ):
+            try:
+                await call(name, args, actor=specialist)
+            except LonoraError as error:
+                assert error.code not in BINDING_CODES, (name, error.code)
+        for name, args in (
             (
                 "watch_create",
                 {
@@ -519,36 +529,40 @@ async def main() -> None:
             )
         except LonoraError as error:
             assert error.code not in BINDING_CODES, error.code
-        closed = await call("trade_close_positions", {}, actor=specialist)
-        cards = cast(
-            list[dict[str, Any]],
-            await fixture.request("GET", f"/trading/approvals?thread_id={bound_thread['id']}"),
+        # The owner's standing instruction (3.3.4): the specialist manages the owner's own
+        # positions, on every symbol (orders are not bound, 3.1.2, 6.9).
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, specialist.agent_id)
+            assert managing is not None
+            managing.manages_all_positions = True
+        # Not the binding: the door refuses a close of a ticket nobody read (6.6), unsent.
+        unread = await specialist.trading.execute(
+            fixture.owner,
+            TradeRequest(
+                account_id=primary,
+                symbol=DOLLAR,
+                action="close_position",
+                position_id="manual-" + DOLLAR,
+            ),
+            specialist.lease,
         )
-        card = next(item for item in cards if item["id"] == closed["approval_id"])
-        assert [item["symbol"] for item in card["requests"]] == [GOLD]
-        try:
-            await specialist.trading.execute(
-                fixture.owner,
-                TradeRequest(
-                    account_id=primary,
-                    symbol=DOLLAR,
-                    action="close_position",
-                    position_id="manual-" + DOLLAR,
-                ),
-                specialist.lease,
-            )
-        except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch", error.code
-        else:
-            raise AssertionError("Central execution accepted a related, read-only symbol")
+        assert (unread.status, unread.code) == ("failed", "broker_state_changed"), unread
+        assert unread.details["send_state"] == "not_sent"
+        # A close-all is not narrowed to the focus pair.
+        closed = await call("trade_close_positions", {}, actor=specialist)
+        assert "approval_id" not in closed, closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"] * 3, closed
+        assert await (await specialist.brokers.get(fixture.owner, primary)).positions() == []
         async with fixture.runtime.db.sessions() as session:
             journal_after = await session.scalar(
                 select(func.count()).select_from(TradingJournalRow)
             )
-        assert journal_after == journal_before
+        # The refused unread close (reserved, never sent) and the three closes of the
+        # close-all: nothing else was journaled.
+        assert journal_after == (journal_before or 0) + 4
         print(
-            "PASS account-wide exposure is visible; trades, closes, watches, charts and central "
-            "execution stay on the bound symbol"
+            "PASS account-wide exposure is visible; watches and charts stay on the bound "
+            "symbol; orders and close-all are not bound"
         )
     finally:
         for identifier in connections:

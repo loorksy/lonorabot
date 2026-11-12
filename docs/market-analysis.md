@@ -135,10 +135,11 @@ plus `market_candles_to_workspace`, which copies market reads into the agent's o
 workspace. `list_accounts`, `account_read`, `account_history` and `account_activity`
 are no longer filtered to the bound account or symbol; trade records, decision
 history, opportunity reads, performance reads, position sizing and
-relationship reads drop their binding checks. `list_accounts` marks each account and
-`account_read` each position and order with `in_execution_scope`, and the catalog and
-account reads carry an `execution_scope` note, so the agent still sees what it may
-execute. Omitted arguments default to the focus account and symbol, but the focus
+relationship reads drop their binding checks. Orders are not bound either (mandate
+3.1.2, 6.9): the trade tools and the execution door no longer assert the binding, and
+the catalog and account reads carry a `focus_pair` note naming the pair. Omitted
+arguments default to the focus account and symbol (a close-all keeps every symbol),
+but the focus
 symbol is never copied onto another explicitly named account (`fill_bound_fields`),
 so `trade_record_history(account_id=<other>)` returns that account's records for every
 symbol, as for flexible agents. `BINDING_POLICY` reads: focus pair; reading is open;

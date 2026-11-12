@@ -2,19 +2,24 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate, utcnow
-from lonora_contracts.trading import TradeRequest
+from lonora_contracts.trading import TradeRequest, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.agents import agent_data, create_agent
 from lonora_db.schema import AgentRow, RunRow, TradingAccountRow
+from lonora_db.trading_mode import set_trading_mode
 from lonora_tools.loader import load_tools
+from lonora_trading.controls import read_controls, save_controls
 from lonora_voice.context import voice_context
+
+# The refusals the door no longer makes for orders (3.1.2, 6.9).
+BINDING = {"agent_trading_account_mismatch", "agent_trading_symbol_mismatch"}
 
 
 async def checks() -> None:
@@ -128,6 +133,19 @@ async def checks() -> None:
             else:
                 raise AssertionError(name + " bypassed binding")
 
+        async def not_bound(name: str, args: dict[str, Any], code: str) -> None:
+            """Orders are never bound to the focus pair (3.1.2, 6.9): the answer is the
+            exact outcome of another rule (``code``), never the binding."""
+            try:
+                result = await registry.execute(
+                    ToolCall(id=uuid4().hex, name=name, arguments=args), context
+                )
+            except LonoraError as error:
+                assert error.code == code, (name, error.code)
+            else:
+                assert result.get("code") == code, (name, result)
+                assert result.get("status") != "confirmed", (name, result)
+
         # Reading is open: market data reads cover every owned account and symbol.
         # Persistent chart work, like every mutation, keeps the bound pair.
         for name in ("market_quote", "market_instrument", "market_candles", "chart_indicator"):
@@ -174,19 +192,39 @@ async def checks() -> None:
                 if name == "list_accounts":
                     listed = {item["connection_id"] for item in read["accounts"]}
                     assert {primary, secondary} <= listed, listed
-                    scope = {
-                        item["connection_id"]: item["in_execution_scope"]
-                        for item in read["accounts"]
-                    }
-                    assert scope[primary] is True and scope[secondary] is False
-        await denied(
-            "trade_execute",
-            {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
-            "agent_trading_symbol_mismatch",
-        )
-        await denied(
-            "trade_close_positions", {"account_id": secondary}, "agent_trading_account_mismatch"
-        )
+        # Trading is on for these checks (restored below), so each answer is its own rule's.
+        original_controls = await read_controls(fixture.runtime.db)
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
+        try:
+            # In Ask, new risk on another symbol asks for its tolerance: never the binding.
+            await not_bound(
+                "trade_execute",
+                {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
+                "tolerance_required",
+            )
+            # Another account holds nothing of this agent's: nothing to close.
+            await not_bound("trade_close_positions", {"account_id": secondary}, "no_positions")
+            # In Full, an order on another symbol of the account is sent and confirmed.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
+            sent = await registry.execute(
+                ToolCall(
+                    id=uuid4().hex,
+                    name="trade_execute",
+                    arguments={
+                        "account_id": primary,
+                        "symbol": symbols[1],
+                        "action": "buy",
+                        "volume": "0.1",
+                    },
+                ),
+                context,
+            )
+            assert sent.get("status") == "confirmed", sent
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await set_trading_mode(session, fixture.owner, agent["id"], "ask", by="agent")
+        finally:
+            await save_controls(fixture.runtime.db, original_controls)
         await denied(
             "watch_create",
             {
@@ -213,9 +251,9 @@ async def checks() -> None:
             context,
         )
         assert set(catalog["symbols"]) >= set(symbols[:2])
-        assert catalog["execution_scope"]["symbol"] == symbols[0]
+        assert catalog["focus_pair"]["symbol"] == symbols[0]
         print(
-            "PASS generic tool boundary: related-pair reads on the bound account; cross-account reads and cross-pair chart/trade/watch steps rejected"
+            "PASS generic tool boundary: reads and orders open; cross-pair chart/watch steps rejected"
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
             snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
@@ -236,20 +274,40 @@ async def checks() -> None:
         account = await registry.execute(
             ToolCall(id="account", name="account_read", arguments={"account_id": primary}), context
         )
-        # Account-wide exposure is visible; only the bound pair is executable.
-        assert {p["symbol"]: p["in_execution_scope"] for p in account["positions"]} == {
-            s: s == symbols[0] for s in symbols
-        }
-        proposal = await registry.execute(
+        # Account-wide exposure is visible, with the focus pair named.
+        assert {p["symbol"] for p in account["positions"]} == set(symbols)
+        assert account["focus_pair"]["symbol"] == symbols[0]
+        # The owner's standing instruction (3.3.4): this agent manages the owner's own
+        # positions. A close-all is not narrowed to the bound pair (3.1.2, 6.9).
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, context.agent_id)
+            assert managing is not None
+            managing.manages_all_positions = True
+        closed = await registry.execute(
             ToolCall(id="close", name="trade_close_positions", arguments={"account_id": primary}),
             context,
         )
-        cards = cast(
-            list[dict[str, Any]],
-            await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
-        )
-        card = next(c for c in cards if c["id"] == proposal["approval_id"])
-        assert len(card["requests"]) == 1 and card["requests"][0]["symbol"] == symbols[0]
+        assert "approval_id" not in closed, closed
+        assert [item["status"] for item in closed["results"]] == ["confirmed"] * len(symbols)
+        broker = await context.brokers.get(fixture.owner, primary)
+        assert await broker.positions() == []
+        # The owner's terminal positions again, for the watch checks below.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            snapshot = await session.get(TradingAccountRow, primary, with_for_update=True)
+            assert snapshot is not None
+            snapshot.payload = {
+                **snapshot.payload,
+                "positions": [
+                    {
+                        "id": "manual-" + s,
+                        "symbol": s,
+                        "side": "buy",
+                        "volume": "0.1",
+                        "open_price": "90",
+                    }
+                    for s in symbols
+                ],
+            }
         try:
             await context.trading.execute(
                 fixture.owner,
@@ -259,12 +317,11 @@ async def checks() -> None:
                 context.lease,
             )
         except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
+            # The door never binds an order to the pair; this Ask agent needs the card.
+            assert error.code == "trade_approval_required", error.code
         else:
-            raise AssertionError("Direct central execution bypass")
-        print(
-            "PASS broker manual ticket reads and close-all scoped; central execution independently rejects mismatch"
-        )
+            raise AssertionError("Direct central execution sent without approval")
+        print("PASS broker manual ticket reads; close-all and the door bind no order")
         async with fixture.runtime.db.sessions() as session, session.begin():
             child = await create_agent(
                 session, fixture.owner, AgentCreate(name="Inherited child"), agent["id"]
@@ -293,9 +350,10 @@ async def checks() -> None:
                 child_context,
             )
         except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch", error.code
+            # No binding refusal; the child's own trading permission decides.
+            assert error.code == "agent_analysis_only", error.code
         else:
-            raise AssertionError("Child bypassed the inherited binding")
+            raise AssertionError("Child sent without its own trading permission")
         async with fixture.runtime.db.sessions() as session:
             selected = await session.get(AgentRow, agent["id"])
             assert selected is not None
@@ -353,12 +411,13 @@ async def checks() -> None:
                 peer_context.lease,
             )
         except LonoraError as error:
-            assert error.code == "agent_trading_symbol_mismatch"
+            # The ancestry walk binds nothing; the peer's own mode (Ask) decides.
+            assert error.code == "trade_approval_required", error.code
         else:
-            raise AssertionError("Peer delegated trade bypassed parent binding")
+            raise AssertionError("Peer sent without its own trading permission")
         await fixture.request("DELETE", "/charts/" + foreign_chart["id"])
         print(
-            "PASS reads open across charts and accounts; direct chart APIs and peer financial ancestry cannot bypass binding"
+            "PASS reads open across charts and accounts; direct chart APIs keep the binding; peer orders are not bound"
         )
         from lonora_contracts.market_watch import Watch
         from lonora_db.schema import MarketWatchRow

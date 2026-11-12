@@ -17,7 +17,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import ToolRefusal
-from lonora_db.schema import TradingAccountRow
+from lonora_db.schema import AgentRow, TradingAccountRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
@@ -29,6 +29,12 @@ async def main():
     connection_id = None
     try:
         agent = await fixture.agent("Financial approval", supervised=True)
+        # The owner's standing instruction (3.3.4): this agent manages the owner's own
+        # position opened in the MT5 terminal below.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, agent["id"])
+            assert managing is not None
+            managing.manages_all_positions = True
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
@@ -99,7 +105,8 @@ async def main():
                 ],
             }
 
-        async def operation(action: str, **params: Any) -> dict[str, Any]:
+        async def operation(action: str, *, card: bool = True, **params: Any) -> dict[str, Any]:
+            """``card`` False: a risk-reducing request on the agent's own ticket (Ask)."""
             call = ToolCall(
                 id=uuid4().hex,
                 name="trade_execute",
@@ -107,11 +114,20 @@ async def main():
                     "account_id": connection_id,
                     "symbol": symbol,
                     "action": action,
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
                     **params,
                 },
             )
             before = await broker.snapshot()
             wait = await registry.execute(call, context)
+            if not card:
+                # Ask: a risk-reducing request on the agent's own ticket needs no card.
+                assert "_runtime_wait" not in wait and "approval_id" not in wait, wait
+                assert wait["status"] == "confirmed", wait
+                assert wait["details"]["verification"]["financial_retry_allowed"] is False
+                assert await registry.execute(call, context) == wait
+                return wait
             assert wait["_runtime_retry"] and await broker.snapshot() == before
             approval = wait["approval_id"]
             clarification = await registry.execute(
@@ -146,12 +162,14 @@ async def main():
 
         opened = await operation("buy", volume="0.2", stop_loss="90", take_profit="110")
         await operation("sell", volume="0.2")
-        await operation("modify_position", position_id=opened["broker_id"], stop_loss="91")
-        await operation("close_position", position_id="manual-mt5-ticket", volume="0.1")
+        await operation(
+            "modify_position", card=False, position_id=opened["broker_id"], stop_loss="91"
+        )
+        await operation("close_position", card=False, position_id="manual-mt5-ticket", volume="0.1")
         assert next(
             p for p in await broker.positions() if p.id == "manual-mt5-ticket"
         ).volume == __import__("decimal").Decimal("0.9")
-        await operation("close_position", position_id="manual-mt5-ticket")
+        await operation("close_position", card=False, position_id="manual-mt5-ticket")
         for action, price in (
             ("buy_limit", "99"),
             ("sell_limit", "102"),
@@ -164,7 +182,7 @@ async def main():
                 order_id=order["broker_id"],
                 stop_loss="90" if action.startswith("buy") else "110",
             )
-            await operation("cancel_order", order_id=order["broker_id"])
+            await operation("cancel_order", card=False, order_id=order["broker_id"])
         print(
             "PASS market/pending/full+partial manual close/modifications/cancel and repeated approval"
         )
@@ -176,6 +194,8 @@ async def main():
                 "symbol": symbol,
                 "action": "buy",
                 "volume": "0.2",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         wait = await registry.execute(rejected, context)
@@ -190,32 +210,17 @@ async def main():
             name="trade_close_positions",
             arguments={"account_id": connection_id, "symbol": symbol},
         )
-        wait = await registry.execute(bulk, context)
-        frozen = next(
-            a
-            for a in cast(
-                list[dict[str, Any]],
-                await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
-            )
-            if a["id"] == wait["approval_id"]
-        )
-        assert len(frozen["requests"]) == 2
-        await fixture.request(
-            "POST", f"/trading/approvals/{wait['approval_id']}/decision", {"decision": "approve"}
-        )
-        new_ticket = await operation("buy", volume="0.4")
+        # Both positions are the agent's own: in Ask a close-all reduces risk and executes
+        # without a card, on the exact ticket set it read; a replay never adds a later one.
         result = await registry.execute(bulk, context)
-        assert all(item["status"] == "confirmed" for item in result["results"]) and [
-            p.id for p in await broker.positions()
-        ] == [new_ticket["broker_id"]]
+        assert "approval_id" not in result, result
+        assert len(result["results"]) == 2
+        assert all(item["status"] == "confirmed" for item in result["results"])
+        new_ticket = await operation("buy", volume="0.4")
+        assert (await registry.execute(bulk, context))["results"] == result["results"]
+        assert [p.id for p in await broker.positions()] == [new_ticket["broker_id"]]
         all_call = ToolCall(
             id=uuid4().hex, name="trade_close_positions", arguments={"account_id": connection_id}
-        )
-        all_wait = await registry.execute(all_call, context)
-        await fixture.request(
-            "POST",
-            f"/trading/approvals/{all_wait['approval_id']}/decision",
-            {"decision": "approve"},
         )
         assert all(
             item["status"] == "confirmed"
@@ -232,7 +237,9 @@ async def main():
                     select(TradeApprovalRow).where(TradeApprovalRow.thread_id == thread["id"])
                 )
             )
-            assert len(rows) >= 15 and all(r.status in {"completed", "rejected"} for r in rows)
+            # Cards for every request that adds risk: 2 entries, 4 pending orders, 4 order
+            # changes, 1 rejected. Closes, cancels and the stop tightening ran without one.
+            assert len(rows) >= 11 and all(r.status in {"completed", "rejected"} for r in rows)
         print("PASS durable approvals and real broker receipts survive service reads")
 
         class FinancialRouter(ScriptedRouter):
@@ -266,6 +273,8 @@ async def main():
                                     "symbol": symbol,
                                     "action": "buy",
                                     "volume": "0.2",
+                                    "tolerance": "5",
+                                    "reason": "Fixture entry",
                                 },
                             )
                         ],
@@ -333,6 +342,8 @@ async def main():
                 "symbol": symbol,
                 "action": "sell",
                 "volume": "0.3",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(lost_call, financial_context)
@@ -374,6 +385,8 @@ async def main():
                 "symbol": symbol,
                 "action": "buy",
                 "volume": "0.6",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(steering_call, steering_context)
@@ -410,6 +423,8 @@ async def main():
                 "symbol": symbol,
                 "action": "buy",
                 "volume": "0.15",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         # The executor refuses a wrong size on its own, without the tool's early check.
@@ -445,6 +460,8 @@ async def main():
                 "symbol": symbol,
                 "action": "buy",
                 "volume": "0.15",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         isolated = await fixture.lease(await fixture.run(agent, thread))
@@ -467,7 +484,14 @@ async def main():
             financial_call = ToolCall(
                 id=call_id,
                 name="trade_execute",
-                arguments={"account_id": connection_id, "symbol": symbol, "action": "buy", **args},
+                arguments={
+                    "account_id": connection_id,
+                    "symbol": symbol,
+                    "action": "buy",
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
+                    **args,
+                },
             )
             proposal = await registry.execute(financial_call, isolated)
             await fixture.request(
@@ -497,6 +521,8 @@ async def main():
                             "symbol": symbol,
                             "action": "buy",
                             "volume": volume,
+                            "tolerance": "5",
+                            "reason": "Fixture entry",
                         },
                     ),
                     isolated,
@@ -552,6 +578,8 @@ async def main():
                 "symbol": symbol,
                 "action": "buy",
                 "volume": "0.2",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(crash_call, isolated)

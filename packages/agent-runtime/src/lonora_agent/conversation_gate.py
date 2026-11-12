@@ -2,7 +2,8 @@
 
 A Task has steps to finish; a conversation has none, so a reply could end a request with
 one named step left untaken. This gate reads the request's own tool calls and results and
-continues the turn, at most twice per owner message, in four cases:
+continues the turn, at most twice per owner message, in five cases (on a wake, only the
+last):
 
 - ``choice_not_carried_out``: the owner picked a choice of a question, the choice was
   bound to calls when it was offered (``offers``), and fewer calls of those tools have
@@ -12,12 +13,16 @@ continues the turn, at most twice per owner message, in four cases:
   tool to read next, and that tool was never called;
 - ``found_tool_unused``: ``tool_environment`` returned exactly one tool and it was never
   called;
-- ``changes_all_failed``: every change failed and a result names how to repeat it.
+- ``changes_all_failed``: every change failed and a result names how to repeat it;
+- ``lead_action_unreported``: a lead action (``owner_line: required`` in its result)
+  changed the team and the reply is empty: Lonora tells the owner in one line (3.1.2).
+  It is checked first, even when a trade holds the other cases, since it asks for words,
+  never a call.
 
-It reads structure only: call names, arguments and result fields. It never reads what the
-owner or the model wrote, never issues a call, and never continues past a refusal for
-permission, a financial call, an uncertain outcome or an exhausted retry. Each
-continuation is recorded in the Run's state.
+It reads structure only: call names, arguments and result fields, and whether the reply
+is empty. It never reads what the owner or the model wrote, never issues a call, and the
+first four cases never continue past a refusal for permission, a financial call, an
+uncertain outcome or an exhausted retry. Each continuation is recorded in the Run's state.
 """
 
 import json
@@ -306,6 +311,29 @@ def _changes_all_failed(
     return None
 
 
+# A lead tool's result field that names the owner's one-line report as an open step
+# (mandate 3.1.2: Lonora "tells the owner in one line what it did and why").
+OWNER_LINE = "owner_line"
+
+
+def _lead_action_unreported(
+    exchanges: list[Exchange], request: list[ModelMessage] | None
+) -> Finding | None:
+    """A lead action changed something, and the reply that ends the turn is empty."""
+    if not request or request[-1].role != "assistant" or request[-1].content.strip():
+        return None
+    for call, result in exchanges:
+        if result is not None and result.get(OWNER_LINE) == "required":
+            return (
+                "lead_action_unreported",
+                call.name,
+                call.id,
+                f"{call.name} changed the team, and your reply is empty. Tell the owner in "
+                "one line what you did and why.",
+            )
+    return None
+
+
 def conversation_stop_gate(
     state: dict[str, Any],
     messages: list[ModelMessage],
@@ -314,7 +342,7 @@ def conversation_stop_gate(
 ) -> StopGateVerdict:
     """Whether the reply ends this request; ``permitted`` names the tools of this Run."""
     if state.get("owner_started") is not True:
-        return ACCEPT
+        return _wake_gate(state, messages)
     record = _record(state)
     request = _request(messages)
     blocks = _blocks(request) if request else []
@@ -324,15 +352,20 @@ def conversation_stop_gate(
     if not blocks and obligation is None:
         return ACCEPT
     exchanges = [exchange for block in blocks for exchange in block]
-    # The pick starts at or before the request, so its calls include the request's.
-    if _held(state, messages, picked if obligation and picked else exchanges, registry):
-        return ACCEPT
-    called = {call.name for call, _ in exchanges}
     fired = {
         (cast(dict[str, Any], entry).get("condition"), cast(dict[str, Any], entry).get("call_id"))
         for entry in cast(list[Any], record["fired"])
         if isinstance(entry, dict)
     }
+    # An empty reply after a lead action is never held: it calls nothing, it only asks for
+    # the one line, also when a trade in the same turn holds every other finding.
+    lead = _lead_action_unreported(exchanges, request)
+    if lead is not None and (lead[0], lead[2]) not in fired:
+        return _nudge(state, record, lead)
+    # The pick starts at or before the request, so its calls include the request's.
+    if _held(state, messages, picked if obligation and picked else exchanges, registry):
+        return ACCEPT
+    called = {call.name for call, _ in exchanges}
     finding = next(
         (
             found
@@ -347,6 +380,43 @@ def conversation_stop_gate(
         ),
         None,
     )
+    return _nudge(state, record, finding)
+
+
+def _wake_gate(state: dict[str, Any], messages: list[ModelMessage]) -> StopGateVerdict:
+    """A run the owner did not start (a wake): only a lead action left unreported holds
+    it, read from the calls since the last conversation input or finished reply (an
+    earlier turn's action was reported, or not, in that turn)."""
+    last = next(
+        (
+            i
+            for i in range(len(messages) - 2, -1, -1)
+            if is_owner_message(messages[i])
+            or (
+                messages[i].role == "assistant"
+                and not messages[i].tool_calls
+                and bool(messages[i].content.strip())
+            )
+        ),
+        -1,
+    )
+    tail = messages[last + 1 :]
+    exchanges = [exchange for block in _blocks(tail) for exchange in block]
+    finding = _lead_action_unreported(exchanges, tail)
+    if finding is None:
+        return ACCEPT
+    record = _record(state)
+    fired = {
+        (cast(dict[str, Any], entry).get("condition"), cast(dict[str, Any], entry).get("call_id"))
+        for entry in cast(list[Any], record["fired"])
+        if isinstance(entry, dict)
+    }
+    return ACCEPT if (finding[0], finding[2]) in fired else _nudge(state, record, finding)
+
+
+def _nudge(
+    state: dict[str, Any], record: dict[str, Any], finding: Finding | None
+) -> StopGateVerdict:
     if finding is None:
         return ACCEPT
     if record["attempts"] >= MAXIMUM_STOP_NUDGES:

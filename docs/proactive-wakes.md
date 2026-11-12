@@ -105,10 +105,9 @@ decision history, opportunities, performance reads, sizing and
 relationships. The read guard is the registry's own effect metadata
 (`guard_market_tool(..., read=tool.read_only)`). Mutations keep the binding:
 `agent_trading_account_mismatch` and `agent_trading_symbol_mismatch` now come only
-from charts, watches, decisions, opportunity and relationship records and
-financial tools, and the executor asserts the binding of every leased
-request. `in_execution_scope` on accounts, positions and orders shows what the agent
-may execute. See
+from charts, watches, decisions, opportunity and relationship records; orders are not
+bound (mandate 3.1.2, 6.9), and the catalog and account reads carry a `focus_pair`
+note. See
 [market-analysis.md](market-analysis.md#readable-and-executable-scope-of-fixed-market-agents).
 
 Trading decisions on owner accounts are shared operational records: decision history,
@@ -166,4 +165,4 @@ Delivery is in-app only until Wave 3. See
   paused Agent is not woken when it resumes.
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
-  runs and memory through its default, revocable supervision grant, on demand.
+  runs and memory by its lead role, whatever its grant, on demand.

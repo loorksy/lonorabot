@@ -9,8 +9,18 @@ from lonora_agent.context.permissions import permission_context, permission_guid
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import RunRow, TradeApprovalRow
+from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow
 from lonora_trading import agent_permission, execution
+
+
+@pytest.fixture(autouse=True)
+def ask_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These agents are in Ask: their requests go through the ladder and approvals."""
+    monkeypatch.setattr(
+        agent_permission,
+        "acting_agent",
+        AsyncMock(return_value=AgentRow(id="agent", role="specialist", trading_mode="ask")),
+    )
 
 
 def origin(trigger: str = "goal") -> RunRow:
@@ -119,10 +129,10 @@ async def test_direct_subagent_executor_path_cannot_inherit_authority(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(execution, "require_lease", AsyncMock(return_value=origin("subagent")))
-    monkeypatch.setattr(execution, "require_financial_agent", AsyncMock())
+    monkeypatch.setattr(execution, "acting_agent", AsyncMock())
     with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
         await execution.require_goal_lineage(
-            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), "owner", request()
+            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), "owner"
         )
 
 
@@ -199,6 +209,13 @@ async def test_resumed_context_reads_current_permission_every_time(monkeypatch: 
         ]
     )
     monkeypatch.setattr("lonora_agent.context.permissions.global_trading", trading)
+    monkeypatch.setattr(
+        "lonora_agent.context.permissions.trading_mode", AsyncMock(return_value="ask")
+    )
+    monkeypatch.setattr(
+        "lonora_agent.context.permissions.agent_binding",
+        AsyncMock(return_value=AgentRow(id="agent", manages_all_positions=False)),
+    )
     first = await permission_context(AsyncMock(), "owner", "agent", origin())
     resumed = await permission_context(AsyncMock(), "owner", "agent", origin())
     assert context_snapshot(first)["valid_autonomous_authorization"] is True
