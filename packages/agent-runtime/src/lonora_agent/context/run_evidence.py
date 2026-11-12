@@ -60,6 +60,10 @@ EXTERNAL_TOOLS = frozenset(
         "workspace_read",
         "workspace_inspect",
         "workspace_execute",
+        # The owner's workspace: program output, process command lines, file contents.
+        "workspace_run",
+        "workspace_processes",
+        "workspace_file_read",
         "skill_repository_inspect",
         "search_internal",
         "session_search",

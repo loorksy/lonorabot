@@ -9,6 +9,7 @@ no secret, model, database or broker credential.
 
 import argparse
 import asyncio
+import base64
 import contextlib
 import logging
 import os
@@ -22,6 +23,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI
+from fastapi import Request as HttpRequest
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -32,10 +34,22 @@ ROOT = Path("/workspace")
 SHARED = ROOT / "shared"
 MARKER = ROOT / ".lonora-workspace-disk"
 CONTROL = Path("/run/lonora-workspace")
+SECRETS = Path("/run/secrets")
+FILE_LIMIT = 2 * 1024 * 1024
 OUTPUT_LIMIT = 1024 * 1024
 ENDED_KEPT = 500
-PROTECTED_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "PWD", "LONORA_WORKSPACE_JOB"}
+PROTECTED_ENV = {
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "PATH",
+    "PWD",
+    "LONORA_AGENT_TOKEN",
+    "LONORA_WORKSPACE_JOB",
+}
 ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
+SECRET_NAME = r"^[A-Z][A-Z0-9_]{0,63}$"
 # Runs as the agent's user: every path below is resolved with the agent's permissions.
 WRAPPER = (
     'cd -- "$1" || exit 126\n'
@@ -61,10 +75,34 @@ class RunCommand(Request):
     env: dict[str, Annotated[str, StringConstraints(max_length=65536)]] = Field(
         default_factory=dict, max_length=64
     )
+    # Workspace secrets the command names (7.2.5): env NAME and the file /run/secrets/NAME.
+    secrets: dict[
+        Annotated[str, StringConstraints(pattern=SECRET_NAME)],
+        Annotated[str, StringConstraints(min_length=1, max_length=16000)],
+    ] = Field(default_factory=dict, max_length=64)
+
+
+AgentPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+
+
+class ReadFile(Request):
+    agent_id: uuid.UUID
+    path: AgentPath
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=FILE_LIMIT, ge=1, le=FILE_LIMIT)
+
+
+class WriteFile(Request):
+    agent_id: uuid.UUID
+    path: AgentPath
+    content_base64: str = Field(max_length=(FILE_LIMIT * 4) // 3 + 8)
+    append: bool = False
 
 
 class StopProcess(Request):
     pid: int = Field(gt=1)
+    # When given, the process must belong to this agent.
+    agent_id: uuid.UUID | None = None
 
 
 class StopAll(Request):
@@ -203,6 +241,17 @@ def marked(job_id: str) -> set[int]:
     return found
 
 
+def stop_family(pid: int, job_id: str) -> None:
+    """A job's process group, every descendant that left it (setsid), and every process
+    still carrying its job marker (a double-forked daemon, reparented to init)."""
+    family = set(descendants(pid)) | marked(job_id)
+    with contextlib.suppress(OSError):
+        os.killpg(pid, signal.SIGKILL)
+    for member in family:
+        with contextlib.suppress(OSError):
+            os.kill(member, signal.SIGKILL)
+
+
 def descendants(root: int) -> list[int]:
     """Every live descendant of `root`, by parent links in /proc."""
     children: dict[int, list[int]] = {}
@@ -293,6 +342,9 @@ class Supervisor:
         self.limits = limits
         self.boot_id = str(uuid.uuid4())
         self.jobs: dict[str, Job] = {}
+        # job id -> the secrets (name -> value) that job was started with, while any of
+        # its processes runs (its /run/secrets files stay until then).
+        self.job_secrets: dict[str, dict[str, str]] = {}
         self.lock = asyncio.Lock()
 
     def environment(self, uid: int, extra: dict[str, str]) -> dict[str, str]:
@@ -315,6 +367,64 @@ class Supervisor:
                 raise ValueError("workspace_environment_invalid")
         return base | extra
 
+    def place_secrets(self, secrets: dict[str, str]) -> None:
+        """/run/secrets/NAME, root:agents 0440 on a tmpfs: any agent may use any workspace
+        secret by name (7.2.4). Rewritten on each use, so a rotated value takes effect, and
+        removed when no running job named it (`release`)."""
+        for name, value in secrets.items():
+            temporary = SECRETS / f".{name}.{uuid.uuid4().hex}"
+            try:
+                descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o440)
+                try:
+                    os.write(descriptor, value.encode())
+                    os.fchown(descriptor, 0, AGENTS_GID)
+                    os.fchmod(descriptor, 0o440)
+                finally:
+                    os.close(descriptor)
+                os.replace(temporary, SECRETS / name)
+            except OSError:
+                temporary.unlink(missing_ok=True)
+                raise
+
+    def release(self, job_id: str) -> None:
+        """A job ended: each secret file no running job names any more is removed."""
+        named = self.job_secrets.pop(job_id, {})
+        still = {name for values in self.job_secrets.values() for name in values}
+        for name in set(named) - still:
+            (SECRETS / name).unlink(missing_ok=True)
+
+    async def release_when_gone(self, job_id: str) -> None:
+        """A job's secret files stay while any process carrying its marker runs."""
+        while True:
+            if not await asyncio.to_thread(marked, job_id):
+                break
+            await asyncio.sleep(2)
+        async with self.lock:
+            self.release(job_id)
+
+    async def spawn(
+        self, cwd: str, log_path: str, command: str, pipe: int, env: dict[str, str], uid: int
+    ) -> asyncio.subprocess.Process:
+        return await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            "-c",
+            WRAPPER,
+            "lonora-workspace",
+            cwd,
+            log_path,
+            command,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=pipe,
+            stderr=pipe,
+            cwd="/",
+            env=env,
+            user=uid,
+            group=uid,
+            extra_groups=[AGENTS_GID],
+            umask=0o002,
+            start_new_session=True,
+        )
+
     async def start(self, request: RunCommand) -> tuple[Job, asyncio.subprocess.Process]:
         if "\0" in request.command or (request.cwd and "\0" in request.cwd):
             raise ValueError("workspace_command_invalid")
@@ -327,25 +437,24 @@ class Supervisor:
             raise ValueError("workspace_cwd_invalid")
         log_path = f"{home}/.lonora/processes/{job_id}.log" if request.background else ""
         pipe = asyncio.subprocess.DEVNULL if request.background else asyncio.subprocess.PIPE
-        process = await asyncio.create_subprocess_exec(
-            "/bin/bash",
-            "-c",
-            WRAPPER,
-            "lonora-workspace",
-            cwd,
-            log_path,
-            request.command,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=pipe,
-            stderr=pipe,
-            cwd="/",
-            env=self.environment(uid, request.env) | {JOB_MARKER: job_id},
-            user=uid,
-            group=uid,
-            extra_groups=[AGENTS_GID],
-            umask=0o002,
-            start_new_session=True,
-        )
+        env = self.environment(uid, request.env) | {JOB_MARKER: job_id}
+        if set(request.secrets) & (PROTECTED_ENV | set(request.env)):
+            raise ValueError("workspace_secret_name_invalid")
+        async with self.lock:
+            if request.secrets:
+                self.job_secrets[job_id] = dict(request.secrets)
+            try:
+                self.place_secrets(request.secrets)
+            except OSError:
+                self.release(job_id)
+                raise
+        env |= request.secrets
+        try:
+            process = await self.spawn(cwd, log_path, request.command, pipe, env, uid)
+        except OSError:
+            async with self.lock:
+                self.release(job_id)
+            raise
         job = Job(
             id=job_id,
             agent_id=str(request.agent_id),
@@ -361,6 +470,8 @@ class Supervisor:
         return job, process
 
     def ended(self, job: Job, code: int | None) -> None:
+        if job.id in self.job_secrets:
+            asyncio.get_running_loop().create_task(self.release_when_gone(job.id))
         job.ended_at = time.time()
         job.exit_code = code
         job.process = None
@@ -392,16 +503,17 @@ class Supervisor:
             asyncio.create_task(drain("stdout", process.stdout)),
             asyncio.create_task(drain("stderr", process.stderr)),
         ]
-        timed_out = not await exited(process, timeout)
+        try:
+            timed_out = not await exited(process, timeout)
+        except asyncio.CancelledError:
+            # The caller went away (its run was cancelled): the command stops with it.
+            stop_family(process.pid, job.id)
+            for task in readers:
+                task.cancel()
+            self.ended(job, None)
+            raise
         if timed_out:
-            # Its process group, every descendant that left it (setsid), and every process
-            # still carrying its job marker (a double-forked daemon, reparented to init).
-            family = set(descendants(process.pid)) | marked(job.id)
-            with contextlib.suppress(OSError):
-                os.killpg(process.pid, signal.SIGKILL)
-            for pid in family:
-                with contextlib.suppress(OSError):
-                    os.kill(pid, signal.SIGKILL)
+            stop_family(process.pid, job.id)
             await exited(process, 10)
         code = await returncode(process)
         # A background child may keep the pipes open: read what is there, then stop.
@@ -430,6 +542,86 @@ class Supervisor:
         asyncio.get_running_loop().create_task(self.watch(job, process))
         return {"boot_id": self.boot_id, "process": job.view()}
 
+    async def as_agent(
+        self, agent_id: uuid.UUID, script: str, *args: str, data: bytes = b""
+    ) -> tuple[int, bytes, bytes]:
+        """A short command as the agent's own user, from its home: every path is resolved
+        with the agent's permissions, never root's."""
+        async with self.lock:
+            uid = self.users.ensure(str(agent_id))
+        process = await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            "-c",
+            'cd -- "$HOME" || exit 126\n' + script,
+            "lonora-workspace",
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd="/",
+            env=self.environment(uid, {}),
+            user=uid,
+            group=uid,
+            extra_groups=[AGENTS_GID],
+            umask=0o002,
+            start_new_session=True,
+        )
+        try:
+            out, err = await asyncio.wait_for(process.communicate(data), 60)
+        except TimeoutError:
+            with contextlib.suppress(OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+            raise ValueError("workspace_file_timeout") from None
+        return process.returncode or 0, out, err
+
+    async def read_file(self, request: ReadFile) -> dict[str, Any]:
+        code, out, err = await self.as_agent(
+            request.agent_id,
+            '[ -f "$1" ] || { echo "not a regular file" >&2; exit 3; }\n'
+            'stat -L -c %s -- "$1" && tail -c +"$2" -- "$1" | head -c "$3"',
+            request.path,
+            str(request.offset + 1),
+            str(request.limit),
+        )
+        if code != 0:
+            return {
+                "boot_id": self.boot_id,
+                "ok": False,
+                "error": err.decode("utf-8", "replace")[-2000:],
+            }
+        size_line, _, body = out.partition(b"\n")
+        size = int(size_line)
+        return {
+            "boot_id": self.boot_id,
+            "ok": True,
+            "size": size,
+            "offset": request.offset,
+            "content_base64": base64.b64encode(body).decode(),
+            "truncated": request.offset + len(body) < size,
+        }
+
+    async def write_file(self, request: WriteFile) -> dict[str, Any]:
+        try:
+            data = base64.b64decode(request.content_base64, validate=True)
+        except ValueError:
+            raise ValueError("workspace_file_content_invalid") from None
+        if len(data) > FILE_LIMIT:
+            raise ValueError("workspace_file_too_large")
+        operator = ">>" if request.append else ">"
+        code, _, err = await self.as_agent(
+            request.agent_id,
+            f'case "$1" in */*) mkdir -p -- "${{1%/*}}" || exit 3;; esac\ncat {operator}"$1" && stat -c %s -- "$1"',
+            request.path,
+            data=data,
+        )
+        if code != 0:
+            return {
+                "boot_id": self.boot_id,
+                "ok": False,
+                "error": err.decode("utf-8", "replace")[-2000:],
+            }
+        return {"boot_id": self.boot_id, "ok": True, "written": len(data)}
+
     def processes(self) -> dict[str, Any]:
         jobs = sorted(self.jobs.values(), key=lambda job: job.started_at)
         return {
@@ -438,9 +630,11 @@ class Supervisor:
             "processes": live_processes(self.users),
         }
 
-    async def stop(self, pid: int) -> bool:
+    async def stop(self, pid: int, agent_id: uuid.UUID | None = None) -> bool:
         uid = owner(pid)
         if uid is None or not is_agent_uid(uid):
+            return False
+        if agent_id is not None and self.users.by_agent.get(str(agent_id)) != uid:
             return False
         job = next((j for j in self.jobs.values() if j.pid == pid and j.ended_at is None), None)
         with contextlib.suppress(OSError):
@@ -505,16 +699,39 @@ def create_app(supervisor: Supervisor) -> FastAPI:
         }
 
     @app.post("/v1/run", response_model=None)
-    async def run(request: RunCommand) -> dict[str, Any] | JSONResponse:
+    async def run(request: RunCommand, http: HttpRequest) -> dict[str, Any] | JSONResponse:
         try:
             if request.background:
                 return await supervisor.background(request)
-            return await supervisor.foreground(request)
+            task = asyncio.create_task(supervisor.foreground(request))
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=1)
+                if done:
+                    return task.result()
+                if await http.is_disconnected():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+                    return refused("workspace_caller_gone", 499)
         except ValueError as error:
             return refused(str(error))
         except OSError:
             # Typically the process limit: nothing was started.
             return refused("workspace_start_failed", 503)
+
+    @app.post("/v1/files/read", response_model=None)
+    async def read_file(request: ReadFile) -> dict[str, Any] | JSONResponse:
+        try:
+            return await supervisor.read_file(request)
+        except ValueError as error:
+            return refused(str(error))
+
+    @app.post("/v1/files/write", response_model=None)
+    async def write_file(request: WriteFile) -> dict[str, Any] | JSONResponse:
+        try:
+            return await supervisor.write_file(request)
+        except ValueError as error:
+            return refused(str(error))
 
     @app.get("/v1/processes")
     async def processes() -> dict[str, Any]:
@@ -522,7 +739,10 @@ def create_app(supervisor: Supervisor) -> FastAPI:
 
     @app.post("/v1/processes/stop")
     async def stop(request: StopProcess) -> dict[str, Any]:
-        return {"boot_id": supervisor.boot_id, "stopped": await supervisor.stop(request.pid)}
+        return {
+            "boot_id": supervisor.boot_id,
+            "stopped": await supervisor.stop(request.pid, request.agent_id),
+        }
 
     @app.post("/v1/processes/stop-all")
     async def stop_all(request: StopAll) -> dict[str, Any]:
@@ -544,6 +764,11 @@ def prepare(root: Path, control_gid: int) -> Users:
     shared.mkdir(exist_ok=True)
     os.chown(shared, 0, AGENTS_GID, follow_symlinks=False)
     os.chmod(shared, 0o2775)
+    SECRETS.mkdir(mode=0o750, exist_ok=True)
+    os.chown(SECRETS, 0, AGENTS_GID)
+    os.chmod(SECRETS, 0o750)
+    for stale in SECRETS.iterdir():
+        stale.unlink()
     CONTROL.mkdir(mode=0o750, exist_ok=True)
     os.chown(CONTROL, 0, control_gid)
     os.chmod(CONTROL, 0o750)

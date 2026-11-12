@@ -429,6 +429,32 @@ def check_users(stack: Stack) -> None:
     )
 
 
+def check_secrets(stack: Stack) -> None:
+    a, b = stack.agent_a, stack.agent_b
+    value = "check-" + secrets.token_hex(12)
+    out = stack.run(
+        a,
+        '[ "$CHECK_SECRET" = "$(cat /run/secrets/CHECK_SECRET)" ] && echo same',
+        secrets={"CHECK_SECRET": value},
+    )
+    record(
+        out["stdout"].split() == ["same"] and "guard" not in out,
+        "a named secret arrives as env NAME and /run/secrets/NAME; no value comes back",
+    )
+    stack.run(a, "sleep 300", background=True, secrets={"CHECK_SECRET": value})
+    time.sleep(1)
+    other = stack.run(b, "wc -c < /run/secrets/CHECK_SECRET")
+    record(
+        other["stdout"].split() == [str(len(value))], "any agent may use a workspace secret by name"
+    )
+    mounts = stack.run(a, "grep ' /run/secrets ' /proc/mounts")["stdout"]
+    record(mounts.startswith("tmpfs"), "secret files live in memory only (tmpfs)")
+    stack.call("POST", "/v1/processes/stop-all", {})
+    time.sleep(4)
+    gone = stack.run(a, "test -e /run/secrets/CHECK_SECRET || echo gone")["stdout"].strip()
+    record(gone == "gone", "a secret file leaves /run/secrets when no running job named it")
+
+
 def check_relay(stack: Stack) -> None:
     """MetaApi by a hard-coded address and through a public HTTP proxy: the relay refuses
     the name before it connects anywhere, so this needs no internet."""
@@ -750,6 +776,7 @@ def main() -> None:
             return
         check_gateway_socket(stack)
         check_users(stack)
+        check_secrets(stack)
         check_isolation(stack, args.internet_url)
         check_relay(stack)
         internet = any(ok and "internet reachable" in text for ok, text in RESULTS)
