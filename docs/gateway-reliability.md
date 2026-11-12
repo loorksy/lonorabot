@@ -30,6 +30,7 @@ broken routine can no longer stop broker reconciliation.
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
+| `closed_trades` (the closed-trade ledger from broker deal history) | 30 s | 300 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |
 | `thread_prefs` (keep-archived off: a new message unarchives) | 2 s | 60 s | no |

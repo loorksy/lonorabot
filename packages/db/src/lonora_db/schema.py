@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -168,6 +169,7 @@ class AgentRow(Base):
             "role IN ('personal','general','specialist','delegated','legacy')", name="ln_agent_role"
         ),
         CheckConstraint("scope_mode IN ('fixed_market','flexible')", name="ln_agent_scope_mode"),
+        CheckConstraint("trading_mode IN ('full','ask')", name="ln_agent_trading_mode"),
         CheckConstraint(
             "template IS NULL OR template IN ('trading','general','research','supervisor')",
             name="ln_agent_template",
@@ -197,6 +199,11 @@ class AgentRow(Base):
         ),
     )
     role: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
+    # Full or Ask (mandate 4.1). Only the owner's tap on the Mandate card sets Full.
+    trading_mode: Mapped[str] = mapped_column(String(8), default="ask", server_default="ask")
+    # The owner's standing instruction in chat to manage every position (mandate 3.3.4):
+    # the agent may act on tickets it does not own. Set and revoked from the owner's words.
+    manages_all_positions: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     # The creation template (trading, general, research, supervisor). None for the
     # personal agent and delegated helpers, whose role is their type.
     template: Mapped[str | None] = mapped_column(String(16))
@@ -680,6 +687,9 @@ class TradingJournalRow(Base):
     account_id: Mapped[str] = mapped_column(String(120), index=True)
     request_hash: Mapped[str] = mapped_column(String(64))
     request: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # The agent's reason and tolerance: beside the request, never part of
+    # its fingerprint or operation id (mandate 14.3.9).
+    annotation: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="created", index=True)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -829,6 +839,84 @@ class MarketSnapshotRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class BrokerDealRow(Base):
+    """A broker trade deal of a position that is still open, kept until its trade closes.
+
+    A copy of broker history (mandate 5.5.1), read from a stored cursor: the closed-trade
+    ledger sums a position's deals when its volume reaches zero at the broker.
+    """
+
+    __tablename__ = "ln_broker_deals"
+    __table_args__ = (Index("ln_broker_deals_position", "owner_id", "account_id", "position_id"),)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    deal_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    position_id: Mapped[str] = mapped_column(String(120))
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class ClosedTradeCursorRow(Base):
+    """How far broker deal history of one account has been read into the ledger."""
+
+    __tablename__ = "ln_closed_trade_cursors"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    # Deals up to here are read; ``complete`` is False while a full page is being paged.
+    read_to: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    complete: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ClosedTradeRow(Base):
+    """One closed trade: its position's volume reached zero at the broker (5.5.1).
+
+    Durable record: it survives the agent, the conversation and the connection. The
+    agent id is kept as a value; None means the owner's own ticket (3.3.4).
+    """
+
+    __tablename__ = "ln_closed_trades"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
+        ),
+        Index("ln_closed_trades_agent", "owner_id", "agent_id", "closed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    account_id: Mapped[str] = mapped_column(String(120))
+    position_id: Mapped[str] = mapped_column(String(120))
+    # The deal that closed the trade: the last exit, or a reversal that took a netting
+    # position through zero (one position can hold several trades).
+    closing_deal_id: Mapped[str] = mapped_column(String(120))
+    symbol: Mapped[str] = mapped_column(String(80))
+    side: Mapped[str] = mapped_column(String(8))
+    # What the trade opened; None when unknown (a reversal closed a trade the ledger
+    # never saw open).
+    volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # The journaled order that opened the position, when Lonora's door sent it.
+    opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    # Account currency; P&L is never summed across currencies.
+    currency: Mapped[str] = mapped_column(String(16))
+    # Profit + commission + swap of the trade's deals. None when an exit carried no
+    # broker-reported profit, or the ledger never read the opening deal: nothing is
+    # computed in its place.
+    realized_pnl: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deals: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TradeApprovalRow(Base):
     __tablename__ = "ln_trade_approvals"
     broker_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -850,8 +938,16 @@ class TradeApprovalRow(Base):
     requests: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="pending")
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    # Past it a pending approval can no longer be approved (Q32); NULL on older rows.
+    # Past it a pending approval can no longer be approved (Q32): kept on stored rows only;
+    # a new card has no time limit (mandate 10.3.1).
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The agent's own words, beside the requests (never inside them).
+    reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # {"tolerance", "reference": {"account_id", "symbol", "side", "price"}}: the
+    # executable side read when the card was made; outside price ± tolerance it drifts.
+    validity: Mapped[dict[str, Any]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
