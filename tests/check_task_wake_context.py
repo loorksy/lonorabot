@@ -9,6 +9,7 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 from unittest.mock import patch
+from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
@@ -139,11 +140,71 @@ async def wake(f: Fixture, mode: str) -> None:
     print("PASS", mode, "keeps the Task's own transcript, its viewed skill and one context block")
 
 
+async def owner_answer(f: Fixture) -> None:
+    """The owner's answer to a pending question wakes the Run: it reads the head of now."""
+    agent = await f.agent("Waking question")
+    thread = await f.conversation(agent)
+    run = await f.run(agent, thread)
+    policy = (resources_root() / "constitution" / "trading-policy.md").read_text()
+    choices = [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}]
+    seen: list[list[ModelMessage]] = []
+
+    async def complete(_: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any):
+        seen.append(list(messages))
+        if len(seen) == 1:
+            return ModelReply(
+                tool_calls=[
+                    ToolCall(
+                        id="question",
+                        name="wait_for_input",
+                        arguments={"question": "Add to the position?", "choices": choices},
+                    )
+                ]
+            ), ModelSelection(provider="openai", model="scripted-wake")
+        return ModelReply(text="Added nothing; reviewed the book."), ModelSelection(
+            provider="openai", model="scripted-wake"
+        )
+
+    ctx = await f.lease(run)
+    with patch.object(ctx.router, "complete", complete):
+        await execute_run(ctx, load_tools(), 120, 8)
+        async with f.runtime.db.sessions() as session, session.begin():
+            current = await session.get(RunRow, run["id"], with_for_update=True)
+            assert current and current.status == "waiting_input", current
+            stored = [dict(message) for message in current.execution_state["messages"]]
+            stored[0]["content"] = stored[0]["content"].replace(policy, OBSOLETE)
+            current.execution_state = {**current.execution_state, "messages": stored}
+            row = await session.get(AgentRow, agent["id"], with_for_update=True)
+            assert row
+            row.instructions = BRIEF
+        question = (await f.request("GET", "/runs/" + run["id"]))["input_request"]
+        await f.request(
+            "POST",
+            f"/threads/{thread['id']}/messages",
+            {
+                "content": "Yes",
+                "client_nonce": uuid4().hex,
+                "reply_to": question["message_id"],
+                "input_answer": {
+                    "run_id": run["id"],
+                    "question_id": question["id"],
+                    "choice_id": "yes",
+                },
+            },
+        )
+        await execute_run(await f.lease(run), load_tools(), 120, 8)
+    assert len(seen) == 2, len(seen)
+    system = "\n".join(message.content for message in seen[-1] if message.role == "system")
+    assert OBSOLETE not in system and policy in system and BRIEF in system
+    print("PASS an owner's answer to a pending question reads the current head")
+
+
 async def main() -> None:
     f = await Fixture().open()
     try:
         for mode in ("external_wake", "owner_resume", "rebuild_fails"):
             await wake(f, mode)
+        await owner_answer(f)
     finally:
         await f.close()
 
