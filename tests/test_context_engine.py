@@ -268,6 +268,7 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     monkeypatch.setattr(builder, "decision_context", AsyncMock(return_value="Decisions listed"))
     monkeypatch.setattr(builder, "operational_context", AsyncMock(return_value=""))
     monkeypatch.setattr(builder, "routing_frame", AsyncMock(return_value="[routing]"))
+    monkeypatch.setattr(builder, "account_picture", AsyncMock(return_value="[picture]"))
     monkeypatch.setattr(
         builder,
         "read_memory_context",
@@ -319,10 +320,12 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     # The goal core is mandatory; larger server listings are optional system blocks.
     assert "<saved_goals>core</saved_goals>" in messages[0].content
     assert "Decisions listed" not in messages[0].content
-    assert messages[1].role == "system" and messages[1].context_origin == "runtime_context"
-    assert messages[1].content.startswith("<lonora_recorded_decisions>\nDecisions listed")
-    assert messages[2].content == "[routing]"
-    data = messages[3]
+    # The account picture is mandatory: never a sheddable runtime_context block.
+    assert messages[1].content == "[picture]" and messages[1].context_origin != "runtime_context"
+    assert messages[2].role == "system" and messages[2].context_origin == "runtime_context"
+    assert messages[2].content.startswith("<lonora_recorded_decisions>\nDecisions listed")
+    assert messages[3].content == "[routing]"
+    data = messages[4]
     assert is_context_message(data) and data.role == "user"
     assert hostile not in data.content
     assert data.content.count(escape_context_text(hostile)) == 10
