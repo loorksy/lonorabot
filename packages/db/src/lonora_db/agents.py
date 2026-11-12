@@ -5,7 +5,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agent_binding import assert_payload_binding, scope_data
+from .agent_binding import scope_data
 from .schema import AgentRow, MemoryRow
 from .transactions import owned_agent
 
@@ -37,7 +37,7 @@ async def create_agent(
     session: AsyncSession,
     owner_id: str,
     request: AgentCreate,
-    parent_id: str | None = None,
+    *,
     agent_id: str | None = None,
 ) -> AgentRow:
     role = (
@@ -47,35 +47,13 @@ async def create_agent(
         if request.scope_mode == "flexible"
         else "legacy"
     )
-    if parent_id:
-        parent = await owned_agent(session, owner_id, parent_id)
-        if parent.role == "delegated" or not parent.trading_account_id:
-            # Owner-wide visibility is not a financial scope a child can inherit.
-            # Unbound legacy parents also cannot mint new unrestricted children.
-            if request.trading_account_id is not None or request.trading_symbol is not None:
-                raise LonoraError("delegated_financial_authority_forbidden", 403)
-            role = "delegated"
-        else:
-            role = "specialist"
-        if request.trading_account_id is not None:
-            assert_payload_binding(
-                parent, {"account_id": request.trading_account_id, "symbol": request.trading_symbol}
-            )
-        request = request.model_copy(
-            update={
-                "trading_account_id": parent.trading_account_id,
-                "trading_symbol": parent.trading_symbol,
-                "scope_mode": "fixed_market",
-            }
-        )
     template = request.template
-    if template is None and parent_id is None:
-        # The owner's form names no template: the focus pair decides. Delegated helpers
-        # keep none, and the personal agent clears it (their role is their type).
+    if template is None:
+        # The owner's form names no template: the focus pair decides. The personal agent
+        # clears it (its role is its type).
         template = "trading" if request.trading_symbol else "general"
     row = AgentRow(
         owner_id=owner_id,
-        parent_id=parent_id,
         role=role,
         template=template,
         **request.model_dump(exclude={"template"}),

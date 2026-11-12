@@ -6,13 +6,14 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from device_fixture import Device
+from legacy_agents import legacy_child
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.domain import AgentCreate, utcnow
+from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_binding import binding_context, require_financial_agent
-from lonora_db.agents import agent_data, create_agent
+from lonora_db.agents import agent_data
 from lonora_db.schema import AccountAuthorityRow, AgentRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -338,12 +339,9 @@ async def main() -> None:
             assert persisted and "<flexible_agent_scope>" in binding_context(persisted)
             assert "<immutable_trading_market>" not in binding_context(persisted)
         async with f.runtime.db.sessions() as session, session.begin():
-            child = await create_agent(
-                session,
-                f.owner,
-                AgentCreate(name="Research child", scope_mode="flexible"),
-                parent_id=general["id"],
-            )
+            general_row = await session.get(AgentRow, general["id"])
+            assert general_row
+            child = await legacy_child(session, f.owner, general_row, "Research child")
             child_data = agent_data(child)
             assert child.role == "delegated" and child.scope_mode == "fixed_market"
         f.agents.insert(0, child_data["id"])

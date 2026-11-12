@@ -6,12 +6,13 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
+from legacy_agents import legacy_child
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.domain import AgentCreate, utcnow
+from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
-from lonora_db.agents import agent_data, create_agent
+from lonora_db.agents import agent_data
 from lonora_db.schema import AgentRow, RunRow, TradingAccountRow
 from lonora_db.trading_mode import set_trading_mode
 from lonora_tools.loader import load_tools
@@ -323,9 +324,9 @@ async def checks() -> None:
             raise AssertionError("Direct central execution sent without approval")
         print("PASS broker manual ticket reads; close-all and the door bind no order")
         async with fixture.runtime.db.sessions() as session, session.begin():
-            child = await create_agent(
-                session, fixture.owner, AgentCreate(name="Inherited child"), agent["id"]
-            )
+            parent = await session.get(AgentRow, agent["id"])
+            assert parent
+            child = await legacy_child(session, fixture.owner, parent, "Inherited child")
             child_data = agent_data(child)
             fixture.agents.append(child.id)
             assert child.trading_account_id == primary and child.trading_symbol == symbols[0]

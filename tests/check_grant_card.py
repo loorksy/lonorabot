@@ -21,16 +21,17 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from device_fixture import Device
+from legacy_agents import legacy_child
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
-from lonora_contracts.domain import AgentCreate, utcnow
+from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import permission_key
-from lonora_db.agents import create_agent
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AccountAuthorityRow,
+    AgentRow,
     MessageRow,
     OwnerActionRow,
     SettingRow,
@@ -185,9 +186,9 @@ async def main() -> None:
         )
         fixture.agents.append(general["id"])
         async with db.sessions() as session, session.begin():
-            helper = await create_agent(
-                session, fixture.owner, AgentCreate(name="Helper"), parent_id=general["id"]
-            )
+            general_row = await session.get(AgentRow, general["id"])
+            assert general_row
+            helper = await legacy_child(session, fixture.owner, general_row, "Helper")
             helper_id = helper.id
         fixture.agents.append(helper_id)
         assert await level(lonora_id) == "supervised"

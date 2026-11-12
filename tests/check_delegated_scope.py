@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from check_streaming import Fixture
+from legacy_agents import legacy_child
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate
 from lonora_contracts.runs import RunRequest
@@ -54,12 +55,10 @@ async def main() -> None:
             {"snapshot": {"balance": "10000", "currency": "USD"}},
         )
         async with f.runtime.db.sessions() as session, session.begin():
-            child = await create_agent(
-                session, f.owner, AgentCreate(name="Personal researcher"), parent_id=personal["id"]
-            )
-            grandchild = await create_agent(
-                session, f.owner, AgentCreate(name="Research descendant"), parent_id=child.id
-            )
+            personal_row = await session.get(AgentRow, personal["id"])
+            assert personal_row
+            child = await legacy_child(session, f.owner, personal_row, "Personal researcher")
+            grandchild = await legacy_child(session, f.owner, child, "Research descendant")
             specialist = await create_agent(
                 session,
                 f.owner,
@@ -67,9 +66,7 @@ async def main() -> None:
                     name="Bound specialist", trading_account_id=connection, trading_symbol="EURUSDm"
                 ),
             )
-            bound_child = await create_agent(
-                session, f.owner, AgentCreate(name="Specialist child"), parent_id=specialist.id
-            )
+            bound_child = await legacy_child(session, f.owner, specialist, "Specialist child")
             f.agents.extend([child.id, grandchild.id, bound_child.id, specialist.id])
             child_data = agent_data(child)
             grandchild_data = agent_data(grandchild)
@@ -103,19 +100,8 @@ async def main() -> None:
             ),
             ORDER_REFUSALS,
         )
-        async with f.runtime.db.sessions() as session, session.begin():
-            await denied(
-                create_agent(
-                    session,
-                    f.owner,
-                    AgentCreate(
-                        name="Laundered", trading_account_id=connection, trading_symbol="XAUUSDm"
-                    ),
-                    parent_id=child.id,
-                )
-            )
         print(
-            "PASS Personal children and descendants are explicit research identities: account reads work, arbitrary trade/scope laundering fail before proposal"
+            "PASS Personal children and descendants are explicit research identities: account reads work, arbitrary trades fail before proposal"
         )
         descendant_thread = await f.conversation(grandchild_data)
         descendant_context = await f.lease(await f.run(grandchild_data, descendant_thread))
