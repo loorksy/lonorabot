@@ -63,7 +63,6 @@ export function PermissionChip({
       <button
         type="button"
         className="mode-chip"
-        aria-haspopup="dialog"
         onClick={() => window.dispatchEvent(new CustomEvent("lonora:members-permissions"))}
       >
         <Icon name="users" />
