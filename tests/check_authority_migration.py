@@ -11,13 +11,18 @@ the migration:
    orphaned grants, an activation review, restrictions, every kind of pause, delegated,
    child and supervisor agents, a stored Trade Approval and journaled tickets.
 3. A database already at 0061: an agent in Full and older pending Mandate cards.
-4. A supervisor's pause on a paused Task: the upgrade refuses and changes nothing.
+4. A supervisor's pause on a Task ends like any other: a pause asked of a Task whose Run a
+   worker holds is withdrawn; a paused Task waiting for takeover, one with an older
+   failure and one held for the owner's question resume exactly as the live resume
+   resumes an unheld twin; a Task paused after a failure (the live retry's to resume) is
+   released as it is and its agent is woken once with fixed server text (an agent the
+   owner paused is not woken); the update completes, and running it again wakes no one
+   twice.
 
 Item 8 is void under Amendment 1: no trading setting is written.
 """
 
 import asyncio
-import json
 import subprocess
 import sys
 from datetime import timedelta
@@ -27,22 +32,26 @@ from typing import Any
 from uuid import uuid4
 
 from check_trading import database
+from lonora_agent.context.routine import wake_context
 from lonora_contracts.account import Position
 from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS, AccountAuthorityEnvelope
 from lonora_contracts.agent_permissions import PermissionRecord
 from lonora_contracts.domain import utcnow
-from lonora_contracts.tasks import TaskState
+from lonora_contracts.tasks import TaskControl, TaskFailure, TaskState
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.agent_creation import origin_key
 from lonora_db.agent_permissions import effective_permission, permission_key
+from lonora_db.agents import agent_data
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
-from lonora_db.owner_actions import card_facts, payload_hash
+from lonora_db.owner_actions import account_facts, card_facts, payload_hash
+from lonora_db.runs import run_data
 from lonora_db.schema import (
     AccountAuthorityRow,
     AgentRow,
+    BrokerSessionRow,
     DeviceCredentialRow,
     EventRow,
     MarketWatchRow,
@@ -62,6 +71,7 @@ from lonora_db.schema import (
     TradingRestrictionRow,
 )
 from lonora_db.supervision import owner_resumes
+from lonora_db.tasks import ATTENTION_RESUMED, control_task, get_task
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.account_authority import ticket_agent
@@ -719,6 +729,43 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
                 version=4,
             )
         )
+        # An account the broker verified is named as the owner sees it.
+        verified_account = await BrokerSessionRepository().create(
+            session,
+            owner_id,
+            {"provider": "simulation", "account_id": "verified-" + uuid4().hex, "enabled": True},
+            broker_identity={
+                "broker": "Gold Broker Ltd",
+                "login": "5012345",
+                "server": "GoldBroker-Demo",
+            },
+        )
+        verified, _ = await new_agent(
+            "Verified",
+            role="specialist",
+            parent_id=parent.id,
+            trading_account_id=verified_account.id,
+            trading_symbol="XAUUSDm",
+        )
+        # A connection changed since the broker verified it: the identity is behind it.
+        stale_account = await BrokerSessionRepository().create(
+            session,
+            owner_id,
+            {"provider": "simulation", "account_id": "stale-" + uuid4().hex, "enabled": True},
+            broker_identity={
+                "broker": "Silver Broker Ltd",
+                "login": "7012345",
+                "server": "SilverBroker-Live",
+            },
+        )
+        stale_account.version += 1
+        stale, _ = await new_agent(
+            "Stale",
+            role="specialist",
+            parent_id=parent.id,
+            trading_account_id=stale_account.id,
+            trading_symbol="XAGUSD",
+        )
         grandchild, _ = await new_agent("Grandchild", role="delegated", parent_id=child.id)
         stray, _ = await new_agent("Stray", role="delegated")
         supervisor, supervisor_thread = await new_agent(
@@ -822,7 +869,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         task_watch_hold = await seed.hold(
             running_agent, "watch", task_watch.id, "agent", supervisor.id
         )
-        # Item 3 stops this paused management Task first, so its pause is not refused.
+        # Item 3 stops this paused management Task first, so its pause is only released.
         paused_task_hold = await seed.hold(
             managers["Paused"][0], "task", managers["Paused"][2], "agent", supervisor.id
         )
@@ -908,6 +955,9 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "parent": parent.id,
             "child": child.id,
             "child_thread": child_thread.id,
+            "verified": verified.id,
+            "stale": stale.id,
+            "stale_account": stale_account.id,
             "grandchild": grandchild.id,
             "stray": stray.id,
             "supervisor": supervisor.id,
@@ -1091,7 +1141,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             assert len(await mandate_cards(session, agent)) == 1
 
         # Item 4: ordinary team agents; the binding is in the method, the parent is gone.
-        for name in ("helper", "child", "grandchild", "stray", "supervisor"):
+        for name in ("helper", "child", "verified", "stale", "grandchild", "stray", "supervisor"):
             agent = await session.get(AgentRow, refs[name], populate_existing=True)
             assert agent is not None
             assert (agent.role, agent.scope_mode, agent.parent_id) == ("general", "flexible", None)
@@ -1100,16 +1150,39 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             assert agent.template != "supervisor", name
             assert_market_binding(agent)
             await require_financial_agent(session, owner_id, agent.id)
+        # The account is named as the owner sees it, else by its provider and number: no
+        # internal id and no JSON quoting in the method the owner reads (17).
         memory = await session.get(MemoryRow, refs["child"], populate_existing=True)
         assert memory is not None and memory.version == 5
+        account = await session.get(BrokerSessionRow, account_id)
+        assert account is not None
         note = (
-            "Assigned market, moved here from your former fixed binding: account_id "
-            + json.dumps(account_id)
-            + ', broker_symbol "EURUSD". Work on this symbol on this account unless the owner'
-            " or Lonora assigns another."
+            "Assigned market, moved here from your former fixed assignment: EURUSD on the"
+            " simulation account " + account.payload["account_id"] + ". Work on this symbol on"
+            " this account unless the owner or Lonora assigns another."
         )
         assert memory.content == (
             "# OPERATING.md\nScale in at most twice.\n" + note + "\n\n# USER.md\nOld preference.\n"
+        ), memory.content
+        assert account_id not in memory.content and '"' not in memory.content
+        memory = await session.get(MemoryRow, refs["verified"], populate_existing=True)
+        assert memory is not None and memory.version == 1
+        assert memory.content == (
+            "# OPERATING.md\nAssigned market, moved here from your former fixed assignment:"
+            " XAUUSDm on the account Gold Broker Ltd · 5012345 · GoldBroker-Demo. Work on this"
+            " symbol on this account unless the owner or Lonora assigns another.\n"
+        ), memory.content
+        # Behind the connection, the broker's identity names nothing (the live card shows
+        # no label then): the account is named by its provider and number.
+        stale_account = await session.get(BrokerSessionRow, refs["stale_account"])
+        assert stale_account is not None
+        assert account_facts(stale_account, stale_account.id)["label"] is None
+        memory = await session.get(MemoryRow, refs["stale"], populate_existing=True)
+        assert memory is not None and memory.version == 1
+        assert memory.content == (
+            "# OPERATING.md\nAssigned market, moved here from your former fixed assignment:"
+            " XAGUSD on the simulation account " + stale_account.payload["account_id"] + "."
+            " Work on this symbol on this account unless the owner or Lonora assigns another.\n"
         ), memory.content
         revision_row = await session.scalar(
             select(MemoryRevisionRow).where(MemoryRevisionRow.agent_id == refs["child"])
@@ -1239,7 +1312,26 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
     assert all(event.payload["restriction"]["state"] == "revoked" for event in lifted)
     # Each revoked supervision grant is recorded for both of its agents.
     assert len(await events_since(db, cursor, "supervision.revoked")) == 4
-    assert len(await events_since(db, cursor, "memory.updated")) == 2
+    assert len(await events_since(db, cursor, "memory.updated")) == 4
+    # Each agent flattened (item 4) or unpaused (item 6) is shown with the live payload.
+    updated = await events_since(db, cursor, "agent.updated")
+    async with db.sessions() as session:
+        shown_agents: dict[str, Any] = {}
+        for name in (
+            "helper",
+            "child",
+            "verified",
+            "stale",
+            "grandchild",
+            "stray",
+            "supervisor",
+            "worker",
+        ):
+            agent = await session.get(AgentRow, refs[name])
+            assert agent is not None
+            shown_agents[agent.id] = agent_data(agent)
+    assert len(updated) == len(shown_agents), [event.agent_id for event in updated]
+    assert {event.agent_id: event.payload for event in updated} == shown_agents, updated
     kept = {
         event.payload["id"] for event in await events_since(db, cursor, "market_watches.updated")
     }
@@ -1264,10 +1356,12 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         " orphaned grants revoked, their Tasks stopped (failed→cancelled, complete→completed),"
         " the Task's watches kept as the agent's own (the owner's pause on one stays and"
         " lifts), its Run and activation review cancelled; cards only for"
-        " active unexpired grants; delegated, child and supervisor agents flattened with the"
-        " binding in OPERATING.md; restrictions ended; a supervisor's own pauses ended with the"
-        " work resumed, the owner's and Lonora's kept; stored approval expiry and journal"
-        " attribution unchanged"
+        " active unexpired grants; delegated, child and supervisor agents flattened with their"
+        " market in OPERATING.md under the account's own name (its provider and number when"
+        " the broker's identity is behind the connection); restrictions ended; a"
+        " supervisor's own pauses ended with the work resumed, the owner's and Lonora's kept;"
+        " each flattened or unpaused agent shown with agent.updated; stored approval expiry"
+        " and journal attribution unchanged"
     )
 
 
@@ -1319,51 +1413,265 @@ async def dev_path(db: Database, ids: dict[str, str]) -> None:
     )
 
 
+def resumed_shape(ticket: TicketRow, run: RunRow) -> tuple[Any, ...]:
+    """What a resume leaves on a Task and its Run, without the ids a twin has of its own."""
+    task: dict[str, Any] = {**ticket.state["task"], "origin_thread_id": None}
+    if task.get("failure"):
+        task["failure"] = {**task["failure"], "run_id": None}
+    return (
+        task,
+        ticket.payload,
+        ticket.version,
+        run.status,
+        run.lease_expires_at,
+        run.execution_state,
+    )
+
+
 async def task_guard(db: Database, ids: dict[str, str]) -> None:
-    """Pass 4: a supervisor's pause on a paused Task needs its Run state machine."""
+    """Pass 4: a supervisor's pause on a Task ends like any other (14.3.18.6). The Task
+    resumes exactly as the live resume (control_task) resumes the same Task no one holds;
+    a Task the live retry resumes (resume_failure) is released as it is, and its agent is
+    woken once to resume it."""
     owner_id = ids["owner"]
+    now = utcnow()
+    question = {"id": "question-1", "kind": "owner_attention", "status": "pending"}
+    shapes: dict[str, tuple[str, str, str]] = {}
+    twins: dict[str, tuple[str, str]] = {}
     async with db.sessions() as session, session.begin():
         seed = Seed(session, owner_id, ids["account"])
         seed.device_id = ids["device"]
         held = await seed.agent("Held", role="general", scope_mode="flexible")
-        held_thread = await seed.conversation(held.id)
         boss = await seed.agent("Boss", role="general", scope_mode="flexible")
         trusted = await seed.agent("Trusted", role="specialist", scope_mode="flexible")
         trusted_thread = await seed.conversation(trusted.id)
         grant = await seed.grant(trusted.id, trusted_thread.id)
         await set_trading_mode(session, owner_id, trusted.id, "full", by="owner_tap")
-        refs = {"held": held.id, "thread": held_thread.id, "boss": boss.id}
-        refs.update(trusted=trusted.id, grant=grant.id)
-    # A pause asked of a working Task counts as paused, as does a paused Task.
-    for status, control in (("running", "pause"), ("paused", None)):
-        async with db.sessions() as session, session.begin():
-            seed = Seed(session, owner_id, ids["account"])
-            task = await seed.task(
-                refs["held"], refs["thread"], str(uuid4()), status=status, control_requested=control
+        refs = {"held": held.id, "trusted": trusted.id, "grant": grant.id}
+
+        async def shape(
+            name: str, status: str, control: str | None, run_status: str, agent_id: str = held.id
+        ) -> tuple[TicketRow, RunRow]:
+            thread = await seed.conversation(agent_id)
+            working = run_status == "running"
+            attention = name == "attention"
+            run = RunRow(
+                thread_id=thread.id,
+                agent_id=agent_id,
+                trigger="tickets",
+                status=run_status,
+                lease_owner="worker-1" if working else None,
+                lease_fence=1,
+                # A lease left on a Run held for the owner's question ends on resume.
+                lease_expires_at=now + timedelta(minutes=5) if working or attention else None,
+                execution_state={"pending_input_request": question, "input_requests": [question]}
+                if attention
+                else {},
             )
-            hold_id = (await seed.hold(refs["held"], "task", task.id, "agent", refs["boss"])).id
-        await db.engine.dispose()
-        alembic("downgrade", BEFORE)
-        try:
-            alembic("upgrade", "head")
-        except subprocess.CalledProcessError as error:
-            assert "resume or cancel it" in error.stderr, error.stderr[-2000:]
-        else:
-            raise AssertionError("A supervisor's pause on a paused Task was left in force")
-        assert await revision(db) != REVISION, "the refused update changes nothing"
-        async with db.sessions() as session, session.begin():
-            assert await trading_mode(session, owner_id, refs["trusted"]) == "full"
-            row = await session.get(AccountAuthorityRow, refs["grant"])
-            assert row is not None and row.status == "active"
+            session.add(run)
+            await session.flush()
+            task = await seed.task(
+                agent_id, thread.id, str(uuid4()), status=status, control_requested=control
+            )
+            failure = TaskFailure(
+                run_id=run.id, lease_fence=1, code="broker_down", attempt=1, recovery="owner"
+            ).model_dump(mode="json")
+            changed = {
+                # It failed once, the owner resumed it, and later it was paused normally.
+                "stale": {"failure": failure},
+                "attention": {"waiting_reason": "owner_attention"},
+                "retry": {"phase": "retry_paused", "failure": failure},
+            }.get(name)
+            if changed:
+                task.state = {"task": {**task.state["task"], **changed}}
+            return task, run
+
+        for name, status, control, run_status in (
+            ("asked", "running", "pause", "running"),  # a worker holds its Run
+            ("paused", "paused", None, "waiting_takeover"),
+            ("stale", "paused", None, "waiting_takeover"),  # with an older failure
+            ("attention", "paused", None, "waiting_takeover"),  # holds the owner's question
+            ("retry", "paused", None, "failed"),  # paused after a failure
+        ):
+            task, run = await shape(name, status, control, run_status)
+            if name == "retry":
+                # A newer Run of the agent waits in that conversation: not the failed work.
+                waiting = RunRow(
+                    thread_id=task.thread_id,
+                    agent_id=held.id,
+                    status="waiting_takeover",
+                    created_at=now + timedelta(seconds=1),
+                )
+                session.add(waiting)
+                await session.flush()
+                refs["waiting"] = waiting.id
+            hold = await seed.hold(held.id, "task", task.id, "agent", boss.id)
+            shapes[name] = (task.id, run.id, hold.id)
+            if name in {"paused", "stale", "attention"}:
+                # The same Task no one holds: the live resume resumes it after the update.
+                twin, twin_run = await shape(name, status, control, run_status)
+                twins[name] = (twin.id, twin_run.id)
+        # The same Task of an agent the owner paused: create_run wakes no paused agent.
+        resting = await seed.agent("Resting", role="general", scope_mode="flexible", paused=True)
+        await seed.hold(resting.id, "agent", resting.id, "owner", None)
+        rest_task, _ = await shape("retry", "paused", None, "failed", resting.id)
+        rest_hold = await seed.hold(resting.id, "task", rest_task.id, "agent", boss.id)
+        refs.update(rest_task=rest_task.id, rest_hold=rest_hold.id)
+    before: dict[str, tuple[Any, ...]] = {}
+    async with db.sessions() as session:
+        for name, (task_id, run_id, _) in shapes.items():
+            ticket, run = await session.get(TicketRow, task_id), await session.get(RunRow, run_id)
+            assert ticket is not None and run is not None
+            before[name] = (ticket.state, ticket.payload, ticket.version, run.status)
+            before[name] += (run.execution_state, run.lease_owner)
+    cursor = await last_cursor(db)
+
+    await upgrade_from(db, BEFORE)
+
+    assert await revision(db) == REVISION, "the update completes"
+    resumed = await events_since(db, cursor, "task.updated")
+    queued = await events_since(db, cursor, "run.queued")
+    tasks: dict[str, TicketRow] = {}
+    runs: dict[str, RunRow] = {}
+    async with db.sessions() as session:
+        assert await trading_mode(session, owner_id, refs["trusted"]) == "ask"
+        row = await session.get(AccountAuthorityRow, refs["grant"])
+        assert row is not None and row.status == "revoked"
+        for name, (task_id, run_id, hold_id) in shapes.items():
             hold = await session.get(SupervisionHoldRow, hold_id)
-            assert hold is not None and hold.released_at is None
-            hold.released_at, hold.released_by = utcnow(), "owner"
-        await db.engine.dispose()
-    alembic("upgrade", "head")
-    assert await revision(db) == REVISION
+            assert hold is not None and hold.released_at is not None, name
+            assert hold.released_by == "owner", name
+            ticket, run = await session.get(TicketRow, task_id), await session.get(RunRow, run_id)
+            assert ticket is not None and run is not None
+            tasks[name], runs[name] = ticket, run
+        waiting_run = await session.get(RunRow, refs["waiting"])
+        assert waiting_run is not None and waiting_run.status == "waiting_takeover"
+        retry_thread = await session.get(ThreadRow, tasks["retry"].thread_id)
+        assert retry_thread is not None
+        wakes = list(
+            await session.scalars(
+                select(RunRow).where(
+                    RunRow.thread_id == retry_thread.id,
+                    RunRow.id.not_in([runs["retry"].id, refs["waiting"]]),
+                )
+            )
+        )
+    # A pause asked of a Task a worker holds is withdrawn: the Run reads it at its next
+    # checkpoint and goes on working.
+    task = tasks["asked"].state["task"]
+    assert (task["status"], task["control_requested"]) == ("running", None), task
+    assert tasks["asked"].version == before["asked"][2] + 1
+    assert (runs["asked"].status, runs["asked"].lease_owner) == ("running", "worker-1")
+    # A paused Task waiting for takeover is queued again, as the owner's resume does.
+    task = tasks["paused"].state["task"]
+    assert (task["status"], task["phase"], task["control_requested"]) == (
+        "queued",
+        "queued",
+        None,
+    ), task
+    assert tasks["paused"].payload["status"] == "todo"
+    assert tasks["paused"].version == before["paused"][2] + 1
+    assert runs["paused"].status == "queued"
+    # An older failure does not make a Task paused normally the retry's: only a failure
+    # still being retried is (live retry_control), so it is queued like any paused Task.
+    task = tasks["stale"].state["task"]
+    assert (task["status"], task["phase"]) == ("queued", "queued"), task
+    assert task["failure"] == before["stale"][0]["task"]["failure"]
+    assert runs["stale"].status == "queued"
+    # Paused while its Run held the owner's question, it resumes the work, not the
+    # question: the question is cancelled and the Run queued (release_attention).
+    task = tasks["attention"].state["task"]
+    assert (task["status"], task["phase"], task["waiting_reason"]) == ("queued", "queued", None)
+    assert (runs["attention"].status, runs["attention"].lease_expires_at) == ("queued", None)
+    assert runs["attention"].execution_state == {
+        "input_requests": [{**question, "status": "cancelled"}],
+        ATTENTION_RESUMED: {"action": "resume", "question_id": question["id"]},
+    }, runs["attention"].execution_state
+    assert {event.payload["id"]: event.payload for event in resumed} == {
+        tasks[name].id: {
+            "id": tasks[name].id,
+            "version": before[name][2] + 1,
+            "status": tasks[name].state["task"]["status"],
+            "waiting_reason": None,
+        }
+        for name in ("asked", "paused", "stale", "attention")
+    }, [event.payload for event in resumed]
+    assert len(resumed) == 4
+    # Exactly as the live resume resumes the same Task no one holds.
+    async with db.sessions() as session, session.begin():
+        for twin_id, _ in twins.values():
+            twin = await get_task(session, owner_id, twin_id)
+            await control_task(
+                session,
+                owner_id,
+                TaskControl(task_id=twin_id, action="resume", expected_version=twin.version),
+            )
+    async with db.sessions() as session:
+        for name, (twin_id, twin_run_id) in twins.items():
+            twin = await session.get(TicketRow, twin_id)
+            twin_run = await session.get(RunRow, twin_run_id)
+            assert twin is not None and twin_run is not None
+            assert resumed_shape(twin, twin_run) == resumed_shape(tasks[name], runs[name]), name
+    # Paused after a failure, it is the live retry's to resume (resume_failure, which reads
+    # the journal): released as it is, its Runs as they were...
+    after = (tasks["retry"].state, tasks["retry"].payload, tasks["retry"].version)
+    after += (runs["retry"].status, runs["retry"].execution_state, runs["retry"].lease_owner)
+    assert after == before["retry"]
+    # ...and its agent is woken once in the Task's thread, with fixed server text read as
+    # the server's own, to resume it itself.
+    prompt = (
+        "Your Task (task_id=" + tasks["retry"].id + ") is no longer held: the pause a"
+        " supervising agent put on it has ended, and nothing else about it changed. Read it"
+        " with task_inspect; if the work should go on, resume it with task_control (action"
+        " resume), otherwise tell the owner in one line why not."
+    )
+    assert len(wakes) == 1, [(wake.trigger, wake.prompt) for wake in wakes]
+    wake = wakes[0]
+    assert (wake.agent_id, wake.status, wake.parent_run_id) == (refs["held"], "queued", None)
+    assert wake.input_seq == retry_thread.next_seq - 1
+    assert wake_context(wake) == "<wake trigger='owner_card'>\n" + prompt + "\n</wake>"
+    assert [(event.run_id, event.thread_id, event.agent_id, event.payload) for event in queued] == [
+        (wake.id, retry_thread.id, refs["held"], {"run": run_data(wake)})
+    ], [event.payload for event in queued]
+    # An agent the owner paused is not woken: its Task, released, waits for it as it is.
+    async with db.sessions() as session:
+        hold = await session.get(SupervisionHoldRow, refs["rest_hold"])
+        assert hold is not None and hold.released_at is not None
+        rest_task = await session.get(TicketRow, refs["rest_task"])
+        assert rest_task is not None and rest_task.version == 1
+        assert rest_task.state["task"]["phase"] == "retry_paused"
+        count = select(func.count()).select_from(RunRow)
+        assert await session.scalar(count.where(RunRow.thread_id == rest_task.thread_id)) == 1
+    # Once: the same update over the same pause wakes no one twice (a stable id).
+    async with db.sessions() as session, session.begin():
+        hold = await session.get(SupervisionHoldRow, shapes["retry"][2])
+        assert hold is not None
+        hold.released_at, hold.released_by = None, None
+    cursor = await last_cursor(db)
+    await upgrade_from(db, BEFORE)
+    async with db.sessions() as session:
+        hold = await session.get(SupervisionHoldRow, shapes["retry"][2])
+        assert hold is not None and hold.released_at is not None
+        count = select(func.count()).select_from(RunRow)
+        assert await session.scalar(count.where(RunRow.thread_id == retry_thread.id)) == 3
+    assert await events_since(db, cursor, "run.queued") == []
+    # Released, the Task is the agent's own to resume, as the wake says.
+    async with db.sessions() as session, session.begin():
+        resumed_task = await control_task(
+            session,
+            owner_id,
+            TaskControl(
+                task_id=tasks["retry"].id, action="resume", expected_version=tasks["retry"].version
+            ),
+            agent_id=refs["held"],
+        )
+        assert resumed_task.state["task"]["status"] == "queued"
     print(
-        "PASS a supervisor's pause on a paused Task, or on a Task asked to pause, stops the"
-        " update, which changes nothing, until the owner resumes or cancels the Task"
+        "PASS a supervisor's pause on a Task ends and the update completes: a pause asked of"
+        " a Task a worker holds is withdrawn; a paused Task waiting for takeover, one with an"
+        " older failure and one held for the owner's question resume exactly as the live"
+        " resume does; a Task paused after a failure is released as it is and its agent is"
+        " woken once, with fixed server text, to resume it (an agent the owner paused is not)"
     )
 
 
