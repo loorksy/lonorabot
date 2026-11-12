@@ -99,7 +99,8 @@ async def main():
                 ],
             }
 
-        async def operation(action: str, **params: Any) -> dict[str, Any]:
+        async def operation(action: str, *, card: bool = True, **params: Any) -> dict[str, Any]:
+            """``card`` False: a risk-reducing request on the agent's own ticket (Ask)."""
             call = ToolCall(
                 id=uuid4().hex,
                 name="trade_execute",
@@ -112,9 +113,10 @@ async def main():
             )
             before = await broker.snapshot()
             wait = await registry.execute(call, context)
-            if "_runtime_wait" not in wait:
+            if not card:
                 # Ask: a risk-reducing request on the agent's own ticket needs no card.
-                assert "approval_id" not in wait and wait["status"] == "confirmed", wait
+                assert "_runtime_wait" not in wait and "approval_id" not in wait, wait
+                assert wait["status"] == "confirmed", wait
                 assert wait["details"]["verification"]["financial_retry_allowed"] is False
                 assert await registry.execute(call, context) == wait
                 return wait
@@ -152,7 +154,9 @@ async def main():
 
         opened = await operation("buy", volume="0.2", stop_loss="90", take_profit="110")
         await operation("sell", volume="0.2")
-        await operation("modify_position", position_id=opened["broker_id"], stop_loss="91")
+        await operation(
+            "modify_position", card=False, position_id=opened["broker_id"], stop_loss="91"
+        )
         await operation("close_position", position_id="manual-mt5-ticket", volume="0.1")
         assert next(
             p for p in await broker.positions() if p.id == "manual-mt5-ticket"
@@ -170,7 +174,7 @@ async def main():
                 order_id=order["broker_id"],
                 stop_loss="90" if action.startswith("buy") else "110",
             )
-            await operation("cancel_order", order_id=order["broker_id"])
+            await operation("cancel_order", card=False, order_id=order["broker_id"])
         print(
             "PASS market/pending/full+partial manual close/modifications/cancel and repeated approval"
         )

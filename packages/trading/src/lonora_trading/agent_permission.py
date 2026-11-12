@@ -39,7 +39,8 @@ async def require_operation_permission(
     ``target`` is that ticket (None: the broker no longer shows it).
 
     A request on a ticket the agent's own journaled order did not open (the owner's own
-    position, or another agent's) needs the owner's exact approval in either mode.
+    position, or another agent's) needs the owner's exact approval in either mode. Under
+    an active grant the grant's own terms decide instead, until grants are removed.
     """
     foreign = bool(request.position_id or request.order_id) and reducing is not None
     if foreign:

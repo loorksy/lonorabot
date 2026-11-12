@@ -25,6 +25,7 @@ from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_trading.controls import save_controls
 from lonora_trading.execution import ExecutionService
 from lonora_trading.idempotency import trade_fingerprint
+from lonora_trading.manual_activity import material_state
 
 
 async def checks() -> None:
@@ -200,6 +201,29 @@ async def checks() -> None:
         assert error.code == "trade_approval_required"
     assert broker.sent == 2
 
+    # The stale-target check covers a request without a card too (6.6): the agent read
+    # its own position, then it changed (the owner moved the stop) before the send.
+    read = material_state(broker.scripted_positions[0])
+    broker.scripted_positions[0] = broker.scripted_positions[0].model_copy(
+        update={"stop_loss": Decimal("9")}
+    )
+    stale = TradeRequest(
+        account_id=account_id,
+        operation_id="mode-" + uuid4().hex,
+        action="modify_position",
+        symbol="FIXTURE",
+        position_id="mode-position",
+        stop_loss=Decimal("8"),
+    )
+    result = await service.execute(owner_id, stale, lease, expected_target=read)
+    assert result.status == "failed" and result.code == "broker_state_changed", result
+    assert result.details.get("send_state") == "not_sent" and broker.sent == 2
+    # Read again, the same change is decided on the ticket as it is now.
+    fresh = stale.model_copy(update={"operation_id": "mode-" + uuid4().hex})
+    current = material_state(broker.scripted_positions[0])
+    result = await service.execute(owner_id, fresh, lease, expected_target=current)
+    assert result.status == "confirmed" and broker.sent == 3, result
+
     # A switch to Ask that lands after planning and before send is decided under the new
     # mode: the door reads it under the authority lock at send (4.2.3).
     raced = buy()
@@ -212,7 +236,7 @@ async def checks() -> None:
     result = await service.execute(owner_id, raced, lease)
     broker.before = None
     assert result.status == "failed" and result.code == "trade_approval_required", result
-    assert result.details.get("send_state") == "not_sent" and broker.sent == 2
+    assert result.details.get("send_state") == "not_sent" and broker.sent == 3
 
     # The mode change waits for a send check that holds the lock, and vice versa.
     async with db.sessions() as session, session.begin():

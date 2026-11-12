@@ -985,7 +985,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Execute a broker trade: buy or sell to open a position, place a pending limit/stop order, close or modify a position, or modify/cancel an order. In Full, or for a risk-reducing request, it executes at once. "
+            "Execute a broker trade: buy or sell to open a position, place a pending limit/stop order, close or modify a position, or modify/cancel an order. In Full, or for a risk-reducing request, it executes at once, except on a ticket your own order did not open. "
             "In Ask, a request that adds risk (outside an active signed grant) waits for the owner's Trade Approval "
             "card; spoken or typed agreement is not approval. "
             "The server validates current authority, broker preflight and the actual broker result. "
@@ -1004,7 +1004,7 @@ def tools() -> list[Tool]:
         Tool(
             "trade_close_positions",
             "Close currently open broker positions, or only an exact symbol. A close reduces risk, so "
-            "it executes without a card in Full and in Ask. "
+            "it executes without a card in Full and in Ask, except on a ticket your own order did not open. "
             "Each ticket has an independent durable receipt, and a failed or uncertain close never "
             "holds back the other tickets. Never silently extend a reviewed operation to later "
             "positions. Reconcile an uncertain ticket before retrying it.",
