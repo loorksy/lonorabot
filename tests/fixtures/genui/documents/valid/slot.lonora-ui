@@ -1,0 +1,4 @@
+{"v":2,"kind":"receipt","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}
+{"type":"Text","text":"الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."}
+{"type":"Slot","card":"trade_approval","record":"parity-approval"}
+{"why":"الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.","fallback":"طلب موافقة بانتظار قرارك."}

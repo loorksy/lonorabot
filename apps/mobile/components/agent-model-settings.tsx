@@ -8,9 +8,10 @@ import { SettingsGroup, SettingsRow } from "./settings-group";
 import { colors, ErrorNotice } from "./ui";
 
 /**
- * One agent's model (W15-10), the same choice as on the Web: Automatic (Lonora chooses
- * among your allowed models) or Fixed (one model only you change), with the model
- * answering now and this agent's usage. It never grants authority or repeats anything.
+ * One agent's model, the same choice as on the Web: the model answering now, the owner's
+ * choice among the connected providers' models, and this agent's usage. Only the owner
+ * assigns a model (here, or by naming one in chat). It never grants authority or repeats
+ * anything.
  */
 export function AgentModelSettings({ agent }: { agent: Agent }) {
   const { locale, rtl, errorText } = useSession();
@@ -63,30 +64,18 @@ export function AgentModelSettings({ agent }: { agent: Agent }) {
             {line}
           </Text>
         ))}
-        <SettingsRow
-          testID="agent-model-automatic"
-          title={text.automatic}
-          detail={text.automaticHint}
-          value={record.mode === "automatic" ? "✓" : undefined}
-          disabled={busy}
-          onPress={() => {
-            // Already Automatic: nothing to choose (the same as the Web radio).
-            if (record.mode !== "automatic") void choose({ mode: "automatic" });
-          }}
-        />
         {offersDefaultModel(summary) && (
           <SettingsRow
             testID="agent-model-default"
             title={text.backToDefault}
             disabled={busy}
-            onPress={() => void choose({ mode: "automatic" })}
+            onPress={() => void choose({ primary: null })}
           />
         )}
         <SettingsRow
-          testID="agent-model-fixed"
-          title={text.fixed}
-          detail={summary.available.length ? text.fixedHint : text.noModels}
-          value={record.mode === "fixed" ? "✓" : undefined}
+          testID="agent-model-choose"
+          title={text.chooseModel}
+          detail={summary.available.length ? text.ownerOnly : text.noModels}
           disabled={busy || !summary.available.length}
           onPress={() => setPicking((open) => !open)}
         />
@@ -97,18 +86,13 @@ export function AgentModelSettings({ agent }: { agent: Agent }) {
               title={item.name}
               detail={item.provider}
               value={
-                record.mode === "fixed" &&
-                primary?.provider === item.provider &&
-                primary.model === item.model
+                primary?.provider === item.provider && primary.model === item.model
                   ? "✓"
                   : undefined
               }
               disabled={busy}
               onPress={() =>
-                void choose({
-                  mode: "fixed",
-                  primary: { provider: item.provider, model: item.model },
-                })
+                void choose({ primary: { provider: item.provider, model: item.model } })
               }
             />
           ))}

@@ -9,17 +9,15 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.schema import AgentRow, TradingAccountRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 
 
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     try:
         created = await fixture.request(
             "POST",
@@ -88,7 +86,6 @@ async def main() -> None:
                     }
                 ],
             }
-        await save_controls(db, TradingControl(enabled=True))
         await fixture.request(
             "PUT",
             f"/trading/accounts/{account_id}/execution-policy",
@@ -248,7 +245,6 @@ async def main() -> None:
         )
         print("PASS owner manual position closes despite entry limit")
     finally:
-        await save_controls(db, original)
         await fixture.close()
 
 

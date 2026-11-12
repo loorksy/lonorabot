@@ -19,7 +19,7 @@ import { readinessTime } from "../../packages/core/src/trading-readiness";
 const now = new Date("2026-11-08T10:00:00Z");
 const base: OwnerAction = {
   id: "card",
-  kind: "resume_trading",
+  kind: "lift_restriction",
   status: "pending",
   status_reason: null,
   source: "agent",
@@ -27,10 +27,7 @@ const base: OwnerAction = {
   thread_id: "thread",
   run_id: "run",
   timeline_seq: 2,
-  facts: {
-    several_accounts: false,
-    global_trading: { state: "stopped", since: "2026-11-08T09:00:00Z", changed_by: "owner" },
-  },
+  facts: { several_accounts: false },
   requires_passkey: false,
   result: {},
   expires_at: "2026-11-09T10:00:00Z",
@@ -109,9 +106,9 @@ const limits = (passkey: boolean): OwnerAction => ({
 
 test("every pending card has its one-tap buttons in both languages", () => {
   for (const locale of ["en", "ar"]) {
-    const resume = ownerActionCard(base, locale, now);
+    const lifting = ownerActionCard(lift, locale, now);
     assert.deepEqual(
-      resume.buttons.map((button) => [button.key, button.decision]),
+      lifting.buttons.map((button) => [button.key, button.decision]),
       [
         ["confirm", "confirm"],
         ["cancel", "cancel"],
@@ -253,17 +250,13 @@ test("a limits card shows a moved trading day and currency, in both languages", 
 
 test("settled cards show what happened and offer no buttons", () => {
   const settled: Array<[Partial<OwnerAction>, string]> = [
-    [{ status: "confirmed" }, "Trading resumed."],
+    [{ status: "confirmed" }, "Pause lifted."],
     [{ status: "cancelled" }, "Dismissed. Nothing changed."],
     [{ status: "expired", status_reason: "expired" }, "This card expired. Nothing changed."],
-    [
-      { status: "superseded", status_reason: "trading_already_running" },
-      "Trading is already running.",
-    ],
     [{ status: "superseded", status_reason: "done_by_another_card" }, "Done from another card."],
   ];
   for (const [change, line] of settled) {
-    const spec = ownerActionCard({ ...base, ...change }, "en", now);
+    const spec = ownerActionCard({ ...lift, ...change }, "en", now);
     assert.equal(spec.outcome, line);
     assert.deepEqual(spec.buttons, []);
     assert.equal(spec.hint, null);
@@ -388,7 +381,6 @@ const grantCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction =
         percent: "2",
       },
     },
-    global_trading: { state: "stopped", since: null, changed_by: "default" },
     conflicts: [
       {
         authority_id: "other-grant",
@@ -424,7 +416,6 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
     en.options.find((option) => option.key === "stop:other-grant")?.label,
     "Stop ⁨Silver agent⁩ trading on its own on this account",
   );
-  assert.ok(en.lines.includes("New trading is stopped"));
   assert.ok(en.lines.some((line) => line.startsWith("⁨Silver agent⁩ already trades")));
   // The first grant card states the one rule; every grant card says what stays asked.
   assert.match(en.hint ?? "", /approval card/);
@@ -434,8 +425,6 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
     [
       ["manual", false],
       ["no_money_limit", false],
-      // Never started: Resume is pre-checked; after the owner's own Stop it is not.
-      ["resume", true],
       ["stop:other-grant", false],
     ],
   );
@@ -457,12 +446,8 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
   );
   assert.match(ar.hint ?? "", /بطاقة موافقة/);
   assert.equal(ar.buttons[0]?.label, "التفويض بمفتاح المرور");
-  const stopped = ownerActionCard(
-    grantCard({ global_trading: { state: "stopped", since: null, changed_by: "owner" } }),
-    "en",
-    now,
-  );
-  assert.equal(stopped.options.find((option) => option.key === "resume")?.initial, false);
+  // Amendment 1: no grant card offers to resume trading.
+  assert.ok(!en.options.some((option) => option.key === "resume"));
 });
 
 const fullCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction => {
@@ -514,7 +499,6 @@ test("a grant card offers Custom or Full delegation in the same list, Custom sel
       ["delegation:full", "Full delegation", false],
       ["manual", "Include positions I opened myself", false],
       ["no_money_limit", "No money limit (my choice)", false],
-      ["resume", "Resume trading too", true],
       ["stop:other-grant", "Stop ⁨Silver agent⁩ trading on its own on this account", false],
     ],
   );
@@ -709,7 +693,6 @@ test("Lonora's grant card preselects all pairs; an existing limit is shown, neve
         percent: "3",
       },
     },
-    global_trading: { state: "running", since: null, changed_by: "owner" },
     conflicts: [],
     first_grant: false,
   });
@@ -731,32 +714,22 @@ test("a grant card's switches map to the signed challenge and the decision", () 
   assert.deepEqual(initial.challenge, { delegation: "custom", allow_manual_positions: false });
   assert.deepEqual(initial.decision, {
     money_limit: "apply",
-    resume_trading: true,
     stop_authorities: [],
   });
   const chosen = ownerActionChoices(card, {
     manual: true,
     no_money_limit: true,
-    resume: false,
     "stop:other-grant": true,
   });
   assert.deepEqual(chosen.challenge, { delegation: "custom", allow_manual_positions: true });
   assert.deepEqual(chosen.decision, {
     money_limit: "none",
-    resume_trading: false,
     stop_authorities: ["other-grant"],
   });
-  assert.deepEqual(ownerActionChoices(base, { resume: true }), { challenge: {}, decision: {} });
-  const settled = ownerActionCard(
-    { ...card, status: "confirmed", result: { resumed: true } },
-    "en",
-    now,
-  );
+  assert.deepEqual(ownerActionChoices(base, { manual: true }), { challenge: {}, decision: {} });
+  const settled = ownerActionCard({ ...card, status: "confirmed", result: {} }, "en", now);
   assert.deepEqual(settled.options, []);
   assert.equal(settled.outcome, "Signed. It trades on its own inside this grant.");
-  // Signed without Resume while new trading is stopped: the line says it waits for Resume.
-  const waiting = ownerActionCard({ ...card, status: "confirmed", result: {} }, "en", now);
-  assert.equal(waiting.outcome, ownerActionLabels.en.signedStopped);
   const covered = ownerActionCard(
     { ...card, status: "expired", status_reason: "grant_already_active" },
     "ar",
@@ -937,7 +910,7 @@ test("a settled grant card names the agents it stopped and states the owner's ow
     {
       ...grantCard(),
       status: "confirmed",
-      result: { stopped_agents: ["Silver agent", "Copper agent"], resumed: true },
+      result: { stopped_agents: ["Silver agent", "Copper agent"] },
     },
     "en",
     now,
@@ -959,32 +932,12 @@ test("a settled grant card names the agents it stopped and states the owner's ow
   assert.match(ar.outcome ?? "", /⁨Silver agent⁩، ⁨Copper agent⁩/);
 });
 
-test("on a never-started install the resume card is Start trading, and says so when settled", () => {
-  const first: OwnerAction = {
-    ...base,
-    facts: {
-      several_accounts: false,
-      global_trading: { state: "stopped", since: null, changed_by: "default" },
-    },
-  };
-  for (const locale of ["en", "ar"] as const) {
-    const text = ownerActionLabels[locale];
-    const spec = ownerActionCard(first, locale, now);
-    assert.equal(spec.title, text.startTitle);
-    assert.equal(spec.buttons[0]?.label, text.start);
-    assert.ok(spec.lines.includes(text.startStopped), spec.lines.join("|"));
-    assert.equal(spec.hint, text.startHint);
-    const done = ownerActionCard(
-      { ...first, status: "confirmed", result: { started: true } },
-      locale,
-      now,
-    );
-    assert.equal(done.outcome, text.started);
-  }
-  // After the owner's own Stop it stays Resume.
-  assert.equal(ownerActionCard(base, "en", now).buttons[0]?.label, ownerActionLabels.en.resume);
-  assert.ok(financialBoundaryError("trading_not_started", "en")?.includes("Start trading"));
-  assert.ok(financialBoundaryError("trading_not_started", "ar")?.includes("بدء التداول"));
+test("no card resumes or starts trading, and no refusal names a Stop (amendment 1)", () => {
+  for (const locale of ["en", "ar"] as const)
+    for (const key of ["resume", "resumeTitle", "start", "startTitle", "signedStopped"])
+      assert.ok(!(key in ownerActionLabels[locale]), key);
+  for (const code of ["trading_not_started", "trading_disabled", "emergency_stop"])
+    assert.equal(financialBoundaryError(code, "en"), null, code);
 });
 
 test("M5: a settled stop_tightened notice reads as applied, only an Undo reads as undone", async () => {

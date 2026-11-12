@@ -218,6 +218,23 @@ class RunSkillAccess:
 
         return await control_package(context, self.registry, arguments)
 
+    async def save_skill(self, context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+        from .instructions import save_skill
+
+        return await save_skill(context, self.registry, arguments)
+
+    async def skill_history(self, context: ToolContext, skill_id: str) -> dict[str, Any]:
+        from .instructions import skill_history
+
+        return await skill_history(context, skill_id)
+
+    async def restore_skill(
+        self, context: ToolContext, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        from .instructions import restore_skill
+
+        return await restore_skill(context, self.registry, arguments)
+
     async def inspect_repository(
         self, context: ToolContext, repository_url: str, ref: str
     ) -> dict[str, Any]:

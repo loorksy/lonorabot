@@ -15,7 +15,6 @@ import pytest
 from lonora_contracts.trading import (
     AnnotatedTradeRequest,
     TradeAnnotation,
-    TradingControl,
     judgment_label,
 )
 from pydantic import ValidationError
@@ -49,15 +48,12 @@ async def test_two_sends_that_differ_only_in_label_are_one_operation() -> None:
     from check_streaming import Fixture
     from lonora_db.schema import TradingJournalRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
         await quote(fixture, connection, "100", "101")
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Labelled", supervised=True)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
@@ -96,7 +92,6 @@ async def test_two_sends_that_differ_only_in_label_are_one_operation() -> None:
         assert trade.label == "scale_in" and trade.opening_operation_id == first["operation_id"]
         assert trade.agent_id == agent["id"] and Decimal(trade.realized_pnl) == Decimal(-10)
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -106,14 +101,11 @@ async def test_a_card_keeps_the_label_and_the_approved_send_journals_it() -> Non
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_trading.controls import read_controls, save_controls
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Asks with a label", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         arguments: dict[str, Any] = {
@@ -148,6 +140,5 @@ async def test_a_card_keeps_the_label_and_the_approved_send_journals_it() -> Non
             assert row is not None and row.annotation is not None
             assert row.annotation["label"] == "first_entry"
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()

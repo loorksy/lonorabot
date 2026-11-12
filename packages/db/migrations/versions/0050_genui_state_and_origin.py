@@ -4,7 +4,7 @@
 send (its text composed by the server from the intent registry) and ``ui_follow_up`` for a
 v1 follow-up tap. ``ui_submit`` holds ``{source_message_id, part, intent, data, run_id,
 started_at?, superseded_at?}``; ``ui_state`` holds a card's values per part on the assistant
-message that carries it (GENUI_PLAN §8.2, §8.4, §9.3). Existing rows are the owner's words;
+message that carries it (docs/genui.md). Existing rows are the owner's words;
 v1 follow-up taps are marked by the same rule the server applies at write time.
 """
 
