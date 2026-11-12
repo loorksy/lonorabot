@@ -70,7 +70,7 @@ def test_import_preserves_source_and_has_no_publisher_authority(tmp_path: Path) 
     assert not entry.payload.enabled and entry.payload.manifest
     assert entry.payload.manifest.source == "external"
     assert entry.payload.manifest.required_capabilities == []
-    assert set(entry.payload.manifest.required_tools) == {"workspace_read", "workspace_execute"}
+    assert set(entry.payload.manifest.required_tools) == {"workspace_run"}
     assert "skills/sample/1.0.0/setup.py" in files
     assert "skills/sample/1.0.0/nested/SKILL.md" not in files
     assert entry.validation is None

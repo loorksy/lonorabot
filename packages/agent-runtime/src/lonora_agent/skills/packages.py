@@ -28,7 +28,9 @@ from .repository import (
 class WorkspaceSource(Contract):
     agent_id: str = Field(min_length=1, max_length=80)
     run_id: str = Field(min_length=1, max_length=80)
-    workspace_revision: int = Field(ge=0)
+    # The old analytical workspace's revision; none for a package made from a directory
+    # of the owner's persistent workspace (7.1), which has no revisions.
+    workspace_revision: int | None = Field(default=None, ge=0)
     source_directory: str = Field(min_length=1, max_length=256)
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -68,27 +70,17 @@ class PackageVersion(Contract):
         return self
 
 
-def validation_image(entry: PackageVersion) -> str | None:
-    """Successful immutable utility receipts must describe one execution image."""
-    if not entry.utilities:
-        return None
-    images: set[str] = set()
+def require_validated(entry: PackageVersion) -> None:
+    """Every utility has a successful smoke test of exactly its current bytes. The test
+    ran in the owner's persistent workspace, which agents change themselves; no image
+    is pinned (an older receipt's image is not read)."""
     for path in entry.utilities:
         raw = (entry.validation or {}).get(path)
         if not isinstance(raw, dict):
             raise LonoraError("skill_package_validation_required", 409)
         receipt = cast(dict[str, Any], raw)
-        if (
-            receipt.get("exit_code") != 0
-            or receipt.get("source_sha256") != entry.files.get(path)
-            or not isinstance(receipt.get("image"), str)
-            or not re.fullmatch(r"sha256:[0-9a-f]{64}", receipt["image"])
-        ):
+        if receipt.get("exit_code") != 0 or receipt.get("source_sha256") != entry.files.get(path):
             raise LonoraError("skill_package_validation_required", 409)
-        images.add(receipt["image"])
-    if len(images) != 1:
-        raise LonoraError("skill_package_validation_required", 409)
-    return next(iter(images))
 
 
 class PackageState(Contract):
@@ -138,7 +130,7 @@ def package_payload(
             stability="experimental",
             activation=SkillActivation(mode="explicit"),
             risk_class="state_mutating" if utilities else "read_only",
-            required_tools=["workspace_read", "workspace_execute"] if utilities else [],
+            required_tools=["workspace_run"] if utilities else [],
             context_budget=16000,
         ),
     )
@@ -159,7 +151,6 @@ def prepare_workspace_package(
     *,
     agent_id: str,
     run_id: str,
-    workspace_revision: int,
     source_directory: str,
     version: str,
     adapted_content: str,
@@ -224,7 +215,6 @@ def prepare_workspace_package(
             workspace_source=WorkspaceSource(
                 agent_id=agent_id,
                 run_id=run_id,
-                workspace_revision=workspace_revision,
                 source_directory=source_directory,
                 snapshot_sha256=hashlib.sha256(encode_snapshot(source_files)).hexdigest(),
             ),

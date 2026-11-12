@@ -1090,7 +1090,6 @@ async def test_skills_install_silently_inside_the_list_and_ask_once_outside_it()
             "adapted_content": DOCUMENT,
             "review": REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         github = await default_github(fixture)
         assert github["identifier"] == "github.com" and github["added_via"] == "default"
@@ -1113,7 +1112,6 @@ async def test_skills_install_silently_inside_the_list_and_ask_once_outside_it()
                 skill_id="briefing",
                 expected_version=installed["resource_version"],
                 action="activate",
-                workspace_revision=installed["workspace_revision"],
             )
             assert activated["enabled"] is True
         report = await fixture.request("GET", "/capabilities")

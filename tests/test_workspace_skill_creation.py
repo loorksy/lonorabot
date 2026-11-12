@@ -7,7 +7,7 @@ import pytest
 from lonora_agent.skills.packages import (
     PackageVersion,
     prepare_workspace_package,
-    validation_image,
+    require_validated,
 )
 from lonora_agent.workspace import encode_snapshot
 from lonora_core.user_error import LonoraError
@@ -16,7 +16,6 @@ from pydantic import ValidationError
 
 DOCUMENT = "---\nname: local-statistics\ndescription: Inspect exact broker observations before estimating historical dispersion.\n---\nUse verified observations. This procedure cannot authorize financial execution.\n"
 SOURCE = "import statistics\nprint(statistics.mean([1, 2, 3]))\n"
-IMAGE = "sha256:" + "a" * 64
 REVIEW = SkillAdaptationReview(
     source_behavior="Calculate descriptive statistics on a bounded supplied historical sample.",
     adapted_behavior="Calculate the same statistics on exact-symbol owner-scoped historical observations.",
@@ -29,7 +28,6 @@ def prepare(files: dict[str, bytes] | None = None, **changes: Any):
     arguments: dict[str, Any] = {
         "agent_id": "owner-agent",
         "run_id": "origin-run",
-        "workspace_revision": 7,
         "source_directory": "draft",
         "version": "1.0.0",
         "adapted_content": DOCUMENT,
@@ -51,7 +49,8 @@ def test_workspace_origin_is_real_and_installed_copy_is_exact():
     assert entry.workspace_source is not None
     assert entry.workspace_source.agent_id == "owner-agent"
     assert entry.workspace_source.run_id == "origin-run"
-    assert entry.workspace_source.workspace_revision == 7
+    # A directory of the persistent workspace has no revision.
+    assert entry.workspace_source.workspace_revision is None
     assert (
         entry.workspace_source.snapshot_sha256
         == hashlib.sha256(
@@ -80,7 +79,7 @@ def test_unrelated_source_is_not_copied_or_hashed():
         == hashlib.sha256(encode_snapshot({"draft/SKILL.md": DOCUMENT.encode()})).hexdigest()
     )
     assert not entry.utilities
-    assert validation_image(entry) is None
+    require_validated(entry)
 
 
 @pytest.mark.parametrize(
@@ -159,28 +158,41 @@ def test_provenance_discriminant_preserves_legacy_git_and_rejects_fiction():
     assert PackageVersion.model_validate(github).source_kind == "github"
 
 
-def test_actual_source_hash_and_single_reviewed_image_are_required_for_smoke_receipts():
+def test_a_passing_smoke_test_of_the_exact_current_bytes_is_required():
     entry, _ = prepare()
     path = entry.utilities[0]
+    assert entry.payload.manifest is not None
+    assert entry.payload.manifest.required_tools == ["workspace_run"]
     with pytest.raises(LonoraError, match="skill_package_validation_required"):
-        validation_image(entry)
-    entry.validation = {path: {"exit_code": 0, "source_sha256": entry.files[path], "image": IMAGE}}
-    assert validation_image(entry) == IMAGE
-    for field, value in [("exit_code", 1), ("source_sha256", "0" * 64), ("image", "python:latest")]:
-        entry.validation[path] = {
-            "exit_code": 0,
-            "source_sha256": entry.files[path],
-            "image": IMAGE,
-            field: value,
-        }
+        require_validated(entry)
+    entry.validation = {path: {"exit_code": 0, "source_sha256": entry.files[path]}}
+    require_validated(entry)
+    for field, value in [("exit_code", 1), ("source_sha256", "0" * 64)]:
+        entry.validation[path] = {"exit_code": 0, "source_sha256": entry.files[path], field: value}
         with pytest.raises(LonoraError, match="skill_package_validation_required"):
-            validation_image(entry)
+            require_validated(entry)
+
+
+def test_an_older_package_made_from_a_workspace_revision_still_reads():
+    entry, _ = prepare()
+    stored = entry.model_dump(mode="json")
+    stored["workspace_source"]["workspace_revision"] = 7
+    stored["validation"] = {
+        entry.utilities[0]: {
+            "operation_id": "op",
+            "image": "sha256:" + "a" * 64,
+            "exit_code": 0,
+            "source_sha256": entry.files[entry.utilities[0]],
+        }
+    }
+    older = PackageVersion.model_validate(stored)
+    assert older.workspace_source is not None and older.workspace_source.workspace_revision == 7
+    require_validated(older)
 
 
 def test_create_input_cannot_supply_agent_origin_authority_or_mutable_versions():
     valid = {
         "source_directory": "draft",
-        "workspace_revision": 7,
         "version": "1.0.0",
         "expected_version": 0,
         "adapted_content": DOCUMENT,
@@ -193,6 +205,7 @@ def test_create_input_cannot_supply_agent_origin_authority_or_mutable_versions()
         ("enabled", True),
         ("allowed_tools", ["trade_execute"]),
         ("commit", "a" * 40),
+        ("workspace_revision", 7),
     ]:
         with pytest.raises(ValidationError):
             SkillPackageCreateInput.model_validate({**valid, field: value})

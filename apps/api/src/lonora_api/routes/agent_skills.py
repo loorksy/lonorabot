@@ -5,10 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from lonora_agent.skills.catalog import owner_skill_catalog
 from lonora_agent.skills.lifecycle import current_version
-from lonora_agent.skills.packages import validate_package_files, validation_image
+from lonora_agent.skills.packages import require_validated, validate_package_files
 from lonora_agent.skills.registry import installed_registry
-from lonora_agent.workspace import read_snapshot
-from lonora_agent.workspace_client import WorkspaceClient
+from lonora_agent.skills.store import stored_files
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.skills import (
     AgentSkill,
@@ -20,7 +19,7 @@ from lonora_contracts.skills import (
     SkillVersionControls,
 )
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import AnalyticalWorkspaceRow, ResourceRow, SkillRow
+from lonora_db.schema import ResourceRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls, revoke_skill_version
 from lonora_db.skills import SkillRepository, skill_versions, version_payload
 from lonora_db.transactions import owned_agent, resource_data
@@ -168,8 +167,7 @@ async def current_catalog(
         entries = owner_skill_catalog(
             rows, controls, {tool.name for tool in load_tools().definitions()}
         )
-        workspace = None
-        pending: dict[str, str] = {}
+        stored: dict[str, bytes] | None = None
         by_resource = {item.resource_id: item for item in entries.values() if item.resource_id}
         for row in rows:
             item = by_resource.get(row.id)
@@ -177,36 +175,14 @@ async def current_catalog(
                 continue
             try:
                 _, entry = current_version(row, row.version)
-                if workspace is None:
-                    workspace = await session.get(AnalyticalWorkspaceRow, agent_id)
-                if workspace is None or workspace.active_operation_id:
-                    raise LonoraError("skill_package_source_changed", 409)
-                validate_package_files(entry, read_snapshot(workspace.snapshot))
-                image = validation_image(entry)
-                if image is not None:
-                    pending[item.id] = image
+                if stored is None:
+                    stored = await stored_files(session, agent_id)
+                validate_package_files(entry, stored)
+                require_validated(entry)
             except LonoraError as error:
                 entries[item.id] = item.model_copy(update={"available": False, "code": error.code})
     # Current owner eligibility consumes the same source/validation checks as
-    # Agent admission. Local IPC must not hold a database transaction open.
-    if pending:
-        profile_code = None
-        image = None
-        try:
-            socket = runtime(request).settings.workspace_socket
-            if socket is None:
-                raise LonoraError("workspace_execution_unconfigured", 409)
-            image = await WorkspaceClient(socket).profile()
-        except LonoraError as error:
-            profile_code = error.code
-        for identity, expected in pending.items():
-            if profile_code or expected != image:
-                entries[identity] = entries[identity].model_copy(
-                    update={
-                        "available": False,
-                        "code": profile_code or "skill_package_validation_required",
-                    }
-                )
+    # Agent admission.
     return entries
 
 

@@ -862,7 +862,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
         "workspace_read": "workspace_unconfigured",
         "workspace_update": "workspace_unconfigured",
         "workspace_execute": "workspace_unconfigured",
-        "skill_package_validate": "workspace_unconfigured",
+        "skill_package_validate": "workspace_unavailable",
         "market_candles_to_workspace": "workspace_unavailable",
         "mcp_execute": "mcp_tool_not_authorized",
         "economic_calendar_read": "economic_calendar_not_configured",
@@ -882,7 +882,6 @@ async def test_availability_reflects_configured_backends_and_fails_open(
     )
     assert await catalog.availability(files_only) == {
         "workspace_execute": "workspace_execution_unconfigured",
-        "skill_package_validate": "workspace_execution_unconfigured",
         "mcp_execute": "mcp_tool_not_authorized",
         "economic_calendar_read": "economic_calendar_not_configured",
     }
