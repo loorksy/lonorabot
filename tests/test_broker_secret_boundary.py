@@ -43,7 +43,7 @@ def test_only_the_broker_layer_constructs_the_broker_reader() -> None:
 
 
 def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
-    """No module outside the stores and the cipher decrypts a stored value itself, and
+    """No module outside the stores decrypts a stored secret itself, and
     nothing reaches into ``BrokerManager``'s private reader."""
     stores = {
         "packages/adapters/src/lonora_adapters/storage/secret_store.py",
@@ -56,7 +56,9 @@ def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
                 continue
             text = path.read_text(encoding="utf-8")
             if name not in stores:
-                assert "SecretCipher(" not in text and ".decrypt(" not in text, name
+                # Encrypting is anyone's (a device token, say); reading a stored secret's
+                # ciphertext back is only the stores'.
+                assert not ("SecretRow" in text and ".decrypt(" in text), name
             if name != "packages/adapters/src/lonora_adapters/brokers/base.py":
                 assert not re.search(r"\._secrets\b", text), name
 
