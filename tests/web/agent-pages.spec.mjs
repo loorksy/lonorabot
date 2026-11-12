@@ -374,16 +374,6 @@ test("«وكيل جديد»: the supervision switch sends the agents it supervis
   expect(body).not.toHaveProperty("model");
   await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
   await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
-  // Its last supervisee removed, it is still a supervisor: the section stays to add others.
-  await main
-    .locator(".row", { hasText: data.trader.name })
-    .getByRole("button", { name: "Remove" })
-    .click();
-  await expect(main).toContainText("It does not supervise any agent now.");
-  await page.reload();
-  await expect(
-    main.getByRole("button", { name: "Add agents to supervise", exact: true }),
-  ).toBeVisible();
 });
 
 test("«تعديل الوقف والهدف»: one operation per body, a retry reuses it, a clear is explicit", async ({

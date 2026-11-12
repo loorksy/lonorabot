@@ -332,9 +332,11 @@ function AgentPageBody({ agent }: { agent: Agent }) {
         </>
       )}
       {/* «يشرف على» only on a supervisor (reference canSupervise): Lonora, the supervisor
-          template, or an agent that has held a grant as supervisor. */}
+          template, or an agent that already supervises one. */}
       {agent.role !== "delegated" &&
-        (personal || agent.template === "supervisor" || supervision.value?.ever_supervisor) && (
+        (personal ||
+          agent.template === "supervisor" ||
+          Boolean(supervision.value?.supervises.length)) && (
           <SupervisionSection
             agent={agent}
             view={supervision.value}

@@ -195,7 +195,6 @@ test("a pause card names the supervisor, the agent and the item, with one-tap Re
 test("profile rows name the other agent and where each grant came from", () => {
   const view: SupervisionView = {
     agent_id: "lonora",
-    ever_supervisor: true,
     supervises: [
       {
         id: "g1",

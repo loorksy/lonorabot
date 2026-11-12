@@ -15,8 +15,6 @@ export type SupervisionGrant = {
 /** GET /supervision?agent_id=: the active grants around one agent. */
 export type SupervisionView = {
   agent_id: string;
-  /** It has held a grant as supervisor, active or revoked. */
-  ever_supervisor: boolean;
   supervises: SupervisionGrant[];
   supervised_by: SupervisionGrant[];
 };

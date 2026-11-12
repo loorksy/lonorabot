@@ -296,15 +296,10 @@ async def test_a_grant_opens_labelled_reads_and_revoking_it_closes_them_at_once(
         # A peer holds no grant: nothing changed for it.
         await private(peer_context)
 
-        view = await fixture.request("GET", f"/supervision?agent_id={peer['id']}")
-        assert view["ever_supervisor"] is False
         # Revoking ends every read at once, inside the same Run.
         revoked = await fixture.request("POST", f"/supervision/{grant_id}/revoke")
         assert revoked["revoked_via"] == "owner_ui"
         await private(lead_context)
-        # The lead stays a supervisor on record: its profile keeps «يشرف على».
-        view = await fixture.request("GET", f"/supervision?agent_id={lead['id']}")
-        assert view["supervises"] == [] and view["ever_supervisor"] is True
     finally:
         await fixture.close()
 
