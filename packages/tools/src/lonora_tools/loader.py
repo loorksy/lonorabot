@@ -12,6 +12,7 @@ MODULES = {
     "message": "collaboration",
     "memory": "memory",
     "session_search": "memory",
+    "knowledge": "memory",
     "scratchpad": "memory",
     "skills": "memory",
     "workspace": "files",
