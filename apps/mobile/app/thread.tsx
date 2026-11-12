@@ -4,6 +4,7 @@ import type {
   Event,
   Group,
   InputAnswer,
+  Journal,
   Message,
   MessageReaction,
   OwnerAction,
@@ -15,7 +16,6 @@ import type {
 import {
   accumulateStream,
   activeStatuses,
-  type ConversationItem,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
@@ -57,6 +57,7 @@ import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
 import { type MessageMenuActions, useMessageMenu } from "../components/message-menu";
 import { NativeSymbol } from "../components/native-symbol";
+import { OrderLine, OrderSheet } from "../components/order-line";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
 import { Icon } from "../components/shell/icon";
@@ -94,6 +95,7 @@ import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
+import { type TimelineItem, withOrderLines } from "../lib/order-lines";
 import {
   acknowledgeOutgoing,
   cancelOutgoingUploads,
@@ -144,6 +146,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [collaborationActive, setCollaborationActive] = useState(false);
   const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
+  // The chat's financial operations, one order line each (Q30).
+  const [journal, setJournal] = useState<Journal[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   // Background runs working in a hidden thread that asked here: only their questions show.
@@ -193,7 +197,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [uploading, setUploading] = useState(false);
   const [hasOlder, setHasOlder] = useState(true);
   const [actionsVisible, setActionsVisible] = useState(false);
-  const list = useRef<FlatList<ConversationItem>>(null);
+  const list = useRef<FlatList<TimelineItem>>(null);
+  const timelineRef = useRef<TimelineItem[]>([]);
   const following = useRef(around == null);
   const jumped = useRef<number | null>(null);
   const shell = useShellColors();
@@ -307,6 +312,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           setLoaded(true);
           setError(null);
         });
+        // Order lines are a separate read: the chat stands without them.
+        void api
+          .get<Journal[]>(`/trading/journal?thread_id=${encodeURIComponent(id)}`)
+          .then((rows) => {
+            if (stillLive() && selected.current.id === id && selected.current.scope === scope)
+              setJournal(rows.filter((row) => row.thread_id === id));
+          })
+          .catch(() => undefined);
         const auxiliary = Promise.all([
           api.get<Artifact[]>(`/artifacts?thread_id=${encodeURIComponent(id)}`),
           api.get<TradeApproval[]>(`/trading/approvals?thread_id=${encodeURIComponent(id)}`),
@@ -386,6 +399,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setRuns(cached?.runs ?? []);
     setAsking([]);
     setApprovals(cached?.approvals ?? []);
+    setJournal([]);
     setOwnerActions([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
     setCollaborationSessionId(cached?.collaborationSessionId);
@@ -834,11 +848,15 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
-    const index = conversationTimeline(
-      visibleMessages,
-      approvals.filter((row) => row.thread_id === id),
-      ownerActions.filter((row) => row.thread_id === id),
-      undrawn,
+    const index = withOrderLines(
+      conversationTimeline(
+        visibleMessages,
+        approvals.filter((row) => row.thread_id === id),
+        ownerActions.filter((row) => row.thread_id === id),
+        undrawn,
+      ),
+      journal,
+      id,
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -848,13 +866,58 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, journal, id, undrawn]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
+  const timeline = withOrderLines(
+    conversationTimeline(
+      visibleMessages,
+      approvals.filter((row) => row.thread_id === id),
+      ownerActions.filter((row) => row.thread_id === id),
+      undrawn,
+    ),
+    journal,
+    id,
+  ).reverse();
+  timelineRef.current = timeline;
+  /** The order sheet; «حسم العملية» rests the list on the operation's own settle card. */
+  const openOrder = (row: Journal) => {
+    const settle = ownerActions.find(
+      (card) =>
+        card.kind === "resolve_operation" &&
+        card.status === "pending" &&
+        card.facts.operation?.operation_id === row.operation_id,
+    );
+    sheets.open({
+      id: "order",
+      title: t("odTradeOrder"),
+      body: (
+        <OrderSheet
+          row={row}
+          onResolve={
+            settle
+              ? () => {
+                  // The list as it is now: answers may have arrived while the sheet was open.
+                  const index = timelineRef.current.findIndex(
+                    (item) => item.id === `owner_action:${settle.id}`,
+                  );
+                  // A card drawn inside a message (a trusted slot) has no row of its own: the
+                  // sheet stays, and the card is where the agent put it.
+                  if (index < 0) return;
+                  sheets.close();
+                  following.current = false;
+                  list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
+                }
+              : undefined
+          }
+        />
+      ),
+    });
+  };
   const send = async (mentions?: MentionAddress, followUp?: string) => {
     if (
       sendLocks.current.has(outboxKey) ||
@@ -1303,12 +1366,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 ref={list}
                 testID="conversation-transcript"
                 inverted
-                data={conversationTimeline(
-                  visibleMessages,
-                  approvals.filter((row) => row.thread_id === id),
-                  ownerActions.filter((row) => row.thread_id === id),
-                  undrawn,
-                ).reverse()}
+                data={timeline}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                 keyboardShouldPersistTaps="handled"
@@ -1351,6 +1409,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   </Text>
                 }
                 renderItem={({ item }) => {
+                  if (item.kind === "order")
+                    return <OrderLine row={item.journal} onOpen={openOrder} />;
                   if (item.kind === "owner_action") return ownerActionCard(item.action);
                   if (item.kind === "approval") return approvalCard(item.approval);
                   const message = item.message;
