@@ -1,19 +1,28 @@
 """7.1.5: "The owner's 'What is running' view lists every workspace process with the agent
 that started it. One tap stops one process, and one tap stops all of them." """
 
+import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 from lonora_db.client import Database
 from lonora_db.schema import WorkspaceStopRow
 from lonora_db.workspace_running import record_listing, request_stop, running_view
 from lonora_gateway import runtime as gateway_runtime
 from lonora_gateway.service import Gateway
+from lonora_workspace.client import WorkspaceClient
 from sqlalchemy import select
 from test_task_runtime import task_db as task_db
 
 Fixture = tuple[Database, str, str, str]
+SECRET = "sk-live-" + "7" * 32
+
+
+def now() -> datetime:
+    return datetime.now(UTC)
 
 
 def process(pid: int, agent: str, command: str, ppid: int = 1) -> dict[str, Any]:
@@ -41,6 +50,7 @@ async def test_every_process_is_listed_with_the_agent_that_started_it(task_db: F
                 # Another installation's or a deleted agent's process is not the owner's.
                 process(103, "00000000-0000-4000-8000-000000000000", "sleep 1"),
             ],
+            now(),
         )
     async with db.sessions() as session:
         view = await running_view(session, owner)
@@ -50,46 +60,77 @@ async def test_every_process_is_listed_with_the_agent_that_started_it(task_db: F
     assert first["command"] == "python bot.py" and not first["stopping"]
     assert first["started_at"].startswith("2023-11-14T")
     assert len(view["processes"][1]["command"]) == 300
-    assert view["listed_at"] and not view["stopping_all"]
+    assert view["listed_at"] and not view["stopping_all"] and not view["stale"]
+    assert "ppid" not in first and "pid" in first
+
+
+@pytest.mark.asyncio
+async def test_an_older_listing_never_replaces_a_newer_one(task_db: Fixture) -> None:
+    db, owner, agent, _ = task_db
+    async with db.sessions() as session, session.begin():
+        await record_listing(session, owner, [process(201, agent, "new")], now())
+        await record_listing(
+            session, owner, [process(200, agent, "old")], now() - timedelta(seconds=5)
+        )
+    async with db.sessions() as session:
+        view = await running_view(session, owner)
+    assert [item["command"] for item in view["processes"]] == ["new"]
+
+
+@pytest.mark.asyncio
+async def test_an_out_of_date_listing_is_said_and_takes_no_stop(task_db: Fixture) -> None:
+    db, owner, agent, _ = task_db
+    async with db.sessions() as session, session.begin():
+        with pytest.raises(TimeoutError):
+            await request_stop(session, owner)
+        await record_listing(
+            session, owner, [process(101, agent, "python bot.py")], now() - timedelta(minutes=5)
+        )
+    async with db.sessions() as session, session.begin():
+        assert (await running_view(session, owner))["stale"]
+        with pytest.raises(TimeoutError):
+            await request_stop(session, owner, 101, agent)
 
 
 @pytest.mark.asyncio
 async def test_a_stop_needs_both_the_process_and_its_agent(task_db: Fixture) -> None:
     db, owner, agent, _ = task_db
     async with db.sessions() as session, session.begin():
+        await record_listing(session, owner, [process(101, agent, "python bot.py")], now())
         with pytest.raises(ValueError):
             await request_stop(session, owner, 101, None)
         with pytest.raises(LookupError):
             await request_stop(session, owner, 101, "00000000-0000-4000-8000-000000000000")
         await request_stop(session, owner, 101, agent)
-        await record_listing(session, owner, [process(101, agent, "python bot.py")])
     async with db.sessions() as session:
         view = await running_view(session, owner)
     assert view["processes"][0]["stopping"] and not view["stopping_all"]
 
 
 class Supervisor:
+    """The supervisor's process routes, behind the real client (which scans every answer)."""
+
     def __init__(self, agent: str) -> None:
         self.agent = agent
         self.stopped: list[tuple[int, str]] = []
         self.stopped_all: list[str] = []
-        self.listing = [process(101, agent, "python bot.py"), process(102, agent, "sleep 9")]
+        self.listing = [
+            process(101, agent, "python bot.py --key " + SECRET),
+            process(102, agent, "sleep 9"),
+        ]
 
-    def present(self) -> bool:
-        return True
-
-    async def processes(self, scan: Any) -> dict[str, Any]:
-        return {"boot_id": "b", "jobs": [], "processes": list(self.listing)}
-
-    async def stop(self, scan: Any, pid: int, agent_id: str) -> dict[str, Any]:
-        self.stopped.append((pid, agent_id))
-        self.listing = [item for item in self.listing if item["pid"] != pid]
-        return {"stopped": True}
-
-    async def stop_all(self, scan: Any, agent_id: str) -> dict[str, Any]:
-        self.stopped_all.append(agent_id)
-        self.listing = [item for item in self.listing if item["agent_id"] != agent_id]
-        return {"stopped": 1}
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        body: dict[str, Any] = json.loads(request.content or b"{}")
+        if request.url.path == "/v1/processes":
+            listing = {"boot_id": "b", "jobs": [], "processes": list(self.listing)}
+            return httpx.Response(200, json=listing)
+        if request.url.path == "/v1/processes/stop":
+            self.stopped.append((body["pid"], body["agent_id"]))
+            self.listing = [item for item in self.listing if item["pid"] != body["pid"]]
+            return httpx.Response(200, json={"boot_id": "b", "stopped": True})
+        self.stopped_all.append(body["agent_id"])
+        self.listing = [item for item in self.listing if item["agent_id"] != body["agent_id"]]
+        return httpx.Response(200, json={"boot_id": "b", "stopped": 1})
 
 
 @pytest.mark.asyncio
@@ -98,11 +139,12 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
 ) -> None:
     db, owner, agent, _ = task_db
     supervisor = Supervisor(agent)
-    monkeypatch.setattr(gateway_runtime, "WORKSPACE", supervisor)
+    workspace = WorkspaceClient(transport=httpx.MockTransport(supervisor.handle))
+    monkeypatch.setattr(gateway_runtime, "WORKSPACE", workspace)
 
     class Secrets:
         async def scanned_values(self) -> dict[str, str]:
-            return {}
+            return {"BROKER_KEY": SECRET}
 
     service: Any = SimpleNamespace(owner_id=owner, secrets=Secrets(), given=None)
     gateway: Any = SimpleNamespace(db=db)
@@ -114,6 +156,13 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
         await Gateway.record_running(gateway, each)
 
     gateway.workspace_scan, gateway.record_running = workspace_scan, record_running
+
+    # The listing the owner sees passes the owner's secret scan (7.2.6).
+    await Gateway.record_running(gateway, service)
+    async with db.sessions() as session:
+        listed = (await running_view(session, owner))["processes"]
+    assert listed[0]["command"] == "python bot.py --key [secret:BROKER_KEY]"
+    assert all(SECRET not in item["command"] for item in listed)
 
     async with db.sessions() as session, session.begin():
         await request_stop(session, owner, 101, agent)

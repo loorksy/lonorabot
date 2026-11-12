@@ -64,8 +64,20 @@ test("every process with its agent; one tap stops one, one tap stops all", async
   await expect.poll(() => fixture({ action: "stops" }).stops.length).toBe(2);
   expect(fixture({ action: "stops" }).stops).toContainEqual({ pid: null, agent_id: null });
 
+  // The Gateway carries the stops out and an agent starts another process: the view
+  // follows the server, and both kinds of stop are offered again.
+  fixture({ ...data, action: "carried_out" });
+  await expect(rows).toHaveCount(1, { timeout: 10_000 });
+  await expect(main.getByTestId("stop-all")).toBeEnabled();
+  await expect(main.getByRole("button", { name: "Stop python3 restarted.py" })).toBeEnabled();
+
   fixture({ action: "empty" });
   await expect(main).toContainText("Nothing is running in the workspace.", { timeout: 10_000 });
+
+  // A list the workspace has not refreshed for a minute says so and takes no stop.
+  fixture({ ...data, action: "stale" });
+  await expect(main.getByTestId("running-stale")).toBeVisible({ timeout: 10_000 });
+  await expect(main.getByTestId("stop-all")).toBeDisabled();
 });
 
 test("the view in Arabic, right to left", async ({ page, context }) => {

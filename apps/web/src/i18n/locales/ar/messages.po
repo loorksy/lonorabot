@@ -20,7 +20,7 @@ msgstr "لا تظهر حالة «منفَّذ» إلا بدليل من الوس�
 msgid "«New message» shows instead of the content"
 msgstr "تظهر «رسالة جديدة» بدل المحتوى"
 
-#: src/shell/settings/RunningPage.tsx:107
+#: src/shell/settings/RunningPage.tsx:128
 msgid "(no command line)"
 msgstr "(بلا سطر أمر)"
 
@@ -2885,12 +2885,12 @@ msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله"
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله."
 
-#: src/shell/settings/RunningPage.tsx:151
+#: src/shell/settings/RunningPage.tsx:173
 msgid "Every process your agents run in the workspace, with the agent that started it."
 msgstr "كل عملية يشغّلها وكلاؤك في مساحة العمل، مع الوكيل الذي بدأها."
 
 #. placeholder {0}: ago(view.listed_at)
-#: src/shell/settings/RunningPage.tsx:146
+#: src/shell/settings/RunningPage.tsx:168
 msgid "Every process your agents run in the workspace, with the agent that started it. Updated {0}."
 msgstr "كل عملية يشغّلها وكلاؤك في مساحة العمل، مع الوكيل الذي بدأها. حُدِّثت {0}."
 
@@ -4734,7 +4734,7 @@ msgstr "ملاحظة.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور؛ تعرض الخطوة التالية ما ستوقّعه بالضبط."
 
-#: src/shell/settings/RunningPage.tsx:83
+#: src/shell/settings/RunningPage.tsx:104
 msgid "Nothing is running in the workspace."
 msgstr "لا شيء يعمل في مساحة العمل."
 
@@ -6726,7 +6726,7 @@ msgstr "ابدأ الآن"
 #~ msgstr "بدء محادثة صوتية"
 
 #. placeholder {0}: ago(item.started_at)
-#: src/shell/settings/RunningPage.tsx:112
+#: src/shell/settings/RunningPage.tsx:133
 msgid "Started {0}"
 msgstr "بدأت {0}"
 
@@ -6757,7 +6757,7 @@ msgstr "لا تزال غير معروفة"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
-#: src/shell/settings/RunningPage.tsx:133
+#: src/shell/settings/RunningPage.tsx:155
 msgid "Stop"
 msgstr "إيقاف"
 
@@ -6767,11 +6767,11 @@ msgid "Stop"
 msgstr "وقف"
 
 #. placeholder {0}: item.command
-#: src/shell/settings/RunningPage.tsx:124
+#: src/shell/settings/RunningPage.tsx:146
 msgid "Stop {0}"
 msgstr "إيقاف {0}"
 
-#: src/shell/settings/RunningPage.tsx:74
+#: src/shell/settings/RunningPage.tsx:86
 msgid "Stop all"
 msgstr "إيقاف الكل"
 
@@ -6828,12 +6828,12 @@ msgstr "إيقاف الحركات والانتقالات غير الضرورية
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
-#: src/shell/settings/RunningPage.tsx:74
+#: src/shell/settings/RunningPage.tsx:86
 msgid "Stopping all…"
 msgstr "يجري إيقاف الكل…"
 
-#: src/shell/settings/RunningPage.tsx:50
-#: src/shell/settings/RunningPage.tsx:118
+#: src/shell/settings/RunningPage.tsx:62
+#: src/shell/settings/RunningPage.tsx:139
 msgid "Stopping…"
 msgstr "يجري الإيقاف…"
 
@@ -7547,6 +7547,11 @@ msgstr "استُؤنفت المراقبة"
 #: src/conversation/sheets/WatchesSheet.tsx:88
 msgid "The watch was cancelled"
 msgstr "أُلغيت المراقبة"
+
+#. placeholder {0}: ago(view.listed_at)
+#: src/shell/settings/RunningPage.tsx:91
+msgid "The workspace last answered {0}; this list may be out of date."
+msgstr "آخر ردّ من مساحة العمل {0}؛ قد تكون هذه القائمة قديمة."
 
 #: src/pages/LocalSettings.tsx:26
 #: src/pages/LocalSettings.tsx:28

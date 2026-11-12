@@ -32,11 +32,16 @@ async def stop_one(request: Request, body: StopOne, owner: OwnerIdentity = Depen
             stop_id = await request_stop(session, owner.id, body.pid, body.agent_id)
         except LookupError:
             raise LonoraError("agent_not_found", 404) from None
+        except TimeoutError:
+            raise LonoraError("workspace_unavailable", 503) from None
     return {"id": stop_id}
 
 
 @router.post("/stop-all", status_code=202)
 async def stop_all(request: Request, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session, session.begin():
-        stop_id = await request_stop(session, owner.id)
+        try:
+            stop_id = await request_stop(session, owner.id)
+        except TimeoutError:
+            raise LonoraError("workspace_unavailable", 503) from None
     return {"id": stop_id}

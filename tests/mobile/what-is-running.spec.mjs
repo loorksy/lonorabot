@@ -37,13 +37,12 @@ test("Expo Arabic: the processes under their agents, stop one, stop all", async 
   const rows = page.getByTestId("running-process");
   await expect(rows).toHaveCount(3);
   await expect(page.getByRole("heading", { name: data.trader.name })).toBeVisible();
-  await expect(
-    page.getByText("python3 listener.py --symbol XAUUSD", { exact: true }),
-  ).toBeVisible();
+  await expect(rows.filter({ hasText: "python3 listener.py --symbol XAUUSD" })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: data.research.name })).toBeVisible();
 
   const second = rows.filter({ hasText: "node price-feed.js" });
-  await second.getByRole("button", { name: "إيقاف", exact: true }).click();
+  // Each Stop button names its process for a screen reader.
+  await second.getByRole("button", { name: "إيقاف node price-feed.js", exact: true }).click();
   await expect(second).toContainText("يجري الإيقاف…");
   await expect
     .poll(() => fixture({ action: "stops" }).stops)
@@ -52,6 +51,15 @@ test("Expo Arabic: the processes under their agents, stop one, stop all", async 
   await page.getByRole("button", { name: "إيقاف الكل", exact: true }).click();
   await expect(page.getByRole("button", { name: "يجري إيقاف الكل…", exact: true })).toBeVisible();
   await expect.poll(() => fixture({ action: "stops" }).stops.length).toBe(2);
+
+  // The Gateway carries the stops out and an agent starts another process: both kinds of
+  // stop are offered again.
+  fixture({ ...data, action: "carried_out" });
+  await expect(rows).toHaveCount(1, { timeout: 10_000 });
+  await expect(page.getByRole("button", { name: "إيقاف الكل", exact: true })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "إيقاف python3 restarted.py", exact: true }),
+  ).toBeEnabled();
 
   fixture({ action: "empty" });
   await expect(page.getByTestId("running-empty")).toHaveText("لا شيء يعمل في مساحة العمل.", {

@@ -767,6 +767,11 @@ export const labels = {
   running_stopAll: ["إيقاف الكل", "Stop all"],
   running_stoppingAll: ["يجري إيقاف الكل…", "Stopping all…"],
   running_stop: ["إيقاف", "Stop"],
+  running_stopOne: ["إيقاف {0}", "Stop {0}"],
+  running_stale: [
+    "آخر ردّ من مساحة العمل {0}؛ قد تكون هذه القائمة قديمة.",
+    "The workspace last answered at {0}; this list may be out of date.",
+  ],
   running_stopping: ["يجري الإيقاف…", "Stopping…"],
   running_empty: ["لا شيء يعمل في مساحة العمل.", "Nothing is running in the workspace."],
   running_noCommand: ["(بلا سطر أمر)", "(no command line)"],

@@ -6,20 +6,25 @@ import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
+import { SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { ago } from "./OwnerPage";
 import { Empty, Note, useLoad } from "./ui";
 
 type Process = {
   pid: number;
-  ppid: number;
   agent_id: string;
   agent_name: string;
   command: string;
   started_at: string | null;
   stopping: boolean;
 };
-type Running = { listed_at: string | null; processes: Process[]; stopping_all: boolean };
+type Running = {
+  listed_at: string | null;
+  stale: boolean;
+  processes: Process[];
+  stopping_all: boolean;
+};
 
 /** How often the open view asks again: the Gateway lists the workspace every 10 s and
  * carries out a stop within about 2 s. */
@@ -32,16 +37,23 @@ export function RunningPage() {
   const toast = useToast();
   const [tick, setTick] = useState(0);
   const running = useLoad(() => api.get<Running>("/workspace/running"), [tick]);
+  // Taps not yet seen in a server answer; each answer says what is being stopped.
   const [asked, setAsked] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const timer = window.setInterval(() => setTick((value) => value + 1), REFRESH_MS);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setTick((value) => value + 1);
+    }, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, []);
-
   const view = running.value;
+  useEffect(() => {
+    if (view) setAsked(new Set());
+  }, [view]);
   const processes = view?.processes ?? [];
   const key = (item: Process) => `${item.agent_id}:${item.pid}`;
   const stopAll = (view?.stopping_all ?? false) || asked.has("all");
+  // An out-of-date list (the workspace has not answered for a minute) takes no stop.
+  const stale = view?.stale ?? false;
 
   const send = async (path: string, body: object, mark: string) => {
     setAsked((current) => new Set(current).add(mark));
@@ -67,14 +79,23 @@ export function RunningPage() {
           type="button"
           className="btn danger"
           data-testid="stop-all"
-          disabled={!processes.length || stopAll}
+          disabled={!processes.length || stopAll || stale}
           onClick={() => void send("/workspace/running/stop-all", {}, "all")}
         >
           <Icon name="stop" />
           {stopAll ? <Trans>Stopping all…</Trans> : <Trans>Stop all</Trans>}
         </button>
       </div>
-      {running.error && !view ? (
+      {stale && view?.listed_at ? (
+        <p className="pad muted small" role="status" data-testid="running-stale">
+          <Trans>
+            The workspace last answered {ago(view.listed_at)}; this list may be out of date.
+          </Trans>
+        </p>
+      ) : null}
+      {!view && running.loading ? (
+        <SkRows count={3} />
+      ) : running.error && !view ? (
         <p className="pad muted small" role="alert">
           {userError(running.error)}
         </p>
@@ -121,6 +142,7 @@ export function RunningPage() {
                         <button
                           type="button"
                           className="btn sm outline"
+                          disabled={stale}
                           aria-label={t`Stop ${item.command}`}
                           onClick={() =>
                             void send(

@@ -328,9 +328,10 @@ class Gateway:
 
         from .runtime import WORKSPACE
 
+        asked = utcnow()
         listing = await WORKSPACE.processes(await self.workspace_scan(service))
         async with self.db.sessions() as session, session.begin():
-            await record_listing(session, service.owner_id, listing["processes"])
+            await record_listing(session, service.owner_id, listing["processes"], asked)
 
     async def workspace_stops(self) -> None:
         from .runtime import WORKSPACE
@@ -341,28 +342,23 @@ class Gateway:
     async def carry_out_stops(self, service: OwnerServices) -> None:
         """Each stop the owner asked for, once: one process as the agent it runs as (the
         supervisor checks the pid still belongs to that agent), or every agent's processes."""
-        from lonora_db.schema import WorkspaceStopRow
-        from lonora_db.workspace_running import owner_agents, pending_stops
+        from lonora_db.workspace_running import claim_stops, owner_agents
 
         from .runtime import WORKSPACE
 
-        async with self.db.sessions() as session:
-            pending = await pending_stops(session, service.owner_id)
-            stops = [(stop.id, stop.pid, stop.agent_id) for stop in pending]
+        async with self.db.sessions() as session, session.begin():
+            claimed = await claim_stops(session, service.owner_id)
+            stops = [(stop.pid, stop.agent_id) for stop in claimed]
             agents = list(await owner_agents(session, service.owner_id)) if stops else []
         if not stops:
             return
         scan = await self.workspace_scan(service)
-        for stop_id, pid, agent_id in stops:
+        for pid, agent_id in stops:
             if pid is None or agent_id is None:
                 for each in agents:
                     await WORKSPACE.stop_all(scan, each)
             else:
                 await WORKSPACE.stop(scan, pid, agent_id)
-            async with self.db.sessions() as session, session.begin():
-                row = await session.get(WorkspaceStopRow, stop_id, with_for_update=True)
-                if row is not None and row.done_at is None:
-                    row.done_at = utcnow()
         await self.record_running(service)
 
     async def morning_brief(self) -> None:

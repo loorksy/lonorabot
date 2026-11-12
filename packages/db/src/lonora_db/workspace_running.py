@@ -3,15 +3,19 @@ agents with the agent that started it, and the owner's stop and stop-all request
 the Gateway reaches the workspace, so it writes the listing and carries out the stops."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import AgentRow, WorkspaceRunningRow, WorkspaceStopRow
 
 COMMAND_SHOWN = 300
+# A listing older than this is shown as out of date, and stops are not taken: the
+# Gateway lists the workspace every 10 s while it can reach it.
+STALE = timedelta(seconds=60)
+KEPT = timedelta(days=7)
 
 
 def utcnow() -> datetime:
@@ -26,14 +30,14 @@ async def owner_agents(session: AsyncSession, owner_id: str) -> dict[str, str]:
 
 
 async def record_listing(
-    session: AsyncSession, owner_id: str, processes: list[dict[str, Any]]
+    session: AsyncSession, owner_id: str, processes: list[dict[str, Any]], listed_at: datetime
 ) -> None:
-    """Keep the owner's agents' processes from a scanned supervisor listing."""
+    """Keep the owner's agents' processes from a scanned supervisor listing asked for at
+    `listed_at`; a listing older than the one kept is dropped."""
     agents = await owner_agents(session, owner_id)
     kept = [
         {
             "pid": int(item["pid"]),
-            "ppid": int(item.get("ppid") or 0),
             "agent_id": str(item["agent_id"]),
             "command": str(item.get("command") or "")[:COMMAND_SHOWN],
             "started_at": datetime.fromtimestamp(float(item["started_at"]), UTC).isoformat()
@@ -45,9 +49,13 @@ async def record_listing(
     ]
     row = await session.get(WorkspaceRunningRow, owner_id, with_for_update=True)
     if row is None:
-        session.add(WorkspaceRunningRow(owner_id=owner_id, processes=kept, listed_at=utcnow()))
-    else:
-        row.processes, row.listed_at = kept, utcnow()
+        session.add(WorkspaceRunningRow(owner_id=owner_id, processes=kept, listed_at=listed_at))
+    elif row.listed_at <= listed_at:
+        row.processes, row.listed_at = kept, listed_at
+
+
+def stale(row: WorkspaceRunningRow | None) -> bool:
+    return row is None or row.listed_at < utcnow() - STALE
 
 
 async def running_view(session: AsyncSession, owner_id: str) -> dict[str, Any]:
@@ -73,6 +81,7 @@ async def running_view(session: AsyncSession, owner_id: str) -> dict[str, Any]:
     ]
     return {
         "listed_at": row.listed_at.isoformat() if row else None,
+        "stale": stale(row),
         "processes": processes,
         "stopping_all": any(stop.pid is None for stop in stops),
     }
@@ -86,6 +95,9 @@ async def request_stop(
         raise ValueError("workspace_stop_target_invalid")
     if agent_id is not None and agent_id not in await owner_agents(session, owner_id):
         raise LookupError("agent_not_found")
+    # A stop is carried out against the workspace as it is now: not while it is not seen.
+    if stale(await session.get(WorkspaceRunningRow, owner_id)):
+        raise TimeoutError("workspace_unavailable")
     stop = WorkspaceStopRow(
         id=str(uuid.uuid4()), owner_id=owner_id, pid=pid, agent_id=agent_id, requested_at=utcnow()
     )
@@ -93,14 +105,20 @@ async def request_stop(
     return stop.id
 
 
-async def pending_stops(session: AsyncSession, owner_id: str) -> list[WorkspaceStopRow]:
+async def claim_stops(session: AsyncSession, owner_id: str) -> list[WorkspaceStopRow]:
+    """The owner's stops not yet taken, marked done as they are taken, in the caller's
+    transaction: each stop is carried out at most once, even by two Gateways or after a
+    crash (a stop lost to a crash is tapped again). Rows done a week ago are forgotten."""
+    await session.execute(
+        delete(WorkspaceStopRow).where(WorkspaceStopRow.done_at < utcnow() - KEPT)
+    )
     return list(
         (
             await session.scalars(
-                select(WorkspaceStopRow)
+                update(WorkspaceStopRow)
                 .where(WorkspaceStopRow.owner_id == owner_id, WorkspaceStopRow.done_at.is_(None))
-                .order_by(WorkspaceStopRow.requested_at)
-                .with_for_update(skip_locked=True)
+                .values(done_at=utcnow())
+                .returning(WorkspaceStopRow)
             )
         ).all()
     )

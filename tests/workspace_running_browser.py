@@ -5,13 +5,13 @@ Gateway keeps, and a read of the stop requests the owner's taps made."""
 import asyncio
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from check_streaming import Fixture
 from lonora_db.schema import WorkspaceRunningRow, WorkspaceStopRow
 from lonora_db.workspace_running import record_listing
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 
 def cookies(fixture: Fixture) -> list[dict[str, str | None]]:
@@ -44,6 +44,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                         process(4102, trader["id"], "node price-feed.js"),
                         process(4201, research["id"], "python3 scrape.py"),
                     ],
+                    datetime.now(UTC),
                 )
             return {"cookies": cookies(fixture), "trader": trader, "research": research}
         if data["action"] == "stops":
@@ -52,8 +53,33 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             return {"stops": [{"pid": row.pid, "agent_id": row.agent_id} for row in rows]}
         if data["action"] == "empty":
             async with fixture.runtime.db.sessions() as session, session.begin():
-                await record_listing(session, fixture.owner, [])
+                await record_listing(session, fixture.owner, [], datetime.now(UTC))
             return {"empty": True}
+        if data["action"] == "carried_out":
+            # What the Gateway does: the stops are taken, and a new process has started.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await session.execute(update(WorkspaceStopRow).values(done_at=datetime.now(UTC)))
+                await record_listing(
+                    session,
+                    fixture.owner,
+                    [process(4301, data["trader"]["id"], "python3 restarted.py")],
+                    datetime.now(UTC),
+                )
+            return {"carried_out": True}
+        if data["action"] == "stale":
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                row = await session.get(WorkspaceRunningRow, fixture.owner)
+                assert row is not None
+                row.listed_at = datetime.now(UTC) - timedelta(minutes=5)
+                row.processes = [
+                    {
+                        "pid": 4401,
+                        "agent_id": data["trader"]["id"],
+                        "command": "python3 old.py",
+                        "started_at": None,
+                    }
+                ]
+            return {"stale": True}
         if data["action"] == "cleanup":
             async with fixture.runtime.db.sessions() as session, session.begin():
                 await session.execute(delete(WorkspaceStopRow))
