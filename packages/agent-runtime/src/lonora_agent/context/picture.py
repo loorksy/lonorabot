@@ -9,7 +9,7 @@ Symbols and ids are broker strings, encoded as metadata, never instructions.
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import utcnow
@@ -185,6 +185,8 @@ def team_book(book: AccountBook, names: dict[str, str]) -> dict[str, Any]:
 
 
 def _scheduled(value: object) -> datetime | None:
+    if value is None:
+        return None
     try:
         at = datetime.fromisoformat(str(value))
     except ValueError:
@@ -218,8 +220,10 @@ async def calendar_events(
     end = now + timedelta(hours=CALENDAR_HOURS)
     found: list[tuple[datetime, dict[str, Any]]] = []
     for row in rows:
-        for event in row.state.get("events", []):
-            at = _scheduled(event.get("scheduled_at")) if isinstance(event, dict) else None
+        stored: Any = row.state.get("events")
+        for raw in cast(list[Any], stored) if isinstance(stored, list) else []:
+            event = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+            at = _scheduled(event.get("scheduled_at"))
             if (
                 at is None
                 or event.get("impact") != "high"
