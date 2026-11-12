@@ -9,11 +9,11 @@ settings page or the API. W15-3 adds the grant card (`grant_authority`, below), 
 the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
 supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 `supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
-W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
-`docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
-when some tool may change something, and a credential card for an MCP server says
-whether the trust card follows (or why not, waking the agent that asked). An agent's
-model has no card: only the owner assigns it (`docs/provider-resilience.md`).
+W15-8 adds the secure credential card (`connect_credential`, `docs/trusted-sources.md`).
+Trusting a source has no card (VISION 10.3.2): an agent adds a feed's domain, a GitHub
+repository or owner, or an MCP server only when the owner's typed message names it, and
+migration `0132_trust_from_owner_words` retired the `trust_source` cards. An agent's
+model has no card either: only the owner assigns it (`docs/provider-resilience.md`).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -24,7 +24,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source` or `connect_credential` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused` or `connect_credential` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |

@@ -1,6 +1,5 @@
 import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
-import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
@@ -16,7 +15,6 @@ export type OwnerActionKind =
   | "supervision_created"
   | "supervision_stopped"
   | "supervision_paused"
-  | "trust_source"
   | "connect_credential"
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
@@ -28,8 +26,6 @@ export type OwnerActionKind =
  * action and the owner's own positions, until stopped, no daily loss limit from the card).
  */
 export type GrantDelegation = "custom" | "full";
-/** trust_source: what the owner adds to the trusted list. */
-export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /** connect_credential: which secure form the card offers. */
 export type CredentialTarget =
   | "mcp_server"
@@ -196,22 +192,6 @@ export type OwnerAction = {
       /** The owner paused it too: the pause is the owner's now. */
       owner_holds?: boolean;
     };
-    /**
-     * trust_source: the source to trust. An MCP server's label is its saved name and its
-     * tools are the reviewed names (tools that can move money are listed as blocked;
-     * writes are the ones that may change something and run only at the write tier);
-     * review is true when the server is trusted already and its tools changed.
-     */
-    source?: {
-      kind: TrustSourceKind;
-      label: string | null;
-      subscribe: boolean;
-      tools?: string[];
-      writes?: string[];
-      blocked?: string[];
-      review?: boolean;
-      tier?: EffectTier | null;
-    };
     /** connect_credential: the form to offer ("x" names an X MCP server). */
     credential?: { target: CredentialTarget; service: "x" | null };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
@@ -257,17 +237,10 @@ export type OwnerAction = {
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
     /** resume_trading: new trading had never been started, so the card started it. */
     started?: boolean;
-    tier?: EffectTier;
-    tools?: number;
-    /** trust_source on an MCP server: how many trusted tools may change something. */
-    writes?: number;
-    subscribed?: boolean;
     target?: CredentialTarget;
     configured?: boolean;
     connection_id?: string;
     integration_id?: string;
-    /** connect_credential for an MCP server: whether its trust card followed. */
-    review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
     /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
     restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
@@ -294,8 +267,6 @@ export type OwnerActionDecision = {
   resume_trading?: boolean;
   /** Grant card: stop these other agents' grants on this market (narrowing). */
   stop_authorities?: string[];
-  /** trust_source on an MCP server: what the owner trusts its tools for. */
-  tier?: EffectTier;
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
   /**

@@ -301,7 +301,7 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         **report,
         "guidance": "Use any ready capability without asking. not_connected: offer one "
         "connect_credential card. not_set_up: this server lacks it; say so plainly. A "
-        "source outside trusted_sources needs one trust_source card.",
+        "source outside trusted_sources is trusted only when the owner names it in chat.",
     }
 
 

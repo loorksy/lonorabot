@@ -570,7 +570,7 @@ async def test_the_status_line_waits_for_the_owner_or_the_broker_like_the_pill(
                 thread_id=thread,
                 timeline_seq=1,
                 source="agent",
-                kind="trust_source",
+                kind="connect_credential",
                 subject="probe",
                 payload={},
                 payload_hash="probe",

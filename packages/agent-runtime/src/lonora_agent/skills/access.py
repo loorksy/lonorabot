@@ -223,16 +223,20 @@ class RunSkillAccess:
     ) -> dict[str, Any]:
         from lonora_db.trusted_sources import github_trusted
 
+        from .lifecycle import repository_trusted
         from .repository import inspect_repository, repository_identity
 
-        async with context.db.sessions() as session, session.begin():
-            await scoped_run(session, context)
-        result = await inspect_repository(repository_url, ref)
         owner, repository = repository_identity(repository_url)
+        async with context.db.sessions() as session, session.begin():
+            run = await scoped_run(session, context)
+            # Before reading it: once this run reads the repository, the owner's message
+            # no longer counts on its own, so a repository he named joins his list now.
+            await repository_trusted(session, context, run, owner, repository)
+        result = await inspect_repository(repository_url, ref)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
             # Inside the owner's trusted sources an import installs silently; outside
-            # it, the import raises one owner card first.
+            # it, the import is refused until the owner names the repository in chat.
             trusted = await github_trusted(session, context.owner_id, owner, repository)
         return {**result, "source_trusted": trusted}
 

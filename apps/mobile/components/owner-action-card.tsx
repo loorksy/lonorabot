@@ -99,7 +99,6 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
-    if (button.tier) body.tier = button.tier;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
