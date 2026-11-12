@@ -12,7 +12,7 @@
 #                                     back up the current state, then replace it with FILE
 #   lonora restore-test [FILE]        restore FILE (default: newest) into a throwaway,
 #                                     network-isolated stack and check the app gets ready
-#   lonora logs [SERVICE]             the last log lines of api, gateway, db or caddy
+#   lonora logs [SERVICE]             the last log lines of api, gateway, db, caddy, searxng or browser
 #   lonora maintenance on|off         close or open owner writes by hand
 #
 # Needs only Docker with the Compose plugin, gpg, flock, tar, sha256sum and coreutils.
@@ -112,9 +112,15 @@ env_value() {
 # it) and its mode: proxy (LONORA_PROXY_LISTEN set) or direct (Caddy on 80/443).
 project() { local name; name="$(env_value LONORA_PROJECT)"; printf '%s\n' "${name:-lonora}"; }
 mode_file() { if [[ -n "$(env_value LONORA_PROXY_LISTEN)" ]]; then echo infra/compose/mode-proxy.yml; else echo infra/compose/mode-direct.yml; fi; }
+# Overlays whose services moved into docker-compose.prod.yml. Merging one would lay its old
+# definitions over the current ones (and make the gateway wait on web search again). An
+# installation updated from a release before this one still lists it until its next update
+# rewrites .env, and the older updater leaves the file on disk, so compose() skips it.
+RETIRED_OVERLAYS=(infra/research/compose.research.yml)
 compose() {
-    local files=(-f "$COMPOSE_FILE_MAIN" -f "$(mode_file)") overlay
+    local files=(-f "$COMPOSE_FILE_MAIN" -f "$(mode_file)") overlay retired
     for overlay in $(env_value LONORA_COMPOSE_OVERLAYS); do
+        for retired in "${RETIRED_OVERLAYS[@]}"; do [[ "$overlay" == "$retired" ]] && continue 2; done
         [[ -f "$overlay" ]] || die "Overlay $overlay (LONORA_COMPOSE_OVERLAYS) is missing."
         files+=(-f "$overlay")
     done
@@ -129,6 +135,21 @@ host_addresses() {
     { ip -o addr show scope global 2>/dev/null | awk '{print $4}' | sed 's#/.*##'; hostname -I 2>/dev/null | tr ' ' '\n'; } |
         grep -E '^[0-9a-fA-F:.]+$' | sort -u | tr '\n' ' '
 }
+# Lonora's own services are started and waited on. Web search, the research browser and the
+# owner's workspace start beside them but are never waited on: their health must not fail an
+# update, a restore or a start, and the gateway (order reconciliation) does not depend on
+# them. A workspace that is down is a tool error for the agents.
+CORE_SERVICES=(db api caddy gateway)
+RESEARCH_SERVICES=(searxng browser)
+WORKSPACE_SERVICES=(workspace-net workspace)
+up_all() {
+    compose up -d --wait --remove-orphans "${CORE_SERVICES[@]}" || return 1
+    compose up -d "${RESEARCH_SERVICES[@]}" >/dev/null 2>&1 ||
+        say 'Web search or the research browser did not start; Lonora runs without them. Check: sudo lonora logs searxng; sudo lonora logs browser'
+    compose up -d "${WORKSPACE_SERVICES[@]}" >/dev/null 2>&1 ||
+        say 'The workspace did not start; Lonora runs without it. Check: sudo lonora logs workspace; sudo lonora logs workspace-net'
+}
+
 current_image() { [[ -f "$STATE/image.env" ]] || return 0; sed -n 's/^LONORA_IMAGE=//p' "$STATE/image.env" | tail -n 1; }
 pin_image() {
     printf 'LONORA_IMAGE=%s\n' "$1" >"$STATE/image.env.part"
@@ -163,9 +184,14 @@ workspace_capacity() {
     memory="$(env_value LONORA_WORKSPACE_MEMORY)"; memory="${memory:-4g}"
     case "$memory" in *[gG]) wanted=$((${memory%[gG]} * 1024)) ;; *[mM]) wanted=${memory%[mM]} ;; *) return 0 ;; esac
     total=$(($(sed -n 's/^MemTotal: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
-    if ((total < 2560 + wanted)); then
-        say "Warning: this host has ${total} MB of memory; Lonora (about 2.3 GB) plus the workspace ($memory) need $((2560 + wanted)) MB. Set a smaller LONORA_WORKSPACE_MEMORY in .env (docs/operations.md, \"The workspace\")."
+    if ((total < 3584 + wanted)); then
+        say "Warning: this host has ${total} MB of memory; Lonora (about 3.4 GB) plus the workspace ($memory) need $((3584 + wanted)) MB. Set a smaller LONORA_WORKSPACE_MEMORY in .env (docs/operations.md, \"The workspace\")."
     fi
+}
+# The workspace disk, prepared before the stack starts. A failure here is reported and the
+# stack starts without the workspace; it never fails a start, an update or a restore.
+prepare_workspace() {
+    ( workspace_disk ) || say 'The workspace disk is not ready (see above); Lonora runs without the workspace. Fix it, then: sudo lonora start'
 }
 workspace_disk() {
     local bytes image="$LONORA_HOME/$WORKSPACE_IMAGE" dir="$LONORA_HOME/$WORKSPACE_DISK" tool current free device
@@ -454,7 +480,7 @@ cmd_restore() {
     revision="$(manifest_field "$work" migration_revision)"; image="$(current_image)"
     [[ -n "$image" ]] || die 'No pinned image (state/image.env).'
     revision_known "$image" "$revision" || die "The backup is at migration $revision, which the installed image does not know. Update to the backup's image first: $(manifest_field "$work" image)"
-    workspace_disk
+    prepare_workspace
     compose up -d --wait db >/dev/null || die 'The database service does not start; nothing was restored.'
     # Read-only from here: no owner write and no Gateway while the safety backup is taken.
     quiesce || die 'Nothing was restored.'
@@ -467,7 +493,7 @@ cmd_restore() {
         rm -f "$STATE/last-backup"
         if ! LONORA_PROTECT_BACKUP="$file" "$SELF" backup; then
             maintenance_off
-            compose up -d --wait >/dev/null 2>&1 || true
+            up_all >/dev/null 2>&1 || true
             die 'The safety backup failed; nothing was restored and the services were started again.'
         fi
         safety="$(readlink -f "$(cat "$STATE/last-backup")")"
@@ -491,7 +517,7 @@ cmd_restore() {
     rm -f "$RESTORE_MARKER"
     # A Gateway never runs while maintenance is on: the owner's stop and exits stay open.
     maintenance_off
-    compose up -d --wait --remove-orphans || die "Services did not start after the restore. Check: sudo lonora logs api; then: sudo lonora start"
+    up_all || die "Services did not start after the restore. Check: sudo lonora logs api; then: sudo lonora start"
     wait_for /ready || die 'Restored, but /ready did not pass. Check: sudo lonora logs api; then: sudo lonora start'
     say "Restored $(basename "$file") (backup at migration $revision, now $(db_revision)); /ready passes."
 }
@@ -618,6 +644,22 @@ install_bundle() {
         if [[ -x "$bundle/$path" ]]; then chmod 755 "$path.new.$$"; else chmod 644 "$path.new.$$"; fi
         mv -f "$path.new.$$" "$path" || return 1
     done < <(cd "$bundle" && find . -type f -print0)
+    retire_overlays
+}
+
+# A retired overlay still listed in .env is dropped from it by the update (nothing else in
+# .env changes); compose() never merges one in the meantime.
+retire_overlays() {
+    local current kept="" overlay retired
+    current="$(env_value LONORA_COMPOSE_OVERLAYS)"
+    for overlay in $current; do
+        for retired in "${RETIRED_OVERLAYS[@]}"; do [[ "$overlay" == "$retired" ]] && continue 2; done
+        kept+="${kept:+ }$overlay"
+    done
+    [[ "$kept" == "$current" ]] && return 0
+    { grep -v '^LONORA_COMPOSE_OVERLAYS=' .env || true; printf 'LONORA_COMPOSE_OVERLAYS=%s\n' "$kept"; } >.env.part || return 1
+    chmod 600 .env.part && mv -f .env.part .env || return 1
+    say 'Web search and the research browser are now part of the stack: their old overlay was removed from LONORA_COMPOSE_OVERLAYS.'
 }
 
 marker_get() { marker_value "$MARKER" "$1"; }
@@ -718,7 +760,7 @@ rollback() { # $1 reason, $2 force (true|false)
     fi
     # A Gateway never runs while maintenance is on: the owner's stop and exits stay open.
     maintenance_off
-    compose up -d --wait --remove-orphans >/dev/null 2>&1 || true
+    up_all >/dev/null 2>&1 || true
     if wait_for /ready; then
         printf '%s\n' "$(date -u +%FT%TZ) rollback to $previous ok ($reason)" >>"$STATE/history.log"
         rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
@@ -761,7 +803,7 @@ gate_pinned() { # $1 held (true|false)
     if ! compose up -d --wait db; then step='database start'
     elif ! compose run --rm migrate; then step='migrations'
     elif ! compose up -d --wait db api caddy || ! wait_for /health; then step='API health'
-    elif ! maintenance_off || ! compose up -d --wait --remove-orphans || ! wait_for /ready; then step='/ready health gate'
+    elif ! maintenance_off || ! up_all || ! wait_for /ready; then step='/ready health gate'
     fi
     if [[ -z "$step" ]]; then
         if "$held"; then rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"; say 'Keeping the current data: the held update is closed.'; fi
@@ -818,7 +860,7 @@ cmd_update() {
     head="$(sed -n 's/.*"migration_head": "\([^"]*\)".*/\1/p' <<<"$release")"
     minimum="$(sed -n 's/.*"min_client_version": "\([^"]*\)".*/\1/p' <<<"$release")"
     [[ -n "$head" ]] || die 'Release manifest names no migration head.'
-    workspace_disk
+    prepare_workspace
     compose up -d --wait db >/dev/null || die 'The database service does not start.'
     local current_rev; current_rev="$(db_revision || true)"
     if [[ -z "$current_rev" ]]; then
@@ -874,7 +916,7 @@ cmd_update() {
     if ! quiesce; then
         if "$FROM_HOLD"; then fail_update 'stopping the services'; fi
         rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
-        compose up -d --wait >/dev/null 2>&1 || true
+        up_all >/dev/null 2>&1 || true
         die 'Nothing was changed.'
     fi
     must_mark phase backup
@@ -883,7 +925,7 @@ cmd_update() {
         if "$FROM_HOLD"; then fail_update 'backup'; fi
         rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$UPDATE_CONTROLS"
         maintenance_off
-        compose up -d --wait >/dev/null 2>&1 || true
+        up_all >/dev/null 2>&1 || true
         die 'Backup failed; nothing was changed. The previous version was started again.'
     fi
     local backup; backup="$(readlink -f "$(cat "$STATE/last-backup" 2>/dev/null)" 2>/dev/null || true)"
@@ -913,7 +955,7 @@ cmd_update() {
     # revoke are accepted; the control fingerprint turns any such write into a held rollback.
     maintenance_off
     say 'Starting the Gateway (writes open again) and waiting for /ready.'
-    compose up -d --wait --remove-orphans || fail_update 'Gateway start'
+    up_all || fail_update 'Gateway start'
     wait_for /ready || fail_update '/ready health gate'
     rm -f "$MARKER" "$ROLLBACK_BUNDLE" "$HELD_MARKER" "$HELD_BUNDLE" "$UPDATE_CONTROLS" "$HELD_CONTROLS"
     printf '%s\n' "$(date -u +%FT%TZ) update to $pinned ok" >>"$STATE/history.log"
@@ -925,11 +967,11 @@ cmd_start() {
     require_tools
     [[ ! -f "$MARKER" && ! -f "$HELD_MARKER" ]] || die 'An update is unfinished or held. Run: sudo lonora rollback (or sudo lonora update VERSION)'
     [[ ! -f "$RESTORE_MARKER" ]] || die "A restore stopped part-way. Finish it first: sudo lonora restore $(marker_value "$RESTORE_MARKER" file) --replace"
-    workspace_disk
+    prepare_workspace
     compose up -d --wait db
     compose run --rm migrate
     maintenance_off
-    compose up -d --wait --remove-orphans
+    up_all
     wait_for /ready || die "Services started but /ready did not pass within ${READY_TIMEOUT}s. Check: sudo lonora logs api"
     say "Lonora is running; /ready passes (migration $(db_revision))."
 }
