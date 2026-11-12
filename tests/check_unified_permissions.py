@@ -114,6 +114,7 @@ async def main() -> None:
                     "symbol": symbol,
                     "action": action,
                     "tolerance": "5",
+                    "reason": "Fixture entry",
                     **params,
                 },
             )

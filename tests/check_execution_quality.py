@@ -220,6 +220,7 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "tolerance": "0.05",
+                "reason": "Fixture entry",
             },
         )
         pending = await registry.execute(intent, context)

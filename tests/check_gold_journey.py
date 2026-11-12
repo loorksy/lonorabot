@@ -222,6 +222,7 @@ async def main() -> None:
             "action": "buy",
             "volume": "0.01",
             "tolerance": "50",
+            "reason": "Fixture entry",
         }
         buying = await fixture.request(
             "POST",

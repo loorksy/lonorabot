@@ -122,6 +122,7 @@ async def main() -> None:
                     "account_id": account,
                     "symbol": symbol,
                     "tolerance": "5",
+                    "reason": "Fixture entry",
                     **params,
                 },
             )

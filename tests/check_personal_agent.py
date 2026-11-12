@@ -121,6 +121,7 @@ async def checks() -> None:
             "action": "buy",
             "volume": "0.1",
             "tolerance": "5",
+            "reason": "Fixture entry",
         }
         # New trading has not been started: the entry is not sent and no approval is asked
         # (the owner is never asked to approve what Stop new trading would refuse); the

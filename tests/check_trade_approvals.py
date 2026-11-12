@@ -115,6 +115,7 @@ async def main():
                     "symbol": symbol,
                     "action": action,
                     "tolerance": "5",
+                    "reason": "Fixture entry",
                     **params,
                 },
             )
@@ -194,6 +195,7 @@ async def main():
                 "action": "buy",
                 "volume": "0.2",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         wait = await registry.execute(rejected, context)
@@ -272,6 +274,7 @@ async def main():
                                     "action": "buy",
                                     "volume": "0.2",
                                     "tolerance": "5",
+                                    "reason": "Fixture entry",
                                 },
                             )
                         ],
@@ -340,6 +343,7 @@ async def main():
                 "action": "sell",
                 "volume": "0.3",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(lost_call, financial_context)
@@ -439,6 +443,7 @@ async def main():
                 "action": "buy",
                 "volume": "0.6",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(steering_call, steering_context)
@@ -476,6 +481,7 @@ async def main():
                 "action": "buy",
                 "volume": "0.15",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         # The executor refuses a wrong size on its own, without the tool's early check.
@@ -512,6 +518,7 @@ async def main():
                 "action": "buy",
                 "volume": "0.15",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         isolated = await fixture.lease(await fixture.run(agent, thread))
@@ -539,6 +546,7 @@ async def main():
                     "symbol": symbol,
                     "action": "buy",
                     "tolerance": "5",
+                    "reason": "Fixture entry",
                     **args,
                 },
             )
@@ -571,6 +579,7 @@ async def main():
                             "action": "buy",
                             "volume": volume,
                             "tolerance": "5",
+                            "reason": "Fixture entry",
                         },
                     ),
                     isolated,
@@ -627,6 +636,7 @@ async def main():
                 "action": "buy",
                 "volume": "0.2",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(crash_call, isolated)

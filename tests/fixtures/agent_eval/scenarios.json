@@ -1658,7 +1658,8 @@
        "account_id": "$account",
        "symbol": "$XAUUSD",
        "volume": "0.01",
-       "tolerance": "1"
+       "tolerance": "1",
+       "reason": "Probe entry"
       }
      }
     ],

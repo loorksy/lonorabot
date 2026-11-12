@@ -166,6 +166,7 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.01",
                 "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(command, context)

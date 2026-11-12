@@ -121,6 +121,7 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
             "symbol": "XAUUSD",
             "volume": "0.1",
             "tolerance": "2",
+            "reason": "Fixture entry",
         }
         asked = await same_call(context, entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
@@ -244,6 +245,7 @@ async def test_a_switch_to_full_while_a_card_is_prepared_decides_under_full(
             "symbol": "XAUUSD",
             "volume": "0.1",
             "tolerance": "2",
+            "reason": "Fixture entry",
         }
         result = await call(context, "trade_execute", **entry)
         assert result.get("status") == "confirmed" and "approval_id" not in result, result

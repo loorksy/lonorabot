@@ -360,6 +360,7 @@ async def main() -> None:
             "volume": "0.1",
             "stop_loss": "90",
             "tolerance": "5",
+            "reason": "Fixture entry",
         }
         outside = await call(gold_context, "trade_execute", **euro_args)
         assert outside.get("_runtime_wait") and outside.get("approval_id"), outside

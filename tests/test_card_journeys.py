@@ -59,6 +59,7 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
             "volume": "0.1",
             "stop_loss": "95",
             "tolerance": "2",
+            "reason": "Fixture entry",
         }
         tool_call = ToolCall(id="buy-" + uuid4().hex, name="trade_execute", arguments=entry)
         registry = load_tools()

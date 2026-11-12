@@ -546,10 +546,12 @@ async def approved_execution(
     validity: dict[str, Any] = {}
     if previous is None and not gate_only and adding:
         # Every card for new risk carries a tolerance; its reference is read now (10.3.1).
-        if annotation is None or annotation.tolerance is None:
+        annotation = annotation or TradeAnnotation()
+        if annotation.tolerance is None or not annotation.reason.strip():
             async with context.db.sessions() as reader:
                 # A brake in force answers first: no card could be raised anyway.
                 await refuse_braked_entries(reader, context, adding)
+        if annotation.tolerance is None:
             raise ToolRefusal(
                 "tolerance_required",
                 details={
