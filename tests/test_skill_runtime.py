@@ -269,7 +269,9 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     from lonora_adapter_kit.types import ModelMessage
     from lonora_agent.context import skills
 
-    agent = SimpleNamespace(id="agent", instructions="Owner style", trading_account_id=None)
+    agent = SimpleNamespace(
+        id="agent", instructions="Owner style", trading_account_id=None, role="general"
+    )
     thread = SimpleNamespace(
         id="thread",
         agent_id=agent.id,

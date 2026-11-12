@@ -9,11 +9,11 @@ settings page or the API. W15-3 adds the grant card (`grant_authority`, below), 
 the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
 supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 `supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
-W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
-`docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
-when some tool may change something, and a credential card for an MCP server says
-whether the trust card follows (or why not, waking the agent that asked). An agent's
-model has no card: only the owner assigns it (`docs/provider-resilience.md`).
+W15-8 adds the secure credential card (`connect_credential`, `docs/trusted-sources.md`).
+Trusting a source has no card (VISION 10.3.2): an agent adds a feed's domain, a GitHub
+repository or owner, or an MCP server only when the owner's typed message names it, and
+migration `0132_trust_from_owner_words` retired the `trust_source` cards. An agent's
+model has no card either: only the owner assigns it (`docs/provider-resilience.md`).
 
 The Secret card (`secret`, VISION.md 7.2 and 10.3) asks for any other credential. The
 agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
@@ -33,7 +33,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential` or `secret` |
+| `kind` | `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `connect_credential` or `secret` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |

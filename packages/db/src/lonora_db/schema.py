@@ -512,6 +512,27 @@ class OwnerProfileRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OwnerSignalRow(Base):
+    """What the owner did, recorded by the server as it happened (8.1): append-only.
+
+    Plain ids, no foreign keys to threads or agents: a signal outlives what it names.
+    The owner model reads these; nothing here grants tools, permissions or authority.
+    """
+
+    __tablename__ = "ln_owner_signals"
+    __table_args__ = (
+        CheckConstraint("kind IN ('thread_read','external_close')", name="ln_owner_signals_kind"),
+        Index("ix_ln_owner_signals_owner_time", "owner_id", "observed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(24))
+    thread_id: Mapped[str | None] = mapped_column(String(36))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class MemoryRevisionRow(Base):
     """One commit's prior and resulting text and its author; revert restores the prior text."""
 
@@ -721,6 +742,73 @@ class WorkspaceOperationRow(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceRunningRow(Base):
+    """What is running in the owner's workspace (7.1.5): the supervisor's last listing of
+    every agent process, as the scan left it, written by the Gateway."""
+
+    __tablename__ = "ln_workspace_running"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    processes: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    listed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceStopRow(Base):
+    """The owner's tap on "stop" (one process) or "stop all" in What is running (7.1.5),
+    carried out by the Gateway, the only service that reaches the workspace."""
+
+    __tablename__ = "ln_workspace_stops"
+    __table_args__ = (
+        CheckConstraint("(pid IS NULL) = (agent_id IS NULL)", name="ln_workspace_stop_target"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # Both empty: stop every process of the owner's agents.
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), nullable=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+class WorkspaceProcessRow(Base):
+    """A background process an agent started in the owner's workspace (7.1.2), until the
+    agent has been told it ended. The command is stored as the scan left it."""
+
+    __tablename__ = "ln_workspace_processes"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('exited','stopped','restarted','lost')",
+            name="ln_workspace_process_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    boot_id: Mapped[str] = mapped_column(String(36))
+    pid: Mapped[int] = mapped_column(Integer)
+    command: Mapped[str] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    # The run whose context first carried the notice: it shows for that whole run.
+    reported_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class WorkspaceGivenRow(Base):
@@ -1274,7 +1362,7 @@ class TrustedSourceRow(Base):
             "effect_tier IN ('read','write_nonfinancial')", name="ln_trusted_source_tier"
         ),
         CheckConstraint(
-            "added_via IN ('default','operator','owner_ui','owner_card')",
+            "added_via IN ('default','operator','owner_ui','owner_card','owner_message')",
             name="ln_trusted_source_added_via",
         ),
         CheckConstraint(

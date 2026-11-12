@@ -53,6 +53,7 @@ import { AccessibilityPage, PrivacyPage, StoragePage } from "./settings/DevicePa
 import { IntegrationsPage } from "./settings/IntegrationsPage";
 import { CommunicationPage, NotifyPage } from "./settings/NotifyPages";
 import { OwnerPage } from "./settings/OwnerPage";
+import { RunningPage } from "./settings/RunningPage";
 import { SettingsRoot } from "./settings/SettingsRoot";
 import { UsageDetailPage, UsagePage } from "./settings/UsagePage";
 
@@ -139,6 +140,8 @@ export function pageTitle(page: Page): string {
       return t({ message: "Create group", context: "page title" });
     case "owner":
       return t({ message: "Profile", context: "owner" });
+    case "running":
+      return t`What is running`;
     case "accessibility":
       return t`Accessibility`;
     case "chat-prefs":
@@ -322,6 +325,7 @@ export function DetailPages({
           )}
         />
         <Route path="/app/owner" element={<OwnerPage />} />
+        <Route path="/app/running" element={<RunningPage />} />
         <Route path="/app/accessibility" element={<AccessibilityPage />} />
         <Route path="/app/chat-prefs" element={<ChatPrefsPage />} />
         <Route path="/app/notify-settings" element={<NotifyPage />} />

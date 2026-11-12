@@ -501,7 +501,7 @@ export function NewSchedulePage() {
         <Field label={t`Date`} name="date" type="date" />
         <Field label={t`Time`} name="time" type="time" defaultValue="09:00" />
         {canWatch && <Field label={t`Condition — for the conditional alert`} name="condition" />}
-        {/* Lonora is the owner's only channel (Q53); the channel is owner-wide (Q39). */}
+        {/* A schedule's alert stays in the app: push and Telegram carry only the 11.4 alerts. */}
         <SelectField label={t`Alert channel`} name="channel" options={[["app", t`In the app`]]} />
       </FormPage>
     </div>
