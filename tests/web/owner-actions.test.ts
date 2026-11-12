@@ -994,3 +994,25 @@ test("M5: a settled stop_tightened notice reads as applied, only an Undo reads a
   assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
   assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
 });
+
+test("the Mandate card says a signed grant still applies within its own terms", () => {
+  const mandate: OwnerAction = {
+    ...base,
+    kind: "trading_mode",
+    facts: {
+      several_accounts: false,
+      trading_mode: "ask",
+      agent: { exists: true, id: "agent", name: "Gold" },
+    },
+  } as OwnerAction;
+  const plain = ownerActionCard(mandate, "ar", now);
+  assert.ok(!plain.lines.includes(ownerActionLabels.ar.mandateGrantStays));
+  for (const locale of ["ar", "en"] as const) {
+    const granted = ownerActionCard(
+      { ...mandate, facts: { ...mandate.facts, active_grant: true } } as OwnerAction,
+      locale,
+      now,
+    );
+    assert.ok(granted.lines.includes(ownerActionLabels[locale].mandateGrantStays));
+  }
+});

@@ -14,6 +14,60 @@ from lonora_db.schema import TradingAccountRow
 from sqlalchemy import select
 
 
+def trade_deal(
+    data: dict[str, Any],
+    request: TradeRequest,
+    broker_id: str | None,
+    closing: dict[str, Any] | None,
+    price: Decimal | None,
+    volume: Decimal | None,
+) -> dict[str, Any]:
+    """The broker deal fields of a market entry or a close, in MetaApi's names.
+
+    Profit is reported only from the quote's own per-lot tick values and the
+    instrument's tick size; without them it is left out, never estimated.
+    """
+    if broker_id is None or price is None or volume is None:
+        return {}
+    if request.action in {"buy", "sell"}:
+        return {
+            "id": new_id(),
+            "positionId": broker_id,
+            "orderId": broker_id,
+            "type": "DEAL_TYPE_" + request.action.upper(),
+            "entryType": "DEAL_ENTRY_IN",
+            "volume": str(volume),
+            "price": str(price),
+            "profit": "0",
+        }
+    if closing is None:
+        return {}
+    side = str(closing["side"])
+    deal: dict[str, Any] = {
+        "id": new_id(),
+        "positionId": broker_id,
+        "orderId": new_id(),
+        "type": "DEAL_TYPE_SELL" if side == "buy" else "DEAL_TYPE_BUY",
+        "entryType": "DEAL_ENTRY_OUT",
+        "volume": str(volume),
+        "price": str(price),
+    }
+    quotes: dict[str, dict[str, Any]] = data.get("quotes", {})
+    instruments: list[dict[str, Any]] = data.get("instruments", [])
+    quote: dict[str, Any] = quotes.get(request.symbol) or {}
+    instrument: dict[str, Any] = next(
+        (item for item in instruments if item.get("symbol") == request.symbol), dict[str, Any]()
+    )
+    move = price - Decimal(str(closing["open_price"]))
+    if side != "buy":
+        move = -move
+    tick_value: Any = quote.get("profit_tick_value" if move >= 0 else "loss_tick_value")
+    if tick_value is not None and instrument.get("tick_size"):
+        ticks = move / Decimal(str(instrument["tick_size"]))
+        deal["profit"] = str((ticks * Decimal(str(tick_value)) * volume).quantize(Decimal("0.01")))
+    return deal
+
+
 class SimulationBroker:
     """Persistent demo execution using explicitly supplied market snapshots."""
 
@@ -150,6 +204,7 @@ class SimulationBroker:
             positions = list(data.get("positions", []))
             orders = list(data.get("orders", []))
             broker_id: str | None = None
+            closing: dict[str, Any] | None = None
             executed_price: Decimal | None = None
             executed_volume = request.volume
             if request.action in {"buy", "sell"}:
@@ -198,6 +253,7 @@ class SimulationBroker:
                     raise LonoraError("position_not_found", 404)
                 broker_id = str(target["id"])
                 if request.action == "close_position":
+                    closing = target
                     executed_volume = request.volume or Decimal(str(target["volume"]))
                     quote = data.get("quotes", {}).get(request.symbol)
                     if quote is not None:
@@ -277,6 +333,7 @@ class SimulationBroker:
                 },
             )
             operations[request.operation_id] = result.model_dump(mode="json")
+            deal = trade_deal(data, request, broker_id, closing, executed_price, executed_volume)
             row.payload = {
                 **data,
                 "positions": positions,
@@ -292,6 +349,7 @@ class SimulationBroker:
                         "action": request.action,
                         "simulation": True,
                         **result.details,
+                        **deal,
                     },
                 ][-1000:],
             }

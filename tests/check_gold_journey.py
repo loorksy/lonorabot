@@ -217,7 +217,13 @@ async def main() -> None:
             f"/trading/connections/{two_contracts}/simulation",
             snapshot([*SUFFIXED, contract("XAUUSDc", "XAU", "Gold cent", "1")], "472790407"),
         )
-        order = {"account_id": connection_id, "action": "buy", "volume": "0.01"}
+        order = {
+            "account_id": connection_id,
+            "action": "buy",
+            "volume": "0.01",
+            "tolerance": "50",
+            "reason": "Fixture entry",
+        }
         buying = await fixture.request(
             "POST",
             "/runs",
