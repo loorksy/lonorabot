@@ -221,15 +221,15 @@ async def test_only_a_reporting_wakes_continuation_inherits_its_origin():
             work = await create_thread(
                 session, fixture.owner, ThreadCreate(agent_id=agent["id"]), purpose="work"
             )
-            # An activation review is told its result is not shown: its follow-up must not
-            # gain a path to the conversation.
+            # A Task Run is not a reporting wake: its follow-up must not gain a path to the
+            # conversation.
             parent = await create_run(
                 session,
                 fixture.owner,
                 RunRequest(
                     thread_id=work.id,
                     agent_id=agent["id"],
-                    trigger="activation",
+                    trigger="tickets",
                     prompt="Review",
                     metadata={"origin_thread_id": conversation["id"]},
                 ),

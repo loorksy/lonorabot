@@ -12,7 +12,7 @@ A Run's tool scope comes from the Run row (`run_scope` in `lonora_tools/base.py`
 | Scope | Runs | Tools |
 | --- | --- | --- |
 | `full` | conversations, watches, routines, Tasks, a broker wake on the Agent's own positions, an opportunity wake | every registered tool |
-| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent), the activation review; Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, workspace, skills, narrowing restrictions |
+| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent); Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, workspace, skills, narrowing restrictions |
 | `helper` | temporary subagents (`trigger="subagent"`) | read-only tools plus `workspace_execute` and `artifact_create`; never memory writes, peer messages, new agents or financial tools |
 
 The registry applies one rule (`Tool.permitted(scope)`) to exposure, the capability
@@ -73,10 +73,7 @@ work, so its wake also carries normal authority.
 
 A wake's records belong to its Agent's conversation (`report_thread` in
 `lonora_db/threads.py`): approval cards, watches it sets up (Task watches stay with
-their Task) and owner alerts. Whatever its authority, a work-lane Run (a broker or
-opportunity wake, the activation review, a Task) also reads the conversation it came
-from (`origin_read_threads` in `lonora_db/threads.py`: the same Agent's conversation, or
-a group it belongs to).
+their Task) and owner alerts.
 
 ## No duplicate effects from repeated wakes
 

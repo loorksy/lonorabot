@@ -120,9 +120,6 @@ export function AgentLiveStatus({
           {(state.pending_authorization_count ?? 0) > 0 && (
             <Text style={{ color: colors.foreground }}>{t("devicePending")}</Text>
           )}
-          {(state.account_authorities ?? []).some((grant) => grant.review_status === "failed") && (
-            <Text style={{ color: colors.foreground }}>{t("grantReviewFailed")}</Text>
-          )}
           {state.tasks.map((task) => (
             <View key={task.id}>
               <Text style={{ color: colors.foreground }}>{task.title}</Text>

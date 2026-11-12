@@ -116,10 +116,6 @@ export const labels = {
   visualFalse: ["لا", "No"],
 
   tradesOnItsOwn: ["يتداول بنفسه", "Trades on its own"],
-  grantReviewFailed: [
-    "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا.",
-    "The readiness check after you signed did not finish; that check sent nothing.",
-  ],
   skills: ["المهارات", "Skills"],
   skillsAdd: ["إضافة مهارة", "Add a skill"],
   skillsCreate: ["إنشاء المهارة", "Create skill"],

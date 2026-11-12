@@ -1232,7 +1232,7 @@ msgstr "تحتوي شموع الوسيط على بيانات غير صالحة �
 #~ msgid "Broker connection recovered"
 #~ msgstr "تمت استعادة اتصال الوسيط"
 
-#: src/components/ai/AgentLiveStatus.tsx:141
+#: src/components/ai/AgentLiveStatus.tsx:134
 msgid "Broker connection requires attention"
 msgstr "اتصال الوسيط يحتاج إلى مراجعة"
 
@@ -1274,7 +1274,7 @@ msgstr "رقم العملية لدى الوسيط"
 #~ msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
 #~ msgstr "التحقق من عمليات الوسيط معلّق. قد تبقى بيانات السوق متاحة؛ التداول محظور حتى اكتمال التحقق."
 
-#: src/components/ai/AgentLiveStatus.tsx:136
+#: src/components/ai/AgentLiveStatus.tsx:129
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "التحقق من عملية لدى الوسيط معلّق. تبقى بيانات السوق متاحة؛ الأوامر الجديدة على السوق المتأثر محظورة حتى اكتمال التحقق، ويبقى الإغلاق متاحًا."
 
@@ -1377,7 +1377,7 @@ msgstr "كاميرا"
 msgid "Camera not allowed"
 msgstr "الكاميرا غير مسموحة"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/ai/AvatarStudio.tsx:225
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
@@ -3982,7 +3982,7 @@ msgstr "شراء بسعر السوق"
 msgid "Market chart"
 msgstr "شارت السوق"
 
-#: src/components/ai/AgentLiveStatus.tsx:144
+#: src/components/ai/AgentLiveStatus.tsx:137
 msgid "Market data unavailable"
 msgstr "بيانات السوق غير متاحة"
 
@@ -5093,7 +5093,7 @@ msgstr "كلمة المرور · 12 حرفًا على الأقل"
 msgid "Paste the value here"
 msgstr "الصق القيمة هنا"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:429
 #: src/conversation/sheets/WatchesSheet.tsx:71
@@ -5884,7 +5884,7 @@ msgstr "رُفع قيد"
 msgid "Restriction set"
 msgstr "فُرض قيد"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:431
 #: src/conversation/sheets/AgentSheet.tsx:464
@@ -5918,7 +5918,7 @@ msgid "Retry in {left} s"
 msgstr "إعادة المحاولة بعد {left} ث"
 
 #: src/components/ai/AgentLiveStatus.tsx:36
-#: src/components/ai/AgentLiveStatus.tsx:95
+#: src/components/ai/AgentLiveStatus.tsx:88
 #: src/conversation/sheets/AgentSheet.tsx:396
 msgid "Retry scheduled"
 msgstr "إعادة المحاولة مجدولة"
@@ -6975,7 +6975,7 @@ msgstr "تفاصيل المهمة"
 msgid "Task is retrying through a model outage"
 msgstr "المهمة تعيد المحاولة أثناء تعطل النموذج"
 
-#: src/components/ai/AgentLiveStatus.tsx:104
+#: src/components/ai/AgentLiveStatus.tsx:97
 #: src/components/ai/AttentionInbox.tsx:29
 #: src/conversation/sheets/AgentSheet.tsx:400
 msgid "Task needs review"
@@ -7379,8 +7379,8 @@ msgid "The provider rejected this API key."
 msgstr "رفض المزود مفتاح API هذا."
 
 #: src/components/ai/AgentLiveStatus.tsx:85
-msgid "The readiness check after you signed did not finish; that check sent nothing."
-msgstr "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا."
+#~ msgid "The readiness check after you signed did not finish; that check sent nothing."
+#~ msgstr "لم يكتمل فحص الجاهزية بعد توقيعك؛ ذلك الفحص لم يرسل شيئًا."
 
 #: src/conversation/Cards.tsx:82
 msgid "The reply did not arrive in time; the connection may be weak."
@@ -8318,7 +8318,7 @@ msgstr "بانتظار تفويض الجهاز"
 msgid "Waiting for handover"
 msgstr "بانتظار التسليم"
 
-#: src/components/ai/AgentLiveStatus.tsx:100
+#: src/components/ai/AgentLiveStatus.tsx:93
 #: src/conversation/sheets/AgentSheet.tsx:398
 msgid "Waiting for reconciliation"
 msgstr "بانتظار التحقق من النتيجة"

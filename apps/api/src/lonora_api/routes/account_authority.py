@@ -8,7 +8,6 @@ from lonora_contracts.devices import DeviceProof
 from lonora_contracts.owner_actions import AccountAuthorityDraft, GrantDraft
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_summary, propose, revoke
-from lonora_db.activation_acknowledgment import acknowledge_grant
 from lonora_db.agent_binding import require_financial_agent
 from lonora_db.owner_actions import draft_grant_card, full_delegation_available, owner_action_data
 from lonora_db.schema import AccountAuthorityRow
@@ -134,9 +133,6 @@ async def verify(
         row = await finish_activation(
             session, owner, body, rt.settings.allowed_origin, native_origins(rt.settings)
         )
-        # Signed from the trading-level controls: one line in the conversation says so.
-        # A grant signed from its chat card is confirmed by the card instead.
-        await acknowledge_grant(session, row)
         return await authority_summary(session, row)
 
 

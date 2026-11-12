@@ -1232,7 +1232,7 @@ msgstr "Broker candles contain invalid or mismatched data."
 #~ msgid "Broker connection recovered"
 #~ msgstr "Broker connection recovered"
 
-#: src/components/ai/AgentLiveStatus.tsx:141
+#: src/components/ai/AgentLiveStatus.tsx:134
 msgid "Broker connection requires attention"
 msgstr "Broker connection requires attention"
 
@@ -1274,7 +1274,7 @@ msgstr "Broker ticket"
 #~ msgid "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
 #~ msgstr "Broker verification pending. Market data may remain available; trading is blocked until verification finishes."
 
-#: src/components/ai/AgentLiveStatus.tsx:136
+#: src/components/ai/AgentLiveStatus.tsx:129
 msgid "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 msgstr "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available."
 
@@ -1377,7 +1377,7 @@ msgstr "Camera"
 msgid "Camera not allowed"
 msgstr "Camera not allowed"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/ai/AvatarStudio.tsx:225
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
@@ -3988,7 +3988,7 @@ msgstr "Market buy"
 msgid "Market chart"
 msgstr "Market chart"
 
-#: src/components/ai/AgentLiveStatus.tsx:144
+#: src/components/ai/AgentLiveStatus.tsx:137
 msgid "Market data unavailable"
 msgstr "Market data unavailable"
 
@@ -5099,7 +5099,7 @@ msgstr "Password · at least 12 characters"
 msgid "Paste the value here"
 msgstr "Paste the value here"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:429
 #: src/conversation/sheets/WatchesSheet.tsx:71
@@ -5890,7 +5890,7 @@ msgstr "Restriction lifted"
 msgid "Restriction set"
 msgstr "Restriction set"
 
-#: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AgentLiveStatus.tsx:120
 #: src/components/market/MarketWatch.tsx:323
 #: src/conversation/sheets/AgentSheet.tsx:431
 #: src/conversation/sheets/AgentSheet.tsx:464
@@ -5924,7 +5924,7 @@ msgid "Retry in {left} s"
 msgstr "Retry in {left} s"
 
 #: src/components/ai/AgentLiveStatus.tsx:36
-#: src/components/ai/AgentLiveStatus.tsx:95
+#: src/components/ai/AgentLiveStatus.tsx:88
 #: src/conversation/sheets/AgentSheet.tsx:396
 msgid "Retry scheduled"
 msgstr "Retry scheduled"
@@ -6981,7 +6981,7 @@ msgstr "Task details"
 msgid "Task is retrying through a model outage"
 msgstr "Task is retrying through a model outage"
 
-#: src/components/ai/AgentLiveStatus.tsx:104
+#: src/components/ai/AgentLiveStatus.tsx:97
 #: src/components/ai/AttentionInbox.tsx:29
 #: src/conversation/sheets/AgentSheet.tsx:400
 msgid "Task needs review"
@@ -7385,8 +7385,8 @@ msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
 #: src/components/ai/AgentLiveStatus.tsx:85
-msgid "The readiness check after you signed did not finish; that check sent nothing."
-msgstr "The readiness check after you signed did not finish; that check sent nothing."
+#~ msgid "The readiness check after you signed did not finish; that check sent nothing."
+#~ msgstr "The readiness check after you signed did not finish; that check sent nothing."
 
 #: src/conversation/Cards.tsx:82
 msgid "The reply did not arrive in time; the connection may be weak."
@@ -8324,7 +8324,7 @@ msgstr "Waiting for device authorization"
 msgid "Waiting for handover"
 msgstr "Waiting for handover"
 
-#: src/components/ai/AgentLiveStatus.tsx:100
+#: src/components/ai/AgentLiveStatus.tsx:93
 #: src/conversation/sheets/AgentSheet.tsx:398
 msgid "Waiting for reconciliation"
 msgstr "Waiting for reconciliation"

@@ -18,7 +18,7 @@ from lonora_db.workspace_wakes import WAKE_KEY
 
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
 SERVER_AUTHORED_TRIGGERS = frozenset(
-    {"broker_event", "follow_up", "activation", "agent_created", "owner_card", WORKSPACE_WAKE}
+    {"broker_event", "follow_up", "agent_created", "owner_card", WORKSPACE_WAKE}
 )
 
 # A peer run's wake is fixed server text; the peer's own words stay in the transcript.
