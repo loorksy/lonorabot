@@ -106,7 +106,14 @@ async def main() -> None:
             return ToolCall(
                 id=uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, "symbol": symbol, "action": action, **params},
+                arguments={
+                    "account_id": account,
+                    "symbol": symbol,
+                    "action": action,
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
+                    **params,
+                },
             )
 
         async def execute(intent: ToolCall) -> dict[str, Any]:

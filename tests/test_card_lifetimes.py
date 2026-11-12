@@ -37,11 +37,7 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.trade_approvals import (
-    APPROVAL_LIFETIME,
-    MAXIMUM_APPROVAL_LIFETIME,
-    MINIMUM_APPROVAL_LIFETIME,
     approval_data,
-    approval_expiry,
     decide,
     expire_if_due,
 )
@@ -216,14 +212,6 @@ async def answer(
         return await owner_action_data(session, row)
 
 
-def test_an_approval_lives_between_thirty_and_sixty_minutes() -> None:
-    assert MINIMUM_APPROVAL_LIFETIME == timedelta(minutes=30)
-    assert MAXIMUM_APPROVAL_LIFETIME == timedelta(minutes=60)
-    assert APPROVAL_LIFETIME == timedelta(minutes=45)
-    now = utcnow()
-    assert approval_expiry(now) == now + APPROVAL_LIFETIME
-
-
 async def waiting_approval(
     session: AsyncSession, owner: str, agent: str, thread: str, identifier: str
 ) -> tuple[TradeApprovalRow, RunRow]:
@@ -247,7 +235,8 @@ async def waiting_approval(
         status="pending",
         results=[],
         created_at=created,
-        expires_at=approval_expiry(created),
+        # A card stored before the fixed lifetime was removed keeps its stored expiry.
+        expires_at=created + timedelta(minutes=45),
     )
     session.add(row)
     await session.flush()

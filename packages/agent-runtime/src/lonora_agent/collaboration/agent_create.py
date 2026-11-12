@@ -236,6 +236,10 @@ async def delete_created_agent(
     """The owner's delete (``lonora_db.agent_creation.delete_agent``), with the notes and
     links its creation left in other agents removed first."""
     await authority_lock(session, agent_id)
+    from lonora_db.management_task import end_management_task
+
+    # Its Full-mode task ends before the agent's row lock (the task's Runs first).
+    await end_management_task(session, owner_id, agent_id)
     await owned_agent(session, owner_id, agent_id, lock=True)
     await forget_links(session, owner_id, agent_id)
     await delete_agent(session, owner_id, agent_id, keep_card=keep_card)

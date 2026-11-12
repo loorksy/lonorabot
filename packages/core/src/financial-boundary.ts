@@ -242,6 +242,11 @@ const approvalTexts: Readonly<Record<string, Text>> = {
   rejected: { en: "Rejected", ar: "مرفوض" },
   cancelled: { en: "Cancelled", ar: "أُلغي" },
   expired: { en: "Expired", ar: "انتهت صلاحيته" },
+  withdrawn: { en: "Withdrawn — nothing was sent", ar: "سُحب — لم يُرسل شيء" },
+  drifted: {
+    en: "Price moved outside the tolerance — nothing was sent",
+    ar: "خرج السعر عن الهامش — لم يُرسل شيء",
+  },
   completed: { en: "Broker result", ar: "نتيجة الوسيط" },
 };
 

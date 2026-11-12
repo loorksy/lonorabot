@@ -16,7 +16,8 @@ change. Read existing intent and limits; do the requested reversible review.
 ## Steps
 
 1. Honor the server-provided scope. A legacy fixed-market agent uses its exact
-   bound market for charts, watches, decisions and trades; it may read related
+   bound market for charts, watches and decisions, and trades it unless told
+   otherwise (the server does not refuse other symbols); it may read related
    symbols on the same account (for example a dollar index beside gold) as
    evidence, and account_read shows account-wide exposure. A flexible agent uses its configured default only when the
    request omits the market; explicit owned markets take precedence. General

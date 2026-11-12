@@ -111,6 +111,17 @@ async def list_agents(session: AsyncSession, owner_id: str) -> list[AgentRow]:
 async def update_agent(
     session: AsyncSession, owner_id: str, agent_id: str, request: AgentUpdate
 ) -> AgentRow:
+    if request.paused is not None:
+        from .authority_lock import authority_lock
+
+        # Taken before the row lock, in the order a mode change takes them.
+        await authority_lock(session, agent_id)
+        if request.paused:
+            from .management_task import end_management_task
+
+            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
+            # task's Runs are locked first, as their own work does.
+            await end_management_task(session, owner_id, agent_id)
     row = await owned_agent(session, owner_id, agent_id, lock=True)
     was_paused = row.paused
     if "scope_mode" in request.model_fields_set:
@@ -133,7 +144,7 @@ async def update_agent(
     ).items():
         setattr(row, key, value)
     if request.paused is not None and request.paused != was_paused:
-        from .supervision import owner_takes_over
+        from .pauses import owner_takes_over
 
         # The owner's own pause or resume wins over a supervisor's hold on this agent.
         # The settings form sends the switch with every save, so only a change counts:
@@ -141,4 +152,10 @@ async def update_agent(
         await owner_takes_over(
             session, owner_id, "agent", agent_id, paused=request.paused, agent_id=agent_id
         )
+        if not request.paused:
+            from .management_task import ensure_management_task
+
+            # Resuming a Full agent starts its continuous task again (4.5.1).
+            await session.flush()
+            await ensure_management_task(session, owner_id, agent_id)
     return row
