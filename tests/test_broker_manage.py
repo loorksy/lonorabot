@@ -317,3 +317,35 @@ async def test_disconnect_settles_first_and_removes_at_metaapi_only_after() -> N
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_deploy_restarts_an_undeployed_account_on_the_owners_word() -> None:
+    """9.4 and Q13: Lonora proposes the fix, and deploys after the owner's reply."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    world = open_world(fixture, account)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Deploy")
+        with installed():
+            connection_id = await connected(world, agent, account)
+            metaapi_id = (await row(fixture, connection_id)).payload["account_id"]
+            world.api.accounts[metaapi_id]["state"] = "UNDEPLOYED"  # stopped at MetaApi
+            routine = await wake(fixture, agent, await fixture.conversation(agent))
+            code = await refused(
+                routine, "broker_manage", account_id=connection_id, action="deploy"
+            )
+            assert code == "broker_manage_needs_owner_message"
+            assert "deploy" not in world.api.calls
+            context = await asked(fixture, agent, "yes, start it again")
+            done = await call(context, "broker_manage", account_id=connection_id, action="deploy")
+        assert done["state"] in {"DEPLOYING", "DEPLOYED"} and "recovers by itself" in done["note"]
+        assert world.api.accounts[metaapi_id]["state"] == "DEPLOYED"
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()

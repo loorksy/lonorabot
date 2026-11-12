@@ -145,3 +145,23 @@ async def test_history_does_not_acquire_a_terminal_connection_or_require_deploym
     value.get_rpc_connection.assert_not_called()
     value.get_streaming_connection.assert_not_called()
     value.deploy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["rpc", "streaming"])
+async def test_a_terminal_the_broker_refuses_is_named_at_once_and_never_redeployed(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    """Mandate 9.4: a wrong password (MetaApi's DISCONNECTED_FROM_BROKER) is told apart
+    from a lost link, without opening a connection and without a deploy."""
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account("DEPLOYED")
+    value.connection_status = "DISCONNECTED_FROM_BROKER"
+    adapter = broker(value)
+    with pytest.raises(LonoraError) as caught:
+        await (adapter.prepare() if kind == "rpc" else adapter.prepare_stream())
+    assert caught.value.code == "broker_login_rejected" and caught.value.status == 409
+    value.get_rpc_connection.assert_not_called()
+    value.get_streaming_connection.assert_not_called()
+    value.deploy.assert_not_awaited()
+    value.redeploy.assert_not_awaited()

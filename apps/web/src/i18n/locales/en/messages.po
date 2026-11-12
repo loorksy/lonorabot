@@ -1212,7 +1212,7 @@ msgstr "Broker account not found."
 #~ msgid "Broker acknowledged — resulting state unverified"
 #~ msgstr "Broker acknowledged — resulting state unverified"
 
-#: src/lib/user_error.ts:157
+#: src/lib/user_error.ts:159
 msgid "Broker authentication was rejected."
 msgstr "Broker authentication was rejected."
 
@@ -1220,7 +1220,7 @@ msgstr "Broker authentication was rejected."
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:170
+#: src/lib/user_error.ts:172
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
@@ -1240,7 +1240,7 @@ msgstr "Broker connection requires attention"
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "Broker data does not match the selected account. Nothing was sent."
 
-#: src/lib/user_error.ts:185
+#: src/lib/user_error.ts:187
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
@@ -1600,7 +1600,7 @@ msgstr "Check the fields"
 msgid "Check the highlighted fields."
 msgstr "Check the highlighted fields."
 
-#: src/lib/user_error.ts:191
+#: src/lib/user_error.ts:193
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -3332,11 +3332,11 @@ msgstr "Hide the key"
 msgid "Higher contrast"
 msgstr "Higher contrast"
 
-#: src/lib/user_error.ts:159
+#: src/lib/user_error.ts:161
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
 
-#: src/lib/user_error.ts:163
+#: src/lib/user_error.ts:165
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
@@ -3354,7 +3354,7 @@ msgstr "Hour"
 msgid "How to reach you"
 msgstr "How to reach you"
 
-#: src/lib/user_error.ts:210
+#: src/lib/user_error.ts:212
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
@@ -3374,7 +3374,7 @@ msgstr "Image attachment"
 msgid "Immediately"
 msgstr "Immediately"
 
-#: src/lib/user_error.ts:189
+#: src/lib/user_error.ts:191
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -4406,7 +4406,7 @@ msgstr "No artifacts found."
 msgid "No authentication"
 msgstr "No authentication"
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:169
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "No candle history was found for this symbol and timeframe."
 
@@ -5090,7 +5090,7 @@ msgstr "Page not found"
 msgid "Pair"
 msgstr "Pair"
 
-#: src/lib/user_error.ts:208
+#: src/lib/user_error.ts:210
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
@@ -7076,7 +7076,7 @@ msgstr "Text size"
 msgid "Text size · {0}"
 msgstr "Text size · {0}"
 
-#: src/lib/user_error.ts:172
+#: src/lib/user_error.ts:174
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
@@ -7137,10 +7137,18 @@ msgid "The broker account could not be verified. Check its connection details an
 msgstr "The broker account could not be verified. Check its connection details and try again."
 
 #: src/lib/user_error.ts:155
-msgid "The broker account is not ready at the connection provider. Check its status, then retry."
-msgstr "The broker account is not ready at the connection provider. Check its status, then retry."
+#~ msgid "The broker account is not ready at the connection provider. Check its status, then retry."
+#~ msgstr "The broker account is not ready at the connection provider. Check its status, then retry."
 
-#: src/lib/user_error.ts:181
+#: src/lib/user_error.ts:153
+msgid "The broker account is not running at MetaApi. Ask Lonora in chat to start it."
+msgstr "The broker account is not running at MetaApi. Ask Lonora in chat to start it."
+
+#: src/lib/user_error.ts:155
+msgid "The broker account is still starting at MetaApi. Lonora retries on its own."
+msgstr "The broker account is still starting at MetaApi. Lonora retries on its own."
+
+#: src/lib/user_error.ts:183
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
@@ -7149,10 +7157,10 @@ msgid "The broker connection dropped"
 msgstr "The broker connection dropped"
 
 #: src/lib/user_error.ts:153
-msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
-msgstr "The broker connection is stopped at the connection provider. Start it there, then retry."
+#~ msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
+#~ msgstr "The broker connection is stopped at the connection provider. Start it there, then retry."
 
-#: src/lib/user_error.ts:187
+#: src/lib/user_error.ts:189
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
@@ -7168,27 +7176,31 @@ msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 msgid "The broker is connected"
 msgstr "The broker is connected"
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:167
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
 
-#: src/lib/user_error.ts:183
+#: src/lib/user_error.ts:185
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:174
+#: src/lib/user_error.ts:176
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
+
+#: src/lib/user_error.ts:157
+msgid "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password."
+msgstr "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password."
 
 #: src/conversation/Cards.tsx:414
 msgid "The broker rejected the order"
 msgstr "The broker rejected the order"
 
-#: src/lib/user_error.ts:161
+#: src/lib/user_error.ts:163
 msgid "The broker rejected this timeframe or candle request."
 msgstr "The broker rejected this timeframe or candle request."
 
-#: src/lib/user_error.ts:176
+#: src/lib/user_error.ts:178
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
@@ -7340,7 +7352,7 @@ msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
-#: src/lib/user_error.ts:206
+#: src/lib/user_error.ts:208
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -7429,7 +7441,7 @@ msgstr "The reply did not arrive in time; the connection may be weak."
 msgid "The reply timed out"
 msgstr "The reply timed out"
 
-#: src/lib/user_error.ts:212
+#: src/lib/user_error.ts:214
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -7605,7 +7617,7 @@ msgstr "This broker account does not permit trading. Check its trading permissio
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "This broker account is already connected. Use the existing connection."
 
-#: src/lib/user_error.ts:178
+#: src/lib/user_error.ts:180
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
@@ -7666,7 +7678,7 @@ msgstr "This is how text looks in conversations."
 msgid "This item changed. Reload it before saving."
 msgstr "This item changed. Reload it before saving."
 
-#: src/lib/user_error.ts:204
+#: src/lib/user_error.ts:206
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
@@ -7744,15 +7756,15 @@ msgstr "This question is no longer waiting for an answer."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:195
+#: src/lib/user_error.ts:197
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "This step was interrupted and picked up again. Nothing was repeated."
 
-#: src/lib/user_error.ts:200
+#: src/lib/user_error.ts:202
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:197
+#: src/lib/user_error.ts:199
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -7835,7 +7847,7 @@ msgstr "today so far"
 msgid "Tokens"
 msgstr "Tokens"
 
-#: src/lib/user_error.ts:193
+#: src/lib/user_error.ts:195
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 

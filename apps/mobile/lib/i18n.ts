@@ -477,12 +477,16 @@ export const labels = {
     "Broker data does not match the selected account. Nothing was sent.",
   ],
   broker_account_undeployed: [
-    "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة.",
-    "The broker connection is stopped at the connection provider. Start it there, then retry.",
+    "حساب الوسيط غير مشغَّل لدى MetaApi. اطلب من لونورا في المحادثة تشغيله.",
+    "The broker account is not running at MetaApi. Ask Lonora in chat to start it.",
+  ],
+  broker_login_rejected: [
+    "رفض الوسيط تسجيل الدخول للتداول: كلمة مرور تغيّرت أو خادمه متوقف. اطلب من لونورا في المحادثة تحديث كلمة المرور.",
+    "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password.",
   ],
   broker_account_not_ready: [
-    "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة.",
-    "The broker account is not ready at the connection provider. Check its status, then retry.",
+    "حساب الوسيط ما زال يبدأ لدى MetaApi. تعيد لونورا المحاولة بنفسها.",
+    "The broker account is still starting at MetaApi. Lonora retries on its own.",
   ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],

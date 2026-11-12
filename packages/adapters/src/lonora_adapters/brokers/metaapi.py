@@ -381,6 +381,15 @@ class MetaApiBroker:
                         else "broker_account_not_ready",
                         409,
                     )
+                try:
+                    link = getattr(account, "connection_status", None)
+                except (KeyError, AttributeError):
+                    link = None
+                if state == "DEPLOYED" and link == "DISCONNECTED_FROM_BROKER":
+                    # MetaApi's terminal is up but the broker refuses it: a wrong or changed
+                    # password, or the broker's server is down (mandate 9.4). Said at once,
+                    # not after a synchronization timeout that would hide the reason.
+                    raise LonoraError("broker_login_rejected", 409)
             except Exception as error:
                 failure = self.diagnose(error, kind)
                 slot.failed(failure)

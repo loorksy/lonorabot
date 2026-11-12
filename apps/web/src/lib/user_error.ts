@@ -150,9 +150,11 @@ export function userError(error: unknown) {
     case "broker_account_mismatch":
       return t`Broker data does not match the selected account. Nothing was sent.`;
     case "broker_account_undeployed":
-      return t`The broker connection is stopped at the connection provider. Start it there, then retry.`;
+      return t`The broker account is not running at MetaApi. Ask Lonora in chat to start it.`;
     case "broker_account_not_ready":
-      return t`The broker account is not ready at the connection provider. Check its status, then retry.`;
+      return t`The broker account is still starting at MetaApi. Lonora retries on its own.`;
+    case "broker_login_rejected":
+      return t`The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":

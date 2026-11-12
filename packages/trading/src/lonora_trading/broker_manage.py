@@ -288,3 +288,29 @@ async def _all_send_locked(
                 {"key": send_lock_key(owner_id, connection_id)},
             )
         yield
+
+
+async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) -> dict[str, Any]:
+    """Start the account's terminal at MetaApi again (9.4, Q13): Lonora proposes it when
+    the account is not running, and does it after the owner's reply. The connection's
+    credential and version do not change; recovery reconnects once MetaApi is connected.
+    The adapter itself never deploys."""
+    async with db.sessions() as session:
+        row = await BrokerSessionRepository().get(session, owner_id, connection_id)
+        payload = BrokerConnection.model_validate(row.payload)
+    if payload.provider != "metaapi":
+        raise LonoraError("broker_not_metaapi", 409)
+    provisioning = await brokers.provisioning(owner_id, connection_id)
+    try:
+        async with asyncio.timeout(METAAPI_SECONDS):
+            state = await provisioning.deploy(payload.account_id)
+    except TimeoutError:
+        raise LonoraError("broker_provisioning_timeout", 504) from None
+    finally:
+        await provisioning.close()
+    return {
+        "connection_id": connection_id,
+        "state": state.state,
+        "note": "Deploy requested at MetaApi; the connection recovers by itself once its "
+        "terminal is connected to the broker.",
+    }
