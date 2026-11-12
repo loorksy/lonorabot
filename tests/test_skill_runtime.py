@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from lonora_agent.context import builder
 from lonora_agent.context.run_evidence import RunEvidence
-from lonora_agent.skills.loader import load_constitution
+from lonora_agent.skills.loader import load_constitution, resources_root
 from lonora_agent.skills.registry import (
     SkillDefinition,
     SkillRegistry,
@@ -62,17 +62,22 @@ def definition(identity: str, **kwargs: Any) -> SkillDefinition:
 
 
 def test_resources_validate_and_policies_independent() -> None:
-    playbooks = validate_resources(TOOLS)
-    assert len(playbooks) == 5
-    assert "ambiguous-execution-recovery" in playbooks
+    validate_resources(TOOLS)
+    # Every shipped resource has a reader (VISION.md 13.1): playbooks, schemas,
+    # references, unloaded prompts and bootstrap templates no model read are gone.
+    for gone in ("playbooks", "schemas", "references"):
+        assert not (resources_root() / gone).exists(), gone
+    assert sorted(path.name for path in (resources_root() / "bootstrap").iterdir()) == [
+        "AGENTS.md",
+        "LICENSE.nanobot",
+        "SOUL.md",
+    ]
     assert len(load_constitution()) == 7
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
-    # The one brake is named for what it does: it stops new trading and closes nothing.
-    assert "Stop new trading" in "\n".join(load_constitution())
     assert "Emergency Stop" not in "\n".join(load_constitution())
     assert "Super Bot" not in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
-    assert len(built_in_skills()) == 8
+    assert len(built_in_skills()) == 7
 
 
 def test_explicit_and_trigger_modes() -> None:
@@ -338,7 +343,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="memory"' not in messages[0].content
     assert "memory — Recall past conversations" in messages[0].content
     assert '<skill id="market-analysis"' not in messages[0].content
-    assert "Stop new trading" in messages[0].content
+    assert "immutable server boundaries" in messages[0].content
     assert run.model_metadata["skill_selection"]["selected_skill_ids"] == []
     assert run.model_metadata["provider"] == "keep"
     cast(AsyncMock, skills.require_lease).assert_awaited_with(session, "lease", lock=True)
@@ -351,7 +356,7 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     assert '<skill id="market-analysis"' not in messages[0].content
     assert "market-analysis — Analyze a broker market" in messages[0].content
     assert messages[-1].content == before
-    assert "Stop new trading" in messages[0].content
+    assert "immutable server boundaries" in messages[0].content
     assert run.model_metadata["skill_selection"]["skill_versions"] == {}
 
 

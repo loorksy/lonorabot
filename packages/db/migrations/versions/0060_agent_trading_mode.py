@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0060_agent_trading_mode"
-down_revision = "0068_end_trading_goals"
+down_revision = "0110_closed_trades"
 branch_labels = None
 depends_on = None
 

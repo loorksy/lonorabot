@@ -16,7 +16,6 @@ from lonora_contracts.trading import (
     TradeRequest,
     TradeResult,
 )
-from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.authority_lock import authority_lock
@@ -31,9 +30,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
-from .admission import may_reduce_risk, require_operation_scope, risk_reducing
+from .admission import require_operation_scope, risk_reducing
 from .agent_permission import require_operation_permission
-from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .idempotency import trade_fingerprint
 from .journal import execution_evidence
@@ -164,19 +162,15 @@ class ExecutionService:
             connection_version = connection.version
         if authorization:
             await authorization()
-        controls = await read_controls(self.db)
-        if not may_reduce_risk(request):
-            require_trading(controls)
         broker = await self.brokers.get(owner_id, request.account_id)
         planned_snapshot = await preflight(broker, request)
-        # Global OFF/Emergency Stop and unresolved operations stop new risk, not exits.
+        # Unresolved operations stop new risk, not exits.
         # The final decision is repeated against a fresh target inside before_send.
         planned_reducing = risk_reducing(
             request,
             management_target(planned_snapshot, request),
             positions=planned_snapshot.positions,
         )
-        require_trading(controls, risk_reducing=planned_reducing)
         async with self.db.sessions() as session, session.begin():
             if lease:
                 origin = await require_lease(session, lease)
@@ -244,6 +238,11 @@ class ExecutionService:
                 journal.annotation = annotation.model_dump(mode="json")
             if leased_run:
                 await anchor_operation(session, journal, leased_run)
+            if request.thesis_id:
+                from .opportunities import link_pending_operation
+
+                # Agent memory only (14.2.5): it never refuses the operation.
+                await link_pending_operation(session, owner_id, request)
             # Reserved is durable identity only. The send boundary below atomically
             # moves it to submitted; recovery proves an abandoned reservation unsent.
             journal.status = "reserved"
@@ -324,7 +323,6 @@ class ExecutionService:
                     before_send=observed,
                 )
                 raise LonoraError(quality.reasons[0], 409)
-            require_trading(await read_controls(self.db), risk_reducing=reducing)
             # Owner monetary limits, from fresh broker economics under this account's send
             # lock. Risk-reducing requests are never blocked by a limit.
             risk = None
@@ -459,9 +457,6 @@ class ExecutionService:
                 await require_unrestricted(
                     session, owner_id, request, agent_id=restricted_agent, reducing=reducing
                 )
-                from .opportunities import require_entry_thesis
-
-                await require_entry_thesis(session, owner_id, request)
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )

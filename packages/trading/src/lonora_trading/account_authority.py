@@ -44,13 +44,13 @@ async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
     (6.10). Such input is the agent's own judgment's input. In Full, trade_execute and
     trade_close_positions in this Run send like any other; in Ask its risk-increasing
     trades ask, even where a signed grant would cover them: it never spends a grant
-    (until grants are deleted). The mark is this Run's alone: it never spreads to the
-    agent's later watches, routines or wakes."""
-    from lonora_db.owner_words import ui_submit_origin
+    (until grants are deleted). The mark is this Run's alone, and its retry's (the same
+    request run again): it never spreads to the agent's later watches, routines or wakes."""
+    from lonora_db.owner_words import ui_submit_provenance
 
     if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
         return True
-    return ui_submit_origin(run) is not None
+    return ui_submit_provenance(run)
 
 
 async def available_authority(

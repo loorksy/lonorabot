@@ -17,9 +17,10 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
-from lonora_db.threads import origin_read_threads
+from lonora_db.threads import origin_read_threads, wake_origin
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def outcome_receipt(run_id: str, fence: int) -> str:
@@ -83,6 +84,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         agent_id=row.agent_id,
                         payload={"id": row.id, "version": row.version},
                     )
+            await report_to_origin(session, child, rich_content)
             session.add(EffectReceiptRow(key=receipt, result={"returned": True, "synthesis": True}))
             return
         legacy = await session.get(EffectReceiptRow, "outcome:" + run_id)
@@ -154,68 +156,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
                             payload=message_data(final),
                         )
         returned_message: MessageRow | None = None
-        activation_ack = (
-            await session.get(
-                EffectReceiptRow,
-                "activation-ack:" + str(child.model_metadata.get("account_authority_id", "")),
-            )
-            if child.trigger == "activation"
-            else None
-        )
-        quiet_activation = activation_ack is not None and child.status != "failed"
-        if (
-            (
-                child.trigger in {"broker_event", "activation"}
-                or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
-            )
-            and child.model_metadata.get("origin_thread_id")
-            and not quiet_activation
-        ):
-            origin = await session.get(
-                ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
-            )
-            if (
-                origin
-                and (child.result or rich_content)
-                and (
-                    origin.agent_id == child.agent_id
-                    or (
-                        child.trigger == "activation"
-                        and origin.id in await origin_read_threads(session, child)
-                    )
-                )
-            ):
-                source = await session.get(ThreadRow, child.thread_id)
-                if source is None or source.owner_id != origin.owner_id:
-                    raise ValueError("broker_event_owner_mismatch")
-                public_result = child.result or ""
-                if activation_ack is not None:
-                    from lonora_bus.attention import attention_text
-
-                    public_result = attention_text(
-                        "grant_review_unavailable", activation_ack.result.get("locale", "ar")
-                    )
-                final = MessageRow(
-                    thread_id=origin.id,
-                    agent_id=child.agent_id,
-                    role="assistant",
-                    seq=origin.next_seq,
-                    content=public_result,
-                    rich_content=rich_content if activation_ack is None else None,
-                )
-                origin.next_seq += 1
-                session.add(final)
-                await session.flush()
-                emit(
-                    session,
-                    origin.owner_id,
-                    "message.created",
-                    thread_id=origin.id,
-                    agent_id=child.agent_id,
-                    run_id=child.id,
-                    payload=message_data(final),
-                )
-        if parent and thread:
+        await report_to_origin(session, child, rich_content)
+        # A follow-up is its parent's continuation, not a helper: its outcome never
+        # returns to the parent, so it never starts another follow-up.
+        if parent and thread and child.trigger != "follow_up":
             outcome = f"<peer_outcome run_id='{child.id}' status='{status}'>\n{child.result or child.error_code or status}\n</peer_outcome>"
             message = MessageRow(
                 thread_id=thread.id,
@@ -264,6 +208,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         metadata={
                             "depth": parent.model_metadata.get("depth", 0),
                             **inherited_authority(parent),
+                            **wake_origin(parent),
                         },
                     ),
                 )
@@ -322,6 +267,72 @@ async def return_outcome(db: Database, run_id: str) -> None:
             )
 
 
+async def report_to_origin(
+    session: AsyncSession, child: RunRow, rich_content: dict[str, Any] | None
+) -> None:
+    """Copy a wake's non-empty result into the conversation its work thread reports to."""
+    activation_ack = (
+        await session.get(
+            EffectReceiptRow,
+            "activation-ack:" + str(child.model_metadata.get("account_authority_id", "")),
+        )
+        if child.trigger == "activation"
+        else None
+    )
+    quiet_activation = activation_ack is not None and child.status != "failed"
+    if (
+        # A wake that works in a hidden work thread reports to its origin conversation;
+        # a routine's or watch's origin is its Agent's own conversation (VISION 11.6).
+        child.trigger in {"broker_event", "activation", "routine", "watch", "follow_up"}
+        and child.model_metadata.get("origin_thread_id")
+        and not quiet_activation
+    ):
+        origin = await session.get(
+            ThreadRow, child.model_metadata["origin_thread_id"], with_for_update=True
+        )
+        if (
+            origin
+            and (child.result or rich_content)
+            and (
+                origin.agent_id == child.agent_id
+                or (
+                    child.trigger == "activation"
+                    and origin.id in await origin_read_threads(session, child)
+                )
+            )
+        ):
+            source = await session.get(ThreadRow, child.thread_id)
+            if source is None or source.owner_id != origin.owner_id:
+                raise ValueError("broker_event_owner_mismatch")
+            public_result = child.result or ""
+            if activation_ack is not None:
+                from lonora_bus.attention import attention_text
+
+                public_result = attention_text(
+                    "grant_review_unavailable", activation_ack.result.get("locale", "ar")
+                )
+            final = MessageRow(
+                thread_id=origin.id,
+                agent_id=child.agent_id,
+                role="assistant",
+                seq=origin.next_seq,
+                content=public_result,
+                rich_content=rich_content if activation_ack is None else None,
+            )
+            origin.next_seq += 1
+            session.add(final)
+            await session.flush()
+            emit(
+                session,
+                origin.owner_id,
+                "message.created",
+                thread_id=origin.id,
+                agent_id=child.agent_id,
+                run_id=child.id,
+                payload=message_data(final),
+            )
+
+
 async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
     """Repair the commit/return crash window and cancelled queued children, at most 20 per tick."""
     receipt = literal("outcome:") + RunRow.id + literal(":") + sql_cast(RunRow.lease_fence, String)
@@ -336,6 +347,7 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                         RunRow.parent_run_id.is_not(None),
                         RunRow.trigger.in_(["tickets", "broker_event", "activation"]),
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
+                        RunRow.model_metadata["origin_thread_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
                     ~blocked("outcome", RunRow.id),
