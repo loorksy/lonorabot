@@ -12,3 +12,4 @@
 - 2026-11-12T13:01Z: #172 d35efd30 CLEAN. #110 0fc31b84 CLEAN, but it now carries #71 and #73 (W-AUTH): retarget it to wauth/2-mandate-card (20 conflicts with main 0a4d9560).
 - 2026-11-12T13:01Z: #204 78f7c1d3 FINDINGS, medium: the brief's journal read keeps the oldest 5000 entries (reproduced: an agent's ticket reads "owner"). The #177 low is still open (door ticket_not_owned and closed_trades should use ticket_openers).
 - 2026-11-12T13:03Z: #203 e60afe91 FINDINGS 0/1/2 (medium: 0173 does not migrate the owner_preferences revisions, so undo of an 'activity' change gives 409 and history shows the raw value).
+- 2026-11-12T13:04Z: #81 e5e54aa8 FINDINGS 0/1/1. The earlier findings are fixed and there are no conflicts. Medium: the web shell AgentPage still says Lonora supervises nobody and offers 'Add agents to supervise' (no default grants now).
