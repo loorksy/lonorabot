@@ -62,6 +62,15 @@ export default function Settings() {
         </SettingsGroup>
         <SettingsGroup>
           <SettingsRow
+            testID="what-is-running"
+            title={t("running_title")}
+            detail={t("running_subtitle")}
+            icon="activity"
+            onPress={() => router.push("/running")}
+          />
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsRow
             title={t("sh_appearance")}
             value={mode === "dark" ? t("sh_dark") : t("sh_light")}
             icon="settings"
