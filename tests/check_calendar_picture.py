@@ -6,7 +6,7 @@ next 24 hours for the picture's currencies, or "calendar not connected".
 """
 
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Any
 
 from check_account_picture import Book, picture_of, position
@@ -104,6 +104,9 @@ async def main() -> None:
         listed = await calendar(f, agent["id"])
         names = [item["name"] for item in listed["high_impact_next_24h"]]
         assert names == ["US payrolls", "ECB rate decision"], listed
+        assert all(
+            item["scheduled_at"].endswith("+00:00") for item in listed["high_impact_next_24h"]
+        )
         assert listed["sources"][0]["status"] == "ok" and listed["sources"][0]["fetched_at"]
         print("PASS only high-impact events of the next 24 hours for held currencies appear")
 
@@ -113,6 +116,38 @@ async def main() -> None:
         assert listed["sources"][0]["status"] == "unavailable", listed
         assert [item["name"] for item in listed["high_impact_next_24h"]] == names
         print("PASS a failing source keeps its cached events and reports unavailable")
+
+        # Times from sources in other zones are ordered by the instant, not the text; an
+        # unreadable cached event is skipped, never failing the picture.
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await session.get(EconomicCalendarRow, integration.id, with_for_update=True)
+            assert row
+            tokyo = (utcnow() + timedelta(minutes=30)).astimezone(timezone(timedelta(hours=9)))
+            row.state = {
+                **row.state,
+                "events": [
+                    *row.state["events"],
+                    {
+                        "name": "Tokyo-noted EUR event",
+                        "currency": "EUR",
+                        "impact": "high",
+                        "scheduled_at": tokyo.isoformat(),
+                    },
+                    {"name": "broken", "currency": "EUR", "impact": "high", "scheduled_at": "soon"},
+                    {
+                        "name": "naive",
+                        "currency": "EUR",
+                        "impact": "high",
+                        "scheduled_at": "2030-01-01T00:00:00",
+                    },
+                ],
+            }
+        listed = await calendar(f, agent["id"])
+        assert [item["name"] for item in listed["high_impact_next_24h"]] == [
+            "Tokyo-noted EUR event",
+            *names,
+        ], listed
+        print("PASS events are ordered by instant across zones; unreadable ones are skipped")
 
         # A source the owner removed leaves the cache and the picture.
         async with f.runtime.db.sessions() as session, session.begin():

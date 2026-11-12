@@ -12,7 +12,7 @@ from typing import Any
 
 from check_account_picture import Book, picture_of, position
 from check_streaming import Fixture
-from lonora_agent.context.picture import account_picture
+from lonora_agent.context.picture import MAX_TEAM_SYMBOLS, account_picture
 from lonora_contracts.account import Order
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.memory import commit_memory
@@ -84,29 +84,34 @@ async def main() -> None:
             ),
         )
         await book.opened(None, position("own-1", "US500", "buy", "2.0", "5"))
+        # A symbol the broker refuses to describe must not hold back the others.
+        await book.opened(euro["id"], position("odd-1", "AAA.odd", "buy", "0.01", "0"))
         await book.reconcile()
         async with f.runtime.db.sessions() as session:
             before = picture_of(await account_picture(session, f.owner, euro["id"]))
-        assert sorted(before["team"][0]["currencies_unknown"]) == ["EURUSD", "US500", "XAUUSD"]
-        assert (
-            await learn_currencies(f.runtime.db, f.runtime.services(f.owner).brokers, f.owner) == 3
-        )
-        assert (
-            await learn_currencies(f.runtime.db, f.runtime.services(f.owner).brokers, f.owner) == 0
-        )  # once
+        assert sorted(before["team"][0]["currencies_unknown"]) == [
+            "AAA.odd",
+            "EURUSD",
+            "US500",
+            "XAUUSD",
+        ]
+        brokers = f.runtime.services(f.owner).brokers
+        assert await learn_currencies(f.runtime.db, brokers, f.owner) == 3
+        assert await learn_currencies(f.runtime.db, brokers, f.owner) == 0  # once
         async with f.runtime.db.sessions() as session:
             row = await BrokerSessionRepository().get(session, f.owner, account)
-            assert row.state[CURRENCIES_KEY]["XAUUSD"] == ["XAU", "USD"], row.state[CURRENCIES_KEY]
+            learned = row.state[CURRENCIES_KEY]["symbols"]
+            assert learned["XAUUSD"] == ["XAU", "USD"] and learned["AAA.odd"] == [], learned
             text = await account_picture(session, f.owner, euro["id"])
         assert "Gold-secret-thesis" not in text
         (team,) = picture_of(text)["team"]
         assert team["currencies_unknown"] == []
         symbols = {item["symbol"]: item for item in team["by_symbol"]}
-        assert [p["holder"] for p in symbols["EURUSD"]["positions"]] == [euro["name"]]
-        assert [p["holder"] for p in symbols["XAUUSD"]["positions"]] == [gold["name"]]
+        assert [p["agent"] for p in symbols["EURUSD"]["positions"]] == [euro["name"]]
+        assert [p["agent"] for p in symbols["XAUUSD"]["positions"]] == [gold["name"]]
         assert [o["ticket"] for o in symbols["XAUUSD"]["orders"]] == ["xau-2"]
         assert symbols["XAUUSD"]["net_volume"] == "-0.5"
-        assert symbols["US500"]["positions"][0]["holder"] == "owner"
+        assert symbols["US500"]["positions"][0]["agent"] is None  # the owner's own
         currencies = {item["currency"]: item["symbols"] for item in team["by_currency"]}
         assert set(currencies) == {"EUR", "USD", "XAU"}, currencies
         assert [(s["symbol"], s["leg"]) for s in currencies["EUR"]] == [("EURUSD", "base")]
@@ -118,9 +123,19 @@ async def main() -> None:
         ]
         held = {key: value for key, value in json.loads(json.dumps(team)).items()}
         assert "memory" not in json.dumps(held).casefold()
+        # Bounded: the largest symbols, and a count for the rest.
+        for index in range(MAX_TEAM_SYMBOLS):
+            await book.opened(
+                euro["id"], position(f"small-{index}", f"S{index:02d}", "buy", "0.01", "0")
+            )
+        await book.reconcile()
+        async with f.runtime.db.sessions() as session:
+            (team,) = picture_of(await account_picture(session, f.owner, euro["id"]))["team"]
+        assert len(team["by_symbol"]) == MAX_TEAM_SYMBOLS and team["symbols_not_shown"] == 4
+        assert team["by_symbol"][0]["symbol"] == "US500", team["by_symbol"][0]
         print("PASS team book: EURUSD and XAUUSD appear under EUR, USD and XAU")
-        print("PASS team book: holders by name, the owner's own ticket, tickets only")
-        print("PASS instrument currencies are learned once from the broker")
+        print("PASS team book: holders by name, the owner's own ticket, tickets only, bounded")
+        print("PASS instrument currencies are learned once; a refused symbol holds none back")
     finally:
         await f.close()
 
