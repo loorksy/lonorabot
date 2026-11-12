@@ -353,3 +353,39 @@ def test_prototype_reserved_keys_cannot_pass_server_but_fail_client(where: str):
         }
     with pytest.raises(ValueError):
         VisualDocument.model_validate(raw)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["nonfinite", "object", "nested_failed"])
+async def test_a_bad_fact_value_is_never_shown(bad: str):
+    result: dict[str, Any] = {"equity": 1234.5}
+    path = "/bad"
+    if bad == "nonfinite":
+        result["bad"] = float("inf")
+    if bad == "object":
+        result["bad"] = {"deep": [{"deeper": {"deepest": [1] * 400}}]}
+    if bad == "nested_failed":
+        result["nested"] = {"ok": False, "equity": 999}
+        path = "/nested/equity"
+    answer, rich, errors = await parse_visual_reply(context(), frame(card(path)), messages(result))
+    assert errors and rich and all(part["type"] != "ui" for part in rich["parts"])
+    assert "999" not in answer and "inf" not in answer.lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "facts",
+    [
+        {"eq": {"value": 999999, "source": "broker"}},
+        {"eq": {"call": "actual", "path": "/equity", "value": 999999}},
+        {"eq": {"call": "actual", "path": "/equity", "source": "broker"}},
+    ],
+)
+async def test_a_card_cannot_write_its_own_fact_values_or_sources(facts: dict[str, Any]):
+    body = card().replace(
+        json.dumps({"facts": {"eq": {"call": "actual", "path": "/equity"}}}),
+        json.dumps({"facts": facts}),
+    )
+    answer, rich, errors = await parse_visual_reply(context(), "Prose.\n" + frame(body), messages())
+    assert errors and rich and all(part["type"] != "ui" for part in rich["parts"])
+    assert "999999" not in answer and "broker" not in answer

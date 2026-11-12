@@ -818,3 +818,55 @@ def test_the_structural_probes_still_answer_exactly_as_listed():
     assert set(scored) == {name for name, item in SCENARIOS.items() if "probe" in item}
     changed = {name: found for name, found in scored.items() if found != expected.get(name)}
     assert not changed, f"{STALE}: {json.dumps(changed, ensure_ascii=False)}"
+
+
+def test_a_recording_holds_no_run_ids_and_no_key() -> None:
+    from scripts.agent_eval import runner
+
+    def recorded(account: str, call: str) -> dict[str, Any]:
+        return {
+            "transcript": [
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"id": call, "name": "market_quote", "arguments": {"account_id": account}}
+                    ],
+                },
+                {"role": "tool", "tool_call_id": call, "content": "{}"},
+            ],
+            "requests": [],
+            "reply_tool_calls": [],
+            "tool_calls": [{"call_id": call, "name": "market_quote"}],
+            "reply": f"From {call}.",
+        }
+
+    first = "11111111-2222-4333-8444-555555555555"
+    clean = runner.scrub(recorded(first, "call_Cqybrp5JO4"), {"account_id": first})
+    text = json.dumps(clean)
+    assert first not in text and "call_Cqybrp5JO4" not in text and '"call_1"' in text
+    other = "9f0c1e22-7a4b-4c1d-8e2f-3b5a6c7d8e9f"
+    assert runner.scrub(recorded(other, "call_Zz81"), {"account_id": other}) == clean
+    with pytest.raises(SystemExit):
+        runner.scrub({**clean, "reply": "sk-" + "a" * 24}, {})
+
+
+def test_scrub_replaces_a_trade_operation_id() -> None:
+    from scripts.agent_eval import runner
+
+    record = {
+        "transcript": [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "x1", "name": "trade_execute", "arguments": {"operation_id": "a5f1e2"}}
+                ],
+            }
+        ],
+        "requests": [],
+        "reply_tool_calls": [],
+        "tool_calls": [],
+    }
+    scrubbed = runner.scrub(record, {})
+    assert scrubbed["transcript"][0]["tool_calls"][0]["arguments"]["operation_id"] == "operation_1"
