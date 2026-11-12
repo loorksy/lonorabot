@@ -64,6 +64,7 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
             context,
             "memory_write",
             version=1,
+            observed=True,
             operations=[
                 {
                     "action": "add",
@@ -105,8 +106,18 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
         assert "peer_send" in denied["recovery"]
         denied = await call(registry, background, "owner_preferences_update", reach_me="call")
         assert denied["code"] == "owner_preferences_require_owner_message"
-        # With the owner's own message a team agent still records his words.
+        # With the owner's own message a team agent still records his words, but never
+        # an observation of its own.
         said, message_id = await owner_turn(fixture, team, "أنا أفضّل التقارير القصيرة")
+        inferred = await call(
+            registry,
+            said,
+            "memory_write",
+            version=1,
+            observed=True,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Anxious owner"}],
+        )
+        assert inferred["code"] == "owner_profile_requires_owner_message"
         written = await call(
             registry,
             said,
@@ -127,6 +138,27 @@ async def test_lonora_writes_observations_and_team_agents_keep_the_owner_rule():
                 .order_by(MemoryRevisionRow.created_at.desc())
             )
             assert latest is not None and latest.source_message_id == message_id
+        # Lonora answering the owner's message marks an inference as observed: the
+        # revision carries no owner message, so the view never shows it as his words.
+        answer, _ = await owner_turn(fixture, lead, "كيف حالك؟")
+        await call(
+            registry,
+            answer,
+            "memory_write",
+            version=1,
+            observed=True,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Replies late"}],
+        )
+        async with fixture.runtime.db.sessions() as session:
+            latest = await session.scalar(
+                select(MemoryRevisionRow)
+                .where(
+                    MemoryRevisionRow.owner_id == fixture.owner,
+                    MemoryRevisionRow.document == "owner_profile",
+                )
+                .order_by(MemoryRevisionRow.created_at.desc())
+            )
+            assert latest is not None and latest.source_message_id is None
     finally:
         await reset_profile(fixture)
         await fixture.close()

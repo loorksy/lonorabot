@@ -205,6 +205,7 @@ async def wake_for_activity(
                 owner_id,
                 "external_close",
                 agent_id=change.agent_id,
+                observed_at=change.observed_at,
                 details={
                     "symbol": change.symbol,
                     "ticket": change.ticket,

@@ -140,10 +140,10 @@ async def read_all(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]
                 thread_id=thread.id,
                 payload={"thread_id": thread.id, "last_read_seq": row.last_read_seq},
             )
-            record_signal(
-                session, owner_id, "thread_read", thread_id=thread.id, agent_id=thread.agent_id
-            )
             result.append(prefs_data(row, thread.id))
+    if result:
+        # One tap is one read, however many conversations it marks.
+        record_signal(session, owner_id, "thread_read", details={"threads": len(result)})
     return result
 
 

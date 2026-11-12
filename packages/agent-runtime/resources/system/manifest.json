@@ -3,7 +3,7 @@
   "manual_sha256": "bd4c4be434ede9bff122eb443fe7cfaec4f26cd58458e7a314e9699c5ad568dd",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
-    "MEMORY.md": "740ebb142ee500336aa2169349f30b2ebf0fe3cee90bc281e2d8fa899877f361",
+    "MEMORY.md": "c47adc0b79bc1b9bb9adfcacdae46780efaa4139d0c2469952c035012f8f724d",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608",
     "USER.md": "4fe9b27c7f991069bc76522f2af4bfba9c56fa9fee456e3e82c96e0423785d4f"
   },

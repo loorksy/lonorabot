@@ -5,7 +5,7 @@ outside Lonora. They are facts with a time, never a judgment; Lonora reads a
 small summary on its wake and writes what it concludes to the owner profile.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -28,6 +28,7 @@ def record_signal(
     thread_id: str | None = None,
     agent_id: str | None = None,
     details: dict[str, Any] | None = None,
+    observed_at: datetime | None = None,
 ) -> None:
     session.add(
         OwnerSignalRow(
@@ -36,7 +37,7 @@ def record_signal(
             thread_id=thread_id,
             agent_id=agent_id,
             details=details or {},
-            observed_at=utcnow(),
+            observed_at=observed_at or utcnow(),
         )
     )
 

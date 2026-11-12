@@ -63,6 +63,8 @@ class MemoryWrite(Contract):
     profile_version: int = Field(default=0, ge=0)
     content: str | None = Field(default=None, max_length=30000)
     operations: list[MemoryOperation] = Field(default_factory=list[MemoryOperation], max_length=20)
+    # Lonora's USER.md lines inferred from the owner's behavior, not his words (8.2, 8.4).
+    observed: bool = False
 
     @model_validator(mode="after")
     def one_shape(self) -> Self:
@@ -134,9 +136,14 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 source_message_id=message_id,
             )
         edits = [MemoryEdit(**item.model_dump()) for item in params.operations]
-        # Lonora writes its observations of the owner without his message (8.2).
-        if message_id is None and not lead and any(edit.section == "USER.md" for edit in edits):
+        profile = any(edit.section == "USER.md" for edit in edits)
+        # Lonora writes its observations of the owner without his message (8.2); a team
+        # agent records only the owner's words.
+        if profile and not lead and (message_id is None or params.observed):
             return OWNER_MESSAGE_REQUIRED
+        if params.observed:
+            # An observation is never attributed to the owner's message.
+            message_id = None
         return await atomic_edit(
             context.db,
             context.owner_id,
@@ -294,8 +301,9 @@ def tools() -> list[Tool]:
             "observed, others only what the owner said), MEMORY.md (your knowledge) or "
             "OPERATING.md (your working notes); patch replaces unique old_text with content; "
             "remove deletes the lines old_text touches. A duplicate add returns changed false; "
-            "overflow returns the shortfall. content replaces your document at version. No "
-            "credentials, prices, limits or authority claims.",
+            "overflow returns the shortfall. observed marks USER.md lines you inferred, not his "
+            "words. content replaces your document at version. No credentials, prices, limits "
+            "or authority claims.",
             MemoryWrite,
             write,
             replay_safe=True,

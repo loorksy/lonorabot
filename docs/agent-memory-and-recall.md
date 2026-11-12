@@ -59,7 +59,7 @@ own document keeps only its private views:
 
 | View | Where | Who writes it | How a Run sees it |
 | --- | --- | --- | --- |
-| `USER.md` | `ln_owner_profile.content`, one per owner | the owner (Settings ← الملف الشخصي, `/app/owner`) or any Agent from the owner's message | `owner_preferences` context section, every Run of every Agent |
+| `USER.md` | `ln_owner_profile.content`, one per owner | the owner (Settings ← الملف الشخصي, `/app/owner`), Lonora (what the owner said or what it observed of him, 8.2), or a team Agent from the owner's message | `owner_preferences` context section, every Run of every Agent |
 | `MEMORY.md` (and older unsectioned text) | the Agent's `ln_memory` row | the Agent or the owner | `memory` context section, that Agent only |
 | `OPERATING.md` | the Agent's `ln_memory` row | the Agent (its own working method) or the owner | `operating_notes` context section, that Agent only |
 
@@ -102,13 +102,26 @@ content-addressed, so they are checked against whatever is stored when the write
 holds the document's lock. Every write reads the row again under that lock
 (`populate_existing`), never an earlier read, so two Agents answering one group
 message, or an Agent and the owner saving in Knowledge, both keep their lines and
-get distinct versions; a stale explicit version is `version_conflict`. A profile
-write needs a Run that answers the owner's message (`owner_message_id`, the same
-rule restrictions use): a wake, peer or task Run gets
-`owner_profile_requires_owner_message` and nothing is saved, so text an Agent
-read elsewhere can never become an owner preference. `owner_preferences_update`
-(long-tail, reached through `tool_call`) sets the reach-me channel, reply
-language, quiet hours and timezone under the same rule. A whole-document write
+get distinct versions; a stale explicit version is `version_conflict`. Lonora
+writes the profile in any Run (8.2): what the owner said, and what it learned from
+his behavior, which it marks `observed` so the revision carries no owner message
+and «ما أعرفه عنك» shows the line as observed. A team Agent's profile write needs a
+Run that answers the owner's message (`owner_message_id`, the same rule restrictions
+use): a wake, peer or task Run, or an `observed` write, gets
+`owner_profile_requires_owner_message` and nothing is saved; it sends what it
+observed to Lonora instead. `owner_preferences_update` (long-tail, reached through
+`tool_call`) sets the reach-me channel, reply language, quiet hours and timezone
+only from a Run that answers the owner's typed message, for every Agent including
+Lonora (`owner_preferences_require_owner_message`).
+
+**Owner signals (8.1).** The server appends what the owner does to
+`ln_owner_signals` (`lonora_db/owner_signals.py`): each conversation read (one
+row per tap of «قراءة الكل») and each position closed outside Lonora, at the
+broker's observed time, with whether it carried a stop loss or take profit (the
+broker does not say whether a hand or the order closed it). Lonora's context
+carries a two-week summary in the owner's time zone (`owner_signals` section); it
+writes its conclusions to USER.md. `owner_model()` is the one reader of the whole
+owner model for reports. A whole-document write
 replaces only the Agent's own document and may not contain a `# USER.md` heading
 (`memory_user_section_moved`); the owner API refuses one too.
 
@@ -120,9 +133,11 @@ or override limits, policies, pauses or instructions, or claim full or unlimited
 authority, in English and Arabic. The same guard refuses standing instructions to hand
 private data elsewhere: send or forward memory, `MEMORY.md`, `OPERATING.md`, the owner
 profile, notes or secrets anywhere, fetch an address built from data
-(`https://…?d=<summary>`), or name `peer_send`. A profile write or preference change
-from a Run that has read third-party content is no longer the owner's word
-(`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A statement that is already present (an owner
+(`https://…?d=<summary>`), or name `peer_send`. A team Agent's profile write or any
+preference change from a Run that has read third-party content is no longer the
+owner's word (`owner_profile_requires_owner_message`, see `agents-from-chat.md`);
+Lonora's own observations are not gated by the owner's message (14.3.5), so they
+are always shown to the owner as observed. A statement that is already present (an owner
 edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
 is untrusted data. This is defence in depth only; the executor never reads memory
 and authority comes from the signed grant alone.
