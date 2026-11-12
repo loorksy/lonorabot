@@ -24,7 +24,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, cast
 
 from lonora_bus.attention import attention_text
@@ -306,6 +306,16 @@ async def dispatch_push(
     return len(deliveries)
 
 
+def accepted_at(row: EffectReceiptRow) -> datetime:
+    """When Expo accepted the push: recorded since receipts are read, else (a row written
+    before) the receipt's own creation, which is at most seconds earlier."""
+    recorded = row.result.get("confirmed_at")
+    if recorded:
+        return datetime.fromisoformat(str(recorded))
+    created = row.created_at
+    return created if created.tzinfo else created.replace(tzinfo=UTC)
+
+
 async def check_receipts(db: Database, owner_id: str, transport: PushTransport) -> None:
     """Read Expo's delivery receipts for accepted pushes once Apple or Google had time to
     answer: a phone they report gone (``DeviceNotRegistered``) is deleted, if it still holds
@@ -325,13 +335,19 @@ async def check_receipts(db: Database, owner_id: str, transport: PushTransport) 
                 .limit(RECEIPTS_PER_TICK)
             )
         ).all()
+    without_ticket = [row.key for row in rows if not row.result.get("ticket_id")]
     due = {
         str(row.result["ticket_id"]): row.key
         for row in rows
-        if row.result.get("ticket_id")
-        and datetime.fromisoformat(str(row.result.get("confirmed_at", now.isoformat())))
-        <= now - RECEIPT_DELAY
+        if row.result.get("ticket_id") and accepted_at(row) <= now - RECEIPT_DELAY
     }
+    if without_ticket:
+        # Nothing to ask Expo about: closed at once, so they never hold the window.
+        async with db.sessions() as session, session.begin():
+            for key in without_ticket:
+                row = await session.get(EffectReceiptRow, key, with_for_update=True)
+                if row is not None:
+                    row.result = {**row.result, "delivery": "unknown"}
     if not due:
         return
     try:
@@ -347,8 +363,7 @@ async def check_receipts(db: Database, owner_id: str, transport: PushTransport) 
                 continue
             answer = answers.get(ticket)
             if answer is None:
-                confirmed = datetime.fromisoformat(str(row.result.get("confirmed_at")))
-                if now - confirmed > RECEIPT_KEPT:
+                if now - accepted_at(row) > RECEIPT_KEPT:
                     row.result = {**row.result, "delivery": "unknown"}
                 continue
             outcome = ticket_outcome(answer)

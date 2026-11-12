@@ -763,3 +763,43 @@ async def test_the_adapter_reads_delivery_receipts() -> None:
     assert str(seen[0].url) == EXPO_RECEIPTS_URL
     assert seen[0].headers["authorization"] == "Bearer access"
     assert json.loads(seen[0].content) == {"ids": ["a", "b"]}
+
+
+@pytest.mark.asyncio
+async def test_receipts_written_before_the_check_existed_close_and_free_the_window(
+    task_db: Fixture,
+) -> None:
+    # R-SEC M1 on #184: confirmed receipts from before (no confirmed_at, no token_hash) or
+    # with no ticket id must close, never hold the oldest-first window forever.
+    import lonora_gateway.push as push
+
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    old = utcnow() - timedelta(hours=30)
+    async with db.sessions() as session, session.begin():
+        for index in range(push.RECEIPTS_PER_TICK):
+            session.add(
+                EffectReceiptRow(
+                    key=f"push:legacy{index:03d}",
+                    created_at=old,
+                    result={
+                        "owner_id": owner_id,
+                        "status": "confirmed",
+                        "device_id": PHONE,
+                        **({"ticket_id": f"legacy-{index}"} if index % 2 else {}),
+                    },
+                )
+            )
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    # The legacy rows are due by their creation; Expo no longer keeps them: closed.
+    assert expo.asked and all(ticket.startswith("legacy-") for ticket in expo.asked[0])
+    current = [row for row in await receipts(db) if "ticket_id" in row and "message" in row]
+    expo.delivery = {current[0]["ticket_id"]: {"status": "ok"}}
+    await age_confirmations(db, timedelta(minutes=16))
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    stored = await receipts(db)
+    assert all(row.get("delivery") for row in stored)
+    assert [row["delivery"] for row in stored if "message" in row] == ["delivered"]
