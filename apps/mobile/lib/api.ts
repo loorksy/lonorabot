@@ -174,6 +174,9 @@ export function uploadTransfer(asset: DocumentPickerAsset, threadId: string) {
   return async (progress: (p: number) => void, signal: AbortSignal): Promise<Artifact> => {
     if (attachmentTooLarge(asset.size)) throw new ApiError("attachment_too_large", 400);
     const requestGeneration = generation;
+    // The server and credentials of the session that picked the file, read before any await.
+    const server = base,
+      token = bearer;
     const body = new FormData();
     if (Platform.OS === "web") {
       const file = asset.file ?? (await (await fetch(asset.uri)).blob());
@@ -189,10 +192,12 @@ export function uploadTransfer(asset: DocumentPickerAsset, threadId: string) {
     return new Promise<Artifact>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const current = () => requestGeneration === generation && !signal.aborted;
-      xhr.open("POST", `${base}/api/artifacts/upload`);
+      // Cancelled, signed out or moved to another server while the file was being read.
+      if (!current()) return reject(new SessionRequestCancelled());
+      xhr.open("POST", `${server}/api/artifacts/upload`);
       xhr.withCredentials = true;
       xhr.setRequestHeader("Accept", "application/json");
-      if (bearer) xhr.setRequestHeader("Authorization", `Bearer ${bearer}`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       else xhr.setRequestHeader("X-CSRF-Token", browserCsrf());
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable && current()) progress(event.loaded / event.total);
@@ -205,7 +210,9 @@ export function uploadTransfer(asset: DocumentPickerAsset, threadId: string) {
         } catch {
           /* A proxy's HTML page is not Lonora's answer. */
         }
-        if (xhr.status >= 200 && xhr.status < 300) return resolve(data as Artifact);
+        // A 2xx page that names no file (a captive portal, a proxy) is not an upload.
+        if (xhr.status >= 200 && xhr.status < 300 && typeof data.id === "string")
+          return resolve(data as Artifact);
         if (xhr.status === 401) expired?.();
         reject(new ApiError(data.code ?? "request_failed", xhr.status));
       };

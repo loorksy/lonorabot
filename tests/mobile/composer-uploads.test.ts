@@ -105,3 +105,34 @@ test("files handed to a sent message settle there, not in the draft", async () =
   );
   assert.equal(drafts.composerDraft("k").attachments.length, 0);
 });
+
+test("a send that was not admitted gives its files back: finished ones as attachments", async () => {
+  const { drafts, uploads, transfers, transfer } = fixture();
+  uploads.startUpload(
+    "k",
+    { name: "a.pdf", size: 10, media_type: "application/pdf" },
+    transfer("a"),
+  );
+  uploads.startUpload(
+    "k",
+    { name: "b.pdf", size: 10, media_type: "application/pdf" },
+    transfer("b"),
+  );
+  const handed = uploads.handOver("k");
+  transfers[0].resolve(artifact("file-a"));
+  await handed[0].done;
+  uploads.handBack("k", handed);
+  assert.equal(
+    JSON.stringify(drafts.composerDraft("k").attachments.map((row) => row.id)),
+    '["file-a"]',
+  );
+  assert.equal(uploads.composerUploads("k").length, 1);
+  assert.equal(uploads.composerUploads("k")[0].name, "b.pdf");
+  transfers[1].resolve(artifact("file-b"));
+  await handed[1].done;
+  assert.equal(
+    JSON.stringify(drafts.composerDraft("k").attachments.map((row) => row.id)),
+    '["file-a","file-b"]',
+  );
+  assert.equal(uploads.composerUploads("k").length, 0);
+});

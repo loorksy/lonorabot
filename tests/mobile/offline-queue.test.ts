@@ -171,3 +171,90 @@ test("the flush covers every conversation of this server and owner, and no other
     JSON.stringify([listed, routine].sort()),
   );
 });
+
+type Held = {
+  done: Promise<{ id: string }>;
+  cancel: () => void;
+  name: string;
+  size: number;
+  media_type: string;
+};
+function heldUpload(name: string) {
+  let resolve!: (row: { id: string }) => void, reject!: (cause: unknown) => void;
+  let cancelled = false;
+  const done = new Promise<{ id: string }>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  done.catch(() => undefined);
+  const upload = {
+    done,
+    name,
+    size: 1,
+    media_type: "text/plain",
+    cancel: () => (cancelled = true),
+  };
+  return { upload: upload as unknown as Held, resolve, reject, cancelled: () => cancelled };
+}
+
+test("a message sent while its files upload gets their ids once they are up", async () => {
+  const { box } = outbox();
+  const key = box.outgoingKey("https://one.test", "owner", "t1");
+  const file = heldUpload("a.txt");
+  const sent = await box.enqueueOutgoing(
+    key,
+    "t1",
+    "f",
+    { content: "Read", attachment_ids: [] },
+    0,
+    [file.upload] as never,
+  );
+  assert.equal(sent.message.uploading?.length, 1);
+  assert.equal(box.outgoingUploads(sent.nonce).length, 1);
+  file.resolve({ id: "file-1" });
+  const ready = await box.settleOutgoingUploads(key, sent.nonce);
+  assert.equal(JSON.stringify(ready?.body.attachment_ids), '["file-1"]');
+  assert.equal(ready?.message.uploading, undefined);
+  assert.equal(box.outgoingUploads(sent.nonce).length, 0);
+});
+
+test("a failed upload fails its message, which restarts failed and is never retried or flushed", async () => {
+  const first = outbox();
+  const key = first.box.outgoingKey("https://one.test", "owner", "t1");
+  const file = heldUpload("a.txt");
+  const sent = await first.box.enqueueOutgoing(key, "t1", "f", { content: "Read" }, 0, [
+    file.upload,
+  ] as never);
+  file.reject(new Error("upload_failed"));
+  await assert.rejects(first.box.settleOutgoingUploads(key, sent.nonce));
+  const row = first.box.outgoingMessages(key)[0];
+  assert.equal(row.message.delivery, "failed");
+  assert.equal(row.message.uploading?.length, 1);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const restarted = outbox(first.storage);
+  await restarted.box.hydrateOutgoing(key);
+  const restored = restarted.box.outgoingMessages(key)[0];
+  assert.equal(restored.message.delivery, "failed");
+  assert.equal(restored.message.uploading?.length, 1);
+  let posts = 0;
+  const post = async () => {
+    posts += 1;
+    return restored.message;
+  };
+  assert.equal(await restarted.box.flushQueued([key], post), 0);
+  assert.equal(posts, 0);
+});
+
+test("✕ on a sent message's ring cancels its uploads and removes it unposted", async () => {
+  const { box } = outbox();
+  const key = box.outgoingKey("https://one.test", "owner", "t1");
+  const file = heldUpload("a.txt");
+  const sent = await box.enqueueOutgoing(key, "t1", "f", { content: "Read" }, 0, [
+    file.upload,
+  ] as never);
+  box.cancelOutgoingUploads(key, sent.nonce);
+  assert.equal(file.cancelled(), true);
+  assert.equal(box.outgoingMessages(key).length, 0);
+  file.resolve({ id: "late" });
+  assert.equal(await box.settleOutgoingUploads(key, sent.nonce), null);
+});

@@ -176,3 +176,43 @@ test("cancelling a sent message's upload removes the message; nothing is posted"
     await data.remove();
   }
 });
+
+test("a sent message whose file fails to upload is failed with Delete only; nothing is posted", async ({
+  page,
+  context,
+}) => {
+  const data = await fixture(context);
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/artifacts/upload", async (route) => {
+    await gate;
+    await route.fulfill({ status: 500, json: { code: "request_failed" } });
+  });
+  const posted = [];
+  await page.route(`**/api/threads/${data.thread.id}/messages`, async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: [] });
+    posted.push(route.request().postDataJSON());
+    return route.fulfill({ status: 503, json: { code: "request_failed" } });
+  });
+  try {
+    await page.goto(`/thread?id=${data.thread.id}`);
+    await choose(page, ["broken.txt"]);
+    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("With a broken file");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const transcript = page.getByTestId("conversation-transcript");
+    await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
+    release();
+    await expect(transcript.getByText("Message not sent", { exact: true })).toBeVisible();
+    await expect(transcript.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
+    await transcript.getByText("With a broken file", { exact: true }).click({ delay: 900 });
+    await expect(page.getByText("The message was not sent", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(transcript.getByText("With a broken file", { exact: true })).toHaveCount(0);
+    expect(posted).toHaveLength(0);
+  } finally {
+    await data.remove();
+  }
+});

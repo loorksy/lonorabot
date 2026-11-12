@@ -230,6 +230,7 @@ export async function enqueueOutgoing(
     await persist(key);
     if (epoch !== generation) throw new Error("session_request_cancelled");
   } catch (error) {
+    handles.delete(nonce);
     notify(
       key,
       outgoingMessages(key).filter((row) => row.nonce !== nonce),

@@ -12,6 +12,8 @@ export type ComposerUpload = PickedFile & {
   p: number;
   /** Handed to a sent message: its file no longer joins the draft. */
   sent: boolean;
+  /** The uploaded file, once it is up. */
+  result?: Artifact;
   cancel: () => void;
   done: Promise<Artifact>;
 };
@@ -20,20 +22,20 @@ type Transfer = (progress: (p: number) => void, signal: AbortSignal) => Promise<
 const running = new Map<string, ComposerUpload[]>();
 const listeners = new Set<() => void>();
 const none: ComposerUpload[] = [];
-let version = 0;
+// Per conversation: a file's progress re-renders only its own conversation.
+const versions = new Map<string, number>();
 
+function moved(key: string) {
+  versions.set(key, (versions.get(key) ?? 0) + 1);
+  for (const listener of listeners) listener();
+}
 function set(key: string, rows: ComposerUpload[]) {
   if (rows.length) running.set(key, rows);
   else running.delete(key);
-  version += 1;
-  for (const listener of listeners) listener();
-}
-function moved() {
-  version += 1;
-  for (const listener of listeners) listener();
+  moved(key);
 }
 export const composerUploads = (key: string): ComposerUpload[] => running.get(key) ?? none;
-export const uploadsVersion = () => version;
+export const uploadsVersion = (key: string) => versions.get(key) ?? 0;
 export function subscribeUploads(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -61,9 +63,10 @@ export function startUpload(key: string, file: PickedFile, transfer: Transfer): 
     // A new list, so a reader that compares lists sees the progress; a sent message's ring
     // reads the version.
     if (!upload.sent) set(key, [...composerUploads(key)]);
-    else moved();
+    else moved(key);
   }, controller.signal).then(
     (row) => {
+      upload.result = row;
       leave();
       if (!upload.sent)
         editComposerDraft(key, { attachments: [...composerDraft(key).attachments, row] });
@@ -86,6 +89,17 @@ export function cancelUpload(key: string, id: string) {
     ?.cancel();
 }
 
+/** A send that could not be admitted gives its running uploads back to the composer. */
+export function handBack(key: string, rows: readonly ComposerUpload[]) {
+  const back = rows.filter((row) => row.sent);
+  for (const row of back) row.sent = false;
+  const finished = back.flatMap((row) => (row.result ? [row.result] : []));
+  if (finished.length)
+    editComposerDraft(key, { attachments: [...composerDraft(key).attachments, ...finished] });
+  const running = back.filter((row) => !row.result);
+  if (running.length) set(key, [...composerUploads(key), ...running]);
+  else if (finished.length) moved(key);
+}
 /** Send while files upload: the running uploads move to the message; the composer is clear. */
 export function handOver(key: string): ComposerUpload[] {
   const rows = composerUploads(key);
@@ -97,6 +111,5 @@ export function handOver(key: string): ComposerUpload[] {
 registerSessionTeardown(async () => {
   for (const rows of running.values()) for (const row of rows) row.cancel();
   running.clear();
-  version += 1;
-  for (const listener of listeners) listener();
+  for (const key of [...versions.keys()]) moved(key);
 });

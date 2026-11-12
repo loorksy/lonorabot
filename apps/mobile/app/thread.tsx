@@ -77,6 +77,7 @@ import {
 } from "../lib/composer-drafts";
 import {
   composerUploads,
+  handBack,
   handOver,
   startUpload,
   subscribeUploads,
@@ -214,7 +215,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     useCallback(() => composerUploads(outboxKey), [outboxKey]),
   );
   // Every upload's progress, a sent message's ring included.
-  const uploadTick = useSyncExternalStore(subscribeUploads, uploadsVersion);
+  const uploadTick = useSyncExternalStore(
+    subscribeUploads,
+    useCallback(() => uploadsVersion(outboxKey), [outboxKey]),
+  );
   // A finished upload has joined the stored draft: the composer shows it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `uploadTick` is the change signal
   useEffect(() => {
@@ -651,6 +655,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const retryOutgoing = async (nonce: string) => {
     const prior = outgoingMessages(outboxKey).find((row) => row.nonce === nonce);
     if (prior?.message.delivery !== "failed" || deliveries.current.has(nonce)) return;
+    // Files that never arrived cannot be sent again: only «حذف» is left.
+    if (prior.message.uploading?.length) return;
     try {
       await deliver(
         await enqueueOutgoing(
@@ -770,7 +776,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }
       }
     } catch (reason) {
-      for (const file of handed) file.cancel();
+      // The picked files go back to the composer with the text.
+      handBack(targetKey, handed);
       if (current()) setError(errorText(reason));
       if (followUp) throw reason;
       return;
