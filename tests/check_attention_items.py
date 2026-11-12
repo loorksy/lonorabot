@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
+from lonora_agent.collaboration.outcome_return import return_outcome
 from lonora_contracts.attention import AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
@@ -24,14 +25,19 @@ from lonora_db.attention import raise_system_attention, withdraw_ended
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     BrokerSessionRow,
     EventRow,
+    MessageRow,
     OwnerActionRow,
+    RunRow,
     TradingJournalRow,
 )
+from lonora_db.system_alerts import alert_key
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
+from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select, text
 
@@ -63,6 +69,14 @@ async def ready_events(fixture: Fixture, item_id: str) -> int:
             )
             or 0
         )
+
+
+async def alert_runs(fixture: Fixture, item: AttentionRow) -> list[RunRow]:
+    """The wake for the item's problem (one per outage and problem, or per operation)."""
+    run_id = stable_id(fixture.owner, "system-alert:" + str(alert_key(item)))
+    async with fixture.runtime.db.sessions() as session:
+        run = await session.get(RunRow, run_id)
+        return [run] if run is not None else []
 
 
 async def tick(fixture: Fixture) -> None:
@@ -171,10 +185,32 @@ async def broker_health(fixture: Fixture) -> None:
     assert token.parameters["reason_code"] == "broker_credentials_rejected"
     assert await ready_events(fixture, token.id) == 1
     print("PASS a rejected token is one item at once, in Lonora's conversation")
+    [wake] = await alert_runs(fixture, token)
+    assert (wake.agent_id, wake.trigger, wake.status) == (lonora.id, "broker_event", "queued")
+    assert wake.model_metadata["origin_thread_id"] == lonora_thread
+    assert wake.thread_id != lonora_thread
+    assert wake.model_metadata.get("authority") != "observe_only"
+    assert "MetaApi rejected the access token" in wake.prompt and account in wake.prompt
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, wake.id, with_for_update=True)
+        assert run is not None
+        run.status, run.result = "completed", "The broker token was rejected: " + uuid4().hex
+        said = run.result
+    await return_outcome(fixture.runtime.db, wake.id)
+    async with fixture.runtime.db.sessions() as session:
+        assert await session.scalar(
+            select(MessageRow.id).where(
+                MessageRow.thread_id == lonora_thread, MessageRow.content == said
+            )
+        )
+    print(
+        "PASS the problem wakes Lonora once, in a work thread; its answer lands in Lonora's conversation"
+    )
 
     await set_recovery(fixture, account, "connected", "broker_reconciled", utcnow())
     await tick(fixture)
     [token] = await items(fixture, "broker_token_rejected")
+    assert len(await alert_runs(fixture, token)) == 1
     assert token.status == "suppressed"
     print("PASS the item is withdrawn when the account connects again")
 
@@ -189,6 +225,11 @@ async def broker_health(fixture: Fixture) -> None:
     assert await items(fixture, "broker_connection_lost") == []
     print("PASS a connection lost for 30 seconds is no item")
 
+    # A paused Lonora takes no new work (4.7): the owner still has the item.
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, lonora.id, with_for_update=True)
+        assert row is not None
+        row.paused = True
     await set_recovery(
         fixture,
         account,
@@ -197,9 +238,20 @@ async def broker_health(fixture: Fixture) -> None:
         utcnow() - timedelta(minutes=3),
     )
     await tick(fixture)
-    await tick(fixture)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, lonora.id, with_for_update=True)
+        assert row is not None
     [lost] = await items(fixture, "broker_connection_lost")
     assert lost.status == "ready" and lost.parameters["reason_code"] == "broker_connection_closed"
+    assert await alert_runs(fixture, lost) == []
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, lonora.id, with_for_update=True)
+        assert row is not None
+        row.paused = False
+    await tick(fixture)
+    await tick(fixture)
+    assert len(await alert_runs(fixture, lost)) == 1
+    print("PASS a paused Lonora is woken once it resumes, while the problem stands")
     print("PASS a connection lost for more than 2 minutes is one item")
 
     # The same outage turns into an undeployed account: one item per problem.
@@ -235,7 +287,10 @@ async def broker_health(fixture: Fixture) -> None:
     old, again = await items(fixture, "broker_account_undeployed")
     assert old.status == "suppressed" and again.status == "ready"
     assert again.parameters["since"] == old.parameters["since"]
-    print("PASS a problem that comes back in the same outage is raised again, once")
+    # Lonora was woken for this outage's problem once, not again for the new item.
+    [wake] = await alert_runs(fixture, again)
+    assert wake.model_metadata["attention_id"] == old.id
+    print("PASS a problem that comes back in the same outage is raised again, once, one wake")
 
     # A naive or unreadable stored time never stops the owner's other items.
     async with fixture.runtime.db.sessions() as session, session.begin():
@@ -293,7 +348,48 @@ async def broker_health(fixture: Fixture) -> None:
     ]
     assert [(row.code, row.status) for row in episode] == [("broker_token_rejected", "ready")]
     assert await ready_events(fixture, episode[0].id) == 1
-    print("PASS an outage whose reason flaps between polls is one item and one ready event")
+    assert len(await alert_runs(fixture, episode[0])) == 1
+    print("PASS an outage whose reason flaps between polls is one item, one ready event, one wake")
+
+
+async def failed_wake(fixture: Fixture) -> None:
+    """A wake that fails never costs the owner the item."""
+    operation_id = "op-" + uuid4().hex[:20]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=operation_id,
+                owner_id=fixture.owner,
+                account_id="acc-" + uuid4().hex[:8],
+                request_hash="h",
+                request={"symbol": "EURUSD", "action": "buy"},
+                status="ambiguous",
+            )
+        )
+        await session.flush()
+        emit(
+            session,
+            fixture.owner,
+            "trading.operation_updated",
+            payload={"operation_id": operation_id, "status": "ambiguous"},
+        )
+
+    async def broken(*_: object, **__: object) -> None:
+        raise RuntimeError("scripted wake failure")
+
+    with patch("lonora_db.runs.create_run", broken):
+        await tick(fixture)
+    [item] = [
+        row
+        for row in await items(fixture, "operation_uncertain")
+        if row.parameters.get("operation_id") == operation_id
+    ]
+    assert item.status == "ready" and await alert_runs(fixture, item) == []
+    print("PASS a failed wake leaves the owner's item standing")
+    await tick(fixture)
+    await tick(fixture)
+    assert len(await alert_runs(fixture, item)) == 1
+    print("PASS a failed wake is tried again on a later tick, once")
 
 
 async def settle_card(fixture: Fixture) -> None:
@@ -324,6 +420,12 @@ async def settle_card(fixture: Fixture) -> None:
         if row.parameters.get("operation_id") == operation_id
     ]
     assert item.status == "ready"
+    [wake] = await alert_runs(fixture, item)
+    assert wake.trigger == "broker_event" and operation_id in wake.prompt
+    assert wake.model_metadata.get("authority") != "observe_only"
+    await tick(fixture)
+    assert len(await alert_runs(fixture, item)) == 1
+    print("PASS an uncertain operation wakes Lonora once")
     async with fixture.runtime.db.sessions() as session, session.begin():
         card = await session.scalar(
             select(OwnerActionRow).where(
@@ -480,6 +582,7 @@ async def main() -> None:
         await secret_card(fixture)
         await broker_health(fixture)
         await settle_card(fixture)
+        await failed_wake(fixture)
         await fallbacks(fixture)
         await migration(fixture)
     finally:
