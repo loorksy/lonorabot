@@ -21,7 +21,6 @@ import type {
   OwnerActionLimitField,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
-import { modelCard } from "./agent-model";
 import {
   isolate,
   listSeparator,
@@ -1336,21 +1335,6 @@ export function ownerActionCard(
   locale: string,
   now: Date = new Date(),
 ): OwnerActionSpec {
-  if (card.kind === "agent_model" || card.kind === "agent_model_changed") {
-    // A model card (W15-10): one tap, never a passkey, nothing financial.
-    const model = modelCard(card, locale);
-    return {
-      title: model.title,
-      lines: model.lines,
-      hint: model.hint,
-      options: [],
-      buttons: model.buttons.map((item) => ({ ...item, decision: item.key })),
-      notes: false,
-      credential: null,
-      passkey: false,
-      outcome: model.outcome,
-    };
-  }
   const lang = language(locale);
   const text = ownerActionLabels[lang];
   const facts = card.facts;
@@ -1737,10 +1721,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "That agent no longer trades here on its own. Nothing changed.",
     ar: "لم يعد ذلك الوكيل يتداول هنا بنفسه. لم يتغير شيء.",
   },
-  allowed_models_full: {
-    en: "You already allow the most models. Remove one in Model settings first.",
-    ar: "سمحت بأقصى عدد من النماذج. أزل واحدًا من إعدادات النماذج أولًا.",
-  },
   owner_action_not_needed_grant_already_active: {
     en: "This is already signed.",
     ar: "هذا موقّع بالفعل.",
@@ -1830,12 +1810,7 @@ export function ownerActionError(code: string | null | undefined, locale: string
 }
 
 // The notices whose «تراجع» is their confirm decision; the others (stop_tightened) are records.
-const UNDOABLE_NOTICES = new Set<string>([
-  "agent_model_changed",
-  "agent_created",
-  "supervision_created",
-  "watch_changed",
-]);
+const UNDOABLE_NOTICES = new Set<string>(["agent_created", "supervision_created", "watch_changed"]);
 
 /** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31); a
     settled stop_tightened record was applied, never undone. */

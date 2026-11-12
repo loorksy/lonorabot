@@ -4,13 +4,13 @@ from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import RunRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_models import allowed_models
 from lonora_db.lead import reaches
 from lonora_db.runs import create_run, require_lease, run_data
 from lonora_db.schema import AgentRow, RunRow
 from lonora_db.threads import create_thread
 from lonora_db.transactions import owned_thread
 from lonora_tools.context import ToolContext
+from lonora_tools.models import model_available
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def spawn_subagent(
     context: ToolContext, task: str, model: ModelSelection | None = None
 ) -> dict[str, Any]:
-    """A temporary helper Run of this Agent, on its model or another allowed one."""
+    """A temporary helper Run of this Agent, on its model or another available one."""
     if context.depth >= 2:
         raise LonoraError("delegation_depth_exceeded", 409)
     async with context.db.sessions() as session, session.begin():
@@ -26,15 +26,9 @@ async def spawn_subagent(
         existing = await session.get(RunRow, context.resource_id)
         if existing:
             return run_data(existing)
-        if model is not None:
-            allowed = await allowed_models(session)
-            if model not in allowed:
-                # Only the owner widens the list (a model_request card asks once).
-                return {
-                    "ok": False,
-                    "code": "subagent_model_not_allowed",
-                    "allowed_models": [item.model_dump(mode="json") for item in allowed],
-                }
+        if model is not None and not await model_available(context, model):
+            # Any model of a connected provider's catalog; model_list finds exact ids.
+            return {"ok": False, "code": "subagent_model_not_available"}
         count = await session.scalar(
             select(func.count())
             .select_from(RunRow)
