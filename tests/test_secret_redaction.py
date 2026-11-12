@@ -19,19 +19,14 @@ from uuid import uuid4
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
-from lonora_agent.workspace import WorkspaceResult
-from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import WorkspaceOperationRow
 from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
-from sqlalchemy import select
 from workspace_fake import FakeWorkspace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
-IMAGE = "sha256:" + "a" * 64
 
 VALUE = "sk-live/9f+Qx=7&z"
 SCAN = SecretScan({"API_KEY": VALUE, "SHORT": "ab"})
@@ -146,35 +141,26 @@ def database() -> None:
         pytest.skip("Workspace output uses the PostgreSQL test database.")
 
 
-class PrintingExecutor:
-    """Stands in for a shell. `print NAME` echoes a secret, `print64 NAME` its base64,
-    `say TEXT` echoes text, `mkfile NAME` saves a file named by a secret."""
+def printing(values: dict[str, str]) -> FakeWorkspace:
+    """A workspace whose shell knows three commands: `print NAME` echoes a secret,
+    `print64 NAME` its base64, `say TEXT` echoes text (stdout, and stderr after "error: ")."""
 
-    def __init__(self, values: dict[str, str]) -> None:
-        self.values = values
-
-    async def profile(self) -> str:
-        return IMAGE
-
-    async def execute(
-        self,
-        command: str,
-        files: dict[str, bytes] | None = None,
-        *,
-        deadline_seconds: float = 30,
-        expected_image: str | None = None,
-    ) -> WorkspaceResult:
+    def shell(_agent: str, command: str) -> dict[str, Any]:
         verb, argument = command.split(maxsplit=1)
-        files = dict(files or {})
-        printed = ""
-        if verb == "say":
-            printed = argument + "\n"
-        elif verb in {"print", "print64"}:
-            value = self.values[argument].encode() + b"\n"
+        printed = argument + "\n"
+        if verb in {"print", "print64"}:
+            value = values[argument].encode() + b"\n"
             printed = base64.b64encode(value).decode() if verb == "print64" else value.decode()
-        elif verb == "mkfile":
-            files[self.values[argument] + ".txt"] = b"made"
-        return WorkspaceResult(0, printed, "error: " + printed, files, IMAGE)
+        return {
+            "exit_code": 0,
+            "stdout": printed,
+            "stderr": "error: " + printed,
+            "duration_ms": 1,
+            "stdout_dropped_bytes": 0,
+            "stderr_dropped_bytes": 0,
+        }
+
+    return FakeWorkspace(shell)
 
 
 @pytest.mark.asyncio
@@ -224,87 +210,66 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         assert not {other_name, provider_name, broker_name} & set(workspace)
         agent = await fixture.agent("Redaction")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        context = replace(
-            context, workspace_access=RunWorkspaceAccess(PrintingExecutor({name: value}))
-        )
+        files = printing({name: value})
+        context = replace(context, workspace=files.client())
 
         async def call(identity: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
             return await registry.execute(
                 ToolCall(id=identity, name=tool, arguments=arguments), context
             )
 
-        async def run(identity: str, revision: int, command: str) -> dict[str, Any]:
-            arguments = {"revision": revision, "command": command}
-            return await call(identity, "workspace_execute", arguments)
+        async def run(identity: str, command: str) -> dict[str, Any]:
+            return await call(identity, "workspace_run", {"command": command})
 
         # A secret that crosses a page boundary never comes back in two halves.
         body = "A" * 7990 + value + "B" * 100
-        files = {"notes.txt": body, "short.txt": "key " + value, value + ".md": "x"}
         written = await call(
-            "write", "workspace_update", {"revision": 0, "files": files, "delete": []}
+            "write", "workspace_file_write", {"path": "notes.txt", "content": body}
         )
-        assert written["revision"] == 1
+        assert written["written_bytes"] == len(body)
         pages: list[str] = []
-        offset: int | None = 0
-        while offset is not None:
+        offset, more = 0, True
+        while more:
             page = await call(
                 f"page-{offset}",
-                "workspace_read",
-                {"revision": 1, "path": "notes.txt", "offset": offset, "limit": 8000},
+                "workspace_file_read",
+                {"path": "notes.txt", "offset": offset, "limit": 8000},
             )
             pages.append(page["content"])
-            offset = page["next_offset"]
-        assert len(pages) == 2 and "".join(pages) == f"{'A' * 7990}[secret:{name}]{'B' * 100}"
+            offset, more = offset + 8000, page["truncated"]
+        # Each page that holds part of it shows the whole marker instead.
+        marker = f"[secret:{name}]"
+        assert pages == ["A" * 7990 + marker, marker + "B" * 100]
         assert not any(value[:8] in page or value[-8:] in page for page in pages)
         # The path a read echoes is scanned like the content.
+        files.files[(context.agent_id, value + ".md")] = b"x"
         named = await call(
-            "named",
-            "workspace_read",
-            {"revision": 1, "path": value + ".md", "offset": 0, "limit": 100},
+            "named", "workspace_file_read", {"path": value + ".md", "offset": 0, "limit": 100}
         )
         assert named["path"] == f"[secret:{name}].md" and named["content"] == "x"
 
-        plain = await run("print", 1, "print " + name)
+        plain = await run("print", "print " + name)
         assert plain["stdout"] == f"[secret:{name}]\n"
         assert plain["stderr"] == f"error: [secret:{name}]\n"
-        encoded = await run("print64", 2, "print64 " + name)
+        encoded = await run("print64", "print64 " + name)
         # What remains after the marker encodes only the newline echo added.
         assert re.fullmatch(rf"\[secret:{name}\][A-Za-z0-9+/]{{0,2}}=*", encoded["stdout"])
         assert base64.b64encode(value.encode()).decode()[:12] not in json.dumps(encoded)
-        integration = await run("other", 3, "say " + other)
+        integration = await run("other", "say " + other)
         assert integration["stdout"] == f"[secret:{other_name}]\n"
 
-        # A result stored before its value became a secret is scanned when replayed.
-        said = await run("late", 4, "say " + late_value)
+        # A value saved as a secret is scanned from the next answer on.
+        said = await run("late", "say " + late_value)
         assert said["stdout"] == late_value + "\n"
         saved.append(
             await fixture.runtime.services(fixture.owner).secrets.write(
                 late, late_value, "workspace"
             )
         )
-        replayed = await run("late", 4, "say " + late_value)
-        assert replayed["stdout"] == f"[secret:{late}]\n"
-
-        # File paths are workspace output too.
-        made = await run("mkfile", 5, "mkfile " + name)
-        assert f"[secret:{name}].txt" in [item["path"] for item in made["files"]]
-        inspected = await call("inspect", "workspace_inspect", {})
-        assert value not in json.dumps(inspected)
-
-        # The stored receipts (replayed on retry, kept in the database) hold no value.
-        async with fixture.runtime.db.sessions() as session:
-            receipts = (
-                await session.scalars(
-                    select(WorkspaceOperationRow).where(
-                        WorkspaceOperationRow.agent_id == agent["id"]
-                    )
-                )
-            ).all()
-        assert receipts and all(value not in json.dumps(row.result) for row in receipts)
+        again = await run("late-again", "say " + late_value)
+        assert again["stdout"] == f"[secret:{late}]\n"
 
         # A workspace file holding a secret is never exported, text or image.
-        files = FakeWorkspace()
-        context = replace(context, workspace=files.client())
         files.files[(context.agent_id, "short.txt")] = ("key " + value).encode()
         info = PngInfo()
         info.add_text("comment", value)

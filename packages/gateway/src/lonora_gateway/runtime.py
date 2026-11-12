@@ -5,8 +5,6 @@ from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
-from lonora_agent.workspace_access import RunWorkspaceAccess
-from lonora_agent.workspace_client import WorkspaceClient
 from lonora_charts.visual import ChartVisualRuntime
 from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import ModelSelection
@@ -35,7 +33,6 @@ class OwnerServices:
     trading: ExecutionService
     market: MarketRuntime
     chart_visual: ChartVisualRuntime | None = None
-    workspace_socket: Path | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     searxng_url: str | None = None
     browser_url: str | None = None
@@ -50,7 +47,6 @@ class OwnerServices:
         key: str,
         *,
         chart_visual: ChartVisualRuntime | None = None,
-        workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
@@ -81,7 +77,6 @@ class OwnerServices:
             ExecutionService(db, brokers),
             market,
             chart_visual,
-            workspace_socket,
             mcp_declarations,
             searxng_url,
             browser_url,
@@ -113,9 +108,6 @@ class OwnerServices:
             depth,
             maximum_subagents,
             chart_visual=self.chart_visual,
-            workspace_access=RunWorkspaceAccess(
-                WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
-            ),
             workspace=WORKSPACE,
             workspace_given=self.given,
             mcp_declarations=self.mcp_declarations,

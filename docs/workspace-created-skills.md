@@ -25,7 +25,7 @@ Provenance distinguishes `github` from `workspace`. The model sees a workspace p
 labelled `agent_authored` and a public import labelled `external`, never as
 owner-supplied (`docs/agent-memory-and-recall.md`). Local provenance stores the actual
 Agent, Run, source directory and the digest of the selected source; a package made from
-the former analytical workspace also keeps that workspace's revision. A bounded prepared
+the former analytical workspace before migration 0138 also keeps that workspace's revision. A bounded prepared
 receipt preserves the exact selected input across a crash before catalog publication;
 a retry does not read changed source.
 

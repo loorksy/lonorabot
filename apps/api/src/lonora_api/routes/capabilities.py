@@ -23,7 +23,9 @@ async def capabilities(
     infrastructure = Infrastructure(
         searxng=bool(settings.searxng_url),
         browser=bool(settings.browser_url),
-        workspace_host=settings.workspace_socket is not None,
+        # Every installation runs the owner's workspace (docker-compose.prod.yml); only
+        # the Gateway reaches it, and an unreachable one is a tool error there.
+        workspace=True,
         chart_renderer=bool(settings.chart_renderer_url),
         mcp_declarations=settings.mcp_declarations,
         mcp_owner_trust=settings.mcp_owner_trust,

@@ -67,7 +67,10 @@ def test_lonora_never_waits_on_web_search_and_drops_the_retired_overlay() -> Non
     assert "CORE_SERVICES=(db api caddy gateway)" in script
     assert "RESEARCH_SERVICES=(searxng browser)" in script
     # An installation that listed the old overlay stops merging it on its next update.
-    assert "RETIRED_OVERLAYS=(infra/research/compose.research.yml)" in script
+    assert (
+        "RETIRED_OVERLAYS=(infra/research/compose.research.yml infra/analysis/compose.workspace.yml)"
+        in script
+    )
     assert "    retire_overlays\n}" in script
 
 
@@ -87,18 +90,20 @@ def run_retire(tmp_path: Path, env: str) -> tuple[str, str]:
     return (tmp_path / ".env").read_text(), done.stdout
 
 
-def test_an_update_drops_only_the_retired_overlay_and_keeps_every_secret(tmp_path: Path) -> None:
+def test_an_update_drops_only_the_retired_overlays_and_keeps_every_secret(tmp_path: Path) -> None:
+    # Both retired: research (now in the stack) and analysis (the owner's workspace replaced
+    # the analytical workspace's host bridge). An overlay of the operator's own stays.
     before = (
         "LONORA_ENCRYPTION_KEY=secret-value\n"
         "LONORA_COMPOSE_OVERLAYS=infra/research/compose.research.yml "
-        "infra/analysis/compose.workspace.yml\n"
+        "infra/analysis/compose.workspace.yml infra/custom/compose.extra.yml\n"
         "LONORA_DOMAIN=example.com\n"
     )
     after, said = run_retire(tmp_path, before)
     assert after.splitlines() == [
         "LONORA_ENCRYPTION_KEY=secret-value",
         "LONORA_DOMAIN=example.com",
-        "LONORA_COMPOSE_OVERLAYS=infra/analysis/compose.workspace.yml",
+        "LONORA_COMPOSE_OVERLAYS=infra/custom/compose.extra.yml",
     ]
     assert "removed from LONORA_COMPOSE_OVERLAYS" in said and "secret-value" not in said
     assert (tmp_path / ".env").stat().st_mode & 0o777 == 0o600
@@ -111,9 +116,13 @@ def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
     """An installation updated by an older lonora keeps the overlay in .env and on disk."""
     (tmp_path / ".env").write_text(
         "LONORA_COMPOSE_OVERLAYS=infra/research/compose.research.yml "
-        "infra/analysis/compose.workspace.yml\n"
+        "infra/analysis/compose.workspace.yml infra/custom/compose.extra.yml\n"
     )
-    for name in ("infra/research/compose.research.yml", "infra/analysis/compose.workspace.yml"):
+    for name in (
+        "infra/research/compose.research.yml",
+        "infra/analysis/compose.workspace.yml",
+        "infra/custom/compose.extra.yml",
+    ):
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / name).write_text("services: {}\n")
     functions = (
@@ -128,5 +137,6 @@ def test_compose_never_merges_a_retired_overlay(tmp_path: Path) -> None:
         ["bash", "-c", functions], cwd=tmp_path, capture_output=True, text=True, check=True
     )
     arguments = done.stdout.split("\n")
-    assert "infra/analysis/compose.workspace.yml" in arguments
+    assert "infra/custom/compose.extra.yml" in arguments
     assert "infra/research/compose.research.yml" not in arguments
+    assert "infra/analysis/compose.workspace.yml" not in arguments

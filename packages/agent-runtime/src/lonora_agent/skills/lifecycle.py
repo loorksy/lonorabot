@@ -17,8 +17,7 @@ from lonora_tools.terminal import client, require_ordinary, scan
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..workspace import encode_snapshot
-from ..workspace_access import scoped_run
+from ..run_scope import scoped_run
 from .packages import (
     AdaptationReview,
     PackageState,
@@ -30,6 +29,7 @@ from .packages import (
     require_validated,
     validate_package_files,
 )
+from .paths import package_path
 from .registry import installed_registry
 from .repository import repository_identity
 from .store import store_files, stored_files
@@ -204,7 +204,7 @@ async def workspace_directory(context: ToolContext, directory: str) -> dict[str,
     """The regular files under a directory of the agent's workspace (relative to its home),
     listed and read as the agent's own user; every byte passes the secret scan. Caches
     (__pycache__) and dot-directories (.git, .venv) are not part of a package."""
-    encode_snapshot({directory + "/SKILL.md": b""})
+    package_path(directory + "/SKILL.md")
     found = await client(context).run(
         await scan(context),
         context.agent_id,

@@ -1,16 +1,24 @@
 """14.1: each agent's analytical-workspace files are copied once into its home in the
 owner's persistent workspace (7.1), before the old store is deleted."""
 
+import base64
+import json
 from typing import Any
 
 import httpx
 import pytest
-from lonora_agent.workspace import encode_snapshot
 from lonora_agent.workspace_move import DESTINATION, move_snapshots
 from lonora_db.schema import AnalyticalWorkspaceRow
 from lonora_workspace.client import WorkspaceClient
 from test_task_runtime import task_db as task_db
 from workspace_fake import FakeWorkspace
+
+
+def encode_snapshot(files: dict[str, bytes]) -> bytes:
+    """The former analytical workspace's stored form."""
+    return json.dumps(
+        {name: base64.b64encode(body).decode() for name, body in files.items()}
+    ).encode()
 
 
 @pytest.mark.asyncio

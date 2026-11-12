@@ -14,6 +14,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from sqlalchemy import text
 from test_task_runtime import task_db as task_db
+from workspace_fake import FakeWorkspace
 
 spec = importlib.util.spec_from_file_location(
     "visual_acceptance", Path(__file__).parents[1] / "scripts/verify_agent_journeys.py"
@@ -47,8 +48,10 @@ class ScriptedAcceptanceRouter:
     ) -> tuple[ModelReply, ModelSelection]:
         self.calls += 1
         if self.journey in {"visual_workspace", "visual_observed"} and self.calls <= 2:
-            name = "tool_environment" if self.calls == 1 else "workspace_inspect"
-            arguments = {"query": "workspace"} if self.calls == 1 else {}
+            name = "tool_environment" if self.calls == 1 else "workspace_run"
+            arguments = (
+                {"query": "workspace"} if self.calls == 1 else {"command": "wc -c acceptance/*"}
+            )
             return ModelReply(
                 tool_calls=[ToolCall(id="probe-" + str(self.calls), name=name, arguments=arguments)]
             ), ModelSelection(provider="openai", model="scripted-acceptance")
@@ -56,7 +59,7 @@ class ScriptedAcceptanceRouter:
         if self.journey in {"visual_workspace", "visual_observed"}:
             value = [
                 {"v": 2, "kind": "receipt", "title": "حجم الملفات", "mode": "observed"},
-                {"facts": {"size": {"call": "probe-2", "path": "/files/0/size"}}},
+                {"facts": {"size": {"call": "probe-2", "path": "/exit_code"}}},
                 {"type": "KeyValue", "rows": [["حجم الملف الأول", "{@Fact('size')} بايت"]]},
                 CLOSE,
             ]
@@ -92,7 +95,10 @@ class ScriptedAcceptanceRouter:
     ["visual_plain", "visual_workspace", "visual_observed", "visual_diagram", "visual_calculator"],
 )
 async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
-    task_db: tuple[Database, str, str, str], tmp_path: Path, journey: str
+    task_db: tuple[Database, str, str, str],
+    tmp_path: Path,
+    journey: str,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     db, owner, _, _ = task_db
     if db.engine.dialect.name == "sqlite":
@@ -100,6 +106,21 @@ async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
             # The production runner relies on real ON DELETE CASCADE receipts.
             await connection.execute(text("PRAGMA foreign_keys=ON"))
     router = ScriptedAcceptanceRouter(journey)
+    # The supervisor's stand-in: `wc -c` over the seeded files, as the real one answers.
+    files = FakeWorkspace(
+        lambda agent, command: {
+            "exit_code": 0,
+            "duration_ms": 1,
+            "stdout_dropped_bytes": 0,
+            "stderr_dropped_bytes": 0,
+            "stdout": "".join(
+                f"{len(body)} {path}\n"
+                for (owner_agent, path), body in sorted(files.files.items())
+                if owner_agent == agent
+            ),
+        }
+    )
+    monkeypatch.setattr(acceptance, "workspace", files.client())
     evidence = tmp_path / "evidence"
     # The real store: workspace output is scanned for the owner's stored secrets.
     secrets = EncryptedSecretStore(db, os.environ["LONORA_ENCRYPTION_KEY"], owner)
@@ -145,12 +166,13 @@ def test_autonomous_presentation_allows_plain_text_but_not_rejected_visuals(malf
         rich_content=None,
     )
     observations = {
-        "workspace_inspect": [
+        "workspace_run": [
             {
-                "files": [
-                    {"path": path, "size": len(data)}
+                "exit_code": 0,
+                "stdout": "".join(
+                    f"{len(data)} acceptance/{path}\n"
                     for path, data in acceptance.VISUAL_WORKSPACE_FILES.items()
-                ]
+                ),
             }
         ]
     }

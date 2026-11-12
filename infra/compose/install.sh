@@ -14,8 +14,8 @@
 #   --env-from FILE Reuse settings and secrets from an earlier installation's .env: only the
 #                   keys this version knows (ENV_FROM_KEYS below) are copied; the database
 #                   password is always new. Names are listed, values are never printed.
-#   --overlay FILE  Add a Compose overlay from the bundle (repeatable), e.g.
-#                   infra/analysis/compose.workspace.yml for the analysis workspace host.
+#   --overlay FILE  Add a Compose overlay from the bundle (repeatable). This release
+#                   bundles none.
 #   --workspace-*   Limits of the owner's workspace (7.1.3), written to .env. The memory and
 #                   disk minimums are Lonora's 3584 MB and 10 GB plus the workspace's own.
 #
@@ -144,12 +144,7 @@ else
     done
 fi
 for overlay in $overlays; do
-    case "$overlay" in
-        infra/analysis/compose.workspace.yml)
-            if [[ -S /run/lonora-analysis/host.sock ]]; then check true "overlay $overlay: workspace host socket /run/lonora-analysis/host.sock is up"
-            else say "  warn  overlay $overlay: /run/lonora-analysis/host.sock is missing; Lonora starts, analysis stays unavailable until lonora-analysis.service runs"; fi ;;
-        *) check false "overlay $overlay is not one of the bundled overlays" ;;
-    esac
+    check false "overlay $overlay is not one of the bundled overlays"
 done
 if [[ -n "$env_from" ]]; then
     number=0 bad=0
@@ -217,7 +212,7 @@ LONORA_POSTGRES_PASSWORD=$(random 24 | tr '+/' 'xy' | tr -d '=')
 LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
-# Optional overlays, space separated, e.g. infra/analysis/compose.workspace.yml
+# Optional overlays, space separated.
 LONORA_COMPOSE_OVERLAYS=$overlays
 # Resource limits (defaults shown; about 3.4 GB in all):
 # LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75

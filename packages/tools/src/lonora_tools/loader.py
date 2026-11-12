@@ -14,7 +14,6 @@ MODULES = {
     "session_search": "memory",
     "scratchpad": "memory",
     "skills": "memory",
-    "workspace": "files",
     "terminal": "files",
     "workspace_export": "files",
     "routine": "tasks",

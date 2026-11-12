@@ -87,7 +87,6 @@ class Gateway:
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
         chart_visual: ChartVisualRuntime | None = None,
-        workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
@@ -96,7 +95,6 @@ class Gateway:
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
-        self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
@@ -135,7 +133,6 @@ class Gateway:
                     self.maximum_subagents,
                     lane,
                     self.chart_visual,
-                    self.workspace_socket,
                     self.mcp_declarations,
                     self.searxng_url,
                     self.browser_url,
@@ -161,7 +158,6 @@ class Gateway:
                 owner_id,
                 self.key,
                 chart_visual=self.chart_visual,
-                workspace_socket=self.workspace_socket,
                 mcp_declarations=self.mcp_declarations,
                 searxng_url=self.searxng_url,
                 browser_url=self.browser_url,

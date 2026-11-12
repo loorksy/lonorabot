@@ -1074,10 +1074,9 @@ async def test_skills_install_silently_inside_the_list_and_ask_once_outside_it()
         agent = await fixture.agent("Skills")
         thread = await fixture.conversation(agent)
         registry = load_tools()
-        # No workspace host and no workspace access at all: instructions need neither.
+        # No workspace at all: instructions need none.
         context = replace(
             await fixture.lease(await fixture.run(agent, thread)),
-            workspace_access=None,
             skill_access=RunSkillAccess(registry, ()),
         )
         # A repository of its own per run: the list is the owner's and outlives the test.

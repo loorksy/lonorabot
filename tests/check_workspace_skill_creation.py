@@ -168,7 +168,6 @@ async def main() -> None:
         async with context.db.sessions() as session:
             run = await session.get(RunRow, context.lease.run_id)
             assert run and run.status == "completed", run.error_code if run else None
-            assert "skill_execution_image" not in run.model_metadata
             row = await session.get(SkillRow, results[0]["resource_id"])
             assert row and row.payload["enabled"]
             entry = row.state["package"]["versions"][0]

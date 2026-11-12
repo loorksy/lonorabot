@@ -12,8 +12,8 @@ A Run's tool scope comes from the Run row (`run_scope` in `lonora_tools/base.py`
 | Scope | Runs | Tools |
 | --- | --- | --- |
 | `full` | conversations, watches, routines, Tasks, a broker wake on the Agent's own positions, an opportunity wake | every registered tool |
-| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent), the activation review; Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, workspace, skills, narrowing restrictions |
-| `helper` | temporary subagents (`trigger="subagent"`) | read-only tools plus `workspace_execute` and `artifact_create`; never memory writes, peer messages, new agents or financial tools |
+| `observe_only` | wakes about events the Agent did not cause: the owner's manual broker activity (Personal Agent), the activation review; Tasks and tickets such a wake starts | every non-financial tool: memory writes, watches and routines, peer messages, owner alerts, artifacts, skills, narrowing restrictions; in the workspace it only reads files and lists processes |
+| `helper` | temporary subagents (`trigger="subagent"`) | read-only tools plus `artifact_create`; never workspace commands, memory writes, peer messages, new agents or financial tools |
 
 The registry applies one rule (`Tool.permitted(scope)`) to exposure, the capability
 inventory, discovery, skill eligibility (an observe-only wake loads no `financial`
@@ -35,8 +35,9 @@ and when they fire they run with the Agent's normal authority. Money still follo
 the Agent's signed grant, the account limits, pauses and the manual-positions switch
 at the executor.
 
-Workspace writes follow the scope too (`scoped_run` in `workspace_access.py`): a
-paused Agent writes nothing, a helper may only run `workspace_execute`.
+Workspace effects follow the scope too (`require_ordinary` in `lonora_tools/terminal.py`):
+only an ordinary Run of the Agent runs commands, writes files or stops processes; a
+helper and an observe-only wake only read files and list processes.
 
 ## Broker events wake the Agent that owns the position
 
@@ -146,9 +147,9 @@ Delivery is in-app only until Wave 3. See
   observe-only membership, and the financial refusal before any work.
 - `tests/check_opportunity_runtime.py`: one opportunity wake with normal authority.
 - `tests/check_bound_market.py`: the focus-pair policy text.
-- `tests/check_workspace_runtime.py`, `tests/check_workspace_skill_creation.py`,
-  `tests/check_skill_packages.py`, `tests/check_market_analysis.py`: observe-only
-  writes allowed, helper writes refused.
+- `tests/check_workspace_skill_creation.py`, `tests/check_skill_packages.py`,
+  `tests/check_market_analysis.py`: workspace effects only from an ordinary Run,
+  helper effects refused.
 - `tests/check_agent_binding.py`, `tests/check_position_sizing.py`,
   `tests/check_decision_replay.py`: open reads, labelled decisions, bound mutations.
 - Web and Mobile Playwright `agent-alert.spec.mjs`: the alert label and summary in

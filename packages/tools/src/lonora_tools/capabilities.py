@@ -55,7 +55,7 @@ class Infrastructure:
 
     searxng: bool
     browser: bool
-    workspace_host: bool
+    workspace: bool
     chart_renderer: bool
     mcp_declarations: tuple[McpToolDeclaration, ...]
     mcp_owner_trust: bool
@@ -86,8 +86,8 @@ def built_in(
         entry("web_browse", "ready" if infrastructure.browser else "not_set_up"),
         entry("news_feeds", "ready", "subscribed" if feeds else "public_urls"),
         entry("economic_calendar", "ready" if calendar else "not_connected"),
-        entry("workspace_files", "ready"),
-        entry("workspace_execution", "ready" if infrastructure.workspace_host else "not_set_up"),
+        entry("workspace_files", "ready" if infrastructure.workspace else "not_set_up"),
+        entry("workspace_execution", "ready" if infrastructure.workspace else "not_set_up"),
         entry("chart_images", "ready" if infrastructure.chart_renderer else "not_set_up"),
         entry(
             "mcp_tools",
@@ -278,11 +278,10 @@ def integration_entry(
 
 
 def infrastructure_of(context: ToolContext) -> Infrastructure:
-    executor = getattr(context.workspace_access, "execution_configured", False)
     return Infrastructure(
         searxng=bool(context.searxng_url),
         browser=bool(context.browser_url),
-        workspace_host=bool(executor),
+        workspace=context.workspace is not None and context.workspace.present(),
         chart_renderer=context.chart_visual is not None,
         mcp_declarations=context.mcp_declarations,
         mcp_owner_trust=context.mcp_owner_trust,

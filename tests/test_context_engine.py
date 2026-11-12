@@ -1322,7 +1322,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
         "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_file_write", "workspace_stop", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:

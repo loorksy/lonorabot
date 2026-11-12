@@ -15,6 +15,7 @@ from lonora_tools.skills import SkillAdaptationReview as AdaptationReview
 from pydantic import Field, TypeAdapter, model_validator
 
 from .document import FRONTMATTER, skill_document
+from .paths import check_files, files_digest, package_path
 from .repository import (
     MAX_ARCHIVE_BYTES,
     archive_files,
@@ -156,14 +157,12 @@ def prepare_workspace_package(
     adapted_content: str,
     review: AdaptationReview,
 ) -> tuple[PackageVersion, dict[str, str]]:
-    from ..workspace import encode_snapshot
-
     TypeAdapter(SkillVersion).validate_python(version)
     # The same lexical/file bounds used by reads and execution apply here. No
     # host path is opened and no caller-selected Agent or snapshot is accepted.
-    encode_snapshot(snapshot)
+    check_files(snapshot)
     source_path = f"{source_directory}/SKILL.md"
-    encode_snapshot({source_path: b""})
+    package_path(source_path)
     directory = PurePosixPath(source_directory)
     source_files = {
         name: body
@@ -201,7 +200,7 @@ def prepare_workspace_package(
         f"{prefix}/{PurePosixPath(name).relative_to(directory)}": body
         for name, body in texts.items()
     }
-    encode_snapshot({name: body.encode() for name, body in selected.items()})
+    check_files({name: body.encode() for name, body in selected.items()})
     inspected = inspect_utilities(source_files)
     utilities = [
         f"{prefix}/{PurePosixPath(item['path']).relative_to(directory)}" for item in inspected
@@ -216,7 +215,7 @@ def prepare_workspace_package(
                 agent_id=agent_id,
                 run_id=run_id,
                 source_directory=source_directory,
-                snapshot_sha256=hashlib.sha256(encode_snapshot(source_files)).hexdigest(),
+                snapshot_sha256=files_digest(source_files),
             ),
             source_path=source_path,
             source_sha256=hashlib.sha256(source_files[source_path]).hexdigest(),
@@ -264,8 +263,6 @@ def prepare_package(
     adapted_content: str,
     review: AdaptationReview,
 ) -> tuple[PackageVersion, dict[str, str]]:
-    from ..workspace import encode_snapshot
-
     TypeAdapter(SkillVersion).validate_python(version)
     _, repository = repository_identity(repository_url)
     report = inspect_archive(archive, repository=repository, commit=commit)
@@ -303,7 +300,7 @@ def prepare_package(
         or sum(len(body.encode()) for body in selected.values()) > 1048576
     ):
         raise LonoraError("skill_package_too_large", 422)
-    encode_snapshot({path: body.encode() for path, body in selected.items()})
+    check_files({path: body.encode() for path, body in selected.items()})
     utilities = [
         f"{prefix}/{PurePosixPath(item['path']).relative_to(directory)}"
         for item in report["utilities"]

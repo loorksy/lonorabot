@@ -15,7 +15,6 @@ from lonora_trading.execution import ExecutionService
 from lonora_workspace.client import WorkspaceClient
 
 from .skill_access import SkillAccess
-from .workspace_access import WorkspaceAccess
 
 
 @dataclass(frozen=True)
@@ -35,7 +34,6 @@ class ToolContext:
     call_id: str = ""
     chart_visual: ChartVisualRuntime | None = None
     skill_access: SkillAccess | None = None
-    workspace_access: WorkspaceAccess | None = None
     # The owner's persistent workspace (7.1), and the encrypted record of the secret
     # values given to its commands (kept in the scan after a rotation or a deletion).
     workspace: WorkspaceClient | None = None

@@ -1,7 +1,10 @@
 """Each agent's analytical-workspace files, copied once into its home in the owner's
 persistent workspace (7.1), under old-workspace/, before the old store is deleted (14.1)."""
 
+import base64
+import json
 import logging
+from typing import cast
 
 from lonora_contracts.domain import utcnow
 from lonora_db.client import Database
@@ -10,9 +13,25 @@ from lonora_security.secrets import SecretScan
 from lonora_workspace.client import WorkspaceClient
 from sqlalchemy import select
 
-from .workspace import read_snapshot
+from .skills.paths import check_files, package_path
 
 DESTINATION = "old-workspace/"
+
+
+def read_snapshot(content: bytes) -> dict[str, bytes]:
+    """The former analytical workspace's files: a JSON object of path to base64 bytes."""
+    value: object = json.loads(bytes(content) or b"{}")
+    if not isinstance(value, dict):
+        raise ValueError("workspace_snapshot_invalid")
+    mapping = cast(dict[str, object], value)
+    files = {
+        package_path(name): base64.b64decode(str(body), validate=True)
+        for name, body in mapping.items()
+    }
+    check_files(files)
+    return files
+
+
 PER_TICK = 5
 log = logging.getLogger("lonora.workspace.move")
 

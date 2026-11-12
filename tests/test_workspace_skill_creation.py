@@ -1,6 +1,8 @@
 """Local package provenance and bounds use existing source/validation contracts."""
 
+import base64
 import hashlib
+import json
 from typing import Any
 
 import pytest
@@ -9,7 +11,6 @@ from lonora_agent.skills.packages import (
     prepare_workspace_package,
     require_validated,
 )
-from lonora_agent.workspace import encode_snapshot
 from lonora_core.user_error import LonoraError
 from lonora_tools.skills import SkillAdaptationReview, SkillPackageCreateInput
 from pydantic import ValidationError
@@ -22,6 +23,13 @@ REVIEW = SkillAdaptationReview(
     assumptions=["The caller checks symbol identity and timestamps before supplying observations."],
     limitations=["A smoke test is neither a strategy validation nor a maximum-loss guarantee."],
 )
+
+
+def encode_snapshot(files: dict[str, bytes]) -> bytes:
+    """The canonical encoding a workspace package's source digest has always covered."""
+    return json.dumps(
+        {name: base64.b64encode(body).decode("ascii") for name, body in sorted(files.items())}
+    ).encode()
 
 
 def prepare(files: dict[str, bytes] | None = None, **changes: Any):
