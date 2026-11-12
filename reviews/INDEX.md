@@ -39,3 +39,6 @@
 #76 02587b11 FINDINGS 0/0/1 2026-11-12T09:07Z
 #sweep/14-notes-tool 895c4fa9 CLEAN 0/0/0 2026-11-12T09:08Z
 #sweep/13-no-guest-cap 08e011a7 FINDINGS 0/1/2 2026-11-12T09:11Z
+#sweep/13-no-guest-cap f822c0b2 FINDINGS 0/1/0 2026-11-12T09:22Z
+#sweep/14-notes-tool d7c8cc61 CLEAN 0/0/0 2026-11-12T09:22Z
+#accept/2-brief-week 23b8aa1d CLEAN 0/0/0 2026-11-12T09:22Z
