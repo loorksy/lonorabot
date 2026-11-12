@@ -99,7 +99,7 @@ class Gateway:
         self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
         # Package run copies checked since this Gateway started (skills/run_copies.py).
-        self.run_copies_checked: set[tuple[str, str, str]] = set()
+        self.run_copies_checked: dict[tuple[str, str, str], bool] = {}
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
