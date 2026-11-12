@@ -25,10 +25,7 @@ const copy = {
 };
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: a watch is cancelled from the agent status line`, async ({
-    page,
-    context,
-  }) => {
+  test(`${locale}: a watch is cancelled from the agent status line`, async ({ page, context }) => {
     test.setTimeout(90000);
     const text = copy[locale];
     const data = simulation({ action: "init", empty: true });

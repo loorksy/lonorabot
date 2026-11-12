@@ -238,9 +238,7 @@ test("task form, task page and profile creation remain usable under StrictMode a
   // A new agent is asked of Lonora in chat (P5, mandate 3.1.2): «New chat» offers groups
   // and the existing agents, no creation form.
   await page.getByRole("button", { name: "New chat", exact: true }).first().click();
-  await expect(page.locator("#dialog").getByRole("button", { name: /^New agent/ })).toHaveCount(
-    0,
-  );
+  await expect(page.locator("#dialog").getByRole("button", { name: /^New agent/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
   const teammate = remember(
     "agents",

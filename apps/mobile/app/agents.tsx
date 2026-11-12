@@ -5,7 +5,7 @@ import { rowKey } from "@lonora/core";
 import { Redirect, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { useOpenChat } from "../components/shell/chat-list";
-import { CircleButton, PageHeader } from "../components/shell/chrome";
+import { PageHeader } from "../components/shell/chrome";
 import { Icon } from "../components/shell/icon";
 import {
   Btn,
