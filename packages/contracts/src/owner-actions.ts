@@ -42,11 +42,7 @@ export type GrantDelegation = "custom" | "full";
 /** A model card's side of a choice: the mode and its model (null: the owner's default). */
 export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
 /** trust_source: what the owner adds to the trusted list. */
-export type TrustSourceKind =
-  | "mcp_server"
-  | "github_owner"
-  | "github_repo"
-  | "feed_domain";
+export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /** connect_credential: which secure form the card offers. */
 export type CredentialTarget =
   | "mcp_server"
@@ -72,24 +68,12 @@ export type OwnerActionAgent = {
   /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
   responsibility?: string | null;
 };
-export type OwnerActionStatus =
-  | "pending"
-  | "confirmed"
-  | "cancelled"
-  | "expired"
-  | "superseded";
+export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
-export type OwnerActionLimitField =
-  | MoneyLimitName
-  | "currency"
-  | "trading_day_timezone";
+export type OwnerActionLimitField = MoneyLimitName | "currency" | "trading_day_timezone";
 /** The broker identity the owner recognizes; label is null when it is not verified. */
-export type OwnerActionAccount = {
-  id: string;
-  label: string | null;
-  provider: string | null;
-};
+export type OwnerActionAccount = { id: string; label: string | null; provider: string | null };
 /** What a signed grant allows: markets, actions, caps, protections, expiry and own positions. */
 export type OwnerActionGrantTerms = {
   management_mode: "bounded" | "full";
@@ -170,11 +154,7 @@ export type OwnerAction = {
     blocks?: "new_risk_on_this_symbol_or_ticket";
     current?: MoneyLimits;
     proposed?: MoneyLimits;
-    changes?: Array<{
-      name: OwnerActionLimitField;
-      from: string | null;
-      to: string | null;
-    }>;
+    changes?: Array<{ name: OwnerActionLimitField; from: string | null; to: string | null }>;
     /** The account's limits changed since the card was raised and its change no longer fits. */
     no_longer_applies?: boolean;
     /** A grant card: exactly what the owner signs, resolved on the server from its draft. */

@@ -48,14 +48,11 @@ export const ownerActionLabels = {
     modeFullLine: "Trades on its own and reports afterwards.",
     modeAskLine:
       "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
-    mandateToFull:
-      "Full lets it trade on its own. You can switch it back here at any time.",
-    mandateToAsk:
-      "Ask makes every trade that adds risk wait for your approval.",
+    mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
+    mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
     mandateGrantStays:
       "Its signed grant still lets it trade within the grant's terms until you revoke it.",
-    mandatePreviousGrant:
-      "Its earlier signed grant ({grant}) has ended; this card replaces it.",
+    mandatePreviousGrant: "Its earlier signed grant ({grant}) has ended; this card replaces it.",
     mandatePreviousFull: "Full delegation",
     mandatePreviousAllPairs: "every pair on the account",
     mandateGone: "This agent no longer exists.",
@@ -91,8 +88,7 @@ export const ownerActionLabels = {
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
       "It will not be sent again. New risk on this market is held until you answer; any answer, Unknown included, releases this trade's hold. Exits still work.",
-    resolveRecord:
-      "Your answer is recorded as your statement, not as broker confirmation.",
+    resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
     unknown: "Unknown: release the hold",
@@ -116,10 +112,8 @@ export const ownerActionLabels = {
     brokerAccount: "Broker account",
     resumed: "Trading resumed.",
     lifted: "Pause lifted.",
-    recordedExecuted:
-      "Recorded: it executed (your statement, not broker confirmation).",
-    recordedNotExecuted:
-      "Recorded: it did not execute (your statement, not broker confirmation).",
+    recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
+    recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
       "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
     limitsSaved: "Money limits updated.",
@@ -199,8 +193,7 @@ export const ownerActionLabels = {
       "Signed. New trading is still stopped, so it trades on its own inside this grant once you resume.",
     alreadySigned: "This is already signed. Nothing changed.",
     createTitle: "Create an agent?",
-    createHint:
-      "It starts with no money authority. Nothing is created until you tap.",
+    createHint: "It starts with no money authority. Nothing is created until you tap.",
     create: "Create agent",
     createdTitle: "Agent created",
     undo: "Undo",
@@ -226,10 +219,8 @@ export const ownerActionLabels = {
     kept: "Kept.",
     agentRemoved: "This agent was already removed.",
     alreadyCreated: "This agent was already created. Nothing changed.",
-    agentLimit:
-      "You already have the most active agents allowed. Nothing changed.",
-    reportToMissing:
-      "An agent it reports to no longer exists. Nothing changed.",
+    agentLimit: "You already have the most active agents allowed. Nothing changed.",
+    reportToMissing: "An agent it reports to no longer exists. Nothing changed.",
     connectionChanged: "The broker account changed. Nothing changed.",
     supervises: "Supervises",
     superviseTitle: "Let it supervise?",
@@ -244,12 +235,10 @@ export const ownerActionLabels = {
     supervisionKept: "Kept.",
     supervisionEnded: "This supervision already ended.",
     supervisionAlreadySet: "This supervision is already set. Nothing changed.",
-    supervisionAgentMissing:
-      "One of these agents no longer exists. Nothing changed.",
+    supervisionAgentMissing: "One of these agents no longer exists. Nothing changed.",
     stoppedTitle: "Supervision stopped",
     restore: "Restore",
-    stoppedHint:
-      "It no longer reads, messages or pauses their work. Restore sets it again.",
+    stoppedHint: "It no longer reads, messages or pauses their work. Restore sets it again.",
     restored: "Restored: supervision set again.",
     pauseTitle: "Paused by a supervisor",
     pausedBy: "Paused by",
@@ -258,16 +247,14 @@ export const ownerActionLabels = {
     targetRoutine: "Routine",
     targetWatch: "Watch",
     targetTask: "Task",
-    pauseHint:
-      "The agent cannot resume it on its own. Resume lifts the pause now.",
+    pauseHint: "The agent cannot resume it on its own. Resume lifts the pause now.",
     pauseOwnerHolds: "You paused it too, so only you resume it.",
     pauseEnded: "This pause already ended.",
     resumeWork: "Resume",
     keepPaused: "Keep paused",
     resumedWork: "Resumed.",
     keptPaused: "Kept paused.",
-    watchExpired:
-      "This watch is past its expiry: move its expiry in the watch list to resume it.",
+    watchExpired: "This watch is past its expiry: move its expiry in the watch list to resume it.",
     trustTitle: "Trust this source?",
     trustReviewTitle: "This server's tools changed",
     trustServer: "MCP server",
@@ -295,12 +282,10 @@ export const ownerActionLabels = {
     unnamedServer: "Unnamed server",
     alreadyTrusted: "This source is already trusted. Nothing changed.",
     serverMissing: "This server is no longer saved. Nothing changed.",
-    serverChanged:
-      "This server's address changed. Nothing changed; review it again.",
+    serverChanged: "This server's address changed. Nothing changed; review it again.",
     nothingToTrust: "This server offers no tool that can be trusted.",
     feedSubscribed: "This feed is already subscribed.",
-    serverChangedAgain:
-      "The server changed again; the newer card replaces this one.",
+    serverChangedAgain: "The server changed again; the newer card replaces this one.",
     connectMcp: "Connect an MCP server",
     connectX: "Connect X",
     connectFeed: "Add a news feed",
@@ -327,8 +312,7 @@ export const ownerActionLabels = {
     noteShort: "Note",
     brokerRefShort: "Broker reference",
     addNote: "Add a note or the broker reference",
-    deviceOnce:
-      "A one-time step; after it, authorisations are signed with this device's passkey.",
+    deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
     statusConfirmed: "Done",
@@ -347,8 +331,7 @@ export const ownerActionLabels = {
     watchRemoved: "This watch no longer exists.",
     stopTightenedTitle: "Stop loss tightened",
     stopLoss: "Stop loss",
-    stopTightenedLine:
-      "Stop loss tightened. No undo: loosening it again would be a new order.",
+    stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
     mandateTitle: "التفويض",
@@ -356,21 +339,17 @@ export const ownerActionLabels = {
     modeFull: "وكّله",
     modeAsk: "يستأذن",
     modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
-    modeAskLine:
-      "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
-    mandateToFull:
-      "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
+    modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
     mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
-    mandatePreviousGrant:
-      "انتهت صلاحيته الموقّعة السابقة ({grant})، وهذه البطاقة تحلّ محلّها.",
+    mandatePreviousGrant: "انتهت صلاحيته الموقّعة السابقة ({grant})، وهذه البطاقة تحلّ محلّها.",
     mandatePreviousFull: "تفويض كامل",
     mandatePreviousAllPairs: "كل أزواج الحساب",
     mandateGone: "لم يعد هذا الوكيل موجودًا.",
     resumeTitle: "استئناف التداول",
     resumeStopped: "التداول الجديد متوقف",
-    resumeHint:
-      "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
+    resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
     resume: "استئناف التداول",
     startTitle: "بدء التداول",
     startStopped: "لم يبدأ التداول الجديد بعد",
@@ -437,8 +416,7 @@ export const ownerActionLabels = {
     doneElsewhere: "نُفذ من بطاقة أخرى.",
     sameOnAnotherCard: "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
     noLongerApplies: "لم يعد هذا ساريًا. لم يتغير شيء.",
-    passkeyUnsupported:
-      "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
+    passkeyUnsupported: "توقيع مفتاح المرور غير متاح هنا. افتح لونورا بمتصفح مدعوم أو التطبيق.",
     registerDevice: "سجّل هذا الجهاز أولًا",
     deviceName: accountAuthorityLabels.ar.device,
     password: "كلمة مرور الحساب",
@@ -466,8 +444,7 @@ export const ownerActionLabels = {
       "طلبت {amount}: هذه البطاقة لا ترفع حد الخسارة اليومية أبدًا؛ رفعه يحتاج بطاقة حدود بمفتاح المرور.",
     tradingStopped: "التداول الجديد متوقف",
     resumeToo: "استأنف التداول أيضًا",
-    conflict:
-      "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
+    conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
     stopOther: "أوقف تداول {agent} بنفسه على هذا الحساب",
     stoppedOthers: "أُوقف على هذا الحساب: {agents}.",
     replaces: "يحل محل تفويضه الحالي",
@@ -564,8 +541,7 @@ export const ownerActionLabels = {
     keepPaused: "إبقاؤه موقوفًا",
     resumedWork: "تم الاستئناف.",
     keptPaused: "بقي موقوفًا.",
-    watchExpired:
-      "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
+    watchExpired: "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
     trustTitle: "الوثوق بهذا المصدر؟",
     trustReviewTitle: "تغيّرت أدوات هذا الخادم",
     trustServer: "خادم MCP",
@@ -603,8 +579,7 @@ export const ownerActionLabels = {
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
-    connectHint:
-      "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
+    connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
     fieldName: "الاسم",
@@ -623,8 +598,7 @@ export const ownerActionLabels = {
     noteShort: "ملاحظة",
     brokerRefShort: "مرجع الوسيط",
     addNote: "إضافة ملاحظة أو مرجع الوسيط",
-    deviceOnce:
-      "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
+    deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
     statusConfirmed: "تم",
@@ -635,8 +609,7 @@ export const ownerActionLabels = {
     latest: "عرض الأحدث",
     undone: "تم التراجع",
     watchChangedTitle: "مُدّدت مراقبة",
-    watchChangedHint:
-      "مدّد الوكيل نهاية هذه المراقبة دون أن يسأل. «تراجع» يعيد النهاية السابقة.",
+    watchChangedHint: "مدّد الوكيل نهاية هذه المراقبة دون أن يسأل. «تراجع» يعيد النهاية السابقة.",
     watchNoEnd: "حتى الإلغاء",
     watchUndone: "تم التراجع: تنتهي المراقبة كما كانت.",
     watchChangedAgain: "تغيّرت هذه المراقبة بعد ذلك. لا شيء للتراجع عنه.",
@@ -716,9 +689,7 @@ function accountLabel(
 ): string | null {
   if (!account) return null;
   if (account.label) return isolate(account.label);
-  return account.provider === "simulation"
-    ? text.simulation
-    : text.brokerAccount;
+  return account.provider === "simulation" ? text.simulation : text.brokerAccount;
 }
 
 function actionLabel(action: string | null, lang: Language): string {
@@ -726,17 +697,12 @@ function actionLabel(action: string | null, lang: Language): string {
   return action ? (labels[action] ?? isolate(action)) : "";
 }
 
-function settledLine(
-  card: OwnerAction,
-  text: OwnerActionText,
-  lang: Language,
-): string | null {
+function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): string | null {
   if (card.status === "pending") return null;
   if (card.status === "cancelled")
     return card.kind === "agent_created" || card.kind === "watch_changed"
       ? text.kept
-      : card.kind === "supervision_created" ||
-          card.kind === "supervision_stopped"
+      : card.kind === "supervision_created" || card.kind === "supervision_stopped"
         ? text.supervisionKept
         : card.kind === "supervision_paused"
           ? text.keptPaused
@@ -750,8 +716,7 @@ function settledLine(
         const stopped = card.result.stopped_agents ?? [];
         // The card shows what was signed; while Stop new trading holds, it waits for Resume.
         const stoppedStill =
-          card.facts.global_trading?.state === "stopped" &&
-          card.result.resumed !== true;
+          card.facts.global_trading?.state === "stopped" && card.result.resumed !== true;
         const signed = stoppedStill ? text.signedStopped : text.signed;
         return stopped.length
           ? `${signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
@@ -760,9 +725,7 @@ function settledLine(
       case "create_agent":
         return text.createdLine;
       case "agent_created":
-        return card.result.undo === "deleted"
-          ? text.undoneDeleted
-          : text.undonePaused;
+        return card.result.undo === "deleted" ? text.undoneDeleted : text.undonePaused;
       case "supervise":
         return text.supervisionSet;
       case "supervision_created":
@@ -858,28 +821,15 @@ function settledLine(
   }
 }
 
-function limitValue(
-  name: OwnerActionLimitField,
-  value: string | null,
-  currency: string | null,
-) {
+function limitValue(name: OwnerActionLimitField, value: string | null, currency: string | null) {
   if (value == null) return null;
-  if (name === "currency" || name === "trading_day_timezone")
-    return isolate(value);
+  if (name === "currency" || name === "trading_day_timezone") return isolate(value);
   return isolate(
-    name.endsWith("_percent")
-      ? `${value}%`
-      : currency
-        ? `${value} ${currency}`
-        : value,
+    name.endsWith("_percent") ? `${value}%` : currency ? `${value} ${currency}` : value,
   );
 }
 
-function limitFieldLabel(
-  name: OwnerActionLimitField,
-  locale: string,
-  text: OwnerActionText,
-) {
+function limitFieldLabel(name: OwnerActionLimitField, locale: string, text: OwnerActionText) {
   if (name === "currency") return text.currency;
   if (name === "trading_day_timezone") return text.tradingDay;
   return moneyLimitLabel(name, locale);
@@ -901,9 +851,7 @@ function marketsLabel(
 }
 
 function actionsLabel(actions: string[], lang: Language): string {
-  return actions
-    .map((item) => actionLabel(item, lang))
-    .join(listSeparator(lang));
+  return actions.map((item) => actionLabel(item, lang)).join(listSeparator(lang));
 }
 
 /** The arrow of a change points along the reading direction: right to left in Arabic. */
@@ -924,9 +872,7 @@ function durationShort(duration: GrantDuration, text: OwnerActionText): string {
 }
 
 function sameActions(left: string[], right: string[]): boolean {
-  return (
-    left.length === right.length && left.every((item) => right.includes(item))
-  );
+  return left.length === right.length && left.every((item) => right.includes(item));
 }
 
 /**
@@ -943,11 +889,9 @@ function replacesLine(
   locale: string,
   now: Date,
 ): string {
-  const value = (amount: string | number, unit = "") =>
-    isolate(`${amount}${unit}`);
+  const value = (amount: string | number, unit = "") => isolate(`${amount}${unit}`);
   const before = [marketsLabel(old.symbol_scope, old.symbols, text, lang)];
-  if (!old.all_actions)
-    before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
+  if (!old.all_actions) before.push(`${text.actionsLine}: ${actionsLabel(old.actions, lang)}`);
   const caps: Array<[string | number | null, string, string]> = [
     [old.maximum_order_volume, text.capOrderVolume, ""],
     [old.maximum_symbol_volume, text.capSymbolVolume, ""],
@@ -981,12 +925,7 @@ function replacesLine(
   return `${text.replaces}: ${before.join(" · ")} ${arrow(lang)} ${after.join(" · ")}`;
 }
 
-function grantCard(
-  card: OwnerAction,
-  locale: string,
-  lang: Language,
-  now: Date,
-) {
+function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date) {
   const text = ownerActionLabels[lang];
   const facts = card.facts;
   const grant = facts.grant;
@@ -1008,26 +947,18 @@ function grantCard(
         ...(delegation === value
           ? {
               detail:
-                value === "full"
-                  ? `${text.fullMeaning} ${text.fullLimits}`
-                  : text.customMeaning,
+                value === "full" ? `${text.fullMeaning} ${text.fullLimits}` : text.customMeaning,
             }
           : {}),
       });
   if (grant) {
     // Signed: the label follows the signed terms, as the readiness line and safety sheet
     // read them, so a Custom card that signed exactly Full's terms says so too.
-    if (
-      !pending &&
-      (delegation === "full" ||
-        (card.status === "confirmed" && fullTerms(grant)))
-    )
+    if (!pending && (delegation === "full" || (card.status === "confirmed" && fullTerms(grant))))
       lines.push(text.delegationFull);
     const account = accountLabel(facts.account, text);
     if (account) lines.push(`${text.account}: ${account}`);
-    lines.push(
-      `${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`,
-    );
+    lines.push(`${text.markets}: ${marketsLabel(grant.symbol_scope, grant.symbols, text, lang)}`);
     lines.push(
       grant.all_actions
         ? text.allActions
@@ -1050,10 +981,7 @@ function grantCard(
         initial: grant.allow_manual_positions,
       });
     // Full delegation always includes them: a line, never a switch.
-    else
-      lines.push(
-        grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded,
-      );
+    else lines.push(grant.allow_manual_positions ? text.ownIncluded : text.ownExcluded);
   }
   const money = facts.money;
   if (money) {
@@ -1062,9 +990,7 @@ function grantCard(
       isolate(daily.currency ? `${value} ${daily.currency}` : value);
     // The daily loss has its own line; the account line shows every other limit.
     const rest = Object.fromEntries(
-      Object.entries(money.limits.limits).filter(
-        ([name]) => name !== "max_daily_loss",
-      ),
+      Object.entries(money.limits.limits).filter(([name]) => name !== "max_daily_loss"),
     );
     const others = Object.keys(rest).length > 0;
     if (daily.proposed) {
@@ -1072,9 +998,7 @@ function grantCard(
         ? ` (${daily.basis === "suggested" ? `${text.suggested}: ` : ""}${isolate(`${daily.percent}%`)} ${text.ofEquity})`
         : "";
       // An existing limit is only ever lowered, in one line from the current amount.
-      const from = daily.current
-        ? `${isolate(daily.current)} ${arrow(lang)} `
-        : "";
+      const from = daily.current ? `${isolate(daily.current)} ${arrow(lang)} ` : "";
       lines.push(`${text.dailyLoss}: ${from}${amount(daily.proposed)}${basis}`);
       options.push(
         daily.current
@@ -1089,17 +1013,13 @@ function grantCard(
       lines.push(`${text.dailyLoss}: ${amount(daily.current)}`);
     }
     if (daily.requested_above)
-      lines.push(
-        fill(text.raiseNeedsCard, { amount: amount(daily.requested_above) }),
-      );
+      lines.push(fill(text.raiseNeedsCard, { amount: amount(daily.requested_above) }));
     if (others)
       lines.push(
         `${text.accountLimits}: ${moneyLimitsLine({ ...money.limits, limits: rest }, locale)}`,
       );
     else if (!daily.proposed && !daily.current)
-      lines.push(
-        `${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`,
-      );
+      lines.push(`${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`);
   }
   if (facts.global_trading?.state === "stopped") {
     lines.push(text.tradingStopped);
@@ -1111,18 +1031,11 @@ function grantCard(
     });
   }
   for (const conflict of facts.conflicts ?? []) {
-    const name = conflict.agent_name
-      ? isolate(conflict.agent_name)
-      : text.anAgent;
+    const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
     lines.push(
       fill(text.conflict, {
         agent: name,
-        markets: marketsLabel(
-          conflict.symbol_scope,
-          conflict.symbols,
-          text,
-          lang,
-        ),
+        markets: marketsLabel(conflict.symbol_scope, conflict.symbols, text, lang),
       }),
     );
     options.push({
@@ -1151,12 +1064,7 @@ function grantCard(
     options,
     hint: hints.join(" "),
     buttons: [
-      {
-        key: "confirm",
-        label: text.authorize,
-        decision: "confirm",
-        primary: true,
-      },
+      { key: "confirm", label: text.authorize, decision: "confirm", primary: true },
       { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
     ] satisfies OwnerActionButton[],
   };
@@ -1182,12 +1090,8 @@ function grantDelegation(card: OwnerAction): GrantDelegation {
 
 /** What selecting a choice option sends at once (the card's stored draft changes on the
  * server and nothing is signed); null for any other option. */
-export function ownerActionChoose(
-  option: OwnerActionOption,
-): OwnerActionDecision | null {
-  return option.choice
-    ? { decision: "choose", delegation: option.choice.value }
-    : null;
+export function ownerActionChoose(option: OwnerActionOption): OwnerActionDecision | null {
+  return option.choice ? { decision: "choose", delegation: option.choice.value } : null;
 }
 
 /** What a grant card's switches send: the passkey challenge carries the choice the card
@@ -1204,14 +1108,10 @@ export function ownerActionChoices(
   // the owner chose Full delegation, which has no daily loss line to opt out of.
   const value = (key: string, initial: boolean) =>
     options.some((item) => item.key === key) && (chosen[key] ?? initial);
-  const initial = (key: string) =>
-    options.find((item) => item.key === key)?.initial ?? false;
+  const initial = (key: string) => options.find((item) => item.key === key)?.initial ?? false;
   const decision: Partial<OwnerActionDecision> = {
     // Either opt-out leaves the account's daily loss limit exactly as it is.
-    money_limit:
-      value("no_money_limit", false) || value("keep_limit", false)
-        ? "none"
-        : "apply",
+    money_limit: value("no_money_limit", false) || value("keep_limit", false) ? "none" : "apply",
     resume_trading: options.some((item) => item.key === "resume")
       ? value("resume", initial("resume"))
       : false,
@@ -1223,10 +1123,7 @@ export function ownerActionChoices(
     challenge:
       grantDelegation(card) === "full"
         ? { delegation: "full" }
-        : {
-            delegation: "custom",
-            allow_manual_positions: value("manual", initial("manual")),
-          },
+        : { delegation: "custom", allow_manual_positions: value("manual", initial("manual")) },
     decision,
   };
 }
@@ -1244,20 +1141,14 @@ function nameList(names: string[], lang: Language): string {
 }
 
 /** A supervision card's lines: the supervisor and the agents it supervises. */
-function supervisionLines(
-  card: OwnerAction,
-  lang: Language,
-  text: OwnerActionText,
-): string[] {
+function supervisionLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
   const supervision = card.facts.supervision;
   if (!supervision) return [];
   const lines: string[] = [];
   if (supervision.supervisor_name)
     lines.push(`${text.supervisor}: ${isolate(supervision.supervisor_name)}`);
   if (supervision.supervised_names.length)
-    lines.push(
-      `${text.supervises}: ${nameList(supervision.supervised_names, lang)}`,
-    );
+    lines.push(`${text.supervises}: ${nameList(supervision.supervised_names, lang)}`);
   return lines;
 }
 
@@ -1273,9 +1164,7 @@ function pauseLines(card: OwnerAction, text: OwnerActionText): string[] {
   const pause = card.facts.supervision;
   if (!pause) return [];
   const lines: string[] = [];
-  const by = pause.supervisor_name
-    ? isolate(pause.supervisor_name)
-    : text.anAgent;
+  const by = pause.supervisor_name ? isolate(pause.supervisor_name) : text.anAgent;
   lines.push(
     `${text.pausedBy}: ${by}${pause.from_owner_message ? ` · ${text.fromYourMessage}` : ""}`,
   );
@@ -1283,9 +1172,7 @@ function pauseLines(card: OwnerAction, text: OwnerActionText): string[] {
   if (agent) lines.push(`${text.agent}: ${isolate(agent)}`);
   if (pause.target) {
     const label = pause.target_label ? ` · ${isolate(pause.target_label)}` : "";
-    lines.push(
-      `${text.pausedWhat}: ${text[TARGET_LABEL[pause.target]]}${label}`,
-    );
+    lines.push(`${text.pausedWhat}: ${text[TARGET_LABEL[pause.target]]}${label}`);
   }
   return lines;
 }
@@ -1303,24 +1190,15 @@ function agentLines(
   // Each line starts with a word in the owner's language, so a name or ticker at the
   // start never turns an Arabic line left to right.
   const name = agent.name ? isolate(agent.name) : "";
-  const template = agent.template
-    ? text[TEMPLATE_LABEL[agent.template]]
-    : text.agent;
-  lines.push(
-    [template, name, agent.paused ? text.paused : null]
-      .filter(Boolean)
-      .join(" · "),
-  );
+  const template = agent.template ? text[TEMPLATE_LABEL[agent.template]] : text.agent;
+  lines.push([template, name, agent.paused ? text.paused : null].filter(Boolean).join(" · "));
   if (agent.symbol)
     lines.push(
       `${text.focusPair}: ${isolate(agent.symbol)}${account ? ` ${text.on} ${account}` : ""}`,
     );
   if (agent.level)
-    lines.push(
-      `${tradingSafetyLabels[lang].level}: ${tradingSafetyLabels[lang][agent.level]}`,
-    );
-  if (agent.report_to?.length)
-    lines.push(`${text.reportsTo}: ${nameList(agent.report_to, lang)}`);
+    lines.push(`${tradingSafetyLabels[lang].level}: ${tradingSafetyLabels[lang][agent.level]}`);
+  if (agent.report_to?.length) lines.push(`${text.reportsTo}: ${nameList(agent.report_to, lang)}`);
   if (agent.supervises?.length)
     lines.push(`${text.supervises}: ${nameList(agent.supervises, lang)}`);
   if (agent.model) lines.push(`${text.model}: ${isolate(agent.model)}`);
@@ -1339,11 +1217,7 @@ const SOURCE_LABEL = {
 } as const;
 
 /** A trust card's lines: which source, the tools it would trust and those it blocks. */
-function sourceLines(
-  card: OwnerAction,
-  lang: Language,
-  text: OwnerActionText,
-): string[] {
+function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
   const source = card.facts.source;
   if (!source) return [];
   const label = source.label
@@ -1352,13 +1226,11 @@ function sourceLines(
       ? text.unnamedServer
       : "";
   const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
-  if (source.tools?.length)
-    lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
+  if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
   // A server with a blocked tool runs only its reading tools, so no write is listed.
   if (source.writes?.length && !source.blocked?.length)
     lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
-  if (source.blocked?.length)
-    lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
+  if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
   if (source.subscribe) lines.push(text.trustSubscribe);
   return lines;
 }
@@ -1429,10 +1301,7 @@ export function credentialForm(
 }
 
 /** A minimal POST for the client's API (Web or Mobile); it returns the created record. */
-export type CredentialPost = (
-  path: string,
-  body: unknown,
-) => Promise<{ id: string }>;
+export type CredentialPost = (path: string, body: unknown) => Promise<{ id: string }>;
 
 /**
  * Submit a credential card's form straight to the owner API and say what it created.
@@ -1448,12 +1317,7 @@ export async function submitCredential(
   const secret = values.secret ?? "";
   const stored = async () =>
     secret
-      ? (
-          await post("/integrations/secrets", {
-            name: name || target,
-            value: secret,
-          })
-        ).id
+      ? (await post("/integrations/secrets", { name: name || target, value: secret })).id
       : null;
   if (target === "broker") {
     const account = await post("/trading/connections", {
@@ -1498,10 +1362,7 @@ export async function submitCredential(
 }
 
 /** What the agent may do with money, by its level now (a grant may be signed later). */
-function authorityHint(
-  level: OwnerActionAgent["level"],
-  text: OwnerActionText,
-): string {
+function authorityHint(level: OwnerActionAgent["level"], text: OwnerActionText): string {
   if (level === "autonomous") return text.createdGrantHint;
   if (level === "analysis") return text.noTradeHint;
   return text.askHint;
@@ -1531,9 +1392,7 @@ export function ownerActionCard(
   const lang = language(locale);
   const text = ownerActionLabels[lang];
   const facts = card.facts;
-  const account = facts.several_accounts
-    ? accountLabel(facts.account, text)
-    : null;
+  const account = facts.several_accounts ? accountLabel(facts.account, text) : null;
   const lines: string[] = [];
   let title: string = text.resumeTitle;
   let hint: string | null = null;
@@ -1553,9 +1412,7 @@ export function ownerActionCard(
         break;
       }
       const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
-      lines.push(
-        `${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`,
-      );
+      lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
       lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
       if (facts.active_grant) lines.push(text.mandateGrantStays);
       // The grants it held before the trading mode, named once by the migration.
@@ -1572,11 +1429,7 @@ export function ownerActionCard(
             .filter(Boolean)
             .join(" · "),
         );
-        lines.push(
-          fill(text.mandatePreviousGrant, {
-            grant: grants.join(listSeparator(lang)),
-          }),
-        );
+        lines.push(fill(text.mandatePreviousGrant, { grant: grants.join(listSeparator(lang)) }));
       }
       // One button for the other mode; the tap applies the mode this button shows.
       const other: TradingMode = mode === "full" ? "ask" : "full";
@@ -1638,9 +1491,7 @@ export function ownerActionCard(
           ...(pause.includes_owner_manual ? [text.yourOrdersToo] : []),
           ...(account ? [account] : []),
         ];
-        lines.push(
-          `${pauseClassLabel(pause.action_class, locale)} · ${scope.join(" · ")}`,
-        );
+        lines.push(`${pauseClassLabel(pause.action_class, locale)} · ${scope.join(" · ")}`);
         const when =
           pause.state === "scheduled"
             ? `${text.starts} ${readinessTime(pause.valid_from, locale, now)}`
@@ -1654,10 +1505,7 @@ export function ownerActionCard(
               ? text.fromYourMessage
               : `${text.setByAgent} ${pause.set_by_agent_name ? isolate(pause.set_by_agent_name) : text.anAgent}`;
         lines.push(`${when} · ${source}`);
-        hint =
-          pause.action_class === "all_mutations"
-            ? text.exitsFrozen
-            : text.exitsAllowed;
+        hint = pause.action_class === "all_mutations" ? text.exitsFrozen : text.exitsAllowed;
       }
       buttons = pair(text.lift, text.keep);
       break;
@@ -1720,26 +1568,14 @@ export function ownerActionCard(
       if (!agent?.exists) {
         // Removed elsewhere: the card can only be dismissed.
         hint = text.agentRemoved;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.keep,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
       hint = `${authorityHint(agent.level, text)} ${
         facts.undo === "delete" ? text.undoDeleteHint : text.undoPauseHint
       }`;
       buttons = [
-        {
-          key: "confirm",
-          label: text.undo,
-          decision: "confirm",
-          primary: false,
-        },
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
       break;
@@ -1749,9 +1585,7 @@ export function ownerActionCard(
       const watch = facts.watch;
       if (watch) {
         const end = (value: string | null) =>
-          value
-            ? `${text.until} ${readinessTime(value, locale, now)}`
-            : text.watchNoEnd;
+          value ? `${text.until} ${readinessTime(value, locale, now)}` : text.watchNoEnd;
         lines.push(
           [
             ...(watch.symbol ? [isolate(watch.symbol)] : []),
@@ -1762,24 +1596,12 @@ export function ownerActionCard(
       if (!watch?.active) {
         // Changed again or removed since: the notice can only be dismissed.
         hint = watch ? text.watchChangedAgain : text.watchRemoved;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.keep,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
       hint = text.watchChangedHint;
       buttons = [
-        {
-          key: "confirm",
-          label: text.undo,
-          decision: "confirm",
-          primary: false,
-        },
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
       break;
@@ -1791,9 +1613,7 @@ export function ownerActionCard(
       if (stop)
         lines.push(
           `${isolate(stop.symbol)} · ${text.stopLoss}: ${
-            stop.previous_stop_loss
-              ? isolate(stop.previous_stop_loss)
-              : text.notSet
+            stop.previous_stop_loss ? isolate(stop.previous_stop_loss) : text.notSet
           } ${arrow(lang)} ${isolate(stop.stop_loss)}`,
         );
       break;
@@ -1811,24 +1631,12 @@ export function ownerActionCard(
       if (!card.facts.supervision?.active) {
         // Revoked elsewhere (the profile): the card can only be dismissed.
         hint = text.supervisionEnded;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.keep,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
       hint = `${text.supervisionHint} ${text.supervisionUndoHint}`;
       buttons = [
-        {
-          key: "confirm",
-          label: text.undo,
-          decision: "confirm",
-          primary: false,
-        },
+        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
       break;
@@ -1839,24 +1647,12 @@ export function ownerActionCard(
       if (!card.facts.supervision?.active) {
         // Set again elsewhere (the profile, a card): the card can only be dismissed.
         hint = text.supervisionAlreadySet;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.keep,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
       hint = text.stoppedHint;
       buttons = [
-        {
-          key: "confirm",
-          label: text.restore,
-          decision: "confirm",
-          primary: false,
-        },
+        { key: "confirm", label: text.restore, decision: "confirm", primary: false },
         { key: "cancel", label: text.keep, decision: "cancel", primary: false },
       ];
       break;
@@ -1867,19 +1663,10 @@ export function ownerActionCard(
       if (!card.facts.supervision?.active) {
         // Resumed elsewhere (the supervisor, the owner): the card can only be dismissed.
         hint = text.pauseEnded;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.keep,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
         break;
       }
-      hint = card.facts.supervision.owner_holds
-        ? text.pauseOwnerHolds
-        : text.pauseHint;
+      hint = card.facts.supervision.owner_holds ? text.pauseOwnerHolds : text.pauseHint;
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
@@ -1887,29 +1674,13 @@ export function ownerActionCard(
       const source = facts.source;
       title = source?.review ? text.trustReviewTitle : text.trustTitle;
       lines.push(...sourceLines(card, lang, text));
-      if (
-        source?.kind === "mcp_server" &&
-        (!source.writes?.length || source.blocked?.length)
-      ) {
+      if (source?.kind === "mcp_server" && (!source.writes?.length || source.blocked?.length)) {
         // Every tool only reads, or the server offers a tool that can trade or move money
         // (then only its reading tools may run): one tap, nothing to choose.
-        hint = source.blocked?.length
-          ? text.trustServerBlockedHint
-          : text.trustServerReadHint;
+        hint = source.blocked?.length ? text.trustServerBlockedHint : text.trustServerReadHint;
         buttons = [
-          {
-            key: "confirm",
-            label: text.trust,
-            decision: "confirm",
-            tier: "read",
-            primary: true,
-          },
-          {
-            key: "cancel",
-            label: text.notNow,
-            decision: "cancel",
-            primary: false,
-          },
+          { key: "confirm", label: text.trust, decision: "confirm", tier: "read", primary: true },
+          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
         ];
         break;
       }
@@ -1930,12 +1701,7 @@ export function ownerActionCard(
             tier: "write_nonfinancial",
             primary: false,
           },
-          {
-            key: "cancel",
-            label: text.notNow,
-            decision: "cancel",
-            primary: false,
-          },
+          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
         ];
         break;
       }
@@ -1947,33 +1713,19 @@ export function ownerActionCard(
       const credential = facts.credential;
       title = credential ? credentialTitle(credential, text) : text.connectMcp;
       hint =
-        credential?.service === "x"
-          ? `${text.connectHint} ${text.connectXHint}`
-          : text.connectHint;
+        credential?.service === "x" ? `${text.connectHint} ${text.connectXHint}` : text.connectHint;
       if (credential) form = credentialForm(credential, text);
       // Connect is the form's own submit: the value goes to the owner API, never here.
-      buttons = [
-        {
-          key: "cancel",
-          label: text.notNow,
-          decision: "cancel",
-          primary: false,
-        },
-      ];
+      buttons = [{ key: "cancel", label: text.notNow, decision: "cancel", primary: false }];
       break;
     }
     case "set_account_limits": {
       title = text.limitsTitle;
-      const currency =
-        facts.proposed?.currency ?? facts.current?.currency ?? null;
+      const currency = facts.proposed?.currency ?? facts.current?.currency ?? null;
       // Every field the card would change has a line, its currency and day included.
       for (const change of facts.changes ?? []) {
         const from =
-          limitValue(
-            change.name,
-            change.from,
-            facts.current?.currency ?? null,
-          ) ?? text.notSet;
+          limitValue(change.name, change.from, facts.current?.currency ?? null) ?? text.notSet;
         const to = limitValue(change.name, change.to, currency) ?? text.removed;
         // The arrow points along the reading direction: right to left in Arabic.
         lines.push(
@@ -1984,21 +1736,11 @@ export function ownerActionCard(
       if (facts.no_longer_applies) {
         // The limits moved on since the card was raised: it can only be dismissed.
         hint = text.noLongerApplies;
-        buttons = [
-          {
-            key: "cancel",
-            label: text.cancel,
-            decision: "cancel",
-            primary: false,
-          },
-        ];
+        buttons = [{ key: "cancel", label: text.cancel, decision: "cancel", primary: false }];
         break;
       }
       hint = card.requires_passkey ? text.limitsPasskey : text.limitsOneTap;
-      buttons = pair(
-        card.requires_passkey ? text.applyPasskey : text.apply,
-        text.cancel,
-      );
+      buttons = pair(card.requires_passkey ? text.applyPasskey : text.apply, text.cancel);
       break;
     }
   }
@@ -2021,9 +1763,7 @@ export function ownerActionCard(
 export function ownerActionLive(card: OwnerAction): boolean {
   return (
     card.status === "pending" ||
-    (card.kind === "trading_mode" &&
-      card.status === "confirmed" &&
-      !!card.facts.trading_mode)
+    (card.kind === "trading_mode" && card.status === "confirmed" && !!card.facts.trading_mode)
   );
 }
 
@@ -2038,19 +1778,13 @@ export async function rereadOwnerAction(
   row: OwnerAction,
 ): Promise<OwnerAction | null> {
   if (!row.thread_id) return null;
-  const rows = await get(
-    `/owner-actions?thread_id=${encodeURIComponent(row.thread_id)}`,
-  );
+  const rows = await get(`/owner-actions?thread_id=${encodeURIComponent(row.thread_id)}`);
   return rows.find((item) => item.id === row.id) ?? null;
 }
 
 /** A newer status never goes back to pending when an older read arrives late. */
-export function mergeOwnerAction(
-  previous: OwnerAction,
-  next: OwnerAction,
-): OwnerAction {
-  if (previous.status !== "pending" && next.status === "pending")
-    return previous;
+export function mergeOwnerAction(previous: OwnerAction, next: OwnerAction): OwnerAction {
+  if (previous.status !== "pending" && next.status === "pending") return previous;
   return next;
 }
 
@@ -2186,10 +1920,7 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
 };
 
 /** Owner text for a card decision's refusal, shared by Web and Mobile; null if not one. */
-export function ownerActionError(
-  code: string | null | undefined,
-  locale: string,
-): string | null {
+export function ownerActionError(code: string | null | undefined, locale: string): string | null {
   const entry = code ? errors[code] : undefined;
   return entry ? entry[language(locale)] : null;
 }
@@ -2204,8 +1935,6 @@ const UNDOABLE_NOTICES = new Set<string>([
 
 /** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31); a
     settled stop_tightened record was applied, never undone. */
-export function noticeUndone(
-  card: Pick<OwnerAction, "kind" | "status">,
-): boolean {
+export function noticeUndone(card: Pick<OwnerAction, "kind" | "status">): boolean {
   return card.status === "confirmed" && UNDOABLE_NOTICES.has(card.kind);
 }
