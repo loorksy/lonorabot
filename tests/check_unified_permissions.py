@@ -23,7 +23,6 @@ from lonora_db.schema import SettingRow, TicketRow, TradingJournalRow
 from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
-from lonora_trading.goals import wake_goal
 from sqlalchemy import func, select
 
 
@@ -440,93 +439,9 @@ async def main() -> None:
             "PASS concurrent revision conflicts reject stale writes; downgrade before broker send prevents financial mutation"
         )
 
-        async def goal_case(title: str, stop_loss: str):
-            return await f.request(
-                "POST",
-                "/trading/goals",
-                {
-                    "agent_id": agent["id"],
-                    "thread_id": thread["id"],
-                    "title": title,
-                    "objective": "Explicit simulated permission boundary acceptance",
-                    "account_id": account,
-                    "symbol": symbol,
-                    "maximum_volume": "0.1",
-                    "max_trade_actions": 1,
-                    "steps": [
-                        {
-                            "id": "entry",
-                            "title": "Exact simulated entry",
-                            "kind": "trade",
-                            "trade": {
-                                "account_id": account,
-                                "symbol": symbol,
-                                "action": "buy",
-                                "volume": "0.1",
-                                "stop_loss": stop_loss,
-                            },
-                        }
-                    ],
-                },
-            )
-
-        async def goal_context(goal: dict[str, Any]):
-            return await f.lease(await wake_goal(f.runtime.db, f.owner, goal["id"], "entry"))
-
-        async def goal_action(goal: dict[str, Any], run_context: Any, identifier: str):
-            return await registry.execute(
-                ToolCall(
-                    id=identifier,
-                    name="goal_step_execute",
-                    arguments={
-                        "goal_id": goal["id"],
-                        "step_id": "entry",
-                        "note": "Reviewed current simulated evidence",
-                    },
-                ),
-                run_context,
-            )
-
-        # A goal is a plan under the current Agent level: it never upgrades No trading.
-        legacy = await goal_case("A goal cannot enable an analysis Agent", "94")
-        assert "autonomous" not in legacy["state"]
-        assert (await state())["effective_level"] == "analysis"
-        legacy_context = await goal_context(legacy)
-        goal_count = len(await broker.positions())
-        try:
-            await goal_action(legacy, legacy_context, "legacy-entry")
-        except LonoraError as error:
-            assert error.code == "agent_analysis_only", error.code
-        else:
-            raise AssertionError("A goal bypassed No trading")
-        assert len(await broker.positions()) == goal_count
-        await change("supervised")
-        pending_goal = await goal_action(legacy, legacy_context, "legacy-entry")
-        assert pending_goal.get("_runtime_wait"), pending_goal
-        assert len(await broker.positions()) == goal_count
-        await f.request(
-            "POST",
-            f"/trading/approvals/{pending_goal['approval_id']}/decision",
-            {"decision": "approve"},
-        )
-        approved_goal = await goal_action(legacy, legacy_context, "legacy-entry")
-        assert approved_goal["result"]["status"] == "confirmed", approved_goal
-        assert approved_goal["result"]["details"]["verification"]["status"] == "verified"
-        assert len(await broker.positions()) == goal_count + 1
-
-        # The next Goal uses the same executor only after signing an actual Agent account grant.
+        # Stop blocks new risk even while a signed Agent account grant is in force.
         await sign(await propose())
-        autonomous_goal = await goal_case("Signed Agent grant manages Goal", "95")
-        autonomous_context = await goal_context(autonomous_goal)
-        autonomous_goal_result = await goal_action(
-            autonomous_goal, autonomous_context, "signed-entry"
-        )
-        assert autonomous_goal_result["result"]["status"] == "confirmed", autonomous_goal_result
-        assert len(await broker.positions()) == goal_count + 2
-        print(
-            "PASS a goal cannot grant Agent rights; the same Goal intent needs exact supervised approval or signed account authority"
-        )
-
+        count = len(await broker.positions())
         for control, code, stop_loss in (
             (TradingControl(enabled=False), "trading_disabled", "96"),
             (TradingControl(enabled=True, emergency_stop=True), "emergency_stop", "97"),
@@ -534,23 +449,10 @@ async def main() -> None:
             await save_controls(f.runtime.db, control)
             blocked_control = await execute(call(volume="0.2", stop_loss=stop_loss))
             assert blocked_control.get("code") == code, blocked_control
-            assert len(await broker.positions()) == goal_count + 2
+            assert len(await broker.positions()) == count
         await save_controls(f.runtime.db, TradingControl(enabled=True))
 
-        old_goal = await goal_case("Recheck authority on resumed and fresh wakes", "98")
-        old_context = await goal_context(old_goal)
-        await change("analysis")
-        for run_context in (old_context, await goal_context(old_goal)):
-            try:
-                await goal_action(old_goal, run_context, uuid4().hex)
-            except LonoraError as error:
-                assert error.code == "agent_analysis_only", error.code
-            else:
-                raise AssertionError("Old or newly woken Goal lease bypassed current Analysis Only")
-            assert len(await broker.positions()) == goal_count + 2
-        print(
-            "PASS global trading OFF/emergency stop block signed autonomy; old and newly woken Goal leases recheck the current permission"
-        )
+        print("PASS global trading OFF/emergency stop block signed autonomy")
         print(
             "Unified permissions acceptance complete: simulation and scripted authenticator only; no real-money trading or physical signing claim"
         )

@@ -102,8 +102,6 @@ IDENTITY_KEYS = frozenset(
         "position_id",
         "deal_id",
         "account_id",
-        "goal_id",
-        "step_id",
         "task_id",
         "watch_id",
         "decision_id",

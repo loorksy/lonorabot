@@ -17,7 +17,6 @@ class SkillSignals:
     available_tools: frozenset[str] = frozenset()
     scope: ToolScope = "full"
     has_market: bool = False
-    has_goal: bool = False
     has_chart: bool = False
 
 
