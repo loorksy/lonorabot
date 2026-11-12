@@ -100,6 +100,7 @@
     "trade_execute": "trading",
     "trade_close_positions": "trading",
     "positions_manage_all": "trading",
+    "trade_approval_withdraw": "trading",
     "trading_mode_ask": "trading",
     "trade_restriction_create": "trading",
     "trade_restriction_list": "trading",
