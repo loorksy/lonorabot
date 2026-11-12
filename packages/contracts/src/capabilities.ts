@@ -25,7 +25,7 @@ export type TrustedSource = {
   /** Copied from an operator declaration that no longer stands: it runs nothing until
    * the owner reviews the server. */
   needs_review: boolean;
-  added_via: "default" | "operator" | "owner_ui" | "owner_card";
+  added_via: "default" | "operator" | "owner_ui" | "owner_card" | "owner_message";
   added_by_agent_name: string | null;
   active: boolean;
   created_at: string;
@@ -83,8 +83,8 @@ export type BuiltInCapabilityName =
   | "workspace_execution"
   | "chart_images"
   | "mcp_tools";
-/** ready; not_connected: one owner card connects it; not_set_up: this server lacks it. */
-export type CapabilityState = "ready" | "not_connected" | "not_set_up";
+/** ready; not_connected: one owner card connects it. */
+export type CapabilityState = "ready" | "not_connected";
 export type BuiltInCapability = {
   capability: BuiltInCapabilityName;
   state: CapabilityState;

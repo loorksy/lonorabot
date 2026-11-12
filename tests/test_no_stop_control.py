@@ -19,7 +19,8 @@ NAMES = re.compile(
     r"|resumeTrading|stopNewTrading|global_trading|GlobalTrading|tradingBrake"
     r"|trading/controls|controls_updated|trading_not_started|start_trading_card"
 )
-# Its owner-visible and model-visible words, in English and Arabic.
+# Its owner-visible and model-visible words, in English and Arabic, matched on the
+# text with its whitespace collapsed.
 WORDS = re.compile(
     r"stop new trading|resume trading|start trading|emergency stop"
     r"|إيقاف التداول|استئناف التداول|بدء التداول|التداول متوقف|التداول الجديد متوقف",
@@ -51,10 +52,14 @@ def test_no_shipped_file_names_or_shows_a_stop_control() -> None:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
+        name = path.relative_to(ROOT)
         for number, line in enumerate(text.splitlines(), 1):
-            # Obsolete catalog entries never reach a screen, but none is kept either.
-            if NAMES.search(line) or WORDS.search(line):
-                found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()[:120]}")
+            if NAMES.search(line):
+                found.append(f"{name}:{number}: {line.strip()[:120]}")
+        # Words are matched across line wraps (prose and catalogs wrap mid-phrase).
+        # Obsolete catalog entries never reach a screen, but none is kept either.
+        for match in WORDS.finditer(" ".join(text.split())):
+            found.append(f"{name}: {match.group(0)!r}")
     assert not found, "Stop control leftovers:\n" + "\n".join(found)
 
 

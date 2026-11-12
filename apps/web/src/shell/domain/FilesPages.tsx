@@ -19,7 +19,7 @@ const MAX_TEXT = 600_000;
 const TEXT_NAME = /\.(txt|md|csv|json|html|css|js|xml|yaml|yml|log)$/i;
 const TEXT_TYPES = new Set(["application/json", "application/xml", "application/x-ndjson"]);
 /** «الملفات» holds text files only (Q36). */
-export const isTextFile = (payload: ArtifactPayload) =>
+export const isTextFile = (payload: Pick<ArtifactPayload, "media_type" | "name">) =>
   payload.media_type.startsWith("text/") ||
   TEXT_TYPES.has(payload.media_type.split(";")[0]) ||
   TEXT_NAME.test(payload.name);
@@ -139,7 +139,7 @@ export function FilesPage() {
         toast(t`Choose a file smaller than 600 KB.`, { type: "warn" });
         return;
       }
-      if (!isTextFile({ name: file.name, size: file.size, media_type: file.type })) {
+      if (!isTextFile({ name: file.name, media_type: file.type })) {
         toast(t`Files holds text files only.`, { type: "warn" });
         return;
       }

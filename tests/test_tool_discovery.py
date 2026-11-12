@@ -143,8 +143,6 @@ def test_eager_working_sets_are_data_from_tool_metadata():
     # Calendar evidence is native for research Agents only when a source exists.
     assert "economic_calendar_read" in research - market
     assert catalog.tools["economic_calendar_read"].availability is not None
-    # Owner restrictions are shown in the permission frame; their tools are long-tail.
-    assert not {"trade_restriction_create", "trade_restriction_list"} & (market | research)
     assert not {"market_quote", "trade_execute"} & research
     assert {"task_wait", "task_step_update"} <= set(catalog.eager_names(["core", "task"]))
     assert "task_wait" not in market | research
@@ -307,7 +305,7 @@ async def test_observe_only_scope_keeps_every_non_financial_capability():
     assert not {"trade_execute", "trade_close_positions"} & names
     assert names == {name for name, tool in catalog.tools.items() if not tool.financial}
     helper = catalog.names("helper")
-    assert {"workspace_execute", "artifact_create", "web_search"} <= helper
+    assert {"workspace_file_read", "artifact_create", "web_search"} <= helper
     assert not {"memory_write", "peer_send", "child_agent_create", "subagent_spawn"} & helper
     found = await inspect(catalog, {"query": "memory_write"}, scope="observe_only")
     assert "memory_write" in [tool["name"] for tool in found["tools"]]
@@ -395,8 +393,8 @@ async def test_search_bounds_total_schema_size():
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("terminal", "workspace_execute"),
-        ("run terminal command", "workspace_execute"),
+        ("terminal", "workspace_run"),
+        ("run terminal command", "workspace_run"),
         ("open trade", "trade_execute"),
         ("place order", "trade_execute"),
         ("buy sell positions", "trade_execute"),
@@ -407,9 +405,12 @@ async def test_search_bounds_total_schema_size():
 )
 def test_real_catalog_discovers_supported_work_from_business_terms(query: str, expected: str):
     catalog = load_tools()
-    assert expected in search_definitions(catalog.definitions(), query)
+    # Searched as tool_inspect searches: each tool's everyday words with its description.
+    terms = {tool.name: tool.search_terms for tool in catalog.tools.values()}
+    found = search_definitions(catalog.definitions(), query, terms=terms)
+    assert expected in found
     if query == "terminal":
-        assert search_definitions(catalog.definitions(), query)[0] == expected
+        assert found[0] == expected
 
 
 @pytest.mark.parametrize(

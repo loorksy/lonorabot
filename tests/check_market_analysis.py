@@ -1,7 +1,7 @@
 """Real registry/PG/simulation checks for market analysis tools and readable scope.
 
 Snapshot, sessions with broker hours, calendar read, the candle-to-workspace bridge
-(receipts, revisions, quotas, ownership) and a fixed-market agent that may read a
+(a CSV in the workspace file system) and a fixed-market agent that may read a
 related symbol and account-wide exposure while every execution path stays bound.
 """
 
@@ -16,7 +16,6 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.market.economic_calendar import EconomicCalendarAdapter
-from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import CalendarEvent
 from lonora_contracts.trading import TradeRequest
@@ -26,6 +25,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.market_analysis import calendar_available
 from sqlalchemy import func, select
+from workspace_fake import FakeWorkspace
 
 GOLD, DOLLAR, EURO = "XAUUSD.r", "USDX.cash", "EURUSDm"
 FRAMES = {"15m": 15, "1h": 60, "4h": 240, "1d": 1440, "1w": 10080}
@@ -151,7 +151,8 @@ async def main() -> None:
         agent = await fixture.agent("Market analysis fixture")
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
-        context = replace(context, workspace_access=RunWorkspaceAccess())
+        workspace = FakeWorkspace()
+        context = replace(context, workspace=workspace.client())
 
         async def call(
             name: str, args: dict[str, Any], *, actor: ToolContext | None = None, call_id: str = ""
@@ -291,54 +292,36 @@ async def main() -> None:
         assert down["sources"][0]["status"] == "unavailable" and down["events"] == []
         print("PASS economic_calendar_read: not configured, filtered events, source failure")
 
-        inspected = await call("workspace_inspect", {})
-        assert inspected["revision"] == 0
-        bridge_id = uuid4().hex
-        request = {"account_id": primary, "symbol": GOLD, "timeframe": "1h", "revision": 0}
-        written = await call("market_candles_to_workspace", request, call_id=bridge_id)
-        assert written["path"] == "market/XAUUSD.r_1h.csv" and written["revision"] == 1
+        request = {"account_id": primary, "symbol": GOLD, "timeframe": "1h"}
+        written = await call("market_candles_to_workspace", request)
+        assert written["path"] == "market/XAUUSD.r_1h.csv"
         assert written["rows"] == written["closed_rows"] == 219 and written["forming_rows"] == 0
         assert "candles" not in written and len(str(written)) < 1200
-        content = await call(
-            "workspace_read", {"path": written["path"], "revision": 1, "limit": 16000}
-        )
-        lines = content["content"].splitlines()
+        lines = workspace.files[(context.agent_id, written["path"])].decode().splitlines()
         assert lines[0] == "time,close_time,open,high,low,close,volume,closed"
         assert lines[1].endswith(",1") and written["first_bar_at"] in lines[1]
-        # The bars change, then the same call is replayed: the original receipt returns.
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(TradingAccountRow, primary, with_for_update=True)
-            assert row is not None
-            changed = dict(row.payload["candles"])
-            changed[GOLD + ":1h"] = changed[GOLD + ":1h"][:-5]
-            row.payload = {**row.payload, "candles": changed}
-        replayed = await call("market_candles_to_workspace", request, call_id=bridge_id)
-        assert replayed == written
-        await denied("market_candles_to_workspace", request, "workspace_revision_conflict")
-        await denied(
-            "market_candles_to_workspace",
-            {**request, "revision": 1, "path": "../escape.csv"},
-            "workspace_path_unsafe",
-        )
+        assert len(lines) == 220
+        # Made again, the call writes the file again from the broker's current bars.
+        del workspace.files[(context.agent_id, written["path"])]
+        again = await call("market_candles_to_workspace", request)
+        assert again["path"] == written["path"]
+        assert (context.agent_id, written["path"]) in workspace.files
         window = await call(
             "market_candles_to_workspace",
             {
                 **request,
-                "revision": 1,
-                "path": "data/gold_window.csv",
+                "path": "/workspace/shared/gold_window.csv",
                 "start": written["first_bar_at"],
                 "end": written["first_bar_at"],
                 "include_forming": True,
             },
         )
-        assert window["rows"] == 1 and window["revision"] == 2
-        filler = {f"fill/{index}.txt": "x" for index in range(126)}
-        filled = await call("workspace_update", {"revision": 2, "files": filler})
-        assert filled["revision"] == 3 and len(filled["files"]) == 128
+        assert window["rows"] == 1
+        assert (context.agent_id, "/workspace/shared/gold_window.csv") in workspace.files
         await denied(
             "market_candles_to_workspace",
-            {**request, "revision": 3, "path": "data/one_too_many.csv"},
-            "workspace_snapshot_too_large",
+            {**request, "path": "notes.txt"},
+            "tool_arguments_invalid",
         )
         try:
             await registry.execute(
@@ -357,11 +340,12 @@ async def main() -> None:
             run.trigger = "subagent"
         await denied(
             "market_candles_to_workspace",
-            {**request, "revision": 3, "path": "data/observe.csv"},
-            "tool_not_allowed",
+            {**request, "path": "data/observe.csv"},
+            "workspace_run_scope_refused",
         )
         print(
-            "PASS market_candles_to_workspace: CSV in workspace, receipt replay, revision, path and quota"
+            "PASS market_candles_to_workspace: CSV in the workspace file system, current bars,"
+            " window, shared path, helper refused"
         )
 
         bound = await fixture.request(
@@ -379,7 +363,7 @@ async def main() -> None:
         bound_thread = await fixture.conversation(bound)
         specialist = replace(
             await fixture.lease(await fixture.run(bound, bound_thread)),
-            workspace_access=RunWorkspaceAccess(),
+            workspace=workspace.client(),
         )
         defaulted = await call("market_snapshot", {"timeframes": ["1h"]}, actor=specialist)
         assert defaulted["symbol"] == GOLD and defaulted["account_id"] == primary
@@ -423,7 +407,7 @@ async def main() -> None:
         await denied("market_sessions", {"symbol": "NOPE.x"}, "symbol_not_found", actor=specialist)
         exported = await call(
             "market_candles_to_workspace",
-            {"symbol": DOLLAR, "timeframe": "1h", "revision": 0},
+            {"symbol": DOLLAR, "timeframe": "1h"},
             actor=specialist,
         )
         assert exported["symbol"] == DOLLAR and exported["rows"] == 219

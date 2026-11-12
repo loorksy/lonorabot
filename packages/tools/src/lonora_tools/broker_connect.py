@@ -22,7 +22,7 @@ from sqlalchemy import select
 from .base import Tool
 from .context import ToolContext
 from .owner_actions import card_scope, card_summary
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 
 
 class BrokerConnectInput(Contract):
