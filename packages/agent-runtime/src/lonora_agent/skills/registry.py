@@ -19,7 +19,6 @@ CAPABILITY_TOOLS = {
     "chart.write": {"chart_open", "chart_annotate"},
     "account.read": {"account_read", "list_accounts"},
     "trade.propose": {"trade_execute"},
-    "goal.manage": {"goal_read", "goal_plan", "goal_control"},
     "watch.manage": {"watch_create", "watch_list"},
     "collaboration.read": {"list_agents"},
 }

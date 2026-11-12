@@ -147,8 +147,8 @@ def permission_guidance(
             "Approval card. On a ticket your own order opened, a full or partial close, "
             "cancelling an order that would add exposure, adding a stop to an unprotected "
             "position or moving a stop toward the market executes without a card. Keep useful analysis/monitoring moving while "
-            "approval is pending. A saved goal does not waive operation approval. To trade "
-            "on your own, the owner signs a grant_authority card."
+            "approval is pending. To trade on your own, the owner signs a grant_authority "
+            "card."
         ),
         "full": (
             "You are in Full: you trade on your own. Inspect fresh account/market facts, "
@@ -163,8 +163,8 @@ def permission_guidance(
             "size and manage positions, and persist useful monitoring within the exact active "
             "signed scopes below. Matching actions need no repeated per-operation approval; "
             "the grant decides within its own terms in either mode until it is revoked. "
-            "Any other action follows trading_mode: in Ask, a goal step included, it becomes "
-            "the owner's approval card (trade_execute does it); never enlarge scope yourself. "
+            "Any other action follows trading_mode: in Ask it becomes the owner's approval "
+            "card (trade_execute does it); never enlarge scope yourself. "
             "Optional "
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "
