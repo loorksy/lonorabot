@@ -123,6 +123,10 @@ existing durable Run records, within the same thread and visible message range.
 This is lower-priority conversation content and grants no authority.
 Resumed checkpoints receive the current first-party core in the model request,
 without rewriting canonical history or replacing owner-specific instructions.
+When a checkpointed Run wakes (a Task's external wake or the owner's resume), its
+whole context head, including the constitution files, the owner's instructions,
+the wake context and the labelled context data, is rebuilt from the current
+resources and records; its transcript is kept.
 
 ## Legacy experimental data cleanup
 

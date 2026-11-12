@@ -73,7 +73,12 @@ from .loop_outcomes import (
     request_owner_attention,
     rich_metadata,
 )
-from .loop_restore import consume_wake, restore_checkpoint, resume_after_attention
+from .loop_restore import (
+    consume_wake,
+    refresh_context_head,
+    restore_checkpoint,
+    resume_after_attention,
+)
 from .model_recovery import (
     ATTENTION_REASON,
     CONTINUOUS,
@@ -336,6 +341,8 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
         task_run = bool(run.model_metadata.get("task_id"))
+        # A checkpoint with a transcript keeps the context it was built with.
+        stale_head = bool(run.execution_state.get("messages"))
     messages, pending, exposure = await restore_checkpoint(
         context, registry, run, state, scope=scope, task_run=task_run
     )
@@ -365,6 +372,11 @@ async def execute_tool_loop(
     # Resume where the checkpoint left off: owner attention, a pending question,
     # an external wait or a new wake.
     if resume_after_attention(state, messages, maximum_rounds):
+        if stale_head:
+            # The owner resumed held work: it reads current policy, instructions,
+            # memory and account state, not those of when the Run began.
+            await refresh_context_head(context, registry, state, messages)
+            stale_head = False
         await save()
     question = state.get("pending_input_request")
     if isinstance(question, dict):
@@ -390,8 +402,12 @@ async def execute_tool_loop(
             await report_closed(context, superseded, [], "tool_call_superseded")
         return external_wait_outcome(state)
     woken = consume_wake(state, messages, pending)
+    if woken is not None and stale_head:
+        # Every wake reads the current context head (policy, instructions, wake
+        # context, memory and account state), not the one frozen when the Run began.
+        await refresh_context_head(context, registry, state, messages)
     await save()
-    await report_closed(context, woken, [], "tool_call_superseded")
+    await report_closed(context, woken or [], [], "tool_call_superseded")
 
     while True:
         await cancellation_checkpoint(context)

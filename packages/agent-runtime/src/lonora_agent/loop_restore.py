@@ -1,9 +1,15 @@
 """Restore a Run's checkpoint before the loop's first round, including checkpoints written
-by earlier releases, and apply the owner resume or external wake it carries."""
+by earlier releases, and apply the owner resume or external wake it carries.
+
+A checkpoint keeps the context it was built with. A continuous Task can sleep across
+releases, edits of the agent's instructions and memory, and account changes, so every
+wake rebuilds the context head (system blocks and labelled context data) from the
+current server state and keeps the Run's own transcript after it."""
 
 import json
 from typing import Any, cast
 
+from lonora_adapter_kit.context_sections import is_context_message
 from lonora_adapter_kit.types import ModelMessage, ToolCall
 from lonora_db.schema import RunRow
 from lonora_db.tasks import ATTENTION_RESUMED
@@ -65,6 +71,28 @@ async def restore_checkpoint(
     return messages, pending, exposure
 
 
+async def refresh_context_head(
+    context: ToolContext,
+    registry: ToolRegistry,
+    state: dict[str, Any],
+    messages: list[ModelMessage],
+) -> None:
+    """Replace the checkpoint's context head with one built now; keep the transcript.
+
+    The head is every system message (only ``build_context`` writes them into a
+    checkpoint) and the labelled context data that leads the transcript. Compaction
+    records index the transcript without either, so they stay valid.
+    """
+    fresh = await build_context(context, registry)
+    body = [message for message in messages if message.role != "system"]
+    while body and is_context_message(body[0]):
+        body.pop(0)
+    head = [message for message in fresh if message.role == "system"]
+    data = [message for message in fresh if message.role != "system"]
+    messages[:] = head + [message for message in data[:1] if is_context_message(message)] + body
+    state["instruction_skill_ids"] = await selected_skill_ids(context)
+
+
 def resume_after_attention(
     state: dict[str, Any], messages: list[ModelMessage], maximum_rounds: int
 ) -> bool:
@@ -90,12 +118,13 @@ def resume_after_attention(
 
 def consume_wake(
     state: dict[str, Any], messages: list[ModelMessage], pending: list[ToolCall]
-) -> list[ToolCall]:
-    """Deliver a new external wake once; return the proposals it superseded."""
+) -> list[ToolCall] | None:
+    """Deliver a new external wake once; return the proposals it superseded, or None
+    when there was no new wake."""
     environment = environment_state(state)
     wake = environment.get("last_wake")
     if not wake or environment.get("consumed_wake") == wake:
-        return []
+        return None
     # A previous release may have committed the wake before upgrading its
     # worker. Close its pre-wait proposals before adding the new observation.
     superseded = list(pending)
