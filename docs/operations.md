@@ -29,6 +29,7 @@ Superseded by VISION.md
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
 - **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. ولأن سجلًا أو عملية قديمة قد تحمل قيمة سرّ أُعطي لأمر، تحتفظ البوابة بكل قيمة أُعطيت مشفّرةً بمفتاح الأسرار 30 يومًا بعد آخر مرة أُعطيت فيها، لتبقى مستبدلة في الفحص؛ فالسرّ المحذوف أو المُبدَّل تبقى قيمته مشفّرة حتى 30 يومًا ثم تُمحى. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يقبل من العميل TLS أو HTTP أو SSH فقط، ويرفض أسماء MetaApi ونطاق Lonora، ويرفض العنوان المكتوب بدل الاسم، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن. هذا حماية إضافية لا جدار: اسم يشير إلى عنوان MetaApi لم يتعلّمه الحارس، أو وسيط HTTPS، أو أي شيء عبر SSH يبلغ MetaApi، والإنترنت وSSH مطلوبان. والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.9 غيغابايت منها نحو 5.2 متاحة، 25 غيغابايت حرة): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.0` و`LONORA_WORKSPACE_DISK=10g` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
+- **الإشعارات على الهاتف:** تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -422,10 +423,40 @@ undo something that must not be undone: an owner's "stop trading", a new restric
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the trading switch and emergency stop
-in `ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
-changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
-and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
+`ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the
+`trading…` rows of `ln_settings`, paused agents, the broker connections' enabled flags, paused or
+cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
+voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and
+Gateway, keeps maintenance on and the failed version pinned, prints `ROLLBACK HELD` with the reason,
+and exits with status 2.
+
+**The update runs as the target release's own `lonora`.** Before it changes anything, `lonora
+update` reads the target image's `infra/compose/lonora` and, when it differs from the running one,
+hands the update to it (same lock, home and command name). The fingerprint's definition is its own
+file, `infra/compose/lonora-controls.sh`, and the one in force is the target release's copy:
+`lonora update` reads it from the image it installs before anything changes, keeps it next to the
+update marker (`state/update-controls.sh`; a held update keeps its own), and uses it for the
+baseline of step 5 and for the comparison of any rollback of that update. A release that drops a
+table therefore drops it from both sides, and each part is read only when its table exists, so a
+removed table never makes the records "unreadable". An image built before this file existed
+carries none; the installation's own copy stands in.
+
+**Once, on an installation whose `lonora` predates this** (it has no
+`infra/compose/lonora-controls.sh`): that script cannot hand the update over, and it reads the
+owner controls with its own definition, which may name a table the target release drops (the
+update then stops at "reading the owner-control records" and the rollback holds). Install the
+target's two files first, then update as usual:
+
+```
+IMAGE=ghcr.io/loorksy/lonorabot:<version>
+cd /opt/lonora
+sudo docker pull "$IMAGE"
+for f in lonora lonora-controls.sh; do
+  sudo docker run --rm --network none --entrypoint cat "$IMAGE" /app/deploy/infra/compose/$f | sudo tee infra/compose/$f.new >/dev/null
+  sudo chmod 755 infra/compose/$f.new && sudo mv -f infra/compose/$f.new infra/compose/$f
+done
+sudo lonora update <version>
+```
 
 ### When an update does not finish: what to do
 
@@ -542,6 +573,42 @@ printed `sudo lonora restore FILE --replace`), go back to the state before it
 (`sudo lonora restore <its safety backup> --replace`; the safety backup is named in `lonora status`
 and is never rotated away), or `sudo lonora restore --abandon` (asks to type ABANDON, or `--yes`),
 which only clears the marker and leaves the database as it is.
+
+## Push to the owner's phone
+
+Push goes through the Expo push service with the owner's own Expo project (VISION 11.4). What
+exists at this commit is the phone side: after sign-in the app asks for the notification
+permission and registers the phone with `PUT /api/push/devices/<install id>` (owner session
+only). The server stores the Expo push token encrypted, bound to the sign-in session that sent
+it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds the permission
+turned off (`DELETE /api/push/devices/<install id>`). The token is never logged and never
+shown to a model. Nothing sends a push yet.
+
+A native release with push needs, once:
+
+1. An Expo project at expo.dev owned by the owner; its project id (a UUID) is
+   `LONORA_EXPO_PROJECT_ID`.
+2. A Firebase project with an Android app whose package is `ai.lonora.mobile`; download its
+   `google-services.json` and upload the same project's FCM V1 service-account key to the
+   Expo project (expo.dev, project credentials, Android, FCM V1). The path of the
+   `google-services.json` file is `LONORA_ANDROID_GOOGLE_SERVICES_FILE`.
+3. For iOS (no iOS release is built today): an APNs key registered in the same Expo project.
+
+Then build the APK as usual with both variables set:
+
+```bash
+LONORA_EXPO_PROJECT_ID=<uuid> LONORA_ANDROID_GOOGLE_SERVICES_FILE=/path/google-services.json \
+  pnpm --filter @lonora/mobile android:release
+```
+
+The release refuses one variable without the other and prints `Push: built in.`. Without the
+variables it prints `Push: not configured`, and that build never asks for the permission or
+registers (the notification module is linked into every build, so every APK declares
+`POST_NOTIFICATIONS`). The notification module is native code, so an OTA update cannot add it
+to an older APK: the phone needs this new APK. The fingerprint `runtimeVersion` includes the
+project id and the Firebase file, so publish OTA updates for a push build with the same two
+variables set (`scripts/ota-publish.sh` refuses one without the other); an update exported
+without them has another runtime and never reaches that phone.
 
 ## Release manifest and client versions
 

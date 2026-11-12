@@ -82,9 +82,6 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
 
     // «أنشئ وكيل ذهب …»: the creation card and the grant card, the same server cards
     // the Web shows, with the daily loss from the sentence.
-    // An agent's own creation is capped at 20 active agents per owner: agents earlier
-    // specs left active must not use up the room this one needs (they are paused).
-    python(["tests/browser_agents.py"], { action: "headroom", needed: 1 });
     await said(words.createGold);
     const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
     expect(created.status).toBe("completed");
