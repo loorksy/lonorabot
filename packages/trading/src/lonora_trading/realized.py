@@ -34,5 +34,5 @@ def deal_pnl(deal: dict[str, Any]) -> Decimal:
         if not value.is_finite():
             raise LonoraError("risk_daily_history_invalid", 409)
         total += value
-    # A non-trading adjustment counts against the limit, never for it.
+    # A non-trading adjustment can lower trading P&L, never raise it.
     return total if kind in TRADE_DEALS else min(total, Decimal(0))
