@@ -96,6 +96,6 @@ def test_missing_or_oversized_vocabulary_is_an_explicit_resource_error(tmp_path:
 def test_the_teaching_names_only_what_the_catalog_builds():
     text = native_visual_policy()
     # No chart, timer or date picker node exists, so the teaching does not offer them.
-    for gone in ("(picker)", "(chart)", "(timer)", "timer\""):
+    for gone in ("(picker)", "(chart)", "(timer)", 'timer"'):
         assert gone not in text
     assert not re.search("[\u0600-\u06ff]", text[: text.index("Instrument names")])
