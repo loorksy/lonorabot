@@ -31,6 +31,8 @@ broken routine can no longer stop broker reconciliation.
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
+| `instrument_currencies` (instrument currencies of held symbols, for the account picture) | 30 s | 120 s | no |
+| `calendar` (the owner's economic calendar sources, cached for the account picture) | 600 s | 120 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |
 | `thread_prefs` (keep-archived off: a new message unarchives) | 2 s | 60 s | no |
