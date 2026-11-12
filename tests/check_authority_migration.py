@@ -538,6 +538,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             ("Cancelled", "cancelled", None),
             ("Leased", "running", None),
             ("Paused", "paused", None),
+            ("Held", "paused", None),
         ):
             row, thread = await new_agent(name, **flexible)
             grant = await seed.grant(row.id, thread.id)
@@ -578,6 +579,27 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         owner_task_watch_hold = await seed.hold(
             running_agent, "watch", owner_task_watch.id, "owner", None
         )
+        # Every other management Task with a watch of its own: the owner paused Held.
+        held_task_hold = await seed.hold(
+            managers["Held"][0], "task", managers["Held"][2], "owner", None
+        )
+        settled = {"code": "task_terminal", "steered_by": "task"}
+        task_watches: dict[str, MarketWatchRow] = {}
+        for manager, enabled, extra in (
+            ("Failed", True, {"lifecycle": "pending"}),
+            ("Leased", True, {"lifecycle": "pending"}),
+            ("Held", True, {"lifecycle": "pending"}),
+            ("Paused", True, {"lifecycle": "pending"}),
+            ("Cancelled", False, settled),
+            ("Completing", False, settled),
+        ):
+            agent_id, _, task_id, run_id, thread_id = managers[manager]
+            task_watches[manager] = await seed.watch(
+                agent_id,
+                thread_id,
+                enabled=enabled,
+                state={"task_id": task_id, "task_run_id": run_id, **extra},
+            )
         own_watch = await seed.watch(running_agent, running_thread, enabled=True)
         # A card the management Run waits on ends with that Run.
         stranded = TradeApprovalRow(
@@ -907,6 +929,8 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "live_task_watch": live_task_watch.id,
             "owner_task_watch": owner_task_watch.id,
             "owner_task_watch_hold": owner_task_watch_hold.id,
+            "held_task_hold": held_task_hold.id,
+            **{"task_watch:" + name: row.id for name, row in task_watches.items()},
             "own_watch": own_watch.id,
         }
     async with db.sessions() as session:
@@ -916,6 +940,11 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         own_watch_before = await session.get(MarketWatchRow, refs["own_watch"])
         assert own_watch_before is not None
         own_watch_state = (own_watch_before.payload, own_watch_before.state)
+        ended_watches: dict[str, tuple[Any, ...]] = {}
+        for name in ("Cancelled", "Completing"):
+            row = await session.get(MarketWatchRow, refs["task_watch:" + name])
+            assert row is not None
+            ended_watches[name] = (row.payload, row.state, row.version)
         expiry = approval.expires_at
         lonora_watch_row = await session.get(MarketWatchRow, refs["lonora_watch"])
         assert lonora_watch_row is not None
@@ -950,6 +979,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "Cancelled": ("cancelled", "cancelled"),
             "Leased": ("cancelled", "cancelled"),
             "Paused": ("cancelled", "cancelled"),
+            "Held": ("cancelled", "cancelled"),
         }
         for name, (_, _, task_id, run_id, _) in managers.items():
             ticket = await session.get(TicketRow, task_id, populate_existing=True)
@@ -965,7 +995,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
                 # A worker holds it: it reads the stopped Task at its next checkpoint.
                 assert run.status == "leased" and run.lease_owner == "worker-1", run.status
                 continue
-            waiting = name in {"Running", "Completing", "Paused"}
+            waiting = name in {"Running", "Completing", "Paused", "Held"}
             assert run.status == ("cancelled" if waiting else "completed"), name
             if waiting:
                 assert run.lease_owner is None and run.error_code == "mandate_migration"
@@ -980,9 +1010,37 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             watch = await session.get(MarketWatchRow, refs[name], populate_existing=True)
             assert watch is not None and watch.version > 1, name
             assert not {"task_id", "task_run_id"} & set(watch.state), (name, watch.state)
-        watch = await session.get(MarketWatchRow, refs["live_task_watch"], populate_existing=True)
-        assert watch is not None and watch.payload["enabled"] is True
-        assert watch.state == {"lifecycle": "pending"}, watch.state
+        for name in ("Failed", "Leased", "Held", "Paused"):
+            watch = await session.get(
+                MarketWatchRow, refs["task_watch:" + name], populate_existing=True
+            )
+            assert watch is not None and watch.version > 1, name
+            assert not {"task_id", "task_run_id"} & set(watch.state), (name, watch.state)
+        for name in ("live_task_watch", "task_watch:Failed", "task_watch:Leased"):
+            watch = await session.get(MarketWatchRow, refs[name], populate_existing=True)
+            assert watch is not None and watch.payload["enabled"] is True, name
+            assert watch.state == {"lifecycle": "pending"}, (name, watch.state)
+        # A Task the owner had already ended keeps its settled watches exactly as they were.
+        for name, before_watch in ended_watches.items():
+            watch = await session.get(
+                MarketWatchRow, refs["task_watch:" + name], populate_existing=True
+            )
+            assert watch is not None
+            assert (watch.payload, watch.state, watch.version) == before_watch, name
+        # The owner's pause of a Task holds its watches: each is paused by the owner, who
+        # alone lifts it (4.7.2, 14.3.18.6).
+        watch = await session.get(MarketWatchRow, refs["task_watch:Held"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is False
+        assert watch.state == {"lifecycle": "pending", "code": "watch_paused"}, watch.state
+        watch_hold = await session.scalar(
+            select(SupervisionHoldRow).where(
+                SupervisionHoldRow.target_kind == "watch",
+                SupervisionHoldRow.target_id == refs["task_watch:Held"],
+                SupervisionHoldRow.released_at.is_(None),
+            )
+        )
+        assert watch_hold is not None and watch_hold.source == "owner", watch_hold
+        assert watch_hold.holder_agent_id is None and watch_hold.agent_id == managers["Held"][0]
         watch = await session.get(MarketWatchRow, refs["own_watch"], populate_existing=True)
         assert watch is not None and (watch.payload, watch.state) == own_watch_state
         review_run = await session.get(RunRow, refs["review"], populate_existing=True)
@@ -1121,6 +1179,11 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         watch = await session.get(MarketWatchRow, refs["task_watch"], populate_existing=True)
         assert watch is not None and watch.payload["enabled"] is True, "resumed"
         assert "code" not in watch.state, watch.state
+        assert (await hold("held_task_hold")).released_at is None, "the owner's pause stays"
+        # A supervisor's pause of a whole Task ends for its watch too.
+        watch = await session.get(MarketWatchRow, refs["task_watch:Paused"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is True, "resumed"
+        assert "code" not in watch.state and "task_id" not in watch.state, watch.state
         # The owner's pause of a Task watch stays, and the owner can lift it afterwards.
         owner_hold = await hold("owner_task_watch_hold")
         assert owner_hold.released_at is None and owner_hold.source == "owner"
@@ -1165,7 +1228,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         )
         == expired_restriction
     )
-    assert len(await events_since(db, cursor, "task.updated")) == 5
+    assert len(await events_since(db, cursor, "task.updated")) == 6
     approvals = await events_since(db, cursor, "trading.approval.updated")
     assert [event.payload["id"] for event in approvals] == [refs["stranded"]]
     assert approvals[0].payload["status"] == "cancelled"
@@ -1184,9 +1247,18 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
     # The owner's Resume on the kept pause works: the watch no longer names an ended Task.
     async with db.sessions() as session, session.begin():
         assert await owner_resumes(session, owner_id, refs["owner_task_watch_hold"])
+        held = await session.scalar(
+            select(SupervisionHoldRow.id).where(
+                SupervisionHoldRow.target_id == refs["task_watch:Held"],
+                SupervisionHoldRow.released_at.is_(None),
+            )
+        )
+        assert held is not None
+        assert await owner_resumes(session, owner_id, held)
     async with db.sessions() as session:
-        watch = await session.get(MarketWatchRow, refs["owner_task_watch"])
-        assert watch is not None and watch.payload["enabled"] is True, "the owner resumed it"
+        for name in ("owner_task_watch", "task_watch:Held"):
+            watch = await session.get(MarketWatchRow, refs[name])
+            assert watch is not None and watch.payload["enabled"] is True, name
     print(
         "PASS the general cases: every agent in Ask at 'Ask me'; active, expired, pending and"
         " orphaned grants revoked, their Tasks stopped (failed→cancelled, complete→completed),"

@@ -20,7 +20,9 @@
    and any waiting activation review of the grant cancelled with their pending and
    approved Trade Approval cards (as the owner's cancel of a Task), and pending grant
    cards superseded. Ending a Task never cancels its watches (4.5.3): each stays the
-   agent's own, without the Task, and a pause on it (the owner's too) can still lift.
+   agent's own, without the Task, and a pause on it (the owner's too) can still lift. A
+   paused Task's live watches stay paused under the Task's hold (4.7.2); a Task the owner
+   had already ended keeps its watches as they were.
 4. Delegated, child and supervisor agents become ordinary team agents: no parent, role
    ``general``, flexible, no binding, template ``supervisor`` becomes ``general``. A bound
    account and symbol become one line of the agent's method (its OPERATING.md), with a
@@ -518,6 +520,14 @@ class Migration:
             return
         payload = payload_of(rows[0].payload)
         status = task.get("status")
+        # Frozen task_ended: the owner's cancel or complete counts from the request.
+        ended_before = status in {"cancelled", "completed"} or task.get("control_requested") in {
+            "cancel",
+            "complete",
+        }
+        paused = not ended_before and (
+            status == "paused" or task.get("control_requested") == "pause"
+        )
         if status == "failed":
             task.update(status="cancelled", phase="cancelled")
         elif status not in TERMINAL_TASKS:
@@ -548,33 +558,75 @@ class Migration:
                 agent_id=grant.agent_id,
                 thread_id=task.get("origin_thread_id"),
             )
-        if status not in {"cancelled", "completed"}:
-            self.keep_task_watches(grant.owner_id, task_id)
+        if not ended_before:
+            self.keep_task_watches(grant, task_id, self.task_hold(task_id) if paused else None)
 
-    def keep_task_watches(self, owner_id: str, task_id: str) -> None:
+    def task_hold(self, task_id: str) -> tuple[str | None, str]:
+        """Who holds a paused Task: its live hold's holder and source, else the owner."""
+        holds = self.rows(
+            "SELECT holder_agent_id, source FROM ln_supervision_holds"
+            " WHERE target_kind = 'task' AND target_id = :id AND released_at IS NULL",
+            id=task_id,
+        )
+        return (holds[0].holder_agent_id, holds[0].source) if holds else (None, "owner")
+
+    def keep_task_watches(
+        self, grant: Any, task_id: str, hold: tuple[str | None, str] | None
+    ) -> None:
         """Ending the Task never cancels its watches (4.5.3): each stays the agent's own,
-        without the Task, so it wakes the agent and a pause on it can still be lifted."""
+        without the Task. A paused Task's live watches stay paused under the same hold
+        (frozen stop_watch 'watch_paused'), so only who paused it lifts the pause."""
         for watch in self.rows(
-            "SELECT id, agent_id, thread_id, state FROM ln_market_watches"
+            "SELECT id, agent_id, thread_id, payload, state FROM ln_market_watches"
             " WHERE owner_id = :owner AND CAST(state AS JSONB) ->> 'task_id' = :task"
             " ORDER BY id FOR UPDATE",
-            owner=owner_id,
+            owner=grant.owner_id,
             task=task_id,
         ):
+            payload = payload_of(watch.payload)
             state = {
                 key: value
                 for key, value in payload_of(watch.state).items()
                 if key not in {"task_id", "task_run_id"}
             }
+            if hold is not None and payload.get("enabled", True):
+                payload = {**payload, "enabled": False}
+                state = {
+                    **{
+                        key: value
+                        for key, value in state.items()
+                        if key not in {"evaluation_status", "next_check"}
+                    },
+                    "code": "watch_paused",
+                }
+                if not self.rows(
+                    "SELECT id FROM ln_supervision_holds WHERE target_kind = 'watch'"
+                    " AND target_id = :id AND released_at IS NULL",
+                    id=watch.id,
+                ):
+                    self.run(
+                        "INSERT INTO ln_supervision_holds (id, owner_id, holder_agent_id,"
+                        " agent_id, target_kind, target_id, source, created_at) VALUES"
+                        " (:id, :owner, :holder, :agent, 'watch', :target, :source, :now)",
+                        id=stable_id(task_id, "mandate-migration-hold:" + watch.id),
+                        owner=grant.owner_id,
+                        holder=hold[0],
+                        agent=watch.agent_id or grant.agent_id,
+                        target=watch.id,
+                        source=hold[1],
+                        now=self.now,
+                    )
             version = self.rows(
-                "UPDATE ln_market_watches SET state = CAST(:state AS JSON),"
-                " version = version + 1, updated_at = :now WHERE id = :id RETURNING version",
+                "UPDATE ln_market_watches SET payload = CAST(:payload AS JSON),"
+                " state = CAST(:state AS JSON), version = version + 1, updated_at = :now"
+                " WHERE id = :id RETURNING version",
                 id=watch.id,
+                payload=dump(payload),
                 state=dump(state),
                 now=self.now,
             )[0].version
             self.emit(
-                owner_id,
+                grant.owner_id,
                 "market_watches.updated",
                 {"id": watch.id, "version": version},
                 agent_id=watch.agent_id,
