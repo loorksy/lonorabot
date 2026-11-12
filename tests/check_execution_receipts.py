@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_trading import CrashAfterSendBroker, ScriptedBroker, ScriptedManager, database
@@ -310,13 +311,9 @@ async def checks() -> None:
     async def broken(*_: Any) -> None:
         raise RuntimeError("placement failed")
 
-    placing = receipts_module._posting_thread
-    receipts_module._posting_thread = broken  # type: ignore[assignment]
-    try:
+    with patch.object(receipts_module, "_posting_thread", broken):
         unplaced = buy()
         assert (await service.execute(owner_id, unplaced, gold_lease)).status == "confirmed"
-    finally:
-        receipts_module._posting_thread = placing  # type: ignore[assignment]
     async with db.sessions() as session:
         journal = await session.get(TradingJournalRow, unplaced.operation_id)
         assert journal is not None and journal.status == "confirmed"
