@@ -26,6 +26,7 @@ from lonora_trading.connections import verified_identity
 from pydantic import Field
 
 from ..middleware.auth import require_owner, runtime
+from .providers import settings_provider
 
 router = APIRouter()
 # One bounded round trip: a test never hangs the form. The values are never logged or echoed.
@@ -42,7 +43,9 @@ async def bounded[T](call: Awaitable[T]) -> T:
 
 @router.post("/providers/{provider}/test")
 async def dry_run_provider(
-    provider: ProviderId, body: ProviderCredential, owner: OwnerIdentity = Depends(require_owner)
+    body: ProviderCredential,
+    provider: ProviderId = Depends(settings_provider),
+    owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     adapter = model_adapter(provider, body.api_key)
     try:
