@@ -36,9 +36,6 @@ LINKS = {
     ("ln_trade_approvals", "agent_id"),
     ("ln_trade_approvals", "run_id"),
     ("ln_trade_approvals", "thread_id"),
-    ("ln_goal_decisions", "goal_id"),
-    ("ln_trading_goals", "agent_id"),
-    ("ln_trading_goals", "thread_id"),
     ("ln_trading_restrictions", "account_id"),
     ("ln_trading_restrictions", "agent_id"),
 }
@@ -70,7 +67,6 @@ async def migration(f: Fixture) -> None:
     head = await delete_actions(f)
     contexts = {("ln_account_authorities", "thread_id"), ("ln_super_bot_requests", "thread_id")}
     contexts |= {("ln_trade_approvals", "run_id"), ("ln_trade_approvals", "thread_id")}
-    contexts |= {("ln_trading_goals", "thread_id")}
     assert head == dict.fromkeys(contexts, "n"), head
     agent = await f.agent("Durable")
     async with f.runtime.db.sessions() as session, session.begin():
@@ -94,7 +90,9 @@ async def migration(f: Fixture) -> None:
         assert orphan
         await session.delete(orphan)
     assert await alembic(f, "downgrade", "0035_agent_tool_usage") == 0
-    assert set((await delete_actions(f)).values()) == {"c"} and len(await delete_actions(f)) == 14
+    assert set((await delete_actions(f)).values()) == {"c"} and len(await delete_actions(f)) == len(
+        LINKS
+    )
     assert await alembic(f, "upgrade", "head") == 0
     assert await delete_actions(f) == head
     print("PASS: migration 0036 removes cascades, refuses a lossy downgrade and round-trips")

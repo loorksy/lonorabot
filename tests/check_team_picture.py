@@ -9,11 +9,13 @@ import asyncio
 import json
 from decimal import Decimal
 from typing import Any
+from unittest.mock import patch
 
 from check_account_picture import Book, picture_of, position
 from check_streaming import Fixture
 from lonora_agent.context.picture import MAX_TEAM_SYMBOLS, account_picture
 from lonora_contracts.account import Order
+from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.memory import commit_memory
 from lonora_trading.picture import CURRENCIES_KEY, instrument_legs, learn_currencies
@@ -38,6 +40,7 @@ async def main() -> None:
     assert instrument_legs("USD", "USD") == ["USD"]  # a CFD quoted in dollars
     assert instrument_legs("US500", "USD") == ["USD"]  # not a currency code: quote only
     assert instrument_legs(None, "JPY") == ["JPY"] and instrument_legs(None, None) == []
+    assert instrument_legs("BTC", "USDT") == ["BTC", "USDT"]  # a crypto pair
     f = await Fixture().open()
     try:
         account = (
@@ -96,7 +99,24 @@ async def main() -> None:
             "XAUUSD",
         ]
         brokers = f.runtime.services(f.owner).brokers
-        assert await learn_currencies(f.runtime.db, brokers, f.owner) == 3
+        # A transient failure (a rate limit) stores nothing; the next pass learns it.
+        broker = await brokers.get(f.owner, account)
+        real = broker.instrument
+
+        async def limited(symbol: str) -> Any:
+            if symbol == "EURUSD":
+                raise LonoraError("broker_rate_limited", 429)
+            return await real(symbol)
+
+        with (
+            patch.object(broker, "instrument", limited),
+            patch("lonora_trading.picture.RETRY_SECONDS", 0),
+        ):
+            assert await learn_currencies(f.runtime.db, brokers, f.owner) == 2
+        async with f.runtime.db.sessions() as session:
+            row = await BrokerSessionRepository().get(session, f.owner, account)
+            assert "EURUSD" not in row.state[CURRENCIES_KEY]["symbols"]
+        assert await learn_currencies(f.runtime.db, brokers, f.owner) == 1
         assert await learn_currencies(f.runtime.db, brokers, f.owner) == 0  # once
         async with f.runtime.db.sessions() as session:
             row = await BrokerSessionRepository().get(session, f.owner, account)
@@ -105,7 +125,8 @@ async def main() -> None:
             text = await account_picture(session, f.owner, euro["id"])
         assert "Gold-secret-thesis" not in text
         (team,) = picture_of(text)["team"]
-        assert team["currencies_unknown"] == []
+        # The broker lists no currencies for the refused symbol: it stays unknown.
+        assert team["currencies_unknown"] == ["AAA.odd"] and team["stale"] is False
         symbols = {item["symbol"]: item for item in team["by_symbol"]}
         assert [p["agent"] for p in symbols["EURUSD"]["positions"]] == [euro["name"]]
         assert [p["agent"] for p in symbols["XAUUSD"]["positions"]] == [gold["name"]]
@@ -133,6 +154,12 @@ async def main() -> None:
             (team,) = picture_of(await account_picture(session, f.owner, euro["id"]))["team"]
         assert len(team["by_symbol"]) == MAX_TEAM_SYMBOLS and team["symbols_not_shown"] == 4
         assert team["by_symbol"][0]["symbol"] == "US500", team["by_symbol"][0]
+        # Every ticket is shown or counted, including those of symbols not listed.
+        shown = sum(len(item["positions"]) for item in team["by_symbol"])
+        assert shown + team["positions_not_shown"] == 24, (shown, team["positions_not_shown"])
+        # Currencies count every symbol, listed or not.
+        usd = next(item for item in team["by_currency"] if item["currency"] == "USD")
+        assert {s["symbol"] for s in usd["symbols"]} >= {"EURUSD", "XAUUSD", "US500"}
         print("PASS team book: EURUSD and XAUUSD appear under EUR, USD and XAU")
         print("PASS team book: holders by name, the owner's own ticket, tickets only, bounded")
         print("PASS instrument currencies are learned once; a refused symbol holds none back")

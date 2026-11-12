@@ -128,3 +128,35 @@ async def report_thread(session: AsyncSession, run: RunRow) -> str:
     ):
         return origin.id
     return run.thread_id
+
+
+async def origin_read_threads(session: AsyncSession, run: RunRow) -> list[str]:
+    """Threads a Run may read: its own, plus the conversation it came from.
+
+    A wake, Task or opportunity Run works in its own work lane but still reads the
+    conversation it came from (the Agent's own, or a group it belongs to).
+    """
+    origin_id = run.model_metadata.get("origin_thread_id")
+    if not isinstance(origin_id, str) or not origin_id or origin_id == run.thread_id:
+        return [run.thread_id]
+    source = await session.get(ThreadRow, run.thread_id)
+    origin = await session.get(ThreadRow, origin_id)
+    if (
+        source is not None
+        and source.purpose == "work"
+        and origin is not None
+        and origin.purpose == "conversation"
+        and origin.owner_id == source.owner_id
+        and source.agent_id == run.agent_id
+    ):
+        if origin.agent_id == run.agent_id:
+            return [run.thread_id, origin.id]
+        if origin.group_id:
+            group = await session.get(GroupRow, origin.group_id)
+            if (
+                group
+                and group.owner_id == origin.owner_id
+                and run.agent_id in group.payload.get("member_ids", [])
+            ):
+                return [run.thread_id, origin.id]
+    return [run.thread_id]
