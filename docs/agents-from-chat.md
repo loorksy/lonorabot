@@ -55,8 +55,9 @@ connection version is recorded and re-checked when the agent is created.
   context engine labels untrusted, recorded per Run by the registry) or another agent's
   message reached it, it is treated like a wake and raises the card instead. The same
   rule governs every tool that acts on the owner's word: supervision, `agent_control`,
-  the owner profile and reach-me, model switches, narrowing other agents and lifting a
-  hold. Supervision over Lonora (`supervises` naming the Personal Agent) is always a card.
+  the owner profile and reach-me, model switches, narrowing other agents, lifting a hold
+  and deleting a saved secret. Supervision over Lonora (`supervises` naming the Personal
+  Agent) is always a card.
 - **The responsibility it writes stays its writing.** The new agent's instructions are
   the responsibility the creating agent wrote; while they still match it
   (`instructions_sha256` in the origin record) the context shows them as a labelled

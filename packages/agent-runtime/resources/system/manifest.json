@@ -58,6 +58,8 @@
     "news_feed_subscribe": "research",
     "telegram_link": "research",
     "capabilities_list": "research",
+    "secrets_list": "research",
+    "secret_delete": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",
     "child_agent_create": "collaboration",

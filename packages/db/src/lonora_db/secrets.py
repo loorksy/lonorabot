@@ -3,11 +3,13 @@
 ``broker`` holds broker passwords and the MetaApi token: only the execution door and
 provisioning read it. ``provider`` holds model API keys and ``integration`` the tokens of
 news feeds, web search, the calendar and MCP servers. ``workspace`` holds the owner's
-secrets for agents to use by name in the workspace; its names are environment variable
-names. A secret a connection uses is not deleted while the connection refers to it.
+secrets for agents to use by name in the workspace, among them what a Secret card saved
+for a connection; its names are environment variable names. A secret a connection uses
+is not deleted while the connection refers to it.
 """
 
 import re
+from typing import Any
 
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
@@ -79,3 +81,41 @@ async def secret_in_use(session: AsyncSession, owner_id: str, secret_id: str) ->
             if used is not None:
                 return True
     return False
+
+
+async def delete_secret(session: AsyncSession, owner_id: str, secret_id: str) -> None:
+    """The one deletion of a stored secret, for ``DELETE /secrets/{secret_id}`` and for
+    the owner's word in chat: refused while a connection still uses it."""
+    row = await session.get(SecretRow, secret_id, with_for_update=True)
+    if row is None or row.owner_id != owner_id:
+        raise LonoraError("secret_not_found", 404)
+    if await secret_in_use(session, owner_id, secret_id):
+        raise LonoraError("secret_in_use", 409)
+    await session.delete(row)
+
+
+async def workspace_secrets(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]:
+    """The owner's workspace secrets by name, never a value, with the connections that use
+    each (a feed, a calendar, web search, an MCP server): what the owner may ask about."""
+    rows = (
+        await session.scalars(
+            select(SecretRow)
+            .where(SecretRow.owner_id == owner_id, SecretRow.scope == WORKSPACE)
+            .order_by(SecretRow.name)
+        )
+    ).all()
+    users: dict[str, list[dict[str, str]]] = {row.id: [] for row in rows}
+    for row_type, keys in REFERENCES:
+        if row_type is BrokerSessionRow:
+            continue  # A broker session names a broker secret, never a workspace one.
+        connections = await session.scalars(select(row_type).where(row_type.owner_id == owner_id))
+        for connection in connections:
+            kind = "mcp_server" if row_type is McpConnectionRow else connection.payload["type"]
+            for key in keys:
+                secret_id = connection.payload.get(key)
+                if secret_id in users:
+                    users[secret_id].append({"kind": kind, "name": connection.payload["name"]})
+    return [
+        {"name": row.name, "updated_at": row.updated_at.isoformat(), "used_by": users[row.id]}
+        for row in rows
+    ]
