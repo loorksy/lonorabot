@@ -14,7 +14,13 @@ from lonora_contracts.skills import AgentSkill
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import EffectReceiptRow, SkillRow, SkillVersionRow
 from lonora_db.skill_controls import read_skill_controls
-from lonora_db.skills import SkillRepository, record_version, skill_versions, version_payload
+from lonora_db.skills import (
+    SkillRepository,
+    manifest_description,
+    record_version,
+    skill_versions,
+    version_payload,
+)
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
@@ -33,22 +39,37 @@ def semver(value: Any) -> tuple[int, int, int] | None:
     return major, minor, patch
 
 
-async def history_rows(session: AsyncSession, row: SkillRow | None) -> list[SkillVersionRow]:
-    if row is None:
-        return []
+async def history_rows(
+    session: AsyncSession, context: ToolContext, skill_id: str
+) -> list[SkillVersionRow]:
+    """Every saved version of this agent's Skill named ``skill_id``, newest first, the
+    versions of a deleted Skill and of an earlier Skill of the same name included."""
     return list(
-        await session.scalars(select(SkillVersionRow).where(SkillVersionRow.skill_id == row.id))
+        await session.scalars(
+            select(SkillVersionRow)
+            .where(
+                SkillVersionRow.owner_id == context.owner_id,
+                SkillVersionRow.agent_id == context.agent_id,
+                SkillVersionRow.payload["name"].as_string() == skill_id,
+            )
+            .order_by(SkillVersionRow.created_at.desc(), SkillVersionRow.version.desc())
+        )
     )
 
 
+def deleted_versions(saved: list[SkillVersionRow]) -> list[SkillVersionRow]:
+    """The versions of the most recently saved resource of a Skill that no longer exists."""
+    return [item for item in saved if saved and item.skill_id == saved[0].skill_id]
+
+
 async def guard_versions(
-    session: AsyncSession, context: ToolContext, skill_id: str, row: SkillRow | None, content: str
+    session: AsyncSession, context: ToolContext, skill_id: str, content: str
 ) -> str:
     """The next semantic version, above every version this Skill ever had or the owner
     revoked, so one number never names two texts. Text of a revoked version is refused."""
     controls = await read_skill_controls(session, context.owner_id, context.agent_id)
     revoked = {item.version for item in controls.revoked if item.skill_id == skill_id}
-    saved = await history_rows(session, row)
+    saved = await history_rows(session, context, skill_id)
     labels: list[Any] = list(revoked)
     for item in saved:
         manifest: dict[str, Any] = item.payload.get("manifest") or {}
@@ -131,7 +152,7 @@ async def save_skill(
             arguments["title"],
             arguments["description"],
             arguments["content"],
-            await guard_versions(session, context, skill_id, row, arguments["content"]),
+            await guard_versions(session, context, skill_id, arguments["content"]),
         )
         await validate_graph(session, context, registry, payload, row.id if row else None)
         if row is None:
@@ -156,10 +177,30 @@ async def save_skill(
 async def skill_history(context: ToolContext, skill_id: str) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
         row = await owned_skill(session, context, skill_id)
-        if row is None:
+        if row is not None:
+            versions = await skill_versions(session, context.owner_id, row)
+            return {"skill_id": skill_id, "resource_version": row.version, "versions": versions}
+        deleted = deleted_versions(await history_rows(session, context, skill_id))
+        if not deleted:
             raise LonoraError("skill_not_found", 404)
-        versions = await skill_versions(session, context.owner_id, row)
-        return {"skill_id": skill_id, "resource_version": row.version, "versions": versions}
+        # A deleted Skill: its versions stay, and skill_restore with expected_version 0
+        # brings one back.
+        return {
+            "skill_id": skill_id,
+            "resource_version": 0,
+            "deleted": True,
+            "versions": [
+                {
+                    "version": item.version,
+                    "created_at": item.created_at.isoformat(),
+                    "name": str(item.payload.get("name", "")),
+                    "description": manifest_description(item.payload),
+                    "enabled": bool(item.payload.get("enabled", True)),
+                    "current": False,
+                }
+                for item in deleted
+            ],
+        }
 
 
 async def restore_skill(
@@ -172,13 +213,13 @@ async def restore_skill(
             return receipt.result
         row = await owned_skill(session, context, skill_id)
         if row is None:
-            raise LonoraError("skill_not_found", 404)
-        if row.version != arguments["expected_version"]:
+            row = await revived(session, context, skill_id, arguments["expected_version"])
+        elif row.version != arguments["expected_version"]:
             raise LonoraError("version_conflict", 409)
         editable(row)
         target = await version_payload(session, context.owner_id, row.id, arguments["version"])
         manifest: dict[str, Any] = target.get("manifest") or {}
-        version = await guard_versions(session, context, skill_id, row, target["content"])
+        version = await guard_versions(session, context, skill_id, target["content"])
         # The restored text keeps the Skill's current on/off state: a restore never
         # switches on a Skill the owner switched off.
         payload = AgentSkill.model_validate(
@@ -194,3 +235,26 @@ async def restore_skill(
         result = summary(row, "restored", restored_version=arguments["version"])
         session.add(EffectReceiptRow(key=context.effect_key, result=result))
         return result
+
+
+async def revived(
+    session: AsyncSession, context: ToolContext, skill_id: str, expected: int
+) -> SkillRow:
+    """A deleted Skill comes back under its own resource id, at its last saved version,
+    with the on/off state it had; the restore then saves the chosen version after it."""
+    deleted = deleted_versions(await history_rows(session, context, skill_id))
+    if not deleted:
+        raise LonoraError("skill_not_found", 404)
+    if expected != 0:
+        raise LonoraError("version_conflict", 409)
+    last = deleted[0]
+    row = SkillRow(
+        id=last.skill_id,
+        owner_id=context.owner_id,
+        agent_id=context.agent_id,
+        payload=dict(last.payload),
+        version=last.version,
+    )
+    session.add(row)
+    await session.flush()
+    return row
