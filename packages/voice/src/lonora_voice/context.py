@@ -4,6 +4,7 @@ import json
 import math
 from typing import Any, Literal, cast
 
+from lonora_agent.context.history import peer_content
 from lonora_agent.skills.system_policy import voice_surface_policy
 from lonora_db.agent_binding import binding_context
 from lonora_db.agent_state import agent_live_state
@@ -205,11 +206,19 @@ async def voice_context(
         if message.role not in {"user", "assistant"} or not message.content:
             continue
         role = "assistant" if message.role == "assistant" else "user"
+        peer = message.agent_id if message.agent_id and message.agent_id != agent.id else None
+        if peer is not None:
+            row = await session.get(AgentRow, peer)
+            peer, role = (row.name if row else peer), "user"
         overhead = len(_json(_message(role, "")).encode()) - 2 + bool(seed)
         available = min(3000, remaining - overhead)
         if available < 32:
             break
         content = bounded_text(message.content, available)
+        if peer is not None:
+            # Another agent's message is information, never this agent's own words (3.2.3);
+            # bounded before framing, so the frame always closes.
+            content = peer_content(peer, bounded_text(message.content, max(available - 600, 32)))
         entry = _message(role, content)
         remaining -= len(_json(entry).encode()) + bool(seed)
         seed.append(entry)

@@ -23,9 +23,10 @@ def peer_content(name: str, text: str) -> str:
     The body travels in the same data frame as other third-party content (6.10), so
     it can neither close its frame nor pass as the owner's words or system policy.
     """
+    label = " ".join(name.replace("]", ")").split())
     return (
         "[Peer "
-        + name
+        + label
         + "]\n"
         + context_data(
             [ContextSection("peer_message", "peer_agent", "peer_untrusted", text or "(empty)")]
