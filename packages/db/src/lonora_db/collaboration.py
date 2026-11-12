@@ -30,16 +30,6 @@ class CollaborationRepository(ResourceRepository):
     kind = "collaboration_sessions"
 
 
-async def participants_taint(session: AsyncSession, participants: list[RunRow]) -> dict[str, Any]:
-    from .genui_taint import TAINT, run_taint
-
-    for run in participants:
-        taint = await run_taint(session, run)
-        if taint is not None:
-            return {TAINT: taint}
-    return {}
-
-
 async def current_session(session: AsyncSession, owner_id: str, thread_id: str):
     return await session.scalar(
         select(CollaborationSessionRow)
@@ -354,8 +344,6 @@ async def schedule_synthesis(
                         "depth": host.model_metadata.get("depth", 0),
                         **inherited_authority(host),
                         **wake_origin(host),
-                        # Synthesis over a tainted participant's evidence is tainted.
-                        **(await participants_taint(session, participants)),
                     },
                 ),
                 run_id,
