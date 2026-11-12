@@ -1,4 +1,4 @@
-"""Invalid Goal schema repairs inside one existing Run; only a real pending grant card is proposed."""
+"""Invalid tool arguments are repaired inside one existing Run; only a real pending grant card is proposed."""
 
 import asyncio
 import json
@@ -15,8 +15,8 @@ from lonora_db.schema import (
     BrokerSessionRow,
     MessageRow,
     OwnerActionRow,
+    RoutineRow,
     RunRow,
-    TradingGoalRow,
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
@@ -72,28 +72,23 @@ async def main():
         thread = await f.conversation(agent)
         context = await f.lease(await f.run(agent, thread))
         base = {
-            "title": "Review gold",
-            "objective": "Prepare a supervised market review",
             "account_id": account,
             "symbol": "XAUUSDm",
+            "kind": "price",
+            "condition": "below",
+            "prompt": "Review gold below the swing low",
         }
         phase = 0
-        goal_id = ""
+        routine_id = ""
 
         async def complete(
             capability: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any
         ):
-            nonlocal phase, goal_id
+            nonlocal phase, routine_id
             if phase == 0:
                 assert "Do not require ritual phrases" in messages[0].content
-                call = ToolCall(
-                    id="invalid-watch",
-                    name="goal_create",
-                    arguments={
-                        **base,
-                        "steps": [{"id": "observe", "title": "Observe market", "kind": "watch"}],
-                    },
-                )
+                # A price watch without its level is invalid; the run repairs it itself.
+                call = ToolCall(id="invalid-watch", name="watch_create", arguments=base)
             elif phase == 1:
                 observation = next(
                     message
@@ -102,38 +97,26 @@ async def main():
                 )
                 error = json.loads(observation.content)
                 assert error["reason"] == "tool arguments invalid" and error["retryable"]
-                assert error["issues"] == [
-                    {
-                        "path": ["steps", 0],
-                        "type": "value_error",
-                        "code": "goal_watch_condition_required",
-                    }
-                ]
+                assert [issue["code"] for issue in error["issues"]] == ["watch_price_required"]
+                # Without a justified level it schedules a review instead of inventing one.
                 call = ToolCall(
-                    id="repaired-goal",
-                    name="goal_create",
+                    id="repaired-review",
+                    name="routine_create",
                     arguments={
-                        **base,
-                        "steps": [
-                            {
-                                "id": "review",
-                                "title": "Review current market evidence",
-                                "kind": "review",
-                                "review_interval_seconds": 900,
-                            }
-                        ],
+                        "prompt": "Review current gold market evidence",
+                        "interval_seconds": 900,
                     },
                 )
             elif phase == 2:
                 observation = next(
                     message
                     for message in messages
-                    if message.role == "tool" and message.tool_call_id == "repaired-goal"
+                    if message.role == "tool" and message.tool_call_id == "repaired-review"
                 )
                 saved = json.loads(observation.content)
-                assert saved["ok"] and saved["payload"]["steps"][0]["kind"] == "review"
-                goal_id = saved["id"]
-                # Trading on its own is one grant card the owner signs, never a goal flag.
+                assert saved["ok"] and saved["interval_seconds"] == 900, saved
+                routine_id = saved["id"]
+                # Trading on its own is one grant card the owner signs.
                 call = ToolCall(
                     id="prepare-card",
                     name="owner_action_propose",
@@ -167,9 +150,9 @@ async def main():
                 .order_by(MessageRow.seq.desc())
                 .limit(1)
             )
-            assert answer and goal_id not in answer.content and "pending" not in answer.content
+            assert answer and routine_id not in answer.content and "pending" not in answer.content
             assert answer.content == SUMMARY
-            assert await s.scalar(select(func.count()).select_from(TradingGoalRow)) == 1
+            assert await s.scalar(select(func.count()).select_from(RoutineRow)) == 1
             card = await s.scalar(
                 select(OwnerActionRow).where(
                     OwnerActionRow.thread_id == thread["id"],
@@ -177,8 +160,6 @@ async def main():
                 )
             )
             assert card and card.status == "pending"
-            goal = await s.get(TradingGoalRow, goal_id)
-            assert goal and "autonomous" not in goal.state
             assert await s.scalar(select(func.count()).select_from(TradingJournalRow)) == 0
         async with f.runtime.db.sessions() as s, s.begin():
             broker = await s.get(BrokerSessionRow, account)

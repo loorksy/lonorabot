@@ -450,7 +450,7 @@ async def test_tasks_and_tickets_an_observe_only_wake_starts_never_trade():
                     await call(delegated, name, **arguments)
             async with fixture.runtime.db.sessions() as session:
                 with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
-                    await require_goal_lineage(session, delegated.lease, None)
+                    await require_goal_lineage(session, delegated.lease)
     finally:
         await retire(fixture, connection)
         await fixture.close()
@@ -493,56 +493,6 @@ async def test_a_follow_up_to_an_observe_only_request_stays_observe_only():
         assert follow_up.model_metadata["authority"] == "observe_only"
         assert run_scope(follow_up.trigger, follow_up.model_metadata) == "observe_only"
     finally:
-        await fixture.close()
-
-
-async def gold_goal(context: Any, connection: str) -> dict[str, Any]:
-    return await call(
-        context,
-        "goal_create",
-        title="Gold swing",
-        objective="Hold gold while the weekly trend holds",
-        account_id=connection,
-        symbol="XAUUSD",
-        steps=[{"id": "review", "title": "Review the position", "kind": "analysis"}],
-    )
-
-
-@pytest.mark.asyncio
-async def test_re_arming_an_identical_goal_watch_keeps_it():
-    database()
-    from check_streaming import Fixture
-    from lonora_db.schema import MarketWatchRow
-
-    fixture = await Fixture().open()
-    connection = ""
-    try:
-        connection = await simulation(fixture)
-        agent = await fixture.agent("Goal watcher", supervised=True)
-        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        goal = await gold_goal(chat, connection)
-        watch = {
-            "account_id": connection,
-            "symbol": "XAUUSD",
-            "kind": "price",
-            "condition": "below",
-            "level": "90",
-            "prompt": "Review the swing below 90",
-            "goal_id": goal["id"],
-            "step_id": "review",
-            "dedupe_key": "swing-below-90-" + uuid4().hex[:6],
-        }
-        first = await call(chat, "watch_create", **watch)
-        # The server adds the Goal's plan version; an identical re-arm still matches.
-        assert first["payload"]["goal_plan_version"] == 1
-        again = await call(chat, "watch_create", **watch)
-        assert again["id"] == first["id"] and again["deduplicated"] is True
-        async with fixture.runtime.db.sessions() as session:
-            row = await session.get(MarketWatchRow, first["id"])
-            assert row is not None and row.payload["enabled"] is True
-            assert "code" not in row.state or row.state["code"] != "watch_replaced"
-    finally:
-        await retire(fixture, connection)
         await fixture.close()
 
 
@@ -599,20 +549,17 @@ async def test_an_identical_watch_request_without_a_key_keeps_the_one_live_watch
 
 
 @pytest.mark.asyncio
-async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
+async def test_every_work_lane_wake_reads_its_conversation():
     database()
     from check_streaming import Fixture
-    from lonora_agent.context.goals import goal_context_blocks
     from lonora_db.runs import require_lease
-    from lonora_db.trading_goals import goal_read_threads
+    from lonora_db.threads import origin_read_threads
 
     fixture = await Fixture().open()
     connection = ""
     try:
         connection = await simulation(fixture)
-        agent = await fixture.agent("Goal keeper", supervised=True)
-        chat = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        goal = await gold_goal(chat, connection)
+        agent = await fixture.agent("Conversation keeper", supervised=True)
         wakes = {
             "observe-only": (await wake_run(fixture, agent, observe_only=True))[0],
             "attributed broker event": (await wake_run(fixture, agent, observe_only=False))[0],
@@ -627,29 +574,12 @@ async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
             )[0],
         }
         for label, context in wakes.items():
-            listed = await call(context, "goal_list")
-            assert [item["id"] for item in listed["goals"]] == [goal["id"]], label
-            read = await call(context, "goal_read", goal_id=goal["id"])
-            assert read["scope"]["account_id"] == connection, label
-            # A goal's size is plan data: nothing presents it to the model as a limit.
-            assert "limits" not in read and "planned_volume" in read, label
-            assert "decisions" in await call(context, "goal_decisions", goal_id=goal["id"])
             async with fixture.runtime.db.sessions() as session:
                 run = await require_lease(session, context.lease)
-                core, _ = await goal_context_blocks(
-                    session,
-                    fixture.owner,
-                    agent["id"],
-                    await goal_read_threads(session, run),
-                )
-            # The Goal, its plan and limits are in the wake's own context.
-            assert goal["id"] in core, label
-        # Another Agent's lane never reads this conversation's Goals.
-        stranger = await fixture.agent("Stranger")
-        foreign, _ = await wake_run(fixture, stranger, observe_only=False)
-        assert (await call(foreign, "goal_list"))["goals"] == []
-        with pytest.raises(LonoraError, match="goal_run_mismatch"):
-            await call(foreign, "goal_read", goal_id=goal["id"])
+                threads = await origin_read_threads(session, run)
+            # Its own work lane, then the conversation it came from.
+            origin = run.model_metadata["origin_thread_id"]
+            assert threads == [run.thread_id, origin] and origin != run.thread_id, label
     finally:
         await retire(fixture, connection)
         await fixture.close()

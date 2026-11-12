@@ -230,9 +230,6 @@ control_fingerprint() {
     part="$(row_digest "ln_settings t WHERE key LIKE 'trading%'")" || return 0
     [[ -n "$part" ]] || return 0
     all+="settings=$part;"
-    part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'status', '')) AS h FROM ln_trading_goals t WHERE t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
-    [[ -n "$part" ]] || return 0
-    all+="goal_exits=$part;"
     part="$(psql_value "SELECT md5(coalesce(string_agg(r.h, '' ORDER BY r.h), '')) FROM (SELECT md5(t.id || ':' || coalesce(t.state->>'control_requested', '') || ':' || CASE WHEN t.state->>'status' IN ('paused', 'cancelled') THEN t.state->>'status' ELSE '' END) AS h FROM ln_tickets t WHERE t.state->>'control_requested' IS NOT NULL OR t.state->>'status' IN ('paused', 'cancelled')) r")" || return 0
     [[ -n "$part" ]] || return 0
     all+="task_exits=$part;"

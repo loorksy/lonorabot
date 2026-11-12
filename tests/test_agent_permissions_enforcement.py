@@ -1,4 +1,4 @@
-"""Offline permission/Goal regression checks; no provider or broker connection."""
+"""Offline permission regression checks; no provider or broker connection."""
 
 import json
 from typing import Any
@@ -9,8 +9,8 @@ from lonora_agent.context.permissions import permission_context, permission_guid
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow, TradingGoalRow
-from lonora_trading import agent_permission, execution, goals
+from lonora_db.schema import AgentRow, RunRow, TradeApprovalRow
+from lonora_trading import agent_permission, execution
 
 
 @pytest.fixture(autouse=True)
@@ -46,94 +46,13 @@ def request(**changes: Any) -> TradeRequest:
     )
 
 
-def legacy_goal() -> TradingGoalRow:
-    return TradingGoalRow(
-        id="goal",
-        owner_id="owner",
-        agent_id="agent",
-        thread_id="chat",
-        payload={},
-        state={"execution_mode": "live", "autonomous": True, "super_bot_request_id": "old-grant"},
-    )
-
-
 @pytest.mark.asyncio
-@pytest.mark.parametrize("trigger", ["user", "group", "goal", "watch", "routine", "task"])
-@pytest.mark.parametrize("level", ["analysis", "supervised", "autonomous"])
-async def test_live_goal_follows_current_permission_not_retired_goal_autonomy(
-    monkeypatch: pytest.MonkeyPatch, trigger: str, level: str
-):
-    """A Goal is a plan under the agent's level; its old autonomy flag means nothing."""
-    session = AsyncMock()
-    monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
-    monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value=level))
-    monkeypatch.setattr(goals, "provisional_voice", AsyncMock(return_value=False))
-    if level == "analysis":
-        with pytest.raises(LonoraError, match="agent_analysis_only"):
-            await goals.goal_requires_approval(session, legacy_goal(), origin(trigger))
-    else:
-        assert await goals.goal_requires_approval(session, legacy_goal(), origin(trigger)) == (
-            level == "supervised"
-        )
-
-
-@pytest.mark.asyncio
-async def test_a_goal_or_run_from_removed_shadow_trading_never_runs_live(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """Shadow trading is removed (Q57): its old Goals and Runs are refused, never live."""
-    from lonora_db import goal_scope
-
-    financial = AsyncMock()
-    monkeypatch.setattr(goal_scope, "require_financial_agent", financial)
-    shadow = legacy_goal()
-    shadow.state = {"status": "active", "execution_mode": "shadow", "steps": {}}
-    with pytest.raises(LonoraError, match="goal_execution_mode_invalid"):
-        await goal_scope.require_goal_agent(AsyncMock(), shadow)
-    financial.assert_not_awaited()
+async def test_a_run_from_removed_shadow_trading_never_runs_live():
+    """Shadow trading is removed (Q57): its old Runs are refused, never live."""
     shadow_run = origin()
     shadow_run.model_metadata = {"execution_mode": "shadow"}
     with pytest.raises(LonoraError, match="shadow_execution_forbidden"):
         await execution.require_task_authority(AsyncMock(), shadow_run)
-
-
-@pytest.mark.asyncio
-async def test_provisional_speech_cannot_spend_autonomous_grant(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(goals, "require_goal_agent", AsyncMock())
-    monkeypatch.setattr(goals, "effective_permission", AsyncMock(return_value="autonomous"))
-    monkeypatch.setattr(goals, "provisional_voice", AsyncMock(return_value=True))
-    assert await goals.goal_requires_approval(AsyncMock(), legacy_goal(), origin("user"))
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"operation_id": "different"},
-        {"volume": "0.2"},
-        {"action": "sell"},
-        {"symbol": "Exact.symbol"},
-        {"account_id": "other-account"},
-    ],
-)
-async def test_supervised_goal_requires_exact_operation_even_with_legacy_grant(
-    monkeypatch: pytest.MonkeyPatch, changes: dict[str, Any]
-):
-    session = AsyncMock()
-    session.scalars.return_value = [
-        TradeApprovalRow(requests=[request(**changes).model_dump(mode="json")])
-    ]
-    monkeypatch.setattr(goals, "goal_requires_approval", AsyncMock(return_value=True))
-    with pytest.raises(LonoraError, match="trade_approval_required"):
-        await goals.require_supervised_approval(session, legacy_goal(), origin("user"), request())
-
-
-@pytest.mark.asyncio
-async def test_supervised_goal_accepts_exact_stored_operation(monkeypatch: pytest.MonkeyPatch):
-    session = AsyncMock()
-    session.scalars.return_value = [TradeApprovalRow(requests=[request().model_dump(mode="json")])]
-    monkeypatch.setattr(goals, "goal_requires_approval", AsyncMock(return_value=True))
-    await goals.require_supervised_approval(session, legacy_goal(), origin("routine"), request())
 
 
 @pytest.mark.asyncio
@@ -213,7 +132,7 @@ async def test_direct_subagent_executor_path_cannot_inherit_authority(
     monkeypatch.setattr(execution, "acting_agent", AsyncMock())
     with pytest.raises(LonoraError, match="observe_only_execution_forbidden"):
         await execution.require_goal_lineage(
-            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), None, "owner"
+            AsyncMock(), Lease(run_id="run", owner="worker", fence=1), "owner"
         )
 
 
