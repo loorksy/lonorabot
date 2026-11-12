@@ -8,8 +8,9 @@ reachable only by root (the guard's own forwarder), and no other resolver is rea
 (DNS and DNS-over-TLS ports are rejected off the host), so every name goes through the
 forwarder. Names under a broker domain or Lonora's domain, and answers that lead into
 one, do not resolve. Every agent TCP connection goes through the relay (relay.py), which
-refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets; QUIC and
-IPv6 TCP, which it cannot read, are rejected.
+refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets and binds
+the dialled address to the name; agent UDP (except DNS to the forwarder on loopback) and
+IPv6 TCP, which the relay cannot read, are rejected.
 """
 
 import ipaddress
@@ -102,8 +103,8 @@ table inet {TABLE} {{
     oifname "lo" accept
     ct status dnat ip daddr 127.0.0.1 tcp dport {RELAY_PORT} accept
     meta l4proto {{ tcp, udp }} th dport {{ 53, 853 }} reject
-    meta skuid != 0 udp dport 443 reject
-    meta skuid != 0 ip6 nexthdr tcp reject with tcp reset
+    meta skuid != 0 meta l4proto udp reject
+    meta skuid != 0 meta nfproto ipv6 meta l4proto tcp reject with tcp reset
     meta l4proto tcp ip daddr @blocked4 reject with tcp reset
     ip daddr @blocked4 reject with icmpx type admin-prohibited
     meta l4proto tcp ip6 daddr @blocked6 reject with tcp reset

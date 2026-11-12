@@ -28,7 +28,7 @@ Superseded by VISION.md
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
-- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. لا يستخدمها الوكلاء بعد: يبدأ ذلك مع أدوات مساحة العمل في التغيير التالي. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يرفض أي اسم تحت نطاقات MetaApi أو نطاق Lonora (حتى لو عُرف العنوان بطريقة أخرى). يبقى نفق مشفّر يبنيه الوكيل بنفسه (مثل SSH) غير مرئي للمرحّل؛ والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.8 غيغابايت): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.5` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
+- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. لا يستخدمها الوكلاء بعد: يبدأ ذلك مع أدوات مساحة العمل في التغيير التالي. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل: لا يقبل من العميل إلا TLS أو HTTP أو SSH، ويرفض أي اسم تحت نطاقات MetaApi أو نطاق Lonora، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن، فلا يفيد عنوان MetaApi مكتوب يدويًا خلف اسم آخر ولا وسيط (proxy) عام. يبقى أمران لا يراهما المرحّل: نفق مشفّر يبنيه الوكيل بنفسه عبر SSH، وشبكة توزيع (CDN) تخدم MetaApi وأسماء أخرى على العناوين نفسها؛ والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.8 غيغابايت): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.5` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -182,11 +182,14 @@ database, the API, the Gateway or Caddy (they are on another Docker network, and
 link-local and reserved range is rejected), Docker's internal resolver, the host's own ports,
 Lonora's public address (`LONORA_DOMAIN` is refused by name, its addresses and every global
 address of the host are rejected), or MetaApi: names under `agiliumtrade.ai` and `metaapi.cloud`
-do not resolve, no outside resolver is reachable, and every agent TCP connection passes a relay
-that refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets, so a
-hard-coded address or DNS-over-HTTPS does not help. QUIC and IPv6 TCP are rejected (the relay
-cannot read them). An encrypted tunnel an agent builds itself (`ssh -D`, a VPN) is not visible to
-the relay; what holds there is that the MetaApi token never enters the workspace. It has no Docker socket, no
+do not resolve, no outside resolver is reachable, and every agent TCP connection passes a relay.
+A client that speaks first must speak TLS, HTTP or SSH (SOCKS and other raw tunnels are refused);
+the relay refuses MetaApi and Lonora names in TLS server names, HTTP hosts and proxy targets, and
+the address being dialled must be one the named host resolves to, so a hard-coded MetaApi address
+behind another name, DNS-over-HTTPS or a public proxy does not reach it. Agent UDP (except DNS to
+the guard) and IPv6 TCP are rejected. Two things the relay cannot see: an encrypted tunnel an agent
+builds itself over SSH, and a CDN that serves MetaApi and other names on shared addresses (domain
+fronting). What holds there is that the MetaApi token never enters the workspace. It has no Docker socket, no
 `.env` and no Lonora secret; the MetaApi token never enters it. Agent processes have no
 capability and cannot gain privileges.
 

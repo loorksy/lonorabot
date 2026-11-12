@@ -299,7 +299,31 @@ def test_the_relay_reads_the_name_every_connection_asks_for():
     assert relay.requested_name(b"GET / HTTP/1.1\r\nHost") is None
     with pytest.raises(relay.Refused):
         relay.requested_name(b"GET / HTTP/1.1\r\nX: y\r\n\r\n")
-    assert relay.requested_name(b"SSH-2.0-OpenSSH_9.6\r\n") == ""  # passes through
+    assert relay.requested_name(b"SSH-2.0-OpenSSH_9.6\r\n") == ""  # names nothing
+    for other in (b"get / HTTP/1.1\r\n", b"\r\nGET / HTTP/1.1", b"PRI * HTTP/2.0", b"\x05\x01\x00"):
+        with pytest.raises(relay.Refused, match="relay_protocol_refused"):
+            relay.requested_name(other)
+
+
+def test_the_dialled_address_must_be_one_the_checked_name_resolves_to():
+    async def resolve(name: str) -> set[str]:
+        return {"example.com": {"93.184.216.34"}}.get(name, set())
+
+    guard = relay.Relay(denied_domains("lonora.example.org"), resolve)
+
+    async def check(name: str, address: str) -> str:
+        try:
+            await guard.bound(name, address)
+            return "ok"
+        except relay.Refused as refusal:
+            return str(refusal)
+
+    assert asyncio.run(check("example.com", "93.184.216.34")) == "ok"
+    assert asyncio.run(check("example.com", "203.0.113.50")) == "relay_address_mismatch"
+    assert asyncio.run(check("app.metaapi.cloud", "93.184.216.34")) == "relay_name_denied"
+    assert asyncio.run(check("api.lonora.example.org", "93.184.216.34")) == "relay_name_denied"
+    assert asyncio.run(check("93.184.216.34", "93.184.216.34")) == "ok"
+    assert asyncio.run(check("93.184.216.35", "93.184.216.34")) == "relay_address_mismatch"
 
 
 def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():
@@ -308,12 +332,12 @@ def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():
     assert "type nat hook output priority -100" in relayed
     assert relayed.index("ip daddr @blocked4 return") < relayed.index("redirect to :15001")
     assert "meta skuid != 0 ip daddr != 127.0.0.0/8 meta l4proto tcp redirect" in relayed
-    assert "meta skuid != 0 udp dport 443 reject" in text
+    assert "meta skuid != 0 meta l4proto udp reject" in text
     # The redirected packet still leaves by eth0 in this hook: let it reach the relay.
     assert text.index("ct status dnat ip daddr 127.0.0.1 tcp dport 15001 accept") < text.index(
         "ip daddr @blocked4 reject"
     )
-    assert "meta skuid != 0 ip6 nexthdr tcp reject" in text
+    assert "meta skuid != 0 meta nfproto ipv6 meta l4proto tcp reject" in text
 
 
 def test_an_invalid_request_never_echoes_its_input(tmp_path: Path):

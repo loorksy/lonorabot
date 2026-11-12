@@ -456,6 +456,55 @@ def check_relay(stack: Stack) -> None:
         a, f"curl -sS --max-time 10 -o /dev/null -H 'Host: app.metaapi.cloud' http://{public}/"
     )
     record(plain["exit_code"] != 0, "an HTTP Host naming MetaApi is refused")
+    logs = lambda: stack.compose("logs", "workspace-net").stdout  # noqa: E731
+    seen = logs().count("relay_")
+    delayed = stack.run(
+        a,
+        "python3 -c \"import socket,ssl,time;s=socket.create_connection(('" + public + "',443),10);"
+        "time.sleep(2.5);c=ssl.create_default_context();"
+        "c.wrap_socket(s,server_hostname='" + META_HOST + "');print('HANDSHAKE')\"",
+    )
+    record(
+        "HANDSHAKE" not in delayed["stdout"],
+        "a client that waits before its TLS hello is still checked",
+    )
+    innocent = stack.run(
+        a,
+        f"curl -sS --max-time 10 -o /dev/null --connect-to pypi.org:443:{public}:443 https://pypi.org/",
+    )
+    record(
+        innocent["exit_code"] != 0,
+        "an innocent name on an address it does not resolve to is refused",
+    )
+    for label, payload, port in (
+        ("a lowercase HTTP request", "b'get / HTTP/1.1\\r\\nHost: example.com\\r\\n\\r\\n'", 80),
+        ("a SOCKS greeting", "b'\\x05\\x01\\x00'", 1080),
+    ):
+        raw = stack.run(
+            a,
+            "python3 -c \"import socket;s=socket.create_connection(('" + public + f"',{port}),10);"
+            f"s.sendall({payload});s.settimeout(10);print('ANSWER' if s.recv(64) else 'CLOSED')\"",
+        )
+        record(
+            "ANSWER" not in raw["stdout"],
+            f"{label} is refused (only TLS, HTTP and SSH may speak first)",
+        )
+    time.sleep(1)
+    text = logs()
+    record(
+        text.count("relay_") - seen >= 4
+        and "relay_address_mismatch" in text
+        and "relay_protocol_refused" in text,
+        "the relay logged those refusals",
+    )
+    udp = stack.run(
+        a,
+        "python3 -c \"import socket;s=socket.socket(2,2);s.settimeout(3);s.connect(('"
+        + public
+        + "',8443));"
+        "s.send(b'x');\ntry:\n s.recv(9)\nexcept ConnectionRefusedError: print('REFUSED')\nexcept OSError: print('REFUSED')\"",
+    )
+    record("REFUSED" in udp["stdout"], "agent UDP other than DNS to the forwarder is rejected")
 
 
 def check_browser(stack: Stack) -> None:
@@ -581,6 +630,15 @@ def check_limits(stack: Stack) -> None:
     record(
         fg["timed_out"] and time.time() - started < 15,
         f"a foreground command is stopped at the foreground limit ({fg['duration_ms']} ms)",
+    )
+    daemon = stack.run(a, "( ( exec sleep 76 ) & ) ; sleep 30")
+    time.sleep(1)
+    orphans = [
+        p for p in stack.call("GET", "/v1/processes")[1]["processes"] if "sleep 76" in p["command"]
+    ]
+    record(
+        daemon["timed_out"] and not orphans,
+        "a double-forked daemon is stopped with its foreground command",
     )
     escaped = stack.run(a, "setsid sleep 77 & sleep 30")
     time.sleep(1)

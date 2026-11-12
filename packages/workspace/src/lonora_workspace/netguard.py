@@ -16,6 +16,7 @@ import socket
 import struct
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from lonora_core.broker_endpoints import METAAPI_KNOWN_HOSTS
@@ -97,6 +98,34 @@ def verdict(packet: bytes, domains: tuple[str, ...]) -> bytes | None:
     return None
 
 
+class Answers:
+    """The addresses the forwarder recently gave out per name, so the relay can check
+    that a connection goes where its name points (a CDN may rotate its answers)."""
+
+    def __init__(self, seconds: float = 900) -> None:
+        self.seconds = seconds
+        self.names: dict[str, tuple[float, set[str]]] = {}
+
+    def record(self, query: bytes, answer: bytes) -> None:
+        with contextlib.suppress(dns.DnsError):
+            name, _ = dns.question(query)
+            found = set(dns.addresses(answer))
+            if found:
+                now = time.monotonic()
+                _, old = self.names.get(name, (0.0, set()))
+                self.names[name] = (now + self.seconds, old | found)
+                if len(self.names) > 20000:
+                    self.names = {k: v for k, v in self.names.items() if v[0] > now}
+
+    async def of(self, name: str) -> set[str]:
+        expiry, cached = self.names.get(name.lower().rstrip("."), (0.0, set()))
+        fresh = set(await resolve([name]))
+        return fresh | (cached if expiry > time.monotonic() else set())
+
+
+ANSWERS = Answers()
+
+
 def screened(query: bytes, answer: bytes, domains: tuple[str, ...]) -> bytes:
     """The answer, unless it leads into a denied domain (a CNAME into MetaApi, say)."""
     try:
@@ -130,6 +159,7 @@ class Udp(asyncio.DatagramProtocol):
                 response = refusal
             else:
                 response = screened(data, await forward_udp(data), self.domains)
+                ANSWERS.record(data, response)
         except (TimeoutError, OSError):
             return
         if self.transport is not None:
@@ -163,6 +193,7 @@ async def serve(
                     response = refusal
                 else:
                     response = screened(packet, await forward_tcp(packet), domains)
+                    ANSWERS.record(packet, response)
                 writer.write(struct.pack("!H", len(response)) + response)
                 await writer.drain()
             except (TimeoutError, OSError, asyncio.IncompleteReadError, struct.error):
@@ -171,7 +202,7 @@ async def serve(
                 writer.close()
 
     await asyncio.start_server(tcp, *LISTEN)
-    await Relay(domains).serve(RELAY_PORT)
+    await Relay(domains, ANSWERS.of).serve(RELAY_PORT)
     announce()
     log.warning("workspace_netguard_ready domains=%d", len(domains))
     known = [*METAAPI_KNOWN_HOSTS, *domains]

@@ -34,7 +34,7 @@ MARKER = ROOT / ".lonora-workspace-disk"
 CONTROL = Path("/run/lonora-workspace")
 OUTPUT_LIMIT = 1024 * 1024
 ENDED_KEPT = 500
-PROTECTED_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "PWD"}
+PROTECTED_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "PWD", "LONORA_WORKSPACE_JOB"}
 ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
 # Runs as the agent's user: every path below is resolved with the agent's permissions.
 WRAPPER = (
@@ -189,6 +189,20 @@ def owner(pid: int) -> int | None:
     return None
 
 
+JOB_MARKER = "LONORA_WORKSPACE_JOB"
+
+
+def marked(job_id: str) -> set[int]:
+    needle = f"{JOB_MARKER}={job_id}".encode()
+    found: set[int] = set()
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit():
+            with contextlib.suppress(OSError):
+                if needle in (entry / "environ").read_bytes().split(b"\0"):
+                    found.add(int(entry.name))
+    return found
+
+
 def descendants(root: int) -> list[int]:
     """Every live descendant of `root`, by parent links in /proc."""
     children: dict[int, list[int]] = {}
@@ -325,7 +339,7 @@ class Supervisor:
             stdout=pipe,
             stderr=pipe,
             cwd="/",
-            env=self.environment(uid, request.env),
+            env=self.environment(uid, request.env) | {JOB_MARKER: job_id},
             user=uid,
             group=uid,
             extra_groups=[AGENTS_GID],
@@ -380,8 +394,9 @@ class Supervisor:
         ]
         timed_out = not await exited(process, timeout)
         if timed_out:
-            # Its process group, and every descendant that left it (setsid, daemonize).
-            family = descendants(process.pid)
+            # Its process group, every descendant that left it (setsid), and every process
+            # still carrying its job marker (a double-forked daemon, reparented to init).
+            family = set(descendants(process.pid)) | marked(job.id)
             with contextlib.suppress(OSError):
                 os.killpg(process.pid, signal.SIGKILL)
             for pid in family:
