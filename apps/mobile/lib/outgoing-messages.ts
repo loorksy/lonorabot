@@ -243,6 +243,14 @@ export function subscribeFlushed(listener: (key: string, message: Message) => vo
     flushedListeners.delete(listener);
   };
 }
+/** «حذف» on a failed message: it leaves the outbox (it never reached the server). */
+export function dropOutgoing(key: string, nonce: string) {
+  notify(
+    key,
+    outgoingMessages(key).filter((row) => row.nonce !== nonce),
+  );
+  void persist(key).catch(() => undefined);
+}
 let flushing = false;
 /**
  * Q6: when the network returns, the messages that waited go out by themselves, in order,

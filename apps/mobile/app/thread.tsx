@@ -5,7 +5,9 @@ import type {
   Group,
   InputAnswer,
   Message,
+  MessageReaction,
   OwnerAction,
+  ReactionEmoji,
   Run,
   Thread,
   TradeApproval,
@@ -21,6 +23,7 @@ import {
   mergeOwnerAction,
   needsTimeSeparator,
   projectRunEvents,
+  retriedRunIds,
   runStatusText,
   seedStream,
   stopTargets,
@@ -29,6 +32,7 @@ import {
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
+import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -49,9 +53,11 @@ import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
+import { type MessageMenuActions, useMessageMenu } from "../components/message-menu";
 import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
+import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
 import { ThreadHeader } from "../components/thread-header";
 import { TimeSeparator } from "../components/time-separator";
@@ -73,8 +79,10 @@ import {
 } from "../lib/conversation-cache";
 import { projectConversation } from "../lib/conversation-projection";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
+  dropOutgoing,
   enqueueOutgoing,
   failOutgoing,
   hydrateOutgoing,
@@ -122,6 +130,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
+  // Edit and resend (Q21): the owner's message the next send replaces.
+  const [editing, setEditing] = useState<Message | null>(null);
+  // The owner's quick reactions as the server last answered them, until a snapshot carries them.
+  const [reactions, setReactions] = useState<ReadonlyMap<string, MessageReaction[]>>(new Map());
+  const toast = useToast();
+  const menuActions = useRef<() => MessageMenuActions>(() => {
+    throw new Error("message_menu_unset");
+  });
+  const menu = useMessageMenu(useCallback(() => menuActions.current(), []));
+  // An edit belongs to its conversation.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `id` is the conversation that changed
+  useEffect(() => setEditing(null), [id]);
   const [attachments, setAttachments] = useState<Artifact[]>([]);
   const [files, setFiles] = useState<Artifact[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -432,6 +452,32 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
               acknowledgeOutgoing(outboxKey, [message]);
             }
           }
+          // An edit marks its original «مُعدّلة» on every client without a refetch.
+          if (event.kind === "message.updated") {
+            const value = event.payload;
+            if (
+              typeof value.id === "string" &&
+              value.thread_id === id &&
+              typeof value.content === "string" &&
+              typeof value.seq === "number"
+            ) {
+              const message = value as unknown as Message;
+              setMessages((old) =>
+                old.some((row) => row.id === message.id) ? mergeMessages(old, [message]) : old,
+              );
+            }
+          }
+          if (event.kind === "message.reaction_updated") {
+            const value = event.payload;
+            if (
+              value.thread_id === id &&
+              typeof value.message_id === "string" &&
+              Array.isArray(value.reactions)
+            ) {
+              const rows = value.reactions as MessageReaction[];
+              setReactions((old) => new Map(old).set(value.message_id as string, rows));
+            }
+          }
           if (
             ![
               "run.delta",
@@ -613,7 +659,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
-    const reply_to = followUp ? null : (reply?.id ?? null);
+    const edit = followUp ? null : editing;
+    const reply_to = followUp || edit ? null : (reply?.id ?? null);
     const targetKey = outboxKey,
       targetId = id;
     const body = {
@@ -623,6 +670,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       mention_agent_ids: mentions?.agent_ids ?? [],
       mention_all: mentions?.all ?? false,
       collaboration_session_id: mentions?.collaboration_session_id,
+      ...(edit ? { edited_from: edit.id } : {}),
     };
     const fingerprint = JSON.stringify([targetId, body]);
     sendLocks.current.add(targetKey);
@@ -642,6 +690,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) {
         following.current = true;
         setAtEnd(true);
+        if (edit) setEditing(null);
         if (!followUp) {
           setDraft(nextDraft.text);
           setAttachments(nextDraft.attachments);
@@ -722,7 +771,73 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       setBusy(false);
     }
   };
-  const changeRun = async (run: Run, action: "cancel" | "resume") => {
+  const react = async (message: Message, emoji: ReactionEmoji | null) => {
+    const path = `/threads/${encodeURIComponent(id)}/messages/${encodeURIComponent(message.id)}/reactions`;
+    const before = reactions.get(message.id) ?? message.reactions;
+    setReactions((old) =>
+      new Map(old).set(message.id, withOwnerReaction(before, emoji, new Date().toISOString())),
+    );
+    try {
+      const result = emoji
+        ? await api.put<{ reactions: MessageReaction[] }>(
+            `${path}/${encodeURIComponent(emoji)}`,
+            {},
+          )
+        : await api.delete<{ reactions: MessageReaction[] }>(path);
+      setReactions((old) => new Map(old).set(message.id, result.reactions));
+    } catch (reason) {
+      setReactions((old) => {
+        const next = new Map(old);
+        if (before) next.set(message.id, before);
+        else next.delete(message.id);
+        return next;
+      });
+      toast(errorText(reason), { type: "error" });
+    }
+  };
+  menuActions.current = () => ({
+    onReply: (message) => {
+      setEditing(null);
+      updateDraft({ reply: message });
+    },
+    onCopy: (message) =>
+      void Clipboard.setStringAsync(message.content).then(
+        (done) =>
+          done === false
+            ? toast(t("copyFailed"), { type: "error" })
+            : toast(t("copied"), { type: "success" }),
+        () => toast(t("copyFailed"), { type: "error" }),
+      ),
+    onEdit: (message) => {
+      setEditing(message);
+      updateDraft({ text: message.content, reply: null });
+    },
+    onTask: (message) => {
+      const owner = message.agent_id ?? thread?.agent_id ?? agents[0]?.id ?? "";
+      void api
+        .post(
+          `/tasks?agent_id=${encodeURIComponent(owner)}&thread_id=${encodeURIComponent(id)}`,
+          taskFromMessage(message),
+        )
+        .then(
+          () => {
+            toast(t("taskCreated"), { type: "success" });
+            liveState.refresh();
+          },
+          (reason) => toast(errorText(reason), { type: "error" }),
+        );
+    },
+    onReact: (message, emoji) => void react(message, emoji),
+    onRetry: (nonce) => void retryOutgoing(nonce),
+    onDrop: (nonce) => dropOutgoing(outboxKey, nonce),
+    reactorName: (reactor) => agents.find((row) => row.id === reactor)?.name ?? t("system"),
+  });
+  // A tap on a quote: the list rests on the quoted message (loaded around it when needed).
+  const jumpTo = (message: Message) => {
+    jumped.current = null;
+    router.setParams({ around: String(message.seq) });
+  };
+  const changeRun = async (run: Run, action: "cancel" | "resume" | "retry") => {
     setBusy(true);
     setError(null);
     try {
@@ -841,7 +956,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           (run) =>
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ||
-            run.status === "failed",
+            (run.status === "failed" && !retriedRunIds(runs).has(run.id)),
         )
         .slice(0, 1)
         .map((run) => (
@@ -882,6 +997,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 secondary
                 disabled={busy}
                 onPress={() => void changeRun(run, "resume")}
+              />
+            ) : null}
+            {run.status === "failed" ? (
+              <Button
+                label={t("retry")}
+                secondary
+                disabled={busy}
+                onPress={() => void changeRun(run, "retry")}
               />
             ) : null}
           </View>
@@ -1034,7 +1157,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                             params: { artifactId: action.resource_id },
                           });
                       }}
-                      message={message}
+                      message={
+                        reactions.has(message.id)
+                          ? { ...message, reactions: reactions.get(message.id) }
+                          : message
+                      }
+                      onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
+                      onReactions={menu.reactions}
+                      onQuote={jumpTo}
                       body={
                         question?.choices.length ? (
                           <ConversationQuestion request={question} onAnswer={answerQuestion} />
@@ -1044,7 +1174,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       onReply={
                         message.id.startsWith("preview:")
                           ? undefined
-                          : (value) => updateDraft({ reply: value })
+                          : (value) => {
+                              setEditing(null);
+                              updateDraft({ reply: value });
+                            }
                       }
                       onRetry={(nonce) => void retryOutgoing(nonce)}
                       previousVisualMessageId={(() => {
@@ -1133,6 +1266,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           collaborationSessionId={collaborationSessionId}
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
+          editing={editing}
+          onCancelEdit={() => {
+            setEditing(null);
+            updateDraft({ text: "" });
+          }}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}
           onRemove={(fileId) =>
