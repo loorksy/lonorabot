@@ -408,7 +408,7 @@ async def migration(fixture: Fixture) -> None:
     async with fixture.runtime.db.sessions() as session, session.begin():
         lonora = await ensure_personal_agent(session, fixture.owner)
         thread = (await conversation_thread(session, fixture.owner, lonora.id)).id
-    await asyncio.to_thread(alembic, "downgrade", "0050_genui_state_and_origin")
+    await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")
     rows = {
         code + status: uuid4().hex[:32]
         for code in ("broker_degraded", "broker_recovered")
