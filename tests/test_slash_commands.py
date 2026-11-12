@@ -123,6 +123,19 @@ async def test_search_is_kept_on_the_message_read_by_the_turn_and_preselects_web
         )
         assert "web_search" in exposure["native"]
 
+        # A later wake on the same thread reads the /search message at its input_seq: the
+        # owner's command was for that message's own turn, never for a wake (§6.10).
+        from lonora_db.schema import RunRow
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, context.lease.run_id)
+            assert row is not None
+            row.trigger = "wake"
+        exposure = await ensure_exposure(
+            context, registry, {}, [], [], scope="full", task_run=False
+        )
+        assert "web_search" not in exposure["native"]
+
         # A plain message is an ordinary turn.
         plain_thread = await fixture.conversation(await fixture.agent("Plain"))
         plain = (await send(fixture, plain_thread["id"], {"content": "وماذا عن الفضة؟"})).json()

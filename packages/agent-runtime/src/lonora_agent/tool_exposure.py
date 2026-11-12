@@ -98,7 +98,12 @@ async def ensure_exposure(
         supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
         thread = await session.get(ThreadRow, context.thread_id)
         run = await session.get(RunRow, context.lease.run_id)
-        command = run and await owner_command(session, run.thread_id, run.input_seq)
+        # Only the owner's own message turn reads its / command, as the context does.
+        command = (
+            await owner_command(session, run.thread_id, run.input_seq)
+            if run is not None and run.trigger in {"user", "group"}
+            else None
+        )
         # The owner switched on web search for this chat (Q33), or this message is the
         # /search command: its schema is native.
         web_search = (thread is not None and thread_options(thread).web_search) or (
