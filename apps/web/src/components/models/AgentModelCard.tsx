@@ -1,24 +1,23 @@
 import { i18n } from "@lingui/core";
-import type { Agent, AgentModelChange, AgentModelSummary, Selection } from "@lonora/contracts";
+import type { Agent, AgentModelChange, AgentModelSummary } from "@lonora/contracts";
 import { agentModelLines, agentModelText, offersDefaultModel } from "@lonora/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 
-const key = (item: Selection) => `${item.provider}:${item.model}`;
+const key = (item: { provider: string; model: string }) => `${item.provider}:${item.model}`;
 
 /**
- * One agent's model (W15-10): Automatic (Lonora chooses among your allowed models) or
- * Fixed (one model only you change), the model answering now and this agent's usage.
- * Choosing a model never grants authority and never repeats anything.
+ * One agent's model: the model answering now, the owner's choice among the connected
+ * providers' models, and this agent's usage. Only the owner assigns a model (here, or by
+ * naming one in chat). Choosing a model never grants authority and never repeats anything.
  */
 export function AgentModelCard({ agent }: { agent: Agent }) {
   const { revision } = useClient();
   const locale = i18n.locale;
   const text = agentModelText(locale);
   const [summary, setSummary] = useState<AgentModelSummary>();
-  const [mode, setMode] = useState<"automatic" | "fixed">("automatic");
   const [choice, setChoice] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -31,7 +30,6 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
     setSummary(value);
     if (loaded.current !== value.record.revision) {
       loaded.current = value.record.revision;
-      setMode(value.record.mode);
       const primary = value.record.preference.primary;
       setChoice(primary ? key(primary) : "");
     }
@@ -43,10 +41,8 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
   if (!summary) return error != null ? <p role="alert">{userError(error)}</p> : null;
   const options = summary.available;
   const selected = options.find((item) => key(item) === choice);
-  const dirty =
-    mode !== summary.record.mode ||
-    (mode === "fixed" &&
-      choice !== (summary.record.preference.primary ? key(summary.record.preference.primary) : ""));
+  const primary = summary.record.preference.primary;
+  const dirty = choice !== (primary ? key(primary) : "");
   const save = async (body: AgentModelChange) => {
     setBusy(true);
     setError(undefined);
@@ -64,11 +60,7 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
     }
   };
   return (
-    <fieldset
-      className="lonora-agent-model"
-      disabled={busy}
-      data-agent-model-mode={summary.record.mode}
-    >
+    <fieldset className="lonora-agent-model" disabled={busy}>
       <legend>{text.title}</legend>
       {agentModelLines(summary, locale).map((line) => (
         <p key={line} dir="auto" className="muted">
@@ -76,38 +68,10 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
         </p>
       ))}
       <div className="lonora-agent-model-choice">
-        <label className="check">
-          <input
-            type="radio"
-            name={`model-mode-${agent.id}`}
-            checked={mode === "automatic"}
-            onChange={() => {
-              setMode("automatic");
-              setSaved(false);
-            }}
-          />
-          {text.automatic}
-        </label>
         <p className="muted" dir="auto">
-          {text.automaticHint}
+          {options.length ? text.ownerOnly : text.noModels}
         </p>
-        <label className="check">
-          <input
-            type="radio"
-            name={`model-mode-${agent.id}`}
-            checked={mode === "fixed"}
-            disabled={!options.length}
-            onChange={() => {
-              setMode("fixed");
-              setSaved(false);
-            }}
-          />
-          {text.fixed}
-        </label>
-        <p className="muted" dir="auto">
-          {options.length ? text.fixedHint : text.noModels}
-        </p>
-        {mode === "fixed" && (
+        {options.length > 0 && (
           <label>
             {text.chooseModel}
             <select
@@ -128,19 +92,16 @@ export function AgentModelCard({ agent }: { agent: Agent }) {
         )}
         <button
           type="button"
-          disabled={!dirty || (mode === "fixed" && !selected)}
-          onClick={() =>
-            void save(
-              mode === "fixed" && selected
-                ? { mode, primary: { provider: selected.provider, model: selected.model } }
-                : { mode: "automatic" },
-            )
-          }
+          disabled={!dirty || !selected}
+          onClick={() => {
+            if (selected)
+              void save({ primary: { provider: selected.provider, model: selected.model } });
+          }}
         >
           {text.save}
         </button>
-        {offersDefaultModel(summary) && mode === "automatic" && (
-          <button type="button" onClick={() => void save({ mode: "automatic" })}>
+        {offersDefaultModel(summary) && (
+          <button type="button" onClick={() => void save({ primary: null })}>
             {text.backToDefault}
           </button>
         )}
