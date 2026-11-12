@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -224,6 +225,27 @@ def owner(pid: int) -> int | None:
     return None
 
 
+def descendants(root: int) -> list[int]:
+    """Every live descendant of `root`, by parent links in /proc."""
+    children: dict[int, list[int]] = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text()
+        except OSError:
+            continue
+        parent = int(stat[stat.rindex(")") + 2 :].split()[1])
+        children.setdefault(parent, []).append(int(entry.name))
+    found: list[int] = []
+    pending = [root]
+    while pending:
+        for child in children.get(pending.pop(), []):
+            found.append(child)
+            pending.append(child)
+    return found
+
+
 def running(pid: int) -> bool:
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
@@ -306,7 +328,6 @@ class Supervisor:
             "PATH": f"{local}/bin:{home}/bin:/usr/local/bin:/usr/bin:/bin",
             "LANG": "C.UTF-8",
             "TMPDIR": "/tmp",
-            "PIP_USER": "1",
             "PYTHONUSERBASE": local,
             "NPM_CONFIG_PREFIX": local,
             "LONORA_WORKSPACE_SHARED": str(SHARED),
@@ -423,8 +444,13 @@ class Supervisor:
         ]
         timed_out = not await exited(process, timeout)
         if timed_out:
+            # Its process group, and every descendant that left it (setsid, daemonize).
+            family = descendants(process.pid)
             with contextlib.suppress(OSError):
                 os.killpg(process.pid, signal.SIGKILL)
+            for pid in family:
+                with contextlib.suppress(OSError):
+                    os.kill(pid, signal.SIGKILL)
             await exited(process, 10)
         code = await returncode(process)
         # A background child may keep the pipes open: read what is there, then stop.
@@ -583,6 +609,15 @@ class Supervisor:
 
 def create_app(supervisor: Supervisor) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid(request: Any, error: RequestValidationError) -> JSONResponse:
+        # Never echo the input: it can hold a secret's value.
+        fields = [{"loc": list(e.get("loc", ())), "type": e.get("type")} for e in error.errors()]
+        return JSONResponse(
+            {"code": "workspace_request_invalid", "errors": fields, "boot_id": supervisor.boot_id},
+            status_code=422,
+        )
 
     def refused(code: str, status: int = 422) -> JSONResponse:
         return JSONResponse({"code": code, "boot_id": supervisor.boot_id}, status_code=status)

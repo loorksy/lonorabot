@@ -21,7 +21,16 @@ from pathlib import Path
 from lonora_core.broker_endpoints import METAAPI_KNOWN_HOSTS
 
 from . import dns
-from .egress import DOCKER_RESOLVER, TABLE, denied_domains, name_denied, networks, ruleset
+from .egress import (
+    DOCKER_RESOLVER,
+    RELAY_PORT,
+    TABLE,
+    denied_domains,
+    name_denied,
+    networks,
+    ruleset,
+)
+from .relay import Relay
 
 READY = Path("/run/lonora-netguard.ready")
 RESOLV = Path("/etc/resolv.conf")
@@ -162,6 +171,7 @@ async def serve(
                 writer.close()
 
     await asyncio.start_server(tcp, *LISTEN)
+    await Relay(domains).serve(RELAY_PORT)
     announce()
     log.warning("workspace_netguard_ready domains=%d", len(domains))
     known = [*METAAPI_KNOWN_HOSTS, *domains]

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 from lonora_core.broker_endpoints import BROKER_DOMAINS, METAAPI_KNOWN_HOSTS, METAAPI_SDK_DOMAIN
-from lonora_workspace import dns, netguard
+from lonora_workspace import dns, netguard, relay
 from lonora_workspace.egress import (
     BLOCKED_V4,
     BLOCKED_V6,
@@ -78,7 +78,7 @@ def test_ruleset_replaces_the_table_in_one_transaction_and_guards_the_docker_res
     assert 'oifname "lo" ip daddr 127.0.0.11 meta skuid != 0 reject' in text
     assert text.index("127.0.0.11 meta skuid") < text.index('oifname "lo" accept')
     assert "203.0.113.9/32" in text and "2001:db8::5/128" in text
-    assert "policy accept" in text and text.count("@blocked4") == 2
+    assert "policy accept" in text and text.count("@blocked4") == 3
     with pytest.raises(ValueError):
         ruleset(["not-an-address"])
 
@@ -172,7 +172,8 @@ def test_commands_get_a_clean_environment_that_cannot_replace_identity(tmp_path:
     env = supervisor.environment(FIRST_UID, {"API_KEY_NAME": "x"})
     assert env["HOME"] == f"{tmp_path}/home/a{FIRST_UID}"
     assert env["PATH"].startswith(f"{tmp_path}/home/a{FIRST_UID}/.local/bin:")
-    assert env["PIP_USER"] == "1" and env["NPM_CONFIG_PREFIX"].endswith("/.local")
+    # No PIP_USER: it breaks pip inside a virtualenv; pip falls back to ~/.local by itself.
+    assert "PIP_USER" not in env and env["NPM_CONFIG_PREFIX"].endswith("/.local")
     assert "LONORA_ENCRYPTION_KEY" not in env and env["API_KEY_NAME"] == "x"
     for name in ("HOME", "PATH", "USER", "bad-name", "lower"):
         with pytest.raises(ValueError, match="workspace_environment_invalid"):
@@ -252,3 +253,83 @@ def test_a_foreground_command_ends_with_its_own_process(tmp_path: Path):
         signal_agents(signal.SIGKILL, None, supervisor.users)
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def _hello(name: str | None, ech: bool = False) -> bytes:
+    extensions = b""
+    if name is not None:
+        host = name.encode()
+        entry = b"\x00" + struct.pack("!H", len(host)) + host
+        listed = struct.pack("!H", len(entry)) + entry
+        extensions += struct.pack("!HH", 0, len(listed)) + listed
+    if ech:
+        extensions += struct.pack("!HH", 0xFE0D, 4) + b"\x00\x01\x02\x03"
+    message = (
+        b"\x03\x03"
+        + bytes(32)
+        + b"\x00"
+        + struct.pack("!H", 2)
+        + b"\x13\x01"
+        + b"\x01\x00"
+        + struct.pack("!H", len(extensions))
+        + extensions
+    )
+    handshake = b"\x01" + len(message).to_bytes(3, "big") + message
+    return b"\x16\x03\x01" + struct.pack("!H", len(handshake)) + handshake
+
+
+def test_the_relay_reads_the_name_every_connection_asks_for():
+    assert relay.requested_name(_hello("pypi.org")) == "pypi.org"
+    whole = _hello("mt-client-api-v1.london.agiliumtrade.ai")
+    assert relay.requested_name(whole[:20]) is None  # wait for the rest
+    assert relay.requested_name(whole) == "mt-client-api-v1.london.agiliumtrade.ai"
+    for refused in (_hello(None), _hello("pypi.org", ech=True), b"\x16\x03\x01\x00\x05\x02xxxx"):
+        with pytest.raises(relay.Refused):
+            relay.requested_name(refused)
+    assert (
+        relay.requested_name(b"GET / HTTP/1.1\r\nHost: Example.com:8080\r\n\r\n") == "example.com"
+    )
+    assert relay.requested_name(b"CONNECT app.metaapi.cloud:443 HTTP/1.1\r\nHost: x\r\n\r\n") == (
+        "app.metaapi.cloud"
+    )
+    assert relay.requested_name(b"GET http://metaapi.cloud/x HTTP/1.1\r\nHost: a\r\n\r\n") == (
+        "metaapi.cloud"
+    )
+    assert relay.requested_name(b"GE") is None
+    assert relay.requested_name(b"GET / HTTP/1.1\r\nHost") is None
+    with pytest.raises(relay.Refused):
+        relay.requested_name(b"GET / HTTP/1.1\r\nX: y\r\n\r\n")
+    assert relay.requested_name(b"SSH-2.0-OpenSSH_9.6\r\n") == ""  # passes through
+
+
+def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():
+    text = ruleset()
+    relayed = text[text.index("chain relay") : text.index("chain output")]
+    assert "type nat hook output priority -100" in relayed
+    assert relayed.index("ip daddr @blocked4 return") < relayed.index("redirect to :15001")
+    assert "meta skuid != 0 ip daddr != 127.0.0.0/8 meta l4proto tcp redirect" in relayed
+    assert "meta skuid != 0 udp dport 443 reject" in text
+    # The redirected packet still leaves by eth0 in this hook: let it reach the relay.
+    assert text.index("ct status dnat ip daddr 127.0.0.1 tcp dport 15001 accept") < text.index(
+        "ip daddr @blocked4 reject"
+    )
+    assert "meta skuid != 0 ip6 nexthdr tcp reject" in text
+
+
+def test_an_invalid_request_never_echoes_its_input(tmp_path: Path):
+    import httpx
+    from lonora_workspace.supervisor import create_app
+
+    supervisor = Supervisor(Users(tmp_path, _etc(tmp_path)), Limits(foreground_seconds=600))
+    leaked = "value-that-must-not-echo-1234"
+
+    async def post() -> httpx.Response:
+        transport = httpx.ASGITransport(app=create_app(supervisor))
+        async with httpx.AsyncClient(transport=transport, base_url="http://w") as client:
+            return await client.post(
+                "/v1/run", json={"agent_id": "not-a-uuid", "command": "ls", "env": {"K": leaked}}
+            )
+
+    answer = asyncio.run(post())
+    assert answer.status_code == 422 and leaked not in answer.text
+    assert answer.json()["code"] == "workspace_request_invalid"

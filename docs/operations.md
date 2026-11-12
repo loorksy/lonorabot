@@ -28,7 +28,7 @@ Superseded by VISION.md
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
-- **مساحة العمل (الطرفية):** لكل مالك مساحة عمل Linux واحدة دائمة يتشاركها كل وكلائه (الخدمتان `workspace` و`workspace-net`)، ولكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عنوان Lonora العام ولا خوادم MetaApi. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، فلا تجوع البوابة (Gateway) أبدًا. على خادمك الحالي (معالجان، 7.8 غيغابايت): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.5` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
+- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يرفض أي اسم تحت نطاقات MetaApi أو نطاق Lonora (حتى لو عُرف العنوان بطريقة أخرى). يبقى نفق مشفّر يبنيه الوكيل بنفسه (مثل SSH) غير مرئي للمرحّل؛ والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.8 غيغابايت): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.5` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -149,7 +149,7 @@ Every service has a memory and CPU limit, overridable in `.env`:
 | migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
 
 | workspace (the owner's agents' terminal) | 4g | 2 | `LONORA_WORKSPACE_MEMORY`, `LONORA_WORKSPACE_CPUS` |
-| workspace-net (its network guard) | 96m | 0.25 | fixed |
+| workspace-net (its network guard and relay) | 192m | 0.5 | fixed |
 
 Lonora itself is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
 projects; the workspace adds its own limits («The workspace» below). The optional search and browser services (`infra/research/compose.research.yml`) add
@@ -158,10 +158,12 @@ After changing a limit: `sudo lonora start`.
 
 ### The workspace
 
-Every agent's commands run in one persistent Linux workspace per owner (mandate 7.1): the
-services `workspace` (a supervisor that runs each agent's commands under that agent's own Unix
-user and home, `/workspace/home/a<uid>`, with `/workspace/shared` writable by all) and
-`workspace-net` (a guard that owns the workspace's network). Python, pip, Node, git, SSH, curl,
+Each installation runs the owner's one persistent Linux workspace (mandate 7.1): the services
+`workspace` (a supervisor that runs each agent's commands under that agent's own Unix user and
+home, `/workspace/home/a<uid>`, with `/workspace/shared` writable by all) and `workspace-net` (a
+guard that owns the workspace's network). Agents use it through the workspace tools
+(`workspace_run`, `workspace_file_read`/`_write`, `workspace_processes`, `workspace_stop`); every
+byte that comes back is scanned and each workspace secret becomes `[secret:NAME]`. Python, pip, Node, git, SSH, curl,
 compilers and Chromium (headless) come from the server image; agents install more at user level
 (`pip install` goes to `~/.local`), which survives updates. System packages come only from the
 image: agents have no root. Running processes end when the containers are re-created (every
@@ -169,8 +171,8 @@ update) or the host restarts; files do not.
 
 | Setting in `.env` | Default | Meaning |
 |---|---|---|
-| `LONORA_WORKSPACE_CPUS` | 2 | CPU quota. Its CPU weight is 128 against every other service's 1024, so the Gateway and the database always get their CPU first. |
-| `LONORA_WORKSPACE_MEMORY` | 4g | Memory, without swap. Its OOM score is the highest on the host, so the kernel kills a workspace process before any Lonora process; the database and the Gateway also reserve their memory. |
+| `LONORA_WORKSPACE_CPUS` | 2 | CPU quota. Its CPU weight is 128 against every other service's 1024, so under contention the Gateway and the database get their CPU first. |
+| `LONORA_WORKSPACE_MEMORY` | 4g | Memory, without swap. Its OOM score is the highest on the host, so the kernel kills a workspace process before any Lonora process; the database, API and Gateway reserve their memory. `lonora start` and `update` warn when the host has less memory than Lonora plus this. Disk I/O has no weight (it needs a host I/O scheduler that is not always there). |
 | `LONORA_WORKSPACE_DISK` | 20g | Size of `workspace.img`. Grown in place when raised (`sudo lonora start`); never shrunk. |
 | `LONORA_WORKSPACE_PROCESSES` | 256 | Processes and threads in the whole workspace. |
 | `LONORA_WORKSPACE_FOREGROUND_SECONDS` | 600 | Limit of a foreground command. Background processes have none. |
@@ -179,9 +181,13 @@ update) or the host restarts; files do not.
 **What the workspace can and cannot reach.** It reaches the internet. It cannot reach the
 database, the API, the Gateway or Caddy (they are on another Docker network, and every private,
 link-local and reserved range is rejected), Docker's internal resolver, the host's own ports,
-Lonora's public address (`LONORA_DOMAIN` is refused by name and its addresses are rejected), or
-MetaApi: names under `agiliumtrade.ai` and `metaapi.cloud` do not resolve, and the addresses of
-the known MetaApi hosts, resolved every 5 minutes, are rejected. It has no Docker socket, no
+Lonora's public address (`LONORA_DOMAIN` is refused by name, its addresses and every global
+address of the host are rejected), or MetaApi: names under `agiliumtrade.ai` and `metaapi.cloud`
+do not resolve, no outside resolver is reachable, and every agent TCP connection passes a relay
+that refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets, so a
+hard-coded address or DNS-over-HTTPS does not help. QUIC and IPv6 TCP are rejected (the relay
+cannot read them). An encrypted tunnel an agent builds itself (`ssh -D`, a VPN) is not visible to
+the relay; what holds there is that the MetaApi token never enters the workspace. It has no Docker socket, no
 `.env` and no Lonora secret; the MetaApi token never enters it. Agent processes have no
 capability and cannot gain privileges.
 

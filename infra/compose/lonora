@@ -156,6 +156,17 @@ workspace_bytes() {
     [[ "$size" =~ ^[1-9][0-9]{0,4}[gG]$ ]] || die "LONORA_WORKSPACE_DISK must be whole gigabytes, e.g. 20g (it is '$size')."
     printf '%s\n' "$((${size%[gG]} * 1073741824))"
 }
+# A warning, not a refusal: the limits are hard per container, but a host whose memory is
+# smaller than all of them together can still run out (the workspace is killed first).
+workspace_capacity() {
+    local memory total wanted
+    memory="$(env_value LONORA_WORKSPACE_MEMORY)"; memory="${memory:-4g}"
+    case "$memory" in *[gG]) wanted=$((${memory%[gG]} * 1024)) ;; *[mM]) wanted=${memory%[mM]} ;; *) return 0 ;; esac
+    total=$(($(sed -n 's/^MemTotal: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
+    if ((total < 2560 + wanted)); then
+        say "Warning: this host has ${total} MB of memory; Lonora (about 2.3 GB) plus the workspace ($memory) need $((2560 + wanted)) MB. Set a smaller LONORA_WORKSPACE_MEMORY in .env (docs/operations.md, \"The workspace\")."
+    fi
+}
 workspace_disk() {
     local bytes image="$LONORA_HOME/$WORKSPACE_IMAGE" dir="$LONORA_HOME/$WORKSPACE_DISK" tool current free device
     bytes="$(workspace_bytes)"
@@ -164,7 +175,7 @@ workspace_disk() {
     done
     if [[ ! -f "$image" ]]; then
         free="$(df -PB1 "$LONORA_HOME" | awk 'NR==2 {print $4}')"
-        ((free >= bytes + 5368709120)) || die "The workspace disk needs $((bytes / 1073741824)) GB plus 5 GB free at $LONORA_HOME ($((free / 1073741824)) GB free). Free space or set LONORA_WORKSPACE_DISK in .env."
+        ((free >= bytes + 5368709120)) || die "The workspace disk needs $((bytes / 1073741824)) GB plus 5 GB free at $LONORA_HOME ($((free / 1073741824)) GB free). Nothing was changed. Free space, or set a smaller LONORA_WORKSPACE_DISK in .env (e.g. LONORA_WORKSPACE_DISK=10g), then run the same command again."
         say "Creating the workspace disk ($((bytes / 1073741824)) GB) at $image."
         rm -f "$image.part"
         fallocate -l "$bytes" "$image.part" && chmod 600 "$image.part" &&
@@ -188,6 +199,7 @@ workspace_disk() {
         fallocate -l "$bytes" "$image" && losetup -c "$device" && resize2fs "$device" >/dev/null || die 'Cannot grow the workspace disk.'
         say "Workspace disk grown to $((bytes / 1073741824)) GB."
     fi
+    workspace_capacity
     # The supervisor starts only on this disk: an unmounted directory never takes writes.
     [[ -f "$dir/.lonora-workspace-disk" ]] || : >"$dir/.lonora-workspace-disk"
     chmod 755 "$dir"

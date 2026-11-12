@@ -7,7 +7,9 @@ address, or to a resolved MetaApi address is rejected; Docker's embedded resolve
 reachable only by root (the guard's own forwarder), and no other resolver is reachable
 (DNS and DNS-over-TLS ports are rejected off the host), so every name goes through the
 forwarder. Names under a broker domain or Lonora's domain, and answers that lead into
-one, do not resolve.
+one, do not resolve. Every agent TCP connection goes through the relay (relay.py), which
+refuses those names in TLS server names, HTTP hosts and proxy CONNECT targets; QUIC and
+IPv6 TCP, which it cannot read, are rejected.
 """
 
 import ipaddress
@@ -17,6 +19,7 @@ from collections.abc import Iterable
 from lonora_core.broker_endpoints import BROKER_DOMAINS, under
 
 TABLE = "lonora_workspace"
+RELAY_PORT = 15001
 DOCKER_RESOLVER = "127.0.0.11"
 BLOCKED_V4 = (
     "0.0.0.0/8",
@@ -88,11 +91,19 @@ delete table inet {TABLE}
 table inet {TABLE} {{
   set blocked4 {{ type ipv4_addr; flags interval; auto-merge;{_elements(v4)} }}
   set blocked6 {{ type ipv6_addr; flags interval; auto-merge;{_elements(v6)} }}
+  chain relay {{
+    type nat hook output priority -100; policy accept;
+    ip daddr @blocked4 return
+    meta skuid != 0 ip daddr != 127.0.0.0/8 meta l4proto tcp redirect to :{RELAY_PORT}
+  }}
   chain output {{
     type filter hook output priority 0; policy accept;
     oifname "lo" ip daddr {DOCKER_RESOLVER} meta skuid != 0 reject
     oifname "lo" accept
+    ct status dnat ip daddr 127.0.0.1 tcp dport {RELAY_PORT} accept
     meta l4proto {{ tcp, udp }} th dport {{ 53, 853 }} reject
+    meta skuid != 0 udp dport 443 reject
+    meta skuid != 0 ip6 nexthdr tcp reject with tcp reset
     meta l4proto tcp ip daddr @blocked4 reject with tcp reset
     ip daddr @blocked4 reject with icmpx type admin-prohibited
     meta l4proto tcp ip6 daddr @blocked6 reject with tcp reset

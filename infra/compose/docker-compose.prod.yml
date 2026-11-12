@@ -6,7 +6,8 @@
 # second installation can run beside another. Every service has memory and CPU limits,
 # overridable in .env. Lonora itself fits in about 2.3 GB; the owner's workspace (7.1) adds
 # 4 GiB, 2 CPUs and a 20 GiB disk by default, with a low CPU weight and the highest OOM
-# score so it can never starve the Gateway or the database. See docs/operations.md.
+# score, and the database, API and Gateway reserve their memory, so the workspace yields
+# first under contention. See docs/operations.md.
 name: ${LONORA_PROJECT:-lonora}
 services:
   db:
@@ -44,6 +45,7 @@ services:
     command: ["api"]
     volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
     mem_limit: ${LONORA_API_MEMORY:-896m}
+    mem_reservation: ${LONORA_API_MEMORY:-896m}
     cpus: ${LONORA_API_CPUS:-0.75}
     depends_on:
       db: {condition: service_healthy}
@@ -108,8 +110,9 @@ services:
       # The host's own addresses, found by `lonora` each time it starts the stack.
       LONORA_WORKSPACE_HOST_ADDRESSES: ${LONORA_WORKSPACE_HOST_ADDRESSES:-}
     networks: [workspace]
-    mem_limit: 96m
-    cpus: 0.25
+    # It also relays every agent TCP connection (relay.py).
+    mem_limit: 192m
+    cpus: 0.5
     healthcheck:
       test: ["CMD", "python", "-m", "lonora_workspace.netguard", "--check"]
       interval: 10s
