@@ -7,6 +7,7 @@ appended to the owner-signals record, and only Lonora's context carries their su
 PostgreSQL cases (LONORA_DATABASE_URL) use the real tool registry and owner API.
 """
 
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -193,9 +194,9 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
             id="9001",
             symbol="XAUUSD",
             side="buy",
-            volume="0.10",
-            open_price="2400",
-            stop_loss="2390",
+            volume=Decimal("0.10"),
+            open_price=Decimal("2400"),
+            stop_loss=Decimal("2390"),
         )
         change = BrokerActivity(
             id="activity-" + uuid4().hex,
