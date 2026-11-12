@@ -3,12 +3,13 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
+from lonora_db.lead import reaches
 from lonora_db.owner_actions import lock_owner_actions
 from lonora_db.pauses import refuse_held
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
-from lonora_db.supervision import control_work, supervises
+from lonora_db.supervision import control_work
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,7 +122,7 @@ async def supervised_toggle(
     """A supervised agent's routine follows the supervision rules; any other agent's
     routine reads as not found. Cards, then the work, then the Run: the lock order the
     owner's card decision and message admission take."""
-    if not await supervises(session, context.owner_id, context.agent_id, found.agent_id):
+    if not await reaches(session, context.owner_id, context.agent_id, found.agent_id):
         raise LonoraError("routine_not_found", 404)
     await lock_owner_actions(session, context.owner_id)
     run = await require_lease(session, context.lease)
