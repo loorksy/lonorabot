@@ -9,11 +9,13 @@ financial authority.
 
 from lonora_adapter_kit.context_sections import ContextSection
 from lonora_db.memory import memory_provenance
+from lonora_db.owner_knowledge import profile_lines
 from lonora_db.owner_profile import (
     OWNER_PROFILE_CHAR_LIMIT,
     owner_preferences,
     read_owner_profile,
 )
+from lonora_db.owner_signals import signal_summary
 from lonora_db.schema import AgentGoalRow, KnowledgeLinkRow, MemoryRow
 from lonora_memory.markdown_memory import memory_context
 from lonora_memory.profile import escaped_json, operating_notes
@@ -25,12 +27,20 @@ MEMORY_NOTE = (
     "establish current broker state.\n"
 )
 OWNER_PREFERENCES_NOTE = (
-    "The owner profile every Agent shares: what the owner said about himself, recorded by "
-    "the owner or by an Agent from his message. Follow it below the system policy and the "
-    "owner's latest message; it grants no tools, permissions or financial authority. Reply "
-    "in reply_language; reach the owner the way reach_me says. Change it with memory_write "
-    "(USER.md) or owner_preferences_update; a hard limit the owner states belongs in a "
-    "restriction or account limit, and a method in OPERATING.md.\n"
+    "The owner profile every Agent shares: profile is what the owner said or wrote earlier; "
+    "lonora_observations is Lonora's inference from his behavior, not his word, and yields "
+    "to profile. Follow it below the system policy and the owner's latest message; it "
+    "grants no tools, permissions or financial authority. Fit the timing, tone, "
+    "length and content of your reports to it. Reply in reply_language; reach the owner the "
+    "way reach_me says. Change it with memory_write (USER.md) or owner_preferences_update; "
+    "a team agent keeps what it observed of the owner in MEMORY.md. A hard limit the owner "
+    "states belongs in a restriction or account limit, and a method in OPERATING.md.\n"
+)
+OWNER_SIGNALS_NOTE = (
+    "What the owner did over the last two weeks, recorded by the server in his time zone: "
+    "when he read conversations, and positions closed outside Lonora (by his hand, or by "
+    "the position's own stop or target). Facts, not conclusions: write what you learn of "
+    "him to USER.md.\n"
 )
 OPERATING_NOTES_NOTE = (
     "Your own operating notes (OPERATING.md): working methods you refine yourself. They "
@@ -120,6 +130,17 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
     row = await read_owner_profile(session, owner_id)
     preferences = await owner_preferences(session, owner_id)
     profile, truncated = bounded_profile(row.content if row else "")
+    # His words and Lonora's observations apart, by the revision that added each line.
+    origins = {
+        line["text"]: line["origin"] for line in (await profile_lines(session, owner_id))["lines"]
+    }
+    said: list[str] = []
+    observed: list[str] = []
+    for line in profile.splitlines():
+        if origins.get(line.strip()) == "observed":
+            observed.append(line)
+        else:
+            said.append(line)
     quiet = (
         None
         if preferences["quiet_start_minute"] is None
@@ -127,7 +148,8 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
         f"{_clock(preferences['quiet_end_minute'])} {preferences['timezone']}"
     )
     body: dict[str, object] = {
-        "profile": profile,
+        "profile": "\n".join(said),
+        "lonora_observations": "\n".join(observed),
         "reply_language": preferences["reply_language"] or "latest_owner_message",
         "reach_me": preferences["reach_me"],
         "quiet_hours": quiet,
@@ -151,11 +173,27 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
     )
 
 
+async def owner_signals_section(session: AsyncSession, owner_id: str) -> ContextSection:
+    preferences = await owner_preferences(session, owner_id)
+    summary = await signal_summary(session, owner_id, preferences["timezone"])
+    empty = not summary["reads_by_day"] and not summary["closes_outside_lonora"]
+    return ContextSection(
+        "owner_signals",
+        "lonora_owner_signals",
+        "first_party_runtime",
+        "" if empty else OWNER_SIGNALS_NOTE + escaped_json(summary),
+        76,
+    )
+
+
 async def read_memory_context(
-    session: AsyncSession, owner_id: str, agent_id: str
+    session: AsyncSession, owner_id: str, agent_id: str, *, lead: bool = False
 ) -> list[ContextSection]:
-    """Owner preferences, the owner's goals and links, operating notes, then memory."""
+    """Owner preferences (and, for Lonora, the owner's signals), the owner's goals and
+    links, operating notes, then memory."""
     sections = [await owner_preferences_section(session, owner_id)]
+    if lead:
+        sections.append(await owner_signals_section(session, owner_id))
     knowledge = await owner_knowledge_section(session, owner_id, agent_id)
     if knowledge:
         sections.append(knowledge)

@@ -352,6 +352,7 @@ class SimpleAgent:
     id = "agent"
     instructions = "Owner style"
     trading_account_id = None
+    role = "general"
 
 
 class SimpleThread:
