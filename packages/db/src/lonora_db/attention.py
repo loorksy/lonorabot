@@ -567,27 +567,6 @@ async def acknowledge(session: AsyncSession, owner_id: str, identifier: str) -> 
     return row
 
 
-# Kept unread by «تحديد الكل كمقروء»: each needs the owner's own look (Q4).
-KEEP_UNREAD = ("critical", "action_required")
-
-
-async def acknowledge_all(session: AsyncSession, owner_id: str) -> int:
-    rows = await session.scalars(
-        select(AttentionRow)
-        .where(
-            AttentionRow.owner_id == owner_id,
-            AttentionRow.status.in_(["pending", "ready"]),
-            AttentionRow.importance.not_in(KEEP_UNREAD),
-        )
-        .with_for_update()
-    )
-    count = 0
-    for row in rows:
-        await acknowledge(session, owner_id, row.id)
-        count += 1
-    return count
-
-
 async def set_cursor(session: AsyncSession, owner_id: str, cursor: int) -> None:
     if session.get_bind().dialect.name == "postgresql":
         await session.execute(
@@ -783,6 +762,9 @@ async def lock_attention(session: AsyncSession, owner_id: str) -> None:
 
 
 VIEW_LIMIT = 100
+# The watchdog's items that wait on the owner's look: an operation still unresolved after
+# its threshold, and work stopped after repeated interruptions. Listed while unread.
+SYSTEM_VIEW_CODES = ("operation_unresolved", "run_quarantined")
 
 
 async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]:
@@ -790,8 +772,9 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
 
     It lists the open, still-current items of the owner's events and of Tasks that need
     review, every run in a conversation that waits on the owner's answer to its
-    question, and each agent's own unread alert. Only an alert's summary is the agent's
-    words; the server writes everything else.
+    question, each agent's own unread alert, and the watchdog's unread items about an
+    unresolved operation or quarantined work. Only an agent alert's summary is the
+    agent's words; the server writes everything else.
     """
     from .schema import RunRow, ThreadRow
 
@@ -839,7 +822,7 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
         select(AttentionRow)
         .where(
             AttentionRow.owner_id == owner_id,
-            AttentionRow.code == "agent_notification",
+            AttentionRow.code.in_(["agent_notification", *SYSTEM_VIEW_CODES]),
             AttentionRow.status.in_(["pending", "ready"]),
         )
         .order_by(AttentionRow.created_at.desc())
@@ -847,21 +830,25 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
     )
     now = utcnow()
     for alert in alerts:
+        if alert.code in SYSTEM_VIEW_CODES and not await mandatory_current(session, alert):
+            continue
         # An alert held by quiet hours is not shown before it is due.
         if alert.status == "pending" and alert.due_at > now:
             continue
         until = alert.parameters.get("valid_until")
         if until and datetime.fromisoformat(str(until)) <= now:
             continue
+        code = cast(AttentionCode, alert.code)
         rows.append(
             AttentionViewRow(
-                kind="agent_alert",
+                kind="agent_alert" if code == "agent_notification" else "system_alert",
                 id=alert.id,
                 agent_id=alert.agent_id,
                 thread_id=alert.thread_id,
                 group_id=alert.parameters.get("group_id"),
-                code="agent_notification",
-                summary=alert.parameters.get("summary"),
+                code=code,
+                symbol=alert.parameters.get("symbol"),
+                summary=alert.parameters.get("summary") if code == "agent_notification" else None,
                 created_at=alert.created_at,
             )
         )

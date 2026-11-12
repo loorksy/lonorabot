@@ -21,12 +21,15 @@ const labels: Record<AttentionViewKind, Label> = {
   owner_question: "attentionOwnerQuestion",
   task_review: "taskNeedsReview",
   agent_alert: "attentionAgentAlert",
+  system_alert: "attentionOperationUnresolved",
 };
-// The three broker problems each say which one it is.
-const brokerLabels: Record<string, Label> = {
+// The three broker problems and the watchdog's two items each say which one it is.
+const codeLabels: Record<string, Label> = {
   broker_token_rejected: "attentionBrokerTokenRejected",
   broker_account_undeployed: "attentionBrokerUndeployed",
   broker_connection_lost: "attentionBrokerConnectionLost",
+  operation_unresolved: "attentionOperationUnresolved",
+  run_quarantined: "attentionRunQuarantined",
 };
 const POLL_MS = 5000;
 
@@ -75,7 +78,7 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
           style={{ backgroundColor: colors.muted, padding: 14, borderRadius: 16, gap: 8 }}
         >
           <Text style={{ color: colors.foreground, textAlign: align }}>
-            {t((row.code && brokerLabels[row.code]) || labels[row.kind])}
+            {t((row.code && codeLabels[row.code]) || labels[row.kind])}
           </Text>
           {row.summary ? (
             <Text
@@ -103,8 +106,8 @@ export function AttentionView({ agents }: { agents: Agent[] }) {
             secondary
             label={t("openConversation")}
             onPress={() => {
-              // Opening an agent's alert reads it; a card or a question stays until answered.
-              if (row.kind === "agent_alert")
+              // Opening an alert reads it; a card or a question stays until answered.
+              if (row.kind === "agent_alert" || row.kind === "system_alert")
                 void api
                   .post("/attention/seen", { notification_id: row.id })
                   .catch((cause) => setError(errorText(cause)));

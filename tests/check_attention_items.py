@@ -584,6 +584,46 @@ async def view(fixture: Fixture) -> None:
         }
     after = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
     assert run["id"] not in {entry["id"] for entry in after}
+
+    # The watchdog's items wait on the owner's look: listed while unread, read on open.
+    operation_id = "op-" + uuid4().hex[:20]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=operation_id,
+                owner_id=fixture.owner,
+                account_id="acc-" + uuid4().hex[:8],
+                request_hash="h",
+                request={"symbol": "XAUUSD"},
+                status="ambiguous",
+            )
+        )
+        await session.flush()
+        unresolved = await raise_system_attention(
+            session,
+            fixture.owner,
+            "operation_unresolved",
+            "operation:" + operation_id,
+            {"operation_id": operation_id, "symbol": "XAUUSD"},
+            agent_id=agent["id"],
+        )
+        quarantined = await raise_system_attention(
+            session, fixture.owner, "run_quarantined", "run:" + uuid4().hex, agent_id=agent["id"]
+        )
+        assert unresolved is not None and quarantined is not None
+        watched = {unresolved.id: "operation_unresolved", quarantined.id: "run_quarantined"}
+    listed = {
+        entry["id"]: entry
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    for identifier, code in watched.items():
+        assert (listed[identifier]["kind"], listed[identifier]["code"]) == ("system_alert", code)
+        await fixture.request("POST", "/attention/seen", {"notification_id": identifier})
+    listed = {
+        entry["id"]
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    assert not set(watched) & listed
     print(
         "PASS the attention view lists every agent's open owner events and waiting questions, and nothing ended"
     )

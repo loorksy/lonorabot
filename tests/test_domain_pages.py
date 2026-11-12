@@ -338,47 +338,14 @@ async def test_skill_versions_list_every_save_and_restore_is_a_new_version():
 
 
 @pytest.mark.asyncio
-async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
+async def test_activity_comes_from_events():
     database()
     from check_streaming import Fixture
-    from lonora_contracts.domain import utcnow
-    from lonora_db.schema import AttentionRow
-    from sqlalchemy import select
 
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Notifier")
         thread = await fixture.conversation(agent)
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            kinds = ["informational", "important_change", "critical", "action_required"]
-            for index, importance in enumerate(kinds):
-                session.add(
-                    AttentionRow(
-                        owner_id=fixture.owner,
-                        agent_id=agent["id"],
-                        thread_id=thread["id"],
-                        logical_key=f"t7-{agent['id'][:8]}-{index}",
-                        coalesce_key=f"t7-{index}",
-                        importance=importance,
-                        code="task_review",
-                        due_at=utcnow(),
-                    )
-                )
-        seen = await fixture.request("POST", "/attention/seen-all")
-        assert seen["seen"] >= 2  # owner-wide; this fixture's rows are checked below
-        async with fixture.runtime.db.sessions() as session:
-            rows = (
-                await session.scalars(
-                    select(AttentionRow).where(AttentionRow.agent_id == agent["id"])
-                )
-            ).all()
-        status = {row.importance: row.status for row in rows}
-        assert status == {
-            "informational": "seen",
-            "important_change": "seen",
-            "critical": "pending",
-            "action_required": "pending",
-        }
         task = await fixture.request(
             "POST",
             f"/tasks?agent_id={agent['id']}&thread_id={thread['id']}",

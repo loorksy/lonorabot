@@ -49,7 +49,11 @@ projection with no model: `GET /attention/view` (`attention_view`, `AttentionVie
     (`waiting_input` with a pending input request), as `owner_question`;
   - each agent's own unread alert (`owner_notify`, `agent_notification`), as
     `agent_alert`, with its summary: an alert has no other place outside its chat.
+  - the watchdog's unread items about an operation still unresolved after its
+    threshold (`operation_unresolved`) or work stopped after repeated interruptions
+    (`run_quarantined`), as `system_alert`: they have no other lasting place either.
 - Web and mobile show the same list as the «يحتاج انتباهك» tab. A row opens its
   conversation, where the fixed card or the question stands; opening it decides
-  nothing. Opening an agent's alert marks it read, so it leaves the list.
+  nothing. Opening an alert (an agent's or the watchdog's) marks it read, so it leaves
+  the list.
 - The tab's dot shows while an item the view lists is unread (`inAttentionView`).

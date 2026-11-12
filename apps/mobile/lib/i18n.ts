@@ -310,6 +310,14 @@ export const labels = {
   ],
   attentionOwnerQuestion: ["سؤال بانتظار جوابك", "A question is waiting for your answer"],
   attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
+  attentionRunQuarantined: [
+    "توقف عمل بعد انقطاعات متكررة",
+    "Work stopped after repeated interruptions",
+  ],
+  attentionOperationUnresolved: [
+    "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
+    "A trade still has no confirmed broker result",
+  ],
   attentionNothing: ["لا شيء يحتاجك الآن.", "Nothing needs you right now."],
   attentionOperationUncertain: [
     "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",

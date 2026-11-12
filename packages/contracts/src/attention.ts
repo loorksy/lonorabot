@@ -92,12 +92,24 @@ export interface AttentionPolicy {
 /**
  * What the "needs your attention" view (mandate 11.7) lists: the owner's events, the
  * questions a run waits on the owner to answer, the Tasks that need review, and an
- * agent's own unread alert (owner_notify), which has no other place outside its chat.
+ * agent's own unread alert (owner_notify), and the watchdog's unread items about an
+ * unresolved operation or quarantined work; neither has another place outside chat.
  */
-export type AttentionViewKind = AttentionEvent | "owner_question" | "task_review" | "agent_alert";
+export type AttentionViewKind =
+  | AttentionEvent
+  | "owner_question"
+  | "task_review"
+  | "agent_alert"
+  | "system_alert";
 /** Whether an item of this code is listed in the attention view (the tab's dot). */
 export function inAttentionView(code: AttentionCode): boolean {
-  return code in ATTENTION_EVENTS || code === "task_review" || code === "agent_notification";
+  return (
+    code in ATTENTION_EVENTS ||
+    code === "task_review" ||
+    code === "agent_notification" ||
+    code === "operation_unresolved" ||
+    code === "run_quarantined"
+  );
 }
 /** One row of GET /attention/view; it opens its conversation, and opening decides nothing. */
 export interface AttentionViewRow {

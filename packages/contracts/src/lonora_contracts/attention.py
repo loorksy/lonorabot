@@ -63,7 +63,8 @@ BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
 
 # What the "needs your attention" view (11.7) lists: the owner's events, the questions
 # a run waits on the owner to answer, the Tasks that need the owner's review, and an
-# agent's own unread alert (owner_notify), which has no other place outside its chat.
+# agent's own unread alert (owner_notify), and the watchdog's unread items about an
+# unresolved operation or quarantined work; neither has another place outside chat.
 AttentionViewKind = Literal[
     "trade_approval",
     "settle_operation",
@@ -73,6 +74,7 @@ AttentionViewKind = Literal[
     "owner_question",
     "task_review",
     "agent_alert",
+    "system_alert",
 ]
 
 
