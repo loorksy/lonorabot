@@ -11,14 +11,17 @@ effect receipt per local date keeps it to one brief per day, also after downtime
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from statistics import median
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
+from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
+from lonora_db.app_opens import DAY_START_HOUR, recorded_opens
 from lonora_db.cancellation import cancel_run
 from lonora_db.client import Database
 from lonora_db.conversation_locale import conversation_locale
@@ -55,15 +58,29 @@ from .manual_activity import SENT_STATUSES, journal_agent
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
-# 3 days (11.1). App opens are not recorded yet, so this is the brief time for now.
+# 3 days (11.1); then the median first open, a little earlier, moving at most an hour a day.
 DEFAULT_MINUTE = 7 * 60
+MINIMUM_OPEN_DAYS = 3
+LEAD_MINUTES = 15
+DAILY_MOVE_MINUTES = 60
+DAY_START_MINUTE = DAY_START_HOUR * 60
 # How long Lonora has to write the brief before the server posts the plain one.
 WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
-# Attention codes whose fact the brief already counts (approvals, unsettled operations).
-COUNTED_ELSEWHERE = ("approval_required", "operation_uncertain", "operation_unresolved")
+# Attention codes whose fact the brief already counts: approvals, unsettled operations,
+# a pending owner card's own item (the Secret card's), and a broker health problem, which
+# is an account the snapshot shows disconnected.
+COUNTED_ELSEWHERE = (
+    "approval_required",
+    "operation_uncertain",
+    "operation_unresolved",
+    *CARD_ATTENTION.values(),
+    "broker_token_rejected",
+    "broker_account_undeployed",
+    "broker_connection_lost",
+)
 # A weekly report reaches the brief bounded, as the agent's own words.
 REPORT_CHARACTERS = 1500
 # How long the brief waits for the agents it woke for their weekly reports.
@@ -75,15 +92,29 @@ Locale = Literal["ar", "en"]
 # --- When ---------------------------------------------------------------------------
 
 
-def owner_zone(reach_me: dict[str, Any]) -> ZoneInfo:
-    """``reach_me.timezone`` when the owner stored one, else UTC. Reading it never writes
-    reach-me (8.2)."""
-    name = reach_me.get("timezone")
-    if isinstance(name, str) and name:
-        try:
-            return ZoneInfo(name)
-        except (ZoneInfoNotFoundError, ValueError):
-            pass
+def learned_minute(first_opens: Sequence[int]) -> int | None:
+    """The brief time learned from the owner's first app open per recorded day (minutes
+    after local midnight, oldest first, the last 14 recorded days at most): their median,
+    15 minutes earlier; None until the owner opened the app on at least 3 days (11.1)."""
+    if len(first_opens) < MINIMUM_OPEN_DAYS:
+        return None
+    return min(24 * 60 - 1, max(0, int(median(first_opens)) - LEAD_MINUTES))
+
+
+def moved_minute(previous: int, target: int) -> int:
+    """Today's brief time: toward the target by at most one hour from yesterday's."""
+    return previous + max(-DAILY_MOVE_MINUTES, min(DAILY_MOVE_MINUTES, target - previous))
+
+
+def owner_zone(reach_me: dict[str, Any], device_zone: str | None = None) -> ZoneInfo:
+    """``reach_me.timezone`` when the owner stored one, else the zone of the owner's
+    latest recorded app open, else UTC. Reading it never writes reach-me (8.2)."""
+    for name in (reach_me.get("timezone"), device_zone):
+        if isinstance(name, str) and name:
+            try:
+                return ZoneInfo(name)
+            except (ZoneInfoNotFoundError, ValueError):
+                continue
     return ZoneInfo("UTC")
 
 
@@ -753,9 +784,35 @@ async def brief_tick(db: Database, owner_id: str, now: datetime | None = None) -
             await _settle_pending(session, owner_id, record, now)
             return None
         reach_me = await SettingsRepository().get(session, REACH_ME_KEY + owner_id)
-        local = now.astimezone(owner_zone(reach_me))
+        opens = await recorded_opens(session, owner_id)
+        zone = owner_zone(reach_me, opens[-1].timezone if opens else None)
+        local = now.astimezone(zone)
         today = local.date().isoformat()
-        if record.last_local_date == today or local.hour * 60 + local.minute < record.brief_minute:
+        if record.planned_date != today:
+            # Each recorded day's first open, minutes after midnight on the device's clock
+            # where it was opened: a habit of 07:00 stays 07:00 when the owner travels.
+            # The owner's day starts at 04:00: an open before it (a late session) is read
+            # after the day's last minutes, not as an early waking.
+            minutes = [
+                minute if minute >= DAY_START_MINUTE else minute + 24 * 60
+                for minute in (
+                    stamp.hour * 60 + stamp.minute
+                    for stamp in (
+                        _aware(row.opened_at).astimezone(ZoneInfo(row.timezone)) for row in opens
+                    )
+                )
+            ]
+            target = learned_minute(minutes)
+            record.brief_minute = moved_minute(
+                record.brief_minute, DEFAULT_MINUTE if target is None else target
+            )
+            record.planned_date = today
+            record.updated_at = now
+        # A date at or before the last brief's never gets one: a zone change can step the
+        # owner's date back (a laptop in New York after a phone in Dubai).
+        if (record.last_local_date or "") >= today or (
+            local.hour * 60 + local.minute < record.brief_minute
+        ):
             return None
         key = brief_key(owner_id, today)
         if await session.get(EffectReceiptRow, key) is not None:

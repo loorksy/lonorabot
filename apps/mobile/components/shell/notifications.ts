@@ -1,6 +1,7 @@
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
-import { onPushTokenChange, syncPushDevice } from "../../lib/push";
+import { onPushOpened, onPushTokenChange, syncPushDevice } from "../../lib/push";
 import { useSession } from "../../lib/session";
 
 /**
@@ -26,7 +27,23 @@ export function usePushRegistration() {
   }, [owner]);
 }
 
+/** A tapped push opens its conversation at the card (VISION 11.4). */
+export function usePushOpen() {
+  const { owner } = useSession();
+  const router = useRouter();
+  useEffect(() => {
+    if (!owner || Platform.OS === "web") return;
+    return onPushOpened(({ threadId, around }) =>
+      router.push({
+        pathname: "/thread",
+        params: around ? { id: threadId, around: String(around) } : { id: threadId },
+      }),
+    );
+  }, [owner, router]);
+}
+
 export function PushRegistration() {
   usePushRegistration();
+  usePushOpen();
   return null;
 }

@@ -50,6 +50,8 @@ STEPS = (
     StepSpec("account_recovery", 10, 300),
     # Accounts the owner connected from chat: provision, deploy, connect, report.
     StepSpec("broker_provisioning", 10, 900),
+    # The closed-trade ledger from broker deal history (mandate 5.5.1).
+    StepSpec("closed_trades", 30, 300, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -60,6 +62,9 @@ STEPS = (
     StepSpec("voice_notes", 1, 300, critical=False),
     StepSpec("channels", 2, 120),
     StepSpec("attention", 2, 120),
+    # Push to the owner's phones (VISION 11.4). Not critical: Expo being unreachable never
+    # makes the gateway unready.
+    StepSpec("push", 2, 120, critical=False),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
     # The morning brief: once per local date for each owner (VISION 11.1).
@@ -84,6 +89,7 @@ class Gateway:
         searxng_url: str | None = None,
         browser_url: str | None = None,
         mcp_owner_trust: bool = True,
+        expo_access_token: str | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
@@ -92,6 +98,7 @@ class Gateway:
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
+        self.expo_access_token = expo_access_token
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -206,6 +213,13 @@ class Gateway:
             )
         )
 
+    async def closed_trades(self) -> None:
+        from lonora_trading.closed_trades import maintenance_closed_trades
+
+        await self.for_each_owner(
+            lambda service: maintenance_closed_trades(self.db, service.brokers, service.owner_id)
+        )
+
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
 
@@ -258,6 +272,17 @@ class Gateway:
             lambda service: attention_tick(self.db, service.brokers, service.owner_id)
         )
 
+    async def push(self) -> None:
+        from lonora_adapters.channels.expo_push import ExpoPushTransport
+        from lonora_security.secrets import SecretCipher
+
+        from .push import dispatch_push
+
+        cipher, transport = SecretCipher(self.key), ExpoPushTransport(self.expo_access_token)
+        await self.for_each_owner(
+            lambda service: dispatch_push(self.db, service.owner_id, cipher, transport)
+        )
+
     async def incoming(self) -> None:
         from lonora_voice.incoming import incoming_tick
 
@@ -286,6 +311,7 @@ class Gateway:
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
             "broker_provisioning": self.broker_provisioning,
+            "closed_trades": self.closed_trades,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
@@ -295,6 +321,7 @@ class Gateway:
             "voice_notes": self.voice_notes,
             "channels": self.channels,
             "attention": self.attention,
+            "push": self.push,
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
             "morning_brief": self.morning_brief,

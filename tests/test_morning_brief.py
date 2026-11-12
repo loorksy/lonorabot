@@ -561,3 +561,50 @@ async def test_a_ticket_is_credited_by_its_broker_tag_or_ticket_not_only_its_raw
         gold_name,
         "owner",
     ]
+
+
+async def test_a_secret_card_and_a_broker_problem_are_each_counted_once(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        connection = await session.scalar(select(BrokerSessionRow))
+        assert connection is not None
+        saved = dict(connection.state["broker_recovery"])
+        connection.state = {
+            "broker_recovery": saved | {"status": "disconnected", "reason_code": "broker_x"}
+        }
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=lonora,
+                source="agent",
+                kind="connect_credential",
+                subject="secret",
+                payload={},
+                payload_hash="h-secret",
+                expires_at=DAY + timedelta(days=30),
+                status="pending",
+            )
+        )
+        for code in ("secret_requested", "broker_connection_lost"):
+            session.add(
+                AttentionRow(
+                    owner_id=owner,
+                    agent_id=agent,
+                    thread_id=thread,
+                    logical_key=code,
+                    coalesce_key=code,
+                    importance="action_required",
+                    code=code,
+                    status="ready",
+                    due_at=DAY,
+                )
+            )
+    facts = await facts_now(db, owner, DAY + timedelta(hours=4, minutes=1))
+    # The Secret card is one pending card; the broker problem is one disconnected account.
+    assert (facts["pending_owner_cards"], facts["attention_items"]) == (1, 0)
+    assert facts["accounts"][0]["connection"] == "disconnected"
+    assert facts["nothing_else_needs_you"] is False
+    text = plain_brief(facts, "ar")
+    assert "Demo: غير متصل بالوسيط" in text
+    assert "بطاقات أخرى تنتظر قرارك: 1" in text and "تنبيهات لم ترها بعد" not in text

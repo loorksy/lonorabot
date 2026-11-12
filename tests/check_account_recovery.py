@@ -162,7 +162,6 @@ async def main() -> None:
             "PASS broker observations use internal work lane and return one real result to the original conversation"
         )
 
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         agent = await f.agent("Manual management", supervised=True)
         thread = await f.conversation(agent)
         manager = await f.lease(await f.run(agent, thread))
@@ -226,7 +225,6 @@ async def main() -> None:
     finally:
         if connection_id:
             await f.client.delete(f"/api/trading/connections/{connection_id}")
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()
 
 

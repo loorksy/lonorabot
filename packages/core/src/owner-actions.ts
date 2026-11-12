@@ -39,17 +39,6 @@ function language(locale: string): Language {
 
 export const ownerActionLabels = {
   en: {
-    resumeTitle: "Resume trading",
-    resumeStopped: "New trading is stopped",
-    resumeHint:
-      "Resuming widens no authority: each agent still trades only within its level, grants and your limits.",
-    resume: "Resume trading",
-    startTitle: "Start trading",
-    startStopped: "New trading has not been started yet",
-    startHint:
-      "Starting widens no authority: every agent stays within its level, its grant and your limits, and exits are always allowed.",
-    start: "Start trading",
-    started: "Trading started.",
     notNow: "Not now",
     pausedEntries: "New entries paused",
     pausedRisk: "Only exits allowed",
@@ -93,7 +82,6 @@ export const ownerActionLabels = {
     account: "Account",
     simulation: "Simulation",
     brokerAccount: "Broker account",
-    resumed: "Trading resumed.",
     lifted: "Pause lifted.",
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
@@ -104,7 +92,6 @@ export const ownerActionLabels = {
     expired: "This card expired. Nothing changed.",
     alreadyEnded: "This pause already ended. Nothing changed.",
     alreadySettled: "This operation is already settled. Nothing changed.",
-    alreadyRunning: "Trading is already running.",
     alreadySet: "These limits are already set.",
     doneElsewhere: "Done from another card.",
     sameOnAnotherCard: "The same grant waits on another card. Nothing changed.",
@@ -136,8 +123,6 @@ export const ownerActionLabels = {
     keepCurrentLimit: "Keep my current limit",
     raiseNeedsCard:
       "You asked for {amount}: this card never raises the daily loss limit; raising it needs a limits card with your passkey.",
-    tradingStopped: "New trading is stopped",
-    resumeToo: "Resume trading too",
     conflict:
       "{agent} already trades {markets} here on its own. Keeping both is fine: the account's limits bind them together.",
     stopOther: "Stop {agent} trading on its own on this account",
@@ -172,8 +157,6 @@ export const ownerActionLabels = {
       "Every agent can see and use everything you have connected to Lonora, but it places real trades only inside the grant you signed for it with your passkey and within your account limits. Anything that needs you arrives as a one-tap card in the chat, you can stop anything with one tap, and no agent, skill or plugin can ever widen your money authority.",
     authorize: "Authorize with passkey",
     signed: "Signed. It trades on its own inside this grant.",
-    signedStopped:
-      "Signed. New trading is still stopped, so it trades on its own inside this grant once you resume.",
     alreadySigned: "This is already signed. Nothing changed.",
     createTitle: "Create an agent?",
     createHint: "It starts with no money authority. Nothing is created until you tap.",
@@ -334,16 +317,6 @@ export const ownerActionLabels = {
     stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
-    resumeTitle: "استئناف التداول",
-    resumeStopped: "التداول الجديد متوقف",
-    resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
-    resume: "استئناف التداول",
-    startTitle: "بدء التداول",
-    startStopped: "لم يبدأ التداول الجديد بعد",
-    startHint:
-      "البدء لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك، والخروج متاح دائمًا.",
-    start: "بدء التداول",
-    started: "بدأ التداول.",
     notNow: "ليس الآن",
     pausedEntries: "الصفقات الجديدة متوقفة",
     pausedRisk: "الخروج فقط مسموح",
@@ -387,7 +360,6 @@ export const ownerActionLabels = {
     account: "الحساب",
     simulation: "محاكاة",
     brokerAccount: "حساب الوسيط",
-    resumed: "استؤنف التداول.",
     lifted: "رُفع الإيقاف.",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
@@ -398,7 +370,6 @@ export const ownerActionLabels = {
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
     alreadyEnded: "انتهى هذا الإيقاف مسبقًا. لم يتغير شيء.",
     alreadySettled: "حُسمت هذه العملية مسبقًا. لم يتغير شيء.",
-    alreadyRunning: "التداول يعمل بالفعل.",
     alreadySet: "هذه الحدود مضبوطة بالفعل.",
     doneElsewhere: "نُفذ من بطاقة أخرى.",
     sameOnAnotherCard: "التفويض نفسه ينتظر في بطاقة أخرى. لم يتغير شيء.",
@@ -429,8 +400,6 @@ export const ownerActionLabels = {
     keepCurrentLimit: "أبقِ حدي الحالي",
     raiseNeedsCard:
       "طلبت {amount}: هذه البطاقة لا ترفع حد الخسارة اليومية أبدًا؛ رفعه يحتاج بطاقة حدود بمفتاح المرور.",
-    tradingStopped: "التداول الجديد متوقف",
-    resumeToo: "استأنف التداول أيضًا",
     conflict: "{agent} يتداول {markets} هنا بنفسه. لا بأس ببقائهما معًا: حدود الحساب تلزمهما معًا.",
     stopOther: "أوقف تداول {agent} بنفسه على هذا الحساب",
     stoppedOthers: "أُوقف على هذا الحساب: {agents}.",
@@ -463,8 +432,6 @@ export const ownerActionLabels = {
       "كل وكيل يرى ويستخدم كل ما وصلته بلونورا، لكنه لا ينفّذ صفقة حقيقية إلا ضمن التفويض الذي وقّعته له بمفتاح المرور وضمن حدود حسابك؛ وما يحتاجك يصلك كبطاقة في المحادثة بلمسة واحدة، وتستطيع إيقاف أي شيء بلمسة، ولا يستطيع أي وكيل أو مهارة أو إضافة توسيع صلاحياتك المالية.",
     authorize: "التفويض بمفتاح المرور",
     signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
-    signedStopped:
-      "وُقّع. التداول الجديد ما زال متوقفًا، فيتداول بنفسه ضمن هذا التفويض بعد أن تستأنف.",
     alreadySigned: "هذا موقّع بالفعل. لم يتغير شيء.",
     createTitle: "إنشاء وكيل؟",
     createHint: "يبدأ دون أي صلاحية مالية. لا يُنشأ شيء حتى تلمس.",
@@ -685,7 +652,7 @@ export type OwnerActionSpec = {
   /** A Secret card's form while it waits (submitted by the client itself). */
   secret: SecretForm | null;
   passkey: boolean;
-  /** The settled line ("Trading resumed.", "This card expired. Nothing changed."). */
+  /** The settled line ("Signed. It trades on its own inside this grant.", "This card expired. Nothing changed."). */
   outcome: string | null;
 };
 
@@ -717,13 +684,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     switch (card.kind) {
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
-        // The card shows what was signed; while Stop new trading holds, it waits for Resume.
-        const stoppedStill =
-          card.facts.global_trading?.state === "stopped" && card.result.resumed !== true;
-        const signed = stoppedStill ? text.signedStopped : text.signed;
         return stopped.length
-          ? `${signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
-          : signed;
+          ? `${text.signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
+          : text.signed;
       }
       case "create_agent":
         return text.createdLine;
@@ -737,8 +700,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "resume_trading":
-        return card.result.started === true ? text.started : text.resumed;
       case "lift_restriction":
         return text.lifted;
       case "set_account_limits":
@@ -777,8 +738,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.alreadyEnded;
     case "operation_already_settled":
       return text.alreadySettled;
-    case "trading_already_running":
-      return text.alreadyRunning;
     case "limits_already_set":
       return text.alreadySet;
     case "done_by_another_card":
@@ -1030,15 +989,6 @@ function grantCard(card: OwnerAction, locale: string, lang: Language, now: Date)
     else if (!daily.proposed && !daily.current)
       lines.push(`${text.accountLimits}: ${moneyLimitsLine(money.limits, locale)}`);
   }
-  if (facts.global_trading?.state === "stopped") {
-    lines.push(text.tradingStopped);
-    // Checked when the owner never started trading; after the owner's own Stop it waits.
-    options.push({
-      key: "resume",
-      label: text.resumeToo,
-      initial: facts.global_trading.changed_by === "default",
-    });
-  }
   for (const conflict of facts.conflicts ?? []) {
     const name = conflict.agent_name ? isolate(conflict.agent_name) : text.anAgent;
     lines.push(
@@ -1121,9 +1071,6 @@ export function ownerActionChoices(
   const decision: Partial<OwnerActionDecision> = {
     // Either opt-out leaves the account's daily loss limit exactly as it is.
     money_limit: value("no_money_limit", false) || value("keep_limit", false) ? "none" : "apply",
-    resume_trading: options.some((item) => item.key === "resume")
-      ? value("resume", initial("resume"))
-      : false,
     stop_authorities: options
       .filter((item) => item.key.startsWith("stop:") && value(item.key, false))
       .map((item) => item.key.slice("stop:".length)),
@@ -1400,7 +1347,7 @@ export function ownerActionCard(
   const facts = card.facts;
   const account = facts.several_accounts ? accountLabel(facts.account, text) : null;
   const lines: string[] = [];
-  let title: string = text.resumeTitle;
+  let title = "";
   let hint: string | null = null;
   let buttons: OwnerActionButton[] = [];
   let options: OwnerActionOption[] = [];
@@ -1418,23 +1365,6 @@ export function ownerActionCard(
       hint = grant.hint;
       buttons = grant.buttons;
       options = grant.options;
-      break;
-    }
-    case "resume_trading": {
-      const trading = facts.global_trading;
-      // Never started on this install: the card says Start, as the safety sheet does.
-      const start = trading?.changed_by === "default";
-      if (start) title = text.startTitle;
-      if (trading?.state === "stopped")
-        lines.push(
-          start
-            ? text.startStopped
-            : trading.since
-              ? `${text.resumeStopped} · ${tradingSafetyLabels[lang].since} ${readinessTime(trading.since, locale, now)}`
-              : text.resumeStopped,
-        );
-      hint = start ? text.startHint : text.resumeHint;
-      buttons = pair(start ? text.start : text.resume, text.notNow);
       break;
     }
     case "lift_restriction": {
