@@ -156,6 +156,8 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     assert "b-gold" not in tickets and "owner-own" not in tickets, tickets
     assert tickets[:2] == ["a-eur", "a-eur-2"], tickets  # largest first
     assert len(tickets) == MAX_TICKETS and own["positions_not_shown"] == 6, own
+    # A cut list names the tool that reads it whole: bounds never hide a ticket.
+    assert own["read_all_with"] == "account_read", own
     assert [item["ticket"] for item in own["orders"]] == ["a-order"]
     exposure = {item["symbol"]: item for item in own["exposure_by_symbol"]}
     assert exposure["EURUSD"]["net_volume"] == "0.7" and exposure["EURUSD"]["positions"] == 2
