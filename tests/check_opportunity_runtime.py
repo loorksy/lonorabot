@@ -195,6 +195,7 @@ async def main() -> None:
             "symbol": symbols[0],
             "action": "buy",
             "volume": "0.1",
+            "tolerance": "5",
             "thesis_id": thesis["id"],
         }
         proposal = await call("trade_execute", args, "entry-once")
@@ -334,6 +335,7 @@ async def main() -> None:
                 "symbol": symbols[0],
                 "action": "buy",
                 "volume": volume,
+                "tolerance": "5",
                 "thesis_id": thesis["id"],
             }
             card = await call("trade_execute", entry_args, key)

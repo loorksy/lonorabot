@@ -121,6 +121,7 @@ async def main() -> None:
                     "action": action,
                     "account_id": account,
                     "symbol": symbol,
+                    "tolerance": "5",
                     **params,
                 },
             )

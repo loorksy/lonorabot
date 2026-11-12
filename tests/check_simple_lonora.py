@@ -745,6 +745,7 @@ class Acceptance:
             "symbol": GOLD,
             "volume": "0.1",
             "stop_loss": "1990",
+            "tolerance": "50",
         }
         script = self.model.script(
             "The owner has authenticated automatic management of account",
@@ -847,6 +848,7 @@ class Acceptance:
             "symbol": EURO,
             "volume": "0.1",
             "stop_loss": "1.0900",
+            "tolerance": "0.05",
         }
         self.model.script(
             words,
@@ -981,6 +983,7 @@ class Acceptance:
                     "symbol": EURO,
                     "volume": "0.1",
                     "stop_loss": "1.0900",
+                    "tolerance": "0.05",
                 },
             ),
             "فتحت الصفقة.",
@@ -1136,6 +1139,7 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.01",
                     "stop_loss": "1990",
+                    "tolerance": "50",
                 },
             ),
             "الصفقات الجديدة متوقفة اليوم بطلبك.",
@@ -1297,6 +1301,7 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.1",
                     "stop_loss": "1990",
+                    "tolerance": "50",
                 },
             ),
             "لم يؤكد الوسيط الأمر بعد، ولن أرسله مرة أخرى.",
@@ -1967,6 +1972,7 @@ class Acceptance:
                     "symbol": SILVER,
                     "volume": "0.1",
                     "stop_loss": "23",
+                    "tolerance": "1",
                 },
             ),
             "قرأت عمل وكيل الفضة؛ لا أتداول عنه.",
@@ -2227,6 +2233,7 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     "symbol": symbol,
                     "volume": "0.1",
                     "stop_loss": "150",
+                    "tolerance": "50",
                 },
             ),
             "نُفّذ الشراء بعد موافقتك.",
