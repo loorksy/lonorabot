@@ -14,3 +14,4 @@
 - 2026-11-12T13:03Z: #203 e60afe91 FINDINGS 0/1/2 (medium: 0173 does not migrate the owner_preferences revisions, so undo of an 'activity' change gives 409 and history shows the raw value).
 - 2026-11-12T13:04Z: #81 e5e54aa8 FINDINGS 0/1/1. The earlier findings are fixed and there are no conflicts. Medium: the web shell AgentPage still says Lonora supervises nobody and offers 'Add agents to supervise' (no default grants now).
 - 2026-11-12T13:07Z: #206 a3550e24 FINDINGS 0/1/1. Medium: a background run failing on a rejected key or quota is now hidden on mobile too, and raises no item (11.5 says 'nothing new'; reproduced).
+- 2026-11-12T13:15Z: #203 297d4161 CLEAN (all fixed). #110 48a6cd27 CLEAN (carries wauth/2 41febbbf, so it lands after #73; 0 conflicts with main).
