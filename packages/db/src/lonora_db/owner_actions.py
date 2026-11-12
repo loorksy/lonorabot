@@ -587,7 +587,6 @@ async def _active_grants(
 
 # Why a creation card no longer applies, by the refusal its re-check raised.
 CREATION_STALE = {
-    "agent_limit_reached": "agent_limit_reached",
     "agent_not_found": "agent_report_to_missing",
     "agent_report_to_invalid": "agent_report_to_missing",
     "agent_supervises_missing": "supervision_agent_missing",

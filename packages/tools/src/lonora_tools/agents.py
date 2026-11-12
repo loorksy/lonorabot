@@ -20,9 +20,7 @@ from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_creation import (
-    MAXIMUM_ACTIVE_AGENTS,
     MAXIMUM_CREATIONS_PER_RUN,
-    active_agents,
     agent_origin,
     existing_creation,
     report_targets,
@@ -216,11 +214,10 @@ def proposal_result(card: OwnerActionRow, *, created: bool) -> dict[str, Any]:
 
 
 async def check_limits(session: AsyncSession, owner_id: str, run_id: str) -> None:
-    """A new creation (or creation card) fits the per-run and per-owner limits."""
+    """A new creation (or creation card) fits the per-run guard against a runaway loop;
+    the number of the owner's agents is never counted (mandate 3.3.2)."""
     if await run_creations(session, owner_id, run_id) >= MAXIMUM_CREATIONS_PER_RUN:
         raise LonoraError("agent_create_run_limit", 429)
-    if await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
-        raise LonoraError("agent_limit_reached", 409)
 
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

@@ -24,7 +24,6 @@ from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_creation import (
-    MAXIMUM_ACTIVE_AGENTS,
     agent_origin,
     first_task_run_id,
     report_targets,
@@ -428,7 +427,8 @@ async def main() -> None:
         )
         print("PASS two matching accounts ask one question; an unknown symbol is refused")
 
-        # 9. The per-owner cap of active agents.
+        # 9. No limit on the number of agents (mandate 3.3.2): 25 active agents and
+        # more are created; only the per-run guard above ever refuses.
         async with db.sessions() as session, session.begin():
             count = await session.scalar(
                 select(func.count())
@@ -440,25 +440,24 @@ async def main() -> None:
                 )
             )
             filler: list[str] = []
-            for index in range(MAXIMUM_ACTIVE_AGENTS - int(count or 0)):
+            for index in range(max(25 - int(count or 0), 0)):
                 row = AgentRow(owner_id=owner, name=f"Filler {index}", role="legacy")
                 session.add(row)
                 await session.flush()
                 filler.append(row.id)
         created_ids.extend(filler)
-        capped = await owner_turn("Create a research agent")
-        assert (
-            await refused(capped, "agent_create", {"template": "research", "name": "One more"})
-            == "agent_limit_reached"
-        )
-        print("PASS the per-owner cap of active agents is enforced")
-        # The owner's own «وكيل جديد» form is not capped (POST /api/agents never was).
+        uncapped = await owner_turn("Create a research agent")
+        more = await call(uncapped, "agent_create", {"template": "research", "name": "One more"})
+        assert more["created"] is True, more
+        created_ids.append(more["agent"]["id"])
+        print("PASS 25 active agents exist and another is created: no cap on agents")
+        # The owner's own «وكيل جديد» form creates too.
         mine = await fixture.request(
             "POST", "/agents/create", {"template": "general", "name": "Owner's own"}
         )
         assert mine["template"] == "general" and mine["created"] is True
         created_ids.append(mine["id"])
-        print("PASS the owner's own form creates past the cap")
+        print("PASS the owner's own form creates beside 25 agents")
 
         # 10. Steering watches: only your own; cancel, resume, move the expiry.
         async with db.sessions() as session, session.begin():
