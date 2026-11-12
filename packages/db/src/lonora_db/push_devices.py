@@ -11,7 +11,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.push import PushDeviceRegistration
 from lonora_core.user_error import LonoraError
 from lonora_security.secrets import SecretCipher
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import aware
@@ -36,6 +36,13 @@ async def register_device(
     request was authenticated either waits for this row and deletes it, or is seen and
     refused: no token stays bound to a signed-out session.
     """
+    # Two registrations of one owner (one token raced from two installs, or a retry) run one
+    # after the other, so the select-then-insert below never trips a unique key.
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": "push-devices:" + owner_id},
+        )
     signed_in = await session.get(
         SessionRow, session_hash, with_for_update=True, populate_existing=True
     )

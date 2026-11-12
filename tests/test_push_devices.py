@@ -2,7 +2,9 @@
 per token, encrypted at rest, removed on sign-out, and never bound to a signed-out session.
 Runs on in-memory SQLite, or on LONORA_TASK_TEST_DATABASE_URL."""
 
+import asyncio
 import logging
+import os
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 from types import SimpleNamespace
@@ -158,6 +160,26 @@ async def test_a_registration_after_sign_out_or_expiry_binds_nothing(api: Any) -
                 )
         assert refused.value.code == "unauthorized"
     assert await rows(db) == []
+
+
+@pytest.mark.skipif(
+    not os.environ.get("LONORA_TASK_TEST_DATABASE_URL"),
+    reason="the race needs PostgreSQL connections (LONORA_TASK_TEST_DATABASE_URL)",
+)
+@pytest.mark.asyncio
+async def test_concurrent_registrations_of_one_token_both_succeed(api: Any) -> None:
+    # Review R-SEC L1: two installs (or one install twice) racing on one token got a 409.
+    app, db, owner_id = api
+    for second in (TABLET, PHONE):
+        sessions = [await bearer(db, owner_id), await bearer(db, owner_id)]
+        async with client(app, sessions[0]) as first_phone, client(app, sessions[1]) as other:
+            results = await asyncio.gather(
+                first_phone.put(f"/api/push/devices/{PHONE}", json=body()),
+                other.put(f"/api/push/devices/{second}", json=body()),
+            )
+        assert [response.status_code for response in results] == [200, 200]
+        stored = await rows(db)
+        assert len(stored) == 1 and stored[0].device_id in {PHONE, second}
 
 
 @pytest.mark.asyncio

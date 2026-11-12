@@ -13,6 +13,11 @@ if [[ -n "${LONORA_EXPO_PROJECT_ID:-}" && -z "${LONORA_ANDROID_GOOGLE_SERVICES_F
   [[ -z "${LONORA_EXPO_PROJECT_ID:-}" && -n "${LONORA_ANDROID_GOOGLE_SERVICES_FILE:-}" ]]; then
   echo 'Push needs both LONORA_EXPO_PROJECT_ID and LONORA_ANDROID_GOOGLE_SERVICES_FILE.' >&2; exit 2
 fi
+# The same absolute path as android-release.py, so the fingerprint matches that APK.
+if [[ -n "${LONORA_ANDROID_GOOGLE_SERVICES_FILE:-}" ]]; then
+  LONORA_ANDROID_GOOGLE_SERVICES_FILE="$(realpath "$LONORA_ANDROID_GOOGLE_SERVICES_FILE")"
+  export LONORA_ANDROID_GOOGLE_SERVICES_FILE
+fi
 OTA_EXPORT="$PROJECT_ROOT/.runtime/ota-export/$CHANNEL/$PLATFORM"
 cd "$PROJECT_ROOT/apps/mobile"
 pnpm exec expo export --platform "$PLATFORM" --output-dir "$OTA_EXPORT"
