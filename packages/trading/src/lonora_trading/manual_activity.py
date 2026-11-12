@@ -8,10 +8,12 @@ from uuid import NAMESPACE_URL, uuid5
 from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerActivity, BrokerRecoverySnapshot
 from lonora_db.schema import TradingJournalRow
+from lonora_session.idempotency import broker_operation_tag
 
 from .exposure import ENTRY_ACTIONS
 
 # A reservation never reached the broker; every other of these may have.
+PENDING_ENTRY_ACTIONS = frozenset({"buy_limit", "sell_limit", "buy_stop", "sell_stop"})
 SENT_STATUSES = frozenset({"confirmed", "submitted", "ambiguous", "resolved"})
 
 
@@ -103,6 +105,36 @@ def journal_agent(entry: TradingJournalRow) -> str | None:
         cast(dict[str, Any], execution).get("agent_id") if isinstance(execution, dict) else None
     )
     return agent if isinstance(agent, str) and agent else None
+
+
+def opening_keys(entry: TradingJournalRow) -> list[tuple[str, str]]:
+    """The ways a broker ticket names the entry order that opened or placed it (3.3.4):
+    the operation id as journaled (simulation) or as its broker tag (MetaApi's
+    clientId); the simulation broker's own id; a pending order's own ticket. A
+    position id in the result is not one: on a netting account it is the position an
+    order added to, not the one it opened from flat."""
+    result = entry.result or {}
+    details: dict[str, Any] = result.get("details") or {}
+    keys = [("op", entry.operation_id), ("op", broker_operation_tag(entry.operation_id))]
+    if details.get("simulation") and result.get("broker_id"):
+        keys.append(("ticket", str(result["broker_id"])))
+    if details.get("order_id") and entry.request.get("action") in PENDING_ENTRY_ACTIONS:
+        keys.append(("ticket", str(details["order_id"])))
+    return keys
+
+
+def ticket_openers(entries: list[TradingJournalRow]) -> dict[tuple[str, str, str], str | None]:
+    """Who opened each ticket, by account and opening key: the agent of the earliest
+    journaled entry that names it, or None for the owner's own order. ``entries`` are
+    sent entry orders, oldest first."""
+    openers: dict[tuple[str, str, str], str | None] = {}
+    for entry in entries:
+        if entry.status not in SENT_STATUSES or entry.request.get("action") not in ENTRY_ACTIONS:
+            continue
+        agent = journal_agent(entry)
+        for kind, value in opening_keys(entry):
+            openers.setdefault((entry.account_id, kind, value), agent)
+    return openers
 
 
 def attributed_agent(
