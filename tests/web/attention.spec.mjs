@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
 // The fixture's agent holds an uncertain trade, which rightly refuses its deletion: it is
-// paused after the test, so it never counts against the agent cap.
+// paused after the test, so it never wakes in later tests.
 let fixtureAgent;
 test.afterEach(() => {
   if (!fixtureAgent) return;
