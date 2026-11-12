@@ -65,11 +65,7 @@ test("durable notification is shared across views and stays read after reload", 
   await expect(uncertain.getByText(fixture.agent.name, { exact: true })).toBeVisible();
   await page.reload();
   await expect(alert.locator(".dot")).toHaveCount(1);
-  // Tapping it opens its details; the sheet's button opens the conversation.
   await uncertain.click();
-  const sheet = page.getByRole("dialog");
-  await expect(sheet.getByText("XAUUSD", { exact: true })).toBeVisible();
-  await sheet.getByRole("button", { name: "Open conversation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
   await page.goto("/app/updates");
   await expect(uncertain.locator(".dot")).toHaveCount(0);

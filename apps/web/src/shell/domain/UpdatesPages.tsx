@@ -14,12 +14,11 @@ import { clockTime } from "../lists/ThreadRow";
 import { useNavigation } from "../navigation";
 import { recoveryPath } from "../routes";
 import { SkHead, SkPage, SkRows } from "../Skeleton";
-import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
 import { routineTitle, scheduleFacts, useScheduleDetails } from "./SchedulesPages";
-import { Empty, ValueRow } from "./ui";
+import { Empty } from "./ui";
 
 function activityTitle(code: ActivityCode): string {
   switch (code) {
@@ -145,7 +144,6 @@ export function ActivityPage() {
 export function UpdatesPage() {
   const data = useShellData();
   const nav = useNavigation();
-  const sheets = useSheets();
   const toast = useToast();
   const attention = useAttention();
   const labels = useAttentionLabels();
@@ -210,41 +208,13 @@ export function UpdatesPage() {
       attention.seen(item.id).catch((cause) => toast(userError(cause), { type: "error" }));
     // A group's notification opens the group conversation, as the inbox did.
     // A broker outage opens the recovery page for its account (recovery.page).
-    const target =
+    nav.go(
       item.code === "broker_degraded"
         ? recoveryPath(item.parameters.account_id)
         : item.parameters.group_id
           ? `/app/g/${item.parameters.group_id}`
-          : `/app/${item.agent_id}?thread=${item.thread_id}`;
-    sheets.open({
-      id: "notification-details",
-      title: labels[item.code],
-      label: labels[item.code],
-      body: (
-        <>
-          {item.parameters.summary ? (
-            <p dir="auto">{item.parameters.summary}</p>
-          ) : (
-            <p>{detail(item)}</p>
-          )}
-          <ValueRow label={t`Time`} value={<span className="ltr">{when(item.created_at)}</span>} />
-          <button
-            type="button"
-            className="btn full"
-            onClick={() => {
-              sheets.close();
-              nav.go(target);
-            }}
-          >
-            {item.code === "broker_degraded" ? (
-              <Trans>Review the connection</Trans>
-            ) : (
-              <Trans>Open conversation</Trans>
-            )}
-          </button>
-        </>
-      ),
-    });
+          : `/app/${item.agent_id}?thread=${item.thread_id}`,
+    );
   };
   const acts = (feed.data?.items ?? []).slice(0, 4);
   return (
