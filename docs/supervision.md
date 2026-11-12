@@ -65,7 +65,7 @@ call, inside the same Run.
 - `agent_inspect` (read-only, toolset `collaboration`) reads an agent the caller
   supervises, or itself, one bounded page at a time: `overview` (role, template, focus
   pair, trading level, who paused it, the live status, the W15-1 trading readiness and
-  who supervises it), `work` (watches, routines, Tasks, active goals and the pauses
+  who supervises it), `work` (watches, routines, Tasks and the pauses
   supervisors hold), `runs` (trigger, status, error, prompt and result excerpts),
   `decisions`, `operations` (journal rows the executor recorded for that agent; a journal
   status is not broker confirmation) or `memory` (its standing instructions and its own
@@ -218,21 +218,20 @@ profile) do not fit and are promoted after first use like any remembered tool.
   card texts; on PostgreSQL, a peer without a grant still gets `thread_not_found`,
   `run_not_found` and `supervision_required`; a grant opens labelled reads of threads,
   decisions, runs and memory (an injected instruction stays inside a labelled record);
-  revocation closes them inside the same Run; holds, the cycle rule and the owner's
-  message overriding it; a rename that keeps the switch leaves the supervisor's hold; a
-  bound agent and an Ask me agent paused whole on a routine wake (`still_reduces_risk`)
-  and from the owner's message; Lonora never paused by another agent; the pause card
-  with its facts, Resume as the owner's own and its stale settle; the owner's pause
-  becoming the owner's (supervisor and agent refused, the cycle rule no longer counts
-  it); the owner's message lifting a supervisor's pause through the paused agent and
-  through another agent; a cancelled watch staying cancelled; restricting another agent
-  without a grant or owner message is 403; supervision from a card and from a sentence
-  with Undo; the supervised agent refused revoking its own oversight and a revoke from
-  chat restored from its card; the Personal Agent's default grant on a new agent.
+  revocation closes them inside the same Run; a bound agent and an Ask me agent paused
+  whole on a routine wake (`still_reduces_risk`) and from the owner's message; Lonora
+  never paused by another agent; the pause card with its facts, Resume as the owner's own
+  and its stale settle; restricting another agent without a grant or owner message is
+  403; supervision from a card and from a sentence with Undo; the supervised agent refused
+  revoking its own oversight and a revoke from chat restored from its card; the Personal
+  Agent's default grant on a new agent.
 - `tests/test_pauses.py` (the owner's pauses, `lonora_db.pauses`): holds kept by their
-  supervisor and the owner winning; the owner's pause becoming the owner's and the
-  owner's word resuming; the owner's own pause or cancel never lifted by the agent; a
-  deleted supervisor's pauses kept as the owner's.
+  supervisor, the cycle rule and the owner's message overriding it; a rename that keeps
+  the switch leaves the supervisor's hold; the owner's pause becoming the owner's
+  (supervisor and agent refused, the cycle rule no longer counts it); the owner's message
+  lifting a supervisor's pause through the paused agent and through another agent; a
+  cancelled watch staying cancelled; the owner's own pause or cancel never lifted by the
+  agent; a deleted supervisor's pauses kept as the owner's.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
