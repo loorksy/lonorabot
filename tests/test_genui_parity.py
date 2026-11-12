@@ -19,7 +19,9 @@ from typing import Any
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, walk
+from unittest.mock import patch
+
+from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, SLOT, node_props, walk
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
@@ -30,16 +32,35 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
+SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
+# The same card with the other fixed card that exists today (two slots exceed 560 px).
+SETTLE = SLOTS.replace(
+    '"trade_approval","record":"parity-approval"', '"settle","record":"parity-settle"'
+)
+# The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
+# conversation (tests/test_genui_slots.py checks the lookup against real rows).
+SLOT_RECORDS = {("trade_approval", "parity-approval"), ("settle", "parity-settle")}
 COMPILED = FIXTURES / "parity-compiled.json"
 OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 
 
 async def compiled_documents() -> list[dict[str, Any]]:
-    """The parity calculator and the A01 alert (the server's delivery row), as stored."""
+    """The parity calculator, the A01 alert (the server's delivery row) and the trusted
+    slots of both fixed cards that exist, as stored."""
     documents: list[dict[str, Any]] = []
     history = [ModelMessage(role="user", content=OWNER)]
-    for text, past in ((reply(PARITY), history), (reply(), messages())):
-        projection, projector = await project(text, history=past)
+
+    async def records(*_args: Any) -> set[tuple[str, str]]:
+        return SLOT_RECORDS
+
+    for text, past in (
+        (reply(PARITY), history),
+        (reply(), messages()),
+        (reply(SLOTS), history),
+        (reply(SETTLE), history),
+    ):
+        with patch("lonora_agent.visual_response.slot_records", records):
+            projection, projector = await project(text, history=past)
         assert not projector.diagnostics, projector.diagnostics
         rich = projection.rich_until()
         assert rich is not None
@@ -60,7 +81,9 @@ def test_the_vocabulary_teaches_every_node_prop_and_action() -> None:
         assert f"{name}{{{', '.join(props)}}}" in vocabulary
     for action in ACTIONS:
         assert f"{{do:{action}" in vocabulary
-    assert set(COMMON) == {"when"} and "every node takes when?" in vocabulary
+    assert set(COMMON) == {"when"} and f"every node but {SLOT} takes when?" in vocabulary
+    # A slot takes no common prop: it can never be hidden (mandate 10.2.2).
+    assert node_props(SLOT) == NODES[SLOT]
     for server in SERVER_NODES:
         assert server not in vocabulary  # written by the compiler, never by the model
 

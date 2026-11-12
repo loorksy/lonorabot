@@ -413,9 +413,13 @@ test("Parity: the web card draws every node the server accepts and runs every ac
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     python("stream", { ...fixture.input, delay: 0 });
     python("parity", fixture.input);
+    // A trusted slot needs a real record: the agent's card embeds a pending approval.
+    const ids = python("records", fixture.input);
+    python("slots", { ...fixture.input, approval: ids.approval });
     const ux = page.locator(".ux").filter({ hasText: "حاسبة حجم الصفقة" }).first();
     await expect(ux).toBeVisible();
     await expect(card(page)).toBeVisible();
+    await expect(page.locator(".ux-slot[data-slot-live]")).toBeVisible();
     await ux.getByRole("button", { name: "المزيد" }).click();
     // «2%» (a set action) shows the Note its `when` hides at 1%.
     await ux.getByRole("button", { name: "2%", exact: true }).click();
@@ -460,6 +464,52 @@ test("Parity: the web card draws every node the server accepts and runs every ac
     await expect(ux.locator(".ux-sent")).toHaveCount(0);
     await ux.getByRole("button", { name: "السوق" }).click();
     await expect(page).toHaveURL(/\/app\/market/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("Slots: a fixed card in the agent's card is the live record, and its row steps aside", async ({
+  page,
+  context,
+}) => {
+  const fixture = await open(page, context);
+  try {
+    const ids = python("records", fixture.input);
+    const approval = page.locator(`[data-trade-approval="${ids.approval}"]`);
+    const settle = page.locator(`[data-owner-action="${ids.settle}"]`);
+    // No message embeds them yet: each fixed card stands in its own row.
+    await page.reload();
+    await expect(approval).toHaveCount(1);
+    await expect(page.locator(".ux-slot")).toHaveCount(0);
+    await expect(settle.first()).toBeVisible();
+    python("slots", { ...fixture.input, approval: ids.approval });
+    const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
+    await expect(slot).toBeVisible();
+    // The server's record, drawn by the client: the request, and only the card's own words.
+    await expect(slot.locator(`[data-trade-approval="${ids.approval}"]`)).toBeVisible();
+    await expect(slot).toContainText("XAUUSD");
+    await expect(slot).toContainText("2350.00");
+    await expect(slot).toContainText("بطاقة ثابتة من Lonora");
+    for (const forged of ["صفقة مضمونة", "0.50 لوت"]) await expect(slot).not.toContainText(forged);
+    // The slot is the record's place now: its standalone row is gone; the settle card, which
+    // no message embeds, keeps its row.
+    await expect(approval).toHaveCount(1);
+    await expect(settle.first()).toBeVisible();
+    await expect(page.locator(".ux-slot")).toHaveCount(1);
+    // The slot's button is the card's own server action on the owner session.
+    const [decision] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
+      ),
+      slot.getByRole("button", { name: "رفض", exact: true }).click(),
+    ]);
+    expect(decision.status()).toBe(200);
+    await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
+    // Read again later, the slot shows the record as it is now, and still no row.
+    await page.reload();
+    await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
+    await expect(approval).toHaveCount(1);
   } finally {
     await fixture.cleanup();
   }
