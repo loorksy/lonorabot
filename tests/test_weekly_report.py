@@ -14,12 +14,13 @@ from lonora_db.schema import (
     MessageRow,
     MorningBriefRow,
     RunRow,
+    SettingRow,
     ThreadRow,
     TradingJournalRow,
 )
 from lonora_trading.morning_brief import TRIGGER as BRIEF_TRIGGER
-from lonora_trading.morning_brief import brief_tick, plain_brief
-from lonora_trading.weekly_report import TRIGGER, latest_close, weekly_tick
+from lonora_trading.morning_brief import brief_tick, latest_close, plain_brief
+from lonora_trading.weekly_report import TRIGGER, weekly_tick
 from sqlalchemy import select
 from test_task_runtime import task_db as task_db
 
@@ -178,3 +179,41 @@ async def test_the_first_brief_after_the_close_carries_the_reports_once(task_db:
         record = await session.get(MorningBriefRow, owner)
         assert record is not None and record.weekly is not None
         assert record.weekly["summarized"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_brief_at_the_close_waits_for_the_reports_and_names_a_missing_one(
+    task_db: Fixture,
+) -> None:
+    db, owner, fixture_agent, _thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora = await ensure_personal_agent(session, owner)
+        for agent_id in (lonora.id, fixture_agent):
+            row = await session.get(AgentRow, agent_id)
+            assert row is not None
+            row.created_at = CLOSE - timedelta(days=30)
+        # Tokyo: the close (Friday 17:00 New York) is Saturday 07:00, the brief time.
+        session.add(
+            SettingRow(key="incoming-call-policy:" + owner, payload={"timezone": "Asia/Tokyo"})
+        )
+    at = CLOSE + timedelta(seconds=10)
+    # The agents are not woken yet: the brief waits.
+    assert await brief_tick(db, owner, now=at) is None
+    await weekly_tick(db, owner, now=at)
+    # Reports are being written: the brief still waits.
+    assert await brief_tick(db, owner, now=at + timedelta(minutes=5)) is None
+    assert await runs(db, BRIEF_TRIGGER) == []
+    woken = {run.agent_id: run for run in await runs(db, TRIGGER)}
+    async with db.sessions() as session, session.begin():
+        for run_id in (woken[lonora.id].id, woken[fixture_agent].id):
+            run = await session.get(RunRow, run_id)
+            assert run is not None
+            run.status = "completed"
+    # Every report run ended (here with no message): the brief goes and says so.
+    assert await brief_tick(db, owner, now=at + timedelta(minutes=6)) == "2026-11-14"
+    (brief,) = await runs(db, BRIEF_TRIGGER)
+    states = {
+        item["agent"]: item["state"]
+        for item in facts_of(brief.prompt, "brief_facts")["weekly_reports"]  # type: ignore[union-attr]
+    }
+    assert states == {"Lonora": "no_report", "Task fixture": "no_report"}
