@@ -45,6 +45,7 @@ from lonora_db.schema import (
     TradingOpportunityRow,
     TradingRestrictionRow,
 )
+from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository, owned_agent
 from lonora_market.watchers import observe
@@ -523,7 +524,17 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
             await project_event(db, brokers, owner_id, event)
 
         await retry.run(str(event.cursor), owner_id, again)
-    return await ready_attention(db, brokers, owner_id)
+    readied = await ready_attention(db, brokers, owner_id)
+    # Lonora receives the system alerts (3.1.5): isolated like the health steps.
+    alerts = ItemGuard(db, "attention_health", quarantine_after=None)
+    await alerts.prepare(["wake:" + owner_id])
+
+    async def wake() -> None:
+        async with db.sessions() as session, session.begin():
+            await wake_for_alerts(session, owner_id)
+
+    await alerts.run("wake:" + owner_id, owner_id, wake)
+    return readied
 
 
 async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -> int:
