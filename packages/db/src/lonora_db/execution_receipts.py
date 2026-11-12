@@ -59,10 +59,15 @@ def receipt_facts(row: TradingJournalRow) -> dict[str, Any]:
     facts: dict[str, Any] = {"action": request.action, "symbol": request.symbol, "ticket": ticket}
     if request.action in NEW_ORDERS or request.action == "close_position":
         # The volume and price the broker reports it executed; nothing it did not report.
+        # A fill established by reconciliation from a ticket's current state (no deal) shows
+        # that ticket's volume and open price now, not the fill: neither is shown.
+        from_state = bool(details.get("reconciled")) and not details.get("deal_id")
         facts |= {
             "kind": "fill",
-            "volume": _text(details.get("volume")),
-            "price": _text(details.get("price")) or _text(details.get("execution_price")),
+            "volume": None if from_state else _text(details.get("volume")),
+            "price": None
+            if from_state
+            else _text(details.get("price")) or _text(details.get("execution_price")),
             "partial": bool(details.get("partial_execution")),
         }
     elif request.action in PENDING_ORDERS:
@@ -106,16 +111,17 @@ async def _posting_thread(session: AsyncSession, row: TradingJournalRow) -> Thre
             if thread is not None and thread.owner_id == row.owner_id:
                 return thread
     agent_id = execution.get("agent_id")
-    if not (isinstance(agent_id, str) and agent_id and await session.get(AgentRow, agent_id)):
-        # The owner's own order, or an agent deleted meanwhile (its tickets are Lonora's).
-        agent_id = await session.scalar(
-            select(AgentRow.id).where(
-                AgentRow.owner_id == row.owner_id, AgentRow.role == "personal"
-            )
-        )
-    if agent_id is None:
-        return None
-    return await conversation_thread(session, row.owner_id, agent_id)
+    if isinstance(agent_id, str) and agent_id and await session.get(AgentRow, agent_id):
+        return await conversation_thread(session, row.owner_id, agent_id)
+    # The owner's own order, or an agent deleted meanwhile (its tickets are Lonora's).
+    return await _lonora_thread(session, row.owner_id)
+
+
+async def _lonora_thread(session: AsyncSession, owner_id: str) -> ThreadRow | None:
+    lonora = await session.scalar(
+        select(AgentRow.id).where(AgentRow.owner_id == owner_id, AgentRow.role == "personal")
+    )
+    return None if lonora is None else await conversation_thread(session, owner_id, lonora)
 
 
 async def post_receipt(session: AsyncSession, row: TradingJournalRow) -> bool:
@@ -149,9 +155,14 @@ async def post_receipt(session: AsyncSession, row: TradingJournalRow) -> bool:
             posted = await insert_receipt(thread)
     except Exception:
         # Where it is posted never stands between the broker's confirmation and the
-        # journal: the receipt is kept, without a conversation, rather than lost with it.
-        thread = None
-        posted = await insert_receipt(None)
+        # journal: the receipt goes to Lonora's conversation, or is kept without one.
+        try:
+            async with session.begin_nested():
+                thread = await _lonora_thread(session, row.owner_id)
+                posted = await insert_receipt(thread)
+        except Exception:
+            thread = None
+            posted = await insert_receipt(None)
     if posted is None:
         return False
     # Clients refresh the conversation; an Execution Receipt never sends a push (11.4).

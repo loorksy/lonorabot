@@ -182,10 +182,10 @@ export function TradeApprovalCard({
           .map((result) => (
             <div
               key={result.operation_id}
-              className={`od-ev ${result.status === "confirmed" ? "ok" : result.status === "failed" ? "bad" : "warn"}`}
+              className={`od-ev ${result.status === "failed" ? "bad" : "warn"}`}
               data-trade-result={result.status}
             >
-              <Icon name={result.status === "confirmed" ? "check" : "alert"} />
+              <Icon name="alert" />
               <span>
                 <span>{operationStatusLabel(result.status, result.details)}</span>
                 {result.broker_id && (

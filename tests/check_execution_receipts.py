@@ -351,7 +351,8 @@ async def checks() -> None:
         journal = await session.get(TradingJournalRow, unplaced.operation_id)
         assert journal is not None and journal.status == "confirmed"
     kept = await receipt(db, unplaced.operation_id)
-    assert kept.thread_id is None and kept.agent_id == gold_id
+    # Shown in Lonora's conversation rather than nowhere; still the agent's operation.
+    assert kept.thread_id == threads["lonora"] and kept.agent_id == gold_id
     print("PASS a placement failure keeps the confirmation and its one receipt")
 
     # 9. Deleting the conversation, then the agent, keeps the receipt (3.1.2).
