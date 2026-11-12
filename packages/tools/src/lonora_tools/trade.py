@@ -265,6 +265,12 @@ async def new_risk_requests(
     return result
 
 
+async def reused_card(context: ToolContext, requests: list[TradeRequest]) -> bool:
+    """Whether this Run already holds a card for these exact requests: it answers again."""
+    async with context.db.sessions() as session:
+        return await reviewed_approval(session, context, requests) is not None
+
+
 async def unjournaled(context: ToolContext, requests: list[TradeRequest]) -> list[TradeRequest]:
     async with context.db.sessions() as session:
         recorded = set(
@@ -450,7 +456,7 @@ async def approved_execution(
     if grants:
         return await direct_execution(context, authority_requests, grants)
     adding: list[TradeRequest] = []
-    if previous is None and not gate_only:
+    if previous is None and not gate_only and not await reused_card(context, requests):
         # Full executes on its own; Ask asks only for requests that add risk (4.1). A
         # ticket the agent's own order did not open is always the owner's exact approval.
         # A request already journaled is answered from its record (the door's idempotency),
