@@ -67,7 +67,6 @@ ROUTES = (
     "trading",
     "trading_decisions",
     "opportunities",
-    "execution_policy",
     "owner_actions",
     "secret_cards",
     "supervision",

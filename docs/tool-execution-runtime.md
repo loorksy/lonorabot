@@ -496,7 +496,7 @@ The gate reads call names, arguments and result fields only. It never reads what
 or the model wrote, never issues a call, and its notices carry tool names but no failure
 code. It holds the reply, whatever else the request contains, when the request made any
 financial call, when any result is a permission refusal, needs the owner's authorization,
-hit a risk or health block, has an unknown outcome, was stopped by a guardrail or spent
+hit a health block, has an unknown outcome, was stopped by a guardrail or spent
 its retries, and when the last owner-side message is a wake. A found tool that is
 financial is never raised.
 

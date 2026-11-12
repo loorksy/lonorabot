@@ -16,7 +16,7 @@ from .schema import RunRow, ThreadRow, TradingJournalRow
 
 # Facts the execution boundary recorded itself: never replaced by a broker receipt.
 # execution_evidence: planned/before-send snapshots; risk_assessment: the monetary limit
-# evaluation that admitted the send; admission_block: the boundary decision that stopped it.
+# evaluation older rows recorded; admission_block: the boundary decision that stopped it.
 SERVER_EVIDENCE = ("execution_evidence", "risk_assessment", "admission_block")
 
 

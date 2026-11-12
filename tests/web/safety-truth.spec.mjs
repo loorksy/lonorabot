@@ -325,11 +325,10 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
     await expect(capsule).toHaveAttribute("data-readiness", "uncertain");
     await capsule.click();
     const sheet = page.locator("#dialog");
-    // The sheet's head repeats the server's line; the money limits say none is set.
+    // The sheet's head repeats the server's line.
     await expect(sheet.getByTestId("agent-mode-line")).toHaveText(
       `1 operation awaiting broker confirmation · new risk on ${state.data.symbol} held`,
     );
-    await expect(sheet.getByText("No money limit set", { exact: true })).toBeVisible();
     // Amendment 1: no Trading switch, Stop or Resume anywhere in the sheet.
     await expect(sheet.getByRole("switch", { name: "Trading", exact: true })).toHaveCount(0);
     await expect(sheet.getByText(/Stop new trading|Resume trading|Trading is stopped/)).toHaveCount(
@@ -341,57 +340,6 @@ test("header safety capsule: abnormal states only, and no Stop control", async (
         headers: state.headers,
         data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
       });
-    await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
-    await state.cleanup();
-  }
-});
-
-test("M11: an amount limit saves in the account's own currency, prefilled from the broker", async ({
-  page,
-  context,
-}) => {
-  const state = await setup(context);
-  const response = await context.request.post("/api/agents", {
-    headers: state.headers,
-    data: {
-      name: `Limits ${randomUUID()}`,
-      trading_account_id: state.data.account,
-      trading_symbol: state.data.symbol,
-    },
-  });
-  expect(response.status()).toBe(201);
-  const agent = await response.json();
-  const path = `/api/trading/accounts/${state.data.account}/execution-policy`;
-  try {
-    const before = await (await context.request.get(path)).json();
-    expect(before.risk.currency ?? null).toBeNull();
-    const puts = [];
-    page.on("request", (request) => {
-      if (request.method() === "PUT" && new URL(request.url()).pathname === path)
-        puts.push(request.postDataJSON());
-    });
-    await page.goto(`/app/${agent.id}`);
-    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Status and safety" }).click();
-    await page.locator("#dialog").getByRole("button", { name: "Edit the limits" }).click();
-    const sheet = page.locator("#dialog");
-    // Daily loss is an amount: «استعادة» sets it, the currency comes from the account.
-    await sheet.locator(".oa-lim").first().getByRole("button", { name: "Restore" }).click();
-    await expect(sheet.locator('input[name="currency"]')).toHaveValue("USD");
-    const saved = page.waitForResponse(
-      (response) =>
-        response.request().method() === "PUT" &&
-        new URL(response.url()).pathname === path &&
-        response.ok(),
-    );
-    await sheet.getByRole("button", { name: "Save", exact: true }).click();
-    await saved;
-    await expect.poll(() => puts.length).toBe(1);
-    expect(puts[0].risk.currency).toBe("USD");
-    const after = await (await context.request.get(path)).json();
-    expect(after.risk.currency).toBe("USD");
-    expect(Number(after.risk.max_daily_loss)).toBeGreaterThan(0);
-  } finally {
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();
   }

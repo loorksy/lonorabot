@@ -73,11 +73,7 @@ function modeLine(
         p.full_delegation || p.symbol_scope === "account"
           ? t`All pairs`
           : (p.symbols ?? []).map(isolate).join("، ");
-      const daily = p.daily_loss;
-      const money = daily
-        ? t`Daily loss limit ${isolate(daily.currency ? `${daily.amount} ${daily.currency}` : daily.amount)}`
-        : t`No money limit`;
-      return [levelLabel("autonomous"), where, money].filter(Boolean).join(" · ");
+      return [levelLabel("autonomous"), where].filter(Boolean).join(" · ");
     }
     case "ask_me":
       return t`Ask me on every order`;
@@ -319,7 +315,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
                       ? modeLine(live?.trading_readiness, level)
                       : t`Loading…`
                   }
-                  sub={<Trans>Trading · Account limits</Trans>}
+                  sub={<Trans>Trading</Trans>}
                   // chat.agent-sheet is the composer's (phase 3): the conversation opens it.
                   onClick={() => go(`/app/${agent.id}?sheet=agent`)}
                 />

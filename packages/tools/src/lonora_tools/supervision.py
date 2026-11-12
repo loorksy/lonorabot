@@ -8,8 +8,8 @@ automatically. Text that agent or others wrote is labelled untrusted: it is data
 the reader, never its instructions.
 
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
-routines or watches, and messages it. It never grants, raises a limit, trades or edits
-the agent's memory or instructions. A whole agent with money standing is paused
+routines or watches, and messages it. It never grants, trades or edits the agent's
+memory or instructions. A whole agent with money standing is paused
 only from the owner's message, and the Personal Agent only by the owner. The hold
 rules and the cycle rule are in ``lonora_db.supervision``.
 
@@ -624,8 +624,7 @@ def tools() -> list[Tool]:
             "stay. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A whole trading agent is paused only when the owner asks (its exits "
             "would stop too): pause its routines, watches or Tasks. Only the owner pauses "
-            "Lonora itself. It never trades, grants, raises limits or edits its memory or "
-            "instructions.",
+            "Lonora itself. It never trades, grants or edits its memory or instructions.",
             AgentControlInput,
             control,
             replay_safe=True,

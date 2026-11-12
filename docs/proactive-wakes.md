@@ -32,8 +32,7 @@ permission frame still shows such a Run as `analysis`.
 Watches and routines an observe-only wake sets up are not narrowed: they are
 the Agent's own later work (correction 25 keeps watch and routine changes for wakes),
 and when they fire they run with the Agent's normal authority. Money still follows
-the Agent's signed grant, the account limits, pauses and the manual-positions switch
-at the executor.
+the Agent's signed grant, pauses and the manual-positions switch at the executor.
 
 Workspace effects follow the scope too (`require_ordinary` in `lonora_tools/terminal.py`):
 only an ordinary Run of the Agent runs commands, writes files or stops processes; a
@@ -56,9 +55,9 @@ manual activity).
 
 - An attributed change goes to its Agent: a `broker.external_activity` event in the
   Agent's conversation and one `broker_event` wake per revision in its work lane,
-  **with its normal authority**. Its grant, the account limits and pauses still decide
-  at the executor, and an uncertain operation is never resent. An "Ask me" Agent's
-  trade becomes an approval card in its conversation.
+  **with its normal authority**. Its grant and pauses still decide at the executor,
+  and an uncertain operation is never resent. An "Ask me" Agent's trade becomes an
+  approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
 - Activity of a paused, delegated or missing Agent falls back to the Personal Agent,

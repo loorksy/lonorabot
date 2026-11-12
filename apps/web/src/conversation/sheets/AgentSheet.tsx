@@ -1,18 +1,11 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type {
-  AgentLiveState,
-  MoneyLimitName,
-  MoneyLimits,
-  TradingReadiness,
-} from "@lonora/contracts";
+import type { AgentLiveState, TradingReadiness } from "@lonora/contracts";
 import {
   agentStatusLine,
-  moneyLimitLabel,
   orderLineAction,
   tradingReadinessLine,
-  tradingSafetyText,
   uncertainLine,
 } from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
@@ -29,7 +22,6 @@ import { useNavigation } from "../../shell/navigation";
 import { useSheets } from "../../shell/sheets/SheetHost";
 import { useToast } from "../../shell/Toast";
 import { useChatPrefs } from "../prefs";
-import { useLimitsSheet } from "./LimitsSheet";
 import { useWatchesSheet } from "./WatchesSheet";
 
 /* The agent's status (Q35: a per-device preference, off by default) and the trading safety of
@@ -152,18 +144,9 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
 /** With more than one account every item names its account (as the old safety pill did). */
 function useAccountName(readiness: TradingReadiness | null) {
   const [accounts, setAccounts] = useState<Resource[]>([]);
-  const ids = new Set(
-    readiness
-      ? [
-          ...readiness.money_limits.map((item) => item.account_id),
-          ...readiness.grants.map((item) => item.account_id),
-          ...readiness.unresolved_operations.map((item) => item.account_id),
-        ]
-      : [],
-  );
-  const several = ids.size > 1;
+  const trading = readiness !== null;
   useEffect(() => {
-    if (!several) return;
+    if (!trading) return;
     let live = true;
     void readConnections()
       .then((rows) => {
@@ -173,55 +156,13 @@ function useAccountName(readiness: TradingReadiness | null) {
     return () => {
       live = false;
     };
-  }, [several]);
+  }, [trading]);
+  const several = accounts.length > 1;
   return (id: string) => {
     if (!several) return null;
     const index = accounts.findIndex((row) => row.id === id);
     return index < 0 ? null : brokerIdentityLabel(accounts[index], index);
   };
-}
-
-/* The owner's money limits, every cap that is set (a percentage of equity and an absolute
-   amount can both apply): «دون حد» only when neither is set. */
-const LIMIT_GROUPS: Array<[() => string, MoneyLimitName[]]> = [
-  [() => t`Daily loss limit`, ["max_daily_loss"]],
-  [() => t`Trade risk limit`, ["max_trade_risk_equity_percent", "max_trade_risk"]],
-  [() => t`Open risk limit`, ["max_open_risk_equity_percent", "max_open_risk"]],
-  [() => t`Minimum free margin`, ["min_free_margin"]],
-];
-
-export function LimitRows({ limits }: { limits: MoneyLimits }) {
-  const amount = (key: MoneyLimitName) =>
-    `${limits.limits[key]}${key.endsWith("percent") ? "%" : limits.currency ? ` ${limits.currency}` : ""}`;
-  if (!limits.configured)
-    // The server enforces none: the same words as the readiness line.
-    return (
-      <div className="row" data-money-limit="none">
-        <span className="body">{tradingSafetyText(i18n.locale).noMoneyLimit}</span>
-      </div>
-    );
-  return (
-    <>
-      {LIMIT_GROUPS.map(([label, keys]) => {
-        const set = keys.filter((key) => limits.limits[key] != null);
-        return set.length ? (
-          set.map((key) => (
-            <div key={key} className="row" data-money-limit={key}>
-              <span className="body">
-                {set.length > 1 ? moneyLimitLabel(key, i18n.locale) : label()}
-              </span>
-              <span className="value ltr">{amount(key)}</span>
-            </div>
-          ))
-        ) : (
-          <div key={keys[0]} className="row" data-money-limit={keys[0]} data-unset="">
-            <span className="body">{label()}</span>
-            <span className="value">{t`No limit`}</span>
-          </div>
-        );
-      })}
-    </>
-  );
 }
 
 function AgentSheetBody({
@@ -239,7 +180,6 @@ function AgentSheetBody({
   const prefs = useChatPrefs();
   const { refresh } = useClient();
   const toast = useToast();
-  const limits_ = useLimitsSheet();
   const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
@@ -425,27 +365,6 @@ function AgentSheetBody({
               </div>
             </>
           )}
-          {(readiness.money_limits ?? []).map((limits) => (
-            <section key={limits.account_id} data-account-limits={limits.account_id}>
-              <h3>
-                <Trans>Account limits</Trans>
-                {accountName(limits.account_id) && <> · {accountName(limits.account_id)}</>}
-              </h3>
-              <div className="group">
-                <LimitRows limits={limits} />
-              </div>
-              <button
-                type="button"
-                className="btn full outline"
-                onClick={() => {
-                  close();
-                  limits_(limits.account_id);
-                }}
-              >
-                <Trans>Edit the limits</Trans>
-              </button>
-            </section>
-          ))}
           <p className="note">
             <Trans>Closing and tightening the stop loss are always allowed.</Trans>
           </p>

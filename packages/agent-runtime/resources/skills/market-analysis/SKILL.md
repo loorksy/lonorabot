@@ -11,7 +11,7 @@ user-facing replies and labels. English examples do not require an English reply
 ## When to use
 
 For analysis, an entry plan, market review or continuation after a meaningful
-change. Read existing intent and limits; do the requested reversible review.
+change. Read existing intent and constraints; do the requested reversible review.
 
 ## Steps
 
@@ -33,7 +33,7 @@ change. Read existing intent and limits; do the requested reversible review.
    chart failures are distinct; inspect the failed boundary before declaring
    the entire account unavailable. Never manufacture missing observations.
 4. Read chart-analysis when charts or server indicators help. Derive levels,
-   entry, invalidation and proposed size from real evidence and owner limits.
+   entry, invalidation and proposed size from real evidence and owner constraints.
    Use market_structure when confirmed swing anchors or alternative trendlines
    help the analysis. Its strict left/right windows reject equal extrema, and a
    pivot becomes known only after the confirming right bars close. Keep pivot

@@ -151,23 +151,6 @@ export type TradeApproval = {
   expires_at?: string | null;
   created_at: string;
 };
-/** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */
-export type MoneyLimitName =
-  | "max_trade_risk"
-  | "max_trade_risk_equity_percent"
-  | "max_daily_loss"
-  | "max_open_risk"
-  | "max_open_risk_equity_percent"
-  | "min_free_margin";
-export type MoneyLimits = {
-  account_id: string;
-  /** False: no money limit is set on this account, so none is enforced. */
-  configured: boolean;
-  currency: string | null;
-  limits: Partial<Record<MoneyLimitName, string>>;
-  not_configured: MoneyLimitName[];
-  trading_day_timezone?: string;
-};
 export type TradingReadinessState =
   | "no_trading"
   | "agent_paused"
@@ -195,9 +178,6 @@ export type TradingReadiness = {
     grant_count?: number;
     /** on_its_own: how many accounts its grants cover. */
     account_count?: number;
-    money_limit_set?: boolean;
-    /** The daily loss limit of the grant's account, when the owner set one. */
-    daily_loss?: { amount: string; currency: string | null } | null;
   };
   level: "analysis" | "supervised" | "autonomous";
   grants: Array<{
@@ -210,7 +190,6 @@ export type TradingReadiness = {
     /** Every pair on the account, every action and the owner's own positions, until revoked. */
     full_delegation?: boolean;
   }>;
-  money_limits: MoneyLimits[];
   unresolved_operations: Array<{
     operation_id: string;
     account_id: string;

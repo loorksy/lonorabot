@@ -18,7 +18,7 @@
     "resolution": null,
     "result": {
       "broker_id": null,
-      "code": "risk_daily_loss_limit",
+      "code": "broker_reconciliation_required",
       "details": {
         "send_state": "not_sent"
       },
