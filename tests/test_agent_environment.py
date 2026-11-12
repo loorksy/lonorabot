@@ -46,12 +46,11 @@ def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
         ("version_conflict", "version_conflict"),
         ("chart_indicator_not_found", "not_found"),
         ("broker_result_ambiguous", "ambiguous_mutation"),
-        ("trading_disabled", "health_blocked"),
+        ("market_health_blocked", "health_blocked"),
         ("device_authorization_required", "authorization_required"),
         ("search_not_configured", "not_configured"),
         ("research_provider_not_configured", "not_configured"),
         ("browser_unconfigured", "not_configured"),
-        ("trading_restriction_active", "permission_denied"),
         ("agent_trading_symbol_mismatch", "permission_denied"),
         ("risk_trade_limit", "risk_limit_blocked"),
         ("unrecognized_domain_code", "terminal_domain_failure"),
@@ -66,12 +65,11 @@ def test_recovery_contract_preserves_stable_categories(code: str, category: str)
 @pytest.mark.parametrize(
     "code,category,action",
     [
-        # An owner restriction is a scope: never an invitation to try another route.
-        ("trading_restriction_active", "permission_denied", "respect_scope"),
-        ("restriction_all_mutations_requires_owner_message", "permission_denied", "respect_scope"),
+        # The agent's level is a scope: never an invitation to try another route.
+        ("agent_analysis_only", "permission_denied", "respect_scope"),
         ("supervision_personal_agent", "permission_denied", "respect_scope"),
         ("supervision_revoke_own_oversight", "permission_denied", "respect_scope"),
-        # Pausing a whole trading agent has a narrower route: restrict it, pause its work.
+        # Pausing a whole trading agent has a narrower route: pause its work.
         ("supervision_pause_trading_agent", "terminal_domain_failure", "alternate_route"),
         # A monetary limit points at its evidence: resize within it or wait for the owner.
         ("risk_trade_limit", "risk_limit_blocked", "inspect_risk_assessment"),
@@ -85,7 +83,7 @@ def test_recovery_contract_preserves_stable_categories(code: str, category: str)
         ("risk_daily_history_incomplete", "risk_limit_blocked", "inspect_risk_assessment"),
     ],
 )
-def test_owner_restrictions_and_risk_limits_never_suggest_an_alternate_route(
+def test_scopes_and_risk_limits_never_suggest_an_alternate_route(
     code: str, category: str, action: str
 ) -> None:
     tool = Tool("trade_execute", "Test", Contract, handler, financial=True)
@@ -192,7 +190,7 @@ def test_every_failure_tells_the_model_its_class_whether_to_repeat_and_what_to_d
         refused: dict[str, Any] = {"ok": False, "code": code}
         observe({}, ToolCall(id=code, name="trade_execute", arguments={}), None, refused)
         assert (refused["class"], refused["retryable"]) == ("input", False), code
-    stopped: dict[str, Any] = {"ok": False, "code": "trading_restriction_active"}
+    stopped: dict[str, Any] = {"ok": False, "code": "agent_analysis_only"}
     observe({}, ToolCall(id="r", name="trade_execute", arguments={}), None, stopped)
     assert stopped["class"] == "permission" and "another way" in stopped["hint"]
 
@@ -204,7 +202,7 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
     assert refused["hint"] == sentence and refused["recovery"]["category"]
     named: dict[str, Any] = {
         "ok": False,
-        "code": "consult_budget_exhausted",
+        "code": "consult_model_unavailable",
         "recovery": {"next_action": "decide_with_current_evidence"},
     }
     observe({}, ToolCall(id="c", name="consult_model", arguments={}), None, named)
@@ -247,8 +245,7 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
         ("broker_disabled", 409, "provider", "alternate_route"),
         ("broker_endpoint_forbidden", 403, "provider", "alternate_route"),
         # Named codes never change with their status.
-        ("trading_restriction_active", 409, "permission", "respect_scope"),
-        ("emergency_stop", 409, "provider", "wait_for_authoritative_recovery"),
+        ("market_health_blocked", 409, "provider", "wait_for_authoritative_recovery"),
         ("model_not_configured", 409, "provider", "inspect_authorized_alternative"),
         ("position_volume_exceeded", 409, "input", "correct_arguments"),
         ("task_run_not_found", 409, "resolution", "inspect_existing_state"),

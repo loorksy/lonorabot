@@ -462,6 +462,11 @@ function Ranked({
         <h3>{title}</h3>
         {note && <span className="u-eyebrow">{note}</span>}
       </div>
+      {rows.length === 0 && (
+        <p className="pad muted small">
+          <Trans>No usage in this period.</Trans>
+        </p>
+      )}
       {rows.map((row) => {
         const pct = total ? (row.value / total) * 100 : 0;
         const inner = (

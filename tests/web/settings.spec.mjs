@@ -54,6 +54,21 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
         .first()
         .evaluate((node) => getComputedStyle(node).paddingInlineStart),
     ).toBe("14px");
+    // The language menu opens at its pill's width, aligned with it (the reference's openPop match).
+    const pill = page.locator(".lang-select");
+    await pill.click();
+    const langMenu = page.locator(".pop.lang-pop");
+    await expect(langMenu).toBeVisible();
+    const pillBox = await pill.boundingBox();
+    // Polled: the menu's pop-in scales it for a moment.
+    await expect
+      .poll(async () => {
+        const box = await langMenu.boundingBox();
+        return Math.abs(box.width - pillBox.width) < 1 && Math.abs(box.x - pillBox.x) < 1;
+      })
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(langMenu).toHaveCount(0);
     await page.getByRole("button", { name: /^Notifications and contact/ }).click();
     await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
     // No browser notification permission until a push channel exists (Q10).
@@ -108,6 +123,83 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
   } finally {
     const { enabled: _enabled, ...policy } = before;
     await context.request.put("/api/owner/preferences", { headers, data: { reach_me: policy } });
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("the new theme grows from its switch; without view transitions the thumb leads it", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/settings");
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    const html = page.locator("html");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // The new theme is on the page when the circle starts, and the circle takes 720 ms.
+    const reveal = await page.evaluate(async () => {
+      document.querySelector(".theme-switch").click();
+      const started = performance.now();
+      let circle;
+      while (!circle && performance.now() - started < 2000) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        circle = document
+          .getAnimations()
+          .find(
+            (animation) =>
+              animation.effect?.pseudoElement === "::view-transition-new(root)" &&
+              animation.effect.getKeyframes().some((frame) => "clipPath" in frame),
+          );
+      }
+      const timing = circle?.effect.getTiming();
+      return {
+        theme: document.documentElement.dataset.theme,
+        marked: document.documentElement.classList.contains("theme-vt"),
+        duration: timing?.duration,
+        easing: timing?.easing,
+      };
+    });
+    expect(reveal).toEqual({
+      theme: "light",
+      marked: true,
+      duration: 720,
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+    });
+    await expect(html).not.toHaveClass(/theme-vt/);
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    // A browser without view transitions: the thumb slides first, the theme follows after
+    // 280 ms, and a second tap meanwhile is ignored.
+    await page.addInitScript(() => {
+      Document.prototype.startViewTransition = undefined;
+    });
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    const lead = await page.evaluate(async () => {
+      const button = document.querySelector(".theme-switch");
+      button.click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const seen = {
+        thumb: button.classList.contains("is-dark"),
+        theme: document.documentElement.dataset.theme,
+        stored: localStorage.getItem("lonora.theme"),
+      };
+      button.click();
+      return seen;
+    });
+    expect(lead).toEqual({ thumb: true, theme: "light", stored: '"light"' });
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.waitForTimeout(400);
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // Reduced motion: the theme changes at once, with no reveal.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await toggle.click();
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).not.toHaveClass(/theme-vt/);
+  } finally {
     fixture({ ...data, action: "cleanup" });
   }
 });
@@ -253,6 +345,8 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
     await page.goto("/app/usage");
     await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
+    // Nothing used yet: each ranking says so, not an empty box.
+    await expect(page.getByText("No usage in this period.").first()).toBeVisible();
     await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
     const csv = page.getByRole("link", { name: "Export CSV" });
     await expect(csv).toHaveAttribute("href", /period=month/);
@@ -262,6 +356,187 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(
       "date,cost_usd,tokens,requests",
     );
+    // A browser quota in gigabytes reads in gigabytes.
+    await page.addInitScript(() => {
+      navigator.storage.estimate = async () => ({ usage: 2048, quota: 3 * 1024 ** 3 });
+    });
+    await page.goto("/app/storage");
+    await expect(page.getByText("3.00 GB")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("a trading account page shows the broker's own balance, name, server and pair icons", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const row = {
+      id,
+      agent_id: null,
+      thread_id: null,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+      state: {},
+      payload: { provider: "metaapi", account_id: "meta-1", region: "london", enabled: true },
+    };
+    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+    // The server's own shape: the account under `account`, beside its positions and orders.
+    await page.route(`**/api/trading/accounts/${id}`, (route) =>
+      route.fulfill({
+        json: {
+          account: {
+            id,
+            broker: "Northwind Markets",
+            login: "50012345",
+            server: "Northwind-Demo4",
+            currency: "USD",
+            balance: "10000.00",
+            equity: "10000.00",
+            margin: "0",
+            free_margin: "10000.00",
+            observed_at: now,
+          },
+          positions: [],
+          orders: [],
+        },
+      }),
+    );
+    await page.route("**/api/market/symbols?*", (route) =>
+      route.fulfill({ json: ["XAUUSDm", "EURUSDm"] }),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/app/broker-account/${id}`);
+    await expect(page.getByText("10000.00 USD")).toBeVisible();
+    await expect(page.getByText("Northwind Markets")).toBeVisible();
+    await expect(page.getByText("50012345")).toBeVisible();
+    await expect(page.getByText("Northwind-Demo4")).toBeVisible();
+    await expect(page.locator(".sym-cell")).toHaveCount(2);
+    await expect(page.locator(".sym-cell .pair-ic img").first()).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("Global models opens the models page; voice and trading keep their settings screens", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  await signIn(context, data);
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/settings");
+    await page.getByRole("button", { name: /^Voice/ }).click();
+    await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+    await expect(page.locator(".settings-nav button.selected")).toHaveText("Voice");
+    await expect(page.getByRole("heading", { name: "Realtime conversation" })).toBeVisible();
+    const tabs = page.locator(".settings-nav");
+    await tabs.getByRole("button", { name: "Trading", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Global trading settings" })).toBeVisible();
+    // The screen's «Global models» tab, the settings row and the old tab open the models page.
+    await tabs.getByRole("button", { name: "Global models", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/models$/);
+    await page.goto("/app/settings");
+    await page.getByRole("button", { name: /^Global models/ }).click();
+    await expect(page).toHaveURL(/\/app\/models$/);
+    // The server's provider state is this test's: no key until this page stores one.
+    const server = { configured: false, discovered: false, failDiscovery: false };
+    const calls = [];
+    const model = (id, name, verified) => ({
+      id,
+      provider: "openai",
+      name,
+      capabilities: ["conversation"],
+      verified,
+      source: "discovered",
+      context_window: null,
+    });
+    await page.route("**/api/providers", (route) =>
+      route.fulfill({ json: [{ id: "openai", configured: server.configured }] }),
+    );
+    await page.goto("/app/settings?tab=models");
+    await expect(page).toHaveURL(/\/app\/models$/);
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+    // No model yet: the page says where models come from and has no routing form. Main's
+    // catalog form is there, as in main's overlay, to add the first key.
+    await expect(
+      page.getByText("Models appear here after you add a model provider."),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
+    const discover = page.getByRole("button", { name: "Save and discover models" });
+    await expect(
+      page.getByRole("heading", { name: "Providers and official catalog" }),
+    ).toBeVisible();
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
+    await page.getByRole("button", { name: /^Model providers/ }).click();
+    await expect(page).toHaveURL(/\/app\/providers$/);
+    await page.route("**/api/providers/openai/models", (route) =>
+      route.fulfill({
+        json: [
+          model("gpt-test", "GPT Test", true),
+          ...(server.discovered ? [model("gpt-new", "GPT New", false)] : []),
+        ],
+      }),
+    );
+    await page.route("**/api/providers/openai/credential", (route) => {
+      calls.push(`credential ${route.request().postDataJSON().api_key}`);
+      server.configured = true;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/api/providers/openai/discover", (route) => {
+      calls.push("discover");
+      if (server.failDiscovery)
+        return route.fulfill({ status: 400, json: { code: "provider_discovery_failed" } });
+      server.discovered = true;
+      return route.fulfill({ json: [] });
+    });
+    await page.goto("/app/models");
+    await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
+    // Only the owner assigns an agent's model (main, Q20 a): no allowed-models list.
+    await expect(page.locator("[data-allowed-models]")).toHaveCount(0);
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/settings/models") && response.request().method() === "PUT",
+    );
+    await page.getByRole("button", { name: "Save global routing" }).click();
+    expect((await saved).ok()).toBe(true);
+    // Main's overlay, carried over: the discovered catalog with its metadata badge …
+    await expect(page.getByRole("heading", { name: "Discovered models (1)" })).toBeVisible();
+    await expect(
+      page.locator(".row").filter({ hasText: "GPT Test" }).getByText("Verified metadata"),
+    ).toBeVisible();
+    // … and «Save and discover models»: a key is needed until one is stored. A key stored
+    // before a failed discovery counts, so the owner can try again without typing it.
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
+    server.failDiscovery = true;
+    await page.getByLabel("API key").fill("sk-test-key-1234");
+    await discover.click();
+    await expect.poll(() => calls).toEqual(["credential sk-test-key-1234", "discover"]);
+    await expect(page.getByLabel("API key")).toHaveValue("");
+    await expect(page.getByText("Credential configured")).toBeVisible();
+    await expect(discover).toBeEnabled();
+    // Discovering again needs no key, and the page reads the catalog again in place.
+    server.failDiscovery = false;
+    calls.length = 0;
+    await discover.click();
+    await expect.poll(() => calls).toEqual(["discover"]);
+    await expect(page.getByRole("heading", { name: "Discovered models (2)" })).toBeVisible();
+    await expect(
+      page.locator(".row").filter({ hasText: "GPT New" }).getByText("Capabilities unverified"),
+    ).toBeVisible();
+    // Another provider without a key: the form asks for one.
+    await page.getByRole("combobox", { name: /^Provider/ }).selectOption("anthropic");
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

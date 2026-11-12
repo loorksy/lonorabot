@@ -54,7 +54,7 @@ Credentials stay server-side. Owner-supplied stdio commands are disabled before
 discovery or execution: environment filtering alone cannot isolate a process
 running as the Gateway user. Existing records remain listable. A future stdio
 implementation needs a real isolated transport with reviewed dependencies and
-explicit permissions; the analytical workspace is not an unrestricted substitute.
+explicit permissions; the owner's workspace is not a substitute for it.
 
 The HTTP path retains public-network validation, TLS and disabled redirects,
 bounds response bytes and whole-request time, rejects compressed responses before

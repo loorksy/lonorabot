@@ -18,24 +18,6 @@ const HISTORY: Text = {
 };
 
 const messages: Readonly<Record<string, Text>> = {
-  // One brake: Trading OFF and the legacy Emergency Stop are both "Stop new trading".
-  trading_disabled: {
-    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
-    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
-  },
-  // New trading was never started on this install: the agent raised a Start trading card.
-  trading_not_started: {
-    en: `New trading has not been started yet, so this was not sent. ${EXITS_EN} Tap Start trading on the card when you want agents to trade.`,
-    ar: `لم يبدأ التداول الجديد بعد، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «بدء التداول» في البطاقة متى أردت أن يتداول الوكلاء.`,
-  },
-  emergency_stop: {
-    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
-    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
-  },
-  trading_restriction_active: {
-    en: "A trading pause on this account or market blocks this request, so it was not sent. Only you can lift the pause.",
-    ar: "يمنع إيقافٌ للتداول على هذا الحساب أو السوق هذا الطلب، لذلك لم يُرسل. أنت وحدك من يمكنه رفع الإيقاف.",
-  },
   broker_reconciliation_required: {
     en: `A previous operation on this market still needs broker verification, so this request was not sent. ${EXITS_EN}`,
     ar: `عملية سابقة على هذا السوق ما زالت تحتاج إلى تحقق من الوسيط، لذلك لم يُرسل هذا الطلب. ${EXITS_AR}`,
@@ -94,34 +76,6 @@ const messages: Readonly<Record<string, Text>> = {
   order_filled_before_cancel: {
     en: "The order was filled before it could be cancelled. Check the resulting position.",
     ar: "نُفّذ الأمر قبل إلغائه. تحقّق من المركز الناتج.",
-  },
-  restriction_not_found: {
-    en: "This pause no longer exists. Reload the list.",
-    ar: "لم يعد هذا الإيقاف موجودًا. حدّث القائمة.",
-  },
-  restriction_window_invalid: {
-    en: "A pause must end in the future and after it starts.",
-    ar: "يجب أن ينتهي الإيقاف في المستقبل وبعد بدايته.",
-  },
-  restriction_time_zone_required: {
-    en: "Give the pause's start and end with a time zone.",
-    ar: "حدّد بداية الإيقاف ونهايته مع المنطقة الزمنية.",
-  },
-  restriction_owner_manual_agent_conflict: {
-    en: "A pause on your own orders applies to all agents, not to one agent.",
-    ar: "إيقاف أوامرك اليدوية يشمل كل الوكلاء، لا وكيلًا واحدًا.",
-  },
-  restriction_valid_until_required: {
-    en: "A pause an agent records for other agents needs an end time.",
-    ar: "الإيقاف الذي يسجله وكيل لوكلاء آخرين يحتاج إلى وقت انتهاء.",
-  },
-  restriction_window_too_long: {
-    en: "A pause an agent records for other agents can last at most 31 days.",
-    ar: "الإيقاف الذي يسجله وكيل لوكلاء آخرين لا يتجاوز 31 يومًا.",
-  },
-  restriction_account_required: {
-    en: "Choose the account for this pause.",
-    ar: "اختر الحساب لهذا الإيقاف.",
   },
   delete_blocked_unresolved_operation: {
     en: "This can’t be deleted yet: a trade linked to it still has no confirmed broker result. Settle that operation first; nothing was deleted.",

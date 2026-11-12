@@ -1,0 +1,1 @@
+<lonora_owner_command>The owner's latest message is the /summary command. Summarize this conversation for the owner: what was asked, what was decided or done, and what is still open. Use only what the conversation shows.</lonora_owner_command>

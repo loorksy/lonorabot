@@ -7,33 +7,30 @@ a money limit) also needs a verified passkey assertion bound to the card's paylo
 """
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
+from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
 from .trading import TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "resume_trading",
-    "lift_restriction",
     "resolve_operation",
     "set_account_limits",
     "grant_authority",
-    "trust_source",
     "connect_credential",
+    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
+    # straight to the encrypted store as workspace secrets; the agent learns "saved".
+    "secret",
     # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
     # other mode. It stays the agent's switch after a tap.
     "trading_mode",
 ]
-# Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
-# use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
-ModelCardKind = Literal["agent_model", "agent_model_changed"]
-MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
 # an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
 # only reports a tightened stop loss (undoing it would be a new financial modification).
@@ -44,9 +41,6 @@ GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 # pair on the account, every action and the owner's own positions, until stopped, with
 # no daily loss limit from the card). The account's own money limits bind both.
 GrantDelegation = Literal["custom", "full"]
-# trust_source: what the owner adds to the trusted list (an MCP server with the tools it
-# advertises now, a GitHub owner or repository, or a news feed's domain).
-TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
 # connect_credential: which secure form the card offers; "x" names an X MCP server.
 CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar", "broker"]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
@@ -63,13 +57,31 @@ AttestedOutcome = Literal["executed", "not_executed", "unknown"]
 CARD_ATTESTATION = "Owner attested via chat card; not broker confirmation."
 
 
+class SecretField(Contract):
+    """One field of a Secret card: its key names the saved value (an environment variable
+    name), its label is shown to the owner; ``secret`` masks it while it is typed.
+    Every value is stored encrypted, whatever ``secret`` says."""
+
+    key: str = Field(pattern=WORKSPACE_SECRET_NAME)
+    label: str = Field(min_length=1, max_length=60)
+    secret: bool = True
+
+
+class SecretCardSave(Contract):
+    """The owner's values for a Secret card's fields, by key; they go to the encrypted
+    store and are never kept on the card, in an event or in the conversation."""
+
+    values: dict[
+        Annotated[str, Field(pattern=WORKSPACE_SECRET_NAME)],
+        Annotated[str, Field(min_length=1, max_length=16000)],
+    ] = Field(min_length=1, max_length=8)
+
+
 class OwnerActionProposal(Contract):
     """Agent tool input. The server validates it against current state and stores the
     exact effect; the card's text comes from the records it names, never from here."""
 
     kind: OwnerActionKind
-    # lift_restriction: the active or scheduled restriction to lift.
-    restriction_id: str | None = Field(default=None, min_length=1, max_length=36)
     # resolve_operation: the uncertain (ambiguous) operation the owner settles.
     operation_id: str | None = Field(default=None, min_length=1, max_length=80)
     # set_account_limits: the account and the exact limit changes.
@@ -94,14 +106,13 @@ class OwnerActionProposal(Contract):
     # "full" preselects Full delegation when the owner's own message asked for it; the
     # other fields still shape the Custom choice the owner can switch back to.
     delegation: GrantDelegation | None = None
-    # trust_source: mcp_server takes connection_id (its tools are read from the server);
-    # the others take identifier ("owner", "owner/repository" or a feed domain).
-    source_kind: TrustSourceKind | None = None
-    connection_id: str | None = Field(default=None, min_length=1, max_length=80)
-    identifier: str | None = Field(default=None, min_length=1, max_length=300)
     # connect_credential: the form to offer; service "x" for an X MCP server (D3).
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
+    # secret: the card's label and its fields, in the owner's language. Each value is
+    # saved under its field's key, the name agents use for it.
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
@@ -110,25 +121,31 @@ class OwnerActionProposal(Contract):
             if self.model_dump(exclude={"kind", "agent_id"}, exclude_defaults=True):
                 raise ValueError("owner_action_fields_invalid")
             return self
-        if self.kind in {"trust_source", "connect_credential"}:
+        if self.kind == "secret":
+            return self.secret_card_fields()
+        if self.label is not None or self.secret_fields is not None:
+            raise ValueError("owner_action_fields_invalid")
+        if self.kind == "connect_credential":
             return self.capability_fields()
-        if any(
-            value is not None
-            for value in (
-                self.source_kind,
-                self.connection_id,
-                self.identifier,
-                self.target,
-                self.service,
-            )
-        ):
+        if self.target is not None or self.service is not None:
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
 
+    def secret_card_fields(self) -> "OwnerActionProposal":
+        if (
+            self.model_dump(exclude={"kind", "label", "secret_fields"}, exclude_defaults=True)
+            or self.label is None
+            or self.secret_fields is None
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        keys = [field.key for field in self.secret_fields]
+        if len(set(keys)) != len(keys):
+            raise ValueError("owner_action_secret_fields_duplicate")
+        return self
+
     def capability_fields(self) -> "OwnerActionProposal":
         if (
-            self.restriction_id
-            or self.operation_id
+            self.operation_id
             or self.account_id
             or self.set_limits
             or self.remove_limits
@@ -137,26 +154,8 @@ class OwnerActionProposal(Contract):
             or self.grant_fields()
         ):
             raise ValueError("owner_action_fields_invalid")
-        if self.kind == "connect_credential":
-            if (
-                self.target is None
-                or self.source_kind
-                or self.connection_id
-                or self.identifier
-                or (self.service is not None and self.target != "mcp_server")
-            ):
-                raise ValueError("owner_action_fields_invalid")
-            return self
-        if self.target is not None or self.service is not None or self.source_kind is None:
+        if self.target is None or (self.service is not None and self.target != "mcp_server"):
             raise ValueError("owner_action_fields_invalid")
-        if (self.source_kind == "mcp_server") != (self.connection_id is not None) or (
-            self.source_kind == "mcp_server"
-        ) == (self.identifier is not None):
-            raise ValueError("owner_action_fields_invalid")
-        if self.identifier is not None:
-            from .trusted_sources import normalize_identifier
-
-            self.identifier = normalize_identifier(self.source_kind, self.identifier)
         return self
 
     def grant_fields(self) -> bool:
@@ -182,13 +181,11 @@ class OwnerActionProposal(Contract):
         )
         grant = self.grant_fields()
         needed = {
-            "resume_trading": (),
-            "lift_restriction": ("restriction_id",),
             "resolve_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
             "grant_authority": (),
         }[self.kind]
-        for name in ("restriction_id", "operation_id", "account_id"):
+        for name in ("operation_id", "account_id"):
             if self.kind == "grant_authority" and name == "account_id":
                 continue  # Optional: the server resolves the obvious account.
             if (getattr(self, name) is not None) != (name in needed):
@@ -332,9 +329,8 @@ class ConnectedResource(Contract):
 
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
-    assertion a widening card requires (obtained from the card's challenge); ``tier`` is
-    what the owner trusts an MCP server for; ``connected`` names what a credential card's
-    form created.
+    assertion a widening card requires (obtained from the card's challenge); ``connected``
+    names what a credential card's form created.
 
     ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
     delegation) in its stored draft and settles nothing; signing still needs the
@@ -342,31 +338,20 @@ class OwnerActionDecision(Contract):
 
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
-    "none"), resuming new trading, and stopping other agents' grants on that market.
+    "none") and stopping other agents' grants on that market.
     """
 
     decision: Literal["confirm", "cancel", "choose"]
     # The Mandate card: the mode its button showed at the moment of the tap.
     trading_mode: TradingMode | None = None
     delegation: GrantDelegation | None = None
-    tier: Literal["read", "write_nonfinancial"] | None = None
     connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)
     broker_reference: str | None = Field(default=None, max_length=200)
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
-    resume_trading: bool = False
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
-    # A resolve card answered «غير معروف»: also pause new trades on its account until the
-    # end of the trading day (an owner restriction; it only narrows). Only with "unknown".
-    pause_new_today: bool = False
-
-    @model_validator(mode="after")
-    def pause_only_when_unknown(self) -> "OwnerActionDecision":
-        if self.pause_new_today and (self.decision != "confirm" or self.outcome != "unknown"):
-            raise ValueError("owner_action_pause_unknown_only")
-        return self
 
 
 class AccountAuthorityDraft(Contract):

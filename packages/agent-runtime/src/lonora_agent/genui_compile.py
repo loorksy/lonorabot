@@ -1,4 +1,4 @@
-"""Compile a lonora-ui v2 card against this request's evidence (GENUI_PLAN §9.2, §9.4, §9.6).
+"""Compile a lonora-ui v2 card against this request's evidence (docs/genui.md).
 
 Deterministic repair only (no second model call): facts resolve from this request's
 successful tool results; the card has one account, the account of its first
@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -20,6 +21,7 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import (
     INPUTS,
+    SLOT,
     TEXT_CAPS,
     CardError,
     Diagnostics,
@@ -33,6 +35,7 @@ from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_core.search_fold import fold
 
+from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
 
 PRIVATE_KEY = re.compile(
@@ -41,6 +44,20 @@ PRIVATE_KEY = re.compile(
 )
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
 DECIMAL = re.compile(r"^-?\d+(?:\.\d+)?$")
+UNBOUND = re.compile(r"\{\{\s*[A-Za-z_][\w.]*\s*\}\}")
+# Every node prop a client displays (a Slider's readout too); a copy action's text is read the
+# same way, since it reaches the clipboard and, when that fails, the card's notice.
+DISPLAYED = ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix", "show")
+
+
+def copy_text(node: dict[str, Any]) -> str | None:
+    action = node.get("action")
+    if isinstance(action, dict) and cast(dict[str, Any], action).get("do") == "copy":
+        text = cast(dict[str, Any], action).get("text")
+        return text if isinstance(text, str) else None
+    return None
+
+
 MAX_COLUMN = 100
 MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
@@ -50,7 +67,7 @@ DEFAULT_WHY = {
     "form": "نموذج قصير يجمع ما يحتاجه الطلب مرة واحدة ويمنع الأخطاء، بدل أسئلة متتالية.",
     "calculator": "حاسبة تفاعلية تجرّب فيها الأرقام بنفسك وترى النتيجة فورًا؛ أوضح من شرح نصي.",
     "diagram": "مستويات وأسهم تُظهر كيف تتصل الأجزاء في نظرة واحدة، أوضح من فقرات.",
-    "receipt": "تأكيد مختصر بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
+    "summary": "ملخص قصير بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
 }
 HEIGHTS = {
     "Segmented": 68,
@@ -68,6 +85,31 @@ HEIGHTS = {
     "Badge": 24,
     "More": 40,
 }
+# A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
+# journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
+# counts toward the 560 px budget like any block, and is never folded).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460}
+# What only the fixed cards and their trust frame say (the clients' own strings, both
+# languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
+FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
+FIXED_LABELS = (
+    "Approval request",
+    "طلب موافقة",
+    "Trading request",
+    "طلب تداول",
+    "Approve",
+    "موافقة",
+    "Reject",
+    "رفض",
+    "The broker did not confirm this trade",
+    "الوسيط لم يؤكد هذه الصفقة",
+    "It executed",
+    "نُفذت",
+    "It did not execute",
+    "لم تُنفذ",
+    "Unknown: release the hold",
+    "غير معروفة — ارفع التعليق",
+)
 
 
 @dataclass
@@ -108,7 +150,13 @@ def request_evidence(messages: list[ModelMessage]) -> dict[str, Evidence]:
     return evidence
 
 
-def _failed(data: Any) -> bool:
+# Lifecycle states of a journaled operation (lonora_contracts.trading.OperationStatus).
+OPERATION_STATUSES = frozenset(
+    {"reserved", "submitted", "confirmed", "failed", "ambiguous", "resolved"}
+)
+
+
+def failed(data: Any) -> bool:
     if not isinstance(data, dict):
         return False
     data = cast(dict[str, Any], data)
@@ -117,6 +165,46 @@ def _failed(data: Any) -> bool:
         or bool(data.get("error"))
         or str(data.get("status", "")).lower() in FAILED
     )
+
+
+def unconfirmed(data: Any) -> bool:
+    """A journaled operation the broker has not confirmed: an object naming an
+    ``operation_id`` whose own status (or its ``result``'s, as in a journal excerpt) is not
+    ``confirmed``. An agent can never draw such an operation as done (10.3, 6.10)."""
+    if not isinstance(data, dict) or "operation_id" not in data:
+        return False
+    data = cast(dict[str, Any], data)
+    status = data.get("status")
+    nested = data.get("result")
+    if status is None and isinstance(nested, dict):
+        status = cast(dict[str, Any], nested).get("status")
+    return str(status).lower() != "confirmed"
+
+
+def holds_unconfirmed(data: Any, depth: int = 0) -> bool:
+    """Whether a result names, anywhere within it, an operation the broker has not
+    confirmed."""
+    if depth > 6:
+        return False
+    if unconfirmed(data):
+        return True
+    if isinstance(data, dict):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(dict[str, Any], data).values())
+    if isinstance(data, list):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(list[Any], data))
+    return False
+
+
+def unusable(data: Any) -> bool:
+    """Not usable as card evidence: a failed result or an unconfirmed operation."""
+    return failed(data) or unconfirmed(data)
+
+
+def _refuse(data: Any) -> None:
+    if unconfirmed(data):
+        raise ValueError("genui_fact_unconfirmed")
+    if failed(data):
+        raise ValueError("genui_fact_failed")
 
 
 def _scalar(value: Any) -> Any:
@@ -143,13 +231,14 @@ def _bounded(value: Any, depth: int, count: list[int]) -> Any:
         for key, item in cast(dict[str, Any], value).items():
             if PRIVATE_KEY.search(key):
                 raise ValueError("genui_fact_private")
-            if _failed(item):
-                raise ValueError("genui_fact_failed")
+            _refuse(item)
             result[key] = _bounded(item, depth + 1, count)
         return result
     if isinstance(value, list):
         if depth >= 3:
             raise ValueError("genui_fact_too_deep")
+        for item in cast(list[Any], value):
+            _refuse(item)
         return [_bounded(item, depth + 1, count) for item in cast(list[Any], value)]
     count[0] += 1
     if count[0] > MAX_OBJECT_SCALARS:
@@ -164,8 +253,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
     if tokens.count("*") > 1:
         raise ValueError("genui_fact_path_invalid")
     for index, token in enumerate(tokens):
-        if _failed(data):
-            raise ValueError("genui_fact_failed")
+        _refuse(data)
         if isinstance(data, dict):
             data = cast(dict[str, Any], data)
             for key in ("observed_at", "timestamp", "updated_at", "as_of"):
@@ -190,11 +278,12 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
         elif isinstance(data, list) and token.isdigit() and int(token) < len(cast(list[Any], data)):
             data = cast(list[Any], data)[int(token)]
         elif isinstance(data, list) and token == "length":
+            for item in cast(list[Any], data):
+                _refuse(item)
             data = len(cast(list[Any], data))
         else:
             raise ValueError("genui_fact_path_unknown")
-    if _failed(data):
-        raise ValueError("genui_fact_failed")
+    _refuse(data)
     if isinstance(data, dict | list):
         return _bounded(data, 0, [0]), observed
     return _scalar(data), observed
@@ -267,18 +356,24 @@ def _numbers(value: Any) -> set[Decimal]:
     return found
 
 
-def _read_values(value: Any) -> set[Decimal]:
-    """Price-like values only: the PRICE_KEYS fields of a quote or account result."""
+# A trade result's own numbers, beside its prices: tickets and volumes.
+TRADE_KEYS = frozenset({"broker_id", "position_id", "order_id", "deal_id", "ticket", "volume"})
+
+
+def _read_values(value: Any, extra: frozenset[str] = frozenset()) -> set[Decimal]:
+    """Price-like values only: the PRICE_KEYS fields of a quote or account result (and
+    ``extra`` fields, for a trade result)."""
     found: set[Decimal] = set()
     if isinstance(value, dict):
         for key, item in cast(dict[str, Any], value).items():
-            if (key in PRICE_KEYS or PRICE_KEY.search(key)) and not isinstance(item, dict | list):
+            listed = key in PRICE_KEYS or key in extra or PRICE_KEY.search(key)
+            if listed and not isinstance(item, dict | list):
                 found |= _numbers(item)
             else:
-                found |= _read_values(item)
+                found |= _read_values(item, extra)
     elif isinstance(value, list):
         for item in cast(list[Any], value):
-            found |= _read_values(item)
+            found |= _read_values(item, extra)
     return found
 
 
@@ -300,8 +395,12 @@ def typed_fact_numbers(
     action data, in any digits. Numbers the owner typed are theirs to show."""
     read: set[Decimal] = set()
     for item in evidence.values():
-        if FACT_TOOLS.match(item.name) and not _failed(item.result):
+        if FACT_TOOLS.match(item.name) and not failed(item.result):
             read |= {n for n in _read_values(item.result) if _significant(n)}
+        elif item.name.startswith("trade_") and not failed(item.result):
+            # A trade's ticket, volume and prices are cited, never typed: typed, they
+            # could state an operation the broker has not confirmed as done (10.3).
+            read |= {n for n in _read_values(item.result, TRADE_KEYS) if _significant(n)}
     said = _numbers(owner)
     shown = {key: value for key, value in head.items() if key not in {"facts", "v"}}
     literals: list[Any] = [shown, state, calc, blocks]
@@ -332,12 +431,119 @@ class AgentScope:
     agent_id: str = ""
     bound_account: str | None = None
     bound_symbol: str | None = None
-    # More than one enabled account: an alert's bubble must name its account (§8.3), so
+    # More than one enabled account: an alert's bubble must name its account (docs/genui.md §7), so
     # an account without a verified broker label is listed here as unnamed.
     several_accounts: bool = False
     # The accounts this request read that the server can name (owner-checked, read
     # directly, never from a bounded list).
     named_accounts: frozenset[str] = frozenset()
+    # ``(card, record id)`` of the records this card's slots name that exist, belong to
+    # this owner and sit in this conversation (``lonora_db.genui_slots``).
+    slot_records: frozenset[tuple[str, str]] = frozenset()
+
+
+# Look-alike letters read as the letter they imitate: Cyrillic and Greek for Latin
+# ("Аpprove"), Persian yeh and keheh for Arabic.
+CONFUSABLES = str.maketrans(
+    "аАвВеЕкКмМнНоОрРсСтТуУхХіІјЈѕЅԁαΑβΒεΕηΗιΙκΚμΜνΝοΟρΡτΤυΥχΧیک",
+    "aAbBeEkKmMhHoOpPcCtTyYxXiIjJsSdaAbBeEnHiIkKmMvNoOpPtTuYxXيك",
+)
+
+
+def _plain(text: str) -> str:
+    """The comparable form: compatibility forms unified, invisible format characters (zero
+    width joiners and spaces, direction marks) removed, look-alike letters read as Latin, then
+    folded before punctuation becomes space, so Arabic diacritics never split a word."""
+    text = unicodedata.normalize("NFKC", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    return " ".join(re.sub(r"[^\w\s]", " ", fold(text.translate(CONFUSABLES))).split())
+
+
+FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
+# The frame's own icon: an agent's node never wears it.
+FRAME_ICON = "shield"
+LITERAL = re.compile(r"'([^']*)'")
+
+
+def shows_frame_mark(text: str) -> bool:
+    """Text that says what only the trust frame says."""
+    plain = f" {_plain(text)} "
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
+
+
+# What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).
+SEGMENTS = re.compile(r"\s*[·•:|/\u2013\u2014-]\s*")
+
+
+def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
+    """A label an agent's node shows that says what only a fixed card or its trust frame says.
+    A heading is refused when it, or one of its separated segments, is a fixed card's words
+    («طلب موافقة · XAUUSD»), never for a sentence that starts with them («يستأذن قبل كل صفقة»).
+    A Button's label is refused when it even starts with them («Approve trade»): a control is
+    what a fixed card's buttons are."""
+    if shows_frame_mark(text):
+        return True
+    plain = _plain(text)
+    if control:
+        return any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
+    return plain in FIXED_PLAIN or any(
+        _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
+    )
+
+
+# Props whose text heads or labels something, the way a fixed card's title and buttons do.
+LABEL_PROPS = ("label", "title", "show")
+LABEL_TEXT_NODES = frozenset({"Badge", "Title"})
+BODY_PROPS = ("text", "hint", "sub", "value", "suffix", "prefix")
+
+
+def imitation(
+    head: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    envs: list[Any],
+    why: str | None,
+    fallback: str | None,
+) -> bool:
+    """Whether the agent's own card looks like a fixed card (mandate 10.2.2): the frame's icon,
+    a heading or control label a fixed card shows, or the frame's words anywhere shown. Each
+    template is read as written, at each sampled state and by every quoted literal in it."""
+    if head.get("icon") == FRAME_ICON:
+        return True
+    labels: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+    controls: list[str] = []
+    body: list[str] = [why or "", fallback or ""]
+    for _path, node in walk(blocks):
+        if node.get("icon") == FRAME_ICON:
+            return True
+        for name in LABEL_PROPS:
+            if isinstance(node.get(name), str):
+                (controls if node["type"] == "Button" else labels).append(node[name])
+        for name in BODY_PROPS:
+            if isinstance(node.get(name), str):
+                (labels if node["type"] in LABEL_TEXT_NODES else body).append(node[name])
+        for option in cast(list[Any], node.get("options", [])):
+            shown = cast(dict[str, Any], option).get("label") if isinstance(option, dict) else None
+            shown = (
+                (cast(dict[str, Any], option).get("value") if shown is None else shown)
+                if isinstance(option, dict)
+                else option
+            )
+            if shown is not None:
+                labels.append(show(shown))
+        for row in node.get("rows", []):
+            body.extend(cell for cell in row if isinstance(cell, str))
+
+    def readings(text: str) -> list[str]:
+        found = [text, *LITERAL.findall(text)]
+        found.extend(render_template(text, env) for env in envs)
+        return found
+
+    return (
+        any(imitates_fixed_card(t) for text in labels for t in readings(text))
+        or any(imitates_fixed_card(t, control=True) for text in controls for t in readings(text))
+        or any(shows_frame_mark(t) for text in body for t in readings(text))
+    )
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
@@ -359,7 +565,7 @@ def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, An
 
 def owner_words(messages: list[ModelMessage]) -> str:
     """The owner's latest typed message; a card's send is card words, never the owner's
-    (its projection starts ``[owner_via_card``, GENUI_PLAN §8.4)."""
+    (its projection starts ``[owner_via_card``, docs/genui.md)."""
     return next(
         (
             m.content
@@ -406,6 +612,8 @@ def _node_height(node: dict[str, Any]) -> int:
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
+    if kind == SLOT:
+        return SLOT_HEIGHTS[node["card"]]
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -436,13 +644,23 @@ def compile_card(
     state: dict[str, Any] = dict(data.get("state", {}))
     calc: dict[str, Any] = dict(data.get("calc", {}))
     evidence = request_evidence(messages)
+    if any(
+        item.name in FINANCIAL_CALLS and holds_unconfirmed(item.result)
+        for item in evidence.values()
+    ):
+        # An order or close of this request the broker has not confirmed: the reply is text
+        # only, so no card, cited or not, can read as done (10.3, 6.4).
+        raise CardError("card_fallback_unconfirmed")
 
     # Facts, and the card's one account (the first account-bearing fact, as written).
     facts: dict[str, dict[str, Any]] = {}
     account: str | None = None
     for key, reference in cast(dict[str, dict[str, str]], data.get("facts", {})).items():
         item = evidence.get(reference["call"])
-        if item is None or _failed(item.result):
+        if item is not None and unconfirmed(item.result):
+            # No part of a card may present an operation the broker has not confirmed.
+            raise CardError("card_fallback_unconfirmed")
+        if item is None or failed(item.result):
             facts[key] = {"value": None, "source": item.name if item else "unknown"}
             continue
         call_account = _call_account(item, scope.bound_account)
@@ -453,10 +671,17 @@ def compile_card(
                 raise CardError("card_fallback_account")
         try:
             value, observed = resolve_pointer(item.result, reference["path"])
-        except (ValueError, RecursionError):
+        except ValueError as error:
+            if str(error) == "genui_fact_unconfirmed":
+                raise CardError("card_fallback_unconfirmed") from None
+            value, observed = None, None
+        except RecursionError:
             value, observed = None, None
         if isinstance(value, str):
             value = redact_private_reply(value, public_ids=public_ids)
+        if observed is not None:
+            # Source metadata is shown too (the why panel's time): filtered like values.
+            observed = redact_private_reply(observed, public_ids=public_ids)
         facts[key] = {
             "value": value,
             "source": item.name[:80],
@@ -471,7 +696,7 @@ def compile_card(
         raise CardError("card_fallback")
     if head.get("mode") == "observed" and not facts:
         # No fact declared: the card shows no market or account number, so it is never
-        # labelled observed (§9.4, mode_checked).
+        # labelled observed (mode_checked).
         head.pop("mode")
         diagnostics.add("mode_checked", None, "head")
     elif head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):
@@ -502,7 +727,7 @@ def compile_card(
     # Symbols verified this turn on the card's account.
     verified: set[str] = set()
     for item in evidence.values():
-        if _failed(item.result) or not isinstance(item.result, dict):
+        if unusable(item.result) or not isinstance(item.result, dict):
             continue
         if account is not None and _call_account(item, scope.bound_account) != account:
             continue
@@ -514,14 +739,25 @@ def compile_card(
 
     watch_ids: set[str] = set()
     for item in evidence.values():
-        if item.name.startswith("watch_") and not _failed(item.result):
+        if item.name.startswith("watch_") and not unusable(item.result):
             if isinstance(item.record.get("id"), str):
                 watch_ids.add(item.record["id"])
             for watch in cast(list[Any], item.record.get("watches") or []):
                 entry = cast(dict[str, Any], watch) if isinstance(watch, dict) else {}
                 if isinstance(entry.get("id"), str):
                     watch_ids.add(entry["id"])
-    blocks = [dict(block) for block in card.blocks]
+    blocks: list[dict[str, Any]] = []
+    for index, block in enumerate(card.blocks):
+        if block["type"] == SLOT:
+            # A slot shows a real record of this owner and conversation, of its own kind,
+            # once (mandate 10.2.1); anything else is refused and the card falls back.
+            if (block["card"], block["record"]) not in scope.slot_records:
+                diagnostics.add("slot_refused", index, SLOT)
+                raise CardError("card_fallback_slot")
+            if any(b["type"] == SLOT and b["record"] == block["record"] for b in blocks):
+                diagnostics.add("block_dropped", index, SLOT)
+                continue
+        blocks.append(dict(block))
     sends: list[dict[str, Any]] = []
     urls = _owner_urls(messages, evidence) if final else set[str]()
 
@@ -680,7 +916,7 @@ def compile_card(
     def rendered(at: Any) -> list[str]:
         out = [render_template(head["title"], at), render_template(head.get("sub") or "", at)]
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     out.append(render_template(node[name], at))
             for option in cast(list[Any], node.get("options", [])):
@@ -695,6 +931,9 @@ def compile_card(
                     out.append(show(option))  # a plain option is shown raw
             for row in node.get("rows", []):
                 out.extend(render_template(c, at) for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                out.append(render_template(copied, at))
         return out
 
     def raw() -> list[str]:
@@ -703,7 +942,7 @@ def compile_card(
         found: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
         found.extend(str(v) for v in calc.values() if isinstance(v, str))
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     found.append(node[name])
             for option in cast(list[Any], node.get("options", [])):
@@ -716,6 +955,9 @@ def compile_card(
                     found.append(show(option))
             for row in node.get("rows", []):
                 found.extend(c for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                found.append(copied)
         return found
 
     states: list[dict[str, Any]] = [state]
@@ -729,13 +971,20 @@ def compile_card(
             extra = cast(dict[str, Any], also) if isinstance(also, dict) else {}
             states.append({**state, bind: item.get("value"), **extra})
     strings: list[str] = []
-    for at in states[:24]:
-        strings.extend(rendered(environment(at, calc, fact_values)))
+    envs = [environment(at, calc, fact_values) for at in states[:24]]
+    for at_env in envs:
+        strings.extend(rendered(at_env))
     strings.extend(raw())
     strings.extend(str(v) for v in state.values() if isinstance(v, str))
     for text in strings:
         if public_reply_violation(text, public_ids=public_ids):
             raise CardError("card_fallback_private")
+        if UNBOUND.search(text):
+            # A placeholder the card computes but never fills is never shown (review).
+            raise CardError("card_fallback_binding")
+    if imitation(head, blocks, envs, card.why, card.fallback):
+        # Only a slot shows a fixed card; the agent's own nodes never look like one.
+        raise CardError("card_fallback_imitation")
     if not final:
         from .public_stream import EFFECT_CLAIM
 
@@ -749,7 +998,7 @@ def compile_card(
 
     def protected(block: dict[str, Any]) -> bool:
         for _p, n in walk([block]):
-            if n["type"] in {"Delivery"} or (
+            if n["type"] in {"Delivery", SLOT} or (
                 n["type"] == "Button" and n.get("action", {}).get("do") == "send"
             ):
                 return True
@@ -822,11 +1071,15 @@ def compile_card(
 
 
 def generated_fallback(head: dict[str, Any], blocks: list[dict[str, Any]], env: Any) -> str:
-    """Headings, labels, KeyValue rows and list items as Markdown."""
+    """Headings, text, KeyValue rows, Stats and inputs as Markdown."""
     lines = [f"**{head['title']}**"]
     for _path, node in walk(blocks):
-        if node["type"] in {"Text", "Note", "Title"}:
+        if node["type"] in {"Text", "Note", "Title", "Markdown", "Badge"}:
             lines.append(render_template(node["text"], env))
+        elif node["type"] == "Stat":
+            lines.append(
+                f"- **{render_template(node['label'], env)}:** {render_template(node['value'], env)}"
+            )
         elif node["type"] == "KeyValue":
             lines.extend(
                 f"- **{render_template(str(k), env)}:** {render_template(str(v), env)}"

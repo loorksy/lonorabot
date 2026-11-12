@@ -59,9 +59,7 @@ fresh broker target read at the boundary:
 Everything else — entries, pending-order edits, take-profit changes, removing or
 widening protection — is risk-increasing.
 
-- Stop new trading (Trading OFF or the legacy Emergency Stop flag, one brake in the
-  clients, see `trading-safety.md`) rejects risk-increasing requests only. A
-  risk-reducing request stays admissible on every path; this relaxes no
+- A risk-reducing request stays admissible on every path; this relaxes no
   authorization (owner session, exact approval or matching signed grant still apply,
   and the lease, preflight and broker checks still run).
 - An unresolved operation (`submitted` or `ambiguous`) blocks new risk-increasing
@@ -79,19 +77,17 @@ widening protection — is risk-increasing.
   be verified, which is a different cause than a previous operation — but still
   admits exits.
 
-## Owner restrictions and monetary limits at the send boundary
+## Monetary limits at the send boundary
 
 After the execution-quality gate and global controls, `before_send` evaluates the
 owner's monetary limits (`ExecutionPolicy.risk`, `lonora_trading/risk_limits.py`) from
 fresh broker economics for any request that is not risk-reducing. Open risk counts
 `submitted` and `ambiguous` entries and confirmed entries awaiting verification whose
-ticket is not yet visible, so an unresolved operation can never free risk budget. The
-final transaction then checks owner restrictions (`lonora_trading/restrictions.py`)
-under a shared restriction lock before moving the row to `submitted`. Either block is
-recorded on the reserved row (`details.risk_assessment`, `details.admission_block`)
-and concluded as `failed` with `send_state: not_sent`; `persist_result` keeps both as
-server evidence. Neither ever blocks a risk-reducing request, except an explicit
-`all_mutations` restriction. See `account-authority.md` for the semantics.
+ticket is not yet visible, so an unresolved operation can never free risk budget. A
+block is recorded on the reserved row (`details.risk_assessment`,
+`details.admission_block`) and concluded as `failed` with `send_state: not_sent`;
+`persist_result` keeps both as server evidence. A limit never blocks a risk-reducing
+request. See `account-authority.md` for the semantics.
 
 ## Observe-only recovery
 
@@ -196,9 +192,9 @@ close-all) is a set of independent exits: no close depends on another, each one 
 admitted again against its own fresh broker target under the send lock, and admission
 never blocks a risk-reducing exit. Both the standing-authority and approval paths
 therefore send every close of such a batch, whatever the result of the others: a close
-whose reviewed position was stopped out or changed fails on its own, a close blocked by
-a restriction is reported on its own, and a lost response leaves only that close
-`ambiguous`. Calling the identical close-all again replays the completed approval.
+whose reviewed position was stopped out or changed fails on its own, and a lost
+response leaves only that close `ambiguous`. Calling the identical close-all again
+replays the completed approval.
 
 Any other multi-request batch is treated as a dependent sequence: both paths stop after
 the first result that is not `confirmed`, and the remaining requests are reported as
@@ -214,16 +210,14 @@ Today every other caller (`trade_execute`) submits a single request.
 - `tests/check_execution_recovery.py` (disposable PostgreSQL, simulation broker,
   real child processes): crash before send, interruption after submission before
   acknowledgement (Owner addendum §6 step 7: blocked new risk, traceable operation,
-  no resend), scoped blocking versus reduce-only admission under Emergency Stop,
-  Trading OFF, degraded and disconnected recovery, owner attestation through the API,
+  no resend), scoped blocking versus reduce-only admission on the uncertain market,
+  degraded and disconnected recovery, owner attestation through the API,
   a crashed submission whose broker observation keeps failing (held send lock, then
   ambiguous and owner-resolvable), a sibling that waits for a definitive rejection
   under the send lock, modify/cancel target-state reconciliation, verification
   recheck, an approved close-all that keeps sending its other exits after a stopped-out
   position and after a lost response, and approved agent cards that close, cancel and
-  tighten under Emergency Stop and Trading OFF while entries stay blocked.
-- `tests/check_account_authority.py`: a signed-grant agent closes, cancels and
-  tightens under Trading OFF and Emergency Stop; entries and wider stops stay blocked.
+  tighten on an uncertain market while entries and wider stops there stay blocked.
 - `tests/check_opportunity_runtime.py`: owner attestations settle a thesis entry
   link (`not_executed` releases it, `executed` acts on it), an observed-closed entry
   position completes its thesis, and an expired thesis whose entry settles late or
@@ -233,7 +227,7 @@ Today every other caller (`trade_execute`) submits a single request.
 
 ## Durable records and deletes
 
-Journal rows, approvals, grants, restrictions and retired Super Bot
+Journal rows, approvals, grants and retired Super Bot
 requests survive the agent, conversation, Run or broker connection they name (migration
 `0036_durable_records`). A delete of an agent, a conversation or a broker connection is
 refused with `delete_blocked_unresolved_operation` while an operation it touches has no

@@ -11,6 +11,7 @@ import type {
 import { Icon } from "@lonora/ui-web";
 import { type FormEvent, useState } from "react";
 import { api } from "../../lib/api";
+import { brokerIdentity } from "../../lib/broker-identity";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
@@ -37,8 +38,9 @@ const levelText = (server: CapabilityServer) => {
 
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
-   allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). */
+   allow list (Q55). Telegram delivers to the owner's paired chat the same alerts a push carries
+   (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
+   never decides a card. */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
@@ -470,6 +472,8 @@ export function IntegrationsPage() {
         <div className="group">
           {linked.map((row) => {
             const count = data.agents.filter((agent) => agent.trading_account_id === row.id).length;
+            const identity = brokerIdentity(row);
+            const demo = row.payload.provider === "simulation";
             return (
               <NavRow
                 key={row.id}
@@ -478,11 +482,18 @@ export function IntegrationsPage() {
                     <Icon name="trend" />
                   </span>
                 }
-                label={<span className="ltr">{row.payload.account_id}</span>}
+                label={
+                  <>
+                    <bdi>{identity?.broker ?? (demo ? t`Demo account` : "MetaApi")}</bdi> ·{" "}
+                    <span className="ltr">{identity?.login ?? row.payload.account_id}</span>
+                  </>
+                }
                 sub={
-                  row.payload.provider === "simulation"
+                  demo
                     ? t`Demo · ${agentsCount(count)}`
-                    : `MetaApi · ${agentsCount(count)}`
+                    : identity?.broker
+                      ? `MetaApi · ${agentsCount(count)}`
+                      : agentsCount(count)
                 }
                 to={`/app/broker-account/${row.id}`}
               />
@@ -613,9 +624,9 @@ export function IntegrationsPage() {
             <small>
               {telegram
                 ? telegramAgent
-                  ? t`Linked · messages to the bot reach ${telegramAgent}`
-                  : t`Linked · messages to the bot reach an agent`
-                : t`Not linked · messages to a bot can reach an agent`}
+                  ? t`Linked · alerts reach your chat, your messages reach ${telegramAgent}`
+                  : t`Linked · alerts reach your chat, your messages reach an agent`
+                : t`Not linked · alerts can reach you in Telegram`}
             </small>
           </span>
           {telegram ? (
