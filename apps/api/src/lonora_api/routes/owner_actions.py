@@ -6,7 +6,6 @@ expired with its reason), is idempotent per card, and then runs the existing own
 function for its effect: Stop/Resume (``apply_controls``), the owner attestation of an
 uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
-an agent's model choice (``apply_agent_model``, W15-10: using a model, or Undo),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
@@ -45,7 +44,6 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import (
     CARD_ATTESTATION,
-    MODEL_CARD_KINDS,
     GrantDraft,
     OwnerActionChallenge,
     OwnerActionDecision,
@@ -62,7 +60,6 @@ from lonora_db.agent_creation import (
 from lonora_db.authority_lock import authority_lock
 from lonora_db.capability_cards import connected_result, review_writes
 from lonora_db.integrations import subscribe_feed
-from lonora_db.model_cards import confirm_model_card, supersede_agent_model_cards
 from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     account_policy,
@@ -387,8 +384,6 @@ async def decide(
             },
         )
         result = {"outcome": body.outcome}
-    elif row.kind in MODEL_CARD_KINDS:
-        result = await confirm_model_card(session, row)
     elif row.kind == "grant_authority":
         if body.proof is None:
             raise LonoraError("owner_action_passkey_required", 403)
@@ -483,11 +478,6 @@ async def decide(
         keep=row.id,
         effect=row.payload_hash,
     )
-    if row.kind in MODEL_CARD_KINDS:
-        # The owner chose this agent's model: other requests and Undo about it end.
-        await supersede_agent_model_cards(
-            session, owner.id, row.payload["agent_id"], "owner_changed_model", keep=row.id
-        )
     await confirm_in_thread(session, row)
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.

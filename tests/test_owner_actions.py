@@ -243,16 +243,6 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.ImportFrom) and node.module == "lonora_db.owner_actions":
                 assert {alias.name for alias in node.names} <= allowed, path
-            if isinstance(node, ast.ImportFrom) and node.module == "lonora_db.model_cards":
-                # A model card is raised by model_request; only the owner confirms it.
-                # model_label only reads a model's catalog name.
-                assert {alias.name for alias in node.names} <= {
-                    "hold_model_cards",
-                    "model_label",
-                    "raise_model_card",
-                    "request_payload",
-                    "undo_payload",
-                }, path
             if isinstance(node, ast.ImportFrom) and node.module and "routes" in node.module:
                 raise AssertionError(f"{path} imports an API route")
     from fastapi.routing import APIRoute

@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import Contract, utcnow
@@ -70,7 +70,7 @@ async def connect(
     config = BrokerConnection.model_validate(body.model_dump(exclude={"api_key"}))
     return await connect_account(
         rt.db,
-        EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
+        BrokerSecrets(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id),
         owner.id,
         config,
         body.api_key,

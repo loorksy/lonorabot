@@ -18,6 +18,7 @@ from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
+from lonora_tools.provenance import mark_external_content
 from lonora_tools.registry import ToolRegistry
 
 from ..context_engine import resolve_limits
@@ -25,7 +26,7 @@ from ..progress import progress
 from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
-from .attachments import attachment_parts
+from .attachments import attachment_parts, third_party_attachment
 from .decisions import decision_context
 from .environment import operational_context
 from .governance import govern_context
@@ -137,6 +138,13 @@ async def build_context(
             "attachments",
             attachment_parts(session, context.owner_id, thread.id, focus, context.artifact_root),
         )
+        if attachments and await third_party_attachment(
+            session, context.owner_id, thread.id, focus
+        ):
+            # A file's text is someone else's words: the run no longer stands for the
+            # owner's typed message alone (6.10).
+            async with context.db.sessions() as marking, marking.begin():
+                await mark_external_content(marking, run.id, "owner_attachment")
         gap = await timed(
             "history_gap", history_gap(session, thread.id, run.input_seq, thread.summary_seq)
         )

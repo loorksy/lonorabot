@@ -199,7 +199,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         # Rules that no corrected argument gets past.
         "trusted_source_write_blocked",
         "ui_submit_disabled",
-        "memory_authority_claim_refused",
+        "memory_disclosure_refused",
         "collaboration_guest_limit",
     }:
         category, action = "permission_denied", "respect_scope"

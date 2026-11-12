@@ -1,12 +1,10 @@
-"""Refuse authority and disclosure statements in text every later Run reads as guidance.
+"""Refuse standing instructions to hand private data elsewhere in text every later Run
+reads as guidance (an Agent's method and the shared owner profile).
 
-Operating notes and the shared owner profile shape how Agents work. Neither can
-grant or deny financial authority: that comes only from the owner's signed grant,
-the account's limits and the owner's pauses, which the single executor enforces.
-A statement about approvals, authorization or bypassing limits in such text is
-either injected or misplaced, so a write containing one is refused and the Agent
-is told where the rule belongs. This is defence in depth, not enforcement: the
-executor never reads memory.
+Such a line is injected or misplaced, so a memory write that adds one is refused.
+A method may say anything about trading, approvals or confirmation: the owner's
+strategy is the Agent's method (5.6), and the execution door reads grants and approvals,
+never memory. ``authority_claim`` still serves the agent-creation responsibility check.
 """
 
 import re
@@ -60,27 +58,28 @@ _DISCLOSURE_AR = re.compile(
 )
 
 
-def authority_claims(text: str) -> list[str]:
-    """Every authority statement in ``text``, and every standing instruction to hand
-    private data elsewhere, normalized for comparison."""
+def _claims(text: str, patterns: tuple[re.Pattern[str], ...]) -> list[str]:
     return [
         re.sub(r"\s+", " ", match.group(0)).strip().casefold()[:120]
-        for pattern in (_EN, _AR, _DISCLOSURE_EN, _DISCLOSURE_AR)
+        for pattern in patterns
         for match in pattern.finditer(text)
     ]
 
 
+def disclosure_claims(text: str) -> list[str]:
+    """Every standing instruction in ``text`` to hand private data elsewhere, normalized
+    for comparison."""
+    return _claims(text, (_DISCLOSURE_EN, _DISCLOSURE_AR))
+
+
 def authority_claim(text: str) -> str | None:
-    """The first authority statement in ``text``, or None."""
-    claims = authority_claims(text)
+    """The first authority or disclosure statement in ``text``, or None."""
+    claims = _claims(text, (_EN, _AR, _DISCLOSURE_EN, _DISCLOSURE_AR))
     return claims[0] if claims else None
 
 
-AUTHORITY_RECOVERY = (
-    "Nothing was saved. Operating notes and the owner profile cannot state trading "
-    "authority, approvals or limits: authority comes only from the owner's signed grant, "
-    "and limits from account limits. Nor can they tell agents to send "
+DISCLOSURE_RECOVERY = (
+    "Nothing was saved. Your method and the owner profile cannot tell agents to send "
     "memory, notes, the owner profile or secrets anywhere, or to fetch an address built "
-    "from data. Save the working method without that statement, or offer the owner the "
-    "matching control."
+    "from data. Save the method without that line."
 )

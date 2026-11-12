@@ -31,25 +31,23 @@ export type Model = {
   source: string;
   context_window: number | null;
 };
-/** "automatic": Lonora chooses (the owner's default model; the agent may switch itself
- * among the allowed models). "fixed": the owner chose one model; only the owner changes it. */
-export type AgentModelMode = "automatic" | "fixed";
 export type AgentModelPreference = { primary: Selection | null; fallbacks: Selection[] };
-export type AgentModelState = { mode: AgentModelMode; preference: AgentModelPreference };
-/** One agent's model choice (lonora_db.agent_models); it never grants authority. */
+/**
+ * One agent's model choice (lonora_db.agent_models); it never grants authority. Only the
+ * owner assigns one; "inherited" is Lonora's model, copied when the agent was created.
+ */
 export type AgentModelRecord = {
   owner_id: string;
   agent_id: string;
   revision: number;
-  mode: AgentModelMode;
   preference: AgentModelPreference;
-  chosen_by: "owner" | "agent" | null;
+  chosen_by: "owner" | "inherited" | null;
   chosen_by_agent_id: string | null;
-  previous: AgentModelState | null;
+  previous: AgentModelPreference | null;
   changed_at: string | null;
 };
+/** The owner's choice; no primary means the owner's default model. */
 export type AgentModelChange = {
-  mode: AgentModelMode;
   primary?: Selection | null;
   fallbacks?: Selection[];
   expected_revision?: number;
@@ -93,7 +91,6 @@ export type AgentUsageReport = {
 export type AgentModelSummary = {
   record: AgentModelRecord;
   current: ModelLabel;
-  allowed: ModelLabel[];
   available: Array<{ provider: Provider; model: string; name: string }>;
   connected_providers: Provider[];
   usage: Omit<
@@ -101,5 +98,3 @@ export type AgentModelSummary = {
     "agent_id" | "agent_name" | "last_used_at" | "cost_usd" | "unpriced_requests"
   > & { days: number };
 };
-/** The owner's allowed models: the global routes and backups, plus additions. */
-export type AllowedModels = { routed: Selection[]; added: Selection[] };

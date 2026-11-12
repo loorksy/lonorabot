@@ -448,7 +448,6 @@ export function OwnerActionCard({
 
 /** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
 const NOTICE_KINDS = new Set<string>([
-  "agent_model_changed",
   "agent_created",
   "supervision_created",
   "watch_changed",
@@ -459,8 +458,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   set_account_limits: "scale",
   resolve_operation: "alert",
   resume_trading: "power",
-  agent_model: "cpu",
-  agent_model_changed: "cpu",
   create_agent: "userPlus",
   agent_created: "userPlus",
   supervise: "eye",

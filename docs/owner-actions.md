@@ -12,8 +12,8 @@ supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
 W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
 `docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
 when some tool may change something, and a credential card for an MCP server says
-whether the trust card follows (or why not, waking the agent that asked). W15-10 adds
-the model cards (`agent_model`, `agent_model_changed`, `docs/provider-resilience.md`).
+whether the trust card follows (or why not, waking the agent that asked). An agent's
+model has no card: only the owner assigns it (`docs/provider-resilience.md`).
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
@@ -24,7 +24,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model` or `agent_model_changed` |
+| `kind` | `resume_trading`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source` or `connect_credential` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
@@ -303,29 +303,14 @@ the current limit kept by choice, the other agent or agents stopped on this acco
 Resume), or that new trading is still stopped. The settled card names the agents it
 stopped. A card for an agent that is deleted is superseded with it.
 
-## Model cards (W15-10)
+## No model cards
 
-Two kinds no agent can propose with `owner_action_propose`; only `model_request` raises
-them, from server-checked state (`lonora_db.model_cards`). Neither touches money: both are
-one tap, never a passkey.
-
-| Card | Raised when | Buttons | Confirming |
-| --- | --- | --- | --- |
-| `agent_model` "Change the model of {agent}?" | The agent asked for a model outside the owner's allowed list (always, even when the owner named it), or for a change to an agent the owner fixed, to another agent (Lonora) or to its mode, that the owner's message in this run does not name | Use it (Let Lonora choose) / Not now | `apply_agent_model` in the owner's name; a model outside the list also joins the allowed list (the card says so) |
-| `agent_model_changed` "{agent} switched its model" | A switch applied (the agent's own within the list, or one the owner's message named) | Undo / Keep | Restores the choice before the switch, with who had made it, only while the record's revision is still the one the card reports |
-
-The payload is the agent, the mode and model (or none: the owner's default), and for
-Undo the record revision, the choice before it and who had made that choice; the subject
-is `agent-model:<agent>`. A request keeps the agent's mode unless it asks for another, so
-a Fixed agent's request is for another Fixed model. Facts are the agent's name, the
-catalog names of the models (never ids) and the owner's default model. Lifetimes: 24
-hours for a request, 7 days for Undo. A newer switch supersedes the older Undo card and
-the pending requests about that agent (`model_changed_again`); the owner's own change in
-settings or on a card supersedes both kinds for that agent (`owner_changed_model`; a
-choice that changes nothing ends no card); a request the record already matches settles
-as `model_already_set`. A deleted agent's
-model cards are superseded with it. The confirmation line says the model answers from
-the next reply and that memory, tasks, grants and open trades stay as they are.
+The former `agent_model` and `agent_model_changed` kinds are gone: only the owner assigns
+an agent's model, in its settings or by naming the model in chat, and nothing about a
+model waits on a card (`docs/provider-resilience.md`). Migration
+`0131_agent_model_owner_only` settled the pending ones (`superseded`,
+`model_cards_removed`) and moved every one to `ln_owner_actions_model_retired`, which
+nothing reads.
 
 ## The raw execution-policy route
 

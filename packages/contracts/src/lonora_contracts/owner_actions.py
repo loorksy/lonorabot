@@ -25,10 +25,6 @@ OwnerActionKind = Literal[
     "trust_source",
     "connect_credential",
 ]
-# Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
-# use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
-ModelCardKind = Literal["agent_model", "agent_model_changed"]
-MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
 # an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
 # only reports a tightened stop loss (undoing it would be a new financial modification).
