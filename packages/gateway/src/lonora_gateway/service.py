@@ -16,7 +16,9 @@ from lonora_db.item_failures import failure_code
 from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
+from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
+from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
 
 from .connection_manager import close_connections, maintain_voice
@@ -48,6 +50,10 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # Accounts the owner connected from chat: provision, deploy, connect, report.
+    StepSpec("broker_provisioning", 10, 900),
+    # The closed-trade ledger from broker deal history (mandate 5.5.1).
+    StepSpec("closed_trades", 30, 300, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -60,8 +66,18 @@ STEPS = (
     StepSpec("voice_notes", 1, 300, critical=False),
     StepSpec("channels", 2, 120),
     StepSpec("attention", 2, 120),
+    # Push to the owner's phones (VISION 11.4). Not critical: Expo being unreachable never
+    # makes the gateway unready.
+    StepSpec("push", 2, 120, critical=False),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
+    # Which background workspace processes ended, for each agent's next wake (7.1.2); and
+    # each agent's analytical-workspace files, copied once into its home (14.1).
+    StepSpec("workspace", 10, 60, critical=False),
+    # The owner's stop and stop-all taps in What is running (7.1.5).
+    StepSpec("workspace_stops", 2, 60, critical=False),
+    # The morning brief: once per local date for each owner (VISION 11.1).
+    StepSpec("morning_brief", 30, 120),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -77,19 +93,23 @@ class Gateway:
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
         chart_visual: ChartVisualRuntime | None = None,
-        workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
         mcp_owner_trust: bool = True,
+        expo_access_token: str | None = None,
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
-        self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        # Old snapshots that cannot be read, set aside until a restart (workspace_move.py).
+        self.unreadable_snapshots: set[str] = set()
+        # Package run copies checked since this Gateway started (skills/run_copies.py).
+        self.run_copies_checked: dict[tuple[str, str, str], bool] = {}
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
+        self.expo_access_token = expo_access_token
         self.lease_seconds, self.maximum_subagents, self.poll_seconds = (
             lease_seconds,
             maximum_subagents,
@@ -123,7 +143,6 @@ class Gateway:
                     self.maximum_subagents,
                     lane,
                     self.chart_visual,
-                    self.workspace_socket,
                     self.mcp_declarations,
                     self.searxng_url,
                     self.browser_url,
@@ -149,7 +168,6 @@ class Gateway:
                 owner_id,
                 self.key,
                 chart_visual=self.chart_visual,
-                workspace_socket=self.workspace_socket,
                 mcp_declarations=self.mcp_declarations,
                 searxng_url=self.searxng_url,
                 browser_url=self.browser_url,
@@ -189,6 +207,26 @@ class Gateway:
 
         await self.for_each_owner(
             lambda service: maintenance_account_recovery(self.db, service.brokers, service.owner_id)
+        )
+
+    async def broker_provisioning(self) -> None:
+        from lonora_adapters.storage.broker_secrets import BrokerSecrets
+        from lonora_trading.broker_provisioning import maintain_broker_provisioning
+
+        await self.for_each_owner(
+            lambda service: maintain_broker_provisioning(
+                self.db,
+                service.brokers,
+                BrokerSecrets(self.db, self.key, service.owner_id),
+                service.owner_id,
+            )
+        )
+
+    async def closed_trades(self) -> None:
+        from lonora_trading.closed_trades import maintenance_closed_trades
+
+        await self.for_each_owner(
+            lambda service: maintenance_closed_trades(self.db, service.brokers, service.owner_id)
         )
 
     async def opportunities(self) -> None:
@@ -250,6 +288,17 @@ class Gateway:
             lambda service: attention_tick(self.db, service.brokers, service.owner_id)
         )
 
+    async def push(self) -> None:
+        from lonora_adapters.channels.expo_push import ExpoPushTransport
+        from lonora_security.secrets import SecretCipher
+
+        from .push import dispatch_push
+
+        cipher, transport = SecretCipher(self.key), ExpoPushTransport(self.expo_access_token)
+        await self.for_each_owner(
+            lambda service: dispatch_push(self.db, service.owner_id, cipher, transport)
+        )
+
     async def incoming(self) -> None:
         from lonora_voice.incoming import incoming_tick
 
@@ -259,6 +308,76 @@ class Gateway:
         from .thread_prefs import thread_prefs_tick
 
         await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
+
+    async def workspace(self) -> None:
+        from datetime import UTC, datetime
+
+        from lonora_agent.skills.run_copies import restore_run_copies
+        from lonora_agent.workspace_move import move_snapshots
+        from lonora_db.workspace_processes import reconcile
+
+        from .runtime import WORKSPACE
+
+        if not WORKSPACE.present():
+            return
+        # Only ids, times and exit codes are kept from this listing; commands are stored
+        # from the tool's own scanned answer.
+        fetched_at = datetime.now(UTC)
+        listing = await WORKSPACE.processes(SecretScan({}))
+        async with self.db.sessions() as session, session.begin():
+            await reconcile(session, listing, fetched_at)
+        await self.for_each_owner(self.record_running)
+        await move_snapshots(self.db, WORKSPACE, self.unreadable_snapshots)
+        await restore_run_copies(self.db, WORKSPACE, self.run_copies_checked)
+
+    async def workspace_scan(self, service: OwnerServices) -> SecretScan:
+        """The owner's scan of what the workspace returns (7.2.6): the tools' own
+        (`terminal.owner_scan`), CLI tokens included."""
+        return await owner_scan(service.secrets, service.given, service.cli_tokens)
+
+    async def record_running(self, service: OwnerServices) -> None:
+        """What is running (7.1.5): the owner's agents' processes, scanned for the owner."""
+        from lonora_db.workspace_running import record_listing
+
+        from .runtime import WORKSPACE
+
+        asked = utcnow()
+        listing = await WORKSPACE.processes(await self.workspace_scan(service))
+        async with self.db.sessions() as session, session.begin():
+            await record_listing(session, service.owner_id, listing["processes"], asked)
+
+    async def workspace_stops(self) -> None:
+        from .runtime import WORKSPACE
+
+        if WORKSPACE.present():
+            await self.for_each_owner(self.carry_out_stops)
+
+    async def carry_out_stops(self, service: OwnerServices) -> None:
+        """Each stop the owner asked for, once: one process as the agent it runs as (the
+        supervisor checks the pid still belongs to that agent), or every agent's processes."""
+        from lonora_db.workspace_running import claim_stops, owner_agents
+
+        from .runtime import WORKSPACE
+
+        async with self.db.sessions() as session, session.begin():
+            claimed = await claim_stops(session, service.owner_id)
+            stops = [(stop.pid, stop.agent_id) for stop in claimed]
+            agents = list(await owner_agents(session, service.owner_id)) if stops else []
+        if not stops:
+            return
+        scan = await self.workspace_scan(service)
+        for pid, agent_id in stops:
+            if pid is None or agent_id is None:
+                for each in agents:
+                    await WORKSPACE.stop_all(scan, each)
+            else:
+                await WORKSPACE.stop(scan, pid, agent_id)
+        await self.record_running(service)
+
+    async def morning_brief(self) -> None:
+        from lonora_trading.morning_brief import brief_tick
+
+        await self.for_each_owner(lambda service: brief_tick(self.db, service.owner_id))
 
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
@@ -272,6 +391,8 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "broker_provisioning": self.broker_provisioning,
+            "closed_trades": self.closed_trades,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
@@ -282,8 +403,12 @@ class Gateway:
             "voice_notes": self.voice_notes,
             "channels": self.channels,
             "attention": self.attention,
+            "push": self.push,
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
+            "workspace": self.workspace,
+            "workspace_stops": self.workspace_stops,
+            "morning_brief": self.morning_brief,
             "watchdog": self.watchdog.tick,
         }
 

@@ -9,7 +9,6 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import ThreadRow, TradeApprovalRow
 from lonora_db.tickets import TicketRepository
 from lonora_db.transactions import resource_data
-from lonora_trading.controls import read_controls
 from pydantic import Field, model_validator
 from sqlalchemy import select
 
@@ -53,7 +52,6 @@ async def status(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
     return {
         "run_id": context.lease.run_id,
-        "trading": (await read_controls(context.db)).model_dump(),
         "agent_state": live.model_dump(mode="json"),
         "environment": operational,
     }
@@ -66,9 +64,8 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "code": "financial_consent_requires_trade_request",
             "next_tool": "trade_execute",
             # A trade is not the answer to an owner-only control (G0 baseline I07).
-            "guidance": "An order or close is trade_execute. Resuming trading, lifting a "
-            "pause, limits and authority are owner_action_propose cards (through tool_call); "
-            "a pause the owner asks for is trade_restriction_create.",
+            "guidance": "An order or close is trade_execute. Limits and authority are "
+            "owner_action_propose cards (through tool_call).",
         }
     if any(
         public_reply_violation(text)
@@ -192,7 +189,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "runtime_status",
-            "Read runtime and global financial controls; this tool cannot enable trading.",
+            "Read this run's runtime state and your live agent state; this tool cannot enable trading.",
             Empty,
             status,
             True,

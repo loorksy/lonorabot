@@ -161,7 +161,7 @@ async def action(data: dict[str, Any]):
             if data.get("chart"):
                 await fixture.request("DELETE", "/charts/" + data["chart"])
             # The agents a spec bound to this fixture's account go with it, so they never
-            # pile up against the owner's active-agent cap for later specs.
+            # pile up in the directory later specs read.
             from lonora_db.schema import AgentRow
             from sqlalchemy import select
 

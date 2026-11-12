@@ -3,7 +3,7 @@
 from typing import Any
 
 from lonora_adapters.brokers.metaapi import MetaApiBroker
-from lonora_adapters.storage.secret_store import EncryptedSecretStore
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
@@ -31,7 +31,7 @@ async def verified_identity(config: BrokerConnection, token: str) -> dict[str, A
 
 async def connect_account(
     db: Database,
-    secrets: EncryptedSecretStore,
+    secrets: BrokerSecrets,
     owner_id: str,
     config: BrokerConnection,
     api_key: str | None,
@@ -96,9 +96,7 @@ async def connect_account(
                 session, owner_id, config.model_dump(mode="json"), identity=identity
             )
         if api_key:
-            config.secret_id = await secrets.write_in_session(
-                session, config.account_id, api_key, "broker"
-            )
+            config.secret_id = await secrets.write_in_session(session, config.account_id, api_key)
         row = await repository.create(
             session, owner_id, config.model_dump(mode="json"), broker_identity=identity
         )

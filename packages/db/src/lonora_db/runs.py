@@ -82,6 +82,9 @@ def run_data(row: RunRow) -> dict[str, Any]:
                 "id": item["id"],
                 "run_id": row.id,
                 "message_id": item["message_id"],
+                # The thread whose message holds the question: a background run's question
+                # is copied into the conversation it reports to.
+                "thread_id": item.get("thread_id", row.thread_id),
                 "question": item["question"],
                 "choices": question_choices(item),
                 "status": "cancelled"
@@ -168,7 +171,6 @@ async def create_run(
                 "skill_snapshot",
                 "skill_selection",
                 "skill_authority",
-                "skill_execution_image",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
             }
@@ -213,7 +215,7 @@ async def claim_next(
     eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
     # Rule Q: a card submission's Run starts only after every earlier Run of its agent in
     # the thread has ended, so it never overtakes work in retry backoff, an open question
-    # or an approved trade waiting for its execution (GENUI_PLAN §8.2).
+    # or an approved trade waiting for its execution (docs/genui.md).
     earlier = aliased(RunRow)
     behind = exists(
         select(earlier.id).where(

@@ -1,5 +1,5 @@
-"""Card lifetimes (WP-F cards): the newer card, «طلب جديد», «غير معروف» with a pause,
-trade approval expiry and the notice cards' pure rules.
+"""Card lifetimes (WP-F cards): the newer card, «طلب جديد», trade approval expiry and the
+notice cards' pure rules.
 
 These cases run on the in-memory schema, those marked ``postgres`` only on
 ``LONORA_TASK_TEST_DATABASE_URL``. The
@@ -8,9 +8,8 @@ journeys through the tools, the passkey and the routes are in
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pytest
 from lonora_auth.identity import OwnerIdentity
@@ -36,14 +35,12 @@ from lonora_db.schema import (
     ThreadRow,
     TradeApprovalRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_db.trade_approvals import (
     approval_data,
     decide,
     expire_if_due,
 )
-from lonora_db.transactions import SettingsRepository, execution_policy_key
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -201,16 +198,6 @@ async def test_undo_and_notice_cards_are_never_renewed(task_db: Fixture) -> None
         assert error.value.code == "owner_action_not_found"
 
 
-def test_the_pause_switch_goes_only_with_unknown() -> None:
-    assert OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True)
-    assert not OwnerActionDecision(decision="confirm", outcome="unknown").pause_new_today
-    for outcome in ("executed", "not_executed", None):
-        with pytest.raises(ValidationError):
-            OwnerActionDecision(decision="confirm", outcome=outcome, pause_new_today=True)
-    with pytest.raises(ValidationError):
-        OwnerActionDecision(decision="cancel", pause_new_today=True)
-
-
 async def answer(
     db: Database, owner: str, card_id: str, body: OwnerActionDecision
 ) -> dict[str, Any]:
@@ -223,103 +210,6 @@ async def answer(
         row = await owned_card(session, owner, card_id, lock=True)
         await decide_card(session, None, identity, row, body)  # type: ignore[arg-type]
         return await owner_action_data(session, row)
-
-
-async def restrictions(db: Database, owner: str) -> list[TradingRestrictionRow]:
-    async with db.sessions() as session:
-        return list(
-            await session.scalars(
-                select(TradingRestrictionRow).where(TradingRestrictionRow.owner_id == owner)
-            )
-        )
-
-
-@postgres
-@pytest.mark.asyncio
-async def test_unknown_with_the_switch_pauses_new_trades_on_the_account_until_day_end(
-    task_db: Fixture,
-) -> None:
-    db, owner, agent, thread = task_db
-    async with db.sessions() as session, session.begin():
-        account = await owned_account(session, owner)
-        await SettingsRepository().put(
-            session,
-            execution_policy_key(owner, account),
-            {"risk": {"currency": "USD", "trading_day_timezone": "Asia/Riyadh"}},
-        )
-        for identifier in ("op-paused", "op-plain", "op-done"):
-            await uncertain(session, owner, account, identifier)
-            await resolve_card(session, owner, agent, thread, identifier)
-    paused = await answer(
-        db,
-        owner,
-        "resolve-op-paused",
-        OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
-    )
-    assert paused["status"] == "confirmed" and paused["result"]["outcome"] == "unknown"
-    rows = await restrictions(db, owner)
-    assert len(rows) == 1
-    pause = rows[0]
-    assert (pause.account_id, pause.agent_id, pause.symbol) == (account, None, None)
-    assert (pause.action_class, pause.source, pause.created_by) == (
-        "no_new_entries",
-        "owner_ui",
-        "owner",
-    )
-    assert pause.created_by_agent_id is None and not pause.applies_to_owner_manual
-    assert paused["result"]["restriction_id"] == pause.id
-    # Until the end of the trading day in the account's own trading-day zone.
-    zone = ZoneInfo("Asia/Riyadh")
-    assert pause.valid_until is not None
-    local = pause.valid_until.astimezone(zone)
-    assert (local.hour, local.minute, local.second) == (0, 0, 0)
-    today = utcnow().astimezone(zone).date()
-    assert local.date() == today + timedelta(days=1)
-    assert datetime.combine(today, datetime.min.time(), zone) < pause.valid_until
-    # The same answer again changes nothing: still one restriction.
-    again = await answer(
-        db,
-        owner,
-        "resolve-op-paused",
-        OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
-    )
-    assert again["status"] == "confirmed" and len(await restrictions(db, owner)) == 1
-    # «غير معروف» without the switch pauses nothing.
-    plain = await answer(
-        db, owner, "resolve-op-plain", OwnerActionDecision(decision="confirm", outcome="unknown")
-    )
-    assert plain["status"] == "confirmed" and len(await restrictions(db, owner)) == 1
-    assert "restriction_id" not in plain["result"]
-
-
-@postgres
-@pytest.mark.asyncio
-async def test_the_pause_switch_is_refused_on_any_other_card(task_db: Fixture) -> None:
-    db, owner, agent, thread_id = task_db
-    async with db.sessions() as session, session.begin():
-        thread = await session.get(ThreadRow, thread_id)
-        assert thread is not None
-        await create_card(
-            session,
-            owner,
-            card_id="resume",
-            agent_id=agent,
-            thread=thread,
-            run_id=None,
-            source="system",
-            kind="resume_trading",
-            subject="trading",
-            payload={"enabled": True, "emergency_stop": False},
-        )
-    with pytest.raises(LonoraError) as error:
-        await answer(
-            db,
-            owner,
-            "resume",
-            OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
-        )
-    assert (error.value.code, error.value.status) == ("owner_action_pause_unsupported", 422)
-    assert await restrictions(db, owner) == []
 
 
 async def waiting_approval(

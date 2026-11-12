@@ -87,6 +87,7 @@ const labels = {
   removedAgent: { en: "A removed agent", ar: "وكيل محذوف" },
   fromYourMessage: { en: "from your message", ar: "من رسالتك" },
   restoredChange: { en: "undid an earlier change", ar: "تراجع عن تغيير سابق" },
+  restoredVersion: { en: "went back to an earlier version", ar: "رجع إلى إصدار سابق" },
   added: { en: "Added", ar: "أُضيف" },
   removed: { en: "Removed", ar: "حُذف" },
   more: { en: "More lines changed", ar: "تغيّرت أسطر أخرى" },
@@ -100,7 +101,7 @@ const fields: Readonly<Record<string, Text>> = {
   address: { en: "Form of address", ar: "طريقة المخاطبة" },
   reply_language: { en: "Reply language", ar: "لغة الردود" },
   reach_me: { en: "How to reach you", ar: "كيف نتواصل معك" },
-  quiet_hours: { en: "Quiet hours", ar: "أوقات الهدوء" },
+  quiet_hours: { en: "Quiet hours", ar: "ساعات الهدوء" },
   timezone: { en: "Time zone", ar: "المنطقة الزمنية" },
   opportunity_calls: { en: "Calls for opportunities", ar: "الاتصال عند الفرص" },
   action_required_calls: {
@@ -181,6 +182,10 @@ export function preferenceFieldLabel(field: string, locale: string): string | nu
 
 /** A recorded preference value in plain words; device identifiers are never shown. */
 export function preferenceValueText(field: string, value: unknown, locale: string): string {
+  if (field === "quiet_hours")
+    return typeof value === "string" && value
+      ? value.replace("-", " – ")
+      : pick(labels.off, locale);
   if (value === null || value === undefined || value === "") return pick(labels.notSet, locale);
   if (typeof value === "boolean") return pick(value ? labels.on : labels.off, locale);
   if (field === "reach_me" && typeof value === "string" && value in channels)

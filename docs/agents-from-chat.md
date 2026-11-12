@@ -21,7 +21,7 @@ the creation service `lonora_db.agent_creation.create_root_agent` and
 | `responsibility` | What the owner asked it to do. Stored as its instructions; a short form is its directory description. Text that states authority ("trade without approval") is refused (`agent_responsibility_authority_claim`), like operating notes. Both creation cards show it word for word ("Its task: …"), so the owner sees the standing instruction a tap keeps. |
 | `market` | Trading template only, and required there: the focus pair as the broker names it |
 | `account_id` | Only when the owner chose among several accounts |
-| `model` | Optional, one of the owner's configured models (the router's conversation routes); otherwise the result lists them (`agent_model_not_allowed`) |
+| `model` | Optional, the model the owner named: any catalog model of a connected provider (otherwise `agent_model_not_available`). Without one the agent starts on Lonora's current model. From the owner's message, a model his words do not name is dropped (`model_dropped`) and the agent starts on Lonora's; on a card, the model shown is the owner's tap |
 | `report_to` | Up to five existing agents it reports important findings to |
 | `supervises` | Up to ten existing agents it supervises, granted with the creation's source (`docs/supervision.md`) |
 
@@ -46,17 +46,17 @@ connection version is recorded and re-checked when the agent is created.
 
 ### Owner message or card
 
-- **The run answers the owner's message** (a `user` or `group` run, the same rule as
-  `trade_restriction_create`): the agent is created at once, and that message is
-  recorded as its source. The owner's message stands for the owner's intent only while
-  the Run has read nothing someone else wrote (`restrictions.owner_message_id`): once a
+- **The run answers the owner's message** (a `user` or `group` run): the agent is
+  created at once, and that message is recorded as its source. The owner's message
+  stands for the owner's intent only while the Run has read nothing someone else wrote
+  (`provenance.owner_message_id`): once a
   tool returned third-party or other-agent content into the Run (a web page, search
   excerpt, feed, MCP result, peer's memory, stored file or another model; the list the
   context engine labels untrusted, recorded per Run by the registry) or another agent's
   message reached it, it is treated like a wake and raises the card instead. The same
   rule governs every tool that acts on the owner's word: supervision, `agent_control`,
-  the owner profile and reach-me, model switches, narrowing other agents and lifting a
-  hold. Supervision over Lonora (`supervises` naming the Personal Agent) is always a card.
+  the owner profile and reach-me, model switches and lifting a hold. Supervision over
+  Lonora (`supervises` naming the Personal Agent) is always a card.
 - **The responsibility it writes stays its writing.** The new agent's instructions are
   the responsibility the creating agent wrote; while they still match it
   (`instructions_sha256` in the origin record) the context shows them as a labelled
@@ -79,12 +79,12 @@ connection version is recorded and re-checked when the agent is created.
 
 ### Limits and duplicates
 
-- At most `MAXIMUM_ACTIVE_AGENTS` (20) active persistent agents per owner (not paused;
-  temporary helpers do not count) and at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations
-  or creation cards per run (`agent_limit_reached`, `agent_create_run_limit`). Both are
-  re-checked under the owner's creation lock, and the cap again when a card is tapped.
-  The owner's own «وكيل جديد» form (`POST /api/agents/create`, `created_via` `owner_ui`)
-  is not capped, as the owner's form never was.
+- There is no limit on the number of agents (mandate 3.3.2). The one rate guard
+  against a runaway creation loop is at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations
+  or creation cards per minute within one run (`agent_create_run_limit`,
+  `CREATION_WINDOW`), checked under the owner's creation lock; it never counts the
+  owner's agents. The owner's own «وكيل جديد» form
+  (`POST /api/agents/create`, `created_via` `owner_ui`) has no guard.
 - A crash-replayed call returns the agent it created (its id is the call's resource id).
   A retry under a new call id for the same owner message, template and name returns the
   same agent (an effect receipt), also after a worker restart that lost the transcript.

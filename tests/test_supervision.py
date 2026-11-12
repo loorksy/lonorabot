@@ -15,7 +15,6 @@ from uuid import uuid4
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_bus.attention import catalogs
-from lonora_contracts.domain import utcnow
 from lonora_contracts.supervision import AgentControlInput, SupervisionChange
 from lonora_core.user_error import LonoraError
 from lonora_db.owner_actions import LIFETIME, confirmation_code
@@ -46,20 +45,19 @@ def test_supervision_tools_carry_no_money_authority() -> None:
         "resume",
         "message",
     }
-    # The tool module reaches no trading, authority, restriction-lift or memory writer.
+    # The tool module reaches no trading, authority or memory writer.
     forbidden = (
         "lonora_trading",
         "lonora_tools.trade",
         "lonora_db.account_authority",
         "lonora_db.memory_revisions",
-        "lonora_db.trading_restrictions",
     )
     source = ast.parse((ROOT / "packages/tools/src/lonora_tools/supervision.py").read_text())
     for node in ast.walk(source):
         if isinstance(node, ast.ImportFrom) and node.module:
             assert not node.module.startswith(forbidden), node.module
             names = {alias.name for alias in node.names}
-            assert not names & {"commit_memory", "revoke_restriction", "apply_controls"}
+            assert not names & {"commit_memory", "apply_controls"}
 
 
 def test_control_and_change_inputs_take_exactly_their_shapes() -> None:
@@ -459,75 +457,6 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
         # Reading Lonora stays open.
         assert (await call(woke, "agent_inspect", agent_id=lonora_id))["agent"]["id"] == lonora_id
         await fixture.request("DELETE", "/trading/connections/" + connection["id"])
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_narrowing_another_agent_needs_a_grant_or_the_owner_and_obeys_the_cycle():
-    database()
-    from check_streaming import Fixture
-
-    fixture = await Fixture().open()
-    try:
-        connection = await fixture.request(
-            "POST",
-            "/trading/connections",
-            {"provider": "simulation", "account_id": "sv-" + uuid4().hex, "enabled": True},
-        )
-        account = connection["id"]
-        lead, gold = await fixture.agent("Lead"), await fixture.agent("Gold")
-        lead_thread, gold_thread = (
-            await fixture.conversation(lead),
-            await fixture.conversation(gold),
-        )
-        lead_context = await wake(fixture, lead, lead_thread)
-        pause = {
-            "account_id": account,
-            "agent_id": gold["id"],
-            "action_class": "no_new_entries",
-            "valid_until": (utcnow() + timedelta(hours=2)).isoformat(),
-            "reason": "Spreads are wide",
-        }
-        assert await refused(lead_context, "trade_restriction_create", **pause) == (
-            "restriction_supervision_required"
-        )
-        everyone = {**pause, "agent_id": None, "all_agents": True}
-        assert await refused(lead_context, "trade_restriction_create", **everyone) == (
-            "restriction_supervision_required"
-        )
-        # The owner's message in the run is enough on its own.
-        owner_context = await owner_says(fixture, lead, lead_thread, "Pause Gold's new entries")
-        made = await call(owner_context, "trade_restriction_create", **pause)
-        assert made["restriction"]["source"] == "owner_message"
-        await fixture.request(
-            "POST", f"/trading/restrictions/{made['restriction']['id']}/revoke", {"reason": "t"}
-        )
-        # With a grant, a supervisor narrows on its own; then Gold cannot narrow Lead back.
-        await grant(fixture, lead, gold)
-        own = await call(lead_context, "trade_restriction_create", **pause)
-        assert own["restriction"]["source"] == "agent" and own["lift"] == "owner_only"
-        await grant(fixture, gold, lead)
-        gold_context = await wake(fixture, gold, gold_thread)
-        assert (
-            await refused(
-                gold_context, "trade_restriction_create", **{**pause, "agent_id": lead["id"]}
-            )
-            == "supervision_cycle"
-        )
-        assert await refused(
-            gold_context, "agent_control", agent_id=lead["id"], action="pause"
-        ) == ("supervision_cycle")
-        # Narrowing itself stays free.
-        itself = await call(gold_context, "trade_restriction_create", **{**pause, "agent_id": None})
-        assert itself["restriction"]["agent_id"] == gold["id"]
-        await fixture.request(
-            "POST", f"/trading/restrictions/{own['restriction']['id']}/revoke", {"reason": "t"}
-        )
-        await fixture.request(
-            "POST", f"/trading/restrictions/{itself['restriction']['id']}/revoke", {"reason": "t"}
-        )
-        await fixture.request("DELETE", "/trading/connections/" + account)
     finally:
         await fixture.close()
 

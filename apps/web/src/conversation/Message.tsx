@@ -2,14 +2,24 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { submitMark } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useSyncExternalStore } from "react";
 import { SubmitMark } from "../components/genui";
 import type { Agent, Message as ApiMessage, Resource } from "../lib/api";
-import { isOutgoingMessage } from "../lib/outgoing-messages";
+import {
+  isOutgoingMessage,
+  type OutgoingMessage,
+  outgoingUploads,
+  outgoingUploadVersion,
+  subscribeOutgoingUploads,
+} from "../lib/outgoing-messages";
+import { useRevealedText } from "../lib/reveal";
+import { reducedMotion } from "../shell/motion";
+import { CommandChip } from "./commands";
 import {
   type ConversationMessage,
   callPart,
   clock,
+  commandPart,
   partsOf,
   speakerColor,
   useConversation,
@@ -17,6 +27,7 @@ import {
 } from "./context";
 import { GenUiPart, GenUiSubmitQuote, hasGenUi } from "./GenUiPart";
 import { TextBody } from "./Markdown";
+import { UploadRing } from "./UploadRing";
 import { VoiceNote, voiceFmt } from "./Voice";
 
 /* ONE Message component for every kind (reference msgMarkup, Desktop-37 3785-3801): text and
@@ -200,6 +211,42 @@ function Attachments({ ids, caption }: { ids: string[]; caption?: ReactNode }) {
   );
 }
 
+/* The files a sent message still waits for (reference uploadMarkup in a bubble, Desktop-37
+   5534-5560): the ring and its cancel while they upload. On a failed row they are files
+   that never arrived, and say so. A file row is not a button: there is nothing to open. */
+function PendingUploads({ message }: { message: OutgoingMessage }) {
+  const ctx = useConversation();
+  useSyncExternalStore(subscribeOutgoingUploads, outgoingUploadVersion);
+  const running = outgoingUploads(message.retry_nonce);
+  const cancel = () => ctx.onCancelUpload(message.retry_nonce);
+  return (
+    <>
+      {(message.uploading ?? []).map((file) => {
+        const upload = running.find((item) => item.id === file.id);
+        const kb = Math.max(1, Math.ceil(file.size / 1024));
+        return upload?.preview ? (
+          <span key={file.id} className="img-msg busy">
+            <img src={upload.preview} alt="" />
+            <UploadRing name={file.name} p={upload.p} onCancel={cancel} />
+          </span>
+        ) : (
+          <div key={file.id} className="file-chip uploading">
+            {upload ? (
+              <UploadRing name={file.name} p={upload.p} onCancel={cancel} />
+            ) : (
+              <Icon name="file" />
+            )}
+            <span>
+              <strong>{file.name}</strong>
+              <small>{upload ? t`Uploading · ${kb} KB` : t`Upload failed`}</small>
+            </span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function FileChip({ id, artifact }: { id: string; artifact?: Resource }) {
   const ctx = useConversation();
   const size = Number(artifact?.payload.size ?? artifact?.payload.size_bytes ?? 0);
@@ -324,6 +371,8 @@ export function Message({
     dx: number;
   } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  // The streaming preview flows a word at a time; a finished reply is shown whole.
+  const paced = useRevealedText(live?.text ?? "", Boolean(live?.streaming) && !reducedMotion());
   if (callPart(message)) return <CallBubble message={message} />;
   const mine = message.role === "user";
   const agent = ctx.agents.find((row) => row.id === message.agent_id);
@@ -333,6 +382,7 @@ export function Message({
   const outgoing = isOutgoingMessage(message) ? message : undefined;
   const failed = outgoing?.delivery === "failed";
   const voice = voicePart(message);
+  const command = mine ? commandPart(message) : null;
   const genUi =
     !mine &&
     (hasGenUi(message) ||
@@ -366,11 +416,27 @@ export function Message({
         {agent?.name ?? "Lonora"}
       </span>
     ) : null;
-  const text = live ? live.text : message.content;
+  const text = live ? paced : message.content;
   let body: ReactNode;
   if (card) body = card;
   else if (submitted) body = <GenUiSubmitQuote message={message} />;
   else if (voice) body = <VoiceNote part={voice} messageId={message.id} />;
+  else if (command)
+    // A / command the server kept: its chip, then the owner's words after it.
+    body = (
+      <span className="text">
+        <CommandChip part={command} />
+        {command.argument ? (
+          <>
+            {" "}
+            <TextBody text={command.argument} agent={false} mentions={ctx.mentions} />
+          </>
+        ) : (
+          command.name === "summary" &&
+          ` ${t({ message: "the conversation", context: "summary command" })}`
+        )}
+      </span>
+    );
   else if (genUi)
     body = (
       <GenUiPart
@@ -418,6 +484,13 @@ export function Message({
         {textNode}
       </>
     );
+    if (outgoing?.uploading?.length)
+      body = (
+        <>
+          <PendingUploads message={outgoing} />
+          {body}
+        </>
+      );
   }
   const mark = submitMark(message);
   const note = stopped ? (
@@ -556,7 +629,7 @@ export function Message({
           {!card && (
             <span className="meta">
               {note}
-              {!outgoing && <time dateTime={message.created_at}>{clock(message.created_at)}</time>}
+              <time dateTime={message.created_at}>{clock(message.created_at)}</time>
               <Ticks message={message} />
             </span>
           )}
@@ -597,15 +670,22 @@ export function Message({
           </span>
         )}
       </div>
-      {failed && outgoing && (
-        <button
-          type="button"
-          className="fail-note"
-          onClick={() => ctx.onRetry(outgoing.retry_nonce)}
-        >
-          <Trans>Not sent · tap to retry</Trans>
-        </button>
-      )}
+      {failed &&
+        outgoing &&
+        (outgoing.uploading?.length ? (
+          // Its files never arrived, so there is nothing to send again.
+          <span className="fail-note">
+            <Trans>The message was not sent</Trans>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="fail-note"
+            onClick={() => ctx.onRetry(outgoing.retry_nonce)}
+          >
+            <Trans>Not sent · tap to retry</Trans>
+          </button>
+        ))}
       <Reactions message={message} />
     </div>
   );

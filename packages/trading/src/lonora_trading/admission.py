@@ -5,11 +5,9 @@ boundary (never the model's or caller's description), it can only shrink the acc
 gross exposure or bound its loss:
 
 - ``close_position`` of an existing open position on the same symbol, in full or for at
-  most its current volume. Closing is an exit (the owner's "Stop new trading" keeps
-  exits allowed). Closing one leg of a hedge reduces gross exposure and modeled loss at
+  most its current volume. Closing is an exit. Closing one leg of a hedge reduces gross exposure and modeled loss at
   the stops even though it can raise net directional exposure on the symbol: that is
-  deliberate, since flattening a hedged book requires it, and owner-facing texts for
-  ``no_risk_increase`` and Emergency Stop say that closing a hedge leg stays allowed.
+  deliberate, since flattening a hedged book requires it.
 - ``cancel_order`` of an existing pending order on the same symbol whose fill would not
   reduce the symbol's absolute net position volume: an entry order only adds exposure,
   so removing it reduces risk. A *protective* order — an opposite-side order whose fill
@@ -26,8 +24,7 @@ pending-order edit, take-profit changes, removing protection (including cancelli
 protective order), widening or keeping a stop, and any request whose target is missing
 or does not match.
 
-Global Trading OFF and Emergency Stop stop new risk, not exits: a risk-reducing request
-stays admissible on every admission path. This relaxes no authorization — each path has
+A risk-reducing request stays admissible on every admission path. This relaxes no authorization — each path has
 already passed owner identity, an exact owner approval or a matching signed account grant
 — and the before-send preflight, lease fence and broker checks still run.
 
@@ -57,6 +54,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import direction
+
+
+class AdmissionBlocked(LonoraError):
+    """A boundary decision with evidence the executor records on the journal row."""
+
+    def __init__(self, code: str, evidence: dict[str, Any], status: int = 409):
+        super().__init__(code, status)
+        self.evidence = evidence
+
 
 # Actions that can be risk-reducing for some broker target; anything else never is.
 REDUCING_ACTIONS = frozenset({"close_position", "cancel_order", "modify_position"})

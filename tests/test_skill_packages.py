@@ -70,7 +70,7 @@ def test_import_preserves_source_and_has_no_publisher_authority(tmp_path: Path) 
     assert not entry.payload.enabled and entry.payload.manifest
     assert entry.payload.manifest.source == "external"
     assert entry.payload.manifest.required_capabilities == []
-    assert set(entry.payload.manifest.required_tools) == {"workspace_read", "workspace_execute"}
+    assert set(entry.payload.manifest.required_tools) == {"workspace_run"}
     assert "skills/sample/1.0.0/setup.py" in files
     assert "skills/sample/1.0.0/nested/SKILL.md" not in files
     assert entry.validation is None
@@ -150,5 +150,10 @@ def test_import_validation_and_control_are_mutations_without_financial_power() -
     registry = load_tools()
     for name in ("skill_package_import", "skill_package_validate", "skill_package_control"):
         tool = registry.tools[name]
-        assert tool.replay_safe and not tool.read_only and not tool.financial
+        assert not tool.read_only and not tool.financial
         assert name not in {item.name for item in registry.definitions(scope="helper")}
+    # Validation runs a command in the workspace, which has internet access: an
+    # interrupted call is reconciled, never replayed on its own.
+    assert not registry.tools["skill_package_validate"].replay_safe
+    assert registry.tools["skill_package_import"].replay_safe
+    assert registry.tools["skill_package_control"].replay_safe
