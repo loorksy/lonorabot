@@ -5,10 +5,10 @@ Superseded by VISION.md
 ## ملخص بالعربية
 
 - **التثبيت:** خادم جديد يحتاج Docker وgpg فقط، دون Python أو Node أو نسخة من الكود. الأمر `sudo bash install.sh --domain نطاقك` ينزّل الصورة، يثبّت بصمتها (digest)، ينشئ الأسرار ومفتاح النسخ الاحتياطي بصلاحيات 600 دون طباعتها، ويشغّل Lonora ثم ينتظر حتى تنجح `/ready`.
-- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف الطارئ وإغلاق المراكز وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
+- **التحديث:** `sudo lonora update <الإصدار>` يثبّت بصمة الصورة الجديدة، ويضع النظام في «وضع التحديث» (ما دام API وGateway متوقفين يُجاب كل طلب تعديل بـ «يجري التحديث»؛ وما إن يعمل Gateway حتى تُفتح الطلبات من جديد، فيبقى الإيقاف المؤقت للوكلاء وإغلاق المراكز ورفض الموافقات وسحب الصلاحيات متاحًا لك دائمًا)، ويوقف API وGateway، ويأخذ نسخة احتياطية مشفرة ويتحقق منها، ويشغّل الترحيلات خطوةً مستقلة، ثم API أولًا ثم Gateway، وينتظر `/ready`. إذا فشلت أي خطوة يعود تلقائيًا إلى الإصدار السابق ويستعيد قاعدة البيانات من النسخة التي أُخذت قبل التحديث.
 - **ماذا تفعل عند كل نتيجة:**
   - «Rolled back to …»: عاد الإصدار السابق ويعمل. لا تفعل شيئًا.
-  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف التداول، القيود، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
+  - «ROLLBACK HELD»: تغيّرت سجلات التحكم أو التداول (إيقاف الوكلاء مؤقتًا، الصلاحيات، الموافقات، سجل الأوامر) أثناء عمل الإصدار الجديد، فلم تُستعد قاعدة البيانات حتى لا يُلغى قرار لك أو يُمحى أمر أُرسل إلى الوسيط. API وGateway متوقفان. افحص المراكز والأوامر في منصة الوسيط نفسها، ثم اختر: `sudo lonora rollback --force` (استعادة نسخة ما قبل التحديث؛ يضيع ما كُتب بعدها) أو `sudo lonora update <إصدار مُصلَح> --keep-data` (الإبقاء على البيانات والتحديث للأمام).
   - «ROLLBACK HELD» مع «cannot be read»: تعذّرت قراءة سجلات التحكم. أصلح قاعدة البيانات (`sudo lonora logs db`) ثم: `sudo lonora rollback`.
   - «ROLLBACK INCOMPLETE»: فشلت استعادة قاعدة البيانات. أصلح السبب (المساحة مثلًا؛ `sudo lonora status` و`sudo lonora logs db`) ثم: `sudo lonora rollback` (يعيد المحاولة).
   - «ROLLBACK did not reach /ready»: راجع `sudo lonora logs api` و`sudo lonora logs gateway`، ثم: `sudo lonora rollback` (يشغّل ويفحص من جديد).
@@ -22,21 +22,23 @@ Superseded by VISION.md
 - **بعد كارثة (خادم جديد):** ثبّت خادمًا جديدًا بالمثبّت، ثم `sudo install -m 600 <مفتاحك> /opt/lonora/backup.key`، ثم `sudo lonora restore <ملف> --replace --with-config`. هذا يعيد الأسرار والنطاق، ويحتفظ بكلمة مرور قاعدة البيانات الجديدة وبملفات النشر من الصورة.
 - **الخادم الحالي (VPS) — تثبيت جنبًا إلى جنب:** على خادمك يعمل traefik على المنفذين 80 و443 ومعه مشاريع أخرى وLonora القديم. التثبيت الجديد لا يلمس أيًّا منها: يُثبَّت باسم مشروع مستقل ومجلد مستقل، ويستمع على عنوان داخلي واحد فقط، مثلًا:
   `sudo bash install.sh --home /opt/lonora2 --project lonora2 --behind-proxy 127.0.0.1:18030 --domain <اسم تجريبي> --version <الإصدار>`
-  يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت للمجموع)، وخدمات البحث والمتصفح معطلة افتراضيًا.
+  يفحص المثبّت قبل أي تغيير: أن المنفذ غير مستخدم، وأن المجلد فارغ من أي تثبيت، وأن اسم المشروع غير مستخدم، وأن الذاكرة والمساحة كافيتان، ويطبع ما وجده ويرفض إن فشل أي فحص. لكل خدمة حدّ للذاكرة والمعالج (نحو 2.3 غيغابايت لـ Lonora، ومساحة العمل حدودها الخاصة)، وخدمات البحث والمتصفح معطلة افتراضيًا.
 - **إعادة استخدام الأسرار الحالية:** الخيار `--env-from /opt/lonora/.env` ينسخ من ملف الإعدادات القديم المفاتيح التي يعرفها الإصدار الجديد فقط (مفتاح التشفير الذي تُفك به مفاتيح المزودين والوسيط المحفوظة، وسر الـ webhook، وبصمات passkey لتطبيق أندرويد، والنطاق، وإعدادات الضبط)، ويطبع أسماءها فقط دون أي قيمة، ويُنشئ كلمة مرور جديدة لقاعدة البيانات الجديدة، ويتجاهل الباقي (LiveKit وIMAGE وARTIFACT_ROOT وغيرها) ويذكر أسماءها.
-- **مضيف مساحة التحليل:** الخدمة `lonora-analysis.service` على الخادم تبقى كما هي؛ يربطها التثبيت الجديد بالخيار `--overlay infra/analysis/compose.workspace.yml`. إن لم تكن الخدمة تعمل يبدأ Lonora رغم ذلك، وتبقى أدوات التحليل غير متاحة حتى تعمل الخدمة.
+- **مضيف مساحة التحليل القديم:** التثبيت الجديد لا يستخدم الخدمة `lonora-analysis.service` ولا ملف `infra/analysis/compose.workspace.yml`؛ فمساحة العمل صارت جزءًا من Lonora. إن كان الملف مذكورًا في `LONORA_COMPOSE_OVERLAYS` يحذفه `lonora` من `.env` في التحديث التالي ويقول ذلك. تُنسخ ملفات كل وكيل من المساحة القديمة مرة واحدة إلى `old-workspace/` في مجلده المنزلي. الخدمة نفسها تبقى ما دام Lonora القديم يعمل عليها؛ بعد حذفه يمكن إيقافها بـ `sudo systemctl disable --now lonora-analysis`.
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
+- **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. ولأن سجلًا أو عملية قديمة قد تحمل قيمة سرّ أُعطي لأمر، تحتفظ البوابة بكل قيمة أُعطيت مشفّرةً بمفتاح الأسرار 30 يومًا بعد آخر مرة أُعطيت فيها، لتبقى مستبدلة في الفحص؛ فالسرّ المحذوف أو المُبدَّل تبقى قيمته مشفّرة حتى 30 يومًا ثم تُمحى. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يقبل من العميل TLS أو HTTP أو SSH فقط، ويرفض أسماء MetaApi ونطاق Lonora، ويرفض العنوان المكتوب بدل الاسم، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن. هذا حماية إضافية لا جدار: اسم يشير إلى عنوان MetaApi لم يتعلّمه الحارس، أو وسيط HTTPS، أو أي شيء عبر SSH يبلغ MetaApi، والإنترنت وSSH مطلوبان. والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. يبدأها `lonora` بعد خدمات Lonora ولا ينتظرها: إن لم تبدأ أو تعذّر تجهيز قرصها يُبلَّغ بذلك ويعمل Lonora بدونها. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.9 غيغابايت منها نحو 5.2 متاحة، 25 غيغابايت حرة): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.0` و`LONORA_WORKSPACE_DISK=10g` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
+- **الإشعارات على الهاتف:** تصل إشعارة واحدة عند إنشاء بطاقة موافقة على صفقة، أو بطاقة «عملية غير محسومة»، أو بطاقة سرّ ينتظرها وكيل، وإشعارة واحدة لكل انقطاع في حساب الوسيط (رمز مرفوض، حساب غير مُشغَّل، أو اتصال مقطوع لأكثر من دقيقتين)، بنص ثابت وباسم الوكيل، دون سعر أو حجم أو رقم حساب، ولا زر فيها؛ لمسها يفتح المحادثة عند البطاقة. تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
 
 | Piece | Where | What it does |
 |---|---|---|
-| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
+| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), SearXNG web search and the research browser, plus a `migrate` service that runs only when asked. |
 | Mode | `infra/compose/mode-direct.yml` or `mode-proxy.yml` | Direct: Caddy owns 80/443 and gets the certificate. Proxy (`LONORA_PROXY_LISTEN` set): Caddy listens in plain HTTP on one loopback address behind an existing reverse proxy; nothing binds 80/443. |
-| Optional overlays | `infra/research/compose.research.yml` (search and browser, ~1.1 GB, off by default), `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Optional overlays | none bundled | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them, except retired ones, which it removes from `.env`. |
 | Source build | `infra/compose/build-from-source.sh` | Builds the image on the server into a loopback-only registry, when no published image exists. |
 | `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
@@ -64,6 +66,8 @@ Layout on a server (default `/opt/lonora`):
 /opt/lonora/maintenance/on    exists while an update, rollback or restore runs
 /opt/lonora/infra/…           the deployment files from the image
 /opt/lonora/.runtime/releases mobile APK and OTA updates (served read-only by the API)
+/opt/lonora/workspace.img     the workspace disk: a fixed-size ext4 file (LONORA_WORKSPACE_DISK)
+/opt/lonora/workspace-disk/   where it is mounted; the workspace container sees it as /workspace
 ```
 
 ## Install a new server
@@ -80,8 +84,11 @@ sudo bash install.sh --domain lonora.example.com --version main
 `--version` takes a tag (`main`, `v0.3.0`), an exact `repo@sha256:…` reference, or an image built on
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
-127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
-`--min-free-ram-mb` (default 2560), `--min-free-disk-gb` (default 10), `--no-systemd`.
+127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`,
+`--workspace-memory` (default 4g), `--workspace-cpus` (default 2), `--workspace-disk` (default 20g),
+`--min-free-ram-mb` (default 3584 plus the workspace memory: 7680), `--min-free-disk-gb` (default 10
+plus the workspace disk plus 2: 32), `--no-systemd`. The preflight also needs 2 CPUs, no fewer than
+the workspace's, and the tools of the workspace disk (util-linux, e2fsprogs).
 
 `--env-from /opt/lonora/.env` reuses settings and secrets from an earlier installation. It copies
 only keys this version knows — `LONORA_ENCRYPTION_KEY` (provider and broker keys saved in a database
@@ -94,10 +101,6 @@ provider API keys. The database password is always new (a fresh database). Every
 `LONORA_POSTGRES_PASSWORD`, `LONORA_IMAGE`, `LONORA_ARTIFACT_ROOT`, `LONORA_LIVEKIT_*` and any other
 key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
 `.env` is mode 600.
-
-`--overlay` adds a bundled overlay at install time (`infra/research/compose.research.yml`,
-`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
-host socket is missing.
 
 The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
 and leading spaces are accepted; a Windows line ending (CRLF), a control character or a line that is
@@ -140,12 +143,102 @@ Every service has a memory and CPU limit, overridable in `.env`:
 | api (includes the chart renderer) | 896m | 0.75 | `LONORA_API_MEMORY`, `LONORA_API_CPUS` |
 | gateway | 768m | 0.75 | `LONORA_GATEWAY_MEMORY`, `LONORA_GATEWAY_CPUS` |
 | caddy | 96m | 0.25 | `LONORA_CADDY_MEMORY`, `LONORA_CADDY_CPUS` |
+| searxng (web search) | 384m | 0.25 | `LONORA_SEARXNG_MEMORY`, `LONORA_SEARXNG_CPUS` |
+| browser (research browser) | 768m | 0.5 | `LONORA_BROWSER_MEMORY`, `LONORA_BROWSER_CPUS` |
 | migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
 
-The running stack is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
-projects. The optional search and browser services (`infra/research/compose.research.yml`) add
-384m + 768m and are off unless listed in `LONORA_COMPOSE_OVERLAYS`; leave them off on a shared host.
-After changing a limit: `sudo lonora start`.
+| workspace (the owner's agents' terminal) | 4g | 2 | `LONORA_WORKSPACE_MEMORY`, `LONORA_WORKSPACE_CPUS` |
+| workspace-net (its network guard and relay) | 192m | 0.5 | fixed |
+
+The running stack is limited to about 3.4 GB and 3 CPUs; the workspace adds its own limits («The
+workspace» below). The limits are ceilings, not reservations, so the stack still runs on a 2-vCPU
+host. After changing a limit: `sudo lonora start`.
+
+### The workspace
+
+Each installation runs the owner's one persistent Linux workspace (mandate 7.1): the services
+`workspace` (a supervisor that runs each agent's commands under that agent's own Unix user and
+home, `/workspace/home/a<uid>`, with `/workspace/shared` writable by all) and `workspace-net` (a
+guard that owns the workspace's network). Agents use it through the workspace tools
+(`workspace_run`, `workspace_file_read`/`_write`, `workspace_processes`, `workspace_stop`); every
+byte that comes back is scanned and each workspace secret becomes `[secret:NAME]`. Because a log
+or an older process can still hold a value given to a command, the Gateway keeps every value
+given to a command, encrypted with the secret key, for 30 days after it was last given, and the
+scan keeps replacing it: a deleted or rotated secret's value stays stored, encrypted, for up to
+30 days, then is erased. Python, pip, Node, git, SSH, curl,
+compilers and Chromium (headless) come from the server image; agents install more at user level
+(`pip install` goes to `~/.local`), which survives updates. System packages come only from the
+image: agents have no root. Running processes end when the containers are re-created (every
+update) or the host restarts; files do not. `lonora` starts the workspace after Lonora's own
+services and does not wait for it: a workspace that does not start, or a disk that cannot be
+prepared, is reported and Lonora runs without it (agents get a tool error).
+
+| Setting in `.env` | Default | Meaning |
+|---|---|---|
+| `LONORA_WORKSPACE_CPUS` | 2 | CPU quota. Its CPU weight is 128 against every other service's 1024, so under contention the Gateway and the database get their CPU first. |
+| `LONORA_WORKSPACE_MEMORY` | 4g | Memory, without swap. Its OOM score is the highest on the host, so the kernel kills a workspace process before any Lonora process; the database, API and Gateway reserve their memory. `lonora start` and `update` warn when the host has less memory than Lonora plus this. Disk I/O has no weight (it needs a host I/O scheduler that is not always there). |
+| `LONORA_WORKSPACE_DISK` | 20g | Size of `workspace.img`. Grown in place when raised (`sudo lonora start`); never shrunk. |
+| `LONORA_WORKSPACE_PROCESSES` | 256 | Processes and threads in the whole workspace. |
+| `LONORA_WORKSPACE_FOREGROUND_SECONDS` | 600 | Limit of a foreground command. Background processes have none. |
+| `LONORA_WORKSPACE_BLOCKED_ADDRESSES` | empty | More addresses (CIDR, space separated) the workspace may never reach, e.g. this server's public IPv4 when `LONORA_DOMAIN` does not resolve to it. |
+
+**What the workspace can and cannot reach.** It reaches the internet. It cannot reach the
+database, the API, the Gateway or Caddy (they are on another Docker network, and every private,
+link-local and reserved range is rejected), Docker's internal resolver, the host's own ports,
+Lonora's public address (`LONORA_DOMAIN` is refused by name, its addresses and every global
+address of the host are rejected), or MetaApi: names under `agiliumtrade.ai` and `metaapi.cloud`
+do not resolve, no outside resolver is reachable, and every agent TCP connection passes a relay.
+A client that speaks first must speak TLS, HTTP or SSH; the relay refuses an address used as the
+name, MetaApi and Lonora names in TLS server names, HTTP hosts and proxy targets, and a dialled
+address that is not one of the named host's addresses (CNAME chains into MetaApi included, whose
+addresses are then blocked). Agent UDP (except DNS to the guard) and IPv6 TCP are rejected. This
+is defence in depth, not a wall: a name that resolves to a MetaApi address the guard has not
+learned (wildcard DNS such as sslip.io), an HTTPS proxy and anything carried over SSH still reach
+MetaApi, and the internet and SSH must work (7.1.2). What holds is that the MetaApi token never
+enters the workspace (7.2.3): reaching a MetaApi host gives a program nothing to trade with. It has no Docker socket, no
+`.env` and no Lonora secret; the MetaApi token never enters it. Agent processes have no
+capability and cannot gain privileges.
+
+**The disk.** `lonora start`, `update` and `restore` create `workspace.img` on first use (they
+refuse when the disk lacks its size plus 5 GB), mount it at `workspace-disk/` and install a
+systemd mount unit so it is mounted at boot before Docker. The supervisor refuses to start on an
+unmounted directory, so the host's own disk never takes workspace writes. The workspace is **not**
+in the backups (it can hold 20 GB of agent files and installed packages); back up
+`/opt/lonora/workspace.img` yourself if you want it.
+
+**The owner's current server** (2 vCPU, 7,940 MiB with about 5.2 GiB available, 4 GiB swap, load
+1.0-1.5, 25 GB free on `/var/lib/docker`, another stack beside Lonora): the mandate's defaults do
+not fit, so its deployment file (the installation's `.env`) sets
+
+```sh
+LONORA_WORKSPACE_MEMORY=2g
+LONORA_WORKSPACE_CPUS=1.0
+LONORA_WORKSPACE_DISK=10g
+```
+
+(`/opt/lonora2/.env` for the side-by-side install). Lonora's own ceilings (about 3.4 GB, with
+web search and the research browser) plus a 2 GiB workspace come to about 5.5 GB, a little
+above the 5.2 GiB available: these are ceilings, not use, and under pressure the workspace is
+killed first; at most one CPU leaves the other to Lonora and the other stack even
+when the workspace is busy; 10 GiB of the 25 GB free leaves room for images and backups. The
+Gateway and the database keep their memory reserved and the Gateway the highest CPU weight
+(2048 against the workspace's 128), so reconciliation of uncertain operations keeps running.
+For a new install on such a host: `install.sh --workspace-memory 2g --workspace-cpus 1.0
+--workspace-disk 10g` (the preflight then needs 5,632 MB free memory and 22 GB free disk; with 5.2 GiB free,
+add `--min-free-ram-mb 5120` knowingly, or give the workspace 1536m).
+
+**The first update to a version with the workspace.** `lonora update` runs the `lonora` already
+on the server, which does not know the workspace disk. Run the new version's command instead,
+once:
+
+```sh
+docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:<version> /app/deploy/infra/compose/lonora >/tmp/lonora-new
+sudo LONORA_HOME=/opt/lonora2 bash /tmp/lonora-new update <version>
+```
+
+**Prove it.** `sudo python3 tests/check_workspace_service.py --image <image>` installs a
+throwaway project beside the real one (its own name, port and 1 GB disk) and checks every point
+above, then removes it.
 
 ## Side by side with an existing reverse proxy
 
@@ -178,7 +271,7 @@ installation under `--project lonora2` uses `lonora2_*` and `lonora2-*`, so noth
 preflight refuses if any of its own names already exist).
 
 `/opt/lonora-mobile-build` on that server holds the Android signing keystore: never delete or modify
-it. `lonora-analysis.service` is shared by the installations and stays when one is removed.
+it. `lonora-analysis.service` serves only the old stack (see below).
 
 **Neither the installer nor `lonora` ever writes into `/docker/traefik/dynamic/`.** A malformed file
 there can break traefik's file provider for every host on the server, so whoever edits it should
@@ -219,25 +312,19 @@ python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' .lonora-next.ym
 the same way.) Check the entry point names (`websecure` above) against the existing files in that
 directory and use the same ones.
 
-### Analysis workspace host
+### The former analysis workspace host
 
-The analysis workspace (agents running analysis code in isolated containers) needs a trusted host
-service, `lonora-analysis.service` (a venv in `/opt/lonora-analysis`, socket
-`/run/lonora-analysis/host.sock`; `docs/analytical-workspace.md`). It is a host-level control plane
-with Docker access, so the installer neither installs nor upgrades it. On the owner's VPS it already
-runs for the old stack, and the new installation uses the same socket:
+The new installation does not use `lonora-analysis.service` or the analysis overlay: the owner's
+workspace (above, "The workspace") replaced the analytical workspace. On an update, `lonora` removes
+`infra/analysis/compose.workspace.yml` from `LONORA_COMPOSE_OVERLAYS` and says so. Each agent's files
+from the analytical workspace are copied once into `old-workspace/` in its home when the workspace is
+reachable (a snapshot that cannot be read is logged once per Gateway start and stays in the
+database); skill packages were moved into their own store by migration 0138. An update saves the
+overlays line in its rollback bundle, so a rollback to an earlier release gives it back.
 
-1. Check it runs: `systemctl status lonora-analysis` and `test -S /run/lonora-analysis/host.sock`.
-2. Install with `--overlay infra/analysis/compose.workspace.yml`, or on an existing installation add
-   `infra/analysis/compose.workspace.yml` to `LONORA_COMPOSE_OVERLAYS` in `.env` and run
-   `sudo lonora start`. The overlay mounts only the socket directory, read-only, into the API and the
-   Gateway (group 10001), with `LONORA_WORKSPACE_SOCKET` set; it never mounts the Docker socket.
-   The directory is created if it is missing, so the API and the Gateway start (and `/ready` passes)
-   even when the service is not running — after a reboot Docker may start before it, or it may be
-   stopped. Analysis tools then answer that the host is unavailable until the service starts and
-   creates its socket in that same directory (systemd reuses an existing `RuntimeDirectory`).
-3. When the old stack is deleted, leave the service running: the new installation uses it.
-   Upgrading the service itself follows `docs/analytical-workspace.md` (its reviewed venv and image ID).
+The old stack still uses the service, so leave it running while the old stack runs. Once the old
+stack is deleted: `sudo systemctl disable --now lonora-analysis`, then remove `/opt/lonora-analysis`
+and the unit file if nothing else uses them.
 
 ## Switch over later
 
@@ -306,7 +393,7 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
 1. **Maintenance on.** `maintenance/on` is created. While it exists, Caddy answers every write
    (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق». It is on only
    while no Gateway runs: **a Gateway never runs while maintenance is on**, so whenever anything could
-   trade, the owner's emergency stop, trading stop, close, approval reject and authority revoke are
+   trade, the owner's pause, close, approval reject and authority revoke are
    accepted.
 2. An in-progress marker (`state/update-in-progress`) is written; API and Gateway are stopped.
 3. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
@@ -320,6 +407,14 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
    the update waits for `/ready` (default 240 s, `LONORA_READY_TIMEOUT`).
 7. Success: marker removed, `state/history.log` updated.
 
+Web search (SearXNG) and the research browser start with every update but are never waited on:
+`lonora` waits on `db`, `api`, `caddy` and `gateway` only, so their health can neither fail nor roll
+back an update, a restore or a start. One exception: the single update *from* a release that still
+had the optional research overlay runs that older `lonora`, which waits on every service, so that
+one update still needs SearXNG and the browser to pull and become healthy. Updates after it do not.
+An installation that had listed the retired overlay in `LONORA_COMPOSE_OVERLAYS` has it skipped
+from then on and removed from `.env` by its next update.
+
 **If step 4, 5, 6 or a health gate fails**, `lonora` rolls back by itself: the old deployment files
 and pin come back and the database is **restored from the backup of step 3** — dropped and recreated
 from that dump, not migrated down. An Alembic downgrade after the new version has written rows can
@@ -328,14 +423,43 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
+undo something that must not be undone: an owner's pause, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
-on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the trading switch and emergency stop
-in `ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
-changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
-and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
+on its own) of `ln_account_authorities`, `ln_supervision_grants`,
+`ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
+agents, the broker connections' enabled flags, paused or cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
+voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and
+Gateway, keeps maintenance on and the failed version pinned, prints `ROLLBACK HELD` with the reason,
+and exits with status 2.
+
+**The update runs as the target release's own `lonora`.** Before it changes anything, `lonora
+update` reads the target image's `infra/compose/lonora` and, when it differs from the running one,
+hands the update to it (same lock, home and command name). The fingerprint's definition is its own
+file, `infra/compose/lonora-controls.sh`, and the one in force is the target release's copy:
+`lonora update` reads it from the image it installs before anything changes, keeps it next to the
+update marker (`state/update-controls.sh`; a held update keeps its own), and uses it for the
+baseline of step 5 and for the comparison of any rollback of that update. A release that drops a
+table therefore drops it from both sides, and each part is read only when its table exists, so a
+removed table never makes the records "unreadable". An image built before this file existed
+carries none; the installation's own copy stands in.
+
+**Once, on an installation whose `lonora` predates this** (it has no
+`infra/compose/lonora-controls.sh`): that script cannot hand the update over, and it reads the
+owner controls with its own definition, which may name a table the target release drops (the
+update then stops at "reading the owner-control records" and the rollback holds). Install the
+target's two files first, then update as usual:
+
+```
+IMAGE=ghcr.io/loorksy/lonorabot:<version>
+cd /opt/lonora
+sudo docker pull "$IMAGE"
+for f in lonora lonora-controls.sh; do
+  sudo docker run --rm --network none --entrypoint cat "$IMAGE" /app/deploy/infra/compose/$f | sudo tee infra/compose/$f.new >/dev/null
+  sudo chmod 755 infra/compose/$f.new && sudo mv -f infra/compose/$f.new infra/compose/$f
+done
+sudo lonora update <version>
+```
 
 ### When an update does not finish: what to do
 
@@ -453,6 +577,90 @@ printed `sudo lonora restore FILE --replace`), go back to the state before it
 and is never rotated away), or `sudo lonora restore --abandon` (asks to type ABANDON, or `--yes`),
 which only clears the marker and leaves the database as it is.
 
+## Push to the owner's phone
+
+Push goes through the Expo push service with the owner's own Expo project (VISION 11.4). What
+exists at this commit is the phone side: after sign-in the app asks for the notification
+permission and registers the phone with `PUT /api/push/devices/<install id>` (owner session
+only). The server stores the Expo push token encrypted, bound to the sign-in session that sent
+it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds the permission
+turned off (`DELETE /api/push/devices/<install id>`). The token is never logged and never
+shown to a model.
+
+The gateway step `push` sends one push per record, when it is created, to every phone that has
+not signed out: a pending Trade Approval card, a Settle Uncertain Operation card, a
+Secret card an agent's run is waiting on, and a broker health problem (a rejected MetaApi
+token, an undeployed account, or a connection lost for more than two minutes), once per
+account and outage however often its reason changes. The text is
+Lonora's fixed text for that event in the owner's language under the agent's name; no price,
+volume, symbol or account number leaves the server, and the notification has no button. A tap
+opens the conversation at the card, and the card itself is where the owner approves or
+settles. Quiet hours do not hold these pushes. Execution Receipts and reports never push. Each
+push has an effect receipt written before the call to Expo, and a push whose outcome is unknown
+(a timeout, a restart) is never sent again, so a record pushes once per phone even across
+restarts and two gateways. A push that certainly never reached Expo (no connection, or "too
+many requests") is tried again up to five times over about eight minutes. Each phone gets its own request, so a token Expo refuses never
+costs another phone its push. When push is first installed it starts from the end of the event
+stream: cards that were already waiting do not push.
+
+A phone keeps receiving push until it signs out, even after its sign-in session has expired
+(a session lasts `LONORA_SESSION_SECONDS`, default one day): a push carries only the agent's
+name and fixed text, and the phone must stay reachable while the app is closed. Signing out
+revokes the session and the gateway deletes that phone's row; the app registers again at the
+next sign-in.
+
+`LONORA_EXPO_ACCESS_TOKEN` (optional, in `.env`) is sent to Expo only when the Expo project has
+"enhanced security for push notifications" turned on. `/ready` reports `"push":
+"configured"` once a phone that has not signed out is registered and `"not_configured"` before;
+push never makes the server unready.
+
+A native release with push needs, once:
+
+1. An Expo project at expo.dev owned by the owner; its project id (a UUID) is
+   `LONORA_EXPO_PROJECT_ID`.
+2. A Firebase project with an Android app whose package is `ai.lonora.mobile`; download its
+   `google-services.json` and upload the same project's FCM V1 service-account key to the
+   Expo project (expo.dev, project credentials, Android, FCM V1). The path of the
+   `google-services.json` file is `LONORA_ANDROID_GOOGLE_SERVICES_FILE`.
+3. For iOS (no iOS release is built today): an APNs key registered in the same Expo project.
+
+Then build the APK as usual with both variables set:
+
+```bash
+LONORA_EXPO_PROJECT_ID=<uuid> LONORA_ANDROID_GOOGLE_SERVICES_FILE=/path/google-services.json \
+  pnpm --filter @lonora/mobile android:release
+```
+
+The release refuses one variable without the other and prints `Push: built in.`. Without the
+variables it prints `Push: not configured`, and that build never asks for the permission or
+registers (the notification module is linked into every build, so every APK declares
+`POST_NOTIFICATIONS`). The notification module is native code, so an OTA update cannot add it
+to an older APK: the phone needs this new APK. The fingerprint `runtimeVersion` includes the
+project id and the Firebase file, so publish OTA updates for a push build with the same two
+variables set (`scripts/ota-publish.sh` refuses one without the other); an update exported
+without them has another runtime and never reaches that phone.
+
+### Telegram
+
+The owner may also receive these alerts in Telegram (VISION 11.4). Link a bot in the web app
+(Settings, Integrations, Telegram: the bot token from @BotFather and the agent that receives
+your messages). Then pair your chat from chat: write anything to your bot from your own
+private chat; it answers with a one-time code, and you send that code to Lonora in the app as
+a short message of your own («اربط تيليجرام: CODE»). Lonora links the chat only when the code
+stands in your own short typed message, so a code it read anywhere else, or a long pasted text
+carrying one, links nothing. A code lasts ten minutes and works once; a chat gets one code at
+a time; at most three chats wait, the oldest making room for a newcomer; and nothing a chat
+writes before it is linked reaches an agent. Once a chat is linked the bot offers no codes:
+to move to another chat, unlink the bot and link it again. From then on the bot sends the
+alerts that push, from every agent's conversation (the agent's name and the same fixed text),
+once per record, with an effect receipt before each call and no second send of an unconfirmed
+one; alerts from before the pairing are not sent. Agents' replies are not sent to Telegram;
+read them in the app. What you write to the bot reaches the chosen agent's conversation as
+your message: a "yes" there is a message to the agent and never approves or settles a card,
+which only the card in the app does. A `/start` message is never passed to an agent, and
+neither is a forwarded message or one sent through another bot: those are someone else's
+words, not yours.
+
 ## Release manifest and client versions
 
 Every image carries `/app/release.json`, e.g.:
@@ -537,9 +745,9 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
     would delete it: read-only (503, no Gateway) during its safety backup, file kept, older schema
     migrated up; then a restore failing after `DROP DATABASE`: the printed command resumes without a
     second safety backup while `update` refuses; `KEEP=1` keeps a held backup and `KEEP=0` is refused;
-14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
-    bad tag changes nothing, another failing version returns to the hold, a fixed version updates
-    forward keeping the restriction;
+14. an owner-control write during the gate: held; `--keep-data` with the same digest stays held,
+    a bad tag changes nothing, another failing version returns to the hold, a fixed version
+    updates forward keeping the write;
 15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the
@@ -560,7 +768,7 @@ Also: an install with no schema yet is brought up by `update` of the pinned vers
 open while the new Gateway runs (10); a sampler finds no moment with maintenance on and a Gateway
 running through `update <pinned>` and `maintenance on`, and status names the clear command (9b);
 an unfinished restore also blocks the daily backup and an unconfirmed `--abandon`; the side-by-side
-install also uses the workspace overlay with no socket (still `/ready`), refuses port 70000 and a
+install refuses port 70000 and a
 CRLF `--env-from` file, and a `lonora2` backup restored `--with-config` into a `lonora3` install
 keeps `lonora3`'s project and mode. 22 checks in all.
 

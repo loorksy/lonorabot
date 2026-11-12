@@ -15,14 +15,13 @@ from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import AgentRow, OwnerRow, RunRow, ThreadRow, TradingJournalRow
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode, trading_mode
-from lonora_trading.controls import save_controls
 from lonora_trading.execution import ExecutionService
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
@@ -66,7 +65,6 @@ async def checks() -> None:
         await change_permission(
             session, owner_id, agent_id, PermissionChange(level="supervised", expected_revision=0)
         )
-    await save_controls(db, TradingControl(enabled=True))
     broker.account_id = account_id
     broker.scripted_positions = [
         Position(

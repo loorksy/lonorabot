@@ -86,7 +86,7 @@ function orderWording(action: string): { title: string; kind: string } {
 
 /* «الصفقات» (route trades): the agent's open positions with the owner's own «تعديل الوقف
    والهدف» and «إغلاق الصفقة» — the owner's direct order through POST /api/trading/execute,
-   the single executor under the global brake (Q30) — then «سجل الأوامر» from the journal. */
+   the single executor (Q30) — then «سجل الأوامر» from the journal. */
 export function TradesPage({ agentId }: { agentId: string }) {
   const data = useShellData();
   const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);

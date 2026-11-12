@@ -8,14 +8,13 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate, utcnow
-from lonora_contracts.trading import TradeRequest, TradingControl
+from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import binding_context
 from lonora_db.agents import agent_data, create_agent
 from lonora_db.schema import AgentRow, RunRow, TradingAccountRow
 from lonora_db.trading_mode import set_trading_mode
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_voice.context import voice_context
 
 # The refusals the door no longer makes for orders (3.1.2, 6.9).
@@ -192,39 +191,33 @@ async def checks() -> None:
                 if name == "list_accounts":
                     listed = {item["connection_id"] for item in read["accounts"]}
                     assert {primary, secondary} <= listed, listed
-        # Trading is on for these checks (restored below), so each answer is its own rule's.
-        original_controls = await read_controls(fixture.runtime.db)
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
-        try:
-            # In Ask, new risk on another symbol asks for its tolerance: never the binding.
-            await not_bound(
-                "trade_execute",
-                {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
-                "tolerance_required",
-            )
-            # Another account holds nothing of this agent's: nothing to close.
-            await not_bound("trade_close_positions", {"account_id": secondary}, "no_positions")
-            # In Full, an order on another symbol of the account is sent and confirmed.
-            async with fixture.runtime.db.sessions() as session, session.begin():
-                await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
-            sent = await registry.execute(
-                ToolCall(
-                    id=uuid4().hex,
-                    name="trade_execute",
-                    arguments={
-                        "account_id": primary,
-                        "symbol": symbols[1],
-                        "action": "buy",
-                        "volume": "0.1",
-                    },
-                ),
-                context,
-            )
-            assert sent.get("status") == "confirmed", sent
-            async with fixture.runtime.db.sessions() as session, session.begin():
-                await set_trading_mode(session, fixture.owner, agent["id"], "ask", by="agent")
-        finally:
-            await save_controls(fixture.runtime.db, original_controls)
+        # In Ask, new risk on another symbol asks for its tolerance: never the binding.
+        await not_bound(
+            "trade_execute",
+            {"account_id": primary, "symbol": symbols[1], "action": "buy", "volume": "0.1"},
+            "tolerance_required",
+        )
+        # Another account holds nothing of this agent's: nothing to close.
+        await not_bound("trade_close_positions", {"account_id": secondary}, "no_positions")
+        # In Full, an order on another symbol of the account is sent and confirmed.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
+        sent = await registry.execute(
+            ToolCall(
+                id=uuid4().hex,
+                name="trade_execute",
+                arguments={
+                    "account_id": primary,
+                    "symbol": symbols[1],
+                    "action": "buy",
+                    "volume": "0.1",
+                },
+            ),
+            context,
+        )
+        assert sent.get("status") == "confirmed", sent
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, agent["id"], "ask", by="agent")
         await denied(
             "watch_create",
             {

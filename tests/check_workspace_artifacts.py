@@ -1,4 +1,4 @@
-"""Saved workspace -> immutable attachment -> actual vision context -> chat delivery."""
+"""Workspace file -> immutable attachment -> actual vision context -> chat delivery."""
 
 import asyncio
 import base64
@@ -11,17 +11,16 @@ from unittest.mock import patch
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
-from lonora_agent import workspace_artifacts
 from lonora_agent.executor import execute_run
-from lonora_agent.workspace import WorkspaceResult
-from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import ArtifactRow, MessageRow, RunRow, TradingJournalRow
 from lonora_security.runtime_storage import confined_path
+from lonora_tools import workspace_export
 from lonora_tools.loader import load_tools
 from PIL import Image
 from sqlalchemy import func, select
+from workspace_fake import FakeWorkspace
 
 
 async def main() -> None:
@@ -37,29 +36,10 @@ async def main() -> None:
             Image.new("RGB", (8, 6), (11, 77, 123)).save(image, format="PNG")
             png = image.getvalue()
 
-            class ScriptedAnalysis:
-                async def profile(self) -> str:
-                    return "sha256:" + "a" * 64
-
-                async def execute(
-                    self,
-                    command: str,
-                    files: dict[str, bytes] | None = None,
-                    *,
-                    deadline_seconds: float = 30,
-                    expected_image: str | None = None,
-                ) -> WorkspaceResult:
-                    if expected_image is not None and expected_image != await self.profile():
-                        raise LonoraError("workspace_profile_changed", 409)
-                    return WorkspaceResult(
-                        0,
-                        "saved reports",
-                        "",
-                        {"result.md": b"# Original analysis", "result.png": png},
-                        "sha256:" + "a" * 64,
-                    )
-
-            context = replace(context, workspace_access=RunWorkspaceAccess(ScriptedAnalysis()))
+            workspace = FakeWorkspace()
+            workspace.files[(context.agent_id, "result.md")] = b"# Original analysis"
+            workspace.files[(context.agent_id, "result.png")] = png
+            context = replace(context, workspace=workspace.client())
             registry = load_tools()
 
             async def call(identity: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -71,7 +51,7 @@ async def main() -> None:
                 try:
                     await call(identity, "workspace_export", args)
                 except LonoraError as error:
-                    assert error.code == code
+                    assert error.code == code, error.code
                 else:
                     raise AssertionError("Expected " + code)
 
@@ -79,54 +59,44 @@ async def main() -> None:
                 journal_before = await session.scalar(
                     select(func.count()).select_from(TradingJournalRow)
                 )
-            await call(
-                "compute", "workspace_execute", {"revision": 0, "command": "scripted analysis"}
-            )
-            image_export = await call(
-                "image-export", "workspace_export", {"revision": 1, "path": "result.png"}
-            )
+            image_export = await call("image-export", "workspace_export", {"path": "result.png"})
             report = await call(
                 "report-export",
                 "workspace_export",
-                {"revision": 1, "path": "result.md", "name": "analysis.md"},
+                {"path": "result.md", "name": "analysis.md"},
             )
             assert image_export["payload"]["media_type"] == "image/png"
-            assert report["state"]["workspace_source"]["revision"] == 1
+            assert report["state"]["workspace_source"]["path"] == "result.md"
             assert "delivered_message_id" not in image_export["state"]
             assert "image_observation" not in image_export, "Export faked visual inspection"
-            await call(
-                "advance-files",
-                "workspace_update",
-                {"revision": 1, "files": {"result.md": "# New analysis"}},
-            )
+            # The file changes; a replay still returns the attachment the call made.
+            workspace.files[(context.agent_id, "result.md")] = b"# New analysis"
             assert (
                 await call(
                     "report-export",
                     "workspace_export",
-                    {"revision": 1, "path": "result.md", "name": "analysis.md"},
+                    {"path": "result.md", "name": "analysis.md"},
                 )
                 == report
             )
             await refused(
                 "report-export",
-                {"revision": 2, "path": "result.md", "name": "analysis.md"},
+                {"path": "result.md", "name": "other.md"},
                 "workspace_export_conflict",
             )
             await refused(
-                "stale-export", {"revision": 1, "path": "result.md"}, "workspace_revision_conflict"
-            )
-            await refused(
                 "mislabel",
-                {"revision": 2, "path": "result.png", "name": "analysis.jpg"},
+                {"path": "result.png", "name": "analysis.jpg"},
                 "workspace_export_format_mismatch",
             )
             await refused(
                 "unsafe-name",
-                {"revision": 2, "path": "result.md", "name": "../analysis.md"},
+                {"path": "result.md", "name": "../analysis.md"},
                 "workspace_export_filename_invalid",
             )
+            await refused("missing-source", {"path": "absent.md"}, "workspace_file_unreadable")
             await refused(
-                "unsafe-source", {"revision": 2, "path": "../secret.md"}, "workspace_path_unsafe"
+                "binary-source", {"path": "result.exe"}, "workspace_export_format_unsupported"
             )
 
             # Verify integrity before replay, even when the filesystem advanced.
@@ -134,12 +104,12 @@ async def main() -> None:
             await asyncio.to_thread(report_path.write_bytes, b"corrupted")
             await refused(
                 "report-export",
-                {"revision": 1, "path": "result.md", "name": "analysis.md"},
+                {"path": "result.md", "name": "analysis.md"},
                 "artifact_integrity_failed",
             )
             await asyncio.to_thread(report_path.write_bytes, b"# Original analysis")
 
-            original_store = workspace_artifacts.store_artifact
+            original_store = workspace_export.store_artifact
 
             async def replaced_before_store(
                 actor: Any, *args: Any, **kwargs: Any
@@ -150,8 +120,8 @@ async def main() -> None:
                     run.lease_fence += 1
                 return await original_store(actor, *args, **kwargs)
 
-            with patch.object(workspace_artifacts, "store_artifact", replaced_before_store):
-                await refused("fenced-export", {"revision": 2, "path": "result.md"}, "stale_lease")
+            with patch.object(workspace_export, "store_artifact", replaced_before_store):
+                await refused("fenced-export", {"path": "result.md"}, "stale_lease")
             fenced_path = confined_path(
                 context.artifact_root, context.for_call("fenced-export").resource_id + "/result.md"
             )
@@ -169,12 +139,12 @@ async def main() -> None:
                         "thread_id": context.thread_id,
                     }
                 ),
-                workspace_access=context.workspace_access,
+                workspace=context.workspace,
             )
             await asyncio.to_thread(report_path.unlink)
             await refused(
                 "report-export",
-                {"revision": 1, "path": "result.md", "name": "analysis.md"},
+                {"path": "result.md", "name": "analysis.md"},
                 "artifact_file_missing",
             )
             await asyncio.to_thread(report_path.write_bytes, b"# Original analysis")
@@ -237,7 +207,7 @@ async def main() -> None:
                 assert downloaded.status_code == 200 and downloaded.content == expected
             assert rounds == 2
             print(
-                "PASS workspace report/image export, immutable replay, source revisions, integrity and scope failures, actual vision pixels, canonical attachments/downloads and zero financial effects"
+                "PASS workspace report/image export from the file system, immutable replay, integrity and scope failures, actual vision pixels, canonical attachments/downloads and zero financial effects"
             )
         finally:
             fixture.settings.artifact_root = original_root

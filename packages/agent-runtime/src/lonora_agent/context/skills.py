@@ -8,7 +8,7 @@ from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
 from lonora_db.owner_words import ui_submit_origin
 from lonora_db.runs import require_lease
-from lonora_db.schema import AgentRow, AnalyticalWorkspaceRow, CloudChartRow, MessageRow, SkillRow
+from lonora_db.schema import AgentRow, CloudChartRow, MessageRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
@@ -17,7 +17,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..skills.document import skill_document
-from ..skills.packages import PackageVersion, read_state, validate_package_files, validation_image
+from ..skills.packages import PackageVersion, read_state, require_validated, validate_package_files
 from ..skills.provenance import skill_provenance, skill_trust
 from ..skills.registry import (
     SkillDefinition,
@@ -28,6 +28,7 @@ from ..skills.registry import (
 )
 from ..skills.resolver import SkillSignals, eligibility_reason, resolve_skills
 from ..skills.snapshot import MAX_SNAPSHOT_SKILLS, apply_snapshot, read_snapshot, write_snapshot
+from ..skills.store import stored_files
 
 
 def package_entry(row: SkillRow, definition: SkillDefinition) -> PackageVersion:
@@ -46,29 +47,6 @@ def package_entry(row: SkillRow, definition: SkillDefinition) -> PackageVersion:
     return entry
 
 
-def pin_package_image(
-    metadata: dict[str, Any], rows: Sequence[SkillRow], selected: Sequence[SkillDefinition]
-) -> dict[str, Any]:
-    """Pin the admitted immutable profile; later execution cannot silently switch it."""
-    selected_by_id = {item.manifest.id: item for item in selected}
-    images: set[str] = set()
-    for row in rows:
-        definition = selected_by_id.get(row.payload.get("name", ""))
-        if definition is None or "package" not in row.state:
-            continue
-        image = validation_image(package_entry(row, definition))
-        if image is not None:
-            images.add(image)
-    if not images:
-        return metadata
-    if len(images) != 1:
-        raise LonoraError("skill_package_validation_required", 409)
-    image = next(iter(images))
-    if metadata.get("skill_execution_image") not in {None, image}:
-        raise LonoraError("workspace_profile_changed", 409)
-    return {**metadata, "skill_execution_image": image}
-
-
 async def effective_skill_registry(
     session: AsyncSession,
     context: ToolContext,
@@ -82,9 +60,6 @@ async def effective_skill_registry(
     skills = apply_snapshot(
         skills, rejected, read_snapshot(metadata.get("skill_snapshot")), known_tools
     )
-    current_image: str | None = None
-    profile_failure: str | None = None
-    workspace_files: dict[str, bytes] | None = None
     for row in rows:
         identity = row.payload.get("name", "")
         definition = skills.definitions.get(identity)
@@ -92,31 +67,9 @@ async def effective_skill_registry(
             continue
         try:
             entry = package_entry(row, definition)
-            image = validation_image(entry)
-            if workspace_files is None:
-                from ..workspace import read_snapshot as read_workspace_snapshot
-
-                workspace = await session.get(AnalyticalWorkspaceRow, context.agent_id)
-                if workspace is None or workspace.active_operation_id:
-                    raise LonoraError("skill_package_source_changed", 409)
-                workspace_files = read_workspace_snapshot(workspace.snapshot)
-            validate_package_files(entry, workspace_files)
-            if image is not None:
-                if current_image is None and profile_failure is None:
-                    try:
-                        if context.workspace_access is None:
-                            raise LonoraError("workspace_runtime_unavailable", 409)
-                        current_image = await context.workspace_access.profile(
-                            context.for_call(context.call_id or "skill-profile")
-                        )
-                    except LonoraError as error:
-                        profile_failure = error.code
-                if profile_failure is not None:
-                    raise LonoraError(profile_failure, 409)
-                if image != current_image:
-                    raise LonoraError("skill_package_validation_required", 409)
-                if metadata.get("skill_execution_image") not in {None, image}:
-                    raise LonoraError("workspace_profile_changed", 409)
+            require_validated(entry)
+            stored = await stored_files(session, context.agent_id, entry.files)
+            validate_package_files(entry, stored)
         except LonoraError as error:
             rejected[identity] = error.code
     controls = await read_skill_controls(session, context.owner_id, context.agent_id)
@@ -216,7 +169,7 @@ async def read_skill_context(
     async with context.db.sessions() as writer, writer.begin():
         locked = await require_lease(writer, context.lease, lock=True)
         locked.model_metadata = {
-            **pin_package_image(locked.model_metadata, rows, selection.selected),
+            **locked.model_metadata,
             "skill_selection": selection.diagnostics(),
             "skill_snapshot": snapshot_payload,
         }

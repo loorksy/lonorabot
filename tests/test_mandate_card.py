@@ -12,7 +12,6 @@ from typing import Any, cast
 
 import pytest
 from lonora_contracts.account import Position
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from test_proactive_wakes import call, database, retire, simulation
 
@@ -97,11 +96,9 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         held = Position(
@@ -112,7 +109,6 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
             open_price=Decimal(100),
         )
         connection = await simulation(fixture, [held])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Withdraw", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         entry = {
@@ -190,7 +186,6 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
         )
         assert late.status_code == 409, late.text
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -220,15 +215,12 @@ async def test_a_switch_to_full_while_a_card_is_prepared_decides_under_full(
     from lonora_db.schema import TradeApprovalRow
     from lonora_db.trading_mode import set_trading_mode
     from lonora_tools import trade
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Race", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         prepare = trade.reviewed_contracts
@@ -257,7 +249,6 @@ async def test_a_switch_to_full_while_a_card_is_prepared_decides_under_full(
             )
         assert cards == 0
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 

@@ -9,6 +9,16 @@ const channel = process.env.LONORA_OTA_CHANNEL ?? "production";
 if (!["preview", "production"].includes(channel))
   throw new Error("LONORA_OTA_CHANNEL must be preview or production.");
 
+// Push (VISION 11.4) uses the owner's own Expo project: its id and the Firebase file of that
+// project are release inputs (docs/operations.md). Without them the build has no push.
+const expoProjectId = process.env.LONORA_EXPO_PROJECT_ID || undefined;
+if (
+  expoProjectId &&
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(expoProjectId)
+)
+  throw new Error("LONORA_EXPO_PROJECT_ID must be the Expo project id (a UUID).");
+const googleServicesFile = process.env.LONORA_ANDROID_GOOGLE_SERVICES_FILE || undefined;
+
 const config: ExpoConfig = {
   name: brand.name,
   slug: brand.slug,
@@ -40,6 +50,7 @@ const config: ExpoConfig = {
       backgroundColor: "#000000",
     },
     softwareKeyboardLayoutMode: "resize",
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     permissions: ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "WAKE_LOCK"],
     // Attachments use the system document picker and app cache; no overlays or shared storage.
     blockedPermissions: [
@@ -49,6 +60,7 @@ const config: ExpoConfig = {
       "android.permission.WRITE_EXTERNAL_STORAGE",
     ],
   },
+  ...(expoProjectId ? { extra: { eas: { projectId: expoProjectId } } } : {}),
   runtimeVersion: { policy: "fingerprint" },
   updates: {
     enabled: true,
@@ -66,7 +78,12 @@ const config: ExpoConfig = {
     name: brand.name,
     favicon: "./assets/brand/favicon.png",
   },
-  plugins: ["expo-router", "expo-secure-store", "./plugins/with-release-signing.cjs"],
+  plugins: [
+    "expo-router",
+    "expo-secure-store",
+    ["expo-notifications", { color: "#000000", defaultChannel: "attention", mode: "production" }],
+    "./plugins/with-release-signing.cjs",
+  ],
   experiments: { typedRoutes: true },
 };
 
