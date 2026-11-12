@@ -53,6 +53,8 @@ STEPS = (
     StepSpec("history", 10, 600, critical=False),
     StepSpec("charts", 2, 120, critical=False),
     StepSpec("watches", 2, 120),
+    # Pending Trade Approval cards whose quote left reference ± tolerance (10.3.1).
+    StepSpec("approval_drift", 2, 120),
     StepSpec("voice", 0.5, 60, critical=False),
     # Owner voice notes: one provider transcription per note, outside any request.
     StepSpec("voice_notes", 1, 300, critical=False),
@@ -216,6 +218,13 @@ class Gateway:
     async def watches(self) -> None:
         await self.for_each_owner(lambda service: dispatch_market_wakes(self.db, service.brokers))
 
+    async def approval_drift(self) -> None:
+        from lonora_trading.approval_drift import check_drift
+
+        await self.for_each_owner(
+            lambda service: check_drift(self.db, service.brokers, service.owner_id)
+        )
+
     async def voice(self) -> None:
         await self.for_each_owner(
             lambda service: maintain_voice(self.db, service, self.identity, self.voice_tasks)
@@ -268,6 +277,7 @@ class Gateway:
             "history": self.history,
             "charts": self.charts,
             "watches": self.watches,
+            "approval_drift": self.approval_drift,
             "voice": self.voice,
             "voice_notes": self.voice_notes,
             "channels": self.channels,

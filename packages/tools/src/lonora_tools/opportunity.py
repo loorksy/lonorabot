@@ -11,7 +11,6 @@ from lonora_contracts.opportunity import (
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import EffectReceiptRow, TradingOpportunityRow
 from lonora_db.trading_opportunities import (
@@ -38,8 +37,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run.model_metadata.get("origin_thread_id") or context.thread_id,
             OpportunityCreate.model_validate(args),
         )
-        # An opportunity tainted work saved wakes tainted (GENUI_PLAN §8.5, review round 4).
-        await taint_row_from(session, run, "opportunity", row.id)
         return opportunity_data(row)
 
 
@@ -79,7 +76,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        run = await require_lease(session, context.lease, lock=True)
+        await require_lease(session, context.lease, lock=True)
         key = context.effect_key + ":opportunity-update"
         intent = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
         prior = await session.get(EffectReceiptRow, key)
@@ -91,7 +88,6 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         updated = await update_opportunity(
             session, context.owner_id, context.agent_id, OpportunityUpdate.model_validate(args)
         )
-        await taint_row_from(session, run, "opportunity", updated.id)
         data = opportunity_data(updated)
         session.add(
             EffectReceiptRow(key=key, result={"intent": intent, "version": data["version"]})

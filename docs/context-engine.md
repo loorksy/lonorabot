@@ -126,11 +126,19 @@ Adapted from Hermes Agent `agent/context_compressor.py` (MIT, see
 `THIRD_PARTY_NOTICES.md`) for Lonora's durable checkpoint
 (`lonora_agent/context_engine.py`).
 
-**The checkpoint is never rewritten.** `messages` in `RunRow.execution_state`
+**The transcript is never rewritten.** `messages` in `RunRow.execution_state`
 keep every original tool result, so the financial truth gates, crash recovery,
 receipts, inflight markers and task evidence keep reading the complete record.
 Compaction is a persisted *view* in `execution_state["context_compaction"]`,
 applied to each model request by `model_turn(context_view=...)`.
+
+Only the context head is replaced, and only when a checkpointed Run wakes (a
+Task's external wake, or the owner resuming held work): `refresh_context_head`
+(`lonora_agent/loop_restore.py`) builds the context again and swaps in its
+system messages and leading context data, so a Task that slept across a release
+or an edit of the agent's instructions or memory reads the current text. The
+transcript after the head is kept as it is; compaction records index it without
+the head, so they stay valid.
 
 Before each model turn (and before the final tool-less report at a limit) the
 loop estimates the request under the current view: the fixed part (system
