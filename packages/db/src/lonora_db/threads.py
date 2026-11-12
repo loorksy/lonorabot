@@ -2,7 +2,7 @@ from typing import Any
 
 from lonora_contracts.domain import ThreadCreate, ThreadOptions
 from lonora_core.user_error import LonoraError
-from sqlalchemy import ColumnElement, and_, literal_column, select
+from sqlalchemy import ColumnElement, String, and_, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
@@ -120,7 +120,7 @@ def asks_in(thread_id: str) -> ColumnElement[bool]:
     """Runs working in another thread that report to this one and have asked the owner:
     their questions may have been copied here (each request names its own thread)."""
     # Spelled exactly as the expression index ``ln_run_origin_thread`` (migration 0091).
-    origin = literal_column("(ln_runs.model_metadata ->> 'origin_thread_id')")
+    origin = literal_column("(ln_runs.model_metadata ->> 'origin_thread_id')", String)
     return and_(
         origin == thread_id,
         RunRow.thread_id != thread_id,

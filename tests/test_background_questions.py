@@ -83,10 +83,7 @@ async def resume(fixture: Any, run: dict[str, Any], reply: str) -> list[str]:
     context = await fixture.lease(run)
     seen: list[str] = []
 
-    async def complete(*args: Any, **kwargs: Any) -> Any:
-        messages = kwargs.get("messages") or next(
-            arg for arg in args if isinstance(arg, list) and arg and hasattr(arg[0], "role")
-        )
+    async def complete(_capability: Any, messages: list[Any], *_: Any, **__: Any) -> Any:
         seen.extend(str(message.content) for message in messages if message.role == "user")
         return ModelReply(text=reply), ModelSelection(
             provider="openai", model="background-question-fixture"
@@ -362,7 +359,7 @@ async def test_a_routed_answer_is_kept_in_the_work_thread_and_lends_no_owner_wor
         run = await background_run(fixture, agent, conversation)
         await ask(fixture, run)
         status, body = await send(fixture, conversation["id"], "أبقِها حتى 2,450 ولا تسألني")
-        assert body["run_ids"] == [run["id"]]
+        assert status < 300 and body["run_ids"] == [run["id"]]
         await resume(fixture, run, "أبقيتها؛ سأغلق عند 2,450.")
         # A later run of the routine reads its own question, its choices and the answer.
         async with fixture.runtime.db.sessions() as session:
