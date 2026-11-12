@@ -85,6 +85,8 @@ LIFETIME = {
     # notice of a tightened stop (recorded settled, nothing to tap).
     "watch_changed": timedelta(days=7),
     "stop_tightened": timedelta(days=7),
+    # The Mandate card has no time limit (10.3): it stays the agent's switch.
+    "trading_mode": timedelta(days=3650),
 }
 GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
 ALL_ACTIONS: tuple[AuthorityAction, ...] = ALL_AUTHORITY_ACTIONS
@@ -227,6 +229,11 @@ async def stale_reason(
         from .model_cards import model_stale_reason
 
         return await model_stale_reason(session, owner_id, kind, payload)
+    if kind == "trading_mode":
+        agent = await session.get(AgentRow, payload["agent_id"])
+        if agent is not None and agent.owner_id != owner_id:
+            raise LonoraError("agent_not_found", 404)
+        return "agent_already_removed" if agent is None else None
     if kind == "resume_trading":
         return (
             "trading_already_running"
@@ -606,6 +613,9 @@ def proposal_payload(
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
     if proposal.kind == "resume_trading":
         return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
+    if proposal.kind == "trading_mode":
+        assert proposal.agent_id is not None
+        return "trading_mode:" + proposal.agent_id, {"agent_id": proposal.agent_id}
     if proposal.kind == "lift_restriction":
         assert proposal.restriction_id is not None
         return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
@@ -675,6 +685,15 @@ async def card_facts(
         return facts, False
     if row.kind == "resume_trading":
         facts["global_trading"] = await global_trading(session)
+        return facts, False
+    if row.kind == "trading_mode":
+        agent = await session.get(AgentRow, payload["agent_id"], populate_existing=True)
+        if agent is None:
+            facts["agent"] = {"exists": False, "name": None}
+            return facts, False
+        # Read live: the card always shows the mode the agent is in now.
+        facts["agent"] = {"exists": True, "id": agent.id, "name": agent.name}
+        facts["trading_mode"] = "full" if agent.trading_mode == "full" else "ask"
         return facts, False
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
@@ -2190,6 +2209,8 @@ async def settle_for_delete(
                 OwnerActionRow.agent_id == agent_id,
                 OwnerActionRow.subject.startswith("grant:" + agent_id + ":"),
                 OwnerActionRow.subject == "agent-model:" + agent_id,
+                # Lonora's Mandate card for this agent.
+                OwnerActionRow.subject == "trading_mode:" + agent_id,
             )
         )
     if thread_id is not None:

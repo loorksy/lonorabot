@@ -25,7 +25,12 @@ from lonora_db.schema import (
 )
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.threads import report_thread
-from lonora_db.trade_approvals import approval_event, approval_expiry, expire_if_due
+from lonora_db.trade_approvals import (
+    approval_event,
+    approval_expiry,
+    expire_if_due,
+    withdrawn_prompt,
+)
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import request_hash, stable_id
@@ -359,6 +364,10 @@ async def start_trading_card(context: ToolContext) -> dict[str, Any]:
         }
 
 
+class ModeChangedToFull(Exception):
+    """The agent's mode became Full before its card was raised."""
+
+
 async def never_started(context: ToolContext) -> bool:
     """No stored control: trading was never started on this install (it starts stopped),
     unlike the owner's own Stop."""
@@ -477,6 +486,7 @@ async def approved_execution(
     if grants:
         return await direct_execution(context, authority_requests, grants)
     adding: list[TradeRequest] = []
+    on_ask_tickets: list[TradeRequest] = []
     owner_message = await run_owner_message(context)
     if previous is None and not gate_only and not await reused_card(context, requests):
         # Full executes on its own; Ask asks only for requests that add risk (4.1).
@@ -498,82 +508,114 @@ async def approved_execution(
     if adding:
         if await never_started(context):
             return await start_trading_card(context)
-    async with context.db.sessions() as session, session.begin():
-        current = await require_lease(session, context.lease)
-        if current.agent_id != context.agent_id:
-            raise LonoraError("agent_run_mismatch", 409)
-        await require_financial_agent(session, context.owner_id, current.agent_id)
-        visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
-        thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
-        if thread.agent_id != context.agent_id and not thread.group_id:
-            raise LonoraError("agent_thread_mismatch", 409)
-        await require_lease(session, context.lease, lock=True)
-        row = await session.get(TradeApprovalRow, approval_id)
-        if row is None and not gate_only:
-            row = await reviewed_approval(session, context, requests)
-            if row is not None:
-                approval_id = row.id
-        if row is None:
-            if not gate_only:
-                await refuse_braked_entries(session, context, adding)
-            created = utcnow()
-            row = TradeApprovalRow(
-                id=approval_id,
-                owner_id=context.owner_id,
-                run_id=context.lease.run_id,
-                thread_id=thread.id,
-                agent_id=context.agent_id,
-                call_id=context.call_id,
-                timeline_seq=thread.next_seq,
-                broker_snapshot={
-                    **initial_snapshot,
-                    "execution_mode": {"value": "live"},
-                    "contracts": contracts,
-                },
-                requests=[r.model_dump(mode="json") for r in requests],
-                status="pending",
-                results=[],
-                created_at=created,
-                updated_at=created,
-                expires_at=approval_expiry(created),
-            )
-            session.add(row)
-            await session.flush()
-            approval_event(session, row)
-        if row.owner_id != context.owner_id or row.run_id != context.lease.run_id:
-            raise LonoraError("trade_approval_mismatch", 409)
-        await expire_if_due(session, row)
-        if row.status == "expired":
-            # Its lifetime ended unapproved: nothing is sent. Ask again only when the
-            # owner asks for a new request («طلب جديد»), which starts a new run.
-            return {"status": "expired", "code": "trade_approval_expired", "approval_id": row.id}
-        if row.status == "pending":
-            return {
-                "_runtime_wait": True,
-                "_runtime_retry": True,
-                "question": "",
-                "approval_id": row.id,
-            }
-        if row.status == "rejected":
-            return {"status": "rejected", "code": "trade_approval_rejected", "approval_id": row.id}
-        if row.status == "completed":
-            return {
-                "approval_id": row.id,
-                "results": row.results,
-                **(row.results[0] if len(row.results) == 1 else {}),
-            }
-        if row.status != "approved":
-            raise LonoraError("trade_approval_unavailable", 409)
-        frozen = [TradeRequest.model_validate(item) for item in row.requests]
-        expected_snapshot = row.broker_snapshot
-        if gate_only:
-            if await user_interrupt_pending(session, context.lease.run_id):
-                raise LonoraError("tool_call_superseded", 409)
-            if [trade_fingerprint(TradeRequest.model_validate(item)) for item in row.requests] != [
-                trade_fingerprint(r) for r in requests
-            ]:
-                raise LonoraError("trade_approval_request_changed", 409)
-            return {"approved": True, "approval_id": row.id}
+    try:
+        async with context.db.sessions() as session, session.begin():
+            current = await require_lease(session, context.lease)
+            if current.agent_id != context.agent_id:
+                raise LonoraError("agent_run_mismatch", 409)
+            await require_financial_agent(session, context.owner_id, current.agent_id)
+            visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
+            # The order a mode change takes them in: authority, conversation, run.
+            await authority_lock(session, context.agent_id)
+            thread = await owned_thread(session, context.owner_id, visible_thread_id, lock=True)
+            if thread.agent_id != context.agent_id and not thread.group_id:
+                raise LonoraError("agent_thread_mismatch", 409)
+            await require_lease(session, context.lease, lock=True)
+            row = await session.get(TradeApprovalRow, approval_id)
+            if row is None and not gate_only:
+                row = await reviewed_approval(session, context, requests)
+                if row is not None:
+                    approval_id = row.id
+            if row is None:
+                if (
+                    not gate_only
+                    and mode != "full"
+                    and not any(r in on_ask_tickets for r in adding)
+                    and await trading_mode(session, context.owner_id, context.agent_id) == "full"
+                ):
+                    raise ModeChangedToFull
+                if not gate_only:
+                    await refuse_braked_entries(session, context, adding)
+                created = utcnow()
+                row = TradeApprovalRow(
+                    id=approval_id,
+                    owner_id=context.owner_id,
+                    run_id=context.lease.run_id,
+                    thread_id=thread.id,
+                    agent_id=context.agent_id,
+                    call_id=context.call_id,
+                    timeline_seq=thread.next_seq,
+                    broker_snapshot={
+                        **initial_snapshot,
+                        "execution_mode": {"value": "live"},
+                        "contracts": contracts,
+                    },
+                    requests=[r.model_dump(mode="json") for r in requests],
+                    status="pending",
+                    results=[],
+                    created_at=created,
+                    updated_at=created,
+                    expires_at=approval_expiry(created),
+                )
+                session.add(row)
+                await session.flush()
+                approval_event(session, row)
+            if row.owner_id != context.owner_id or row.run_id != context.lease.run_id:
+                raise LonoraError("trade_approval_mismatch", 409)
+            await expire_if_due(session, row)
+            if row.status == "expired":
+                # Its lifetime ended unapproved: nothing is sent. Ask again only when the
+                # owner asks for a new request («طلب جديد»), which starts a new run.
+                return {
+                    "status": "expired",
+                    "code": "trade_approval_expired",
+                    "approval_id": row.id,
+                }
+            if row.status == "pending":
+                return {
+                    "_runtime_wait": True,
+                    "_runtime_retry": True,
+                    "question": "",
+                    "approval_id": row.id,
+                }
+            if row.status == "rejected":
+                return {
+                    "status": "rejected",
+                    "code": "trade_approval_rejected",
+                    "approval_id": row.id,
+                }
+            if row.status == "withdrawn":
+                # Nothing was sent; the agent decides again under its current mode.
+                return {
+                    "status": "withdrawn",
+                    "code": "trade_approval_withdrawn",
+                    "approval_id": row.id,
+                    "recovery": withdrawn_prompt(row, mode),
+                }
+            if row.status == "completed":
+                return {
+                    "approval_id": row.id,
+                    "results": row.results,
+                    **(row.results[0] if len(row.results) == 1 else {}),
+                }
+            if row.status != "approved":
+                raise LonoraError("trade_approval_unavailable", 409)
+            frozen = [TradeRequest.model_validate(item) for item in row.requests]
+            expected_snapshot = row.broker_snapshot
+            if gate_only:
+                if await user_interrupt_pending(session, context.lease.run_id):
+                    raise LonoraError("tool_call_superseded", 409)
+                if [
+                    trade_fingerprint(TradeRequest.model_validate(item)) for item in row.requests
+                ] != [trade_fingerprint(r) for r in requests]:
+                    raise LonoraError("trade_approval_request_changed", 409)
+                return {"approved": True, "approval_id": row.id}
+    except ModeChangedToFull:
+        # The owner switched this agent to Full while the request was prepared: it is
+        # decided again under Full, never parked on a card the switch cannot withdraw.
+        return await approved_execution(
+            context, requests, gate_only=gate_only, named_ticket=named_ticket
+        )
 
     results: list[dict[str, Any]] = []
     independent = independent_exits(frozen)
