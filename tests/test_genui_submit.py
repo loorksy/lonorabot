@@ -1,5 +1,5 @@
 """Generated-card sends (GENUI_PLAN §8.2, §8.4, §8.5, §10.2): the server-composed bubble,
-the queued submission and its rules Q, W, V, N, T and L, provenance and the taint.
+the queued submission and its rules Q, W, V, N, T and L, and its provenance (mandate 6.10).
 
 Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
 """
@@ -134,7 +134,7 @@ async def open_fixture() -> Any:
 
 
 @pytest.mark.asyncio
-async def test_submit_stores_the_server_bubble_and_its_own_tainted_queued_run() -> None:
+async def test_submit_stores_the_server_bubble_and_its_own_marked_queued_run() -> None:
     from lonora_db.schema import MessageRow, RunRow, SteeringRow
     from lonora_trading.account_authority import provisional_voice
     from sqlalchemy import func, select
@@ -482,6 +482,41 @@ async def test_card_words_never_stand_for_the_owner() -> None:
         assert typed["message"]["origin"] == "owner"
     finally:
         await fixture.close()
+
+
+def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
+    """§8.4: every query of user messages either goes through ``owner_words``, reads
+    ``origin`` or sits on this reviewed allowlist with its reason."""
+    root = Path(__file__).parent.parent
+    allowed = {
+        # The idempotency backfill pairs an old message with its own runs; no authority.
+        "packages/db/src/lonora_db/messages.py": "nonce backfill",
+        "packages/db/src/lonora_db/conversation_locale.py": "reply language evidence only",
+        "packages/db/src/lonora_db/steering.py": "pending-steering existence, not words",
+        # The id of the message a run answers, to refuse retry after an edit. Not its words.
+        "packages/db/src/lonora_db/run_retry.py": "edited-source existence, not words",
+        # The id of the message this turn answers, so a reaction can land. Not its words.
+        "packages/tools/src/lonora_tools/message.py": "reaction target id, not owner words",
+        "packages/agent-runtime/src/lonora_agent/context/skills.py": "reads origin",
+        "packages/memory/src/lonora_memory/conversation.py": "reads origin",
+        "packages/tools/src/lonora_tools/trade.py": "reads origin",
+        "packages/tools/src/lonora_tools/owner_actions.py": "reads origin",
+        "packages/tools/src/lonora_tools/models.py": "reads origin",
+    }
+    offenders: list[str] = []
+    for path in [*root.glob("packages/*/src/**/*.py"), *root.glob("apps/*/src/**/*.py")]:
+        text = path.read_text()
+        if 'MessageRow.role == "user"' not in text:
+            continue
+        relative = str(path.relative_to(root))
+        if relative in allowed:
+            if allowed[relative] == "reads origin":
+                assert "origin" in text, relative
+            continue
+        if "owner_words" in text or "MessageRow.origin" in text:
+            continue
+        offenders.append(relative)
+    assert offenders == [], offenders
 
 
 @pytest.mark.asyncio

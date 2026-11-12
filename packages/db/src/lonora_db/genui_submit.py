@@ -6,7 +6,7 @@ data is computed from the stored card and the validated values (server-set field
 card's compile record); the owner's bubble is the button label (``ask``) or the intent's
 registry template filled with the server's own names. The submission is stored with
 ``origin='ui_submit'`` and always gets its own queued Run carrying ``ui_submit_origin``
-(the taint, §8.5): it never steers or answers an active Run. Its Run is claimed only after
+(its provenance, mandate 6.10): it never steers or answers an active Run. Its Run is claimed only after
 every earlier Run of its agent in the thread has ended (rule Q), reads the thread up to
 its claim (rule W), stays invisible to every other Run until it ends and for good if it
 never started (rules V and N), takes its ticks from its own Run (rule T) and is cancelled
@@ -394,7 +394,7 @@ async def submit_card(
             trigger="group" if thread.group_id else "user",
         ),
     )
-    # Only this Run is a submission (the queue rules read it); it is also the taint's root.
+    # Only this Run is a submission (the queue rules and its provenance read it).
     run.model_metadata = {
         **run.model_metadata,
         SUBMIT: {"message_id": message.id, "intent": intent_name},
@@ -549,7 +549,7 @@ async def expire_submits(session: AsyncSession, thread_id: str | None = None) ->
     query = select(RunRow).where(
         RunRow.status == "queued",
         RunRow.created_at <= utcnow() - SUBMIT_LIFETIME,
-        # Only submissions (the marker, never the taint) that have not started.
+        # Only submissions that have not started.
         RunRow.model_metadata[SUBMIT].as_string().is_not(None),
         RunRow.model_metadata["ui_submit_started"].as_string().is_(None),
     )
