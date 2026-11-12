@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.opportunity import OpportunityUpdate, ThesisDefinition
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TERMINAL_STATUSES
+from lonora_contracts.trading import TERMINAL_STATUSES, TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run
@@ -28,7 +28,7 @@ from lonora_db.trading_opportunities import (
 from lonora_market.health import assess_candles, assess_quote, timeframe_age_seconds
 from lonora_market.relationships import relationship_usable
 from lonora_session.idempotency import stable_id
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ENTRY_ACTIONS = {"buy", "sell", "buy_limit", "sell_limit", "buy_stop", "sell_stop"}
@@ -220,33 +220,63 @@ def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_ex
     return "unknown"
 
 
+# Operations that name a thesis and whose outcome is not settled on it yet.
+PENDING = "pending_operation_ids"
+
+
+def pending_operations(row: TradingOpportunityRow) -> list[str]:
+    return [str(item) for item in row.state.get(PENDING) or []]
+
+
+def same_market(row: TradingOpportunityRow, request: dict[str, Any]) -> bool:
+    return (row.account_id, row.symbol) == (request.get("account_id"), request.get("symbol"))
+
+
+async def link_pending_operation(
+    session: AsyncSession, owner_id: str, request: TradeRequest
+) -> None:
+    """Agent memory only, never a gate (mandate 14.2.5): an operation that names a thesis of
+    its own market becomes the thesis's pending link when it is reserved, so its outcome is
+    settled on the thesis even if its sender is lost. Nothing here refuses the operation."""
+    if not request.thesis_id:
+        return
+    row = await session.scalar(
+        select(TradingOpportunityRow)
+        .where(
+            TradingOpportunityRow.owner_id == owner_id,
+            TradingOpportunityRow.id == request.thesis_id,
+        )
+        .with_for_update()
+    )
+    if row is None or not same_market(row, request.model_dump(mode="json")):
+        return
+    pending = pending_operations(row)
+    if request.operation_id not in pending:
+        row.state = {**row.state, PENDING: [*pending, request.operation_id]}
+
+
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
     identifier = journal.request.get("thesis_id")
     if not identifier:
         return
     row = await owned_opportunity(session, journal.owner_id, str(identifier), lock=True)
-    action = journal.request.get("action")
+    if not same_market(row, journal.request):
+        return  # Another market's operation is never this thesis's memory.
+    pending = pending_operations(row)
     if journal.status not in TERMINAL_STATUSES:
         # Its outcome is not known yet: maintenance settles the link once it is.
-        key = (
-            "pending_entry_operation_id"
-            if action in ENTRY_ACTIONS
-            else "pending_management_operation_id"
-        )
-        row.state = {**row.state, key: journal.operation_id}
+        if journal.operation_id not in pending:
+            row.state = {**row.state, PENDING: [*pending, journal.operation_id]}
         return
+    action = journal.request.get("action")
     outcome = execution_outcome(journal)
+    state = {**row.state, PENDING: [item for item in pending if item != journal.operation_id]}
     if outcome == "not_executed" or (outcome == "unknown" and action not in ENTRY_ACTIONS):
         # Never sent, rejected, or a management outcome nobody can establish: release the
         # pending link. Exposure is read from the broker again, never from this thesis.
         row.state = {
-            **row.state,
+            **state,
             **({"last_operation_id": journal.operation_id} if outcome == "unknown" else {}),
-            **{
-                key: None
-                for key in ("pending_entry_operation_id", "pending_management_operation_id")
-                if row.state.get(key) == journal.operation_id
-            },
         }
         raw = journal.result.get("details", {}).get("resolution")
         resolution = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
@@ -256,7 +286,7 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
             and resolution.get("basis") == "target_closed"
             and row.state.get("entry_position_id")
             and journal.request.get("position_id") == row.state.get("entry_position_id")
-            and row.status != "completed"
+            and row.status not in TERMINAL
         ):
             # Whoever closed it, the thesis position is observed closed at the broker.
             transition(
@@ -267,19 +297,18 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
                 evidence={"operation_id": journal.operation_id, "resolution": resolution},
             )
         return
-    state = {**row.state, "last_operation_id": journal.operation_id}
-    if state.get("pending_management_operation_id") == journal.operation_id:
-        state["pending_management_operation_id"] = None
+    state["last_operation_id"] = journal.operation_id
     details = journal.result.get("details", {})
     row.state = state
+    if row.status in TERMINAL:
+        return  # An ended thesis records the operation and is never revived.
     if action in ENTRY_ACTIONS and row.state.get("entry_operation_id") != journal.operation_id:
-        # An entry that may have executed (attested, or of unknown outcome) still acts on
-        # the thesis: it must never authorize a second entry for the same setup.
+        # An entry that may have executed (attested, or of unknown outcome) acts on the
+        # thesis; a later entry is the agent's own decision and becomes its entry.
         attested = journal.status == "resolved"
         row.state = {
             **state,
             "entry_operation_id": journal.operation_id,
-            "pending_entry_operation_id": None,
             "entry_position_id": None
             if attested
             else details.get("position_id")
@@ -310,9 +339,7 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
         and not details.get("partial_execution")
         and row.state.get("entry_position_id")
         and journal.request.get("position_id") == row.state.get("entry_position_id")
-        and row.status != "completed"
     ):
-        row.state = state
         transition(
             session,
             row,
@@ -338,12 +365,11 @@ async def maintenance_opportunities(db: Database, owner_id: str) -> int:
                         TradingOpportunityRow.status.in_(
                             ["forming", "confirmed", "degraded", "acted_on"]
                         ),
-                        TradingOpportunityRow.state["pending_entry_operation_id"]
-                        .as_string()
-                        .is_not(None),
-                        TradingOpportunityRow.state["pending_management_operation_id"]
-                        .as_string()
-                        .is_not(None),
+                        text(
+                            "json_array_length(coalesce("
+                            "ln_trading_opportunities.state -> 'pending_operation_ids', '[]'"
+                            "::json)) > 0"
+                        ),
                     ),
                     ~blocked("opportunity", TradingOpportunityRow.id),
                 )
@@ -374,12 +400,10 @@ async def maintain_opportunity(session: AsyncSession, identifier: str) -> bool:
     )
     if row is None:
         return False
-    for key in ("pending_entry_operation_id", "pending_management_operation_id"):
-        operation_id = row.state.get(key)
-        if operation_id:
-            journal = await session.get(TradingJournalRow, operation_id)
-            if journal:
-                await sync_opportunity_execution(session, journal)
+    for operation_id in pending_operations(row):
+        journal = await session.get(TradingJournalRow, operation_id)
+        if journal:
+            await sync_opportunity_execution(session, journal)
     await refresh_opportunity(session, row)
     row.updated_at = utcnow()  # Fair bounded polling; not a new evidence timestamp or event.
     return True

@@ -372,9 +372,9 @@ async def main() -> None:
         unsent = await fresh_thesis("fixture-lost-entry-not-executed")
         lost = await entry(unsent, "lost-entry-not-executed", lose_before_effect)
         assert lost["status"] == "ambiguous", lost
-        assert (await thesis_state(unsent))["state"]["pending_entry_operation_id"] == (
+        assert (await thesis_state(unsent))["state"]["pending_operation_ids"] == [
             lost["operation_id"]
-        )
+        ]
         await f.request(
             "POST",
             f"/trading/journal/{lost['operation_id']}/resolve",
@@ -382,7 +382,7 @@ async def main() -> None:
         )
         released = await thesis_state(unsent)
         assert released["status"] == "confirmed", released
-        assert released["state"]["pending_entry_operation_id"] is None
+        assert released["state"]["pending_operation_ids"] == []
         assert not released["state"].get("entry_operation_id")
         # Identical parameters in this Run replay the same resolved operation; a fresh
         # entry is a different request.
@@ -401,7 +401,7 @@ async def main() -> None:
         attested = await thesis_state(executed)
         assert attested["status"] == "acted_on", attested
         assert attested["state"]["entry_operation_id"] == lost["operation_id"]
-        assert attested["state"]["pending_entry_operation_id"] is None
+        assert attested["state"]["pending_operation_ids"] == []
         assert attested["state"]["reason_code"] == "thesis_entry_attested"
         again = await entry(executed, "lost-entry-second", volume="0.3")
         # An acted-on thesis is memory, never a gate: the next entry is sent and linked.
@@ -443,6 +443,59 @@ async def main() -> None:
         assert completed["state"]["reason_code"] == "thesis_position_no_longer_open"
         print(
             "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and a later entry is linked; an observed-closed position completes its thesis"
+        )
+
+        def journal_row(
+            thesis_id: str, status: str, *, action: str = "buy", symbol: str = symbols[0]
+        ) -> TradingJournalRow:
+            identifier = "thesis-memory-" + uuid4().hex
+            return TradingJournalRow(
+                operation_id=identifier,
+                owner_id=f.owner,
+                account_id=account,
+                request_hash="explicit-fixture",
+                request={
+                    "account_id": account,
+                    "operation_id": identifier,
+                    "action": action,
+                    "symbol": symbol,
+                    "volume": "0.1",
+                    "thesis_id": thesis_id,
+                },
+                status=status,
+                result={"operation_id": identifier, "status": status, "details": {}},
+            )
+
+        async def sync(row: TradingJournalRow) -> dict[str, Any]:
+            async with f.runtime.db.sessions() as session, session.begin():
+                await sync_opportunity_execution(session, row)
+            return await thesis_state({"id": row.request["thesis_id"]})
+
+        memory = await fresh_thesis("fixture-memory-links")
+        # Several open operations on one thesis are all kept, and each settles on its own.
+        first, second = (journal_row(memory["id"], "ambiguous") for _ in range(2))
+        await sync(first)
+        held = await sync(second)
+        assert held["state"]["pending_operation_ids"] == [
+            first.operation_id,
+            second.operation_id,
+        ], held
+        second.status = "failed"
+        assert (await sync(second))["state"]["pending_operation_ids"] == [first.operation_id]
+        # Another market's operation is never this thesis's memory.
+        foreign = journal_row(memory["id"], "confirmed", symbol=symbols[1])
+        unchanged = await sync(foreign)
+        assert unchanged["status"] == "confirmed", unchanged
+        assert unchanged["state"].get("last_operation_id") != foreign.operation_id
+        # An ended thesis records an operation that names it and is never revived.
+        ended = await f.request("GET", "/trading/opportunities/" + created[1]["id"])
+        assert ended["status"] == "invalidated", ended
+        late = journal_row(ended["id"], "confirmed", symbol=ended["symbol"])
+        after = await sync(late)
+        assert after["status"] == "invalidated", after
+        assert after["state"]["last_operation_id"] == late.operation_id
+        print(
+            "PASS a thesis keeps every open operation, ignores another market's and is never revived once ended"
         )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
