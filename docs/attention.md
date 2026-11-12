@@ -15,13 +15,17 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
 
-- Every item is `action_required`, so it is ready at once, and it becomes ready once
-  (one `attention.ready` event per item id).
+- Every item is `action_required` (a broker problem on an account with open positions
+  or unresolved operations is `critical`), so it is ready at once, and it becomes ready
+  once (one `attention.ready` event per item id).
 - Card items come from the `owner_action.updated` and `trading.*` events through the
   attention projection (`lonora_gateway/attention.py`). Broker health items come from
   the account's stored `broker_recovery` snapshot (`lonora_core/broker_health.py`),
-  checked on every attention tick: one item per account and problem episode (its
-  subject is the account and the time the account became disconnected).
+  checked on every attention tick: at most one open item per account and outage (the
+  time the account became disconnected). The adapter's reason flaps between polls
+  within one outage: a rejected token or an undeployed account stays the outage's
+  problem while later polls show only a generic lost connection, and a lost connection
+  is replaced by the specific problem once one shows.
 - `withdraw_ended` (`lonora_db/attention.py`) checks the open items of these codes on
   every tick, 200 at a time, rotating through them in id order, and withdraws the ones
   whose card ended or whose problem cleared, including one the owner has already seen,

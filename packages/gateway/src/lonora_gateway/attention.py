@@ -440,9 +440,10 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
     # Broker health first (9.4): it reads stored state only, never broker IO. Each step
     # is isolated like an event, so a failure there never holds back the projection.
     health = ItemGuard(db, "attention_health", quarantine_after=None)
+    # Withdraw first, so a problem that changed is replaced in the same tick.
     steps = {
-        "broker_health:" + owner_id: follow_broker_health,
         "withdraw:" + owner_id: withdraw_ended,
+        "broker_health:" + owner_id: follow_broker_health,
     }
     await health.prepare(steps)
     for item_id, step in steps.items():
