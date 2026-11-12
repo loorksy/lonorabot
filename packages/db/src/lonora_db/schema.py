@@ -511,6 +511,27 @@ class OwnerProfileRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OwnerSignalRow(Base):
+    """What the owner did, recorded by the server as it happened (8.1): append-only.
+
+    Plain ids, no foreign keys to threads or agents: a signal outlives what it names.
+    The owner model reads these; nothing here grants tools, permissions or authority.
+    """
+
+    __tablename__ = "ln_owner_signals"
+    __table_args__ = (
+        CheckConstraint("kind IN ('thread_read','external_close')", name="ln_owner_signals_kind"),
+        Index("ix_ln_owner_signals_owner_time", "owner_id", "observed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(24))
+    thread_id: Mapped[str | None] = mapped_column(String(36))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class MemoryRevisionRow(Base):
     """One commit's prior and resulting text and its author; revert restores the prior text."""
 

@@ -27,6 +27,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import PUBLIC_CURSOR, emit, public_cursor_expression
+from .owner_signals import record_signal
 from .schema import EventRow, RunRow, SettingRow, SteeringRow, ThreadPrefsRow, ThreadRow
 from .transactions import SettingsRepository, owned_thread
 
@@ -110,6 +111,10 @@ async def mark_read(
             thread_id=thread_id,
             payload={"thread_id": thread_id, "last_read_seq": row.last_read_seq},
         )
+        # When the owner reads is part of the owner model (8.1).
+        record_signal(
+            session, owner_id, "thread_read", thread_id=thread_id, agent_id=thread.agent_id
+        )
     return prefs_data(row, thread_id)
 
 
@@ -134,6 +139,9 @@ async def read_all(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]
                 "thread.read",
                 thread_id=thread.id,
                 payload={"thread_id": thread.id, "last_read_seq": row.last_read_seq},
+            )
+            record_signal(
+                session, owner_id, "thread_read", thread_id=thread.id, agent_id=thread.agent_id
             )
             result.append(prefs_data(row, thread.id))
     return result
