@@ -11,7 +11,7 @@ from lonora_db.client import Database
 from lonora_db.schema import SecretRow
 from lonora_db.secrets import BROKER
 from lonora_security.secrets import SecretCipher
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .secret_store import encrypt_in_session
@@ -46,6 +46,12 @@ class BrokerSecrets:
         from lonora_db.secrets import secret_in_use
 
         async with self._db.sessions() as session, session.begin():
+            # The owner's provisioning lock (lonora_trading.broker_provisioning): no card
+            # can start using this value between the check below and the delete.
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": "broker-provision:" + self._owner_id},
+            )
             row = await session.get(SecretRow, secret_id, with_for_update=True)
             if row is None or row.owner_id != self._owner_id or row.scope != BROKER:
                 return
