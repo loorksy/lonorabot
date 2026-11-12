@@ -5,7 +5,7 @@ Superseded by VISION.md
 The owner meets one authority system and plain words. This page records what was
 retired, what replaced it and where the owner-visible labels come from. The
 enforcement path is unchanged: the single executor, the per-account lock, the signed
-grant, the money limits, the pauses and Stop new trading.
+grant, the money limits and the pauses.
 
 ## Super Bot and goal autonomy are retired
 
@@ -29,12 +29,11 @@ grant, the money limits, the pauses and Stop new trading.
 - The attention codes `super_bot_authorization` and `super_bot_changed` stay valid for
   stored rows and read "Request updated"; nothing raises them any more.
 
-## The brake is "Stop new trading"
+## No Stop control
 
-"Emergency Stop" is named "Stop new trading" / «إيقاف الصفقات الجديدة» everywhere the
-owner or a model reads it (`trading-safety.md`, the operating policy, constitution,
-prompts and bundled skills), because it closes nothing. The stored flag and the API
-field keep their names.
+Lonora has no Stop control (owner amendment 1 to VISION.md): the stored flag, its API,
+its card and every Stop or Resume label on Web and Mobile are removed. The owner's
+brakes are pauses.
 
 ## The trading control appears only where trading is possible
 
@@ -92,7 +91,7 @@ goal step whose agent changed level while it was prepared) has shared owner text
 - `tests/test_one_vocabulary.py`: no Super Bot tool, no goal autonomy field, retired
   events raise no attention, `tool.started` carries the registry toolset and effect.
 - `tests/web/one-vocabulary.test.ts`: no owner-visible catalog text (Web, Mobile,
-  attention messages, core label tables) names Super Bot or Emergency Stop; the shared
+  attention messages, core label tables) names Super Bot or a Stop control; the shared
   label tables; activity labels; the trading-control rule; the peer wrapper.
 - `tests/check_device_authority.py`: the retired surface, the composer confirmation
   line, the marker, device revocation and the migration round trip.
