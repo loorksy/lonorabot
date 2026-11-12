@@ -162,7 +162,7 @@ def test_a_found_change_is_the_owners_to_ask_for_and_a_found_trade_is_never_rais
     assert verdict.continue_turn
     assert "If the owner only asked about it, your answer stands." in verdict.nudge
     assert "call it now" not in verdict.nudge
-    for name in ("trade_execute", "trade_close_positions", "goal_step_execute"):
+    for name in ("trade_execute", "trade_close_positions"):
         money = {"ok": True, "tools": [{"name": name, "available": True}], "total": 1}
         assert not gate(
             started(), OWNER, *exchange("tool_environment", money, query="close"), REPLY
@@ -235,7 +235,7 @@ def test_a_step_is_raised_only_for_a_tool_this_run_may_use():
 
 def test_an_uncertain_financial_outcome_holds_the_reply():
     state = started()
-    uncertain = exchange("goal_step_execute", {"ok": False, "status": "ambiguous"})
+    uncertain = exchange("trade_execute", {"ok": False, "status": "ambiguous"})
     transcript = [OWNER, *uncertain, *exchange("market_quote", NOT_FOUND, symbol="gold"), REPLY]
     assert not gate(state, *transcript).continue_turn
 

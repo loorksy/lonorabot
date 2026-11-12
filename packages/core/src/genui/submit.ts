@@ -1,5 +1,5 @@
 /** Card locks, never-run marks and send availability, shared by web and mobile
- * (docs/genui.md rules N and T, §9.3). Derived from the messages and Runs the client
+ * (docs/genui.md §7, rules N and T). Derived from the messages and Runs the client
  * already follows; the server applies the same rules on write and on read. */
 import type { Message, Run } from "@lonora/contracts";
 
@@ -44,7 +44,7 @@ export function cardLock(
   return lock;
 }
 
-/** Why a send button is disabled right now, or null when it may send (§8.1). */
+/** Why a send button is disabled right now, or null when it may send (docs/genui.md §7). */
 export function sendBlocked(
   agentId: string | null | undefined,
   threadId: string,

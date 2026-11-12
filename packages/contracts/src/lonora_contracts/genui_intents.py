@@ -60,7 +60,7 @@ REGISTRY: dict[str, Intent] = {
         ),
     )
 }
-# Listed in the capability block in this order once their tool path exists (§3.6).
+# Listed in the capability block in this order once their tool path exists (docs/genui.md §3).
 S_A01_INTENTS = ("ask", "alert.create", "alert.off")
 
 DENIED = re.compile(

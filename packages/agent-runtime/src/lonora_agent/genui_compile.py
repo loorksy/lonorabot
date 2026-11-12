@@ -43,6 +43,19 @@ PRIVATE_KEY = re.compile(
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
 DECIMAL = re.compile(r"^-?\d+(?:\.\d+)?$")
 UNBOUND = re.compile(r"\{\{\s*[A-Za-z_][\w.]*\s*\}\}")
+# Every node prop a client displays (a Slider's readout too); a copy action's text is read the
+# same way, since it reaches the clipboard and, when that fails, the card's notice.
+DISPLAYED = ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix", "show")
+
+
+def copy_text(node: dict[str, Any]) -> str | None:
+    action = node.get("action")
+    if isinstance(action, dict) and cast(dict[str, Any], action).get("do") == "copy":
+        text = cast(dict[str, Any], action).get("text")
+        return text if isinstance(text, str) else None
+    return None
+
+
 MAX_COLUMN = 100
 MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
@@ -359,7 +372,7 @@ class AgentScope:
     agent_id: str = ""
     bound_account: str | None = None
     bound_symbol: str | None = None
-    # More than one enabled account: an alert's bubble must name its account (§8.3), so
+    # More than one enabled account: an alert's bubble must name its account (docs/genui.md §7), so
     # an account without a verified broker label is listed here as unnamed.
     several_accounts: bool = False
     # The accounts this request read that the server can name (owner-checked, read
@@ -584,7 +597,7 @@ def compile_card(
         raise CardError("card_fallback")
     if head.get("mode") == "observed" and not facts:
         # No fact declared: the card shows no market or account number, so it is never
-        # labelled observed (§9.4, mode_checked).
+        # labelled observed (mode_checked).
         head.pop("mode")
         diagnostics.add("mode_checked", None, "head")
     elif head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):
@@ -804,7 +817,7 @@ def compile_card(
     def rendered(at: Any) -> list[str]:
         out = [render_template(head["title"], at), render_template(head.get("sub") or "", at)]
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     out.append(render_template(node[name], at))
             for option in cast(list[Any], node.get("options", [])):
@@ -819,6 +832,9 @@ def compile_card(
                     out.append(show(option))  # a plain option is shown raw
             for row in node.get("rows", []):
                 out.extend(render_template(c, at) for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                out.append(render_template(copied, at))
         return out
 
     def raw() -> list[str]:
@@ -827,7 +843,7 @@ def compile_card(
         found: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
         found.extend(str(v) for v in calc.values() if isinstance(v, str))
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     found.append(node[name])
             for option in cast(list[Any], node.get("options", [])):
@@ -840,6 +856,9 @@ def compile_card(
                     found.append(show(option))
             for row in node.get("rows", []):
                 found.extend(c for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                found.append(copied)
         return found
 
     states: list[dict[str, Any]] = [state]
@@ -953,11 +972,15 @@ def compile_card(
 
 
 def generated_fallback(head: dict[str, Any], blocks: list[dict[str, Any]], env: Any) -> str:
-    """Headings, labels, KeyValue rows and list items as Markdown."""
+    """Headings, text, KeyValue rows, Stats and inputs as Markdown."""
     lines = [f"**{head['title']}**"]
     for _path, node in walk(blocks):
-        if node["type"] in {"Text", "Note", "Title"}:
+        if node["type"] in {"Text", "Note", "Title", "Markdown", "Badge"}:
             lines.append(render_template(node["text"], env))
+        elif node["type"] == "Stat":
+            lines.append(
+                f"- **{render_template(node['label'], env)}:** {render_template(node['value'], env)}"
+            )
         elif node["type"] == "KeyValue":
             lines.extend(
                 f"- **{render_template(str(k), env)}:** {render_template(str(v), env)}"

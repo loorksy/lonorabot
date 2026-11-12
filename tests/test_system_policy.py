@@ -62,7 +62,6 @@ def test_complete_manual_and_exact_live_tool_coverage():
         "market",
         "account",
         "trading",
-        "goals",
         "voice",
         "tasks",
         "memory",

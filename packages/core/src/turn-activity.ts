@@ -234,11 +234,6 @@ const callLabels: Readonly<
     change: { en: "Updating trading safeguards", ar: "يحدّث ضوابط التداول" },
     financial: { en: "Placing a trade action", ar: "ينفّذ إجراء تداول" },
   },
-  goals: {
-    read: { en: "Reading a plan", ar: "يقرأ خطة" },
-    change: { en: "Updating a plan", ar: "يحدّث خطة" },
-    financial: { en: "Running a plan step", ar: "ينفّذ خطوة من خطة" },
-  },
   market: {
     read: { en: "Reading market data", ar: "يقرأ بيانات السوق" },
     change: { en: "Setting a market watch", ar: "يضبط مراقبة للسوق" },

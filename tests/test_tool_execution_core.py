@@ -103,7 +103,6 @@ def test_actual_catalog_never_parallelizes_effects_waits_or_instruction_authorit
     for name in (
         "trade_execute",
         "trade_close_positions",
-        "goal_step_execute",
         "wait_for_input",
         "task_wait",
         "group_silence",
@@ -128,7 +127,7 @@ def test_dispatch_deadlines_follow_effect_class_and_financial_tools_are_never_wr
     assert tool("f", financial=True).dispatch_timeout() is None
     assert tool("slow", read_only=True, timeout_seconds=120).dispatch_timeout() == 120
     catalog = load_tools()
-    for name in ("trade_execute", "trade_close_positions", "goal_step_execute"):
+    for name in ("trade_execute", "trade_close_positions"):
         assert catalog.tools[name].dispatch_timeout() is None
     assert catalog.tools["web_browse"].dispatch_timeout() == 60
     for invalid in (

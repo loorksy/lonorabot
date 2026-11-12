@@ -11,6 +11,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``parity``  the parity calculator (tests/test_genui_parity.py): every catalog node and every
             local, copy, open and go action, streamed through the real compiler, so each
             client's journey checks that it draws every node type the server accepts.
+``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
+``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
+            message falls outside the newest history page.
 ``records`` a pending Trade Approval and a resolve card for an uncertain operation in the
             conversation, as their own paths raise them; prints their ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
@@ -88,7 +91,7 @@ async def setup(_: dict[str, Any]) -> dict[str, Any]:
             },
         )
         # A verified broker identity, as a real connection has after its first read: with
-        # several accounts the server names this one in the alert's bubble (§8.3).
+        # several accounts the server names this one in the alert's bubble (docs/genui.md §7).
         from lonora_db.schema import BrokerSessionRow
 
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -223,14 +226,19 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
 
 
 async def parity(data: dict[str, Any]) -> dict[str, Any]:
+    lead = "جهّزت لك حاسبة الحجم.\n"
+    return await card({**data, "owner": PARITY_OWNER, "lead": lead, "document": PARITY})
+
+
+async def card(data: dict[str, Any]) -> dict[str, Any]:
     fixture = await Fixture().open()
     try:
         sent = await fixture.request(
-            "POST", f"/threads/{data['thread_id']}/messages", {"content": PARITY_OWNER}
+            "POST", f"/threads/{data['thread_id']}/messages", {"content": data["owner"]}
         )
         run = sent["runs"][0]
         context = await fixture.lease(run)
-        reply = "جهّزت لك حاسبة الحجم.\n```lonora-ui\n" + PARITY.rstrip("\n") + "\n```"
+        reply = data["lead"] + "```lonora-ui\n" + data["document"].rstrip("\n") + "\n```"
 
         async def complete(*args: Any, **kwargs: Any):
             on_delta = kwargs.get("on_delta")
@@ -242,6 +250,31 @@ async def parity(data: dict[str, Any]) -> dict[str, Any]:
         with patch.object(context.router, "complete", complete):
             await execute_run(context, load_tools(), 120, 6)
         return {"run": await fixture.request("GET", "/runs/" + run["id"])}
+    finally:
+        await fixture.close(cleanup=False)
+
+
+async def pad(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.schema import MessageRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"], with_for_update=True)
+            assert thread is not None
+            for index in range(data["count"]):
+                session.add(
+                    MessageRow(
+                        thread_id=thread.id,
+                        agent_id=data["agent_id"],
+                        seq=thread.next_seq,
+                        role="assistant",
+                        content=f"رسالة {index + 1}",
+                    )
+                )
+                thread.next_seq += 1
+            next_seq = thread.next_seq
+        return {"next_seq": next_seq}
     finally:
         await fixture.close(cleanup=False)
 
@@ -368,6 +401,8 @@ if __name__ == "__main__":
         "stream": stream,
         "receipt": receipt,
         "parity": parity,
+        "card": card,
+        "pad": pad,
         "records": records,
         "slots": slots,
     }[command]

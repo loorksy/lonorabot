@@ -566,7 +566,7 @@ async def test_the_skeleton_shows_as_soon_as_the_fence_opens() -> None:
 
 @pytest.mark.asyncio
 async def test_an_alert_card_on_an_account_the_server_cannot_name_falls_back() -> None:
-    """With several accounts, an alert card's bubble must name its account (§8.3)."""
+    """With several accounts, an alert card's bubble must name its account (docs/genui.md §7)."""
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.genui_compile import AgentScope, CardError, compile_card
     from lonora_contracts.genui import parse_lines
@@ -671,3 +671,57 @@ async def test_typed_market_fields_beyond_quotes_are_caught(field: str) -> None:
     projection, projector = await project(reply(body), history=history)
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
     assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
+
+
+def _card(*blocks: str, fallback: bool = True) -> str:
+    close = '{"why":"w","fallback":"f"}' if fallback else '{"why":"w"}'
+    head = '{"v":2,"kind":"calculator","title":"Size","icon":"chart"}'
+    data = '{"state":{"x":1}}'
+    return "\n".join([head, data, *blocks, close])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "block",
+    [
+        '{"type":"Slider","bind":"x","label":"Lots","show":"{$x} lots password=opaque-secret"}',
+        '{"type":"Button","label":"Copy","action":{"do":"copy","text":"api_key: opaque-secret"}}',
+        '{"type":"Slider","bind":"x","label":"Lots","show":"at {{price}}"}',
+        '{"type":"Button","label":"Copy","action":{"do":"copy","text":"buy at {{price}}"}}',
+    ],
+)
+async def test_a_slider_readout_and_copied_text_pass_the_same_guards_as_shown_text(
+    block: str,
+) -> None:
+    """Slider `show` is displayed and a copy action's text reaches the clipboard (and the
+    card's notice): private values and unfilled placeholders never pass through them."""
+    projection, projector = await project(reply(_card(block)))
+    rich = cast(dict[str, Any], projection.rich_until())
+    assert all(part["type"] != "ui" for part in rich["parts"])
+    codes = {d["code"] for d in projector.diagnostics}
+    assert codes & {"card_fallback_private", "card_fallback_binding"}
+    assert "opaque-secret" not in json.dumps(rich)
+
+
+@pytest.mark.asyncio
+async def test_a_list_valued_mode_is_dropped_never_a_crash() -> None:
+    body = A01.replace('"mode":"observed"', '"mode":["observed"]')
+    projection, projector = await project(reply(body))
+    rich = cast(dict[str, Any], projection.rich_until())
+    document = rich["parts"][1]["document"]
+    assert "mode" not in document
+    assert any(d["code"] == "prop_dropped" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_the_generated_fallback_reads_stat_markdown_and_badge() -> None:
+    body = _card(
+        '{"type":"Stat","label":"Risk","value":"{$x} %"}',
+        '{"type":"Markdown","text":"- one\\n- two"}',
+        '{"type":"Badge","text":"Estimate"}',
+        fallback=False,
+    )
+    projection, _ = await project(reply(body))
+    document = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    fallback = document["fallback"]
+    assert "**Risk:** 1 %" in fallback and "- one" in fallback and "Estimate" in fallback
