@@ -96,50 +96,6 @@ function ActivityRow({ entry, boxed = false }: { entry: ActivityEntry; boxed?: b
   );
 }
 
-/** «سجل الإجراءات» (Q45): a projection of durable events; the client invents nothing. */
-export function ActivityPage() {
-  const toast = useToast();
-  const feed = useLoad(() => domainApi.activity(), "activity");
-  const [more, setMore] = useState<ActivityEntry[]>([]);
-  const [next, setNext] = useState<number | null | undefined>();
-  if (feed.loading && !feed.data)
-    return (
-      <SkPage>
-        <SkRows count={9} icon group />
-      </SkPage>
-    );
-  if (feed.error != null && !feed.data) return <p role="alert">{userError(feed.error)}</p>;
-  const items = [...(feed.data?.items ?? []), ...more];
-  const cursor = next === undefined ? feed.data?.next_before : next;
-  if (!items.length) return <Empty>{t`No activity yet.`}</Empty>;
-  return (
-    <div className="domain-page">
-      <div className="group">
-        {items.map((entry) => (
-          <ActivityRow key={entry.id} entry={entry} />
-        ))}
-      </div>
-      {cursor ? (
-        <button
-          type="button"
-          className="btn full ghost"
-          onClick={async () => {
-            try {
-              const page = await domainApi.activity(cursor);
-              setMore((rows) => [...rows, ...page.items]);
-              setNext(page.next_before);
-            } catch (cause) {
-              toast(userError(cause), { type: "error" });
-            }
-          }}
-        >
-          <Trans>Show more</Trans>
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 const unread = (item: AttentionNotification) =>
   item.status === "pending" || item.status === "ready";
 
@@ -320,18 +276,7 @@ export function UpdatesPage() {
       </div>
       <div className="group">
         {acts.length ? (
-          <>
-            {acts.map((entry) => (
-              <ActivityRow key={entry.id} entry={entry} boxed />
-            ))}
-            <button
-              type="button"
-              className="btn full ghost"
-              onClick={() => nav.go("/app/activity")}
-            >
-              <Trans>Show the full log</Trans>
-            </button>
-          </>
+          acts.map((entry) => <ActivityRow key={entry.id} entry={entry} boxed />)
         ) : (
           <p className="pad muted small">
             <Trans>No activity yet.</Trans>

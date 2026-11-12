@@ -829,12 +829,12 @@ async def test_a_preference_set_from_chat_while_the_owner_saves_keeps_both():
         task = await while_locked(
             db,
             owner_saving,
-            lambda: call(registry, context, "owner_preferences_update", reach_me="activity"),
+            lambda: call(registry, context, "owner_preferences_update", reach_me="notify"),
         )
         result = await task
-        assert result["reach_me"] == "activity" and result["quiet_start_hour"] == 22, result
+        assert result["reach_me"] == "notify" and result["quiet_start_hour"] == 22, result
         policy = await fixture.request("GET", "/voice/incoming/policy")
-        assert policy["channel"] == "activity" and policy["quiet_end_hour"] == 6
+        assert policy["channel"] == "notify" and policy["quiet_end_hour"] == 6
     finally:
         await reset_profile(fixture)
         await fixture.close()
@@ -899,7 +899,7 @@ async def test_undoing_an_older_change_keeps_every_later_change():
                 "reply_language": "ar",
                 "reach_me": {
                     **{key: value for key, value in policy.items() if key != "enabled"},
-                    "channel": "activity",
+                    "channel": "notify",
                     "quiet_start_hour": 22,
                     "quiet_end_hour": 6,
                 },
@@ -913,7 +913,7 @@ async def test_undoing_an_older_change_keeps_every_later_change():
         await fixture.request("POST", f"/memory/revisions/{first['id']}/revert", {})
         profile = await fixture.request("GET", "/owner/profile")
         assert profile["reply_language"] is None
-        assert profile["reach_me"]["channel"] == "activity"
+        assert profile["reach_me"]["channel"] == "notify"
         assert profile["reach_me"]["quiet_start_hour"] == 22
         # A reach-me check the owner can act on keeps its own code.
         refused = await fixture.client.put(

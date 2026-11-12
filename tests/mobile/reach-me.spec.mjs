@@ -31,12 +31,12 @@ test("Expo Arabic reach-me preference is the same one the Web and agents read", 
   await expect(page.getByRole("button", { name: "✓ راسلني", exact: true })).toBeVisible();
   // Without an enrolled passkey device, calling is not offered.
   await expect(page.getByRole("button", { name: "اتصل بي", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "النشاط فقط", exact: true }).click();
+  await page.getByRole("button", { name: "أرسل لي تنبيهًا", exact: true }).click();
   await page.getByRole("button", { name: "العربية", exact: true }).click();
   await page.getByRole("button", { name: "حفظ", exact: true }).click();
   await expect(page.getByText("تم الحفظ", { exact: true })).toBeVisible();
   const policy = await (await context.request.get("/api/voice/incoming/policy")).json();
-  expect(policy).toMatchObject({ channel: "activity", enabled: false });
+  expect(policy).toMatchObject({ channel: "notify", enabled: false });
   const profile = await (await context.request.get("/api/owner/profile")).json();
   expect(profile.reply_language).toBe("ar");
   expect(
