@@ -188,7 +188,8 @@ async def test_submit_stores_the_server_bubble_and_its_own_marked_queued_run() -
                 input_seq=0,
                 model_metadata={},
             )
-            assert await provisional_voice(session, child)
+            # The mark is this Run's alone: a child Run is an ordinary Run (6.10).
+            assert not await provisional_voice(session, child)
             assert not await provisional_voice(session, active)
         # Idempotent by client_nonce; a different submission under the same nonce conflicts.
         again = await card.post(
