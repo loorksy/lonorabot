@@ -313,11 +313,7 @@ function RoutineHistory({ id, onConversation }: { id: string; onConversation: ()
               {new Date(run.created_at).toLocaleString()}
             </Text>
             <WorkingIndicator run={run} />
-            <Button
-              label={t("openConversation")}
-              secondary
-              onPress={onConversation}
-            />
+            <Button label={t("openConversation")} secondary onPress={onConversation} />
           </View>
         ))
       )}
