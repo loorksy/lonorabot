@@ -5,6 +5,7 @@ new; an empty reply posts no message, no attention item and no push, and a faile
 background run leaves nothing in the conversation (no message, no preview text).
 """
 
+import asyncio
 import os
 from typing import Any, cast
 from unittest.mock import patch
@@ -78,6 +79,8 @@ def router(*replies: str, delta: str = "", fail: bool = False) -> tuple[Any, lis
             await on_attempt(selection)
         if delta and on_delta:
             await on_delta(delta)
+            # Let a live stream's coalescing publisher flush before the turn ends.
+            await asyncio.sleep(0.3)
         if fail:
             raise LonoraError("scripted_provider_failure", 502)
         return ModelReply(text=queue.pop(0) if queue else ""), selection
@@ -327,7 +330,7 @@ async def test_a_failed_background_run_leaves_nothing_in_the_conversation():
         conversation = (await fixture.conversation(agent))["id"]
         # A watch set in the chat runs in the chat: its half-written reply is never shown.
         watch = await make_run(fixture, agent, conversation, "watch")
-        complete, _ = router(delta="Gold broke 2400; checking", fail=True)
+        complete, _ = router(delta="Gold broke 2,400.\n\nChecking the London open.\n\n", fail=True)
         await execute(fixture, watch, complete)
         row = await reload(fixture, watch.id)
         assert row.status == "failed"
@@ -351,6 +354,33 @@ async def test_a_failed_background_run_leaves_nothing_in_the_conversation():
         # An owner's own failed request still shows: it is not background.
         user = await fixture.run(agent, {"id": conversation})
         assert user["background"] is False
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_background_reply_with_news_is_posted_whole_without_a_preview():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Reporting desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        news = "Gold broke 2,400.\n\nThe London open confirmed the setup."
+        watch = await make_run(fixture, agent, conversation, "watch")
+        complete, _ = router(news, delta=news)
+        await execute(fixture, watch, complete)
+        row = await reload(fixture, watch.id)
+        assert row.status == "completed" and row.result == news
+        assert await contents(fixture, conversation) == [news]
+        assert not await run_events(fixture, watch.id, "run.delta", "run.rich_partial")
+        # The owner's own request still streams its preview.
+        asked = await fixture.run(agent, {"id": conversation})
+        user_run = await reload(fixture, asked["id"])
+        complete, _ = router("Gold is at 2,401.", delta="Gold is at 2,401.")
+        await execute(fixture, user_run, complete)
+        assert await run_events(fixture, user_run.id, "run.delta")
     finally:
         await fixture.close()
 
