@@ -207,3 +207,35 @@ async def test_notify_and_wake_text_pass_the_secret_scan() -> None:
     finally:
         await services.secrets.delete(secret_id)
         await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_notify_text_uses_the_one_workspace_scan_given_values_included() -> None:
+    """A value once given to a workspace command stays scanned after its rotation, on the
+    CLI's road as on the tools' (terminal.owner_scan)."""
+    database()
+    from uuid import uuid4
+
+    from lonora_db.schema import MessageRow
+    from lonora_db.secrets import WORKSPACE
+
+    setup = await Setup().open()
+    name = "CLI_GIVEN_" + uuid4().hex[:8].upper()
+    old, new = "old-given-" + uuid4().hex, "new-given-" + uuid4().hex
+    services = setup.fixture.runtime.services(setup.fixture.owner)
+    secret_id = await services.secrets.write(name, old, WORKSPACE)
+    try:
+        assert services.given is not None
+        await services.given.record({name: old})
+        await services.secrets.write(name, new, WORKSPACE)  # rotated
+        token = await setup.token()
+        code, output = await setup.call("notify", token, text=f"was {old} now {new}")
+        assert code == 0, output
+        async with setup.fixture.runtime.db.sessions() as session:
+            message = await session.get(MessageRow, output["message_id"])
+        assert message is not None
+        marker = "[secret:" + name + "]"
+        assert message.content == f"was {marker} now {marker}"
+    finally:
+        await services.secrets.delete(secret_id)
+        await setup.close()

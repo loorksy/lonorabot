@@ -32,9 +32,8 @@
    id. The server-written supervisor line leaves it. Supervision grants of any agent
    other than Lonora are revoked; Lonora's stay until the role check replaces them.
 5. Pending Trade Approval rows keep their stored expiry: no expiry is written.
-6. Active and scheduled restrictions end, each with the live ``trading.restriction_revoked``
-   event (goals already ended in 0068). A pause a
-   supervisor set on its own ends and the work resumes: an agent runs again (with
+6. Restrictions ended with their feature (0086, which runs before this update), goals
+   in 0068. A pause a supervisor set on its own ends and the work resumes: an agent runs again (with
    ``agent.updated``), a routine is switched back on, a watch resumes as the agent's own
    control resumes it, and a Task resumes as the live resume does (``control_task``),
    each Task it changes with ``task.updated``:
@@ -64,7 +63,7 @@ Item 8 is void under Amendment 1 (Stop is removed, 0150): nothing is written for
 
 The downgrade restores nothing and never raises: grants stay revoked, Tasks and Runs
 stay ended, levels stay "Ask me", cards stay (the owner may have tapped them), flattened
-agents and their method lines stay, supervision grants and restrictions stay revoked,
+agents and their method lines stay, supervision grants stay revoked,
 released pauses stay released. A second upgrade, after a downgrade, applies the items
 again to the data it then finds (an agent in Full goes back to Ask); it shows no Mandate
 card twice and wakes no agent twice.
@@ -809,57 +808,6 @@ class Migration:
 
     # -- item 6 --------------------------------------------------------------------------
 
-    def end_restrictions(self) -> None:
-        ended = self.rows(
-            "UPDATE ln_trading_restrictions SET revoked_at = :now, updated_at = :now"
-            " WHERE revoked_at IS NULL AND (valid_until IS NULL OR valid_until > :now)"
-            " RETURNING *",
-            now=self.now,
-        )
-        for row in ended:
-            # Frozen revoke_restriction's event, with restriction_data.
-            self.emit(
-                row.owner_id,
-                "trading.restriction_revoked",
-                {"restriction": self.restriction_data(row), "transition_id": row.id + ":revoked"},
-                agent_id=row.agent_id,
-            )
-        if ended:
-            self.settle_cards(
-                "kind = 'lift_restriction' AND subject = ANY(:subjects)",
-                "restriction_already_ended",
-                subjects=["restriction:" + row.id for row in ended],
-            )
-
-    def restriction_data(self, row: Any) -> dict[str, Any]:
-        """Frozen copy of lonora_db.trading_restrictions.restriction_data for a row this
-        migration revoked."""
-        return {
-            "id": row.id,
-            "account_id": row.account_id,
-            "agent_id": row.agent_id,
-            "all_agents": row.agent_id is None,
-            "symbol": row.symbol,
-            "all_symbols": row.symbol is None,
-            "symbol_verified": row.symbol is None or row.symbol_verified is not False,
-            "action_class": row.action_class,
-            "state": "revoked",
-            "valid_from": row.valid_from.isoformat(),
-            "valid_until": row.valid_until.isoformat() if row.valid_until else None,
-            "ended_at": row.revoked_at.isoformat(),
-            "applies_to_owner_manual": row.applies_to_owner_manual,
-            "source": row.source,
-            "source_message_id": row.source_message_id,
-            "source_run_id": row.source_run_id,
-            "reason": row.reason,
-            "created_by": row.created_by,
-            "created_by_agent_id": row.created_by_agent_id,
-            "created_at": row.created_at.isoformat(),
-            "revoked_at": row.revoked_at.isoformat(),
-            "revoked_reason": row.revoked_reason,
-            "lift": "owner_only",
-        }
-
     def end_supervisor_pauses(self, holds: list[Any]) -> None:
         retried: list[str] = []
         for hold in holds:
@@ -1289,7 +1237,6 @@ def upgrade() -> None:
     migration.ask_me_levels(revoked_agents)
     migration.mandate_cards(shown)
     migration.team_agents()
-    migration.end_restrictions()
     migration.end_supervisor_pauses(holds)
 
 

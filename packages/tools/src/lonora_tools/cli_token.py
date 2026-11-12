@@ -1,13 +1,17 @@
 """Which commands receive the agent's `lonora` CLI token (7.3.3, 6.9).
 
-``token_for_command`` is the token a command started for this run would carry as
-``LONORA_AGENT_TOKEN``. Only a run of full scope has one: a research subagent's command
-and an observe-only broker-activity wake get ``None``, so their ``lonora`` calls would
-exit 77, just as the door refuses those runs for the trade tool (6.9). Nothing injects it
-yet: the workspace that starts commands is not built.
+``token_for_command`` is the token a command started for this run carries as
+``LONORA_AGENT_TOKEN``: ``workspace_run`` passes it to the supervisor, which sets it in
+that command's environment, so its children inherit it. Only a run of full scope has
+one: a research subagent's command and an observe-only broker-activity wake get ``None``
+(and ``workspace_run`` refuses those runs anyway), just as the door refuses them for the
+trade tool (6.9).
 """
 
-from lonora_db.cli_tokens import cli_token
+from dataclasses import dataclass
+
+from lonora_db.cli_tokens import cli_token, owner_cli_tokens
+from lonora_db.client import Database
 from lonora_db.schema import AgentRow, RunRow
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,11 +41,34 @@ async def full_ancestry(session: AsyncSession, run: RunRow) -> bool:
     return False
 
 
-async def token_for_command(session: AsyncSession, key: str, run_id: str) -> str | None:
+async def token_for_command(
+    session: AsyncSession, key: str, run_id: str, agent_id: str | None = None
+) -> str | None:
+    """``agent_id``: the agent whose Unix user runs the command; a run of another agent
+    gets no token, so one agent's token never lands in another agent's process."""
     run = await session.get(RunRow, run_id)
-    if run is None or not await full_ancestry(session, run):
+    if run is None or (agent_id is not None and run.agent_id != agent_id):
+        return None
+    if not await full_ancestry(session, run):
         return None
     agent = await session.get(AgentRow, run.agent_id)
     if agent is None:
         return None
     return await cli_token(session, key, agent.owner_id, agent.id)
+
+
+@dataclass(frozen=True)
+class CommandTokens:
+    """The owner's CLI tokens as the workspace tools need them."""
+
+    db: Database
+    key: str
+    owner_id: str
+
+    async def for_run(self, run_id: str, agent_id: str) -> str | None:
+        async with self.db.sessions() as session, session.begin():
+            return await token_for_command(session, self.key, run_id, agent_id)
+
+    async def values(self) -> list[str]:
+        async with self.db.sessions() as session:
+            return await owner_cli_tokens(session, self.key, self.owner_id)

@@ -219,7 +219,7 @@ def test_a_calc_may_be_a_literal_as_in_the_reference() -> None:
 def test_a_literal_send_value_is_data_and_a_bad_action_drops_its_button() -> None:
     raw = "\n".join(
         [
-            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
+            '{"v":2,"kind":"summary","title":"Alert active","icon":"check"}',
             '{"type":"Button","label":"Stop","action":{"do":"send","intent":"alert.off","data":{"watch_id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}}}',
             '{"type":"Button","label":"Odd","action":{"do":"launch"}}',
             '{"why":"w","fallback":"f"}',

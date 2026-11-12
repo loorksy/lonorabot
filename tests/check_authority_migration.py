@@ -8,7 +8,7 @@ the migration:
    over Dino; three owner-held watch pauses. It runs from below 0060, so 0060, 0061 and
    0063 run together as on the owner's install.
 2. The general cases: management Tasks in every state, expired, pending, revoked and
-   orphaned grants, an activation review, restrictions, every kind of pause, delegated,
+   orphaned grants, an activation review, every kind of pause, delegated,
    child and supervisor agents, a stored Trade Approval and journaled tickets.
 3. A database already at 0061: an agent in Full and older pending Mandate cards.
 4. A supervisor's pause on a Task ends like any other: a pause asked of a Task whose Run a
@@ -68,7 +68,6 @@ from lonora_db.schema import (
     TicketRow,
     TradeApprovalRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_db.supervision import owner_resumes
 from lonora_db.tasks import ATTENTION_RESUMED, control_task, get_task
@@ -683,33 +682,6 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         wide_envelope["allow_manual_positions"] = False
         await seed.grant(wide.id, wide_thread.id, envelope=wide_envelope)
 
-        # Restrictions (item 6): active and scheduled end, an expired one keeps its history.
-        restrictions: dict[str, str] = {}
-        for name, start, end in (
-            ("active", now - timedelta(hours=1), None),
-            ("scheduled", now + timedelta(hours=1), now + timedelta(hours=5)),
-            ("expired", now - timedelta(hours=5), now - timedelta(hours=1)),
-        ):
-            restriction = TradingRestrictionRow(
-                owner_id=owner_id,
-                account_id=account_id,
-                action_class="no_new_entries",
-                valid_from=start,
-                valid_until=end,
-                source="owner_ui",
-                created_by="owner",
-            )
-            session.add(restriction)
-            await session.flush()
-            restrictions[name] = restriction.id
-        lift_card = await seed.card(
-            lonora,
-            ids["lonora_thread"],
-            "lift_restriction",
-            "restriction:" + restrictions["active"],
-            {"restriction_id": restrictions["active"]},
-        )
-
         # Item 4: delegated, child and supervisor agents.
         helper, _ = await new_agent("Helper", role="delegated", parent_id=lonora)
         parent, _ = await new_agent(
@@ -950,7 +922,6 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "task_watch_hold": task_watch_hold.id,
             "paused_task_hold": paused_task_hold.id,
             "wide": wide.id,
-            "lift_card": lift_card.id,
             "helper": helper.id,
             "parent": parent.id,
             "child": child.id,
@@ -1000,9 +971,6 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         assert lonora_watch_row is not None
         lonora_watch_before = (lonora_watch_row.payload, lonora_watch_row.state)
     parent_digest = await digest(db, "SELECT * FROM ln_agents WHERE id = :id", id=refs["parent"])
-    expired_restriction = await digest(
-        db, "SELECT * FROM ln_trading_restrictions WHERE id = :id", id=restrictions["expired"]
-    )
     cursor = await last_cursor(db)
 
     await upgrade_from(db, BEFORE_MODE)
@@ -1207,14 +1175,8 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         assert grants[(ids["lonora"], ids["dino"])] is None
         assert grants[(ids["lonora"], refs["worker"])] is None
 
-        # Item 6: restrictions end; a supervisor's own pauses end and the work resumes;
-        # pauses the owner asked for or holds, and Lonora's, stay.
-        for name in ("active", "scheduled"):
-            restriction = await session.get(TradingRestrictionRow, restrictions[name])
-            assert restriction is not None and restriction.revoked_at is not None, name
-        card = await session.get(OwnerActionRow, refs["lift_card"], populate_existing=True)
-        assert card is not None and card.status == "superseded"
-        assert card.status_reason == "restriction_already_ended"
+        # Item 6: a supervisor's own pauses end and the work resumes; pauses the owner
+        # asked for or holds, and Lonora's, stay.
 
         async def hold(name: str) -> SupervisionHoldRow:
             row = await session.get(SupervisionHoldRow, refs[name], populate_existing=True)
@@ -1295,21 +1257,10 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
     assert await digest(db, "SELECT * FROM ln_agents WHERE id = :id", id=refs["parent"]) == (
         parent_digest
     ), "a root agent's own binding is not item 4"
-    assert (
-        await digest(
-            db, "SELECT * FROM ln_trading_restrictions WHERE id = :id", id=restrictions["expired"]
-        )
-        == expired_restriction
-    )
     assert len(await events_since(db, cursor, "task.updated")) == 6
     approvals = await events_since(db, cursor, "trading.approval.updated")
     assert [event.payload["id"] for event in approvals] == [refs["stranded"]]
     assert approvals[0].payload["status"] == "cancelled"
-    lifted = await events_since(db, cursor, "trading.restriction_revoked")
-    assert sorted(event.payload["restriction"]["id"] for event in lifted) == sorted(
-        [restrictions["active"], restrictions["scheduled"]]
-    )
-    assert all(event.payload["restriction"]["state"] == "revoked" for event in lifted)
     # Each revoked supervision grant is recorded for both of its agents.
     assert len(await events_since(db, cursor, "supervision.revoked")) == 4
     assert len(await events_since(db, cursor, "memory.updated")) == 4
@@ -1358,7 +1309,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         " lifts), its Run and activation review cancelled; cards only for"
         " active unexpired grants; delegated, child and supervisor agents flattened with their"
         " market in OPERATING.md under the account's own name (its provider and number when"
-        " the broker's identity is behind the connection); restrictions ended; a"
+        " the broker's identity is behind the connection); a"
         " supervisor's own pauses ended with the work resumed, the owner's and Lonora's kept;"
         " each flattened or unpaused agent shown with agent.updated; stored approval expiry"
         " and journal attribution unchanged"

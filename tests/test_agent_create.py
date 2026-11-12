@@ -143,7 +143,7 @@ def test_the_first_task_wake_after_a_tapped_card_is_first_party_text() -> None:
         first_task_prompt,
         first_task_run_id,
     )
-    from lonora_tools.restrictions import OWNER_TRIGGERS
+    from lonora_tools.provenance import OWNER_TRIGGERS
 
     prompt = first_task_prompt("agent-1")
     assert "agent_id=agent-1" in prompt and "peer_send" in prompt

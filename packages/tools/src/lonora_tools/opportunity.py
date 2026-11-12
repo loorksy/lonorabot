@@ -25,6 +25,7 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
+from .profile_taint import mark_from
 
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -37,6 +38,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run.model_metadata.get("origin_thread_id") or context.thread_id,
             OpportunityCreate.model_validate(args),
         )
+        await mark_from(session, run, "opportunity", row.id)
         return opportunity_data(row)
 
 
@@ -76,7 +78,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        run = await require_lease(session, context.lease, lock=True)
         key = context.effect_key + ":opportunity-update"
         intent = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
         prior = await session.get(EffectReceiptRow, key)
@@ -88,6 +90,7 @@ async def update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         updated = await update_opportunity(
             session, context.owner_id, context.agent_id, OpportunityUpdate.model_validate(args)
         )
+        await mark_from(session, run, "opportunity", updated.id)
         data = opportunity_data(updated)
         session.add(
             EffectReceiptRow(key=key, result={"intent": intent, "version": data["version"]})

@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-/* A conversation's menu and its agent's info page open only once the agents are loaded:
-   the menu keeps the body it opened with, so it never opens without its agent's rows. */
+/* A conversation header's settings sheet opens only once the agents are loaded: the sheet
+   keeps the body it opened with, so it never opens without its agent's rows. */
 function fixture(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -48,8 +48,8 @@ async function holdAgents(page) {
   return { release, unroute: () => page.unroute(slowAgents) };
 }
 
-/** The avatar and the name open the info page: not before the agents are there. Without
-    an agent they are empty, so they are clicked in the page, not by the pointer. */
+/** The avatar and the name open the settings sheet: not before the agents are there.
+    Without an agent they are empty, so they are clicked in the page, not by the pointer. */
 async function expectHeaderInert(page) {
   const clicked = await page.evaluate(() =>
     [".head-avatar", ".chat-name"].map((selector) => {
@@ -62,7 +62,7 @@ async function expectHeaderInert(page) {
   await expect(page.locator("#dialog[open]")).toHaveCount(0);
 }
 
-test("an agent's menu waits for the agent list before it opens", async ({ page, context }) => {
+test("an agent's settings wait for the agent list before they open", async ({ page, context }) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -75,15 +75,19 @@ test("an agent's menu waits for the agent list before it opens", async ({ page, 
     await signIn(context, data);
     agent = await createAgent(context, data, headers, `Menu ${randomUUID()}`);
     await page.goto(`/app/${agent.id}`);
-    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeEnabled();
+    const title = page.locator(".chat-head .chat-name");
+    await expect(title).toHaveText(agent.name);
     held = await holdAgents(page);
     await page.reload();
-    await expect(menu).toBeDisabled();
+    await expect(page.locator(".chat-head .head-avatar")).toBeAttached();
     await expectHeaderInert(page);
     held.release();
-    await expect(menu).toBeEnabled();
+    await expect(title).toHaveText(agent.name);
     await held.unroute();
+    await page.locator(".chat-head .head-avatar").click();
+    const sheet = page.locator("#dialog");
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Agent info");
     expect(errors).toEqual([]);
   } finally {
     held?.release();
@@ -92,7 +96,10 @@ test("an agent's menu waits for the agent list before it opens", async ({ page, 
   }
 });
 
-test("a group's menu waits for its member agents before it opens", async ({ page, context }) => {
+test("a group's settings wait for its member agents before they open", async ({
+  page,
+  context,
+}) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -118,15 +125,15 @@ test("a group's menu waits for its member agents before it opens", async ({ page
     held = await holdAgents(page);
     await page.goto(`/app/g/${group.id}`);
     await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
-    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeDisabled();
     await expectHeaderInert(page);
     held.release();
-    await expect(menu).toBeEnabled();
-    await menu.click();
+    await expect(page.locator(".chat-head")).toContainText(name);
     await held.unroute();
-    await page.locator("#dialog").getByRole("button", { name: "Group info", exact: true }).click();
-    await expect(page.locator("#dialog").getByText(name).first()).toBeVisible();
+    await page.locator(".chat-head .head-avatar").click();
+    const sheet = page.locator("#dialog");
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Group info");
+    await expect(sheet.getByRole("switch", { name })).toBeChecked();
   } finally {
     held?.release();
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
