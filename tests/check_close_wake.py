@@ -19,6 +19,7 @@ from lonora_agent.executor import execute_run
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.memory import read_memory
+from lonora_db.runs import claim_next
 from lonora_db.schema import (
     AgentRow,
     ClosedTradeRow,
@@ -35,11 +36,19 @@ CLOSED = "A trade you owned has closed at the broker"
 
 
 async def closed(
-    f: Fixture, account: str, agent_id: str | None, closing_order: str, pnl: str | None
+    f: Fixture,
+    account: str,
+    agent_id: str | None,
+    closing_order: str,
+    pnl: str | None,
+    *,
+    operation_id: str | None = None,
+    closed_ago: timedelta = timedelta(0),
 ) -> str:
-    """A ledger row as W-LEDGER writes it: the trade's broker deals, its P&L and owner."""
+    """A ledger row as W-LEDGER writes it: the trade's broker deals, its P&L and owner.
+    ``operation_id`` is what the simulation broker's history names on the exit deal."""
     trade = new_id()
-    now = utcnow()
+    now = utcnow() - closed_ago
     async with f.runtime.db.sessions() as session, session.begin():
         session.add(
             ClosedTradeRow(
@@ -59,7 +68,11 @@ async def closed(
                 closed_at=now,
                 deals=[
                     {"id": "deal-in-" + trade[:8], "orderId": "pos-" + trade[:8]},
-                    {"id": "deal-out-" + trade[:8], "orderId": closing_order},
+                    {
+                        "id": "deal-out-" + trade[:8],
+                        "orderId": closing_order,
+                        **({"operation_id": operation_id} if operation_id else {}),
+                    },
                 ],
             )
         )
@@ -87,11 +100,16 @@ async def runs_of(f: Fixture, agent_id: str, trigger: str) -> list[RunRow]:
         )
 
 
-def reviewer(version: int, seen: list[list[ModelMessage]]) -> Any:
-    """A model that answers the close text with a self-review in its memory."""
+def reviewer(version: int, seen: list[list[ModelMessage]], *, read_first: bool = False) -> Any:
+    """A model that answers the close text with a self-review in its memory; with
+    ``read_first`` its first turn is a tool call, so the text arrives after a tool block."""
 
     async def complete(_: Any, messages: list[ModelMessage], tools: Any, **kwargs: Any):
         seen.append(list(messages))
+        if read_first and len(seen) == 1:
+            return ModelReply(
+                tool_calls=[ToolCall(id="read-first", name="memory_read", arguments={})]
+            ), SELECTION
         text = "\n".join(message.content for message in messages)
         reviewed = any(
             call.name == "memory_write" for message in messages for call in message.tool_calls
@@ -130,12 +148,14 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     agent = await f.agent("Gold stop")
     before = await revisions(f, agent["id"])
     trade = await closed(f, account, agent["id"], "sl-order", "-12.5")
+    # A first read of a connection backfills old trades: they are not news.
+    await closed(f, account, agent["id"], "sl-old", "7", closed_ago=timedelta(days=30))
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # once per trade
     (run,) = await runs_of(f, agent["id"], "broker_event")
     assert CLOSED in run.prompt and '"realized_pnl": "-12.5"' in run.prompt
     assert '"label": "secure_then_add"' in run.prompt and trade[:8] in run.prompt
-    assert run.model_metadata.get("authority") != "observe_only"
+    assert run.model_metadata["closed_trade_id"] == trade
     seen: list[list[ModelMessage]] = []
     data = {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
     ctx = await f.lease(data)
@@ -145,15 +165,18 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     print("PASS a stop-loss hit wakes the position's owner, which writes a self-review")
 
 
-async def own_close(f: Fixture, account: str) -> None:
+async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
     agent = await f.agent("Gold manager")
+    operation = new_id()
     thread = await f.conversation(agent)
     run = await f.run(agent, thread)
     ctx = await f.lease(run)  # the closing Run is executing
     async with f.runtime.db.sessions() as session, session.begin():
         session.add(
+            # As the simulation broker journals a close: no broker order id in its
+            # details; its history names the operation on the exit deal.
             TradingJournalRow(
-                operation_id=new_id(),
+                operation_id=operation,
                 owner_id=f.owner,
                 account_id=account,
                 request_hash="h",
@@ -161,24 +184,29 @@ async def own_close(f: Fixture, account: str) -> None:
                 status="confirmed",
                 result={
                     "status": "confirmed",
+                    "broker_id": "pos-x",
                     "details": {
-                        "order_id": "close-own",
+                        "simulation": True,
+                        "symbol": "XAUUSD",
+                        "action": "close_position",
                         "execution": {"run_id": run["id"], "agent_id": agent["id"]},
                     },
                 },
             )
         )
     before = await revisions(f, agent["id"])
-    await closed(f, account, agent["id"], "close-own", "40")
+    await closed(f, account, agent["id"], new_id(), "40", operation_id=operation)
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
     assert await runs_of(f, agent["id"], "broker_event") == [], "a second Run was started"
     seen: list[list[ModelMessage]] = []
-    with patch.object(ctx.router, "complete", reviewer(await memory_version(f, agent["id"]), seen)):
+    version = await memory_version(f, agent["id"])
+    with patch.object(ctx.router, "complete", reviewer(version, seen, read_first=read_first)):
         await execute_run(ctx, load_tools(), 120, 8)
     assert any(CLOSED in m.content for messages in seen for m in messages)
     assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
     assert await wake_for_closes(f.runtime.db, f.owner) == 0  # read: nothing redirected
-    print("PASS the agent's own close reaches its still-executing Run, which writes a review")
+    path = "after a tool block" if read_first else "before its final reply"
+    print("PASS the agent's own close reaches its still-executing Run", path, "; it reviews")
 
 
 async def unread_notice(f: Fixture, account: str) -> None:
@@ -227,7 +255,16 @@ async def paused_and_owner(f: Fixture, account: str) -> None:
     await closed(f, account, None, "owner-terminal", "9")  # the owner's own trade
     assert await wake_for_closes(f.runtime.db, f.owner) == 1
     (run,) = await runs_of(f, agent["id"], "broker_event")
-    assert "You are paused" in run.prompt and run.model_metadata.get("authority") is None
+    assert "You are paused" in run.prompt
+    # A paused agent's own-trade wake is claimed and runs; its other work stays held.
+    claimed: list[str] = []
+    for _ in range(20):
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await claim_next(session, "close-worker", 120, "work")
+        if row is None:
+            break
+        claimed.append(row.id)
+    assert run.id in claimed, claimed
     print("PASS a paused agent is woken for its own trade; the owner's trade wakes nobody")
 
 
@@ -242,7 +279,8 @@ async def main() -> None:
             )
         )["id"]
         await stop_loss_hit(f, account)
-        await own_close(f, account)
+        await own_close(f, account, read_first=True)
+        await own_close(f, account, read_first=False)
         await unread_notice(f, account)
         await paused_and_owner(f, account)
     finally:
