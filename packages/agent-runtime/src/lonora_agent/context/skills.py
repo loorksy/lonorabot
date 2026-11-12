@@ -60,7 +60,6 @@ async def effective_skill_registry(
     skills = apply_snapshot(
         skills, rejected, read_snapshot(metadata.get("skill_snapshot")), known_tools
     )
-    package_files: dict[str, bytes] | None = None
     for row in rows:
         identity = row.payload.get("name", "")
         definition = skills.definitions.get(identity)
@@ -69,9 +68,8 @@ async def effective_skill_registry(
         try:
             entry = package_entry(row, definition)
             require_validated(entry)
-            if package_files is None:
-                package_files = await stored_files(session, context.agent_id)
-            validate_package_files(entry, package_files)
+            stored = await stored_files(session, context.agent_id, entry.files)
+            validate_package_files(entry, stored)
         except LonoraError as error:
             rejected[identity] = error.code
     controls = await read_skill_controls(session, context.owner_id, context.agent_id)

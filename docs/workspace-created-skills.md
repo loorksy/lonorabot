@@ -8,9 +8,10 @@ workspace (VISION.md 7.1; `docs/operations.md`, "The workspace"), then register 
 catalog. It does not modify the application, create another Agent, or grant trading
 authority. Generated instructions remain lower-trust material.
 
-Creation lists one directory of the workspace (relative to the agent's home) as the
-agent's own Unix user (caches such as `__pycache__` and dot-directories such as `.git` are
-left out) and reads each file through the workspace client, whose secret scan refuses a
+Creation lists one directory of the workspace (relative to the agent's home, outside
+`skills/`, which holds the run copies and is refused with `skill_package_source_reserved`)
+as the agent's own Unix user (caches such as `__pycache__`, dot-directories such as `.git`
+and dot-files such as `.env` are left out) and reads each file through the workspace client, whose secret scan refuses a
 file holding a secret. The directory must contain a valid `SKILL.md`.
 Canonical relative paths, UTF-8 text, file/count/byte limits and nested-package
 boundaries are validated, then the files are copied as `skills/<id>/<version>/` into the
@@ -33,7 +34,11 @@ Every declared Python utility must pass a smoke test before activation:
 `skill_package_validate` writes a fresh copy of the stored version to
 `skills/<id>/<version>/` in the agent's home (removing what was there) and runs the utility
 from the home for at most 30 seconds; activation writes the same fresh copy, which is where
-the agent runs an active package's utilities. The receipt binds the
+the agent runs an active package's utilities. An enabled version whose copy is missing (one
+activated before the store existed, or a copy the agent deleted) gets it from the store
+once after each Gateway start (`skills/run_copies.py`); a present copy is left as it is.
+Validation output keeps the last 64 KiB of each stream. The store holds at most 64 MiB
+per agent (`skill_package_store_full`). The receipt binds the
 exact source hash and the actual exit status. The workspace is persistent and agents
 install into it themselves, so no image is pinned: a receipt holds as long as the stored
 source is unchanged. A utility that rewrites itself changes only its copy, which the next

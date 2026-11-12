@@ -211,3 +211,13 @@ def test_create_input_cannot_supply_agent_origin_authority_or_mutable_versions()
             SkillPackageCreateInput.model_validate({**valid, field: value})
     with pytest.raises(ValidationError):
         SkillPackageCreateInput.model_validate({**valid, "version": "latest"})
+
+
+@pytest.mark.parametrize("directory", ["skills", "skills/local-statistics/1.0.0", "skills/x"])
+def test_the_run_copies_are_never_a_source(directory: str):
+    # skills/ holds the copies validation and activation replace (rm -rf, then write).
+    with pytest.raises(LonoraError, match="skill_package_source_reserved"):
+        prepare(
+            {f"{directory}/SKILL.md": DOCUMENT.encode()},
+            source_directory=directory,
+        )

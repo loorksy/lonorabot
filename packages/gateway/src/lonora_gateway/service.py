@@ -98,6 +98,8 @@ class Gateway:
         self.chart_visual = chart_visual
         self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        # Package run copies checked since this Gateway started (skills/run_copies.py).
+        self.run_copies_checked: set[tuple[str, str, str]] = set()
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
@@ -299,6 +301,7 @@ class Gateway:
     async def workspace(self) -> None:
         from datetime import UTC, datetime
 
+        from lonora_agent.skills.run_copies import restore_run_copies
         from lonora_agent.workspace_move import move_snapshots
         from lonora_db.workspace_processes import reconcile
         from lonora_security.secrets import SecretScan
@@ -314,6 +317,7 @@ class Gateway:
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
         await move_snapshots(self.db, WORKSPACE)
+        await restore_run_copies(self.db, WORKSPACE, self.run_copies_checked)
 
     async def morning_brief(self) -> None:
         from lonora_trading.morning_brief import brief_tick

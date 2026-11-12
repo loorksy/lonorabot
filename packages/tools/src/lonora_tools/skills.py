@@ -182,7 +182,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_package_create",
-            "Register a reusable analytical Skill from a directory of the workspace (relative to your home) containing SKILL.md and UTF-8 utilities; its files are copied into your private package store. Supply adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
+            "Register a reusable analytical Skill from a directory of the workspace (relative to your home, outside skills/, whose copies are replaced) containing SKILL.md and UTF-8 utilities; its files are copied into your private package store. Supply adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
             SkillPackageCreateInput,
             create_package,
             replay_safe=True,

@@ -167,7 +167,6 @@ async def current_catalog(
         entries = owner_skill_catalog(
             rows, controls, {tool.name for tool in load_tools().definitions()}
         )
-        stored: dict[str, bytes] | None = None
         by_resource = {item.resource_id: item for item in entries.values() if item.resource_id}
         for row in rows:
             item = by_resource.get(row.id)
@@ -175,9 +174,7 @@ async def current_catalog(
                 continue
             try:
                 _, entry = current_version(row, row.version)
-                if stored is None:
-                    stored = await stored_files(session, agent_id)
-                validate_package_files(entry, stored)
+                validate_package_files(entry, await stored_files(session, agent_id, entry.files))
                 require_validated(entry)
             except LonoraError as error:
                 entries[item.id] = item.model_copy(update={"available": False, "code": error.code})

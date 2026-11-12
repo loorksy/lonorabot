@@ -415,7 +415,9 @@ async def main() -> None:
                 outcome = await registry.execute(validation, failed_context)
                 assert outcome["status"] == "smoke_test_passed"
                 async with db.sessions() as session:
-                    stored = await stored_files(session, failed_agent["id"])
+                    stored = await stored_files(
+                        session, failed_agent["id"], ["skills/sample/1.0.0/analyze.py"]
+                    )
                 assert stored["skills/sample/1.0.0/analyze.py"] == source.encode()
             async with db.sessions() as session:
                 row = await session.get(SkillRow, imported["resource_id"])

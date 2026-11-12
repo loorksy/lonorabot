@@ -55,4 +55,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The snapshots are left as they were, so packages created after this revision lose
+    # their files: their versions then fail admission with skill_package_source_changed.
     op.drop_table("ln_skill_package_files")

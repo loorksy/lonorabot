@@ -13,7 +13,7 @@ from lonora_db.skills import SkillRepository, mark_package, record_version
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
-from lonora_tools.terminal import client, require_ordinary, scan
+from lonora_tools.terminal import client, require_ordinary, scan, tail
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ from .packages import (
 )
 from .registry import installed_registry
 from .repository import repository_identity
+from .run_copies import write_copy
 from .store import store_files, stored_files
 
 SOURCE_FILES = 65
@@ -145,7 +146,7 @@ async def admit_version(
 
 
 async def assert_files(session: AsyncSession, context: ToolContext, entry: PackageVersion) -> None:
-    validate_package_files(entry, await stored_files(session, context.agent_id))
+    validate_package_files(entry, await stored_files(session, context.agent_id, entry.files))
 
 
 async def validate_graph(
@@ -203,7 +204,8 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
 async def workspace_directory(context: ToolContext, directory: str) -> dict[str, bytes]:
     """The regular files under a directory of the agent's workspace (relative to its home),
     listed and read as the agent's own user; every byte passes the secret scan. Caches
-    (__pycache__) and dot-directories (.git, .venv) are not part of a package."""
+    (__pycache__), dot-directories (.git, .venv) and dot-files (.env) are not part of a
+    package."""
     encode_snapshot({directory + "/SKILL.md": b""})
     found = await client(context).run(
         await scan(context),
@@ -234,16 +236,8 @@ async def materialize(
     home, the path its instructions name: whatever was there before is removed first."""
     assert entry.payload.manifest is not None
     directory = f"skills/{entry.payload.name}/{entry.payload.manifest.version}"
-    workspace, found = client(context), await scan(context)
-    cleared = await workspace.run(
-        found, context.agent_id, "rm -rf -- " + shlex.quote(directory), timeout_seconds=60
-    )
-    if cleared.get("exit_code") != 0:
-        raise LonoraError("workspace_file_unwritable", 409)
-    for path in entry.files:
-        written = await workspace.write(found, context.agent_id, path, stored[path])
-        if not written["ok"]:
-            raise LonoraError("workspace_file_unwritable", 409)
+    files = {path: stored[path] for path in entry.files}
+    await write_copy(client(context), await scan(context), context.agent_id, directory, files)
 
 
 async def untrusted_source(context: ToolContext, repository_url: str) -> dict[str, Any] | None:
@@ -431,7 +425,7 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
         utility = arguments["utility_path"]
         if utility not in entry.utilities or not utility.endswith(".py"):
             raise LonoraError("skill_package_utility_unsupported", 422)
-        stored = await stored_files(session, context.agent_id)
+        stored = await stored_files(session, context.agent_id, entry.files)
         validate_package_files(entry, stored)
     # Run from a fresh copy of the stored package in the agent's home.
     await require_ordinary(context)
@@ -466,12 +460,17 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
             utcnow(),
         )
         record_version(session, row)
+        # The last 64 KiB of each stream, as workspace_run returns them.
+        stdout, stdout_cut = tail(outcome["stdout"])
+        stderr, stderr_cut = tail(outcome["stderr"])
         result = describe(
             row,
             entry,
             exit_code=outcome["exit_code"],
-            stdout=outcome["stdout"],
-            stderr=outcome["stderr"],
+            stdout=stdout,
+            stderr=stderr,
+            stdout_omitted_bytes=stdout_cut,
+            stderr_omitted_bytes=stderr_cut,
             status="smoke_test_passed" if outcome["exit_code"] == 0 else "smoke_test_failed",
         )
         save_receipt(session, context, digest, result)
@@ -494,7 +493,7 @@ async def control_package(
             _, proposed = current_version(candidate, arguments["expected_version"])
             await assert_unrevoked(session, context, proposed)
             require_validated(proposed)
-            stored = await stored_files(session, context.agent_id)
+            stored = await stored_files(session, context.agent_id, proposed.files)
             validate_package_files(proposed, stored)
         if proposed.utilities:
             await require_ordinary(context)
