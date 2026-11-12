@@ -95,7 +95,7 @@ the five fixed cards of 10.3 exist): undoing a creation is "delete it" in chat.
 ## Deleting an agent (3.1.2)
 
 Lonora deletes a team agent on its own judgment with `agent_control` (`action: delete`);
-the owner deletes one from its page (`DELETE /api/agents/{id}`). A team agent's call is
+the owner's session deletes one through `DELETE /api/agents/{id}` (no client screen offers it). A team agent's call is
 refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
 `delete_created_agent`:
 
@@ -115,6 +115,9 @@ refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
 - **Its records survive.** The journal and its Trade Approvals keep the
   agent id as a value (migration `0036_durable_records`).
 - **One line to the owner.** Lonora's delete returns `owner_line: "required"`.
+- **Only from a full run.** Lonora's delete is refused in an observe-only wake
+  (`observe_only_execution_forbidden`): a wake about activity Lonora did not cause never
+  deletes an agent. A replayed delete answers from its receipt (`changed: false`).
 
 ## Steering watches and routines
 
