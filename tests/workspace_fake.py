@@ -3,6 +3,8 @@ Paths are kept per agent as the tools send them (relative paths are the agent's 
 
 import base64
 import json
+import shlex
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -11,9 +13,17 @@ from lonora_workspace.client import WorkspaceClient
 BOOT = "boot-test"
 
 
+Ran = dict[str, Any]
+
+
 class FakeWorkspace:
-    def __init__(self) -> None:
+    """`run` answers a directory listing (`cd -- DIR && find ...`) from the files, and any
+    other command through `commands` (default: exit 0, no output)."""
+
+    def __init__(self, commands: Callable[[str, str], Ran] | None = None) -> None:
         self.files: dict[tuple[str, str], bytes] = {}
+        self.commands = commands
+        self.ran: list[tuple[str, str]] = []
 
     def client(self) -> WorkspaceClient:
         return WorkspaceClient(transport=httpx.MockTransport(self.handle))
@@ -42,6 +52,24 @@ class FakeWorkspace:
                     "content_base64": base64.b64encode(part).decode(),
                     "truncated": offset + len(part) < len(data),
                 },
+            )
+        if request.url.path == "/v1/run":
+            agent, command = str(body["agent_id"]), str(body["command"])
+            self.ran.append((agent, command))
+            words = shlex.split(command.split("&&", 1)[0])
+            if command.startswith("cd -- ") and "find . -type f" in command:
+                prefix = words[2].rstrip("/") + "/"
+                names = sorted(
+                    path[len(prefix) :]
+                    for owner, path in self.files
+                    if owner == agent and path.startswith(prefix)
+                )
+                result: Ran = {"exit_code": 0, "stdout": "".join(n + "\n" for n in names)}
+            else:
+                result = self.commands(agent, command) if self.commands else {"exit_code": 0}
+            return httpx.Response(
+                200,
+                json={"boot_id": BOOT, "stdout": "", "stderr": "", "timed_out": False, **result},
             )
         if request.url.path == "/v1/health":
             return httpx.Response(200, json={"boot_id": BOOT, "ok": True})

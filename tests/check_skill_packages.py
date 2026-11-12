@@ -1,8 +1,7 @@
-"""Real PostgreSQL/ToolLoop package lifecycle, with optional real Docker validation."""
+"""Real PostgreSQL/ToolLoop package lifecycle; utilities run in a stand-in workspace."""
 
 import asyncio
 import json
-import os
 from dataclasses import replace
 from io import BytesIO
 from typing import Any
@@ -14,19 +13,19 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall
 from lonora_agent.executor import execute_run
 from lonora_agent.skills.access import RunSkillAccess
-from lonora_agent.workspace import AnalyticalContainer, WorkspaceResult
-from lonora_agent.workspace_access import RunWorkspaceAccess
+from lonora_agent.skills.store import stored_files
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow, SkillRow, TradeApprovalRow, TradingJournalRow
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from sqlalchemy import func, select
+from workspace_fake import FakeWorkspace, Ran
 
 DOCUMENT = "---\nname: sample\ndescription: Compute statistics from verified historical observations.\n---\nUse exact owner-provided observations. These procedures never authorize financial actions.\n"
 REVIEW = {
     "source_behavior": "Compute a mean from a known, bounded historical input sample.",
-    "adapted_behavior": "Compute a mean using owner-supplied data under the existing isolated workspace.",
+    "adapted_behavior": "Compute a mean using owner-supplied data in the owner's workspace.",
     "assumptions": [
         "Historical values here are a test fixture, not a current market recommendation."
     ],
@@ -35,7 +34,6 @@ REVIEW = {
     ],
 }
 COMMIT = "c" * 40
-IMAGE = "sha256:" + "a" * 64
 SOURCE = "import json\nfrom pathlib import Path\nvalues = [1, 2, 3]\nassert len(values) == 3\nPath('mean.json').write_text(json.dumps({'mean': sum(values)/len(values)}))\nprint('mean=2.0')\n"
 
 
@@ -47,39 +45,24 @@ def archive(source: str = SOURCE) -> bytes:
     return output.getvalue()
 
 
-class ScriptedExecutor:
-    def __init__(self) -> None:
-        self.calls = 0
+def utility(agent_id: str, command: str) -> Ran:
+    """The utility as the workspace would run it, from the copy in the agent's home."""
+    assert command.startswith("cd .skill-validation && python3 skills/sample/"), command
+    path = command.split("python3 ", 1)[1].split(" ")[0]
+    source = workspace.files[(agent_id, ".skill-validation/" + path)]
+    if b"lonora_dependency_that_is_not_available" in source:
+        return {
+            "exit_code": 1,
+            "stderr": "ModuleNotFoundError: lonora_dependency_that_is_not_available",
+        }
+    if b"Path(__file__).write_text" in source:
+        # The utility rewrites itself: only its copy changes.
+        workspace.files[(agent_id, ".skill-validation/" + path)] = b"print('changed source')\n"
+        return {"exit_code": 0, "stdout": "source changed\n"}
+    return {"exit_code": 0, "stdout": "mean=2.0\n"}
 
-    async def profile(self) -> str:
-        return IMAGE
 
-    async def execute(
-        self,
-        command: str,
-        files: dict[str, bytes] | None = None,
-        *,
-        deadline_seconds: float = 30,
-        expected_image: str | None = None,
-    ) -> WorkspaceResult:
-        if expected_image is not None and expected_image != IMAGE:
-            raise LonoraError("workspace_profile_changed", 409)
-        self.calls += 1
-        assert command.startswith("python3 skills/sample/") and deadline_seconds == 30
-        snapshot = dict(files or {})
-        utility = next(name for name in snapshot if name.endswith("/analyze.py"))
-        if b"lonora_dependency_that_is_not_available" in snapshot[utility]:
-            return WorkspaceResult(
-                1,
-                "",
-                "ModuleNotFoundError: lonora_dependency_that_is_not_available",
-                snapshot,
-                IMAGE,
-            )
-        if b"Path(__file__).write_text" in snapshot[utility]:
-            snapshot[utility] = b"print('changed source')\n"
-            return WorkspaceResult(0, "source changed\n", "", snapshot, IMAGE)
-        return WorkspaceResult(0, "mean=2.0\n", "", dict(files or {}), IMAGE)
+workspace = FakeWorkspace(utility)
 
 
 async def denied(awaitable: Any, code: str) -> None:
@@ -94,9 +77,6 @@ async def denied(awaitable: Any, code: str) -> None:
 async def main() -> None:
     fixture = await Fixture().open()
     registry = load_tools()
-    executor = ScriptedExecutor()
-    image = os.environ.get("LONORA_SKILL_TEST_IMAGE")
-    workspace = RunWorkspaceAccess(AnalyticalContainer(image) if image else executor)
     checks = 0
     fetched = 0
 
@@ -110,7 +90,7 @@ async def main() -> None:
         thread = await fixture.conversation(agent)
         context = replace(
             await fixture.lease(await fixture.run(agent, thread)),
-            workspace_access=workspace,
+            workspace=workspace.client(),
             skill_access=RunSkillAccess(registry, ()),
         )
         db = context.db
@@ -122,7 +102,6 @@ async def main() -> None:
             "adapted_content": DOCUMENT,
             "review": REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         results: list[dict[str, Any]] = []
         rounds = 0
@@ -151,7 +130,6 @@ async def main() -> None:
                     arguments={
                         "skill_id": "sample",
                         "expected_version": results[-1]["resource_version"],
-                        "workspace_revision": results[-1]["workspace_revision"],
                         "utility_path": "skills/sample/1.0.0/analyze.py",
                     },
                 )
@@ -163,7 +141,6 @@ async def main() -> None:
                     arguments={
                         "skill_id": "sample",
                         "expected_version": results[-1]["resource_version"],
-                        "workspace_revision": results[-1]["workspace_revision"],
                         "action": "activate",
                     },
                 )
@@ -201,7 +178,7 @@ async def main() -> None:
         checks += 1
         context = replace(
             await fixture.lease(await fixture.run(agent, thread)),
-            workspace_access=workspace,
+            workspace=workspace.client(),
             skill_access=RunSkillAccess(registry, ()),
         )
 
@@ -213,14 +190,12 @@ async def main() -> None:
             )
 
         with patch("lonora_agent.skills.lifecycle.fetch_package", fetch):
-            revision = (await workspace.inspect(context.for_call("inspect")))["revision"]
             update = {
                 **request,
                 "version": "2.0.0",
                 "commit": "d" * 40,
                 "adapted_content": DOCUMENT + "\nSecond version: preserve source timestamps.",
                 "expected_version": version,
-                "workspace_revision": revision,
             }
             second = await call("update", "skill_package_import", update)
             assert second["version"] == "2.0.0" and not second["enabled"]
@@ -241,7 +216,6 @@ async def main() -> None:
                     {
                         "skill_id": "sample",
                         "expected_version": second["resource_version"],
-                        "workspace_revision": second["workspace_revision"],
                         "action": "activate",
                     },
                 ),
@@ -254,7 +228,6 @@ async def main() -> None:
                 {
                     "skill_id": "sample",
                     "expected_version": second["resource_version"],
-                    "workspace_revision": second["workspace_revision"],
                     "action": "rollback",
                     "target_version": "1.0.0",
                 },
@@ -267,7 +240,6 @@ async def main() -> None:
                     {
                         "skill_id": "sample",
                         "expected_version": second["resource_version"],
-                        "workspace_revision": second["workspace_revision"],
                         "action": "rollback",
                         "target_version": "1.0.0",
                     },
@@ -280,7 +252,6 @@ async def main() -> None:
                 {
                     "skill_id": "sample",
                     "expected_version": rolled["resource_version"],
-                    "workspace_revision": second["workspace_revision"],
                     "action": "activate",
                 },
             )
@@ -293,7 +264,6 @@ async def main() -> None:
                     {
                         "skill_id": "sample",
                         "expected_version": enabled["resource_version"],
-                        "workspace_revision": second["workspace_revision"],
                         "action": "disable",
                     },
                     replace(context, owner_id=str(uuid4())),
@@ -328,7 +298,6 @@ async def main() -> None:
                     {
                         "skill_id": "sample",
                         "expected_version": enabled["resource_version"],
-                        "workspace_revision": second["workspace_revision"],
                         "action": "activate",
                     },
                 ),
@@ -341,7 +310,6 @@ async def main() -> None:
                     {
                         **request,
                         "version": "3.0.0",
-                        "workspace_revision": second["workspace_revision"],
                         "expected_version": enabled["resource_version"],
                     },
                 ),
@@ -353,7 +321,6 @@ async def main() -> None:
                 {
                     "skill_id": "sample",
                     "expected_version": enabled["resource_version"],
-                    "workspace_revision": second["workspace_revision"],
                     "action": "remove",
                 },
             )
@@ -365,7 +332,6 @@ async def main() -> None:
                     {
                         "skill_id": "sample",
                         "expected_version": enabled["resource_version"],
-                        "workspace_revision": second["workspace_revision"],
                         "action": "remove",
                     },
                 )
@@ -378,7 +344,6 @@ async def main() -> None:
                     {
                         **request,
                         "version": "4.0.0",
-                        "workspace_revision": second["workspace_revision"],
                     },
                 ),
                 "skill_version_revoked",
@@ -408,7 +373,7 @@ async def main() -> None:
                 await fixture.lease(
                     await fixture.run(failed_agent, await fixture.conversation(failed_agent))
                 ),
-                workspace_access=workspace,
+                workspace=workspace.client(),
                 skill_access=RunSkillAccess(registry, ()),
             )
             with patch("lonora_agent.skills.lifecycle.fetch_package", return_value=archive(source)):
@@ -422,7 +387,6 @@ async def main() -> None:
                 arguments={
                     "skill_id": "sample",
                     "expected_version": imported["resource_version"],
-                    "workspace_revision": imported["workspace_revision"],
                     "utility_path": "skills/sample/1.0.0/analyze.py",
                 },
             )
@@ -439,7 +403,6 @@ async def main() -> None:
                             arguments={
                                 "skill_id": "sample",
                                 "expected_version": outcome["resource_version"],
-                                "workspace_revision": outcome["workspace_revision"],
                                 "action": "activate",
                             },
                         ),
@@ -448,14 +411,15 @@ async def main() -> None:
                     "skill_package_validation_required",
                 )
             else:
-                await denied(
-                    registry.execute(validation, failed_context), "skill_package_source_changed"
-                )
+                # The run changed only its copy; the stored source and its hash stand.
+                outcome = await registry.execute(validation, failed_context)
+                assert outcome["status"] == "smoke_test_passed"
+                async with db.sessions() as session:
+                    stored = await stored_files(session, failed_agent["id"])
+                assert stored["skills/sample/1.0.0/analyze.py"] == source.encode()
             async with db.sessions() as session:
                 row = await session.get(SkillRow, imported["resource_id"])
                 assert row is not None and not row.payload["enabled"]
-                if index == 1:
-                    assert row.state["package"]["versions"][0]["validation"] is None
             checks += 1
         async with db.sessions() as session:
             assert (
@@ -466,7 +430,7 @@ async def main() -> None:
                 == approvals
             )
         print(
-            f"PASS {checks} package lifecycle groups: canonical Agent import/isolated validation/activation/view, immutable updates, replay, rollback, ownership, observe-only, revocation/relabel/removal, stale lease, missing dependency and self-modifying source; financial state unchanged; executor={'real-networkless-container' if image else 'scripted-offline'}"
+            f"PASS {checks} package lifecycle groups: canonical Agent import/workspace validation from a copy/activation/view, immutable updates, replay, rollback, ownership, observe-only, revocation/relabel/removal, stale lease, missing dependency and a self-modifying utility that changes only its copy; financial state unchanged"
         )
     finally:
         await fixture.close()

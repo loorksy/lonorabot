@@ -1,7 +1,8 @@
-"""Optional real public source -> owned catalog -> actual isolated utility acceptance.
+"""Optional real public source -> owned catalog -> utility run in the real workspace.
 
-Requires an explicit reviewed local image ID, HTTPS and disposable PostgreSQL.
-No source executes on the host or acquires broker authority.
+Requires the workspace supervisor's socket (on the server, inside the Gateway container:
+/run/lonora-workspace/supervisor.sock), HTTPS and disposable PostgreSQL. No source
+executes on the host or acquires broker authority.
 """
 
 import asyncio
@@ -14,10 +15,10 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.skills.access import RunSkillAccess
 from lonora_agent.skills.repository import inspect_repository
-from lonora_agent.workspace import AnalyticalContainer
-from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_db.schema import TradeApprovalRow, TradingJournalRow
+from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
+from lonora_workspace.client import WorkspaceClient
 from sqlalchemy import func, select
 
 COMMIT = "3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd"
@@ -31,7 +32,7 @@ async def main() -> None:
         t = await f.conversation(a)
         c = replace(
             await f.lease(await f.run(a, t)),
-            workspace_access=RunWorkspaceAccess(AnalyticalContainer(sys.argv[1])),
+            workspace=WorkspaceClient(sys.argv[1]),
             skill_access=RunSkillAccess(r, ()),
         )
         report = await inspect_repository(
@@ -44,7 +45,6 @@ async def main() -> None:
             "source_path": "trader-budget/SKILL.md",
             "version": "1.0.0",
             "expected_version": 0,
-            "workspace_revision": 1,
             "adapted_content": "---\nname: trader-budget\ndescription: Inspect an isolated historical US-equity allocation calculation.\n---\nRun the preserved utility only in isolated analysis. It computes US-stock proposals, not broker executions. Whole shares and dollar prices cannot be substituted for broker lots or XAUUSDm risk sizing. Financial actions always use the existing verified executor.\n",
             "review": {
                 "source_behavior": "Sizes whole US-equity shares or historical budget weights and writes proposals without placing orders.",
@@ -57,16 +57,13 @@ async def main() -> None:
                 ],
             },
         }
-        await r.execute(
-            ToolCall(
-                id="scenario-input",
-                name="workspace_update",
-                arguments={
-                    "revision": 0,
-                    "files": {"scenario-prices.json": json.dumps({"AAPL": 100})},
-                },
-            ),
-            c,
+        # The utility runs in .skill-validation/ in the agent's home.
+        assert c.workspace is not None
+        await c.workspace.write(
+            SecretScan({}),
+            c.agent_id,
+            ".skill-validation/scenario-prices.json",
+            json.dumps({"AAPL": 100}).encode(),
         )
         imported = await r.execute(
             ToolCall(id="public-import", name="skill_package_import", arguments=args), c
@@ -78,7 +75,6 @@ async def main() -> None:
                 arguments={
                     "skill_id": "trader-budget",
                     "expected_version": imported["resource_version"],
-                    "workspace_revision": imported["workspace_revision"],
                     "utility_path": "skills/trader-budget/1.0.0/size.py",
                     "arguments": [
                         "--weights",
@@ -104,7 +100,6 @@ async def main() -> None:
                 arguments={
                     "skill_id": "trader-budget",
                     "expected_version": validated["resource_version"],
-                    "workspace_revision": validated["workspace_revision"],
                     "action": "activate",
                 },
             ),
@@ -115,7 +110,7 @@ async def main() -> None:
             assert not await s.scalar(select(func.count()).select_from(TradingJournalRow))
             assert not await s.scalar(select(func.count()).select_from(TradeApprovalRow))
         print(
-            "PASS actual pinned public repository11Skills -> adapted diagnostic import -> real isolated original utility stock allocation -> current-version activation; zero financial effects, gold lot adaptation explicitly unsupported"
+            "PASS actual pinned public repository11Skills -> adapted diagnostic import -> original utility run in the workspace (stock allocation) -> current-version activation; zero financial effects, gold lot adaptation explicitly unsupported"
         )
         print(
             json.dumps(
@@ -135,5 +130,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        raise SystemExit("Pass the administrator-reviewed full local analysis image ID")
+        raise SystemExit("Pass the workspace supervisor's socket path")
     asyncio.run(main())

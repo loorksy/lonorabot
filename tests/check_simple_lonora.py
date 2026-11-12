@@ -1704,7 +1704,6 @@ class Acceptance:
             "adapted_content": SKILL,
             "review": SKILL_REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         fetched: list[str] = []
 
@@ -1722,7 +1721,6 @@ class Acceptance:
                     "skill_id": "cpi-brief",
                     "expected_version": t.result("j5-import")["resource_version"],
                     "action": "activate",
-                    "workspace_revision": t.result("j5-import")["workspace_revision"],
                 },
             ),
             "ثبّتّ طريقة تلخيص بيانات التضخم وفعّلتها.",

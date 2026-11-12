@@ -35,14 +35,14 @@ pinned to their original content.
 
 ## Controlled validation and lifecycle
 
-`skill_package_validate` runs one exact imported Python utility, with bounded
-quoted arguments, through the existing networkless container workspace. The
-owner, Agent, Thread and Run lease are checked before and after execution. All
-package source hashes must match before and after the utility runs. A script
-that changes its own source cannot validate itself.
+`skill_package_validate` runs one exact stored Python utility, with bounded quoted
+arguments, in the owner's persistent workspace, from a copy of the package in
+`.skill-validation/` in the agent's home (`docs/workspace-created-skills.md`). The
+owner, Agent, Thread and Run lease are checked before and after execution, and the
+stored source hashes must match before and after. A script that changes its own
+source changes only its copy.
 
-Validation records actual exit status, image identity, source digest and operation
-receipt. A missing dependency produces the real failed exit and bounded stderr.
+Validation records actual exit status, source digest and arguments. A missing dependency produces the real failed exit and bounded stderr.
 Identical retries return the original receipt, including failures; changed
 arguments cannot reuse that identity. Passing a smoke test is not proof of
 security, predictive accuracy, instrument equivalence or full strategy semantics.
@@ -51,8 +51,7 @@ security, predictive accuracy, instrument equivalence or full strategy semantics
 Every executable utility must have a successful matching validation before
 activation. Unsupported non-Python utilities prevent activation. Rollback restores
 retained instructions disabled and requires an explicit later activation.
-Removal deletes the catalog resource and retains the ordinary workspace source
-files. Existing dependency-graph and semantic-version revocations remain
+Removal deletes the catalog resource and retains the stored files. Existing dependency-graph and semantic-version revocations remain
 authoritative. A removed identity with a revoked version cannot be reimported
 under a new label to erase that denial.
 
@@ -61,12 +60,11 @@ under a new label to erase that denial.
 This is a bounded public-package import path, not automatic conversion of every
 external Agent framework. Binary packages, arbitrary root/shared module layouts,
 unavailable dependencies and other executable languages are reported or rejected.
-Import names are not trusted package-install instructions. Only dependencies
-already in the administrator-reviewed analytical image are available; no model
-request installs network packages or executes a host subprocess.
+Import names are not trusted package-install instructions: validation installs
+nothing; a dependency is available only if it is already in the workspace.
 
-Imported instructions and Python receive no broker credentials, live network,
-host filesystem or additional trading permission. Ordinary financial actions
+Imported instructions and Python receive no broker credentials, host filesystem or
+additional trading permission. Ordinary financial actions
 still pass through the existing typed executor, approvals or signed authority,
 risk limits, journal and reconciliation.
 
@@ -74,12 +72,10 @@ risk limits, journal and reconciliation.
 
 `tests/test_skill_packages.py` covers archive/path/size/identity restrictions,
 non-execution of hooks, immutable revisions and tool-effect contracts.
-`tests/check_skill_packages.py` exercises the actual Agent loop, PostgreSQL,
-workspace and catalog lifecycle. Supplying `LONORA_SKILL_TEST_IMAGE` as a full
-local image ID selects real networkless containers rather than the offline fake.
-The real-container check covers import/validation/activation/view, immutable
+`tests/check_skill_packages.py` exercises the actual Agent loop, PostgreSQL, the
+package store and catalog lifecycle, with a stand-in workspace supervisor. It covers import/validation/activation/view, immutable
 updates, replay, rollback, ownership, helper (subagent) denial, revocation/relabel
-denial, removal, stale leases, missing dependencies and self-modifying source.
+denial, removal, stale leases, missing dependencies and a self-modifying utility.
 Financial journal and approval counts remain unchanged.
 
 ## Actual public-source acceptance
@@ -95,8 +91,9 @@ approval counts stayed zero. Whole-stock-share sizing was explicitly identified
 as incompatible with gold broker lots without verified monetary contract metadata;
 this is not a claim of gold-strategy adaptation.
 
-`tests/check_public_skill_package.py <full-local-image-id>` reproduces this optional
-network/Docker acceptance against an explicitly migrated disposable PostgreSQL DB.
+That acceptance ran in the former networkless container.
+`tests/check_public_skill_package.py <workspace-supervisor-socket>` now reproduces it
+in the persistent workspace: an optional network acceptance against an explicitly migrated disposable PostgreSQL DB.
 It is separate from the default offline checks. Source behavior can require actual
 inputs: the first probe correctly rejected a missing scenario price rather than
 inventing one; a declared fixture price supplied that missing input.
