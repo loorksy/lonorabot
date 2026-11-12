@@ -25,15 +25,6 @@ def cosine_similarity(first: list[float], second: list[float]) -> float:
     return sum((a / first_norm) * (b / second_norm) for a, b in zip(first, second, strict=True))
 
 
-def semantic_retrieve(
-    query: list[float], documents: list[tuple[str, list[float]]], limit: int = 5
-) -> list[str]:
-    scored = sorted(
-        ((cosine_similarity(query, vector), text) for text, vector in documents), reverse=True
-    )
-    return [text for _, text in scored[:limit]]
-
-
 async def embed_text(credentials: ProviderCredentials, model: str, text: str) -> list[float]:
     token = await credentials.resolve("openai")
     try:
