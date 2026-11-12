@@ -1,18 +1,17 @@
 """The workspace's connection relay (7.1.4): every agent TCP connection leaving the host
-is redirected here by the guard's nftables rules.
+is redirected here by the guard's nftables rules. It is defence in depth: what holds
+against MetaApi is 7.2.3, the MetaApi token never being in the workspace.
 
 A connection whose client speaks first must be TLS, HTTP or SSH; anything else (SOCKS,
 h2c, raw tunnels) is refused. For TLS and HTTP the relay reads the name the client asks
 for (the ClientHello's server name, the Host header, a proxy's CONNECT target or absolute
-URI), refuses names under a denied domain (MetaApi, Lonora's own), and requires the
-address being dialled to be one that name resolves to: a hard-coded MetaApi address
-behind an innocent name, or a public proxy, does not pass. A connection whose server
-speaks first (SMTP, databases) passes once the server has spoken. Accepted connections
-go to the original destination from the guard as root, still under its address rules.
+URI), refuses an address used as the name and names under a denied domain (MetaApi,
+Lonora's own), and requires the address being dialled to be one that name resolves to,
+CNAME chains screened. A connection whose server speaks first passes once it has spoken.
 
-What it cannot see: an encrypted tunnel the agent builds itself over SSH, and a CDN that
-serves MetaApi and other names on the same addresses (domain fronting). The MetaApi token
-never being in the workspace (7.2.3) is what holds there.
+What still reaches MetaApi: a name that resolves to a MetaApi address the guard has not
+learned (wildcard DNS such as sslip.io), an HTTPS proxy (its tunnel is encrypted), and
+anything carried over SSH. Those are why 7.2.3 is the guarantee.
 """
 
 import asyncio
@@ -21,6 +20,7 @@ import ipaddress
 import logging
 import socket
 import struct
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -182,12 +182,36 @@ def original_destination(sock: socket.socket) -> tuple[str, int]:
     return socket.inet_ntoa(raw[4:8]), port
 
 
-async def pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+class Activity:
+    """One idle clock per connection: a long one-way transfer keeps both directions alive."""
+
+    def __init__(self) -> None:
+        self.last = time.monotonic()
+
+    def touch(self) -> None:
+        self.last = time.monotonic()
+
+    def idle(self) -> bool:
+        return time.monotonic() - self.last > IDLE_SECONDS
+
+
+async def pipe(
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, activity: Activity
+) -> None:
     try:
-        while data := await asyncio.wait_for(reader.read(65536), IDLE_SECONDS):
+        while True:
+            try:
+                data = await asyncio.wait_for(reader.read(65536), 60)
+            except TimeoutError:
+                if activity.idle():
+                    break
+                continue
+            if not data:
+                break
+            activity.touch()
             writer.write(data)
             await writer.drain()
-    except (OSError, asyncio.IncompleteReadError, TimeoutError):
+    except (OSError, asyncio.IncompleteReadError):
         pass
     finally:
         with contextlib.suppress(OSError):
@@ -208,10 +232,14 @@ class Relay:
         """The dialled address must be the name itself or one of its addresses."""
         if name_denied(name, self.domains):
             raise Refused("relay_name_denied")
-        with contextlib.suppress(ValueError):
-            if ipaddress.ip_address(name) == ipaddress.ip_address(address):
-                return
-            raise Refused("relay_address_mismatch")
+        try:
+            ipaddress.ip_address(name)
+            literal = True
+        except ValueError:
+            literal = False
+        if literal:
+            # An address as the name says nothing about where it leads.
+            raise Refused("relay_address_literal")
         if address not in await self.resolve(name):
             raise Refused("relay_address_mismatch")
 
@@ -285,7 +313,10 @@ class Relay:
                         from_client.cancel()
                         from_server.cancel()
                         return
-                await asyncio.gather(pipe(reader, upstream), pipe(up_reader, writer))
+                activity = Activity()
+                await asyncio.gather(
+                    pipe(reader, upstream, activity), pipe(up_reader, writer, activity)
+                )
         except Refused as refusal:
             log.warning("workspace_relay_refused reason=%s uid=%s", refusal, uid)
         except (OSError, TimeoutError):

@@ -322,8 +322,43 @@ def test_the_dialled_address_must_be_one_the_checked_name_resolves_to():
     assert asyncio.run(check("example.com", "203.0.113.50")) == "relay_address_mismatch"
     assert asyncio.run(check("app.metaapi.cloud", "93.184.216.34")) == "relay_name_denied"
     assert asyncio.run(check("api.lonora.example.org", "93.184.216.34")) == "relay_name_denied"
-    assert asyncio.run(check("93.184.216.34", "93.184.216.34")) == "ok"
-    assert asyncio.run(check("93.184.216.35", "93.184.216.34")) == "relay_address_mismatch"
+    assert asyncio.run(check("93.184.216.34", "93.184.216.34")) == "relay_address_literal"
+    assert asyncio.run(check("2001:db8::1", "93.184.216.34")) == "relay_address_literal"
+
+
+def test_a_chain_into_a_denied_domain_gives_no_address_and_blocks_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    query = dns.query("evil-cname.example", dns.A)
+    target = b"\x10mt-client-api-v1\x06london\x0cagiliumtrade\x02ai\x00"
+    cname = query[12:-4] + struct.pack("!HHIH", dns.CNAME, 1, 60, len(target)) + target
+    a_record = b"\xc0\x0c" + struct.pack("!HHIH", dns.A, 1, 60, 4) + bytes([45, 33, 1, 2])
+    chained = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 2, 0, 0) + query[12:] + cname + a_record
+
+    async def upstream(packet: bytes) -> bytes:
+        return packet[:2] + chained[2:]
+
+    monkeypatch.setattr(netguard, "forward_udp", upstream)
+    answers = netguard.Answers(denied_domains(None))
+    assert asyncio.run(answers.of("evil-cname.example")) == set()
+    assert answers.denied == {"45.33.1.2"} and answers.changed.is_set()
+    answers.record(query, chained)
+    assert "evil-cname.example" not in answers.names
+
+
+def test_the_answer_cache_and_the_lookup_rate_are_bounded():
+    answers = netguard.Answers(denied_domains(None))
+    answers.LIMIT = 3
+    for index in range(5):
+        name = f"n{index}.example"
+        query = dns.query(name, dns.A)
+        answer = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 1, 0, 0) + query[12:]
+        answer += b"\xc0\x0c" + struct.pack("!HHIH", dns.A, 1, 60, 4) + bytes([93, 184, 216, index])
+        answers.record(query, answer)
+    assert list(answers.names) == ["n2.example", "n3.example", "n4.example"]
+    rate = netguard.Rate()
+    allowed = [rate.allow(20000) for _ in range(rate.PER_SECOND + 5)]
+    assert allowed.count(True) <= rate.PER_SECOND + 1 and rate.allow(0)
 
 
 def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():

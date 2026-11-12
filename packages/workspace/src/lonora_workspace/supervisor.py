@@ -18,6 +18,7 @@ import signal
 import socket
 import time
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any
@@ -26,7 +27,6 @@ from fastapi import FastAPI
 from fastapi import Request as HttpRequest
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from lonora_security.secrets import SecretScan
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from .users import AGENTS_GID, Users, is_agent_uid, user_name
@@ -39,6 +39,7 @@ SECRETS = Path("/run/secrets")
 FILE_LIMIT = 2 * 1024 * 1024
 OUTPUT_LIMIT = 1024 * 1024
 ENDED_KEPT = 500
+GIVEN_KEPT = 1000
 PROTECTED_ENV = {
     "HOME",
     "USER",
@@ -81,9 +82,6 @@ class RunCommand(Request):
         Annotated[str, StringConstraints(pattern=SECRET_NAME)],
         Annotated[str, StringConstraints(min_length=1, max_length=16000)],
     ] = Field(default_factory=dict, max_length=64)
-    # The agent's CLI token (7.3.3): in the environment only, never in a file, so only
-    # this command and its children (the agent's own processes) hold it.
-    agent_token: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{16,512}$")] | None = None
 
 
 AgentPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
@@ -346,8 +344,10 @@ class Supervisor:
         self.limits = limits
         self.boot_id = str(uuid.uuid4())
         self.jobs: dict[str, Job] = {}
-        # job id -> the secrets (name -> value) that job was started with, while it runs.
+        # job id -> the secrets (name -> value) that job was started with, while any of
+        # its processes runs; and every (name, value) given since start, newest last.
         self.job_secrets: dict[str, dict[str, str]] = {}
+        self.given: OrderedDict[tuple[str, str], None] = OrderedDict()
         self.lock = asyncio.Lock()
 
     def environment(self, uid: int, extra: dict[str, str]) -> dict[str, str]:
@@ -396,18 +396,50 @@ class Supervisor:
         for name in set(named) - still:
             (SECRETS / name).unlink(missing_ok=True)
 
-    def guard(self, value: Any) -> Any:
-        """Every value a running job was given, also old (rotated) and deleted ones,
-        replaced in what the supervisor answers. The Gateway scans current values; only
-        the supervisor knows which older ones are still alive in processes."""
-        pairs = {(n, v) for values in self.job_secrets.values() for n, v in values.items()}
-        while pairs:
-            batch: dict[str, str] = {}
-            for name, secret in sorted(pairs):
-                batch.setdefault(name, secret)
-            pairs -= set(batch.items())
-            value = SecretScan(batch).data(value)
-        return value
+    def remember(self, secrets: dict[str, str]) -> None:
+        for pair in secrets.items():
+            self.given.pop(pair, None)
+            self.given[pair] = None
+        while len(self.given) > GIVEN_KEPT:
+            self.given.popitem(last=False)
+
+    def guard(self) -> list[list[str]]:
+        """Every value given to a command since the workspace started (rotated and deleted
+        ones too: a log or an escaped child may still hold them), for the Gateway to add to
+        its scan. The Gateway alone rewrites what the model sees."""
+        return [[name, value] for name, value in self.given]
+
+    async def release_when_gone(self, job_id: str) -> None:
+        """A job's secret files stay while any process carrying its marker runs."""
+        while True:
+            if not await asyncio.to_thread(marked, job_id):
+                break
+            await asyncio.sleep(2)
+        async with self.lock:
+            self.release(job_id)
+
+    async def spawn(
+        self, cwd: str, log_path: str, command: str, pipe: int, env: dict[str, str], uid: int
+    ) -> asyncio.subprocess.Process:
+        return await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            "-c",
+            WRAPPER,
+            "lonora-workspace",
+            cwd,
+            log_path,
+            command,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=pipe,
+            stderr=pipe,
+            cwd="/",
+            env=env,
+            user=uid,
+            group=uid,
+            extra_groups=[AGENTS_GID],
+            umask=0o002,
+            start_new_session=True,
+        )
 
     async def start(self, request: RunCommand) -> tuple[Job, asyncio.subprocess.Process]:
         if "\0" in request.command or (request.cwd and "\0" in request.cwd):
@@ -424,29 +456,22 @@ class Supervisor:
         env = self.environment(uid, request.env) | {JOB_MARKER: job_id}
         if set(request.secrets) & (PROTECTED_ENV | set(request.env)):
             raise ValueError("workspace_secret_name_invalid")
-        self.place_secrets(request.secrets)
+        async with self.lock:
+            if request.secrets:
+                self.job_secrets[job_id] = dict(request.secrets)
+                self.remember(request.secrets)
+            try:
+                self.place_secrets(request.secrets)
+            except OSError:
+                self.release(job_id)
+                raise
         env |= request.secrets
-        if request.agent_token:
-            env["LONORA_AGENT_TOKEN"] = request.agent_token
-        process = await asyncio.create_subprocess_exec(
-            "/bin/bash",
-            "-c",
-            WRAPPER,
-            "lonora-workspace",
-            cwd,
-            log_path,
-            request.command,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=pipe,
-            stderr=pipe,
-            cwd="/",
-            env=env,
-            user=uid,
-            group=uid,
-            extra_groups=[AGENTS_GID],
-            umask=0o002,
-            start_new_session=True,
-        )
+        try:
+            process = await self.spawn(cwd, log_path, request.command, pipe, env, uid)
+        except OSError:
+            async with self.lock:
+                self.release(job_id)
+            raise
         job = Job(
             id=job_id,
             agent_id=str(request.agent_id),
@@ -459,12 +484,11 @@ class Supervisor:
             process=process,
         )
         self.jobs[job_id] = job
-        if request.secrets:
-            self.job_secrets[job_id] = dict(request.secrets)
         return job, process
 
     def ended(self, job: Job, code: int | None) -> None:
-        self.release(job.id)
+        if job.id in self.job_secrets:
+            asyncio.get_running_loop().create_task(self.release_when_gone(job.id))
         job.ended_at = time.time()
         job.exit_code = code
         job.process = None
@@ -515,12 +539,6 @@ class Supervisor:
             task.cancel()
         # Release our ends of the pipes; a child still holding them gets SIGPIPE, not a hang.
         process._transport.close()  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
-        answer = self.guard(
-            {
-                "stdout": streams["stdout"].decode("utf-8", "replace"),
-                "stderr": streams["stderr"].decode("utf-8", "replace"),
-            }
-        )
         self.ended(job, code)
         return {
             "boot_id": self.boot_id,
@@ -528,10 +546,11 @@ class Supervisor:
             "exit_code": code,
             "timed_out": timed_out,
             "duration_ms": int((time.monotonic() - started) * 1000),
-            "stdout": answer["stdout"],
-            "stderr": answer["stderr"],
+            "stdout": streams["stdout"].decode("utf-8", "replace"),
+            "stderr": streams["stderr"].decode("utf-8", "replace"),
             "stdout_dropped_bytes": dropped["stdout"],
             "stderr_dropped_bytes": dropped["stderr"],
+            "guard": self.guard(),
         }
 
     async def background(self, request: RunCommand) -> dict[str, Any]:
@@ -539,7 +558,7 @@ class Supervisor:
             raise ValueError("workspace_background_has_no_timeout")
         job, process = await self.start(request)
         asyncio.get_running_loop().create_task(self.watch(job, process))
-        return {"boot_id": self.boot_id, "process": job.view()}
+        return {"boot_id": self.boot_id, "process": job.view(), "guard": self.guard()}
 
     async def as_agent(
         self, agent_id: uuid.UUID, script: str, *args: str, data: bytes = b""
@@ -587,16 +606,13 @@ class Supervisor:
                 "boot_id": self.boot_id,
                 "ok": False,
                 "error": err.decode("utf-8", "replace")[-2000:],
+                "guard": self.guard(),
             }
         size_line, _, body = out.partition(b"\n")
         size = int(size_line)
-        if self.job_secrets:
-            text = body.decode("utf-8", "replace")
-            guarded = self.guard(text)
-            if guarded != text:
-                body = guarded.encode()
         return {
             "boot_id": self.boot_id,
+            "guard": self.guard(),
             "ok": True,
             "size": size,
             "offset": request.offset,
@@ -623,18 +639,18 @@ class Supervisor:
                 "boot_id": self.boot_id,
                 "ok": False,
                 "error": err.decode("utf-8", "replace")[-2000:],
+                "guard": self.guard(),
             }
         return {"boot_id": self.boot_id, "ok": True, "written": len(data)}
 
     def processes(self) -> dict[str, Any]:
         jobs = sorted(self.jobs.values(), key=lambda job: job.started_at)
-        return self.guard(
-            {
-                "boot_id": self.boot_id,
-                "jobs": [job.view() for job in jobs],
-                "processes": live_processes(self.users),
-            }
-        )
+        return {
+            "boot_id": self.boot_id,
+            "guard": self.guard(),
+            "jobs": [job.view() for job in jobs],
+            "processes": live_processes(self.users),
+        }
 
     async def stop(self, pid: int, agent_id: uuid.UUID | None = None) -> bool:
         uid = owner(pid)

@@ -168,39 +168,6 @@ def test_an_unknown_secret_name_is_refused_before_anything_runs():
     assert seen == []
 
 
-def test_only_an_ordinary_run_may_run_write_or_stop(monkeypatch: pytest.MonkeyPatch):
-    async def token(owner_id: str, agent_id: str) -> str:
-        return "tok_" + "t" * 32
-
-    seen: list[Any] = []
-    asyncio.run(terminal.run(context(seen, token), {"command": "true"}))
-    assert seen[0][1]["agent_token"] == "tok_" + "t" * 32
-
-    async def no(context: Any) -> bool:
-        return False
-
-    monkeypatch.setattr(terminal, "ordinary_run", no)
-    for handler, arguments in (
-        (terminal.run, {"command": "cat ~/.lonora/token"}),
-        (terminal.write, {"path": "x", "content": "y"}),
-        (terminal.stop, {"pid": 99}),
-    ):
-        seen = []
-        with pytest.raises(LonoraError, match="workspace_run_scope_refused"):
-            asyncio.run(handler(context(seen, token), arguments))
-        assert seen == []
-
-
-def test_the_cli_token_never_reaches_the_model():
-    async def token(owner_id: str, agent_id: str) -> str:
-        return "tok_" + "q" * 40
-
-    scanned = asyncio.run(terminal.scan(context([], token)))
-    assert scanned.text("LONORA_AGENT_TOKEN=tok_" + "q" * 40) == (
-        "LONORA_AGENT_TOKEN=[secret:LONORA_AGENT_TOKEN]"
-    )
-
-
 def test_a_secret_across_a_slice_edge_is_still_replaced():
     content = ("a" * 100 + VALUE + "b" * 100).encode()
     seen: list[Any] = []
@@ -259,68 +226,6 @@ def _etc(root: Path) -> Path:
     (etc / "passwd").write_text("root:x:0:0:root:/root:/bin/bash\n")
     (etc / "group").write_text("root:x:0:\n")
     return etc
-
-
-@pytest.mark.skipif(os.geteuid() != 0, reason="runs commands as agent users")
-def test_secrets_arrive_as_env_and_file_and_the_token_only_for_its_user(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    root = Path(tempfile.mkdtemp(dir="/tmp"))
-    root.chmod(0o755)
-    secrets = root / "run-secrets"
-    secrets.mkdir(mode=0o750)
-    os.chown(secrets, 0, AGENTS_GID)
-    monkeypatch.setattr(supervisor_module, "SECRETS", secrets)
-    try:
-        sup = Supervisor(Users(root, _etc(root)), Limits(foreground_seconds=20))
-        sup.users.load()
-        a, b = uuid.uuid4(), uuid.uuid4()
-
-        async def go(agent: uuid.UUID, command: str, **extra: Any) -> dict[str, Any]:
-            return await sup.foreground(RunCommand(agent_id=agent, command=command, **extra))
-
-        token = "tok_" + "x" * 40
-        out = asyncio.run(
-            go(
-                a,
-                '[ "$API_KEY" = "$(cat "$S/API_KEY")" ] && echo same; echo "${#API_KEY}";'
-                ' echo "$LONORA_AGENT_TOKEN"; test -e ~/.lonora/token || echo no-file',
-                secrets={"API_KEY": VALUE},
-                agent_token=token,
-                env={"S": str(secrets)},
-            )
-        )
-        assert out["stdout"].split() == ["same", str(len(VALUE)), token, "no-file"], out
-
-        # Any agent may read a workspace secret's file while a job that named it runs; the
-        # file goes when the last such job ends.
-        async def shared() -> tuple[dict[str, Any], bool]:
-            held = await sup.background(
-                RunCommand(agent_id=a, command="sleep 20", secrets={"API_KEY": VALUE})
-            )
-            assert (secrets / "API_KEY").stat().st_mode & 0o777 == 0o440
-            seen = await sup.foreground(
-                RunCommand(
-                    agent_id=b,
-                    command='echo "${LONORA_AGENT_TOKEN-none}"; wc -c < "$S/API_KEY"',
-                    env={"S": str(secrets)},
-                )
-            )
-            await sup.stop(held["process"]["pid"])
-            for _ in range(50):
-                if not (secrets / "API_KEY").exists():
-                    break
-                await asyncio.sleep(0.1)
-            return seen, (secrets / "API_KEY").exists()
-
-        other, left = asyncio.run(shared())
-        assert other["stdout"].split() == ["none", str(len(VALUE))]
-        assert not left
-        with pytest.raises(ValueError, match="workspace_secret_name_invalid"):
-            asyncio.run(go(a, "true", secrets={"PATH": "x"}))
-        signal_agents(signal.SIGKILL, None, sup.users)
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_concurrent_calls_do_not_close_each_others_connection():
@@ -382,8 +287,8 @@ def test_a_killed_command_never_shows_the_start_of_a_secret():
 def test_a_partial_secret_at_the_end_of_output_becomes_the_marker():
     from lonora_workspace.client import trailing
 
-    assert trailing(SCAN, "token=" + VALUE[:8]) == "token=[secret:API_KEY]"
-    assert trailing(SCAN, "token=" + VALUE[:5]) == "token=" + VALUE[:5]  # too short to tell
+    assert trailing(SCAN, "token=" + VALUE[:12]) == "token=[secret:API_KEY]"
+    assert trailing(SCAN, "token=" + VALUE[:8]) == "token=" + VALUE[:8]  # too short to tell
     assert trailing(SCAN, "plain text") == "plain text"
 
 
@@ -419,48 +324,6 @@ def test_the_scan_covers_integration_and_provider_values_too():
 
 
 @pytest.mark.skipif(os.geteuid() != 0, reason="runs commands as agent users")
-def test_old_values_stay_replaced_while_a_job_started_with_them_runs(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    root = Path(tempfile.mkdtemp(dir="/tmp"))
-    root.chmod(0o755)
-    secrets = root / "run-secrets"
-    secrets.mkdir(mode=0o750)
-    os.chown(secrets, 0, AGENTS_GID)
-    monkeypatch.setattr(supervisor_module, "SECRETS", secrets)
-    try:
-        sup = Supervisor(Users(root, _etc(root)), Limits(foreground_seconds=20))
-        sup.users.load()
-        a = uuid.uuid4()
-
-        async def go() -> tuple[dict[str, Any], dict[str, Any], bool, bool]:
-            started = await sup.background(
-                RunCommand(agent_id=a, command="sleep 30", secrets={"API_KEY": "old-value-123456"})
-            )
-            running = (secrets / "API_KEY").exists()
-            echoed = await sup.foreground(
-                RunCommand(
-                    agent_id=a,
-                    command="echo old-value-123456 new-value-654321",
-                    secrets={"API_KEY": "new-value-654321"},
-                )
-            )
-            await sup.stop(started["process"]["pid"])
-            for _ in range(50):
-                if not (secrets / "API_KEY").exists():
-                    break
-                await asyncio.sleep(0.1)
-            return started, echoed, running, (secrets / "API_KEY").exists()
-
-        _, echoed, running, left = asyncio.run(go())
-        assert running and not left
-        assert echoed["stdout"].split() == ["[secret:API_KEY]", "[secret:API_KEY]"]
-        signal_agents(signal.SIGKILL, None, sup.users)
-    finally:
-        shutil.rmtree(root, ignore_errors=True)
-
-
-@pytest.mark.skipif(os.geteuid() != 0, reason="runs commands as agent users")
 def test_a_cancelled_run_stops_its_command(monkeypatch: pytest.MonkeyPatch):
     root = Path(tempfile.mkdtemp(dir="/tmp"))
     root.chmod(0o755)
@@ -480,5 +343,138 @@ def test_a_cancelled_run_stops_its_command(monkeypatch: pytest.MonkeyPatch):
             return [p for p in sup.processes()["processes"] if "sleep 45" in p["command"]]
 
         assert asyncio.run(go()) == []
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_only_an_ordinary_run_may_run_write_or_stop(monkeypatch: pytest.MonkeyPatch):
+    async def no(context: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(terminal, "ordinary_run", no)
+    for handler, arguments in (
+        (terminal.run, {"command": "true"}),
+        (terminal.write, {"path": "x", "content": "y"}),
+        (terminal.stop, {"pid": 99}),
+    ):
+        seen: list[Any] = []
+        with pytest.raises(LonoraError, match="workspace_run_scope_refused"):
+            asyncio.run(handler(context(seen), arguments))
+        assert seen == []
+
+
+def test_values_the_supervisor_gave_commands_are_replaced_too():
+    client = supervisor_answering(
+        {
+            "/v1/run": {
+                "boot_id": "b",
+                "id": "j",
+                "exit_code": 0,
+                "timed_out": False,
+                "duration_ms": 1,
+                "stdout": "old=rotated-old-value-77 new=" + VALUE,
+                "stderr": "",
+                "stdout_dropped_bytes": 0,
+                "stderr_dropped_bytes": 0,
+                "guard": [["API_KEY", "rotated-old-value-77"], ["API_KEY", VALUE]],
+            }
+        },
+        [],
+    )
+    result = asyncio.run(client.run(SecretScan({}), AGENT, "x"))
+    assert result["stdout"] == "old=[secret:API_KEY] new=[secret:API_KEY]"
+    assert "guard" not in result
+
+
+def test_a_wrapped_secret_cut_mid_line_never_shows_its_earlier_lines():
+    from lonora_workspace.client import trailing
+
+    value = "v" * 63
+    scan = SecretScan({"LONG": value})
+    encoded = base64.b64encode(value.encode()).decode()
+    wrapped = "\n".join(encoded[i : i + 20] for i in range(0, 60, 20))  # cut at 60 of 84
+    text = trailing(scan, "data:\n" + wrapped)
+    assert encoded[:20] not in text and text.endswith("[secret:LONG]")
+
+
+def test_common_prefixes_are_not_taken_for_secrets():
+    from lonora_workspace.client import trailing
+
+    scan = SecretScan(
+        {"PEM": "-----BEGIN PRIVATE KEY-----abcdefgh", "SK": "sk-proj-0123456789abcdef"}
+    )
+    assert trailing(scan, "x -----BEGIN") == "x -----BEGIN"
+    assert trailing(scan, "key sk-proj-") == "key sk-proj-"
+
+
+@pytest.mark.skipif(os.geteuid() != 0, reason="runs commands as agent users")
+def test_secret_files_live_while_named_and_values_are_handed_to_the_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = Path(tempfile.mkdtemp(dir="/tmp"))
+    root.chmod(0o755)
+    secrets = root / "run-secrets"
+    secrets.mkdir(mode=0o750)
+    os.chown(secrets, 0, AGENTS_GID)
+    monkeypatch.setattr(supervisor_module, "SECRETS", secrets)
+    try:
+        sup = Supervisor(Users(root, _etc(root)), Limits(foreground_seconds=20))
+        sup.users.load()
+        a, b = uuid.uuid4(), uuid.uuid4()
+        env = {"S": str(secrets)}
+
+        async def go() -> dict[str, Any]:
+            seen: dict[str, Any] = {}
+            first = await sup.foreground(
+                RunCommand(
+                    agent_id=a,
+                    command='[ "$API_KEY" = "$(cat "$S/API_KEY")" ] && echo same',
+                    secrets={"API_KEY": VALUE},
+                    env=env,
+                )
+            )
+            seen["first"] = first["stdout"].split()
+            held = await sup.background(
+                RunCommand(agent_id=a, command="sleep 20", secrets={"API_KEY": "old-value-123456"})
+            )
+            seen["mode"] = (secrets / "API_KEY").stat().st_mode & 0o777
+            other = await sup.foreground(
+                RunCommand(agent_id=b, command='wc -c < "$S/API_KEY"', env=env)
+            )
+            seen["other"] = other["stdout"].split()
+            # Many jobs naming the same secret at once: each finds its file.
+            many = await asyncio.gather(
+                *(
+                    sup.foreground(
+                        RunCommand(
+                            agent_id=a,
+                            command='test -r "$S/API_KEY" && echo ok',
+                            secrets={"API_KEY": VALUE},
+                            env=env,
+                        )
+                    )
+                    for _ in range(30)
+                )
+            )
+            seen["many"] = sum(r["stdout"].strip() == "ok" for r in many)
+            await sup.stop(held["process"]["pid"])
+            for _ in range(60):
+                if not (secrets / "API_KEY").exists():
+                    break
+                await asyncio.sleep(0.2)
+            seen["left"] = (secrets / "API_KEY").exists()
+            seen["guard"] = sup.guard()
+            return seen
+
+        seen = asyncio.run(go())
+        assert seen["first"] == ["same"] and seen["mode"] == 0o440
+        assert seen["other"] == [str(len("old-value-123456"))]
+        assert seen["many"] == 30 and not seen["left"]
+        # Rotated values stay in what the Gateway scans after their jobs ended.
+        assert ["API_KEY", "old-value-123456"] in seen["guard"]
+        assert ["API_KEY", VALUE] in seen["guard"]
+        with pytest.raises(ValueError, match="workspace_secret_name_invalid"):
+            asyncio.run(sup.start(RunCommand(agent_id=a, command="true", secrets={"PATH": "x"})))
+        signal_agents(signal.SIGKILL, None, sup.users)
     finally:
         shutil.rmtree(root, ignore_errors=True)

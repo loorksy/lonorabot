@@ -60,15 +60,11 @@ def client(context: ToolContext) -> WorkspaceClient:
     return context.workspace
 
 
-async def scan(context: ToolContext, token: str | None = None) -> SecretScan:
+async def scan(context: ToolContext) -> SecretScan:
     """Every stored value but the broker's (workspace, integration, provider: W-ENV's
-    `scanned_values`) and the agent's CLI token, replaced in what reaches the model. The
-    supervisor also replaces the values its running jobs were started with."""
+    `scanned_values`), replaced in what reaches the model. The client adds the values the
+    supervisor gave commands, rotated and deleted ones included."""
     values = await context.secrets.scanned_values()
-    if token is None and context.agent_token is not None:
-        token = await context.agent_token(context.owner_id, context.agent_id)
-    if token:
-        values["LONORA_AGENT_TOKEN"] = token
     return SecretScan(values)
 
 
@@ -91,8 +87,7 @@ async def require_ordinary(context: ToolContext) -> None:
     """Commands, writes and stops come only from an ordinary run of the agent. A command
     in the workspace has effects (the internet, other venues' APIs a script may call:
     9.5); a helper and an observe-only wake take no effects (6.9, `base.HELPER_EFFECTS`),
-    so they may only look. They also run as the agent's own Unix user, so this keeps the
-    agent's CLI identity out of their reach once it exists (7.3.3)."""
+    so they may only look."""
     if not await ordinary_run(context):
         raise LonoraError("workspace_run_scope_refused", 403)
 
@@ -104,17 +99,13 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
     missing = sorted(set(request.secrets) - set(values))
     if missing:
         raise LonoraError("workspace_secret_unknown", 404)
-    token = None
-    if context.agent_token is not None:
-        token = await context.agent_token(context.owner_id, context.agent_id)
     result = await client(context).run(
-        await scan(context, token),
+        await scan(context),
         context.agent_id,
         request.command,
         background=request.background,
         timeout_seconds=None if request.background else request.timeout_seconds,
         secrets={name: values[name] for name in request.secrets},
-        agent_token=token,
     )
     if request.background:
         process = result["process"]

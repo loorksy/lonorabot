@@ -296,6 +296,7 @@ def check_defaults(stack: Stack) -> None:
         int(gw.get("mem_reservation", 0)) == int(gw["mem_limit"]),
         "the Gateway's memory is reserved",
     )
+    record(int(gw.get("cpu_shares", 1024)) > 1024, "the Gateway has the highest CPU weight")
     record(
         "env_file" not in ws and "env_file" not in services["workspace-net"],
         "no .env (Lonora's secrets) reaches the workspace",
@@ -431,37 +432,26 @@ def check_users(stack: Stack) -> None:
 def check_secrets(stack: Stack) -> None:
     a, b = stack.agent_a, stack.agent_b
     value = "check-" + secrets.token_hex(12)
-    token = "tok_" + "z" * 40
     out = stack.run(
         a,
-        '[ "$CHECK_SECRET" = "$(cat /run/secrets/CHECK_SECRET)" ] && echo same; echo "$CHECK_SECRET";'
-        " sh -c 'echo \"$LONORA_AGENT_TOKEN\"'; test -e ~/.lonora/token || echo no-token-file",
+        '[ "$CHECK_SECRET" = "$(cat /run/secrets/CHECK_SECRET)" ] && echo same',
         secrets={"CHECK_SECRET": value},
-        agent_token=token,
     )
     record(
-        out["stdout"].split() == ["same", "[secret:CHECK_SECRET]", token, "no-token-file"],
-        "a named secret arrives as env NAME and /run/secrets/NAME, its value never comes back,"
-        " and the CLI token reaches the command and its children, never a file",
+        out["stdout"].split() == ["same"] and ["CHECK_SECRET", value] in out.get("guard", []),
+        "a named secret arrives as env NAME and /run/secrets/NAME, and the supervisor hands"
+        " the Gateway every value it gave out, for its scan",
     )
-    stack.run(a, "sleep 300", background=True, secrets={"CHECK_SECRET": value}, agent_token=token)
+    stack.run(a, "sleep 300", background=True, secrets={"CHECK_SECRET": value})
     time.sleep(1)
-    other = stack.run(b, 'wc -c < /run/secrets/CHECK_SECRET; echo "${LONORA_AGENT_TOKEN-none}"')
+    other = stack.run(b, "wc -c < /run/secrets/CHECK_SECRET")
     record(
-        other["stdout"].split() == [str(len(value)), "none"],
-        "any agent may use a workspace secret by name; another agent's command has no token",
-    )
-    environ = stack.run(
-        b, "cat /proc/[0-9]*/environ 2>/dev/null | tr '\\0' '\\n' | grep -c LONORA_AGENT_TOKEN"
-    )
-    record(
-        environ["stdout"].strip() in {"", "0"},
-        "another agent cannot read a token from a running process",
+        other["stdout"].split() == [str(len(value))], "any agent may use a workspace secret by name"
     )
     mounts = stack.run(a, "grep ' /run/secrets ' /proc/mounts")["stdout"]
     record(mounts.startswith("tmpfs"), "secret files live in memory only (tmpfs)")
     stack.call("POST", "/v1/processes/stop-all", {})
-    time.sleep(1)
+    time.sleep(4)
     gone = stack.run(a, "test -e /run/secrets/CHECK_SECRET || echo gone")["stdout"].strip()
     record(gone == "gone", "a secret file leaves /run/secrets when no running job named it")
 
