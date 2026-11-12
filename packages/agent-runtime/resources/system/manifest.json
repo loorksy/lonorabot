@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "4d2e5e08bbcceadb511ddd63671d9b3047ca0d32ee9cb62764354789423ec387",
+  "manual_sha256": "f332fbdf699dbd1a20174dfdc0885876af6a4b9b82d64687651241eb4b9be674",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -12,10 +12,15 @@
     "message_react": "collaboration",
     "memory_read": "memory",
     "memory_write": "memory",
+    "method_history": "memory",
+    "method_restore": "memory",
     "owner_preferences_update": "memory",
     "session_search": "memory",
     "scratchpad_read": "memory",
     "scratchpad_write": "memory",
+    "skill_save": "memory",
+    "skill_history": "memory",
+    "skill_restore": "memory",
     "skill_package_create": "memory",
     "skill_package_import": "memory",
     "skill_package_validate": "memory",

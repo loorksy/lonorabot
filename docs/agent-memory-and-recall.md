@@ -127,6 +127,18 @@ edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
 is untrusted data. This is defence in depth only; the executor never reads memory
 and authority comes from the signed grant alone.
 
+**Method and skill versions (VISION.md 5.5.5).** An Agent's method is its `OPERATING.md`.
+Every write that changes it is a method version, kept past the 100-revision window;
+`method_history` lists them and `method_restore` saves an earlier version's text as a new
+version, leaving `MEMORY.md` as it is. `skill_save` writes an instruction-only skill;
+`skill_history` and `skill_restore` list and restore its versions. A deleted skill keeps
+its versions (migration 0120): `skill_restore` with `expected_version` 0 brings it back
+under its own id, except a removed package, which returns only through its own import or
+create. The owner restores a method or a skill, deleted or not, from chat by asking the
+agent; a method restore records the owner's typed message (skill versions carry no
+message). The owner's skill
+routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
+
 **Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`
 merges every Agent's `# USER.md` section into the profile, oldest change first,
 keeping each distinct line once (exact, trimmed) under a
