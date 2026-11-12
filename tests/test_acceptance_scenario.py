@@ -132,3 +132,18 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     assert "4c" in passed
     # Today's stand-in is said, never passed off as the step itself.
     assert "partial" in passed["4c"]
+
+
+def test_a_refusal_raised_or_answered_counts_against_authority():
+    from lonora_agent.environment import classify
+
+    raised = {"tool": "trade_execute", "error": "agent_analysis_only"}
+    answered = {"tool": "trade_execute", "result": {"ok": False, "code": "approval_required"}}
+    uncertain = {"tool": "trade_execute", "result": {"status": "ambiguous"}}
+    assert [acceptance.refusal(call) for call in (raised, answered, uncertain)] == [
+        "agent_analysis_only",
+        "approval_required",
+        None,
+    ]
+    assert classify("agent_analysis_only", None)["class"] == "permission"
+    assert classify("approval_required", None)["class"] == "permission"
