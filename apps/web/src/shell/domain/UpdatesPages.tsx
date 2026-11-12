@@ -1,7 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { ActivityCode, ActivityEntry, AttentionNotification } from "@lonora/contracts";
-import { attentionAlwaysShows } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -140,6 +139,9 @@ export function ActivityPage() {
   );
 }
 
+const unread = (item: AttentionNotification) =>
+  item.status === "pending" || item.status === "ready";
+
 /** «المستجدات»: stories, «التنبيهات», «المواعيد القادمة», «آخر الإجراءات». */
 export function UpdatesPage() {
   const data = useShellData();
@@ -154,10 +156,7 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
-  if (
-    [notes, routines, feed].some((load) => load.data === undefined && load.error == null) ||
-    (!attention.loaded && attention.error == null)
-  )
+  if ([notes, routines, feed].some((load) => load.data === undefined && load.error == null))
     return (
       <SkPage>
         <SkHead width={24} />
@@ -171,41 +170,24 @@ export function UpdatesPage() {
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
     upcoming.some((row) => row.agent_id === agentId);
   const list = notes.data ?? [];
-  // The tab dot's own list: a row is unread while it is still among the open items.
-  const unread = (item: AttentionNotification) =>
-    attention.loaded
-      ? attention.items.some((open) => open.id === item.id)
-      : item.status === "pending" || item.status === "ready";
-  // «تحديد الكل كمقروء» leaves critical and action_required items to the owner's own look.
-  const markable = list.some((item) => unread(item) && !attentionAlwaysShows(item.importance));
+  const unreadCount = list.filter(unread).length;
   const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name ?? "";
   const readAll = async () => {
     try {
       await domainApi.seenAll();
+      notes.reload();
       attention.refresh();
     } catch (cause) {
       toast(userError(cause), { type: "error" });
     }
   };
-  const detail = (item: AttentionNotification) =>
-    item.parameters.summary ? (
-      <span dir="auto" data-testid="attention-summary">
-        {item.parameters.summary}
-      </span>
-    ) : (
-      <>
-        <bdi>{agentName(item.agent_id)}</bdi>
-        {item.parameters.symbol ? (
-          <>
-            {" · "}
-            <bdi>{item.parameters.symbol}</bdi>
-          </>
-        ) : null}
-      </>
-    );
-  const openNote = (item: AttentionNotification) => {
-    if (unread(item))
-      attention.seen(item.id).catch((cause) => toast(userError(cause), { type: "error" }));
+  const openNote = async (item: AttentionNotification) => {
+    if (unread(item)) {
+      notes.set((rows) =>
+        rows?.map((row) => (row.id === item.id ? { ...row, status: "seen" } : row)),
+      );
+      void attention.seen(item.id).catch(() => notes.reload());
+    }
     // A group's notification opens the group conversation, as the inbox did.
     // A broker outage opens the recovery page for its account (recovery.page).
     nav.go(
@@ -242,7 +224,7 @@ export function UpdatesPage() {
         <h3>
           <Trans context="updates section">Notifications</Trans>
         </h3>
-        {markable && (
+        {unreadCount > 0 && (
           <button type="button" className="link" onClick={() => void readAll()}>
             <Trans>Mark all as read</Trans>
           </button>
@@ -260,19 +242,28 @@ export function UpdatesPage() {
               type="button"
               className={`row ${unread(item) ? "unread" : ""}`.trim()}
               data-attention-id={item.id}
-              onClick={() => openNote(item)}
+              onClick={() => void openNote(item)}
             >
               <span className="row-icon">
                 <Icon name="bell" />
               </span>
               <span className="body">
                 <strong>{labels[item.code]}</strong>
-                <small>{detail(item)}</small>
-                {unread(item) && attentionAlwaysShows(item.importance) ? (
-                  <small>
-                    <Trans>Needs your action</Trans>
+                {item.parameters.summary ? (
+                  <small dir="auto" data-testid="attention-summary">
+                    {item.parameters.summary}
                   </small>
-                ) : null}
+                ) : (
+                  <small>
+                    <bdi>{agentName(item.agent_id)}</bdi>
+                    {item.parameters.symbol ? (
+                      <>
+                        {" · "}
+                        <bdi>{item.parameters.symbol}</bdi>
+                      </>
+                    ) : null}
+                  </small>
+                )}
               </span>
               <span className="value">
                 <span className="ltr">{when(item.created_at)}</span>
