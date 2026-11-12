@@ -32,6 +32,8 @@ ROLLBACK_BUNDLE=state/rollback-bundle.tar.gz
 HELD_MARKER=state/held-update
 HELD_BUNDLE=state/held-rollback-bundle.tar.gz
 RESTORE_MARKER=state/restore-in-progress
+WORKSPACE_IMAGE=workspace.img
+WORKSPACE_DISK=workspace-disk
 MAINTENANCE=maintenance/on
 BACKUPS="${LONORA_BACKUP_DIR:-backups}"
 KEY_FILE="${LONORA_BACKUP_KEY_FILE:-backup.key}"
@@ -45,7 +47,7 @@ DIGEST_RE='^[^[:space:]@]+@sha256:[0-9a-f]{64}$'
 RESTORABLE_KEY='^LONORA_[A-Z0-9_]+$'
 # Nor anything that describes this installation rather than its secrets: project name,
 # mode/port, overlays and resource limits.
-NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DATABASE_URL|HOST_DATABASE_URL|PROJECT|PROXY_LISTEN|[A-Z]+_(MEMORY|CPUS))$'
+NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DATABASE_URL|HOST_DATABASE_URL|PROJECT|PROXY_LISTEN|[A-Z]+_(MEMORY|CPUS)|WORKSPACE_[A-Z_]+)$'
 # Owner controls, authority and money records. If any of them changed while a new version
 # ran, restoring the pre-update backup could undo an owner's stop, restriction or
 # revocation, or erase the record of an order already at the broker: the rollback holds.
@@ -135,6 +137,60 @@ require_tools() {
     [[ "$(project)" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "LONORA_PROJECT must be lowercase letters, digits, - or _."
     if [[ -n "$(env_value LONORA_HOST_DATABASE_URL)" ]]; then
         die 'LONORA_HOST_DATABASE_URL is set: backups, restores, updates and rollbacks work only with the bundled database.'
+    fi
+}
+
+# --- the workspace disk (7.1.3) ----------------------------------------------------------
+# The owner's workspace keeps its files on one fixed-size ext4 file (LONORA_WORKSPACE_DISK,
+# default 20g), mounted at workspace-disk and bind-mounted into the workspace container, so
+# agents can never fill the host's disk. It is created once, grown when the setting grows
+# (never shrunk), and remounted at boot before Docker starts. It is not in the backups.
+workspace_bytes() {
+    local size; size="$(env_value LONORA_WORKSPACE_DISK)"; size="${size:-20g}"
+    [[ "$size" =~ ^[1-9][0-9]{0,4}[gG]$ ]] || die "LONORA_WORKSPACE_DISK must be whole gigabytes, e.g. 20g (it is '$size')."
+    printf '%s\n' "$((${size%[gG]} * 1073741824))"
+}
+workspace_disk() {
+    local bytes image="$LONORA_HOME/$WORKSPACE_IMAGE" dir="$LONORA_HOME/$WORKSPACE_DISK" tool current free device
+    bytes="$(workspace_bytes)"
+    for tool in fallocate mkfs.ext4 e2fsck resize2fs losetup mountpoint findmnt mount; do
+        command -v "$tool" >/dev/null || die "$tool is required for the workspace disk (packages util-linux, e2fsprogs)."
+    done
+    if [[ ! -f "$image" ]]; then
+        free="$(df -PB1 "$LONORA_HOME" | awk 'NR==2 {print $4}')"
+        ((free >= bytes + 5368709120)) || die "The workspace disk needs $((bytes / 1073741824)) GB plus 5 GB free at $LONORA_HOME ($((free / 1073741824)) GB free). Free space or set LONORA_WORKSPACE_DISK in .env."
+        say "Creating the workspace disk ($((bytes / 1073741824)) GB) at $image."
+        rm -f "$image.part"
+        fallocate -l "$bytes" "$image.part" && chmod 600 "$image.part" &&
+            mkfs.ext4 -q -F -m 0 -L lonora-workspace "$image.part" && mv -f "$image.part" "$image" ||
+            { rm -f "$image.part"; die 'Cannot create the workspace disk; nothing else was changed.'; }
+    fi
+    current="$(stat -c %s "$image")"
+    if ((bytes < current)); then say "LONORA_WORKSPACE_DISK is smaller than the workspace disk ($((current / 1073741824)) GB); a disk is never shrunk, so it stays."; fi
+    mkdir -p "$dir"
+    if ! mountpoint -q "$dir"; then
+        if ((bytes > current)); then
+            fallocate -l "$bytes" "$image" && e2fsck -f -p "$image" >/dev/null && resize2fs "$image" >/dev/null || die 'Cannot grow the workspace disk.'
+        fi
+        mount -o loop,nodev,nosuid "$image" "$dir" || die "Cannot mount the workspace disk at $dir."
+    elif ((bytes > current)); then
+        device="$(findmnt -n -o SOURCE --target "$dir")"
+        fallocate -l "$bytes" "$image" && losetup -c "$device" && resize2fs "$device" >/dev/null || die 'Cannot grow the workspace disk.'
+        say "Workspace disk grown to $((bytes / 1073741824)) GB."
+    fi
+    # The supervisor starts only on this disk: an unmounted directory never takes writes.
+    [[ -f "$dir/.lonora-workspace-disk" ]] || : >"$dir/.lonora-workspace-disk"
+    chmod 755 "$dir"
+    if command -v systemctl >/dev/null && [[ -d /run/systemd/system ]]; then
+        local unit; unit="$(systemd-escape --path --suffix=mount "$dir")"
+        if [[ ! -f "/etc/systemd/system/$unit" ]]; then
+            printf '[Unit]\nDescription=Lonora (%s) workspace disk\nBefore=docker.service\n\n[Mount]\nWhat=%s\nWhere=%s\nType=ext4\nOptions=loop,nodev,nosuid\n\n[Install]\nWantedBy=local-fs.target\n' \
+                "$(project)" "$image" "$dir" >"/etc/systemd/system/$unit"
+            chmod 644 "/etc/systemd/system/$unit"
+            systemctl daemon-reload && systemctl enable "$unit" >/dev/null 2>&1 || say "Could not enable $unit; after a reboot run: sudo lonora start"
+        fi
+    else
+        say 'No systemd: after a reboot, run sudo lonora start to mount the workspace disk again.'
     fi
 }
 
@@ -393,6 +449,7 @@ cmd_restore() {
     revision="$(manifest_field "$work" migration_revision)"; image="$(current_image)"
     [[ -n "$image" ]] || die 'No pinned image (state/image.env).'
     revision_known "$image" "$revision" || die "The backup is at migration $revision, which the installed image does not know. Update to the backup's image first: $(manifest_field "$work" image)"
+    workspace_disk
     compose up -d --wait db >/dev/null || die 'The database service does not start; nothing was restored.'
     # Read-only from here: no owner write and no Gateway while the safety backup is taken.
     quiesce || die 'Nothing was restored.'
@@ -741,6 +798,7 @@ cmd_update() {
     head="$(sed -n 's/.*"migration_head": "\([^"]*\)".*/\1/p' <<<"$release")"
     minimum="$(sed -n 's/.*"min_client_version": "\([^"]*\)".*/\1/p' <<<"$release")"
     [[ -n "$head" ]] || die 'Release manifest names no migration head.'
+    workspace_disk
     compose up -d --wait db >/dev/null || die 'The database service does not start.'
     local current_rev; current_rev="$(db_revision || true)"
     if [[ -z "$current_rev" ]]; then
@@ -822,6 +880,7 @@ cmd_start() {
     require_tools
     [[ ! -f "$MARKER" && ! -f "$HELD_MARKER" ]] || die 'An update is unfinished or held. Run: sudo lonora rollback (or sudo lonora update VERSION)'
     [[ ! -f "$RESTORE_MARKER" ]] || die "A restore stopped part-way. Finish it first: sudo lonora restore $(marker_value "$RESTORE_MARKER" file) --replace"
+    workspace_disk
     compose up -d --wait db
     compose run --rm migrate
     maintenance_off

@@ -36,6 +36,8 @@ export LONORA_IMAGE_REPO="$repo" LONORA_READY_TIMEOUT="${LONORA_READY_TIMEOUT:-9
 # A disposable test machine: a lower disk minimum than production's 10 GB (the disk check
 # itself is exercised in step 17 with an explicit minimum).
 export LONORA_MIN_FREE_DISK_GB="${LONORA_MIN_FREE_DISK_GB:-2}"
+# A small workspace (tests/check_workspace_service.py proves the workspace itself).
+export LONORA_WORKSPACE_DISK="${LONORA_WORKSPACE_DISK:-1g}" LONORA_WORKSPACE_MEMORY="${LONORA_WORKSPACE_MEMORY:-512m}"
 passed=0
 ok() { passed=$((passed + 1)); printf 'PASS %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
