@@ -242,8 +242,8 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
 async def propose_capability_card(
     context: ToolContext, kind: str, subject: str, payload: dict[str, Any], *, key: str = ""
 ) -> dict[str, Any]:
-    """A trust or credential card on this agent's behalf, its effect built on the server
-    (``key`` separates the cards one call may raise)."""
+    """A trust card on this agent's behalf, its effect built on the server (``key``
+    separates the cards one call may raise)."""
     from lonora_db.owner_actions import propose_capability
 
     async with context.db.sessions() as session, session.begin():
@@ -340,9 +340,10 @@ def tools() -> list[Tool]:
             "feed_domain with identifier) and secret, the Secret card: the owner's values "
             "go straight to the encrypted store and you learn only the names saved. Ask "
             "non-secret details in chat first. To connect something, give target: "
-            "mcp_server (url, and name unless service x for an X MCP server; the token is "
-            "optional), brave_search (web search key), news_feed or economic_calendar (name; "
-            "the owner types the address, which may carry a key) or broker (the MetaApi "
+            "mcp_server (name, unless service x for an X MCP server), news_feed or "
+            "economic_calendar (name; for these three the owner types the address, which may "
+            "carry a key, and a server's optional token), brave_search (web search key) or "
+            "broker (the MetaApi "
             "metaapi_account_id; the owner types the MetaApi token, which never enters the "
             "workspace). Any other credential: label and secret_fields, each a key (the name "
             "it is saved under), a label, and secret false only for a value safe to show "

@@ -3,6 +3,7 @@ from typing import Any
 from lonora_contracts.mcp import McpConnection
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import McpConnectionRow
+from lonora_db.secrets import release_secrets
 from lonora_db.transactions import ResourceRepository
 from lonora_db.trusted_sources import revoke_server
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +27,11 @@ class McpRepository(ResourceRepository):
 
     async def delete(self, session: AsyncSession, owner_id: str, resource_id: str) -> None:
         # Its trust goes with it: nothing would run, so nothing may still look trusted.
-        await self.get(session, owner_id, resource_id, lock=True)
+        row = await self.get(session, owner_id, resource_id, lock=True)
+        payload = dict(row.payload)
         await revoke_server(session, owner_id, resource_id)
         await super().delete(session, owner_id, resource_id)
+        await release_secrets(session, owner_id, payload)
 
 
 router = resource_router("/mcp", McpRepository())

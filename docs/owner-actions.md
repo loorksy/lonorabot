@@ -18,16 +18,22 @@ the model cards (`agent_model`, `agent_model_changed`, `docs/provider-resilience
 
 The Secret card (`secret`, VISION.md 7.2 and 10.3) is how any credential reaches Lonora.
 With a `target` it connects something (an MCP server, web search, a feed, a calendar, a
-broker account) with the one field and the destination the server sets
+broker account) with the fields and the destination the server sets
 (`docs/trusted-sources.md`); stored `connect_credential` cards became such cards
-(migration `0071_secret_card_kinds`). Otherwise the agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
-value is saved under, and a label; `secret: false` only unmasks a field while it is
-typed). The server sets the destination: an agent's card saves to the owner's
-`workspace` secrets, and the card shows, in server words, the names its values are saved
-under and any saved value they replace. Its values never pass the decision route: the card's own route,
-`POST /owner-actions/{id}/secret`, stores them encrypted and settles the card in one
-transaction, and the card, its events, the conversation and the agent's next run keep
-only the keys. A second submit shows the card as it is and writes nothing.
+(migration `0071_secret_card_kinds`). Otherwise the agent chooses its label and fields
+(each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
+`secret: false` only unmasks a field while it is typed). The server sets the
+destination: an agent's card saves to the owner's `workspace` secrets, and the card
+shows, in server words, the names its values are saved under and any saved value they
+replace; a name a connection uses is never replaced. A value needs at least three
+characters (`secret_value_too_short`): the scan of workspace output cannot find a
+shorter one at every base64 alignment. Its values never pass the decision route: the
+card's own route, `POST /owner-actions/{id}/secret`, stores them encrypted and settles
+the card in one transaction, and the card, its events, the conversation and the agent's
+next run keep no value and no name the agent's words shaped. A second submit shows the
+card as it is and writes nothing. The downgrade of `0071` removes the agents' own cards
+(their values stay saved) and refuses while a connection saved from a Secret card keeps
+its address in the store.
 
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.

@@ -190,7 +190,7 @@ test("a repository or feed card is one tap, and a settled one says why", () => {
   assert.equal(stale.outcome, ownerActionLabels.ar.alreadyTrusted);
 });
 
-test("a connecting Secret card shows the agent's details and asks only for the secret", () => {
+test("a connecting Secret card shows the agent's details and asks for the address and secret", () => {
   const card: OwnerAction = {
     ...base,
     kind: "secret",
@@ -200,10 +200,14 @@ test("a connecting Secret card shows the agent's details and asks only for the s
         label: null,
         connect: "mcp_server",
         service: "x",
-        details: { name: "X", url: "https://mcp.example.test/rpc" },
-        fields: [{ key: "TOKEN", label: null, secret: true, role: "token", required: false }],
+        details: { name: "X" },
+        fields: [
+          { key: "URL", label: null, secret: false, role: "server_url", required: true },
+          { key: "TOKEN", label: null, secret: true, role: "token", required: false },
+        ],
         destination: "workspace",
         agent_name: "News",
+        saves_as: ["MCP_X_URL", "MCP_X_TOKEN"],
       },
     },
   };
@@ -212,9 +216,14 @@ test("a connecting Secret card shows the agent's details and asks only for the s
     const text = ownerActionLabels[locale];
     assert.equal(spec.title, text.connectX);
     assert.ok(spec.hint?.includes(text.connectXHint));
-    assert.ok(spec.lines.includes(`${text.fieldServerUrl}: ⁨https://mcp.example.test/rpc⁩`));
+    // The address may carry a key: the owner types it into the card, never into chat.
+    assert.ok(!spec.lines.some((line) => line.includes("https://")));
+    assert.ok(spec.lines.some((line) => line.includes("MCP_X_URL") && line.includes("MCP_X_TOKEN")));
     assert.deepEqual(spec.secret, {
-      fields: [{ key: "TOKEN", label: text.fieldToken, type: "password", required: false }],
+      fields: [
+        { key: "URL", label: text.fieldServerUrl, type: "url", required: true },
+        { key: "TOKEN", label: text.fieldToken, type: "password", required: false },
+      ],
       submit: text.connect,
     });
     // Connect is the form's own submit; the only button sends nothing but a cancel.

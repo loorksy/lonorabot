@@ -18,6 +18,7 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import EventRow, MessageRow, OwnerActionRow, RunRow, SecretRow
+from lonora_security.network import endpoint_sha256
 from lonora_tools.loader import load_tools
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -39,9 +40,8 @@ def test_a_card_subject_fits_whatever_the_keys() -> None:
         )
     )
     assert len(subject) <= 160
-    long_url = "https://mcp.example.test/" + "a" * 1900
     subject, _ = secret_card_payload(
-        OwnerActionProposal(kind="secret", target="mcp_server", name="X", url=long_url)
+        OwnerActionProposal(kind="secret", target="mcp_server", name="N" * 80)
     )
     assert len(subject) <= 160
 
@@ -66,6 +66,11 @@ def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
         # The destination is never the agent's choice; nor are other kinds' fields.
         {"label": "x", "secret_fields": [{"key": "K", "label": "k"}], "target": "broker"},
         {"label": "x", "secret_fields": [{"key": "K", "label": "k"}], "account_id": "a"},
+        # An address may carry a key: the owner types it into the card, never the agent.
+        {"target": "mcp_server", "name": "Desk", "url": "https://mcp.example.test/rpc"},
+        # A detail is text from chat: never blank, never longer than its connection takes.
+        {"target": "broker", "metaapi_account_id": "   "},
+        {"target": "news_feed", "name": "N" * 81},
     ):
         with pytest.raises(ValidationError):
             OwnerActionProposal.model_validate({"kind": "secret", **bad})
@@ -73,6 +78,30 @@ def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
         OwnerActionProposal.model_validate(
             {"kind": "trust_source", "source_kind": "github_owner", "identifier": "x", "label": "y"}
         )
+
+
+@pytest.mark.asyncio
+async def test_a_stored_address_is_read_only_on_the_host_it_was_saved_with() -> None:
+    """A feed's or calendar's address saved from a Secret card is used only while it is
+    on the host the row (and the owner's trust) names."""
+    from lonora_db.integrations import source_url
+
+    row = {"type": "news_feed", "secret_id": "s", "domain": "news.example"}
+
+    async def saved(_: str) -> str:
+        return " https://news.example/rss?key=k1 "
+
+    async def moved(_: str) -> str:
+        return "https://elsewhere.example/rss"
+
+    async def broken(_: str) -> str:
+        return "https://[abc/feed"
+
+    assert await source_url(row, saved) == "https://news.example/rss?key=k1"
+    for read in (moved, broken):
+        with pytest.raises(LonoraError) as changed:
+            await source_url(row, read)
+        assert changed.value.code == "integration_source_changed"
 
 
 def database() -> None:
@@ -211,6 +240,11 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
             secret_fields=[{"key": key + "_X", "label": "k"}],
         )
         later_id = later["owner_action"]["id"]
+        # A value too short for the scan to find is refused; the card still waits.
+        short = await fixture.client.post(
+            f"/api/owner-actions/{later_id}/secret", json={"values": {key + "_X": "ab"}}
+        )
+        assert short.status_code == 422 and short.json()["code"] == "secret_value_too_short"
         cancelled = await fixture.client.post(
             f"/api/owner-actions/{later_id}/decision", json={"decision": "cancel"}
         )
@@ -309,9 +343,19 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
         # The token is the broker's: never a workspace secret.
         assert token not in (await workspace(fixture)).values()
 
-        # An MCP server: the address from chat; the owner's token a workspace secret, each
-        # server's under its own name.
-        names: list[str] = []
+        # An MCP server: the agent gives its name from chat; the owner types its address
+        # (it may carry a key) and an optional token into the card. Both are workspace
+        # secrets, each server's under names of its own.
+        names: list[list[str]] = []
+        addresses: list[str] = []
+        # An agent's own card raised before a server takes its name.
+        early = await call(
+            context,
+            "owner_action_propose",
+            kind="secret",
+            label="early",
+            secret_fields=[{"key": "MCP_DESK_FEED_2_URL", "label": "k"}],
+        )
         for _ in range(2):
             proposed = await call(
                 context,
@@ -319,22 +363,79 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
                 kind="secret",
                 target="mcp_server",
                 name="Desk feed",
-                url="https://mcp-" + uuid4().hex[:6] + ".example.test/rpc",
             )
+            card_id = proposed["owner_action"]["id"]
+            listed = await thread_cards(fixture, context.thread_id)
+            facts = next(item for item in listed if item["id"] == card_id)["facts"]["secret"]
+            assert [field["key"] for field in facts["fields"]] == ["URL", "TOKEN"]
+            assert facts["details"] == {"name": "Desk feed"} and len(facts["saves_as"]) == 2
+            address = f"https://mcp-{uuid4().hex[:6]}.example.test/rpc?key={uuid4().hex}"
+            addresses.append(address)
             done = await fixture.client.post(
-                f"/api/owner-actions/{proposed['owner_action']['id']}/secret",
-                json={"values": {"TOKEN": "t-" + uuid4().hex}},
+                f"/api/owner-actions/{card_id}/secret",
+                json={"values": {"URL": address, "TOKEN": "t-" + uuid4().hex}},
             )
             assert done.json()["status"] == "confirmed"
-            servers.append(done.json()["result"]["connection_id"])
-            names.extend(done.json()["result"]["saved"])
-        assert names[0].startswith("MCP_DESK_FEED_TOKEN") and names[0] != names[1]
+            result = done.json()["result"]
+            # Its tools were read before the transaction (no such host): what follows is
+            # settled in the transaction that saved the server.
+            assert result["review"] in {"unread", "disabled"}
+            assert result["saved"] == facts["saves_as"]
+            servers.append(result["connection_id"])
+            names.append(result["saved"])
+        assert names[0] == ["MCP_DESK_FEED_URL", "MCP_DESK_FEED_TOKEN"]
+        assert names[1] == ["MCP_DESK_FEED_2_URL", "MCP_DESK_FEED_2_TOKEN"]
         async with fixture.runtime.db.sessions() as session:
-            for server_id in servers:
+            for server_id, address in zip(servers, addresses, strict=True):
                 server = await session.get(McpConnectionRow, server_id)
-                assert server is not None
-                secret_row = await session.get(SecretRow, server.payload["secret_id"])
-                assert secret_row is not None and secret_row.scope == "workspace"
+                assert server is not None and server.payload["url"] is None
+                assert server.payload["endpoint_sha256"] == endpoint_sha256(address)
+                for key in ("url_secret_id", "secret_id"):
+                    secret_row = await session.get(SecretRow, server.payload[key])
+                    assert secret_row is not None and secret_row.scope == "workspace"
+            runs = (
+                await session.scalars(select(RunRow).where(RunRow.agent_id == agent["id"]))
+            ).all()
+            events = (
+                await session.scalars(select(EventRow).where(EventRow.owner_id == fixture.owner))
+            ).all()
+        # The address never reaches chat, an event or a run; the agent's next run names
+        # no saved name built from the name it gave (that text has system role).
+        seen = json.dumps(
+            [[run.prompt for run in runs], [event.payload for event in events]], default=str
+        )
+        assert not any(address in seen for address in addresses)
+        assert "MCP_DESK" not in json.dumps([run.prompt for run in runs])
+
+        # The early card would now replace the second server's address: it saves nothing,
+        # and no new card may name a value a connection uses.
+        replaced = await fixture.client.post(
+            f"/api/owner-actions/{early['owner_action']['id']}/secret",
+            json={"values": {"MCP_DESK_FEED_2_URL": "https://elsewhere.example.test/rpc"}},
+        )
+        assert replaced.status_code == 409
+        assert replaced.json()["code"] == "owner_action_not_needed_secret_name_in_use"
+        services = fixture.runtime.services(fixture.owner)
+        async with fixture.runtime.db.sessions() as session:
+            server = await session.get(McpConnectionRow, servers[1])
+            assert server is not None
+            url_secret = server.payload["url_secret_id"]
+        assert await services.secrets.read(url_secret) == addresses[1]
+        with pytest.raises(LonoraError) as in_use:
+            await call(
+                context,
+                "owner_action_propose",
+                kind="secret",
+                label="again",
+                secret_fields=[{"key": "MCP_DESK_FEED_2_TOKEN", "label": "k"}],
+            )
+        assert in_use.value.code == "owner_action_not_needed_secret_name_in_use"
+
+        # Removing a server removes the values its card saved for it.
+        removed = await fixture.client.delete("/api/mcp/" + servers.pop(0))
+        assert removed.status_code in {200, 204}
+        assert not set(names[0]) & set(await workspace(fixture))
+        assert set(names[1]) <= set(await workspace(fixture))
     finally:
         for server_id in servers:
             await fixture.client.delete("/api/mcp/" + server_id)

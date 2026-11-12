@@ -70,10 +70,19 @@ def feed_site(payload: dict[str, Any]) -> str | None:
 
 
 async def source_url(payload: dict[str, Any], read: Callable[[str], Awaitable[str]]) -> str:
-    """A feed's or calendar's address: on the row, or read from the encrypted store."""
+    """A feed's or calendar's address: on the row, or read from the encrypted store. A
+    stored address is used only while it is on the host the row was saved with, the
+    host the owner's trust names."""
     if payload.get("url"):
         return str(payload["url"])
-    return await read(str(payload["secret_id"]))
+    address = (await read(str(payload["secret_id"]))).strip()
+    try:
+        host = urlsplit(address).hostname
+    except ValueError:
+        host = None
+    if host is None or host != str(payload.get("domain") or "").lower():
+        raise LonoraError("integration_source_changed", 409)
+    return address
 
 
 class IntegrationRepository(ResourceRepository):

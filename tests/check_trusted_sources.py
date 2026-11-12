@@ -179,17 +179,15 @@ async def connect_and_trust(fixture: Fixture) -> None:
             ToolCall(id="call-" + uuid4().hex, name=tool, arguments=arguments), context
         )
 
-    # The agent gives the server's address from chat; the owner types the token into the
-    # Secret card, and saving it connects the server.
-    card = await call(
-        "owner_action_propose", kind="secret", target="mcp_server", service="x", url=URL
-    )
+    # The owner types the server's address and token into the Secret card (an address
+    # may carry a key), and saving it connects the server.
+    card = await call("owner_action_propose", kind="secret", target="mcp_server", service="x")
     assert card["owner_must_tap"] and not card["execution_authorized"]
     card_id = card["owner_action"]["id"]
     taps = 0
     with patch.object(mcp, "HttpMcpTransport", transport(calls)):
         connected = await fixture.request(
-            "POST", f"/owner-actions/{card_id}/secret", {"values": {"TOKEN": token}}
+            "POST", f"/owner-actions/{card_id}/secret", {"values": {"URL": URL, "TOKEN": token}}
         )
         taps += 1
         assert connected["status"] == "confirmed" and connected["result"]["configured"]

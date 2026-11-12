@@ -106,8 +106,13 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     rows = rows[:MAXIMUM_FEEDS]
 
     async def feed(row: IntegrationRow) -> dict[str, Any]:
-        # A feed saved from a Secret card keeps its address in the encrypted store.
-        return await one_feed(await source_url(row.payload, context.secrets.read), params.limit)
+        # A feed saved from a Secret card keeps its address in the encrypted store; one
+        # address that cannot be read leaves the other feeds readable.
+        try:
+            url = await source_url(row.payload, context.secrets.read)
+        except LonoraError as error:
+            return {"status": "unavailable", "reason": error.code}
+        return await one_feed(url, params.limit)
 
     results = await asyncio.gather(*(feed(row) for row in rows))
     return {

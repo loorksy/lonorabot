@@ -5,13 +5,15 @@ transaction. The card, its events, the conversation and the agent keep only the 
 
 A connecting card creates its connection in that transaction too: web search's Brave
 key, a news feed or an economic calendar (its address, which may carry a key, is the
-secret), or an MCP server (its token; its tools are then read, outside the transaction,
-for the trust card that follows). A broker's MetaApi token is verified with MetaApi
-first; the card settles inside the transaction that stores the token and creates the
-connection.
+secret), or an MCP server (its address and optional token). An MCP server's tools are
+read first, with the address and token the owner typed and no lock held; the same
+transaction then saves the server, settles the card and raises the trust card that
+follows (or wakes the agent), so a saved server never lacks its follow-up. A broker's
+MetaApi token is verified with MetaApi first; the card settles inside the transaction
+that stores the token and creates the connection.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -22,7 +24,7 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
-from lonora_db.integrations import feed_host
+from lonora_db.integrations import feed_host, source_url
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -30,17 +32,18 @@ from lonora_db.owner_actions import (
     lock_owner_actions,
     owned_card,
     owner_action_data,
-    owner_action_event,
     raise_review_card,
     review_card_wanted,
     settle,
     supersede_subject,
 )
-from lonora_db.schema import McpConnectionRow, OwnerActionRow
-from lonora_db.secret_cards import card_values, free_name, save_values
+from lonora_db.schema import IntegrationRow, OwnerActionRow
+from lonora_db.secret_cards import card_values, free_names, save_values, secret_stale_reason
 from lonora_db.secrets import WORKSPACE
-from lonora_tools.mcp import advertised_tools, review_payload
+from lonora_security.network import endpoint_sha256
+from lonora_tools.mcp import review_payload, tools_at
 from lonora_trading.connections import connect_account
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import require_owner, runtime
@@ -52,15 +55,15 @@ router = APIRouter(prefix="/owner-actions")
 
 
 @dataclass(frozen=True)
-class ServerReview:
-    """What a newly connected MCP server offers to trust: ``review`` (a trust card
-    follows), ``unread`` (its tools could not be read now), ``nothing_to_trust`` (every
-    tool can move money or is unsupported) or ``disabled`` (the operator's deny override:
-    only declared tools run)."""
+class Offered:
+    """What the MCP server the owner typed offers, read before the transaction: its
+    tools (``read``), or none: ``unread`` (unreachable, a missing or wrong token, a
+    timeout, an invalid list) or ``disabled`` (the operator's deny override: only
+    declared tools run)."""
 
-    state: Literal["review", "unread", "nothing_to_trust", "disabled"]
-    subject: str = ""
-    payload: dict[str, Any] | None = None
+    state: Literal["read", "unread", "disabled"]
+    address: str
+    tools: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
 
 
 @router.post("/{card_id}/secret")
@@ -74,23 +77,47 @@ async def save_secret(
     store = EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id)
     async with rt.db.sessions() as session:
         peek = await owned_card(session, owner.id, card_id)
-        target = peek.payload.get("connect") if peek.kind == "secret" else None
+    target = peek.payload.get("connect") if peek.kind == "secret" else None
     if target == "broker":
         return await save_broker(rt, store, owner, card_id, body.values)
+    offered = None
+    if target == "mcp_server" and live_status(peek) == "pending":
+        offered = await offered_tools(rt, card_values(peek, body.values))
     async with rt.db.sessions() as session, session.begin():
         row = await pending_card(session, owner, card_id)
         if row is None:
             return await owner_action_data(session, await owned_card(session, owner.id, card_id))
+        reason = await secret_stale_reason(session, owner.id, row.payload)
+        if reason is not None:
+            # Since the card was raised: web search got its key, or a connection now uses
+            # one of the card's names. Nothing is saved.
+            raise LonoraError("owner_action_not_needed_" + reason, 409)
         if target is None:
             result = await save_values(session, row, body.values, store.write_in_session)
         else:
-            values = card_values(row, body.values)
-            result = await connect(session, store, owner, row, values)
-        await settle_saved(session, owner, row, result, follow=target != "mcp_server")
-        data = await owner_action_data(session, row)
-    if target == "mcp_server":
-        data = await follow_mcp(rt, owner, card_id, row.result["connection_id"])
-    return data
+            result = await connect(session, store, owner, row, card_values(row, body.values))
+        if offered is not None:
+            state, subject, review = await server_review(session, owner, result, offered)
+            await settle_saved(session, owner, row, {**result, "review": state})
+            if review is not None:
+                # The server the owner just connected: its tools on the next card to
+                # trust; the agent continues once the owner taps it.
+                await raise_review_card(
+                    session,
+                    owner.id,
+                    subject,
+                    review,
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
+                    run_id=row.run_id,
+                )
+            else:
+                await continue_after_card(session, row)
+        else:
+            await settle_saved(session, owner, row, result)
+            # The agent that asked continues the work that needed the secret.
+            await continue_after_card(session, row)
+        return await owner_action_data(session, row)
 
 
 async def pending_card(
@@ -109,13 +136,10 @@ async def pending_card(
 
 
 async def settle_saved(
-    session: AsyncSession,
-    owner: OwnerIdentity,
-    row: OwnerActionRow,
-    result: dict[str, Any],
-    *,
-    follow: bool,
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, result: dict[str, Any]
 ) -> None:
+    """Confirmed with its result, other cards for the same record superseded, and the
+    confirmation line in the conversation."""
     await settle(session, row, "confirmed", None, via="tap", result=result)
     await supersede_subject(
         session,
@@ -126,10 +150,39 @@ async def settle_saved(
         keep=row.id,
         effect=row.payload_hash,
     )
-    if follow:
-        await confirm_in_thread(session, row)
-        # The agent that asked continues the work that needed the secret.
-        await continue_after_card(session, row)
+    await confirm_in_thread(session, row)
+
+
+async def offered_tools(rt: ApiRuntime, values: dict[str, str]) -> Offered:
+    """The tools of the MCP server at the address the owner typed (network, no lock)."""
+    address = values["URL"].strip()
+    try:
+        endpoint_sha256(address)
+    except LonoraError:
+        # Remote servers only, over https, without a user name or password in the address.
+        raise LonoraError("mcp_url_invalid", 422) from None
+    if not rt.settings.mcp_owner_trust:
+        return Offered("disabled", address)
+    try:
+        return Offered("read", address, await tools_at(address, values.get("TOKEN")))
+    except LonoraError:
+        return Offered("unread", address)
+
+
+async def server_review(
+    session: AsyncSession, owner: OwnerIdentity, result: dict[str, Any], offered: Offered
+) -> tuple[str, str, dict[str, Any] | None]:
+    """What follows the saved server: ``raised`` (its trust card's subject and payload),
+    ``already`` (a card for these tools waits or they are trusted), ``nothing_to_trust``
+    (every tool can move money or is unsupported), ``unread`` or ``disabled``."""
+    if offered.state != "read":
+        return offered.state, "", None
+    subject, review = review_payload(result["connection_id"], offered.address, offered.tools)
+    if not review["tools"]:
+        return "nothing_to_trust", "", None
+    if await review_card_wanted(session, owner.id, review):
+        return "raised", subject, review
+    return "already", "", None
 
 
 async def connect(
@@ -139,23 +192,28 @@ async def connect(
     row: OwnerActionRow,
     values: dict[str, str],
 ) -> dict[str, Any]:
-    """Store the value as a workspace secret and create the connection that uses it."""
+    """Store the values as workspace secrets and create the connection that uses them."""
     target, details = row.payload["connect"], row.payload["details"]
+    names = await free_names(session, owner.id, target, details["name"])
     if target == "mcp_server":
-        saved: list[str] = []
-        secret_id = None
+        address = values["URL"].strip()
+        saved = [names["URL"]]
+        address_id = await store.write_in_session(session, names["URL"], address, WORKSPACE)
+        token_id = None
         if values.get("TOKEN"):
-            name = await free_name(session, owner.id, target, details["name"])
-            secret_id = await store.write_in_session(session, name, values["TOKEN"], WORKSPACE)
-            saved.append(name)
+            token_id = await store.write_in_session(
+                session, names["TOKEN"], values["TOKEN"], WORKSPACE
+            )
+            saved.append(names["TOKEN"])
         server = await McpRepository().create(
             session,
             owner.id,
             McpConnection(
                 name=details["name"],
-                url=details["url"],
                 transport="http",
-                secret_id=secret_id,
+                url_secret_id=address_id,
+                endpoint_sha256=endpoint_sha256(address),
+                secret_id=token_id,
                 enabled=True,
             ).model_dump(mode="json"),
         )
@@ -168,14 +226,47 @@ async def connect(
         key = values["URL"].strip()
         if target == "news_feed":
             feed_host(key)
-        host = urlsplit(key).hostname
-        if not host or urlsplit(key).scheme not in {"https", "http"}:
+        try:
+            parts = urlsplit(key)
+            host = parts.hostname if parts.scheme in {"https", "http"} else None
+        except ValueError:
+            host = None
+        if not host:
             raise LonoraError("integration_source_invalid", 422)
+        existing = await same_source(session, store, owner, target, key)
+        if existing is not None:
+            # This address is already connected: nothing new is saved or created.
+            return {
+                "target": target,
+                "integration_id": existing.id,
+                "configured": True,
+                "saved": [],
+            }
         payload["domain"] = host
-    name = await free_name(session, owner.id, target, details["name"])
+    (name,) = names.values()
     payload["secret_id"] = await store.write_in_session(session, name, key, WORKSPACE)
     created = await OwnerIntegrationRepository().create(session, owner.id, payload)
     return {"target": target, "integration_id": created.id, "configured": True, "saved": [name]}
+
+
+async def same_source(
+    session: AsyncSession,
+    store: EncryptedSecretStore,
+    owner: OwnerIdentity,
+    target: str,
+    address: str,
+) -> IntegrationRow | None:
+    """A feed or calendar of this kind already reading this address."""
+    rows = await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner.id))
+    for row in rows:
+        if row.payload.get("type") != target:
+            continue
+        try:
+            if await source_url(row.payload, store.read) == address:
+                return row
+        except LonoraError:
+            continue
+    return None
 
 
 async def save_broker(
@@ -205,66 +296,9 @@ async def save_broker(
         if current is None:
             raise LonoraError("owner_action_expired_or_decided", 409)
         result: dict[str, Any] = {"target": "broker", "configured": True, "saved": []}
-        await settle_saved(session, owner, current, result, follow=True)
+        await settle_saved(session, owner, current, result)
+        await continue_after_card(session, current)
 
     await connect_account(rt.db, store, owner.id, config, token, within=settle_card)
     async with rt.db.sessions() as session:
         return await owner_action_data(session, await owned_card(session, owner.id, card_id))
-
-
-async def follow_mcp(
-    rt: ApiRuntime, owner: OwnerIdentity, card_id: str, connection_id: str
-) -> dict[str, Any]:
-    """After the server is saved: read its tools (network, no lock held), then the
-    confirmation line and the trust card that follows, or the agent's next run when no
-    card can follow."""
-    review = await server_review(rt, owner, connection_id)
-    async with rt.db.sessions() as session, session.begin():
-        await lock_owner_actions(session, owner.id)
-        row = await owned_card(session, owner.id, card_id, lock=True)
-        state = review.state
-        if state == "review" and review.payload is not None:
-            state = (
-                "raised"
-                if await review_card_wanted(session, owner.id, review.payload)
-                else "already"
-            )
-        row.result = {**row.result, "review": state}
-        await owner_action_event(session, row)
-        await confirm_in_thread(session, row)
-        if state == "raised" and review.payload is not None:
-            # The server the owner just connected: its tools on the next card to trust;
-            # the agent continues once the owner taps it.
-            await raise_review_card(
-                session,
-                owner.id,
-                review.subject,
-                review.payload,
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                run_id=row.run_id,
-            )
-        else:
-            await continue_after_card(session, row)
-        return await owner_action_data(session, row)
-
-
-async def server_review(rt: ApiRuntime, owner: OwnerIdentity, connection_id: str) -> ServerReview:
-    if not rt.settings.mcp_owner_trust:
-        return ServerReview("disabled")
-    async with rt.db.sessions() as session:
-        server = await session.get(McpConnectionRow, connection_id)
-        if server is None or server.owner_id != owner.id:
-            return ServerReview("unread")
-        config = McpConnection.model_validate(server.payload)
-    if not config.enabled or config.transport != "http" or not config.url:
-        return ServerReview("unread")
-    try:
-        tools = await advertised_tools(rt.services(owner.id).secrets, config)
-        subject, payload = review_payload(connection_id, config.url, tools)
-    except LonoraError:
-        # Unreachable, a missing or wrong token, a timeout or an invalid list.
-        return ServerReview("unread")
-    if not payload["tools"]:
-        return ServerReview("nothing_to_trust")
-    return ServerReview("review", subject, payload)

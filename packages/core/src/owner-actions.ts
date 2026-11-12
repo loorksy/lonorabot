@@ -277,7 +277,7 @@ export const ownerActionLabels = {
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
     connectHint:
-      "What you type goes straight to the server: it never enters the chat or reaches an agent.",
+      "What you type is saved encrypted on the server. It never enters the chat, and no agent sees it.",
     connectXHint:
       "Lonora reads X through web search, news feeds or an X MCP server you trust; it never uses your X account.",
     fieldName: "Name",
@@ -288,14 +288,15 @@ export const ownerActionLabels = {
     fieldAccount: "Account ID",
     fieldBrokerToken: "MetaApi token",
     connect: "Connect",
-    connected: "Connected. Agents see only that it is configured.",
+    connected: "Connected. No agent sees what you typed.",
     alreadyConnected: "This is already connected. Nothing changed.",
+    secretNameInUse: "A connection uses one of these names, so nothing was saved.",
     secretTitle: "Secret",
     secretAskedBy: "Asked by {agent}",
     secretWorkspace:
-      "Saved encrypted for your workspace. What you type never enters the chat or reaches an agent.",
+      "Saved encrypted for your workspace. What you type never enters the chat, and no agent sees it.",
     secretBroker:
-      "Saved encrypted for your broker connection only; it never enters the workspace or reaches an agent.",
+      "Saved encrypted for your broker connection only. It never enters the chat or the workspace, and no agent sees it.",
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
     secretSavesAs: "Saved as {names}",
@@ -560,7 +561,7 @@ export const ownerActionLabels = {
     connectBrave: "ربط بحث Brave",
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
-    connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
+    connectHint: "ما تكتبه يُحفظ مشفّرًا على الخادم. لا يدخل المحادثة، ولا يراه أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
     fieldName: "الاسم",
@@ -571,12 +572,13 @@ export const ownerActionLabels = {
     fieldAccount: "معرّف الحساب",
     fieldBrokerToken: "رمز MetaApi",
     connect: "ربط",
-    connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
+    connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
+    secretNameInUse: "يستخدم اتصالٌ أحد هذه الأسماء، فلم يُحفظ شيء.",
     secretTitle: "بيانات سرّية",
     secretAskedBy: "يطلبها {agent}",
-    secretWorkspace: "تُحفظ مشفّرة لمساحة العمل. ما تكتبه لا يدخل المحادثة ولا يصل إلى أي وكيل.",
-    secretBroker: "تُحفظ مشفّرة لاتصال الوسيط فقط، ولا تدخل مساحة العمل ولا تصل إلى أي وكيل.",
+    secretWorkspace: "تُحفظ مشفّرة لمساحة العمل. ما تكتبه لا يدخل المحادثة، ولا يراه أي وكيل.",
+    secretBroker: "تُحفظ مشفّرة لاتصال الوسيط فقط. لا تدخل المحادثة ولا مساحة العمل، ولا يراها أي وكيل.",
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     secretSavesAs: "تُحفظ باسم {names}",
@@ -792,6 +794,8 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.serverChangedAgain;
     case "credential_already_configured":
       return text.alreadyConnected;
+    case "secret_name_in_use":
+      return text.secretNameInUse;
     case "expired":
       return text.expired;
     default:
@@ -1236,6 +1240,7 @@ function secretForm(
   const roles = {
     token: text.fieldToken,
     api_key: text.fieldApiKey,
+    server_url: text.fieldServerUrl,
     feed_url: text.fieldFeedUrl,
     metaapi_token: text.fieldBrokerToken,
   };
@@ -1243,7 +1248,11 @@ function secretForm(
     fields: secret.fields.map((field) => ({
       key: field.key,
       label: field.label ?? (field.role ? roles[field.role] : field.key),
-      type: field.secret ? "password" : field.role === "feed_url" ? "url" : "text",
+      type: field.secret
+        ? "password"
+        : field.role === "feed_url" || field.role === "server_url"
+          ? "url"
+          : "text",
       required: field.required ?? true,
     })),
     submit: secret.connect ? text.connect : text.secretSave,
@@ -1580,7 +1589,6 @@ export function ownerActionCard(
         const details = secret.details ?? {};
         if (details.name && secret.connect !== "brave_search")
           lines.push(`${text.fieldName}: ${isolate(details.name)}`);
-        if (details.url) lines.push(`${text.fieldServerUrl}: ${isolate(details.url)}`);
         if (details.metaapi_account_id)
           lines.push(`${text.fieldAccount}: ${isolate(details.metaapi_account_id)}`);
         if (secret.agent_name)
@@ -1748,6 +1756,26 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_secret_values_invalid: {
     en: "Fill in every required field.",
     ar: "املأ كل حقل مطلوب.",
+  },
+  secret_value_too_short: {
+    en: "Each value needs at least 3 characters. Nothing was saved.",
+    ar: "تحتاج كل قيمة إلى 3 أحرف على الأقل. لم يُحفظ شيء.",
+  },
+  owner_action_not_needed_secret_name_in_use: {
+    en: "A connection uses one of these names, so nothing was saved.",
+    ar: "يستخدم اتصالٌ أحد هذه الأسماء، فلم يُحفظ شيء.",
+  },
+  owner_action_not_needed_credential_already_configured: {
+    en: "Web search already has a key. Nothing changed.",
+    ar: "للبحث على الويب مفتاح بالفعل. لم يتغير شيء.",
+  },
+  mcp_url_invalid: {
+    en: "Enter the server's https:// address, without a user name or password in it.",
+    ar: "أدخل عنوان الخادم الذي يبدأ بـ https://، دون اسم مستخدم أو كلمة مرور فيه.",
+  },
+  integration_source_invalid: {
+    en: "Enter a web address that starts with https:// or http://.",
+    ar: "أدخل عنوان ويب يبدأ بـ https:// أو http://.",
   },
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",

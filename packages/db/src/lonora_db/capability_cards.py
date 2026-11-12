@@ -83,6 +83,9 @@ async def _connection(
 
 
 def current_endpoint(row: McpConnectionRow) -> str | None:
+    if row.payload.get("url_secret_id"):
+        # The address is in the encrypted store; the row keeps its fingerprint.
+        return row.payload.get("endpoint_sha256")
     try:
         return endpoint_sha256(str(row.payload.get("url") or ""))
     except LonoraError:

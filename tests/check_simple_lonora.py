@@ -1374,13 +1374,13 @@ class Acceptance:
 
     # MCP (D3): the owner's secure form and the trust tap --------------------------------
 
-    async def connect_mcp(self, journey: str, card_id: str, token: str | None) -> str:
-        """The Secret card (one tap: Connect) saves the token and connects the server the
-        agent named from chat; its tools come back on a trust card (one tap: Trust)."""
+    async def connect_mcp(self, journey: str, card_id: str, address: str, token: str | None) -> str:
+        """The Secret card (one tap: Connect) saves the address and token the owner typed
+        and connects the server the agent named; its tools come back on a trust card (one
+        tap: Trust)."""
+        values = {"URL": address} | ({"TOKEN": token} if token is not None else {})
         connected = await self.request(
-            "POST",
-            f"/owner-actions/{card_id}/secret",
-            {"values": {"TOKEN": token} if token is not None else {}},
+            "POST", f"/owner-actions/{card_id}/secret", {"values": values}
         )
         self.tap(journey)
         assert connected["status"] == "confirmed" and connected["result"]["configured"], connected
@@ -1436,12 +1436,7 @@ class Acceptance:
                     (
                         "j4-connect-x",
                         "owner_action_propose",
-                        {
-                            "kind": "secret",
-                            "target": "mcp_server",
-                            "service": "x",
-                            "url": MCP_URL,
-                        },
+                        {"kind": "secret", "target": "mcp_server", "service": "x"},
                     ),
                 ),
             ),
@@ -1525,7 +1520,7 @@ class Acceptance:
         seen: list[str] = []
         tokens: list[str | None] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, tokens)):
-            connection = await self.connect_mcp(name, connect[0]["id"], MCP_TOKEN)
+            connection = await self.connect_mcp(name, connect[0]["id"], MCP_URL, MCP_TOKEN)
             # The news agent reads X on its own next sweep, and tells the gold agent.
             news_thread = await self.conversation(news_id)
             sweep = "صباح الخير، ما المهم في الأخبار و X اليوم؟"
@@ -1597,17 +1592,18 @@ class Acceptance:
     # Journey 6 -----------------------------------------------------------------------
 
     async def add_mcp_server(self) -> None:
-        """«أضف خادم MCP هذا» with its URL: one secure card for the server (and its token, if
-        any), one trust tap; then every agent uses its tools with no declaration and no
-        further card, and a tool that could trade is never trusted."""
+        """«أضف خادم MCP لملاحظاتي»: one Secret card where the owner types the server's
+        address (and its token, if any), one trust tap; then every agent uses its tools
+        with no declaration and no further card, and a tool that could trade is never
+        trusted."""
         name = "J6 add an MCP server"
-        words = "أضف خادم MCP هذا: " + NOTES_URL
+        words = "أضف خادم MCP لملاحظاتي"
         self.model.script(
             words,
             lambda t: call(
                 "j6-connect",
                 "owner_action_propose",
-                {"kind": "secret", "target": "mcp_server", "name": "Notes", "url": NOTES_URL},
+                {"kind": "secret", "target": "mcp_server", "name": "Notes"},
             ),
             "اربط الخادم من البطاقة؛ سأعرض أدواته لتثق بها.",
         )
@@ -1617,7 +1613,7 @@ class Acceptance:
         assert len(cards) == 1, cards
         seen: list[str] = []
         with patch.object(mcp, "HttpMcpTransport", x_server(seen, [])):
-            connection = await self.connect_mcp(name, cards[0]["id"], None)
+            connection = await self.connect_mcp(name, cards[0]["id"], NOTES_URL, None)
             gold_id = self.created[0]
             gold_thread = await self.conversation(gold_id)
             ask = "ابحث في ملاحظات الخادم الجديد عن الذهب"

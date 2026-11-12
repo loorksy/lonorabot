@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .agent_secrets import WORKSPACE_SECRET_NAME
@@ -126,13 +126,20 @@ class OwnerActionProposal(Contract):
     label: str | None = Field(default=None, min_length=1, max_length=80)
     secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
     # secret with target: a card that connects it. The non-secret details come from the
-    # owner's words in chat: a name, an MCP server's URL, a MetaApi account id. The card
-    # asks only for the secret (a feed's address is one: it may carry a key).
+    # owner's words in chat: a name, a MetaApi account id. The card asks for the secret
+    # and for an address (an MCP server's, a feed's), which may carry a key.
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    url: str | None = Field(default=None, min_length=1, max_length=2048)
+    name: str | None = Field(default=None, min_length=1, max_length=80)
     metaapi_account_id: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @field_validator("name", "metaapi_account_id")
+    @classmethod
+    def detail_text(cls, value: str | None) -> str | None:
+        # A detail from chat, without the spaces around it; blank is no detail.
+        if value is not None and not value.strip():
+            raise ValueError("owner_action_fields_invalid")
+        return value.strip() if value is not None else None
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
@@ -146,7 +153,6 @@ class OwnerActionProposal(Contract):
                 self.target,
                 self.service,
                 self.name,
-                self.url,
                 self.metaapi_account_id,
             )
         ):
@@ -160,7 +166,7 @@ class OwnerActionProposal(Contract):
         return self.trading_fields()
 
     def secret_card_fields(self) -> "OwnerActionProposal":
-        own = {"kind", "label", "secret_fields", "target", "service", "name", "url"}
+        own = {"kind", "label", "secret_fields", "target", "service", "name"}
         if self.model_dump(exclude=own | {"metaapi_account_id"}, exclude_defaults=True):
             raise ValueError("owner_action_fields_invalid")
         if self.target is None:
@@ -168,7 +174,7 @@ class OwnerActionProposal(Contract):
             if (
                 self.label is None
                 or self.secret_fields is None
-                or any(v is not None for v in (self.service, self.name, self.url))
+                or any(v is not None for v in (self.service, self.name))
                 or self.metaapi_account_id is not None
             ):
                 raise ValueError("owner_action_fields_invalid")
@@ -178,7 +184,7 @@ class OwnerActionProposal(Contract):
             return self
         # A connecting card: the server sets its fields; the agent gives the details.
         needs: set[str] = {
-            "mcp_server": {"url"} if self.service == "x" else {"url", "name"},
+            "mcp_server": set[str]() if self.service == "x" else {"name"},
             "brave_search": set[str](),
             "news_feed": {"name"},
             "economic_calendar": {"name"},
@@ -186,9 +192,7 @@ class OwnerActionProposal(Contract):
         }[self.target]
         optional = {"name"} if self.target in {"mcp_server", "brave_search"} else set[str]()
         allowed = needs | optional
-        given = {
-            key for key in ("name", "url", "metaapi_account_id") if getattr(self, key) is not None
-        }
+        given = {key for key in ("name", "metaapi_account_id") if getattr(self, key) is not None}
         if (
             self.label is not None
             or self.secret_fields is not None

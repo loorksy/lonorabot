@@ -78,9 +78,9 @@ LIFETIME = {
     "supervision_stopped": timedelta(days=7),
     # A supervisor paused an agent's work: who did it, with Resume, while it holds.
     "supervision_paused": timedelta(days=31),
-    # Add a source to the trusted list, or connect an account or credential (W15-8).
+    # Add a source to the trusted list (W15-8).
     "trust_source": timedelta(days=7),
-    # The Secret card: it waits as long as the credential card it replaced did.
+    # The Secret card: a credential, or a connection that needs one.
     "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
@@ -1497,9 +1497,9 @@ async def propose_capability(
     thread_id: str | None,
     run_id: str | None,
 ) -> tuple[OwnerActionRow, bool]:
-    """A trust or credential card on an agent's behalf, with the effect built on the
-    server (an MCP server's card carries the tools read from it). Deduplicated per agent
-    and capped like every proposal; a repeated call returns the card shown."""
+    """A trust card on an agent's behalf, with the effect built on the server (an MCP
+    server's card carries the tools read from it). Deduplicated per agent and capped like
+    every proposal; a repeated call returns the card shown."""
     await lock_owner_actions(session, owner_id)
     existing = await session.get(OwnerActionRow, card_id)
     if existing is not None:
@@ -2054,7 +2054,7 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     )
 
 
-# The run that tells the agent behind a trust or credential card that the owner tapped it.
+# The run that tells the agent behind a trust or Secret card that the owner tapped it.
 CONTINUE_TRIGGER = "owner_card"
 
 

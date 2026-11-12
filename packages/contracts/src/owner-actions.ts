@@ -53,7 +53,7 @@ export type SecretField = {
   key: string;
   label: string | null;
   secret: boolean;
-  role?: "token" | "api_key" | "feed_url" | "metaapi_token" | null;
+  role?: "token" | "api_key" | "server_url" | "feed_url" | "metaapi_token" | null;
   /** Omitted on older cards: required. */
   required?: boolean;
 };
@@ -254,12 +254,12 @@ export type OwnerAction = {
       label: string | null;
       connect?: CredentialTarget | null;
       service?: "x" | null;
-      details?: { name?: string; url?: string; metaapi_account_id?: string };
+      details?: { name?: string; metaapi_account_id?: string };
       fields: SecretField[];
       destination: SecretDestination;
       agent_name: string | null;
-      /** The agent's own card: the names its values are saved under, and which of them
-       * replace a value already saved (read now). */
+      /** The workspace names the values are saved under; for the agent's own card also
+       * which of them replace a value already saved (read now). */
       saves_as?: string[];
       replaces?: string[];
     };
