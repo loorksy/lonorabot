@@ -115,7 +115,14 @@ async def checks() -> None:
             f"/agents/{personal_id}/permissions",
             {"level": "supervised", "expected_revision": permission["revision"]},
         )
-        entry = {"account_id": account, "symbol": symbols[0], "action": "buy", "volume": "0.1"}
+        entry = {
+            "account_id": account,
+            "symbol": symbols[0],
+            "action": "buy",
+            "volume": "0.1",
+            "tolerance": "5",
+            "reason": "Fixture entry",
+        }
         # New trading has not been started: the entry is not sent and no approval is asked
         # (the owner is never asked to approve what Stop new trading would refuse); the
         # owner gets the one-tap Start trading card instead. After the owner's own Stop

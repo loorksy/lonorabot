@@ -3,12 +3,12 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.owner_actions import lock_owner_actions
+from lonora_db.pauses import refuse_held
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import RoutineRow
-from lonora_db.supervision import control_work, refuse_held, supervises
+from lonora_db.supervision import control_work, supervises
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,7 @@ class RoutineToggle(Contract):
 
 async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session, session.begin():
-        run, _thread = await locked_run_thread(session, context.lease)
+        _run, _thread = await locked_run_thread(session, context.lease)
         if (
             args.get("enabled") is False
             and await session.get(RoutineRow, context.resource_id) is None
@@ -40,8 +40,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             RoutineCreate.model_validate(args),
             context.resource_id,
         )
-        # A routine tainted work created wakes tainted (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "routine", row.id)
         return routine_data(row)
 
 
@@ -114,8 +112,6 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 owner_message=await owner_message_id(session, run) is not None,
             )
         row.enabled = args["enabled"]
-        # Tainted work that revives or toggles a routine taints it (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "routine", row.id)
         return stating(routine_data(row), named)
 
 

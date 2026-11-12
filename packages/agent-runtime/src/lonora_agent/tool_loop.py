@@ -73,7 +73,12 @@ from .loop_outcomes import (
     request_owner_attention,
     rich_metadata,
 )
-from .loop_restore import consume_wake, restore_checkpoint, resume_after_attention
+from .loop_restore import (
+    consume_wake,
+    refresh_context_head,
+    restore_checkpoint,
+    resume_after_attention,
+)
 from .model_recovery import (
     ATTENTION_REASON,
     CONTINUOUS,
@@ -97,7 +102,7 @@ from .runtime_notices import (
     notice_message,
     prefers_arabic,
 )
-from .steering import merge_steering, owner_steering_pending
+from .steering import merge_run_notices, merge_steering, owner_steering_pending
 from .stop_gates import task_progress
 from .tasks import task_checkpoint
 from .tool_block import (
@@ -336,6 +341,8 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
         task_run = bool(run.model_metadata.get("task_id"))
+        # A checkpoint with a transcript keeps the context it was built with.
+        stale_head = bool(run.execution_state.get("messages"))
     messages, pending, exposure = await restore_checkpoint(
         context, registry, run, state, scope=scope, task_run=task_run
     )
@@ -365,6 +372,11 @@ async def execute_tool_loop(
     # Resume where the checkpoint left off: owner attention, a pending question,
     # an external wait or a new wake.
     if resume_after_attention(state, messages, maximum_rounds):
+        if stale_head:
+            # The owner resumed held work: it reads current policy, instructions,
+            # memory and account state, not those of when the Run began.
+            await refresh_context_head(context, registry, state, messages)
+            stale_head = False
         await save()
     question = state.get("pending_input_request")
     if isinstance(question, dict):
@@ -389,9 +401,17 @@ async def execute_tool_loop(
             await save()
             await report_closed(context, superseded, [], "tool_call_superseded")
         return external_wait_outcome(state)
+    if stale_head and await owner_steering_pending(context):
+        # The owner's message (an answer, or steering a waiting Run) wakes it too.
+        await refresh_context_head(context, registry, state, messages)
+        stale_head = False
     woken = consume_wake(state, messages, pending)
+    if woken is not None and stale_head:
+        # Every wake reads the current context head (policy, instructions, wake
+        # context, memory and account state), not the one frozen when the Run began.
+        await refresh_context_head(context, registry, state, messages)
     await save()
-    await report_closed(context, woken, [], "tool_call_superseded")
+    await report_closed(context, woken or [], [], "tool_call_superseded")
 
     while True:
         await cancellation_checkpoint(context)
@@ -457,8 +477,9 @@ async def execute_tool_loop(
         if halt_reason(state):
             # The boundary handler finishes gracefully with the halt reason.
             continue
-        # Between the block and the next model turn: steering, Task controls,
-        # skill authority and the round budget.
+        # Between the block and the next model turn: server notices, steering, Task
+        # controls, skill authority and the round budget.
+        await merge_run_notices(context, state, messages)
         if await merge_steering(context, state, messages):
             await refresh_after_steering()
         await task_checkpoint(context, state, messages)
@@ -573,7 +594,12 @@ async def execute_tool_loop(
             len(state["selection"]["visual_errors"]),
         )
         empty = not reply.text.strip() and reply.rich_content is None and not reply.tool_calls
-        if empty and is_conversational(run.trigger):
+        # A close-review wake may end without a reply: nothing needs the owner (11.5).
+        if (
+            empty
+            and is_conversational(run.trigger)
+            and not run.model_metadata.get("closed_trade_id")
+        ):
             # An empty provider turn carries nothing to keep; the notice follows
             # the existing tail instead of an empty assistant message.
             append_notice(messages, "no_answer", NO_ANSWER)
@@ -590,6 +616,12 @@ async def execute_tool_loop(
         pending = list(reply.tool_calls)
         await save()
         if pending:
+            continue
+        if final_limit - int(state.get("rounds", 0)) - 1 > 0 and await merge_run_notices(
+            context, state, messages
+        ):
+            # A trade this Run closed was recorded: answer it before the final reply. With
+            # no round left to act on it, the notice stays unread and its own Run follows.
             continue
         if await merge_steering(context, state, messages):
             await refresh_after_steering()

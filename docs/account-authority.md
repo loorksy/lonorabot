@@ -57,10 +57,19 @@ monotonic:
   protection rules, its action budget and the owner's own positions. The tool
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
-  (`grant_covers`, `GRANT_TERM_REFUSALS`). The executor admits an operation without a grant only
-  with the owner's approval of that exact operation
-  (`require_operation_permission`), and repeats the grant check at send for every
-  operation sent under one. A grant's management Task is held to its own grant;
+  (`grant_covers`, `GRANT_TERM_REFUSALS`). Without a grant, the executor decides by the agent's
+  trading mode, read under the authority lock at send
+  (`require_operation_permission`). Full sends on its own. Ask sends a
+  risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a
+  request that adds risk only with the owner's approval of that exact operation.
+  A ticket the agent's own journaled order did not open is refused
+  (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
+  typed message asking for it, or the agent has the owner's standing instruction
+  (`manages_all_positions`). A close or modify sent without a grant is refused
+  with `broker_state_changed` when the ticket changed after the agent read it, or
+  when nothing records what it read. The executor repeats the grant check at send
+  for every operation sent under one; a grant decides within its own terms in
+  either mode until it is revoked. A grant's management Task is held to its own grant;
   outside it, it asks too. Provisional speech never spends a grant: its
   operations are sent under the owner's exact approval only.
 - The owner's own positions are the tickets the journal does not connect to an
@@ -158,9 +167,14 @@ the grant (see `financial-execution-recovery.md`); nothing produces a blind rese
 Management requires a fresh material target snapshot and rejects owner changes
 between observation and submission. Manual-origin positions need explicit signed
 permission. Bounded-mode autonomous management cannot remove or widen an existing stop; explicit full-management mode permits discretionary stop decisions.
-Provisional voice input and its descendants cannot spend standing authority;
-exact immutable approve/reject confirmation remains available through the existing
-financial approval path. Read-only voice work is unaffected.
+Only the run answering a provisional voice handoff, or a generated card's send,
+cannot spend standing authority, and so does a retry or a «طلب جديد» renewal that
+re-asks the same request and therefore carries its `voice_handoff`
+(`carry_voice_handoff`). Runs it starts (peers, follow-ups, subagents) and the
+agent's later watches, routines and wakes are ordinary runs (mandate 6.10). In Ask
+such a run's risk-increasing trades, even where a grant would cover them, take the
+exact immutable approve/reject confirmation; in Full its trade_execute and
+trade_close_positions send. Read-only voice work is unaffected.
 
 ## Grant limits and accounting
 
@@ -277,9 +291,8 @@ trap a position, including an exit the owner approves. An agent may impose
 `all_mutations` on another agent or on all agents only in a run that answers the owner's
 message (source `owner_message`); otherwise creation fails with
 `restriction_all_mutations_requires_owner_message`, and on its own initiative an agent
-may freeze only itself. Pausing a whole agent stops its exits the same way, so a
-supervisor pauses an agent with money standing only from the owner's message
-(`supervision_pause_trading_agent`, `docs/supervision.md`). A restriction an agent records for another agent or for all
+may freeze only itself. Pausing a whole agent never stops its exits: a paused agent
+sends only risk-reducing requests (`agent_paused` otherwise). A restriction an agent records for another agent or for all
 agents is time-boxed: it needs `valid_until` (`restriction_valid_until_required`) at
 most 31 days after it starts (`restriction_window_too_long`); open-ended or longer
 restrictions on other agents are the owner's own.

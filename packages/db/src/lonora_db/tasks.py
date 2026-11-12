@@ -202,10 +202,7 @@ async def create_task(
         row.id = task_id
     session.add(row)
     await session.flush()
-    from .genui_taint import taint_row_from
 
-    # A Task tainted work started is tainted for good, and so is every Run it starts.
-    await taint_row_from(session, starter, "ticket", row.id)
     run = await create_run(
         session,
         owner_id,
@@ -406,7 +403,7 @@ async def control_task(
 ) -> TicketRow:
     """Pause, resume, cancel or revise a Task; ``complete`` turns the owner's cancel into
     «تحديد كمكتملة» (the same stop, recorded as completed)."""
-    from .supervision import owner_takes_over, refuse_held
+    from .pauses import owner_takes_over, refuse_held
 
     row = await get_task(session, owner_id, request.task_id)
     if agent_id and row.agent_id != agent_id:
@@ -581,7 +578,7 @@ async def complete_task(
     if state.status in {"completed", "cancelled"}:
         raise LonoraError("task_terminal", 409)
     if state.status == "failed" or not await active_task_run(session, row):
-        from .supervision import owner_takes_over
+        from .pauses import owner_takes_over
 
         # The owner's decision wins over a supervisor's hold, as with the owner's cancel.
         await owner_takes_over(

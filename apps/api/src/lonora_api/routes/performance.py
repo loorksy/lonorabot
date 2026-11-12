@@ -1,4 +1,4 @@
-"""Live decision/outcome quality of an agent; reading it never enables autonomy."""
+"""An agent's results per judgment label, from broker-confirmed closes (5.5.4)."""
 
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity

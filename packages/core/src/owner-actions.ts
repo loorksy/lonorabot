@@ -19,6 +19,7 @@ import type {
   OwnerActionDecision,
   OwnerActionGrantTerms,
   OwnerActionLimitField,
+  TradingMode,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import { modelCard } from "./agent-model";
@@ -40,6 +41,18 @@ function language(locale: string): Language {
 
 export const ownerActionLabels = {
   en: {
+    mandateTitle: "Trading mode",
+    mandateNow: "Now",
+    modeFull: "Full",
+    modeAsk: "Ask",
+    modeFullLine: "Trades on its own and reports afterwards.",
+    modeAskLine:
+      "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
+    mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandateGone: "This agent no longer exists.",
     resumeTitle: "Resume trading",
     resumeStopped: "New trading is stopped",
     resumeHint:
@@ -317,6 +330,16 @@ export const ownerActionLabels = {
     stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
+    mandateTitle: "التفويض",
+    mandateNow: "الآن",
+    modeFull: "وكّله",
+    modeAsk: "يستأذن",
+    modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
+    modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
+    mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
+    mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandateGone: "لم يعد هذا الوكيل موجودًا.",
     resumeTitle: "استئناف التداول",
     resumeStopped: "التداول الجديد متوقف",
     resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
@@ -597,10 +620,12 @@ export function ownerActionText(locale: string): OwnerActionText {
 /** What a button sends: confirm (with an outcome for a resolve card, or the tier an MCP
  * server is trusted for) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome;
+  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome | TradingMode;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
+  /** The Mandate card: the mode this button shows; the tap applies exactly this mode. */
+  trading_mode?: TradingMode;
   tier?: EffectTier;
   primary: boolean;
 };
@@ -676,6 +701,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "trading_mode":
+        // Still the agent's switch: its lines show the mode now.
+        return null;
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
         // The card shows what was signed; while Stop new trading holds, it waits for Resume.
@@ -1366,6 +1394,31 @@ export function ownerActionCard(
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
   ];
   switch (card.kind) {
+    case "trading_mode": {
+      title = text.mandateTitle;
+      const mode = facts.trading_mode;
+      if (!facts.agent?.exists || !mode) {
+        lines.push(text.mandateGone);
+        break;
+      }
+      const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
+      lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
+      lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
+      if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // One button for the other mode; the tap applies the mode this button shows.
+      const other: TradingMode = mode === "full" ? "ask" : "full";
+      hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
+      buttons = [
+        {
+          key: other,
+          label: other === "full" ? text.modeFull : text.modeAsk,
+          decision: "confirm",
+          trading_mode: other,
+          primary: true,
+        },
+      ];
+      break;
+    }
     case "grant_authority": {
       const grant = grantCard(card, locale, lang, now);
       title = grant.title;
@@ -1665,7 +1718,7 @@ export function ownerActionCard(
       break;
     }
   }
-  const pending = card.status === "pending";
+  const pending = ownerActionLive(card);
   return {
     title,
     lines,
@@ -1677,6 +1730,15 @@ export function ownerActionCard(
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
+}
+
+/** Whether the card still offers its buttons: a pending card, or a Mandate card the owner
+ * already tapped, which stays the agent's switch while the agent exists. */
+export function ownerActionLive(card: OwnerAction): boolean {
+  return (
+    card.status === "pending" ||
+    (card.kind === "trading_mode" && card.status === "confirmed" && !!card.facts.trading_mode)
+  );
 }
 
 /** A refusal that means the card changed on another screen (a grant card's choice): the
@@ -1800,6 +1862,14 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",
     ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
+  },
+  trade_approval_quote_unavailable: {
+    en: "The current price could not be read, so this request was not approved. Try again.",
+    ar: "تعذّرت قراءة السعر الحالي، فلم تتم الموافقة على هذا الطلب. حاول مرة أخرى.",
+  },
+  trade_approval_drifted: {
+    en: "The price moved outside this request's range, so it can no longer be approved.",
+    ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",
