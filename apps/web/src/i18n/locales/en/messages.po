@@ -282,6 +282,10 @@ msgstr "A different answer was already recorded."
 msgid "A list named «{name}» already exists"
 msgstr "A list named «{name}» already exists"
 
+#: src/components/ai/AttentionInbox.tsx:43
+msgid "A Mandate card is waiting for your tap"
+msgstr "A Mandate card is waiting for your tap"
+
 #: src/shell/settings/NotifyPages.tsx:22
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"
@@ -3953,7 +3957,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:152
+#: src/components/ai/AttentionInbox.tsx:153
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4504,7 +4508,7 @@ msgstr "No model is set up yet"
 msgid "No money limit"
 msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:113
+#: src/components/ai/AttentionInbox.tsx:114
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -4739,8 +4743,8 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:75
-#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:76
+#: src/components/ai/AttentionInbox.tsx:78
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4772,7 +4776,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:108
+#: src/components/ai/AttentionInbox.tsx:109
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -4881,7 +4885,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:143
+#: src/components/ai/AttentionInbox.tsx:144
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5018,7 +5022,7 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:141
+#: src/components/ai/AttentionInbox.tsx:142
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
