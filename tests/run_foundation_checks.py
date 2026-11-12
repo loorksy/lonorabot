@@ -117,6 +117,8 @@ def main() -> None:
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
+        "test_model_providers.py",
+        "test_model_provider_card.py",
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",

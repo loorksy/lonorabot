@@ -55,7 +55,7 @@ test("a model provider card is ours: its title, the endpoint, the saved name, a 
     // Replacing a saved key is said, never silent; no provider id is shown raw.
     assert.ok(spec.lines.some((line) => line.includes("OPENAI_COMPATIBLE_API_KEY")));
     assert.ok(!spec.lines.some((line) => line.includes("openai_compatible")));
-    assert.equal(spec.hint, text.connectHint);
+    assert.equal(spec.hint, `${text.modelHint} ${text.modelEndpointHint}`);
     assert.deepEqual(spec.secret?.fields, [
       { key: "API_KEY", label: text.fieldApiKey, type: "password", required: true },
     ]);

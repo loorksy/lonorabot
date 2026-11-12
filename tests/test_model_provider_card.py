@@ -21,7 +21,7 @@ from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
-from lonora_db.model_credentials import ENDPOINT_SETTING
+from lonora_db.model_credentials import CONNECTION_SETTING
 from lonora_db.schema import EventRow, MessageRow, RunRow, SecretRow, SettingRow
 from lonora_providers.credentials import ProviderCredentials
 from pydantic import ValidationError
@@ -91,7 +91,9 @@ def descriptors(provider: str, count: int) -> list[ModelDescriptor]:
 
 
 @pytest.mark.asyncio
-async def test_the_owner_connects_a_model_provider_from_chat() -> None:
+async def test_the_owner_connects_a_model_provider_from_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     if not os.environ.get("LONORA_DATABASE_URL"):
         pytest.skip("The Secret card uses the PostgreSQL test database.")
     from check_streaming import Fixture
@@ -202,10 +204,14 @@ async def test_the_owner_connects_a_model_provider_from_chat() -> None:
         assert len(second) == 1 and "could not be read" in second[0].prompt
 
         # A key saved before Secret cards (scope provider) and one saved on a card: the
-        # router uses the one the owner saved last, whichever path saved it.
+        # router uses the one the owner saved last, whichever path saved it, each with
+        # its own URL (a settings-era key with the deployment's).
+        deployment = "https://deployment.example.test/v1"
+        monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", deployment)
         store = fixture.runtime.services(fixture.owner).secrets
         await store.write("openai_compatible", "older-settings-key", "provider")
         assert await credentials.resolve("openai_compatible") == "older-settings-key"
+        assert await credentials.endpoint("openai_compatible") == deployment
         third = await call(
             context,
             "owner_action_propose",
@@ -220,7 +226,10 @@ async def test_the_owner_connects_a_model_provider_from_chat() -> None:
                 json={"values": {"API_KEY": key}},
             )
         assert await credentials.resolve("openai_compatible") == key
-    finally:
+        assert await credentials.endpoint("openai_compatible") == ENDPOINT
+
+        # The card's key and its URL go together: once that key is gone, its URL is not
+        # used with another key.
         async with fixture.runtime.db.sessions() as session, session.begin():
             for row in (
                 await session.scalars(
@@ -230,7 +239,28 @@ async def test_the_owner_connects_a_model_provider_from_chat() -> None:
                 )
             ).all():
                 await session.delete(row)
-            setting = await session.get(SettingRow, ENDPOINT_SETTING + "openai_compatible")
+        monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_API_KEY", "deployment-key")
+        assert await credentials.resolve("openai_compatible") == "deployment-key"
+        assert await credentials.endpoint("openai_compatible") == deployment
+
+        # A workspace secret under a provider's usual name that no card saved (a script's
+        # key, or one migrated from an agent) is not the router's key.
+        monkeypatch.delenv("LONORA_OPENAI_API_KEY", raising=False)
+        await store.write("OPENAI_API_KEY", "a-scripts-key", "workspace")
+        assert not await credentials.configured("openai")
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for row in (
+                await session.scalars(
+                    select(SecretRow).where(
+                        SecretRow.name.in_(
+                            ["OPENAI_COMPATIBLE_API_KEY", "openai_compatible", "OPENAI_API_KEY"]
+                        )
+                    )
+                )
+            ).all():
+                await session.delete(row)
+            setting = await session.get(SettingRow, CONNECTION_SETTING + "openai_compatible")
             if setting is not None:
                 await session.delete(setting)
         await fixture.close()

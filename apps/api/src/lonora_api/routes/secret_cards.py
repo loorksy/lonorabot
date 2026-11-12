@@ -28,7 +28,7 @@ from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import feed_host
-from lonora_db.model_credentials import ENDPOINT_SETTING
+from lonora_db.model_credentials import CONNECTION_SETTING
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -158,11 +158,13 @@ async def connect(
     if target == "model_provider":
         provider = details["provider"]
         name = PROVIDER_KEY_NAMES[provider]
-        await store.write_in_session(session, name, values["API_KEY"], WORKSPACE)
-        if details.get("url"):
-            await SettingsRepository().put(
-                session, ENDPOINT_SETTING + provider, {"url": details["url"]}
-            )
+        secret_id = await store.write_in_session(session, name, values["API_KEY"], WORKSPACE)
+        # The router's key is this secret, by id, with the URL it belongs to.
+        await SettingsRepository().put(
+            session,
+            CONNECTION_SETTING + provider,
+            {"secret_id": secret_id, "url": details.get("url")},
+        )
         return {"target": target, "provider": provider, "configured": True, "saved": [name]}
     if target == "mcp_server":
         saved: list[str] = []

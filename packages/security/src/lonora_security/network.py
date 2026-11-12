@@ -68,18 +68,36 @@ def endpoint_sha256(url: str) -> str:
 # http only to a host on the owner's own machine or network (loopback, a private
 # address, or a one-label name such as a Compose service), so a key never crosses
 # the internet unencrypted. A one-label name starts with a letter: ``134744072`` and
-# ``0x8080808`` are 8.8.8.8 to the resolver, not names.
+# ``0x8080808`` are 8.8.8.8 to the resolver, not names. The URL comes from the agent's
+# card, so it never names Lonora itself: not this machine (loopback is Lonora's own
+# container), not a link-local address (a cloud metadata service), and not one of
+# Lonora's Compose services.
 SERVICE_NAME = re.compile(r"[a-z][a-z0-9-]*")
+LONORA_SERVICES = frozenset(
+    {"api", "browser", "caddy", "db", "gateway", "migrate", "postgres", "searxng", "workspace"}
+)
 
 
-def _local_host(host: str) -> bool:
-    if host == "localhost" or SERVICE_NAME.fullmatch(host):
+def _lonora_host(host: str) -> bool:
+    if host == "localhost" or host.endswith(".localhost") or host in LONORA_SERVICES:
         return True
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
         return False
-    return address.is_loopback or address.is_private
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_loopback or address.is_link_local or address.is_unspecified
+
+
+def _local_host(host: str) -> bool:
+    if SERVICE_NAME.fullmatch(host):
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_private
 
 
 def compatible_endpoint(url: str) -> str:
@@ -99,6 +117,7 @@ def compatible_endpoint(url: str) -> str:
         or parts.query
         or parts.fragment
         or any(ord(char) < 33 for char in value)
+        or _lonora_host(host)
         or (parts.scheme == "http" and not _local_host(host))
         or (port is not None and not 0 < port < 65536)
     ):

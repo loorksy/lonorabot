@@ -277,6 +277,9 @@ export const ownerActionLabels = {
     connectCalendar: "Connect an economic calendar",
     connectBroker: "Connect a broker account",
     connectModel: "Connect a model provider",
+    modelHint:
+      "The key is stored encrypted on your Lonora server and never enters the chat. Your models use it, and so can the commands your agents run in the workspace.",
+    modelEndpointHint: "It is sent to the address above with every request.",
     connectHint:
       "What you type goes straight to the server: it never enters the chat or reaches an agent.",
     connectXHint:
@@ -562,6 +565,9 @@ export const ownerActionLabels = {
     connectCalendar: "ربط تقويم اقتصادي",
     connectBroker: "ربط حساب وسيط",
     connectModel: "ربط مزوّد نماذج",
+    modelHint:
+      "يُحفظ المفتاح مشفّراً على خادم Lonora ولا يدخل المحادثة. تستخدمه نماذجك، وتستطيع استخدامه الأوامر التي يشغّلها وكلاؤك في مساحة العمل.",
+    modelEndpointHint: "ويُرسَل إلى العنوان أعلاه مع كل طلب.",
     connectHint: "ما تكتبه يذهب مباشرة إلى الخادم: لا يدخل المحادثة ولا يصل إلى أي وكيل.",
     connectXHint:
       "تقرأ لونورا X عبر البحث على الويب أو موجزات الأخبار أو خادم MCP لـ X تثق به، ولا تستخدم حسابك على X أبدًا.",
@@ -1594,13 +1600,17 @@ export function ownerActionCard(
         if (secret.replaces?.length)
           lines.push(fill(text.secretReplaces, { names: nameList(secret.replaces, lang) }));
         hint =
-          secret.destination === "broker"
-            ? text.secretBroker
-            : !secret.connect
-              ? text.secretWorkspace
-              : secret.service === "x"
-                ? `${text.connectHint} ${text.connectXHint}`
-                : text.connectHint;
+          secret.connect === "model_provider"
+            ? details.url
+              ? `${text.modelHint} ${text.modelEndpointHint}`
+              : text.modelHint
+            : secret.destination === "broker"
+              ? text.secretBroker
+              : !secret.connect
+                ? text.secretWorkspace
+                : secret.service === "x"
+                  ? `${text.connectHint} ${text.connectXHint}`
+                  : text.connectHint;
         form = secretForm(secret, text);
       }
       // Save is the form's own submit: the values go to the card's route, never here.

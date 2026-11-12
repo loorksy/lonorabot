@@ -8,7 +8,7 @@ for API keys, and nothing in a request depends on the plan behind the key.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -135,9 +135,9 @@ async def test_each_provider_lists_its_catalog_and_runs_a_turn_with_an_api_key(
     [
         "https://llm.example.test/v1",
         "https://llm.example.test:8443/v1/",
-        "http://localhost:11434/v1",
-        "http://127.0.0.1:8000/v1",
         "http://10.0.0.5:8000/v1",
+        "http://192.168.1.20:11434/v1",
+        "http://llmhost:11434/v1",
         "http://ollama:11434/v1",
     ],
 )
@@ -153,6 +153,18 @@ def test_an_owner_endpoint_is_accepted_over_https_or_on_the_owners_network(url: 
         "http://134744072/v1",  # 8.8.8.8 as one integer
         "http://0x8080808/v1",  # and in hex
         "http://0/v1",
+        # Lonora itself: this container, a cloud metadata address, Lonora's services.
+        "http://localhost:11434/v1",
+        "https://localhost/v1",
+        "http://127.0.0.1:8000/v1",
+        "http://[::1]:8000/v1",
+        "http://[::ffff:127.0.0.1]:8000/v1",
+        "http://169.254.169.254/latest",
+        "https://169.254.169.254/v1",
+        "http://postgres:5432/v1",
+        "http://db:5432/v1",
+        "http://api:8000/v1",
+        "http://gateway/v1",
         "ftp://llm.example.test/v1",
         "https://user:pass@llm.example.test/v1",
         "https://llm.example.test/v1?key=x",
@@ -266,3 +278,18 @@ async def test_the_legacy_settings_routes_stay_as_they_were(
             assert answer.json()["code"] == "provider_not_supported", path
     finally:
         await fixture.close()
+
+
+def test_lonoras_own_services_are_never_an_owner_endpoint() -> None:
+    """Every service in the repository's Compose files is refused as an endpoint host."""
+    from pathlib import Path
+
+    import yaml
+    from lonora_security.network import LONORA_SERVICES
+
+    root = Path(__file__).resolve().parents[1]
+    services: set[str] = set()
+    for path in [root / "docker-compose.yml", *root.glob("infra/**/*compose*.yml")]:
+        document: dict[str, Any] = yaml.safe_load(path.read_text()) or {}
+        services |= set(cast(dict[str, Any], document.get("services") or {}))
+    assert services and services <= LONORA_SERVICES
