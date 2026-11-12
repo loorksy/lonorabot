@@ -89,3 +89,4 @@
 #172 d35efd30 CLEAN 2026-11-12T13:01Z
 #110 0fc31b84 CLEAN (rebase: retarget to wauth/2-mandate-card, 20 conflicts with main) 2026-11-12T13:01Z
 #204 78f7c1d3 FINDINGS 0/1/0 2026-11-12T13:01Z
+#203 e60afe91 FINDINGS 0/1/2 2026-11-12T13:03Z

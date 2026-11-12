@@ -11,3 +11,4 @@
 - 2026-11-12T13:01Z: #205 84f614b2 CLEAN. Existing on main: steering.py:39 passes `context.thread_id` instead of `row.thread_id` to `third_party_attachment`, so an attachment on a steering message from another thread does not mark the run (6.10).
 - 2026-11-12T13:01Z: #172 d35efd30 CLEAN. #110 0fc31b84 CLEAN, but it now carries #71 and #73 (W-AUTH): retarget it to wauth/2-mandate-card (20 conflicts with main 0a4d9560).
 - 2026-11-12T13:01Z: #204 78f7c1d3 FINDINGS, medium: the brief's journal read keeps the oldest 5000 entries (reproduced: an agent's ticket reads "owner"). The #177 low is still open (door ticket_not_owned and closed_trades should use ticket_openers).
+- 2026-11-12T13:03Z: #203 e60afe91 FINDINGS 0/1/2 (medium: 0173 does not migrate the owner_preferences revisions, so undo of an 'activity' change gives 409 and history shows the raw value).
