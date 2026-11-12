@@ -40,7 +40,6 @@ from lonora_db.schema import (
     MessageRow,
     OwnerActionRow,
     RunRow,
-    SettingRow,
     ThreadRow,
     TradingJournalRow,
     TradingRestrictionRow,
@@ -83,8 +82,8 @@ def test_an_ambiguous_operation_is_one_action_required_item_per_operation() -> N
         "trading.operation_updated",
         "trading.restriction_created",
         "trading.restriction_revoked",
-        "trading.controls_updated",
     } <= ATTENTION_KINDS
+    assert "trading.controls_updated" not in ATTENTION_KINDS
 
 
 @pytest.mark.parametrize(
@@ -180,7 +179,7 @@ def test_a_limit_change_touches_only_the_named_limits() -> None:
 @pytest.mark.parametrize(
     "arguments",
     [
-        {"kind": "resume_trading", "restriction_id": "r"},
+        {"kind": "resolve_operation", "operation_id": "op", "restriction_id": "r"},
         {"kind": "lift_restriction"},
         {"kind": "resolve_operation", "operation_id": "op", "account_id": "a"},
         {"kind": "set_account_limits", "account_id": "a"},  # No change at all.
@@ -198,14 +197,14 @@ def test_a_limit_change_touches_only_the_named_limits() -> None:
         {"kind": "set_account_limits", "account_id": "a", "set_limits": {"max_daily_loss": "0"}},
         {"kind": "grant_authority", "restriction_id": "r"},
         {"kind": "grant_authority", "set_limits": {"max_daily_loss": "1"}},
-        {"kind": "resume_trading", "symbols": ["XAUUSD"]},
+        {"kind": "lift_restriction", "restriction_id": "r", "symbols": ["XAUUSD"]},
         {"kind": "lift_restriction", "restriction_id": "r", "daily_loss_percent": "2"},
         {"kind": "grant_authority", "all_pairs": True, "symbols": ["XAUUSD"]},
         {"kind": "grant_authority", "daily_loss_percent": "2", "daily_loss_amount": "100"},
         {"kind": "grant_authority", "daily_loss_percent": "150"},
         {"kind": "grant_authority", "actions": ["buy", "buy"]},
         {"kind": "grant_authority", "title": "Sign everything"},
-        {"kind": "resume_trading", "title": "Click to approve everything"},
+        {"kind": "lift_restriction", "restriction_id": "r", "title": "Click to approve everything"},
     ],
 )
 def test_a_proposal_carries_only_the_fields_of_its_kind(arguments: dict[str, Any]) -> None:
@@ -491,20 +490,6 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
             pause.revoked_at = utcnow()
             return card
 
-        # The owner pressed Stop new trading: lifting a pause never claims trades resume.
-        session.add(SettingRow(key="trading_control", payload={"enabled": False}))
-        await session.flush()
-        stopped = await ack(session, await lift_card(english, "XAUUSD"))
-        assert (
-            stopped.content
-            == "Pause lifted. New trading is still stopped; resume it when you want."
-        )
-        assert stopped.agent_id == agent
-        stopped_ar = await ack(session, await lift_card(arabic, "XAUUSD"))
-        assert stopped_ar.content == "رُفع الإيقاف. ما زال التداول الجديد متوقفًا؛ تستأنفه حين تريد."
-        control = await session.get(SettingRow, "trading_control")
-        assert control is not None
-        control.payload = {"enabled": True}
         # Another pause over the same market still applies; one elsewhere does not count.
         session.add_all(
             [
@@ -523,6 +508,9 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
         await session.flush()
         paused = await ack(session, await lift_card(english, "XAUUSD"))
         assert paused.content == "Pause lifted. Other pauses still apply there."
+        assert paused.agent_id == agent
+        paused_ar = await ack(session, await lift_card(arabic, "XAUUSD"))
+        assert paused_ar.content == "رُفع الإيقاف. ما زالت إيقافات أخرى سارية هناك."
         free = await ack(session, await lift_card(english, "GBPUSD"))
         assert free.content == (
             "Pause lifted. New trades are admitted again within each agent's level and your limits."
@@ -569,7 +557,6 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
     db, owner, agent, thread_id = task_db
     account = await owned_account(db, owner)
     async with db.sessions() as session, session.begin():
-        session.add(SettingRow(key="trading_control", payload={"enabled": False}))
         group = ThreadRow(owner_id=owner, agent_id=None, title="Desk")
         helper = AgentRow(owner_id=owner, name="Helper")
         other = AgentRow(owner_id=owner, name="Other")
@@ -582,7 +569,7 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
             payload: dict[str, Any] = (
                 {"account_id": account, "set": {"max_daily_loss": "10"}, "remove": []}
                 if kind == "set_account_limits"
-                else {"enabled": True, "emergency_stop": False}
+                else {"restriction_id": "gone-" + card_id}
             )
             return await create_card(
                 session,
@@ -593,14 +580,16 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="account:" + account if kind == "set_account_limits" else "trading",
+                subject="account:" + account
+                if kind == "set_account_limits"
+                else "restriction:gone-" + card_id,
                 payload=payload,
             )
 
-        by_helper = await card("by-helper", group, "resume_trading", helper.id)
-        in_thread = await card("in-thread", conversation, "resume_trading", agent)
+        by_helper = await card("by-helper", group, "lift_restriction", helper.id)
+        in_thread = await card("in-thread", conversation, "lift_restriction", agent)
         about_account = await card("about-account", group, "set_account_limits", agent)
-        elsewhere = await card("elsewhere", group, "resume_trading", other.id)
+        elsewhere = await card("elsewhere", group, "lift_restriction", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)
         await prepare_delete(session, owner, account_id=account)
@@ -615,7 +604,7 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
         # Arabic, the default when the conversation holds no owner message yet).
         elsewhere.agent_id = "deleted-agent"
         message = await ack(session, elsewhere)
-        assert message.agent_id is None and message.content.startswith("استؤنف التداول.")
+        assert message.agent_id is None and message.content.startswith("رُفع الإيقاف.")
 
 
 @pytest.mark.asyncio

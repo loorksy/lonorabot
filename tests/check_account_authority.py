@@ -15,7 +15,7 @@ from lonora_auth.account_authority import finish_activation
 from lonora_auth.sessions import read_session
 from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import authority_data, require_authority
 from lonora_db.client import Database
@@ -27,13 +27,11 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.manual_activity import material_state
 
 
 async def main() -> None:
     f = await Fixture().open()
-    controls = await read_controls(f.runtime.db)
     try:
         agent = await f.agent("Account authority", supervised=True)
         thread = await f.conversation(agent)
@@ -111,7 +109,6 @@ async def main() -> None:
                     }
                 ],
             }
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
 
         def trade(action: str = "buy", symbol: str = symbols[0], **params: Any) -> ToolCall:
             return ToolCall(
@@ -383,48 +380,36 @@ async def main() -> None:
         resting = await operation("buy_limit", symbols[1], volume="0.1", price="99", stop_loss="90")
         assert resting["status"] == "confirmed", resting
         own = {p.symbol: p for p in await broker.positions()}
-        await save_controls(f.runtime.db, TradingControl(enabled=False))
-        stopped = await operation(volume="0.1", stop_loss="90")
-        assert stopped["status"] == "failed" and stopped["code"] == "trading_disabled", stopped
-        # Exits stay admissible for the signed grant: global controls stop new risk only.
+        # Exits stay admissible for the signed grant.
         tightened = await operation(
             "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="95"
         )
         assert tightened["status"] == "confirmed", tightened
         assert tightened["details"]["execution"]["risk_reducing"] is True
         assert tightened["details"]["execution"]["account_authority_id"] == grant["id"]
-        # Moving the stop further away is new risk the bounded grant does not cover: under
-        # Stop new trading it is refused with the brake's code before any approval card.
+        # Moving the stop further away is new risk the bounded grant does not cover: it
+        # becomes the owner's approval card and nothing is sent.
         before = await broker.snapshot()
-        try:
-            await operation(
-                "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="94"
-            )
-        except LonoraError as error:
-            assert error.code == "trading_disabled", error.code
-        else:
-            raise AssertionError("a widened stop under Stop new trading was not refused")
+        widened = await operation(
+            "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="94"
+        )
+        assert widened["_runtime_wait"], widened
         assert await broker.snapshot() == before
+        await f.request(
+            "POST", f"/trading/approvals/{widened['approval_id']}/decision", {"decision": "reject"}
+        )
         closed = await operation("close_position", symbols[3], position_id=own[symbols[3]].id)
         assert closed["status"] == "confirmed", closed
         assert closed["details"]["execution"]["account_authority_id"] == grant["id"]
         assert not any(p.symbol == symbols[3] for p in await broker.positions())
-        await save_controls(f.runtime.db, TradingControl(enabled=True, emergency_stop=True))
-        stopped = await operation(volume="0.1", stop_loss="90")
-        assert stopped["status"] == "failed" and stopped["code"] == "emergency_stop", stopped
         cancelled = await operation("cancel_order", symbols[1], order_id=resting["broker_id"])
         assert cancelled["status"] == "confirmed", cancelled
         tighter = await operation(
             "modify_position", symbols[2], position_id=own[symbols[2]].id, stop_loss="96"
         )
         assert tighter["status"] == "confirmed", tighter
-        reopened = await operation(
-            "buy_limit", symbols[1], volume="0.1", price="98", stop_loss="90"
-        )
-        assert reopened["status"] == "failed" and reopened["code"] == "emergency_stop", reopened
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
         print(
-            "PASS provisional voice requires real confirmation; global OFF and Emergency Stop dominate grants for new risk, while the signed grant still closes, cancels and tightens"
+            "PASS provisional voice requires real confirmation; the signed grant closes, cancels and tightens, and a widened stop outside it waits for the owner"
         )
 
         async with f.runtime.db.sessions() as session, session.begin():
@@ -690,7 +675,6 @@ async def main() -> None:
             "PASS deleting a grant's conversation revokes it: records, permission frame and trades agree"
         )
     finally:
-        await save_controls(f.runtime.db, controls)
         await f.close()
 
 

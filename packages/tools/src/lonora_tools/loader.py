@@ -15,6 +15,7 @@ MODULES = {
     "scratchpad": "memory",
     "skills": "memory",
     "workspace": "files",
+    "terminal": "files",
     "routine": "tasks",
     "search": "research",
     "browser": "research",
