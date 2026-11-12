@@ -566,3 +566,67 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
             ).all():
                 await session.delete(row)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_calendar_watch_reads_a_saved_address_through_the_owners_store() -> None:
+    """A calendar a Secret card saved keeps its address in the encrypted store: its watch
+    reads it through the owner's store, never the broker layer's (7.2.3); without the
+    owner's store the calendar is unavailable."""
+    database()
+    from unittest.mock import patch
+
+    from check_streaming import Fixture
+    from lonora_contracts.market_watch import Watch
+    from lonora_db.schema import IntegrationRow, MarketWatchRow
+    from lonora_market import watchers
+
+    fixture = await Fixture().open()
+    name = "CALENDAR_" + uuid4().hex[:6].upper() + "_URL"
+    address = "https://cal-" + uuid4().hex[:6] + ".example.test/events?key=" + uuid4().hex
+    read: list[str] = []
+
+    class Calendar:
+        def __init__(self, url: str) -> None:
+            read.append(url)
+
+        async def events(self) -> list[Any]:
+            return []
+
+    services = fixture.runtime.services(fixture.owner)
+    secret_id = await services.secrets.write(name, address, "workspace")
+    calendar_id = str(uuid4())
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            calendar = IntegrationRow(
+                id=calendar_id,
+                owner_id=fixture.owner,
+                payload={
+                    "type": "economic_calendar",
+                    "name": "Desk calendar",
+                    "enabled": True,
+                    "secret_id": secret_id,
+                    "domain": address.split("/")[2],
+                },
+            )
+            session.add(calendar)
+        config = Watch(
+            kind="calendar", integration_id=calendar.id, condition="due", prompt="A release is due."
+        )
+        row = MarketWatchRow(owner_id=fixture.owner, agent_id=None, state={}, payload={})
+        brokers = cast(Any, None)
+        with patch.object(watchers, "EconomicCalendarAdapter", Calendar):
+            await watchers.observe(
+                fixture.runtime.db, brokers, row, config, read_secret=services.secrets.read
+            )
+            assert read == [address]
+            with pytest.raises(LonoraError) as unavailable:
+                await watchers.observe(fixture.runtime.db, brokers, row, config)
+            assert unavailable.value.code == "calendar_integration_unavailable"
+    finally:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for model, identifier in ((IntegrationRow, calendar_id), (SecretRow, secret_id)):
+                stale = await session.get(model, identifier)
+                if stale is not None:
+                    await session.delete(stale)
+        await fixture.close()

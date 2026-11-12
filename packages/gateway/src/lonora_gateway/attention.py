@@ -47,7 +47,7 @@ from lonora_db.schema import (
 )
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository, owned_agent
-from lonora_market.watchers import observe
+from lonora_market.watchers import SecretReader, observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,7 +55,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .owner_cards import CARD_EVENTS, follow_event
 
 
-async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchRow) -> datetime:
+async def validate_watch(
+    db: Database,
+    brokers: BrokerManager,
+    row: MarketWatchRow,
+    *,
+    read_secret: SecretReader | None = None,
+) -> datetime:
     config = Watch.model_validate(row.payload)
     now = utcnow()
     expiry = row.state.get("confirmation_valid_until")
@@ -69,7 +75,7 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
     ):
         raise LonoraError("attention_setup_not_current", 409)
     async with asyncio.timeout(5):
-        current, _, metadata = await observe(db, brokers, row, config)
+        current, _, metadata = await observe(db, brokers, row, config, read_secret=read_secret)
     if config.kind == "dynamic":
         valid = current == 1
     elif config.condition in {"changed", "closed", "opened", "due"}:
@@ -114,6 +120,8 @@ async def candidate(
     db: Database,
     brokers: BrokerManager,
     event: EventRow,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> tuple[AttentionClassification, str, str, dict[str, Any], str]:
     classification = classify_attention(event.kind, event.payload)
     parameters: dict[str, Any] = {"execution_authorized": False}
@@ -309,7 +317,8 @@ async def candidate(
         if thread.group_id:
             parameters["group_id"] = thread.group_id
     if isinstance(resource, MarketWatchRow) and classification.importance == "opportunity":
-        parameters["valid_until"] = (await validate_watch(db, brokers, resource)).isoformat()
+        valid_until = await validate_watch(db, brokers, resource, read_secret=read_secret)
+        parameters["valid_until"] = valid_until.isoformat()
     if isinstance(resource, TradingOpportunityRow) and classification.importance == "opportunity":
         broker = await brokers.get(event.owner_id, resource.account_id)
         from lonora_market.health import assess_quote, require_healthy
@@ -336,7 +345,12 @@ async def candidate(
 
 
 async def project_event(
-    db: Database, brokers: BrokerManager, owner_id: str, event: EventRow
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    event: EventRow,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> None:
     async with db.sessions() as session:
         if await session.get(
@@ -349,7 +363,9 @@ async def project_event(
             await follow_event(session, event)
     suppression: str | None = None
     try:
-        classification, agent_id, thread_id, parameters, scope = await candidate(db, brokers, event)
+        classification, agent_id, thread_id, parameters, scope = await candidate(
+            db, brokers, event, read_secret=read_secret
+        )
     except (LonoraError, TimeoutError) as error:
         suppression = (
             error.code if isinstance(error, LonoraError) else "attention_revalidation_timeout"
@@ -376,7 +392,7 @@ async def project_event(
             suppression_code=suppression,
         )
     if classification.importance in {"critical", "action_required"}:
-        await ready_attention(db, brokers, owner_id)
+        await ready_attention(db, brokers, owner_id, read_secret=read_secret)
 
 
 URGENT = frozenset({"critical", "action_required"})
@@ -432,7 +448,13 @@ async def suppress_item(session: AsyncSession, item_id: str) -> bool:
     return True
 
 
-async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) -> int:
+async def attention_tick(
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    *,
+    read_secret: SecretReader | None = None,
+) -> int:
     # Broker health first (9.4): it reads stored state only, never broker IO. Each step
     # is isolated like an event, so a failure there never holds back the projection.
     health = ItemGuard(db, "attention_health", quarantine_after=None)
@@ -505,7 +527,7 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
         if str(event.cursor) not in guard.failing:
 
             async def project(event: EventRow = event) -> None:
-                await project_event(db, brokers, owner_id, event)
+                await project_event(db, brokers, owner_id, event, read_secret=read_secret)
 
             await guard.run(str(event.cursor), owner_id, project)
         await advance(int(event.payload[PUBLIC_CURSOR]))
@@ -520,13 +542,19 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
     for event in retries:
 
         async def again(event: EventRow = event) -> None:
-            await project_event(db, brokers, owner_id, event)
+            await project_event(db, brokers, owner_id, event, read_secret=read_secret)
 
         await retry.run(str(event.cursor), owner_id, again)
-    return await ready_attention(db, brokers, owner_id)
+    return await ready_attention(db, brokers, owner_id, read_secret=read_secret)
 
 
-async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -> int:
+async def ready_attention(
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    *,
+    read_secret: SecretReader | None = None,
+) -> int:
     async with db.sessions() as session:
         rows = list(
             await session.scalars(
@@ -547,14 +575,19 @@ async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -
     for original in rows:
 
         async def ready(original: AttentionRow = original) -> bool:
-            return await ready_one(db, brokers, owner_id, original)
+            return await ready_one(db, brokers, owner_id, original, read_secret=read_secret)
 
         count += int(bool(await guard.run(original.id, owner_id, ready)))
     return count
 
 
 async def ready_one(
-    db: Database, brokers: BrokerManager, owner_id: str, original: AttentionRow
+    db: Database,
+    brokers: BrokerManager,
+    owner_id: str,
+    original: AttentionRow,
+    *,
+    read_secret: SecretReader | None = None,
 ) -> bool:
     suppression = None
     async with db.sessions() as session:
@@ -568,7 +601,7 @@ async def ready_one(
             source = await session.get(EventRow, original.source_events[-1])
         if source:
             try:
-                await candidate(db, brokers, source)
+                await candidate(db, brokers, source, read_secret=read_secret)
             except (LonoraError, TimeoutError) as error:
                 suppression = (
                     error.code
