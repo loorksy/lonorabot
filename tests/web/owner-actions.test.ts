@@ -991,8 +991,7 @@ test("M5: a settled stop_tightened notice reads as applied, only an Undo reads a
   const { noticeUndone } = await import("../../packages/core/src/owner-actions");
   assert.equal(noticeUndone({ kind: "stop_tightened", status: "confirmed" }), false);
   assert.equal(noticeUndone({ kind: "watch_changed", status: "confirmed" }), true);
-  assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
-  assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
+  assert.equal(noticeUndone({ kind: "watch_changed", status: "pending" }), false);
 });
 
 test("the Mandate card says a signed grant still applies within its own terms", () => {

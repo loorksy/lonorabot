@@ -11,61 +11,19 @@ function simulation(data) {
   );
 }
 
-// An agent created from chat, as agent_create creates it (no model).
-function seedCreation(data) {
-  const script = `
-import asyncio,json,sys
-from uuid import uuid4
-sys.path.insert(0,'tests')
-from check_streaming import Fixture
-from lonora_agent.collaboration.agent_create import create_from_spec
-from lonora_db.owner_actions import raise_created_card
-async def main():
-    data=json.load(sys.stdin)
-    f=await Fixture().open()
-    try:
-        async with f.runtime.db.sessions() as session, session.begin():
-            spec={'template':'research','name':data['name'],'responsibility':'Follow economic news.','account_id':None,'symbol':None,'connection_version':None,'model':None,'report_to':[data['agent']]}
-            row,_=await create_from_spec(session,f.owner,spec,agent_id=str(uuid4()),created_via='owner_message',created_by_agent_id=data['agent'],source_message_id=None,run_id=None)
-            card=await raise_created_card(session,f.owner,row,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
-            print(json.dumps({'agent':row.id,'card':card.id}))
-    finally:
-        await f.close(cleanup=False)
-asyncio.run(main())
-`;
-  return JSON.parse(
-    execFileSync(".venv/bin/python", ["-c", script], {
-      input: JSON.stringify(data),
-      encoding: "utf8",
-    }),
-  );
-}
-
 const copy = {
   ar: {
-    created: "أُنشئ وكيل",
-    template: "وكيل أبحاث",
-    level: "مستوى التداول: لا يتداول",
-    task: "مهمته: ⁨Follow economic news.⁩",
-    keep: "إبقاؤه",
-    kept: "أُبقي الوكيل.",
     monitoring: "يراقب",
     cancel: "إلغاء",
   },
   en: {
-    created: "Agent created",
-    template: "Research agent",
-    level: "Trading level: No trading",
-    task: "Its task: ⁨Follow economic news.⁩",
-    keep: "Keep it",
-    kept: "Kept.",
     monitoring: "Monitoring",
     cancel: "Cancel",
   },
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: a created agent's card and the status line's watch list`, async ({
+  test(`Expo ${locale}: the status line's watch list cancels a watch`, async ({
     page,
     context,
   }) => {
@@ -97,11 +55,7 @@ for (const locale of ["ar", "en"])
     const thread = await (
       await context.request.post(`/api/agents/${creator.id}/conversation`, { headers, data: {} })
     ).json();
-    let created;
     try {
-      const name = `News agent ${randomUUID().slice(0, 6)}`;
-      const seeded = seedCreation({ name, agent: creator.id, thread: thread.id });
-      created = seeded.agent;
       const watch = await context.request.post("/api/watches", {
         headers,
         data: {
@@ -120,16 +74,6 @@ for (const locale of ["ar", "en"])
       expect(watch.status()).toBe(201);
       const watchId = (await watch.json()).id;
       await page.goto(`/thread?id=${thread.id}`);
-      const card = page.getByTestId(`owner-action-${seeded.card}`);
-      await expect(card.getByText(text.created, { exact: true })).toBeVisible();
-      await expect(card.getByText(`${text.template} · ⁨${name}⁩`, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.level, { exact: true })).toBeVisible();
-      await expect(card.getByText(text.task, { exact: true })).toBeVisible();
-      if (locale === "ar")
-        await card.screenshot({ path: test.info().outputPath("agent-created-native-ar.png") });
-      await card.getByRole("button", { name: text.keep, exact: true }).click();
-      await expect(card.getByText(text.kept, { exact: true })).toBeVisible();
-      expect((await context.request.get(`/api/agents/${seeded.agent}`)).status()).toBe(200);
       const live = page.getByTestId("agent-live-state");
       await expect(live.getByText(text.monitoring, { exact: false })).toBeVisible();
       await live.getByRole("button").first().click();
@@ -140,7 +84,6 @@ for (const locale of ["ar", "en"])
       const stored = await (await context.request.get(`/api/watches/${watchId}`)).json();
       expect(stored.payload.enabled).toBe(false);
     } finally {
-      if (created) await context.request.delete(`/api/agents/${created}`, { headers });
       await context.request.delete(`/api/agents/${creator.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
     }

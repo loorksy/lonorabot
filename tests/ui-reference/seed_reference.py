@@ -241,12 +241,12 @@ async def init(fixture: Fixture) -> dict[str, Any]:
     )
     gold = await fixture.request(
         "POST",
-        "/agents/create",
+        "/agents",
         {
-            "template": "trading",
             "name": "محلل الذهب",
-            "responsibility": "تحليل السوق ومتابعة الذهب",
-            "market": "XAUUSD",
+            "description": "تحليل السوق ومتابعة الذهب",
+            "trading_account_id": account["id"],
+            "trading_symbol": "XAUUSD",
         },
     )
     # The trades page's open position (the reference's demo trade), opened by the owner
@@ -269,17 +269,17 @@ async def init(fixture: Fixture) -> dict[str, Any]:
     await fixture.request("PUT", "/trading/controls", controls)
     research = await fixture.request(
         "POST",
-        "/agents/create",
+        "/agents",
         {
-            "template": "research",
             "name": "مساعد الأبحاث",
-            "responsibility": "جمع المعلومات وتلخيصها",
+            "description": "جمع المعلومات وتلخيصها",
+            "scope_mode": "flexible",
         },
     )
     friend = await fixture.request(
         "POST",
-        "/agents/create",
-        {"template": "general", "name": "رفيق", "responsibility": "تنظيم المهام اليومية"},
+        "/agents",
+        {"name": "رفيق", "description": "تنظيم المهام اليومية", "scope_mode": "flexible"},
     )
     for agent, color in ((gold, "#8b5cf6"), (research, "#5d9cec"), (friend, "#55bca6")):
         await fixture.request("PATCH", f"/agents/{agent['id']}", {"color": color})
