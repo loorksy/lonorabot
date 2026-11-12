@@ -1,6 +1,7 @@
 import { Trans } from "@lingui/react/macro";
-/* The settings screens that have no page in the reference layout yet (model routing, voice,
-   the trading controls). Everything else lives on the phase 5 settings pages. */
+/* The settings screens that have no page in the reference layout yet (voice, the trading
+   controls); «Global models» opens the models page. Everything else lives on the phase 5
+   settings pages. */
 export type SettingsTab = "models" | "voice" | "trading";
 export function SettingsSidebar({
   selected,

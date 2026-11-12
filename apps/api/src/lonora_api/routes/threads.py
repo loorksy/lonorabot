@@ -21,7 +21,13 @@ from lonora_db.thread_prefs import (
     update_prefs,
     update_prefs_bulk,
 )
-from lonora_db.threads import create_thread, list_threads, set_thread_options, thread_data
+from lonora_db.threads import (
+    create_thread,
+    list_threads,
+    return_questions,
+    set_thread_options,
+    thread_data,
+)
 from lonora_db.transactions import owned_thread
 
 from ..middleware.auth import require_owner, runtime
@@ -109,6 +115,7 @@ async def delete(
         # Refused while a trade from this conversation is uncertain; otherwise its
         # grants and Super Bot requests are settled, and the records survive.
         await prepare_delete(session, owner.id, thread_id=thread_id)
+        await return_questions(session, thread_id)
         await session.delete(thread)
     return {"deleted": True}
 

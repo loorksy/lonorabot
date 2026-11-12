@@ -433,7 +433,7 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
 async def test_card_words_never_stand_for_the_owner() -> None:
     from lonora_db.owner_words import owner_typed_message
     from lonora_db.schema import MessageRow, RunRow, ThreadRow
-    from lonora_tools.restrictions import owner_message_id
+    from lonora_tools.provenance import owner_message_id
 
     fixture = await open_fixture()
     try:
@@ -654,7 +654,7 @@ async def test_alert_off_names_the_watch_in_the_conversations_language(language:
         )
         receipt = "\n".join(
             [
-                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","icon":"check"}',
+                '{"v":2,"kind":"summary","title":"تنبيه فعّال","icon":"check"}',
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":'
                 '{"do":"send","intent":"alert.off","data":{"watch_id":"' + watch["id"] + '"}}}',
                 '{"why":"w","fallback":"التنبيه فعّال."}',

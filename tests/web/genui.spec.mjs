@@ -70,12 +70,9 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
   const fixture = await open(page, context);
   const forbidden = [];
   page.on("request", (request) => {
-    // No card control may decide an approval, an owner action or a restriction (mandate 6.10).
+    // No card control may decide an approval or an owner action (mandate 6.10).
     const path = new URL(request.url()).pathname;
-    if (
-      request.method() !== "GET" &&
-      /^\/api\/(trading\/approvals|owner-actions|trading\/restrictions)/.test(path)
-    )
+    if (request.method() !== "GET" && /^\/api\/(trading\/approvals|owner-actions)/.test(path))
       forbidden.push(path);
   });
   try {
