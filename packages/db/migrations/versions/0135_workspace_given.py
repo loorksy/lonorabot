@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0135_workspace_given"
-down_revision = "0176_weekly_reports"
+down_revision = "0120_skill_versions_outlive_skill"
 branch_labels = None
 depends_on = None
 

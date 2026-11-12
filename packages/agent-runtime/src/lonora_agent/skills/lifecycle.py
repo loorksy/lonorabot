@@ -9,7 +9,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import EffectReceiptRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
-from lonora_db.skills import SkillRepository, record_version
+from lonora_db.skills import SkillRepository, mark_package, record_version
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -344,6 +344,7 @@ async def install_entry(
             )
             assert isinstance(created, SkillRow)
             row = created
+            await mark_package(session, row)
         await validate_graph(session, context, registry, payload, row.id)
         row.state = {**row.state, "package": state.model_dump(mode="json")}
         result = describe(row, entry, status="disabled_pending_validation")
