@@ -2,7 +2,7 @@ from typing import Any
 
 from lonora_contracts.domain import ThreadCreate, ThreadOptions
 from lonora_core.user_error import LonoraError
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
@@ -114,6 +114,16 @@ def wake_origin(run: RunRow) -> dict[str, str]:
     if run.trigger in REPORTING_WAKES and isinstance(origin, str) and origin:
         return {"origin_thread_id": origin}
     return {}
+
+
+def asks_in(thread_id: str) -> ColumnElement[bool]:
+    """Runs working in another thread that report to this one and have asked the owner:
+    their questions may have been copied here (each request names its own thread)."""
+    return and_(
+        RunRow.thread_id != thread_id,
+        RunRow.model_metadata["origin_thread_id"].as_string() == thread_id,
+        RunRow.execution_state["input_requests"].as_string().is_not(None),
+    )
 
 
 async def list_threads(

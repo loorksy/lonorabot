@@ -18,11 +18,12 @@ from lonora_db.runs import (
     require_lease,
     run_data,
 )
-from lonora_db.schema import MessageRow, SteeringRow, TradeApprovalRow
+from lonora_db.schema import MessageRow, SteeringRow, ThreadRow, TradeApprovalRow
 from lonora_db.steering import user_interrupt_pending
 from lonora_db.streaming import settle_stream, stream_identity
 from lonora_db.task_wait_settlement import settle_task_wait
 from lonora_db.tasks import request_task_attention
+from lonora_db.threads import report_thread
 from lonora_logging.context import run_id as diagnostic_run_id
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -189,6 +190,27 @@ async def execute_run(
                         session.add(message)
                         await session.flush()
                         link_generated_artifacts(message, artifacts)
+                        # A run working in a hidden work thread asks where it reports
+                        # (VISION 11.6): its question stays in the work thread, its memory,
+                        # and is copied into that conversation, where the owner answers it.
+                        asked = message
+                        report_id = await report_thread(session, row)
+                        if report_id != row.thread_id:
+                            origin = await session.get(
+                                ThreadRow, report_id, with_for_update=True, populate_existing=True
+                            )
+                            if origin is not None:
+                                asked = MessageRow(
+                                    thread_id=origin.id,
+                                    agent_id=context.agent_id,
+                                    seq=origin.next_seq,
+                                    role="assistant",
+                                    content=answer,
+                                    rich_content=rich_content,
+                                )
+                                origin.next_seq += 1
+                                session.add(asked)
+                                await session.flush()
                         if question:
                             history = [
                                 {**item, "status": "cancelled"}
@@ -200,7 +222,8 @@ async def execute_run(
                                 {
                                     **question,
                                     "run_id": row.id,
-                                    "message_id": message.id,
+                                    "message_id": asked.id,
+                                    "thread_id": asked.thread_id,
                                     "status": "pending",
                                     "selected_choice_id": None,
                                     "answer_message_id": None,
@@ -237,6 +260,16 @@ async def execute_run(
                             run_id=row.id,
                             payload=message_data(message),
                         )
+                        if asked is not message:
+                            emit(
+                                session,
+                                context.owner_id,
+                                "message.created",
+                                thread_id=asked.thread_id,
+                                agent_id=context.agent_id,
+                                run_id=row.id,
+                                payload=message_data(asked),
+                            )
                     attention = outcome.metadata.get("owner_attention")
                     if isinstance(attention, str) and attention:
                         # Unfinished Task work waits for its owner, resumable
