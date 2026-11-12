@@ -7,6 +7,7 @@ because bytes cannot be rewritten.
 """
 
 import base64
+import codecs
 import os
 from typing import Any
 
@@ -18,6 +19,13 @@ SOCKET = "/run/lonora-workspace/supervisor.sock"
 # Longer than any encoded form of a secret (16,000 characters, percent-encoded): text
 # around a cut is read or dropped by this much so no secret is ever half seen.
 MARGIN = 49152
+# The shortest start of a secret form treated as that secret when a stream ends in it.
+PARTIAL = 6
+
+
+def chars(prefix: bytes) -> int:
+    decoder = codecs.getincrementaldecoder("utf-8")("replace")
+    return len(decoder.decode(prefix, final=False))
 
 
 def merged(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
@@ -47,13 +55,33 @@ def window(scan: SecretScan, text: str, start: int, end: int) -> str:
     return "".join(pieces)
 
 
+def trailing(scan: SecretScan, text: str) -> str:
+    """Replace an end of `text` that is the start of a secret form (at least
+    PARTIAL characters): a stream killed mid-print, a file cut mid-value."""
+    forms = [form.text for form in (*scan.plain, *scan.wrapped)]
+    best: tuple[int, str] | None = None
+    for form, name in zip(forms, [f.name for f in (*scan.plain, *scan.wrapped)], strict=True):
+        tail = text[-(len(form) - 1) :] if len(form) > 1 else ""
+        start = 0
+        while (start := tail.find(form[0], start)) >= 0:
+            piece = tail[start:]
+            if len(piece) >= PARTIAL and form.startswith(piece):
+                if best is None or len(piece) > best[0]:
+                    best = (len(piece), name)
+                break
+            start += 1
+    if best is None:
+        return text
+    return text[: len(text) - best[0]] + f"[secret:{best[1]}]"
+
+
 def cut_output(result: dict[str, Any]) -> dict[str, Any]:
-    """A stream the supervisor cut may end inside a secret: drop its last MARGIN
-    characters before scanning, and count them as dropped."""
+    """A stream the supervisor cut, or one whose command was killed, may end inside a
+    secret: drop its last MARGIN characters before scanning, and count them as dropped."""
     for stream in ("stdout", "stderr"):
         dropped = result.get(f"{stream}_dropped_bytes", 0)
         text = result.get(stream)
-        if dropped and isinstance(text, str):
+        if (dropped or result.get("timed_out")) and isinstance(text, str):
             kept = text[:-MARGIN] if len(text) > MARGIN else ""
             result[stream] = kept
             result[f"{stream}_dropped_bytes"] = dropped + len(text[len(kept) :].encode())
@@ -64,8 +92,10 @@ class WorkspaceClient:
     def __init__(
         self, socket_path: str = SOCKET, transport: httpx.AsyncBaseTransport | None = None
     ):
+        # A transport per call: closing a client closes its transport, and one client of
+        # this class serves every concurrent run.
         self.socket_path = None if transport else socket_path
-        self.transport = transport or httpx.AsyncHTTPTransport(uds=socket_path, retries=0)
+        self.fixed = transport
 
     def present(self) -> bool:
         """Whether the supervisor's socket is there (presentation only)."""
@@ -74,13 +104,18 @@ class WorkspaceClient:
     async def _call(
         self, method: str, path: str, body: dict[str, Any] | None, seconds: float
     ) -> dict[str, Any]:
+        transport = self.fixed or httpx.AsyncHTTPTransport(uds=self.socket_path or SOCKET)
         async with httpx.AsyncClient(
-            transport=self.transport, base_url="http://workspace", timeout=seconds
+            transport=transport, base_url="http://workspace", timeout=seconds
         ) as client:
             try:
                 response = await client.request(method, path, json=body)
-            except httpx.TransportError:
+            except (httpx.ConnectError, httpx.ConnectTimeout):
                 raise LonoraError("workspace_unavailable", 503) from None
+            except httpx.TransportError:
+                # Sent, but no answer: the command may be running or done. Look at the
+                # processes before running it again.
+                raise LonoraError("workspace_outcome_unknown", 504) from None
         if response.status_code == 422 or response.status_code == 503:
             code = response.json().get("code") if response.content else None
             raise LonoraError(str(code or "workspace_request_invalid"), response.status_code)
@@ -114,7 +149,11 @@ class WorkspaceClient:
             body["agent_token"] = agent_token
         # The supervisor bounds the command itself; the transport waits a little longer.
         wait = (timeout_seconds or 600) + 30 if not background else 60
-        return scan.data(cut_output(await self._call("POST", "/v1/run", body, wait)))
+        result = cut_output(await self._call("POST", "/v1/run", body, wait))
+        for stream in ("stdout", "stderr"):
+            if isinstance(result.get(stream), str):
+                result[stream] = trailing(scan, result[stream])
+        return scan.data(result)
 
     async def processes(self, scan: SecretScan) -> dict[str, Any]:
         return scan.data(await self._call("GET", "/v1/processes", None, 30))
@@ -149,9 +188,15 @@ class WorkspaceClient:
         if not value.get("ok"):
             return scan.data({"ok": False, "error": value.get("error", "")})
         data = base64.b64decode(value["content_base64"])
-        head = data[:before].decode("utf-8", "replace")
-        body = data[before : before + limit].decode("utf-8", "replace")
-        text = head + body + data[before + limit :].decode("utf-8", "replace")
+        # One decoding; the slice edges are found by decoding prefixes the same way,
+        # holding back an incomplete character so it counts with the slice.
+        text = data.decode("utf-8", "replace")
+        start = chars(data[:before])
+        end = chars(data[: before + limit])
+        at_end = value["offset"] + len(data) >= value["size"] and before + limit >= len(data)
+        if at_end:
+            text = trailing(scan, text)
+            end = len(text)
         return {
             "ok": True,
             "path": scan.text(path),
@@ -159,7 +204,7 @@ class WorkspaceClient:
             "offset": offset,
             "truncated": offset + limit < value["size"],
             "binary": b"\0" in data[before : before + limit],
-            "content": window(scan, text, len(head), len(head) + len(body)),
+            "content": window(scan, text, start, max(start, end)),
         }
 
     async def read_bytes(self, scan: SecretScan, agent_id: str, path: str) -> bytes:

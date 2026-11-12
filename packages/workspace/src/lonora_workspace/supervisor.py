@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI
+from fastapi import Request as HttpRequest
+from lonora_security.secrets import SecretScan
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -73,11 +75,6 @@ class RunCommand(Request):
     # The agent's CLI token (7.3.3): in the environment only, never in a file, so only
     # this command and its children (the agent's own processes) hold it.
     agent_token: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{16,512}$")] | None = None
-    # Every workspace secret name that still exists: /run/secrets files of any other name
-    # (a deleted secret) are removed before the command starts.
-    current_secrets: list[Annotated[str, StringConstraints(pattern=SECRET_NAME)]] | None = Field(
-        default=None, max_length=1024
-    )
 
 
 AgentPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
@@ -225,6 +222,17 @@ def owner(pid: int) -> int | None:
     return None
 
 
+def stop_family(pid: int, job_id: str) -> None:
+    """A job's process group, every descendant that left it (setsid), and every process
+    still carrying its job marker (a double-forked daemon, reparented to init)."""
+    family = set(descendants(pid)) | marked(job_id)
+    with contextlib.suppress(OSError):
+        os.killpg(pid, signal.SIGKILL)
+    for member in family:
+        with contextlib.suppress(OSError):
+            os.kill(member, signal.SIGKILL)
+
+
 def descendants(root: int) -> list[int]:
     """Every live descendant of `root`, by parent links in /proc."""
     children: dict[int, list[int]] = {}
@@ -315,6 +323,8 @@ class Supervisor:
         self.limits = limits
         self.boot_id = str(uuid.uuid4())
         self.jobs: dict[str, Job] = {}
+        # job id -> the secrets (name -> value) that job was started with, while it runs.
+        self.job_secrets: dict[str, dict[str, str]] = {}
         self.lock = asyncio.Lock()
 
     def environment(self, uid: int, extra: dict[str, str]) -> dict[str, str]:
@@ -337,24 +347,44 @@ class Supervisor:
                 raise ValueError("workspace_environment_invalid")
         return base | extra
 
-    def drop_secrets(self, keep: set[str]) -> None:
-        for path in SECRETS.iterdir():
-            if not path.name.startswith(".") and path.name not in keep:
-                path.unlink(missing_ok=True)
-
     def place_secrets(self, secrets: dict[str, str]) -> None:
         """/run/secrets/NAME, root:agents 0440 on a tmpfs: any agent may use any workspace
-        secret by name (7.2.4). Rewritten on each use, so a rotated value takes effect."""
+        secret by name (7.2.4). Rewritten on each use, so a rotated value takes effect, and
+        removed when no running job named it (`release`)."""
         for name, value in secrets.items():
             temporary = SECRETS / f".{name}.{uuid.uuid4().hex}"
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o440)
             try:
-                os.write(descriptor, value.encode())
-                os.fchown(descriptor, 0, AGENTS_GID)
-                os.fchmod(descriptor, 0o440)
-            finally:
-                os.close(descriptor)
-            os.replace(temporary, SECRETS / name)
+                descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o440)
+                try:
+                    os.write(descriptor, value.encode())
+                    os.fchown(descriptor, 0, AGENTS_GID)
+                    os.fchmod(descriptor, 0o440)
+                finally:
+                    os.close(descriptor)
+                os.replace(temporary, SECRETS / name)
+            except OSError:
+                temporary.unlink(missing_ok=True)
+                raise
+
+    def release(self, job_id: str) -> None:
+        """A job ended: each secret file no running job names any more is removed."""
+        named = self.job_secrets.pop(job_id, {})
+        still = {name for values in self.job_secrets.values() for name in values}
+        for name in set(named) - still:
+            (SECRETS / name).unlink(missing_ok=True)
+
+    def guard(self, value: Any) -> Any:
+        """Every value a running job was given, also old (rotated) and deleted ones,
+        replaced in what the supervisor answers. The Gateway scans current values; only
+        the supervisor knows which older ones are still alive in processes."""
+        pairs = {(n, v) for values in self.job_secrets.values() for n, v in values.items()}
+        while pairs:
+            batch: dict[str, str] = {}
+            for name, secret in sorted(pairs):
+                batch.setdefault(name, secret)
+            pairs -= set(batch.items())
+            value = SecretScan(batch).data(value)
+        return value
 
     async def start(self, request: RunCommand) -> tuple[Job, asyncio.subprocess.Process]:
         if "\0" in request.command or (request.cwd and "\0" in request.cwd):
@@ -371,8 +401,6 @@ class Supervisor:
         env = self.environment(uid, request.env)
         if set(request.secrets) & (PROTECTED_ENV | set(request.env)):
             raise ValueError("workspace_secret_name_invalid")
-        if request.current_secrets is not None:
-            self.drop_secrets(set(request.current_secrets) | set(request.secrets))
         self.place_secrets(request.secrets)
         env |= request.secrets
         if request.agent_token:
@@ -408,9 +436,12 @@ class Supervisor:
             process=process,
         )
         self.jobs[job_id] = job
+        if request.secrets:
+            self.job_secrets[job_id] = dict(request.secrets)
         return job, process
 
     def ended(self, job: Job, code: int | None) -> None:
+        self.release(job.id)
         job.ended_at = time.time()
         job.exit_code = code
         job.process = None
@@ -442,7 +473,15 @@ class Supervisor:
             asyncio.create_task(drain("stdout", process.stdout)),
             asyncio.create_task(drain("stderr", process.stderr)),
         ]
-        timed_out = not await exited(process, timeout)
+        try:
+            timed_out = not await exited(process, timeout)
+        except asyncio.CancelledError:
+            # The caller went away (its run was cancelled): the command stops with it.
+            stop_family(process.pid, job.id)
+            for task in readers:
+                task.cancel()
+            self.ended(job, None)
+            raise
         if timed_out:
             # Its process group, and every descendant that left it (setsid, daemonize).
             family = descendants(process.pid)
@@ -459,6 +498,12 @@ class Supervisor:
             task.cancel()
         # Release our ends of the pipes; a child still holding them gets SIGPIPE, not a hang.
         process._transport.close()  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
+        answer = self.guard(
+            {
+                "stdout": streams["stdout"].decode("utf-8", "replace"),
+                "stderr": streams["stderr"].decode("utf-8", "replace"),
+            }
+        )
         self.ended(job, code)
         return {
             "boot_id": self.boot_id,
@@ -466,8 +511,8 @@ class Supervisor:
             "exit_code": code,
             "timed_out": timed_out,
             "duration_ms": int((time.monotonic() - started) * 1000),
-            "stdout": streams["stdout"].decode("utf-8", "replace"),
-            "stderr": streams["stderr"].decode("utf-8", "replace"),
+            "stdout": answer["stdout"],
+            "stderr": answer["stderr"],
             "stdout_dropped_bytes": dropped["stdout"],
             "stderr_dropped_bytes": dropped["stderr"],
         }
@@ -528,6 +573,11 @@ class Supervisor:
             }
         size_line, _, body = out.partition(b"\n")
         size = int(size_line)
+        if self.job_secrets:
+            text = body.decode("utf-8", "replace")
+            guarded = self.guard(text)
+            if guarded != text:
+                body = guarded.encode()
         return {
             "boot_id": self.boot_id,
             "ok": True,
@@ -561,11 +611,13 @@ class Supervisor:
 
     def processes(self) -> dict[str, Any]:
         jobs = sorted(self.jobs.values(), key=lambda job: job.started_at)
-        return {
-            "boot_id": self.boot_id,
-            "jobs": [job.view() for job in jobs],
-            "processes": live_processes(self.users),
-        }
+        return self.guard(
+            {
+                "boot_id": self.boot_id,
+                "jobs": [job.view() for job in jobs],
+                "processes": live_processes(self.users),
+            }
+        )
 
     async def stop(self, pid: int, agent_id: uuid.UUID | None = None) -> bool:
         uid = owner(pid)
@@ -636,11 +688,20 @@ def create_app(supervisor: Supervisor) -> FastAPI:
         }
 
     @app.post("/v1/run", response_model=None)
-    async def run(request: RunCommand) -> dict[str, Any] | JSONResponse:
+    async def run(request: RunCommand, http: HttpRequest) -> dict[str, Any] | JSONResponse:
         try:
             if request.background:
                 return await supervisor.background(request)
-            return await supervisor.foreground(request)
+            task = asyncio.create_task(supervisor.foreground(request))
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=1)
+                if done:
+                    return task.result()
+                if await http.is_disconnected():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+                    return refused("workspace_caller_gone", 499)
         except ValueError as error:
             return refused(str(error))
         except OSError:
