@@ -209,6 +209,7 @@ async def main() -> None:
             "gold-call",
         )
         assert gold["created"] is True and gold["deduplicated"] is False, gold
+        assert gold["owner_line"] == "required", gold
         gold_id = gold["agent"]["id"]
         created_ids.append(gold_id)
         assert gold["agent"]["trading_mode"] == "ask" and gold["mandate_card_shown"] is True
@@ -249,7 +250,7 @@ async def main() -> None:
         )
         retry = await call(context, "agent_create", {"name": "Gold agent", "market": "XAUUSD"})
         assert again["agent"]["id"] == gold_id and retry["agent"]["id"] == gold_id
-        assert retry["deduplicated"] is True
+        assert retry["deduplicated"] is True and "owner_line" not in retry
         async with db.sessions() as session:
             named = await session.scalar(
                 select(func.count())

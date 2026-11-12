@@ -14,7 +14,7 @@ from .domain import Contract
 
 InspectSection = Literal["overview", "work", "runs", "decisions", "operations", "memory"]
 # cancel_run and set_ask are Lonora's alone (mandate 3.1.2, 4.2.2).
-ControlAction = Literal["pause", "resume", "message", "cancel_run", "set_ask"]
+ControlAction = Literal["pause", "resume", "message", "cancel_run", "set_ask", "delete"]
 ControlTarget = Literal["agent", "task", "routine", "watch"]
 
 
@@ -43,7 +43,7 @@ class AgentControlInput(Contract):
     def fields_for_action(self) -> Self:
         if (self.action == "message") != (self.message is not None):
             raise ValueError("agent_control_fields_invalid")
-        if self.action in {"message", "cancel_run", "set_ask"} and (
+        if self.action in {"message", "cancel_run", "set_ask", "delete"} and (
             self.target != "agent" or self.target_id
         ):
             raise ValueError("agent_control_fields_invalid")

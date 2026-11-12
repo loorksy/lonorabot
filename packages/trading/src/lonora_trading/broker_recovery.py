@@ -167,8 +167,9 @@ async def wake_for_activity(
     hit, a manual close of its position) wakes that Agent with its normal authority:
     its grant, the account limits and pauses still decide at the executor. A paused
     Agent is woken too, for its own positions and orders only, and may only reduce risk
-    (4.7.1). Unattributed activity is the owner's own and wakes the Personal Agent with
-    no financial effects, as does activity of an Agent that no longer exists; a paused
+    (4.7.1). A ticket of an Agent that no longer exists transferred to the Personal Agent
+    (3.1.2): it wakes the Personal Agent the same way, as its own. Unattributed activity is
+    the owner's own and wakes the Personal Agent with no financial effects; a paused
     Personal Agent is not woken for it.
     """
     personal = await ensure_personal_agent(session, owner_id)
@@ -182,7 +183,10 @@ async def wake_for_activity(
         attributed = bool(
             responsible and responsible.owner_id == owner_id and responsible.role != "delegated"
         )
+        # A deleted agent's ticket transferred to Lonora (3.1.2): Lonora's own, woken normally.
+        transferred = bool(change.agent_id) and responsible is None
         agent = responsible if attributed and responsible else personal
+        attributed = attributed or transferred
         agents[agent.id] = agent
         thread = await conversation_thread(session, owner_id, agent.id)
         emit(
@@ -211,7 +215,7 @@ async def wake_for_activity(
         }
         if attributed:
             prompt = (
-                f"Broker activity on positions or orders you opened or manage on account_id="
+                f"Broker activity on positions or orders you own or manage on account_id="
                 f"{account_id}. Use account_activity and current account state to reassess them "
                 "and decide what to do next. Your normal authority applies; your grant, account "
                 "limits and pauses decide at execution. Never resend an uncertain operation."

@@ -199,10 +199,21 @@ async def forget_links(session: AsyncSession, owner_id: str, agent_id: str) -> N
         }
 
 
-async def delete_created_agent(session: AsyncSession, owner_id: str, agent_id: str) -> None:
-    """The owner's delete (``lonora_db.agent_creation.delete_agent``), with the notes and
-    links its creation left in other agents removed first."""
+async def delete_created_agent(
+    session: AsyncSession, owner_id: str, agent_id: str
+) -> dict[str, Any]:
+    """Delete a team agent, by the owner or by Lonora (``lonora_db.agent_creation.
+    delete_agent``), with the notes and links its creation left in other agents removed
+    first. Its open positions and pending orders transfer to Lonora, which is woken with
+    them (mandate 3.1.2)."""
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_trading.ticket_transfer import opened_tickets, wake_lonora
+
     await authority_lock(session, agent_id)
     await owned_agent(session, owner_id, agent_id, lock=True)
     await forget_links(session, owner_id, agent_id)
-    await delete_agent(session, owner_id, agent_id)
+    tickets = await opened_tickets(session, owner_id, agent_id)
+    withdrawn = await delete_agent(session, owner_id, agent_id)
+    lonora = await ensure_personal_agent(session, owner_id)
+    await wake_lonora(session, owner_id, lonora, agent_id, tickets)
+    return {"transferred": tickets, "withdrawn_approvals": withdrawn}

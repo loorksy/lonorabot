@@ -88,8 +88,33 @@ flat team may carry `report_to` links and their notes; deleting such an agent re
 them (`lonora_agent.collaboration.agent_create.delete_created_agent`).
 
 After creating, Lonora hands the new agent its first task with `peer_send` and tells the
-owner in one line what it created and why. There is no creation or Undo card (only the
-five fixed cards of 10.3 exist): undoing a creation is "delete it" in chat.
+owner in one line what it created and why (the result carries `owner_line: "required"`,
+so the conversation gate holds an empty reply). There is no creation or Undo card (only
+the five fixed cards of 10.3 exist): undoing a creation is "delete it" in chat.
+
+## Deleting an agent (3.1.2)
+
+Lonora deletes a team agent on its own judgment with `agent_control` (`action: delete`);
+the owner deletes one from its page (`DELETE /api/agents/{id}`). A team agent's call is
+refused (`agent_control_lead_only`), and Lonora is never deleted. Both paths run
+`delete_created_agent`:
+
+- **Refused while uncertain.** A journaled operation of the agent with no confirmed
+  broker outcome refuses the delete (`delete_blocked_unresolved_operation`, 14.3.16).
+- **Its tickets transfer to Lonora.** Ownership stays derived from the journal (3.3.4):
+  a ticket whose opening agent no longer exists is Lonora's
+  (`lonora_trading.account_authority.ticket_agent`). Nothing in the journal is rewritten.
+- **Lonora is woken with them.** The tickets the agent opened are read from each
+  account's last broker observation (`lonora_trading.ticket_transfer`). Lonora gets one
+  server-written `broker_event` per account (`transferred_from`, the tickets, symbols and
+  volumes), under its own mode, in a work thread whose result returns to its
+  conversation. With nothing open, there is no wake. Later broker activity on those
+  tickets wakes Lonora with its normal authority, not observe-only.
+- **Its pending Trade Approval cards are withdrawn** (status `withdrawn`): never approved
+  or executed. Its continuous account-management task ends (4.5).
+- **Its records survive.** The journal and its Trade Approvals keep the
+  agent id as a value (migration `0036_durable_records`).
+- **One line to the owner.** Lonora's delete returns `owner_line: "required"`.
 
 ## Steering watches and routines
 

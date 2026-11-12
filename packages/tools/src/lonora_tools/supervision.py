@@ -453,7 +453,7 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "messaged": True,
             "run": await delegate_peer(context, params.agent_id, params.message),
         }
-    if params.action in {"cancel_run", "set_ask"}:
+    if params.action in {"cancel_run", "set_ask", "delete"}:
         return await lead_control(context, params.agent_id, params.action)
     async with context.db.sessions() as session, session.begin():
         # The order the owner's card decision takes them in: cards, then the work.
@@ -489,8 +489,8 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict[str, Any]:
     """Lonora's own powers over a team agent (mandate 3.1.2, 4.2.2): cancel its current
-    run, or switch it to Ask. Neither needs a grant, a card or the owner's message; a team
-    agent is refused, whatever its grants."""
+    run, switch it to Ask, or delete it (its tickets transfer to Lonora). None needs a
+    grant, a card or the owner's message; a team agent is refused, whatever its grants."""
     from lonora_core.run_state import ACTIVE
     from lonora_db.authority_lock import authority_lock
     from lonora_db.cancellation import cancel_run
@@ -504,7 +504,13 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
         if agent.id == context.agent_id:
             raise LonoraError("supervision_self_target", 409)
         result: dict[str, Any] = {"agent_id": agent.id, "action": action}
-        if action == "set_ask":
+        if action == "delete":
+            from lonora_agent.collaboration.agent_create import delete_created_agent
+
+            # Refused while one of its operations has no confirmed outcome (14.3.16).
+            result.update(await delete_created_agent(session, context.owner_id, agent.id))
+            result.update(changed=True, deleted=True)
+        elif action == "set_ask":
             # Read under the authority lock, so an owner's tap in between is not missed.
             await authority_lock(session, agent.id)
             before = await trading_mode(session, context.owner_id, agent.id)
@@ -703,7 +709,8 @@ def tools() -> list[Tool]:
             "is the owner's. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A paused agent still wakes for its own positions and orders and only "
             "reduces their risk. Only the owner pauses Lonora itself. Lonora alone may also "
-            "cancel_run (end its current run) or set_ask (switch it to Ask). It never "
+            "cancel_run (end its current run), set_ask (switch it to Ask) or delete it (its "
+            "open tickets become yours and you are woken with them). It never "
             "trades, grants, raises limits, lifts restrictions or edits its memory or "
             "instructions.",
             AgentControlInput,

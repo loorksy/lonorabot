@@ -10,7 +10,8 @@ from lonora_contracts.execution_quality import ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
-from lonora_db.schema import AccountAuthorityRow, RunRow, TradingJournalRow
+from lonora_db.lead import personal_agent_id
+from lonora_db.schema import AccountAuthorityRow, AgentRow, RunRow, TradingJournalRow
 from lonora_session.idempotency import broker_operation_tag
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +108,7 @@ async def ticket_agent(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> str | None:
     """The agent whose journaled entry opened or placed this ticket; None for the owner's own.
+    A deleted agent's ticket is Lonora's (mandate 3.1.2).
 
     Attribute by the existing journal and broker identity, never ticket format. Only an
     entry an Agent's leased Run sent counts (``journal_agent``, the same rule the broker
@@ -135,7 +137,11 @@ async def ticket_agent(
             entry.operation_id,
             broker_operation_tag(entry.operation_id),
         } or target.id in {details.get(kind), safe_id}:
-            return journal_agent(entry)
+            agent = journal_agent(entry)
+            if agent is None or await session.get(AgentRow, agent) is not None:
+                return agent
+            # Its agent was deleted: the ticket transferred to Lonora (3.1.2, derived).
+            return await personal_agent_id(session, owner_id) or agent
     return None
 
 

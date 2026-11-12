@@ -33,6 +33,7 @@ from .schema import (
     AgentRow,
     EventRow,
     SettingRow,
+    TradeApprovalRow,
 )
 from .transactions import owned_agent
 
@@ -259,9 +260,11 @@ async def record_owner_creation(session: AsyncSession, owner_id: str, row: Agent
     )
 
 
-async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> None:
-    """The owner's delete: refused while its trade is uncertain; its grants, approvals
-    and cards are settled first, and its financial records outlive it."""
+async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> int:
+    """Delete a team agent (by the owner or Lonora): refused while its trade is uncertain;
+    its pending Trade Approval cards are withdrawn (3.1.2), its grants, approved requests
+    and cards are settled, and its financial records outlive it. Returns how many cards
+    were withdrawn."""
     from .authority_lock import authority_lock
     from .obligations import prepare_delete
     from .skill_controls import delete_skill_controls
@@ -274,6 +277,24 @@ async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> N
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     if agent.role == "personal":
         raise LonoraError("personal_agent_cannot_delete", 409)
+    from .trade_approvals import approval_event
+
+    # Withdrawn, never approved or executed (10.3.1.3); locked where prepare_delete locks.
+    pending = await session.scalars(
+        select(TradeApprovalRow)
+        .where(
+            TradeApprovalRow.owner_id == owner_id,
+            TradeApprovalRow.agent_id == agent_id,
+            TradeApprovalRow.status == "pending",
+        )
+        .order_by(TradeApprovalRow.id)
+        .with_for_update()
+    )
+    withdrawn = 0
+    for card in pending:
+        card.status, card.updated_at = "withdrawn", utcnow()
+        approval_event(session, card)
+        withdrawn += 1
     await prepare_delete(session, owner_id, agent_id=agent_id)
     await delete_skill_controls(session, owner_id, agent_id)
     origin = await session.get(SettingRow, origin_key(owner_id, agent_id))
@@ -284,6 +305,7 @@ async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> N
     # Every pause it holds on other agents' work stays, as the owner's; nothing resumes.
     await owner_holds_for(session, owner_id, agent_id)
     await session.delete(agent)
+    return withdrawn
 
 
 async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:

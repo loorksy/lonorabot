@@ -60,7 +60,9 @@ manual activity).
   trade becomes an approval card in its conversation.
 - Unattributed activity (the owner's own) goes to the Personal Agent, as before, with
   `authority: observe_only`.
-- Activity of a paused, delegated or missing Agent falls back to the Personal Agent,
+- Activity on a deleted Agent's ticket goes to the Personal Agent with its normal
+  authority: the ticket transferred to it at the delete (mandate 3.1.2, below).
+- Activity of a paused or delegated Agent falls back to the Personal Agent,
   observe-only.
 
 Run identities are stable (`external:<revision>` for the Personal Agent,

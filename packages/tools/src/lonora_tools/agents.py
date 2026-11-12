@@ -173,6 +173,8 @@ async def created_result(
             "trading_mode": await trading_mode(session, context.owner_id, row.id),
         },
         "mandate_card_shown": mandate is not None,
+        # A new agent is reported to the owner in one line (3.1.2; the conversation gate).
+        **({} if deduplicated else {"owner_line": "required"}),
         "next": "It works when it has a task: send its first task with peer_send, then tell "
         "the owner in one line what you created and why.",
     }
