@@ -9,6 +9,7 @@ mode change. Runs on the real migrated PostgreSQL schema and the simulation brok
 
 from decimal import Decimal
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 from lonora_contracts.account import Position
@@ -71,6 +72,55 @@ async def test_the_mandate_card_switches_the_mode_the_button_showed() -> None:
         assert again.status_code == 200 and await mode_of(fixture, agent["id"]) == "ask"
         # Tapped, it no longer waits for the owner, and it is still the agent's switch.
         assert again.json()["status"] == "confirmed"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_only_the_signed_in_owner_decides_the_mandate_card() -> None:
+    """Without a session 401, without the CSRF token 403, another owner's card 404; none of
+    them changes the mode."""
+    database()
+    import httpx
+    from check_streaming import Fixture
+    from lonora_api.middleware.auth import require_owner
+    from lonora_auth.identity import OwnerIdentity
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Guarded", supervised=True)
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        card = (await call(context, "owner_action_propose", kind="trading_mode"))["owner_action"]
+        path = f"/api/owner-actions/{card['id']}/decision"
+        body = {"decision": "confirm", "trading_mode": "full"}
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(fixture.app), base_url="https://streaming.test"
+        ) as anonymous:
+            assert (await anonymous.post(path, json=body)).status_code == 401
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        csrf = fixture.client.headers.pop("X-CSRF-Token")
+        try:
+            denied = await fixture.client.post(path, json=body)
+            assert denied.status_code == 403, denied.text
+        finally:
+            fixture.client.headers["X-CSRF-Token"] = csrf
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        # Another owner's signed-in session never finds this owner's card.
+        fixture.app.dependency_overrides[require_owner] = lambda: OwnerIdentity(
+            id=str(uuid4()), email="other-owner@example.test", token_hash="other-owner-session"
+        )
+        try:
+            foreign = await fixture.client.post(path, json=body)
+        finally:
+            fixture.app.dependency_overrides.pop(require_owner)
+        assert foreign.status_code == 404, foreign.text
+        assert foreign.json()["code"] == "owner_action_not_found", foreign.text
+        assert await mode_of(fixture, agent["id"]) == "ask"
+        missing = await fixture.client.post(f"/api/owner-actions/{uuid4()}/decision", json=body)
+        assert missing.status_code == 404
+        # The signed-in owner's own tap still applies it.
+        assert (await tap(fixture, card["id"], "full")).status_code == 200
+        assert await mode_of(fixture, agent["id"]) == "full"
     finally:
         await fixture.close()
 

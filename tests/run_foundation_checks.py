@@ -58,6 +58,8 @@ CHECKS = (
     "check_account_authority.py",
     "check_full_account_management.py",
     "check_unified_permissions.py",
+    "check_trading_mode.py",
+    "check_trade_approvals.py",
     "check_account_recovery.py",
     "check_execution_recovery.py",
     "check_trading_restrictions.py",
@@ -124,6 +126,10 @@ def main() -> None:
         "test_owner_profile.py",
         "test_usage_dashboard.py",
         "test_usage_tool.py",
+        # The trading mode's ports of the grant and ladder checks (14.1.3).
+        "test_mandate_card.py",
+        "test_card_journeys.py",
+        "test_trading_mode_tools.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:

@@ -249,6 +249,62 @@ async def test_an_agents_watch_extension_has_one_use_undo_the_owners_extend_has_
 
 
 @pytest.mark.asyncio
+async def test_a_tightened_stop_is_a_notice_with_nothing_to_undo() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_db.notice_cards import raise_stop_tightened
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        held = Position(
+            id="held-ticket",
+            symbol="XAUUSD",
+            side="buy",
+            volume=Decimal("0.1"),
+            open_price=Decimal(100),
+            stop_loss=Decimal(95),
+        )
+        connection = await simulation(fixture, [held])
+        agent = await fixture.agent("Tightened")
+        thread = await fixture.conversation(agent)
+        run = await fixture.run(agent, thread)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await raise_stop_tightened(
+                session,
+                fixture.owner,
+                operation_id="tightened-" + uuid4().hex,
+                account_id=connection,
+                symbol="XAUUSD",
+                position_id="held-ticket",
+                previous_stop_loss="95",
+                stop_loss="97",
+                agent_id=agent["id"],
+                thread_id=thread["id"],
+                run_id=run["id"],
+            )
+        [notice] = [
+            item for item in await cards(fixture, thread["id"]) if item["kind"] == "stop_tightened"
+        ]
+        assert notice["status"] == "confirmed" and notice["decided_via"] is None
+        assert notice["facts"]["stop"] == {
+            "symbol": "XAUUSD",
+            "position_id": "held-ticket",
+            "previous_stop_loss": "95",
+            "stop_loss": "97",
+        }
+        status, refused = await raw(
+            fixture, "POST", f"/owner-actions/{notice['id']}/decision", {"decision": "cancel"}
+        )
+        assert status == 409 and refused["code"] == "owner_action_already_decided"
+        status, refused = await raw(fixture, "POST", f"/owner-actions/{notice['id']}/renew")
+        assert (status, refused["code"]) == (409, "owner_action_not_renewable")
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_the_mandate_draft_grants_only_what_the_owner_signs() -> None:
     database()
     from check_streaming import Fixture

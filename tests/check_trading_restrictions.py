@@ -30,10 +30,12 @@ from lonora_db.client import Database
 from lonora_db.schema import (
     EventRow,
     RunRow,
+    TradeApprovalRow,
     TradingAccountRow,
     TradingJournalRow,
     TradingRestrictionRow,
 )
+from lonora_db.trading_mode import set_trading_mode
 from lonora_db.trading_restrictions import database_now
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -972,6 +974,153 @@ async def main() -> None:
         assert still["code"] == "trading_restriction_active", still
         print(
             "PASS an operation interrupted after submission stays traceable, the new restriction blocks prohibited orders, and recovery confirms it from broker evidence without resending"
+        )
+
+        # 8. An agent in Full trades on its own, and the account's per-trade risk limit,
+        #    position cap and daily loss limit still refuse it; exits stay allowed.
+        full = await connect("full-")
+        # The owner's own position, opened before the owner set the limits.
+        own = await owner(trade("buy", on=full, volume="0.1", stop_loss="1990"))
+        assert own.status == "confirmed" and own.broker_id, own
+        await fixture.request(
+            "PUT",
+            f"/trading/accounts/{full}/execution-policy",
+            {
+                "risk": {"currency": "USD", "max_trade_risk": "50", "max_daily_loss": "100"},
+                "max_positions": 2,
+            },
+        )
+        trader = await fixture.agent("Full trader", supervised=True)
+        async with db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, trader["id"], "full", by="owner_tap")
+        trader_context = await fixture.lease(
+            await fixture.run(trader, await fixture.conversation(trader))
+        )
+
+        async def on_its_own(**arguments: Any) -> dict[str, Any]:
+            await refresh(full)
+            result = await registry.execute(
+                ToolCall(
+                    id="full-" + uuid4().hex,
+                    name="trade_execute",
+                    arguments={"account_id": full, **arguments},
+                ),
+                trader_context,
+            )
+            operations.extend(
+                item["operation_id"]
+                for item in result.get("results", [result])
+                if "operation_id" in item
+            )
+            return result
+
+        before = await sent_to_broker(full)
+        # Ask 100.50 to a 90 stop: 1050 ticks * 1 per lot * 0.1 lot = 105 > the 50 limit.
+        over = await on_its_own(action="buy", symbol=EURO, volume="0.1", stop_loss="90")
+        assert over.get("status") == "failed" and over.get("code") == "risk_trade_limit", over
+        assert await sent_to_broker(full) == before
+        entry = await on_its_own(action="buy", symbol=EURO, volume="0.1", stop_loss="99.6")
+        assert entry.get("status") == "confirmed" and "approval_id" not in entry, entry
+        before = await sent_to_broker(full)
+        capped = await on_its_own(action="buy", symbol=GOLD, volume="0.1", stop_loss="1999.6")
+        # The owner's max_positions 2 (their own position and the euro entry) still holds.
+        assert capped.get("status") != "confirmed" and not capped.get("_runtime_wait"), capped
+        assert "portfolio_position_limit" in str(capped), capped
+        assert await sent_to_broker(full) == before
+        async with db.sessions() as session:
+            asked = await session.scalar(
+                select(func.count())
+                .select_from(TradeApprovalRow)
+                .where(TradeApprovalRow.run_id == trader_context.lease.run_id)
+            )
+            assert asked == 0, asked
+        # The owner closes their own position; then a losing day: the daily loss limit
+        # refuses new risk under Full, while closing what is open is still allowed.
+        closed_own = await owner(trade("close_position", on=full, position_id=own.broker_id))
+        assert closed_own.status == "confirmed", closed_own
+
+        def lost_today(payload: dict[str, Any]) -> None:
+            payload["history"] = [
+                *payload.get("history", []),
+                {"time": utcnow().isoformat(), "type": "DEAL_TYPE_SELL", "profit": "-1000"},
+            ]
+
+        await edit_book(full, lost_today)
+        before = await sent_to_broker(full)
+        # 0.2 lot to a 1999.60 stop risks 18, inside the per-trade limit of 50.
+        losing = await on_its_own(action="buy", symbol=GOLD, volume="0.2", stop_loss="1999.6")
+        assert losing.get("status") == "failed", losing
+        assert losing.get("code") == "risk_daily_loss_limit", losing
+        assert await sent_to_broker(full) == before
+        exit_trade = await on_its_own(
+            action="close_position", symbol=EURO, position_id=entry["broker_id"]
+        )
+        assert exit_trade.get("status") == "confirmed", exit_trade
+        print(
+            "PASS under Full the agent trades with no card; the account's per-trade risk limit, position cap and daily loss limit still refuse, and exits stay allowed"
+        )
+
+        # 9. The raw execution-policy route: lowering is one request; raising needs the
+        #    passkey bound to the exact policy.
+        bound = await connect("policy-")
+        path = f"/trading/accounts/{bound}/execution-policy"
+
+        async def raw(
+            method: str, route: str, body: dict[str, Any] | None = None
+        ) -> tuple[int, dict[str, Any]]:
+            response = await fixture.client.request(method, "/api" + route, json=body)
+            return response.status_code, response.json()
+
+        if not signer:
+            signer.append(await Device.enroll(fixture))
+        device = signer[0]
+        lower = {"risk": {"currency": "USD", "max_daily_loss": "150"}}
+        assert Decimal((await fixture.request("PUT", path, lower))["risk"]["max_daily_loss"]) == 150
+        higher = {"risk": {"currency": "USD", "max_daily_loss": "500"}}
+        status, denied = await raw("PUT", path, higher)
+        assert status == 403 and denied["code"] == "execution_policy_passkey_required", denied
+        status, denied = await raw("POST", path + "/challenge", lower)
+        assert status == 409 and denied["code"] == "execution_policy_passkey_not_needed"
+        signed = await fixture.request("POST", path + "/challenge", higher)
+        proof = device.assertion(signed, fixture.settings.allowed_origin)
+        status, forged = await raw(
+            "POST",
+            path + "/verify",
+            {"policy": {"risk": {"currency": "USD", "max_daily_loss": "900"}}, "proof": proof},
+        )
+        assert status == 403 and forged["code"] == "device_proof_invalid", forged
+        signed = await fixture.request("POST", path + "/challenge", higher)
+        proof = device.assertion(signed, fixture.settings.allowed_origin)
+        stored_policy = await fixture.request(
+            "POST", path + "/verify", {"policy": higher, "proof": proof}
+        )
+        assert Decimal(stored_policy["risk"]["max_daily_loss"]) == 500
+        status, _ = await raw("POST", path + "/verify", {"policy": higher, "proof": proof})
+        assert status in {403, 409}  # A used challenge never authorizes again.
+        # The executor's execution caps are limits too: adding one is one request, and
+        # raising or removing one needs the passkey like a money limit.
+        capped_policy = {**higher, "max_positions": 1, "max_symbol_direction_volume": "0.1"}
+        assert (await fixture.request("PUT", path, capped_policy))["max_positions"] == 1
+        for widened in (
+            higher,
+            {**capped_policy, "max_positions": 3},
+            {**capped_policy, "max_symbol_direction_volume": None},
+        ):
+            status, denied = await raw("PUT", path, widened)
+            assert status == 403 and denied["code"] == "execution_policy_passkey_required", (
+                widened,
+                denied,
+            )
+        stored = await fixture.request("GET", path)
+        assert stored["max_positions"] == 1 and stored["max_symbol_direction_volume"] == "0.1"
+        signed = await fixture.request("POST", path + "/challenge", higher)
+        proof = device.assertion(signed, fixture.settings.allowed_origin)
+        removed = await fixture.request(
+            "POST", path + "/verify", {"policy": higher, "proof": proof}
+        )
+        assert removed["max_positions"] is None
+        print(
+            "PASS lowering a limit or adding a cap through the policy route is one request; raising or removing one needs a passkey bound to that exact policy"
         )
     finally:
         async with db.sessions() as session, session.begin():

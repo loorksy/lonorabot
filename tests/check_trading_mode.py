@@ -4,9 +4,11 @@ Scripted broker only; no live orders. Run on a fresh disposable *_test database.
 """
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 
 from check_trading import ScriptedBroker, ScriptedManager, database
@@ -19,12 +21,20 @@ from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.schema import AgentRow, OwnerRow, RunRow, ThreadRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    OwnerRow,
+    RunRow,
+    ThreadRow,
+    TradeApprovalRow,
+    TradingJournalRow,
+)
 from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_trading.execution import ExecutionService
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
+from sqlalchemy import select
 
 
 async def checks() -> None:
@@ -33,9 +43,12 @@ async def checks() -> None:
     manager = cast(BrokerManager, ScriptedManager(broker))
     service = ExecutionService(db, manager)
     async with db.sessions() as session, session.begin():
-        owner = OwnerRow(email="trading-mode@example.test", password_hash="not-a-fixture-login")
-        session.add(owner)
-        await session.flush()
+        # One owner per install: reuse it when an earlier check in this database made it.
+        owner = await session.scalar(select(OwnerRow))
+        if owner is None:
+            owner = OwnerRow(email="trading-mode@example.test", password_hash="not-a-fixture-login")
+            session.add(owner)
+            await session.flush()
         owner_id = owner.id
         account = await BrokerSessionRepository().create(
             session,
@@ -281,6 +294,190 @@ async def checks() -> None:
     await asyncio.gather(holder, switching)
     async with db.sessions() as session:
         assert await trading_mode(session, owner_id, agent_id) == "ask"
+
+    # The owner's own order on Lonora's own path (3.3.4): journaled, with no agent. Its
+    # position is the owner's in both modes; the agent's own position is still managed.
+    async with db.sessions() as session, session.begin():
+        managing = await session.get(AgentRow, agent_id)
+        assert managing is not None
+        managing.manages_all_positions = False
+        leased = await session.get(RunRow, lease.run_id)
+        assert leased is not None
+        run_thread = leased.thread_id
+    sent = broker.sent
+    owner_order = buy()
+    placed = await service.execute(owner_id, owner_order)
+    assert placed.status == "confirmed" and broker.sent == sent + 1, placed
+    row = await journaled(owner_order.operation_id)
+    assert row is not None
+    assert row.result["details"]["execution"]["agent_id"] is None, row.result
+    broker.scripted_positions.append(
+        Position(
+            id="owner-order-position",
+            symbol="FIXTURE",
+            side="buy",
+            volume=Decimal("0.1"),
+            open_price=Decimal("10"),
+            stop_loss=Decimal("9"),
+            operation_id=owner_order.operation_id,
+        )
+    )
+
+    def on_owner_order(**fields: Any) -> TradeRequest:
+        return TradeRequest(
+            account_id=account_id,
+            operation_id="mode-" + uuid4().hex,
+            symbol="FIXTURE",
+            position_id="owner-order-position",
+            **fields,
+        )
+
+    async def refused_on_owner_order(mode: str, requests: list[TradeRequest]) -> None:
+        sent = broker.sent
+        for request in requests:
+            try:
+                await service.execute(
+                    owner_id, request, lease, expected_target=captured("owner-order-position")
+                )
+                raise AssertionError(mode + " acted on the owner's own order")
+            except LonoraError as error:
+                assert error.code == "ticket_not_owned", (mode, error.code)
+            assert await journaled(request.operation_id) is None
+        assert broker.sent == sent
+
+    def tighten(position_id: str, stop_loss: str) -> TradeRequest:
+        return TradeRequest(
+            account_id=account_id,
+            operation_id="mode-" + uuid4().hex,
+            action="modify_position",
+            symbol="FIXTURE",
+            position_id=position_id,
+            stop_loss=Decimal(stop_loss),
+        )
+
+    # Ask: the close is refused, and so is the stop removal, even with the owner's exact
+    # approval of it; nothing reaches the broker.
+    removal = on_owner_order(action="modify_position", clear_stop_loss=True)
+    async with db.sessions() as session, session.begin():
+        session.add(
+            TradeApprovalRow(
+                id=str(uuid4()),
+                owner_id=owner_id,
+                run_id=lease.run_id,
+                thread_id=run_thread,
+                agent_id=agent_id,
+                call_id="owner-order-removal",
+                broker_snapshot={},
+                requests=[removal.model_dump(mode="json")],
+                status="approved",
+                results=[],
+            )
+        )
+    await refused_on_owner_order("Ask", [on_owner_order(action="close_position"), removal])
+    # The agent's own position is still managed in Ask: a tighter stop needs no card.
+    sent = broker.sent
+    result = await service.execute(
+        owner_id,
+        tighten("mode-position", "9.5"),
+        lease,
+        expected_target=captured("mode-position"),
+    )
+    assert result.status == "confirmed" and broker.sent == sent + 1, result
+
+    async with db.sessions() as session, session.begin():
+        assert await set_trading_mode(session, owner_id, agent_id, "full", by="owner_tap") == (
+            "full"
+        )
+    # Full: the same, without any approval.
+    await refused_on_owner_order(
+        "Full",
+        [
+            on_owner_order(action="close_position"),
+            on_owner_order(action="modify_position", clear_stop_loss=True),
+        ],
+    )
+    # The agent's own entry and its management in Full: no card.
+    sent = broker.sent
+    entry = buy()
+    result = await service.execute(owner_id, entry, lease)
+    assert result.status == "confirmed" and broker.sent == sent + 1, result
+    broker.scripted_positions.append(
+        Position(
+            id="full-position",
+            symbol="FIXTURE",
+            side="buy",
+            volume=Decimal("0.1"),
+            open_price=Decimal("10"),
+            stop_loss=Decimal("9"),
+            operation_id=entry.operation_id,
+        )
+    )
+    result = await service.execute(
+        owner_id,
+        tighten("full-position", "9.5"),
+        lease,
+        expected_target=captured("full-position"),
+    )
+    assert result.status == "confirmed" and broker.sent == sent + 2, result
+
+    # 6.6 in Full: without the ticket the agent read, a change is not sent (fail closed).
+    sent = broker.sent
+    blind = await service.execute(owner_id, tighten("full-position", "9.6"), lease)
+    assert blind.status == "failed" and blind.code == "broker_state_changed", blind
+    assert broker.sent == sent
+    # The owner changes the ticket between the agent's observation and the send: the
+    # owner's change wins and nothing is sent.
+    read = captured("full-position")
+
+    async def owner_intervenes() -> None:
+        index = next(i for i, p in enumerate(broker.scripted_positions) if p.id == "full-position")
+        broker.scripted_positions[index] = broker.scripted_positions[index].model_copy(
+            update={"stop_loss": Decimal("9.3")}
+        )
+
+    broker.before = owner_intervenes
+    changed = await service.execute(
+        owner_id, tighten("full-position", "9.7"), lease, expected_target=read
+    )
+    broker.before = None
+    assert changed.status == "failed" and changed.code == "broker_state_changed", changed
+    assert changed.details.get("send_state") == "not_sent" and broker.sent == sent
+
+    # 6.2 in Full: a broker rejection keeps the server's send attribution in the journal.
+    async def broker_reject(
+        request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
+    ) -> TradeResult:
+        assert before_send
+        await before_send()
+        return TradeResult(operation_id=request.operation_id, status="failed", code="market_closed")
+
+    rejected_request = buy()
+    with patch.object(broker, "execute", side_effect=broker_reject):
+        rejected = await service.execute(owner_id, rejected_request, lease)
+    assert rejected.status == "failed" and rejected.code == "market_closed", rejected
+    row = await journaled(rejected_request.operation_id)
+    assert row is not None and row.result["details"]["execution"]["send_authorized"] is True
+    assert row.result["details"]["execution"]["agent_id"] == agent_id
+
+    # 6.3 and 6.4 in Full: a lost acknowledgement is ambiguous, a replay answers from the
+    # journal and never resends, and the unresolved market blocks other new risk.
+    lost = buy()
+    broker.mode = "timeout"
+    ambiguous = await service.execute(owner_id, lost, lease)
+    broker.mode = "confirmed"
+    assert ambiguous.status == "ambiguous", ambiguous
+    assert broker.sent == sent + 1
+    replayed = await service.execute(owner_id, lost, lease)
+    assert replayed.status == "ambiguous" and broker.sent == sent + 1, replayed
+    other = buy().model_copy(update={"volume": Decimal("0.2")})
+    try:
+        await service.execute(owner_id, other, lease)
+        raise AssertionError("New risk was sent on a market with an unresolved operation")
+    except LonoraError as error:
+        assert error.code == "broker_reconciliation_required", error.code
+    assert await journaled(other.operation_id) is None and broker.sent == sent + 1
+    row = await journaled(lost.operation_id)
+    assert row is not None and row.result["details"]["execution"]["agent_id"] == agent_id
     print("trading mode checks passed")
 
 
