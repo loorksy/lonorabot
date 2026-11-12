@@ -448,7 +448,7 @@ async def main() -> None:
         resolve = next(
             row
             for row in await cards_in(personal["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         operation_facts = resolve["facts"]["operation"]
         assert operation_facts["symbol"] == GOLD and operation_facts["by_owner"] is True
@@ -563,7 +563,7 @@ async def main() -> None:
         mine = next(
             row
             for row in await cards_in(thread["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         assert mine["facts"]["operation"]["by_agent_name"] == agent["name"]
         status, unknown = await decide(mine["id"], {"decision": "confirm", "outcome": "unknown"})

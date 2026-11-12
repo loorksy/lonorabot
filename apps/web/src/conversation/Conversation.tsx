@@ -890,7 +890,7 @@ export function Conversation({
                 // «حسم العملية»: the operation's own pending resolve card in this chat.
                 const resolve = ownerActions.rows.find(
                   (card) =>
-                    card.kind === "resolve_operation" &&
+                    card.kind === "settle_operation" &&
                     card.status === "pending" &&
                     card.facts.operation?.operation_id === journalRow.operation_id,
                 );

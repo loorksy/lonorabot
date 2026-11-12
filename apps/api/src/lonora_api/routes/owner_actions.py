@@ -360,7 +360,7 @@ async def decide(
     if row.kind == "trading_mode":
         await decide_trading_mode(session, owner, row, body)
         return
-    if body.pause_new_today and row.kind != "resolve_operation":
+    if body.pause_new_today and row.kind != "settle_operation":
         raise LonoraError("owner_action_pause_unsupported", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
     if row.status != "pending":
@@ -400,7 +400,7 @@ async def decide(
         await revoke_restriction(
             session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
         )
-    elif row.kind == "resolve_operation":
+    elif row.kind == "settle_operation":
         if body.outcome is None:
             raise LonoraError("owner_action_outcome_required", 422)
         await attest_operation(
@@ -409,8 +409,7 @@ async def decide(
             row.payload["operation_id"],
             OperationResolution(
                 outcome=body.outcome,
-                statement=(body.note or "").strip() or CARD_ATTESTATION,
-                broker_reference=body.broker_reference,
+                statement=CARD_ATTESTATION,
             ),
             {
                 "kind": "owner",

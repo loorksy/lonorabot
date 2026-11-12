@@ -89,8 +89,6 @@ export const ownerActionLabels = {
     executed: "It executed",
     notExecuted: "It did not execute",
     unknown: "Unknown: release the hold",
-    note: "Note (optional)",
-    brokerReference: "Broker ticket (optional)",
     byYou: "your order",
     by: "by",
     at: "at",
@@ -305,10 +303,6 @@ export const ownerActionLabels = {
     alreadyConnected: "This is already connected. Nothing changed.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
-    optional: "optional",
-    noteShort: "Note",
-    brokerRefShort: "Broker reference",
-    addNote: "Add a note or the broker reference",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
@@ -376,8 +370,6 @@ export const ownerActionLabels = {
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
     unknown: "غير معروفة — ارفع التعليق",
-    note: "ملاحظة (اختيارية)",
-    brokerReference: "رقم التذكرة لدى الوسيط (اختياري)",
     byYou: "أمرك",
     by: "من",
     at: "في",
@@ -588,10 +580,6 @@ export const ownerActionLabels = {
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
-    optional: "اختياري",
-    noteShort: "ملاحظة",
-    brokerRefShort: "مرجع الوسيط",
-    addNote: "إضافة ملاحظة أو مرجع الوسيط",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
@@ -668,8 +656,6 @@ export type OwnerActionSpec = {
   options: OwnerActionOption[];
   /** Shown while pending; empty once the card is settled. */
   buttons: OwnerActionButton[];
-  /** A resolve card offers an optional note and broker ticket. */
-  notes: boolean;
   /** A credential card's secure form while it waits (submitted by the client itself). */
   credential: CredentialForm | null;
   passkey: boolean;
@@ -747,7 +733,7 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.watchUndone;
       case "stop_tightened":
         return text.stopTightenedLine;
-      case "resolve_operation":
+      case "settle_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
           : card.result.outcome === "not_executed"
@@ -1377,7 +1363,6 @@ export function ownerActionCard(
       hint: model.hint,
       options: [],
       buttons: model.buttons.map((item) => ({ ...item, decision: item.key })),
-      notes: false,
       credential: null,
       passkey: false,
       outcome: model.outcome,
@@ -1488,7 +1473,7 @@ export function ownerActionCard(
       buttons = pair(text.lift, text.keep);
       break;
     }
-    case "resolve_operation": {
+    case "settle_operation": {
       title = text.resolveTitle;
       const operation = facts.operation;
       if (operation) {
@@ -1729,7 +1714,6 @@ export function ownerActionCard(
     hint: pending ? hint : null,
     options: pending ? options : [],
     buttons: pending ? buttons : [],
-    notes: pending && card.kind === "resolve_operation",
     credential: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),

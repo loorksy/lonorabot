@@ -336,7 +336,7 @@ def tools() -> list[Tool]:
             "agent_id, Lonora's for any agent), resume_trading "
             "(only when the owner asks to resume: Stop is the owner's brake), "
             "lift_restriction (restriction_id of an active or scheduled pause the owner asks "
-            "to lift), resolve_operation (operation_id of an ambiguous operation; the owner "
+            "to lift), settle_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "
             "set_account_limits (account_id with set_limits amounts in the account "
             "currency or percentages, and/or remove_limits; currency when setting an amount "

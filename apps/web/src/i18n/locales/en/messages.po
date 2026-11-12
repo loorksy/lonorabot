@@ -395,7 +395,7 @@ msgstr "Account limits changed"
 msgid "Account number"
 msgstr "Account number"
 
-#: src/components/trading/ExecutionReceipt.tsx:97
+#: src/components/trading/ExecutionReceipt.tsx:111
 msgid "Account state verified"
 msgstr "Account state verified"
 
@@ -896,7 +896,7 @@ msgid "Applies to every agent of this account"
 msgstr "Applies to every agent of this account"
 
 #: src/components/trading/TradeApprovals.tsx:154
-#: src/components/trading/TradeApprovals.tsx:219
+#: src/components/trading/TradeApprovals.tsx:222
 msgid "Approval request"
 msgstr "Approval request"
 
@@ -904,7 +904,7 @@ msgstr "Approval request"
 msgid "Approval request · {what}"
 msgstr "Approval request · {what}"
 
-#: src/components/trading/TradeApprovals.tsx:317
+#: src/components/trading/TradeApprovals.tsx:320
 msgid "Approve"
 msgstr "Approve"
 
@@ -1270,7 +1270,7 @@ msgid "Broker symbol"
 msgstr "Broker symbol"
 
 #: src/components/trading/ExecutionReceipt.tsx:16
-#: src/components/trading/TradeApprovals.tsx:280
+#: src/components/trading/TradeApprovals.tsx:283
 #: src/conversation/Cards.tsx:467
 msgid "Broker ticket"
 msgstr "Broker ticket"
@@ -1611,7 +1611,7 @@ msgstr "Check the highlighted fields."
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
-#: src/components/trading/ExecutionReceipt.tsx:107
+#: src/components/trading/ExecutionReceipt.tsx:121
 msgid "Checking the account state…"
 msgstr "Checking the account state…"
 
@@ -1991,7 +1991,7 @@ msgstr "Confirm: {0}"
 #~ msgid "Confirmed"
 #~ msgstr "Confirmed"
 
-#: src/components/trading/ExecutionReceipt.tsx:93
+#: src/components/trading/ExecutionReceipt.tsx:107
 msgid "Confirmed by the broker"
 msgstr "Confirmed by the broker"
 
@@ -3430,8 +3430,8 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "In progress"
 
-#: src/components/trading/ExecutionReceipt.tsx:115
-#: src/components/trading/TradeApprovals.tsx:305
+#: src/components/trading/ExecutionReceipt.tsx:129
+#: src/components/trading/TradeApprovals.tsx:308
 msgid "In the agent's words"
 msgstr "In the agent's words"
 
@@ -5429,7 +5429,7 @@ msgstr "Previous / next chat"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:236
+#: src/components/trading/TradeApprovals.tsx:239
 msgid "Price"
 msgstr "Price"
 
@@ -5721,7 +5721,7 @@ msgstr "Register a passkey before activating this request."
 msgid "Regression"
 msgstr "Regression"
 
-#: src/components/trading/TradeApprovals.tsx:325
+#: src/components/trading/TradeApprovals.tsx:328
 msgid "Reject"
 msgstr "Reject"
 
@@ -5777,11 +5777,11 @@ msgstr "Remove from favourites"
 #~ msgid "Remove reply"
 #~ msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:263
+#: src/components/trading/TradeApprovals.tsx:266
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:273
+#: src/components/trading/TradeApprovals.tsx:276
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -6827,8 +6827,8 @@ msgstr "Stop"
 #: src/components/goals/TradingGoals.tsx:225
 #: src/components/trading/ExecutionReceipt.tsx:23
 #: src/components/trading/ExecutionReceipt.tsx:68
-#: src/components/trading/TradeApprovals.tsx:244
-#: src/components/trading/TradeApprovals.tsx:260
+#: src/components/trading/TradeApprovals.tsx:247
+#: src/components/trading/TradeApprovals.tsx:263
 #: src/shell/agent/TradesPage.tsx:371
 #: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
@@ -6989,8 +6989,8 @@ msgstr "Symbols"
 #: src/components/goals/TradingGoals.tsx:226
 #: src/components/trading/ExecutionReceipt.tsx:24
 #: src/components/trading/ExecutionReceipt.tsx:78
-#: src/components/trading/TradeApprovals.tsx:252
-#: src/components/trading/TradeApprovals.tsx:270
+#: src/components/trading/TradeApprovals.tsx:255
+#: src/components/trading/TradeApprovals.tsx:273
 #: src/shell/agent/TradesPage.tsx:372
 #: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"
@@ -7145,7 +7145,7 @@ msgstr "The account <0>{number}</0> at <1>{broker}</1> is unlinked."
 msgid "The account is linked"
 msgstr "The account is linked"
 
-#: src/components/trading/ExecutionReceipt.tsx:102
+#: src/components/trading/ExecutionReceipt.tsx:116
 msgid "The account state could not be verified"
 msgstr "The account state could not be verified"
 
@@ -8299,7 +8299,7 @@ msgstr "Use the suggestion (Tab)"
 msgid "Use the suggestion: {suggestion}"
 msgstr "Use the suggestion: {suggestion}"
 
-#: src/components/trading/TradeApprovals.tsx:292
+#: src/components/trading/TradeApprovals.tsx:295
 msgid "Valid while the price stays within"
 msgstr "Valid while the price stays within"
 

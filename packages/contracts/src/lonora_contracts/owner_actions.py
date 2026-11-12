@@ -21,7 +21,7 @@ from .trading import TradingMode
 OwnerActionKind = Literal[
     "resume_trading",
     "lift_restriction",
-    "resolve_operation",
+    "settle_operation",
     "set_account_limits",
     "grant_authority",
     "trust_source",
@@ -70,7 +70,7 @@ class OwnerActionProposal(Contract):
     kind: OwnerActionKind
     # lift_restriction: the active or scheduled restriction to lift.
     restriction_id: str | None = Field(default=None, min_length=1, max_length=36)
-    # resolve_operation: the uncertain (ambiguous) operation the owner settles.
+    # settle_operation: the uncertain (ambiguous) operation the owner settles.
     operation_id: str | None = Field(default=None, min_length=1, max_length=80)
     # set_account_limits: the account and the exact limit changes.
     account_id: str | None = Field(default=None, min_length=1, max_length=36)
@@ -184,7 +184,7 @@ class OwnerActionProposal(Contract):
         needed = {
             "resume_trading": (),
             "lift_restriction": ("restriction_id",),
-            "resolve_operation": ("operation_id",),
+            "settle_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
             "grant_authority": (),
         }[self.kind]
@@ -331,7 +331,8 @@ class ConnectedResource(Contract):
 
 
 class OwnerActionDecision(Contract):
-    """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
+    """The owner's tap. ``outcome`` answers a Settle Uncertain Operation card (exactly
+    executed, not executed or unknown); ``proof`` is the passkey
     assertion a widening card requires (obtained from the card's challenge); ``tier`` is
     what the owner trusts an MCP server for; ``connected`` names what a credential card's
     form created.
@@ -352,8 +353,6 @@ class OwnerActionDecision(Contract):
     tier: Literal["read", "write_nonfinancial"] | None = None
     connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None
-    note: str | None = Field(default=None, max_length=2000)
-    broker_reference: str | None = Field(default=None, max_length=200)
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
     resume_trading: bool = False

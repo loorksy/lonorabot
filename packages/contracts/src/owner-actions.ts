@@ -14,7 +14,7 @@ import type {
 export type OwnerActionKind =
   | "resume_trading"
   | "lift_restriction"
-  | "resolve_operation"
+  | "settle_operation"
   | "set_account_limits"
   | "grant_authority"
   | "agent_model"
@@ -298,7 +298,7 @@ export type OwnerAction = {
     integration_id?: string;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
-    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
+    /** settle_operation answered unknown with pause_new_today: the owner pause it set. */
     restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
     expires_at?: string | null;
@@ -317,8 +317,6 @@ export type OwnerActionDecision = {
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
-  note?: string;
-  broker_reference?: string;
   proof?: DeviceProof;
   /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";

@@ -1342,7 +1342,7 @@ class Acceptance:
         operation = result["operation_id"]
         assert len(await self.positions(self.account)) == before + 1  # It did reach the broker.
         await self.project()
-        cards = await self.pending(gold_thread, "resolve_operation")
+        cards = await self.pending(gold_thread, "settle_operation")
         assert len(cards) == 1, cards
         facts = cards[0]["facts"]["operation"]
         assert (facts["symbol"], facts["action"], str(facts["volume"])) == (GOLD, "buy", "0.1"), (

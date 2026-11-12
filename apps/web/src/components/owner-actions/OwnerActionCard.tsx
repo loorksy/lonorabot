@@ -86,9 +86,6 @@ export function OwnerActionCard({
   const spec = ownerActionCard(row, locale);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
-  const [note, setNote] = useState("");
-  const [reference, setReference] = useState("");
-  const [more, setMore] = useState(false);
   // Q11: «غير معروف» can also stop new trades for the rest of the day (an owner restriction).
   const [pauseToday, setPauseToday] = useState(false);
   const [enroll, setEnroll] = useState(false);
@@ -141,8 +138,6 @@ export function OwnerActionCard({
     if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
-      if (note.trim()) body.note = note.trim();
-      if (reference.trim()) body.broker_reference = reference.trim();
       if (button.outcome === "unknown" && pauseToday) body.pause_new_today = true;
     }
     if (button.decision === "confirm" && spec.passkey) {
@@ -245,7 +240,7 @@ export function OwnerActionCard({
         onLatest={onLatest}
       />
     );
-  const resolve = row.kind === "resolve_operation";
+  const resolve = row.kind === "settle_operation";
   const left = Date.parse(row.expires_at) - Date.now();
   return (
     // biome-ignore lint/a11y/useSemanticElements: the reference's card is a named group
@@ -358,43 +353,6 @@ export function OwnerActionCard({
           </div>
         </div>
       )}
-      {spec.notes &&
-        (more ? (
-          <div className="oa-fields">
-            <label className="oa-input">
-              <span>
-                {text.noteShort} <small>{text.optional}</small>
-              </span>
-              <input
-                type="text"
-                dir="auto"
-                value={note}
-                maxLength={120}
-                autoComplete="off"
-                disabled={busy}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </label>
-            <label className="oa-input">
-              <span>
-                {text.brokerRefShort} <small>{text.optional}</small>
-              </span>
-              <input
-                type="text"
-                dir="ltr"
-                value={reference}
-                maxLength={32}
-                autoComplete="off"
-                disabled={busy}
-                onChange={(event) => setReference(event.target.value)}
-              />
-            </label>
-          </div>
-        ) : (
-          <button type="button" className="oa-link" onClick={() => setMore(true)}>
-            {text.addNote}
-          </button>
-        ))}
       {spec.credential && (
         <CredentialFields
           form={spec.credential}
@@ -483,7 +441,7 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   set_account_limits: "scale",
   lift_restriction: "lock",
-  resolve_operation: "alert",
+  settle_operation: "alert",
   resume_trading: "power",
   agent_model: "cpu",
   agent_model_changed: "cpu",
@@ -593,7 +551,7 @@ function DecisionLine({
           {text}
         </span>
       </button>
-      {row.status === "expired" && row.kind === "resolve_operation" && onRenew && (
+      {row.status === "expired" && row.kind === "settle_operation" && onRenew && (
         <button type="button" className="btn sm ghost" onClick={() => onRenew(row)}>
           {labels.renew}
         </button>

@@ -93,7 +93,7 @@ async def resolve_card(
         thread=thread,
         run_id=None,
         source="system",
-        kind="resolve_operation",
+        kind="settle_operation",
         subject="operation:" + identifier,
         payload={"operation_id": identifier},
     )
@@ -169,7 +169,7 @@ async def test_renew_raises_a_fresh_card_only_while_the_subject_still_needs_a_de
         cards = await session.scalar(
             select(func.count())
             .select_from(OwnerActionRow)
-            .where(OwnerActionRow.kind == "resolve_operation")
+            .where(OwnerActionRow.kind == "settle_operation")
         )
         assert cards == 2
 

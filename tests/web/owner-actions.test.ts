@@ -63,7 +63,7 @@ const lift: OwnerAction = {
 const pause = lift.facts.restriction ?? (undefined as never);
 const resolve: OwnerAction = {
   ...base,
-  kind: "resolve_operation",
+  kind: "settle_operation",
   source: "system",
   facts: {
     several_accounts: false,
@@ -126,7 +126,8 @@ test("every pending card has its one-tap buttons in both languages", () => {
         ["confirm", "unknown"],
       ],
     );
-    assert.equal(answer.notes, true);
+    // Settle Uncertain Operation: exactly these three answers, no free-text fields (10.3).
+    assert.equal("notes" in answer, false);
     assert.equal(ownerActionCard(lift, locale, now).buttons.length, 2);
   }
   const en = ownerActionCard(resolve, "en", now);

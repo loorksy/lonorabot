@@ -182,7 +182,7 @@ def test_a_limit_change_touches_only_the_named_limits() -> None:
     [
         {"kind": "resume_trading", "restriction_id": "r"},
         {"kind": "lift_restriction"},
-        {"kind": "resolve_operation", "operation_id": "op", "account_id": "a"},
+        {"kind": "settle_operation", "operation_id": "op", "account_id": "a"},
         {"kind": "set_account_limits", "account_id": "a"},  # No change at all.
         {
             "kind": "set_account_limits",
@@ -557,7 +557,7 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
             thread=english,
             run_id=None,
             source="system",
-            kind="resolve_operation",
+            kind="settle_operation",
             subject="operation:op-answered",
             payload={"operation_id": "op-answered"},
         )
@@ -658,7 +658,7 @@ async def test_an_uncertain_trade_the_owner_is_already_asked_about_raises_no_sec
             thread=thread,
             run_id=None,
             source="system",
-            kind="resolve_operation",
+            kind="settle_operation",
             subject="operation:op-carded",
             payload={"operation_id": "op-carded"},
         )

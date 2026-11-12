@@ -235,7 +235,7 @@ async def trading_readiness(
                 .outerjoin(ThreadRow, ThreadRow.id == OwnerActionRow.thread_id)
                 .where(
                     OwnerActionRow.owner_id == owner_id,
-                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.kind == "settle_operation",
                     OwnerActionRow.status == "pending",
                     OwnerActionRow.expires_at > now,
                     OwnerActionRow.subject.in_(
