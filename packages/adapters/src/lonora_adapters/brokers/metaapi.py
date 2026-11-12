@@ -55,9 +55,9 @@ def provider_error(error: Exception, stage: str) -> LonoraError:
         missing = any(
             term in message for term in ("not found", "unknown", "does not exist", "not exist")
         )
-        if stage == "symbol" and ("symbol" in message or "account" not in message):
-            # A symbol read ran on a connected account: the broker does not list the
-            # symbol. Only a message about the account itself reports the account.
+        if stage in {"symbol", "instrument"} and ("symbol" in message or "account" not in message):
+            # A symbol or instrument read ran on a connected account: the broker does not
+            # list the symbol. Only a message about the account itself reports the account.
             return LonoraError("symbol_not_found", 404)
         if stage != "candles" or "account" in message and missing:
             return LonoraError("broker_account_not_found", 404)

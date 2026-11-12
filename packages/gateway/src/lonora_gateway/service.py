@@ -54,6 +54,8 @@ STEPS = (
     StepSpec("broker_provisioning", 10, 900),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
     StepSpec("closed_trades", 30, 300, critical=False),
+    # The currencies of newly held symbols, for the account picture (5.4).
+    StepSpec("instrument_currencies", 30, 120, critical=False),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -227,6 +229,13 @@ class Gateway:
             lambda service: maintenance_closed_trades(self.db, service.brokers, service.owner_id)
         )
 
+    async def instrument_currencies(self) -> None:
+        from lonora_trading.picture import learn_currencies
+
+        await self.for_each_owner(
+            lambda service: learn_currencies(self.db, service.brokers, service.owner_id)
+        )
+
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
 
@@ -384,6 +393,7 @@ class Gateway:
             "account_recovery": self.account_recovery,
             "broker_provisioning": self.broker_provisioning,
             "closed_trades": self.closed_trades,
+            "instrument_currencies": self.instrument_currencies,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
