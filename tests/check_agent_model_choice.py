@@ -28,6 +28,7 @@ from lonora_llm_usage.store import save_usage
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
+from lonora_tools.restrictions import mark_external_content
 from sqlalchemy import func, select
 
 DEFAULT = ModelSelection(provider="openai", model="gpt-default-test")
@@ -268,6 +269,13 @@ async def main() -> None:
         assert (await call(unrelated, {"model": SONNET.model_dump()}))["code"] == REFUSED
         assert (await record())["preference"]["primary"] == OPUS.model_dump()
         await finish(unrelated)
+        # Once the run reads third-party content, the owner's words no longer stand.
+        read = await owner_says("Use claude-sonnet-test", agent, thread)
+        async with db.sessions() as session, session.begin():
+            await mark_external_content(session, read.lease.run_id, "web_fetch")
+        assert (await call(read, {"model": SONNET.model_dump()}))["code"] == REFUSED
+        assert (await record())["preference"]["primary"] == OPUS.model_dump()
+        await finish(read)
         await no_cards()
         print("PASS only the model the owner's message names applies; others refuse")
 
@@ -357,6 +365,31 @@ async def main() -> None:
         )
         own = await record(named_at_creation["id"])
         assert own["preference"]["primary"] == HAIKU.model_dump() and own["chosen_by"] == "owner"
+
+        # From chat, a model the owner's words do not name is dropped: Lonora's model.
+        async def create_from_chat(words: str, name: str) -> dict[str, Any]:
+            asked = await owner_says(words, lonora, lonora_thread)
+            made = await registry.execute(
+                ToolCall(
+                    id="create-" + uuid4().hex,
+                    name="agent_create",
+                    arguments={"template": "research", "name": name, "model": HAIKU.model_dump()},
+                ),
+                asked,
+            )
+            await finish(asked)
+            assert made["created"] is True, made
+            return made
+
+        scout = await create_from_chat("Create a research agent called Scout", "Scout")
+        assert scout["model_dropped"].startswith("not named by the owner"), scout
+        dropped = await record(scout["agent"]["id"])
+        assert dropped["preference"]["primary"] == SONNET.model_dump(), dropped
+        assert dropped["chosen_by"] == "inherited"
+        haiku = await create_from_chat("Create a research agent called Quill on Haiku", "Quill")
+        assert "model_dropped" not in haiku, haiku
+        kept = await record(haiku["agent"]["id"])
+        assert kept["preference"]["primary"] == HAIKU.model_dump() and kept["chosen_by"] == "owner"
         await fixture.request("PUT", f"/agents/{lonora['id']}/model", {"primary": None})
         print("PASS a new agent starts on Lonora's current model, as a snapshot")
 

@@ -102,7 +102,7 @@ async def _named(session: AsyncSession, selection: ModelSelection) -> dict[str, 
     return {**label, "name": label["name"] or selection.model}
 
 
-async def _owner_named(
+async def owner_named(
     session: AsyncSession, run: RunRow, message_id: str, selection: ModelSelection
 ) -> bool:
     """Whether the owner's words this Run answers name the model: the message it started
@@ -217,7 +217,7 @@ async def request_model(context: ToolContext, args: dict[str, Any]) -> dict[str,
             fallbacks=[item for item in record.preference.fallbacks if item != params.model],
         )
         message_id = await owner_message_id(session, run)
-        if message_id is None or not await _owner_named(session, run, message_id, params.model):
+        if message_id is None or not await owner_named(session, run, message_id, params.model):
             # Only the owner assigns a model: his typed message this run answers names it.
             result: dict[str, Any] = {
                 "ok": False,
