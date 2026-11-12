@@ -328,14 +328,22 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
+undo something that must not be undone: an owner's pause, a new restriction, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the `trading*` rows of
-`ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
-changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
+`ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
+agents, the broker connections' enabled flags, paused or cancelled goals and tasks, and the
+owner's own messages in `ln_messages` (including Telegram and voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
 and the failed version pinned, prints `ROLLBACK HELD` with the reason, and exits with status 2.
+
+The definition of this fingerprint is its own file, `infra/compose/lonora-controls.sh`, and the one
+in force is the **target** release's copy: `lonora update` reads it from the image it installs
+before anything changes, keeps it next to the update marker (`state/update-controls.sh`; a held
+update keeps its own), and uses it for the baseline of step 5 and for the comparison of any
+rollback of that update. A release that drops a table therefore drops it from both sides, and each
+part is read only when its table exists, so a removed table never makes the records "unreadable".
+An image built before this file existed carries none; the installation's own copy stands in.
 
 ### When an update does not finish: what to do
 
