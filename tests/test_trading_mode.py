@@ -34,7 +34,7 @@ def close() -> TradeRequest:
     return request(action="close_position", position_id="1", volume=None)
 
 
-TICKET = Position(id="1", symbol="XAUUSD", side="buy", volume=Decimal("0.1"), open_price=1)
+TICKET = Position(id="1", symbol="XAUUSD", side="buy", volume=Decimal("0.1"), open_price=Decimal(1))
 
 
 def gate(
