@@ -18,8 +18,8 @@ from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
 from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
+from lonora_tools.terminal import owner_scan
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
-from lonora_workspace.client import with_guard
 
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
@@ -317,10 +317,9 @@ class Gateway:
         await self.for_each_owner(self.record_running)
 
     async def workspace_scan(self, service: OwnerServices) -> SecretScan:
-        """The owner's scan of what the workspace returns (7.2.6), as the tools use it."""
-        values = await service.secrets.scanned_values()
-        given = await service.given.values() if service.given else []
-        return with_guard(SecretScan(values), [[name, value] for name, value in given])
+        """The owner's scan of what the workspace returns (7.2.6): the tools' own
+        (`terminal.owner_scan`), CLI tokens included."""
+        return await owner_scan(service.secrets, service.given, service.cli_tokens)
 
     async def record_running(self, service: OwnerServices) -> None:
         """What is running (7.1.5): the owner's agents' processes, scanned for the owner."""
