@@ -89,7 +89,7 @@ class SkillHistoryInput(Contract):
 class SkillRestoreInput(Contract):
     skill_id: SkillId
     version: int = Field(ge=1)
-    expected_version: int = Field(ge=1)
+    expected_version: int = Field(ge=0)
     agent_id: str | None = Field(default=None, max_length=36)
 
 
@@ -183,8 +183,8 @@ def tools() -> list[Tool]:
             "skill_restore",
             "Restore one of your instruction Skills to a version from skill_history; it saves "
             "that version's instructions as the next version. expected_version is its current "
-            "resource_version. Lonora may pass a team agent's agent_id, then tells the owner "
-            "in one line why.",
+            "resource_version, or 0 to bring back a deleted Skill. Lonora may pass a team "
+            "agent's agent_id, then tells the owner in one line why.",
             SkillRestoreInput,
             restore,
             replay_safe=True,

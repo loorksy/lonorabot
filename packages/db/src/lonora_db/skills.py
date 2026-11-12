@@ -56,6 +56,7 @@ def record_version(session: AsyncSession, row: ResourceRow) -> None:
             skill_id=row.id,
             version=row.version,
             owner_id=row.owner_id,
+            agent_id=row.agent_id,
             payload=dict(row.payload),
             created_at=row.updated_at,
         )
