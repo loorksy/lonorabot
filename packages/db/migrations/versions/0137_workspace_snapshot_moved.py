@@ -16,7 +16,12 @@ def upgrade() -> None:
         "ln_analytical_workspaces",
         sa.Column("moved_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column(
+        "ln_analytical_workspaces",
+        sa.Column("move_tried_at", sa.DateTime(timezone=True), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("ln_analytical_workspaces", "move_tried_at")
     op.drop_column("ln_analytical_workspaces", "moved_at")

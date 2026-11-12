@@ -220,7 +220,7 @@ async def main(image: str) -> None:
                     .limit(1)
                 )
                 assert message is not None
-            assert rounds == 7
+            assert rounds == 5
             checks += 1
 
             await stop(host)

@@ -10,7 +10,7 @@ from lonora_contracts.domain import Contract
 from lonora_core.attachments import safe_filename
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import ArtifactRow
-from lonora_db.transactions import resource_data
+from lonora_db.transactions import owned_agent, resource_data
 from lonora_security.runtime_storage import confined_path
 from lonora_session.idempotency import request_hash
 from pydantic import Field
@@ -109,6 +109,9 @@ async def export(context: ToolContext, arguments: dict[str, Any]) -> dict[str, A
         artifact = confined_path(context.artifact_root, original["payload"]["key"])
         await asyncio.to_thread(verify_export, artifact, original["payload"])
         return original
+    async with context.db.sessions() as session:
+        if (await owned_agent(session, context.owner_id, context.agent_id)).paused:
+            raise LonoraError("tool_not_allowed", 403)
     # The whole file is refused if any secret form is in it: what reaches the chat
     # carries no secret, and a replaced value would change the owner's file.
     content = await client(context).read_bytes(await scan(context), context.agent_id, request.path)

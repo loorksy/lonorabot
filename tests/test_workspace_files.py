@@ -7,7 +7,6 @@ import httpx
 import pytest
 from lonora_agent.workspace import encode_snapshot
 from lonora_agent.workspace_move import DESTINATION, move_snapshots
-from lonora_core.user_error import LonoraError
 from lonora_db.schema import AnalyticalWorkspaceRow
 from lonora_workspace.client import WorkspaceClient
 from test_task_runtime import task_db as task_db
@@ -47,12 +46,54 @@ async def test_a_copy_that_did_not_finish_is_tried_again(task_db: Any) -> None:
     def full(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"boot_id": "b", "ok": False, "error": "no space"})
 
-    with pytest.raises(LonoraError) as refused:
-        await move_snapshots(db, WorkspaceClient(transport=httpx.MockTransport(full)))
-    assert refused.value.code == "workspace_snapshot_move_failed"
+    assert await move_snapshots(db, WorkspaceClient(transport=httpx.MockTransport(full))) == 0
     async with db.sessions() as session:
         row = await session.get(AnalyticalWorkspaceRow, agent)
         assert row is not None and row.moved_at is None
     workspace = FakeWorkspace()
     assert await move_snapshots(db, workspace.client()) == 1
     assert workspace.files == {(agent, DESTINATION + "a.txt"): b"a"}
+
+
+@pytest.mark.asyncio
+async def test_an_agent_whose_copy_fails_does_not_hold_up_the_others(task_db: Any) -> None:
+    db, _, agent, _ = task_db
+    from lonora_db.schema import AgentRow
+
+    async with db.sessions() as session, session.begin():
+        template = await session.get(AgentRow, agent)
+        assert template is not None
+        others: list[str] = []
+        for index in range(6):
+            other = AgentRow(
+                **{
+                    column.key: getattr(template, column.key)
+                    for column in AgentRow.__table__.columns
+                    if column.key not in {"id"}
+                }
+            )
+            other.id = f"{index:08d}-0000-4000-8000-000000000000"
+            other.name = f"{template.name} {index}"
+            session.add(other)
+            others.append(other.id)
+        await session.flush()
+        for agent_id in [*others, agent]:
+            session.add(
+                AnalyticalWorkspaceRow(
+                    agent_id=agent_id, revision=1, snapshot=encode_snapshot({"a.txt": b"a"})
+                )
+            )
+    stuck = others[0]
+    workspace = FakeWorkspace()
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if stuck.encode() in request.content:
+            return httpx.Response(200, json={"boot_id": "b", "ok": False, "error": "mkdir"})
+        return workspace.handle(request)
+
+    client = WorkspaceClient(transport=httpx.MockTransport(handle))
+    moved = 0
+    for _ in range(3):
+        moved += await move_snapshots(db, client)
+    assert moved == 6
+    assert (stuck, DESTINATION + "a.txt") not in workspace.files

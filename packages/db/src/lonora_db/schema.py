@@ -700,6 +700,8 @@ class AnalyticalWorkspaceRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # When the files were copied into the agent's home in the persistent workspace.
     moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The last copy attempt: an agent whose copy keeps failing goes to the back.
+    move_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WorkspaceOperationRow(Base):

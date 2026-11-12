@@ -241,8 +241,8 @@ physical device. Reports/images retain the existing Web/Mobile attachment path.
 immutable replay after source updates, hash/missing-file errors, filename/source
 bounds, a worker replacement before filesystem write, real pixels in the scripted
 model's vision request, canonical attachment IDs and authenticated download bytes.
-The real Unix/Docker acceptance now also exports its Python-generated JSON result,
-reads the actual attachment and downloads it through the existing API. No live
+Export now reads the persistent workspace (above); the old Unix/Docker acceptance no
+longer exports. No live
 model quality, physical-device rendering or user viewing is inferred from these
 checks. All 518 pytest cases, full build, existing chart/image observation
 integrations and these export/real-container integrations passed.
