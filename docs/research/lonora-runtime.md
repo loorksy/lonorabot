@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora's own agent: runtime audit
 
 Study C of the owner's brief (`docs/research/OWNER_BRIEF.md` on branch `research/agent-harness`): Lonora itself, with the dissection of the production conversation of 2026-11-10 and 2026-11-11. Code citations are `path:line` at `main` `9f5b1da`. No code, test or prompt was changed for this study.

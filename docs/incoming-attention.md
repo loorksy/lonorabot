@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Incoming attention and voice continuity
 
 The existing attention ledger and VoiceSessionRow now represent an opt-in incoming

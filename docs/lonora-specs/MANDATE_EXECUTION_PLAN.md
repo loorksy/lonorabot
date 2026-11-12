@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora mandate execution plan
 
 Status: in progress. Started 2026-11-07. Wave 1 is implemented and integrated on the working branch (see [Wave 1 status](#wave-1-status)); Wave 1.5 is implemented and its acceptance journeys pass locally (see [Wave 1.5 acceptance](#wave-15-acceptance-w15-acc)); waves 2–4 are not started.

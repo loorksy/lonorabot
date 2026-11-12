@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Implementation matrix
 
 ## LLM-owned judgment and harness delta — 2026-10-24

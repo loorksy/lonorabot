@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Native visual responses
 
 Current repair and acceptance status: [chat runtime repair](chat-runtime-repair.md).

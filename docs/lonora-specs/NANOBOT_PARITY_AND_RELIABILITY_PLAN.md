@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora Professional Trading Agent Environment Build Plan
 
 Status: implementation in progress on `feat/trading-agent-environment` from `80b0ff9`. The first context-admission capability has local verification; this does not establish completion of Wave 0/1 or the program. Build and acceptance requirements updated: 2026-10-18. See BUILD_CAPABILITY_CARDS.md, IMPLEMENTATION_MATRIX.md, and PROGRESS.md for evidence and remaining work.

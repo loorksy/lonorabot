@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # LLM-owned trading: source review and integration
 
 ## Continuous-work implementation after the structural audit

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Generative-UI decision evaluation
 
 Measures whether Lonora picks the right answer shape for an owner message: text only

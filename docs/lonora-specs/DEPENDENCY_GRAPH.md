@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Capability dependency graph
 
 Continuous-work integration (2026-10-24): existing Task identity and signed

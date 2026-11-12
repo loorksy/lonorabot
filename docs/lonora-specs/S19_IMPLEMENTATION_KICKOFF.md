@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # S19 implementation kickoff
 
 Audited HEAD: `21293ad`; branch: `feat/agent-operating-environment`.

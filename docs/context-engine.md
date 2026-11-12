@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Context engine
 
 How a Run's model request is sized, compacted and labelled. The model decides

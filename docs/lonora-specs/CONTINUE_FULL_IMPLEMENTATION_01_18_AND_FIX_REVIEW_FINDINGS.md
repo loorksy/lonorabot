@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 TITLE:
 Lonora — Fix Review Findings First, Then Continue Until Specifications 01–18 Are Fully Implemented and Verified
 

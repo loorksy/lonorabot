@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Demo broker verification
 
 Use a MetaApi **demo** account. These checks submit real broker orders: run them

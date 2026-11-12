@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Supervision: Lonora sees everything, peers stay private
 
 Corrections 1, 3 and 15 (`docs/lonora-specs/MANDATE_CORRECTIONS.md`) and `VISION.md`:

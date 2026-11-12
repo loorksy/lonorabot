@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 CODEX MASTER ENGINEERING MANDATE
 
 Lonora — Agent-First Architectural Simplification, Autonomous Trading & Native Live Voice

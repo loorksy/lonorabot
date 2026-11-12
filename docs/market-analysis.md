@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Market analysis evidence tools
 
 Mandate section 5 leaves market interpretation to the model. These tools give it

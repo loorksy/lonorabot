@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Public web research
 
 Lonora exposes three complementary public-web operations through the existing

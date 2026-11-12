@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 TITLE:
 Build Lonora Unified Long-Running Task Runtime with Contextual Steering, Live Status Inspection, Interruption, and Resume
 

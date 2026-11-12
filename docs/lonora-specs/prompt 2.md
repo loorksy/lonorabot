@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 CODEX MASTER ENGINEERING MANDATE
 
 Lonora — Model-Native Generative UI, Autonomous Visual Responses & Unified Design Intelligence

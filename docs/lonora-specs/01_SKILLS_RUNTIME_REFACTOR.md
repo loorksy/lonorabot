@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 TITLE:
 Refactor Lonora Skills Runtime into a Production-Grade Skill System
 

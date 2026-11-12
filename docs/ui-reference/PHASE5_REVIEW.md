@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # UI phase 5 — eye-review sheet
 
 Settings, onboarding and usage against `Lonora-Desktop-37.html`, run with

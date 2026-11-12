@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # خطة نقل واجهة Lonora إلى Tampletgrok
 
 تستبدل هذه الخطة هيكل واجهة Web الحالي بواجهة مستمدة فعليًا من `loorksy/Tampletgrok`، وتربطها بواجهات Lonora الحقيقية في Python. المرجع هو القالب عند المراجعة `20fc9ac862bb833d1578968a7aba5ea18ff88a29` وتقرير الواجهة المرفق `Tampletgrok-UX-Report-EN.md`. تبقى رؤية Lonora وواجهات الخادم مرجعًا لسلوك الميزات.

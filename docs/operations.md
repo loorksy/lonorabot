@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Running Lonora in production
 
 ## ملخص بالعربية

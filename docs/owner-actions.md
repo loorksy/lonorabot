@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Owner action cards
 
 Wave 1.5 slices W15-2 and W15-3. Every owner-only action has a one-tap card inside the

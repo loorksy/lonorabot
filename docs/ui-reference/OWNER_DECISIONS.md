@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Reference UI — owner decisions
 
 Recorded 2026-11-09 from the owner's answers to the questions in `CAPABILITY_MAP.md` (OQ numbering there maps to Q numbering here as noted). These decisions are binding for phases 2–6. Where the owner wrote "approve", the map's recommendation is adopted as written there.

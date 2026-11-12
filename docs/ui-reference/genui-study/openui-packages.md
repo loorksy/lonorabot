@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # OpenUI packages: what Lonora can reuse as a dependency
 
 Read-only study, 2026-11-09. Nothing was installed into any repo and no package script was run.

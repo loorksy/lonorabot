@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Conversational setup and mobile reliability repair
 
 The audited production conversation failed before device authentication: nested Goal watch validation returned only a generic tool_arguments_invalid code. No Goal or Super Bot request had been persisted. The normal ToolLoop now returns bounded machine field paths/types/stable validator codes, excluding submitted values and validator contexts. The constitution and Goal skill tell the same Agent to repair its own schema in the same turn, use actual returned IDs and offer supervised review by default; missing business intent is still asked for, and no price or financial authority is invented.

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Agent memory, history recall and skill provenance
 
 Mandate §9 requires every Agent to have independent memory and experience, to

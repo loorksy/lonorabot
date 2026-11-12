@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Reference generative UI (Lonora-Desktop-37.html): full extraction
 
 Source: `/home/user/lonorabot/docs/ui-reference/Lonora-Desktop-37.html` (9612 lines). All line numbers below are from this file

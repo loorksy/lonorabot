@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Decision readiness
 
 `market_decision_record` extends the existing market tools, deterministic

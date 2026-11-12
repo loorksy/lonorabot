@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Gateway reliability
 
 How the always-on gateway keeps working when one of its parts fails, how it notices

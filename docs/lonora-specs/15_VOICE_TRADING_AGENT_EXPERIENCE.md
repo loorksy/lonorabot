@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 PROJECT: Lonora (`loorksy/lonorabot`)
 
 IMPORTANT:

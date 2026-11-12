@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Global Model Context Budgeting
 
 The existing GlobalModelRouter admits each actual provider attempt separately. This includes normal Agent turns and background compaction. Configuration is global, never per Agent, Routine, or Skill.

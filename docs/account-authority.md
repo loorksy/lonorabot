@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Account management through one existing execution boundary
 
 An owner may sign one immutable account delegation without first authoring a

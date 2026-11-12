@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora generative UI today (read-only survey, checkout /home/user/lonorabot @ 3737fc5, main)
 
 Scope: what exists now, how it flows, what it may trigger, and where it differs from the reference

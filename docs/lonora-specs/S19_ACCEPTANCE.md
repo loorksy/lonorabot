@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # S19 local acceptance and release boundary
 
 Branch: `feat/agent-operating-environment`; base `21293ad`.

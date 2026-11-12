@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 TITLE:
 Build Lonora Super Bot Market Intelligence, Dynamic Watch Engine, and Autonomous Trading Goal Runtime
 

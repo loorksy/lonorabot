@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Rakazo: its philosophy, its engineering, and what Lonora takes from it
 
 Study B of the agent-harness research (`docs/research/OWNER_BRIEF.md`, section 5). Written for the lead who merges this with the nanobot and Lonora-runtime studies.

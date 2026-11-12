@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # ADR 0001: Evolve the existing Lonora agent runtime
 
 - Status: Accepted as the implementation direction; individual capabilities remain subject to verification.

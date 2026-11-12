@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Agent acceptance evaluation
 
 Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks

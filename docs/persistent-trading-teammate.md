@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Persistent trading teammate implementation
 
 ## Reference provenance

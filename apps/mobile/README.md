@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora mobile
 
 An Expo Router interface to the Lonora Python server. Native toolbar, title capsules, composer, member picker, settings groups and message/file cards follow the actual template source. Shared avatar geometry is used across Web and mobile; see `NOTICE` for source revisions and licensing. It uses the real Lonora API and never starts a separate agent runtime.

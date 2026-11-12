@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Trading Agent Environment Capability Cards
 
 Baseline: `80b0ff9`. Integration branch: `feat/trading-agent-environment`. The approved plan is [Professional Trading Agent Environment](NANOBOT_PARITY_AND_RELIABILITY_PLAN.md). Existing source specifications remain authoritative.

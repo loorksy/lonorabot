@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # بنية واجهة Lonora
 
 تُنظم واجهة Lonora على حدود ملفات Tampletgrok: صفحات مساحة العمل، ملفات `pages/shell`، مكونات عرض عمل الوكلاء، مكونات المكالمات، تطبيق Expo Router، وحزم TypeScript مشتركة. المرجع المثبت هو `loorksy/Tampletgrok` عند `20fc9ac862bb833d1578968a7aba5ea18ff88a29`.

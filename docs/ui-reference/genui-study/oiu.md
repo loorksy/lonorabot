@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Open Intelligent UI (OIU): how it works
 
 Read-only study notes. Source: `thesysdev/open-intelligent-ui`, MIT, clone HEAD

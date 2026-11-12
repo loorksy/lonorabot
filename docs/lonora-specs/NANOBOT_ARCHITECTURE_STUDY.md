@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Nanobot source study for Lonora specification 19
 
 Study date: 2026-10-16. Reference: [HKUDS/nanobot](https://github.com/HKUDS/nanobot), pinned at **`faf1efaf09d2d69d1887b6ac6b0c6441e3ccccb2`**. Lonora baseline: **`21293ad606b6c97d247079bd91ab6f3f625861c7`**, branch `feat/agent-operating-environment`. Comparisons below describe that baseline; implementation acceptance remains in `IMPLEMENTATION_MATRIX.md`.

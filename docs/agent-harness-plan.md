@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Agent harness plan
 
 Phase 2 of the owner's brief of 2026-11-11 (`docs/research/OWNER_BRIEF.md`): what Lonora must gain to

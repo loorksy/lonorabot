@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 CODEX IMPLEMENTATION MANDATE
 
 Lonorabot — Unified Agent Delegation & Permission Experience

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Chat runtime repair: implementation and evidence
 
 This report covers the [prompt3 mandate](lonora-specs/prompt3.md), against baseline

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Unified Agent Permissions — implementation and verification
 
 Mandate: [prompt4.md](lonora-specs/prompt4.md). Implementation branch:

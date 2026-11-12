@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora implementation specifications
 
 Latest product clarification: [Simple autonomous trading teammate — all 27 owner requirements](AUTONOMOUS_TRADING_PRODUCT_REQUIREMENTS.md). Extends the existing mandate with one-time explicit account authority, discretionary sizing and management, multi-position goals, chart reasoning and peer collaboration. The mapping is an acceptance target, not a completion claim.

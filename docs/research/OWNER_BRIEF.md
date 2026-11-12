@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Owner brief: make Lonora a complete agent
 
 The owner's task text of 2026-11-11, verbatim (Arabic). It is the binding source for the agent

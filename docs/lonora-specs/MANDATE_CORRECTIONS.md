@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Corrections to the master mandate
 
 Status: authoritative amendment, 2026-11-08.

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Capabilities you can see: trusted sources, MCP in one tap, feeds and credentials
 
 Wave 1.5 slice W15-8 (corrections 21 and 22, owner decision D3). Agents add and use

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Provider resilience and model flexibility
 
 How a model request survives provider failures, and how an Agent's work

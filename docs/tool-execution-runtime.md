@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Tool execution runtime
 
 `lonora_agent.tool_loop` drives every Run: it executes the assistant's tool

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Progress
 
 ## Strategy backtesting removed — 2026-11-07

@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Reusable procedures from the owned analytical workspace
 
 The ordinary Agent may write a bounded analytical procedure with the existing

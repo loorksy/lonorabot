@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Lonora generative UI: Open Intelligent UI behaviour, the reference's look
 
 Status: plan from a read-only study, 2026-11-09. Checkout: `/home/user/lonorabot`, main @ 3737fc5 (phase 1 only) when the plan was written; the owner merged the phase-2 shell (PR #33) into main as 80e195f the same evening. Nothing in the repository was changed or executed. Revised the same day after a verified review; accepted and rejected findings are in §15 (Review log). Revised again for the owner's five suggestions, checked against main @ 80e195f; the verdicts are in §15 («Owner suggestions, 2026-11-09»), and the file:line references added for them are at 80e195f. Checked once more the same evening for six findings on that revision (P1-P6, all against 80e195f); the verdicts are in §15 («Check findings on the owner-suggestion revision»).

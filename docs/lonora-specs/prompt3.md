@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 CODEX ENGINEERING MANDATE
 
 Lonora — Complete Chat Runtime Repair, Streaming UX, Agent State Visibility, and Open Intelligent UI Integration

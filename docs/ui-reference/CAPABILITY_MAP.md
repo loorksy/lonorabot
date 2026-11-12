@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Capability map: Lonora-Desktop-37 reference UI against the backend at `ab16645`
 
 ## Summary

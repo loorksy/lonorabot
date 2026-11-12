@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Signed device authorization
 
 Super Bot is a capability of the existing Agent and TradingGoal, not another runtime. The normal `super_bot_propose` tool creates a durable pending request. It never grants authority. The chat card reviews the exact account, broker symbol, plan steps, execution mode, volume/action ceilings and manual-position permission. The owner registers a passkey after account-password reauthentication, then signs a fresh activation challenge using the platform's WebAuthn user verification. Lonora stores public credential material, never a device PIN, biometric or private key.

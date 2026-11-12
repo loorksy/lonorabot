@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Simple autonomous trading teammate
 
 Owner clarification, 2026-10-23. This supplements [prompt 1.md](<prompt 1.md>)

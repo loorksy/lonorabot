@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # nanobot: how its agent loop, runtime and harness work, and what Lonora should take
 
 Research session A of `docs/research/OWNER_BRIEF.md` (phase 1). Read together with `rakazo.md` and `lonora-runtime.md`.
