@@ -196,32 +196,17 @@ async def main():
             name="trade_close_positions",
             arguments={"account_id": connection_id, "symbol": symbol},
         )
-        wait = await registry.execute(bulk, context)
-        frozen = next(
-            a
-            for a in cast(
-                list[dict[str, Any]],
-                await fixture.request("GET", f"/trading/approvals?thread_id={thread['id']}"),
-            )
-            if a["id"] == wait["approval_id"]
-        )
-        assert len(frozen["requests"]) == 2
-        await fixture.request(
-            "POST", f"/trading/approvals/{wait['approval_id']}/decision", {"decision": "approve"}
-        )
-        new_ticket = await operation("buy", volume="0.4")
+        # Both positions are the agent's own: in Ask a close-all reduces risk and executes
+        # without a card, on the exact ticket set it read; a replay never adds a later one.
         result = await registry.execute(bulk, context)
-        assert all(item["status"] == "confirmed" for item in result["results"]) and [
-            p.id for p in await broker.positions()
-        ] == [new_ticket["broker_id"]]
+        assert "approval_id" not in result, result
+        assert len(result["results"]) == 2
+        assert all(item["status"] == "confirmed" for item in result["results"])
+        new_ticket = await operation("buy", volume="0.4")
+        assert (await registry.execute(bulk, context))["results"] == result["results"]
+        assert [p.id for p in await broker.positions()] == [new_ticket["broker_id"]]
         all_call = ToolCall(
             id=uuid4().hex, name="trade_close_positions", arguments={"account_id": connection_id}
-        )
-        all_wait = await registry.execute(all_call, context)
-        await fixture.request(
-            "POST",
-            f"/trading/approvals/{all_wait['approval_id']}/decision",
-            {"decision": "approve"},
         )
         assert all(
             item["status"] == "confirmed"
@@ -238,7 +223,10 @@ async def main():
                     select(TradeApprovalRow).where(TradeApprovalRow.thread_id == thread["id"])
                 )
             )
-            assert len(rows) >= 15 and all(r.status in {"completed", "rejected"} for r in rows)
+            # Cards for every request that adds risk or touches the owner's own ticket:
+            # 2 entries, 2 manual closes, 4 pending orders, 4 order changes, 1 rejected.
+            # The agent's own stop tightening, cancels and closes executed without one.
+            assert len(rows) >= 13 and all(r.status in {"completed", "rejected"} for r in rows)
         print("PASS durable approvals and real broker receipts survive service reads")
 
         class FinancialRouter(ScriptedRouter):
