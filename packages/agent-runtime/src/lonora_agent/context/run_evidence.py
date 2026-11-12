@@ -40,6 +40,11 @@ SKIPPED_TOOLS = frozenset(
         "runtime_status",
         "memory_read",
         "memory_write",
+        "method_history",
+        "method_restore",
+        "skill_save",
+        "skill_history",
+        "skill_restore",
         "owner_preferences_update",
         "scratchpad_write",
         # A quick reaction is a gesture in the conversation, not an observation.
@@ -55,6 +60,10 @@ EXTERNAL_TOOLS = frozenset(
         "workspace_read",
         "workspace_inspect",
         "workspace_execute",
+        # The owner's workspace: program output, process command lines, file contents.
+        "workspace_run",
+        "workspace_processes",
+        "workspace_file_read",
         "skill_repository_inspect",
         "search_internal",
         "session_search",

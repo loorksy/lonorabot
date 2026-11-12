@@ -86,7 +86,10 @@ async def index_note(
     replaces: str | None = None,
 ) -> dict[str, Any]:
     """Index one note; ``replaces`` (the owner's edit) removes that note of the same agent in
-    the same transaction, so an edit never leaves both notes or neither."""
+    the same transaction, so an edit never leaves both notes or neither.
+
+    With no embedding model configured the note is saved without a vector: recall finds it by
+    its words, and embeddings only re-rank (mandate 13.1: no hidden switch)."""
     if not text.strip():
         raise LonoraError("memory_note_required")
     if len(text) > 24000:
@@ -94,11 +97,9 @@ async def index_note(
     async with db.sessions() as session:
         await owned_agent(session, owner_id, agent_id)
         config = await SettingsRepository().get(session, "semantic_memory")
-    if not config.get("enabled") or not config.get("model"):
-        raise LonoraError("semantic_model_required", 409)
-    model = str(config["model"])
-    vector = await embed_text(credentials, model, text)
-    document_id = stable_id(agent_id, model + ":" + text)
+    model = str(config["model"]) if config.get("enabled") and config.get("model") else None
+    vector = await embed_text(credentials, model, text) if model else []
+    document_id = stable_id(agent_id, (model or "") + ":" + text)
     async with db.sessions() as session, session.begin():
         await owned_agent(session, owner_id, agent_id)
         row = await session.get(SemanticMemoryRow, document_id, with_for_update=True)

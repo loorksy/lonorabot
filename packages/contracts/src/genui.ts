@@ -1,4 +1,4 @@
-/** lonora-ui v2 cards as stored and streamed (GENUI_PLAN §2.2, §9.1). Compiled by the server;
+/** lonora-ui v2 cards as stored and streamed (docs/genui.md). Compiled by the server;
  * clients validate fail-closed with `packages/core/src/genui/spec.ts`. */
 export type UiKind =
   | "calculator"

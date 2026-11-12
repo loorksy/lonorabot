@@ -5,6 +5,7 @@ from lonora_auth.sessions import issue_session, revoke
 from lonora_contracts.auth import LoginRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.owner import get_owner
+from lonora_db.push_devices import remove_session_devices
 from lonora_db.schema import OwnerRow
 
 from ..middleware.auth import require_owner, runtime
@@ -71,6 +72,8 @@ async def logout(
 ) -> dict[str, bool]:
     async with runtime(request).db.sessions() as session, session.begin():
         await revoke(session, owner)
+        # Signing out ends push to the phone this session registered (VISION 11.4).
+        await remove_session_devices(session, owner.token_hash)
     response.delete_cookie("lonora_session")
     response.delete_cookie("lonora_csrf")
     return {"logged_out": True}

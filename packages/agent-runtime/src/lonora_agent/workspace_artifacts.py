@@ -11,12 +11,13 @@ from lonora_core.user_error import LonoraError
 from lonora_db.schema import AnalyticalWorkspaceRow, ArtifactRow
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from lonora_security.secrets import SecretScan
 from lonora_session.idempotency import request_hash
 from lonora_tools.artifacts import raster_dimensions, store_artifact
 from lonora_tools.context import ToolContext
 
 from .workspace import MAX_FILE_BYTES, encode_snapshot, read_snapshot
-from .workspace_access import scoped_run
+from .workspace_access import output_scan, scoped_run
 
 TEXT_TYPES = {
     ".txt": "text/plain",
@@ -48,6 +49,20 @@ def export_media(path: str, content: bytes) -> str:
             raise LonoraError("workspace_export_format_invalid", 422) from None
         return TEXT_TYPES[suffix]
     raise LonoraError("workspace_export_format_unsupported", 422)
+
+
+def scanned_export(scan: SecretScan, media: str, content: bytes) -> bytes:
+    if media not in TEXT_TYPES.values():
+        if scan.found(content):
+            raise LonoraError("workspace_export_contains_secret", 422)
+        return content
+    text = scan.text(content.decode("utf-8"))
+    if media == "application/json":
+        try:
+            json.loads(text)
+        except ValueError:
+            raise LonoraError("workspace_export_contains_secret", 422) from None
+    return text.encode("utf-8")
 
 
 def verify_export(path: Path, payload: dict[str, Any]) -> None:
@@ -117,6 +132,11 @@ async def export_file(
             await scoped_run(session, context, mutate=True)
         return original
     media = await asyncio.to_thread(export_media, path, content)
+    # Exported bytes reach the chat: text is scanned like any workspace output; an image,
+    # or JSON that a replaced secret would no longer parse as, is not exported.
+    scan = await output_scan(context)
+    source_sha256 = hashlib.sha256(content).hexdigest()
+    content = await asyncio.to_thread(scanned_export, scan, media, content)
     return await store_artifact(
         context,
         destination,
@@ -127,7 +147,7 @@ async def export_file(
             "workspace_source": {
                 "path": path,
                 "revision": revision,
-                "sha256": hashlib.sha256(content).hexdigest(),
+                "sha256": source_sha256,
             },
         },
     )

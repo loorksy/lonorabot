@@ -24,7 +24,16 @@ async def readiness(request: Request) -> dict[str, object] | JSONResponse:
     """503 unless a gateway's heartbeat is fresh and none of its critical steps stalled."""
     await health(request)
     gateway = await gateway_health(runtime(request).db)
-    body: dict[str, object] = {"database": True, "gateway": gateway}
+    from lonora_db.push_devices import push_configured
+
+    async with runtime(request).db.sessions() as session:
+        push = await push_configured(session)
+    # Push never fails readiness: without a registered phone it reports "not configured".
+    body: dict[str, object] = {
+        "database": True,
+        "gateway": gateway,
+        "push": "configured" if push else "not_configured",
+    }
     if not gateway["ready"]:
         return JSONResponse(body, status_code=503)
     return body
