@@ -211,6 +211,8 @@ async def execute_run(
                                 origin.next_seq += 1
                                 session.add(asked)
                                 await session.flush()
+                                # The owner sees the question there, with what it shows.
+                                link_generated_artifacts(asked, artifacts)
                         if question:
                             history = [
                                 {**item, "status": "cancelled"}
@@ -224,6 +226,8 @@ async def execute_run(
                                     "run_id": row.id,
                                     "message_id": asked.id,
                                     "thread_id": asked.thread_id,
+                                    # The question in the run's own thread, its memory.
+                                    "source_message_id": message.id,
                                     "status": "pending",
                                     "selected_choice_id": None,
                                     "answer_message_id": None,

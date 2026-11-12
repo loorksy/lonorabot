@@ -164,6 +164,7 @@ async def history_context(
     question_ids = {row.id for row in rows if row.role == "assistant"}
     answer_ids = {row.id for row in rows if row.role == "user"}
     options: dict[str, str] = {}
+    remote_answers: dict[str, str] = {}
     if question_ids:
         # A background run's question copied here is read like this thread's own; the
         # answer the owner gave it is marked as already sent to that work.
@@ -188,7 +189,19 @@ async def history_context(
                 answered = item.get("answer_message_id")
                 if asker_thread != thread_id and answered in answer_ids:
                     options.setdefault(str(answered), ROUTED_ANSWER_NOTE)
-                message_id = item.get("message_id")
+                # A background run's own question is in its thread (``source_message_id``);
+                # the request names the copy in the conversation it reports to.
+                message_id = (
+                    item.get("source_message_id") or item.get("message_id")
+                    if asker_thread == thread_id
+                    else item.get("message_id")
+                )
+                if (
+                    asker_thread == thread_id
+                    and item.get("source_message_id") in question_ids
+                    and isinstance(answered, str)
+                ):
+                    remote_answers[str(item["source_message_id"])] = answered
                 if (
                     not isinstance(message_id, str)
                     or message_id not in question_ids
@@ -209,6 +222,24 @@ async def history_context(
                         ensure_ascii=False,
                     ).replace("<", "\\u003c")
                     options[message_id] = "\n<question_choices>" + payload + "</question_choices>"
+    if remote_answers:
+        # The owner answered this run's question in the conversation it reports to: the
+        # work thread, its memory, keeps what the owner said.
+        answers = {
+            row.id: row
+            for row in await session.scalars(
+                select(MessageRow).where(MessageRow.id.in_(list(remote_answers.values())))
+            )
+        }
+        for question_id, answer_id in remote_answers.items():
+            answer = answers.get(answer_id)
+            if answer is not None and answer.role == "user":
+                options[question_id] = (
+                    options.get(question_id, "")
+                    + "\n[The owner answered in the conversation: "
+                    + model_content(answer.content, answer.rich_content)[:2000]
+                    + "]"
+                )
     names = {
         agent.id: agent.name
         for agent in (

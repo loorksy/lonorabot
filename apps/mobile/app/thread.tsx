@@ -667,7 +667,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         if (accepted.runs?.length)
           setRuns((old) => {
             const projected = new Map(old.map((run) => [run.id, run]));
-            for (const run of accepted.runs ?? []) {
+            // A background run the message answered works in its own thread: it is
+            // never one of this conversation's runs.
+            for (const run of (accepted.runs ?? []).filter((row) => row.thread_id === targetId)) {
               const prior = projected.get(run.id);
               if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
                 projected.set(run.id, run);

@@ -300,3 +300,117 @@ async def test_a_question_from_a_run_that_reports_nowhere_else_stays_in_its_own_
         assert [m["content"] for m in chat] == [QUESTION]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_message_after_the_question_stops_the_next_message_answering_it():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MessageRow, RunRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Background stale question")
+        conversation = await fixture.conversation(agent)
+        run = await background_run(fixture, agent, conversation)
+        await ask(fixture, run)
+        # The agent said something after the question (another wake's result, a reply):
+        # the owner's next message answers that, not the older question.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, conversation["id"], with_for_update=True)
+            assert thread is not None
+            session.add(
+                MessageRow(
+                    thread_id=thread.id,
+                    agent_id=agent["id"],
+                    seq=thread.next_seq,
+                    role="assistant",
+                    content="EURUSD down 20 pips since London open.",
+                )
+            )
+            thread.next_seq += 1
+        status, body = await send(fixture, conversation["id"], "أغلقها")
+        assert status < 300 and body["run_ids"] and body["run_ids"] != [run["id"]]
+        # A live voice transcript answers only by reply, never as the next message.
+        second = await background_run(fixture, agent, conversation)
+        await ask(fixture, second, "هل أضيف إلى الصفقة؟")
+        await fixture.request("POST", "/runs/" + body["run_ids"][0] + "/cancel", {})
+        response = await fixture.client.post(
+            f"/api/threads/{conversation['id']}/messages",
+            json={"content": "نعم", "client_nonce": "voice:" + uuid4().hex},
+        )
+        assert response.is_success and response.json()["run_ids"] != [second["id"]]
+        async with fixture.runtime.db.sessions() as session:
+            waiting = await session.get(RunRow, second["id"])
+            assert waiting is not None and waiting.status == "waiting_input"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_routed_answer_is_kept_in_the_work_thread_and_lends_no_owner_words_elsewhere():
+    database()
+    from check_streaming import Fixture
+    from lonora_agent.context.history import history_context
+    from lonora_db.owner_words import owner_typed_message
+    from lonora_db.schema import RunRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Background memory")
+        conversation = await fixture.conversation(agent)
+        run = await background_run(fixture, agent, conversation)
+        await ask(fixture, run)
+        status, body = await send(fixture, conversation["id"], "أبقِها حتى 2,450 ولا تسألني")
+        assert body["run_ids"] == [run["id"]]
+        await resume(fixture, run, "أبقيتها؛ سأغلق عند 2,450.")
+        # A later run of the routine reads its own question, its choices and the answer.
+        async with fixture.runtime.db.sessions() as session:
+            memory = await history_context(session, run["thread_id"], 10_000, agent_id=agent["id"])
+        text = "\n".join(str(message.content) for message in memory)
+        assert "question_choices" in text
+        assert "The owner answered in the conversation: أبقِها حتى 2,450 ولا تسألني" in text
+        # A conversation run started after that answer never takes it as its owner words.
+        later = await fixture.run(agent, conversation)
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RunRow, later["id"])
+            assert row is not None
+            typed = await owner_typed_message(session, row)
+            assert typed is None or typed.id != body["message"]["id"]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_deleting_the_conversation_returns_its_background_questions_to_their_thread():
+    database()
+    from check_streaming import Fixture
+    from sqlalchemy import text
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Background orphan")
+        conversation = await fixture.conversation(agent)
+        run = await background_run(fixture, agent, conversation)
+        question = (await ask(fixture, run))["input_request"]
+        await fixture.request("DELETE", "/threads/" + conversation["id"])
+        current = (await fixture.request("GET", "/runs/" + run["id"]))["input_request"]
+        assert current["thread_id"] == run["thread_id"]
+        work = await thread_messages(fixture, run["thread_id"])
+        assert current["message_id"] == work[0]["id"] != question["message_id"]
+        # The owner can still answer it where it now is.
+        status, body = await send(
+            fixture,
+            run["thread_id"],
+            "أبقِها",
+            input_answer={"run_id": run["id"], "question_id": current["id"], "choice_id": "hold"},
+            reply_to=current["message_id"],
+        )
+        assert status < 300 and body["run_ids"] == [run["id"]]
+        # The conversation lookup that background questions use is indexed.
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.scalar(
+                text("SELECT 1 FROM pg_indexes WHERE indexname = 'ln_run_origin_thread'")
+            )
+    finally:
+        await fixture.close()

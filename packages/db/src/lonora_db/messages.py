@@ -246,8 +246,9 @@ async def asking_run(
 
     A reply to the question answers it whenever it is sent. Otherwise only the owner's next
     message answers it, and only when nothing in this conversation would take that message
-    (``idle``): the newest such question, if the owner has not written, or cleared the
-    conversation, since it was asked. A run being changed at that moment is passed over.
+    (``idle``) and the question is the last message there (nobody wrote after it, and the
+    owner has not cleared the conversation). A live voice transcript answers only by reply.
+    A run being changed at that moment is passed over.
     """
     from .thread_prefs import hidden_floor
     from .threads import asks_in
@@ -281,21 +282,28 @@ async def asking_run(
         question = await session.get(MessageRow, item.get("message_id"))
         if question is not None and question.seq < message.seq:
             asked.append((question.seq, run))
-    if not idle or reply is not None or message.edited_from or not asked:
+    if (
+        not idle
+        or reply is not None
+        or message.edited_from
+        # A live voice session revises its transcript; its words answer only by reply.
+        or (message.client_nonce or "").startswith("voice:")
+        or not asked
+    ):
         return None
     newest, run = max(asked, key=lambda pair: pair[0])
-    spoken = await session.scalar(
+    # The next message answers the question only when the question is the last thing in
+    # the conversation: anything said after it (the owner's or an agent's) is what the
+    # owner is answering instead.
+    last = await session.scalar(
         select(MessageRow.seq)
-        .where(
-            MessageRow.thread_id == thread.id,
-            MessageRow.role == "user",
-            MessageRow.seq < message.seq,
-        )
+        .where(MessageRow.thread_id == thread.id, MessageRow.seq < message.seq)
         .order_by(MessageRow.seq.desc())
         .limit(1)
     )
-    floor = max(spoken or 0, await hidden_floor(session, owner_id, thread.id))
-    return run if newest > floor else None
+    if newest != last or newest <= await hidden_floor(session, owner_id, thread.id):
+        return None
+    return run
 
 
 async def send_message(

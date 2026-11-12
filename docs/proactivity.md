@@ -30,15 +30,18 @@ conversation, never in a chat of its own.
   (`report_thread`); the stored request names the copy and its thread, so the question
   card shows under the copy (`threadQuestions` in `packages/core`). The owner answers it
   there: by tapping a choice, by replying to the question, or with the next message when
-  nothing in that conversation is taking messages and the owner has not written there
-  since the question was asked (`asking_run` in `lonora_db/messages.py`). The answer
+  nothing in that conversation is taking messages and the question is still the last
+  message there (`asking_run` in `lonora_db/messages.py`); a live voice transcript answers
+  only by reply. The answer
   resumes the same run from its checkpoint in its work thread; the run reads it as the
   owner's message and gains no authority from it, and its result is copied back as
   above. A later turn in the conversation sees the question with its choices and a note
   that the answer went to the background work; an answer that went there cannot be
   edited and resent. Card sends, @mentions and collaboration messages never answer a
-  background question. A question from a run that reports nowhere else stays in its own
-  thread.
+  background question, and the answer never stands for the owner's words of another run
+  in that conversation. The work thread keeps the owner's answer next to the question, so
+  the routine's later runs read it. A question from a run that reports nowhere else stays
+  in its own thread, and a question whose conversation is deleted goes back to it.
 - **History.** A routine's run history (`GET /routines/{id}/history`) lists its runs by
   routine, so it survives a move to a new work thread. On mobile, a history entry, like a
   row of the Tasks tab, opens where the owner reads that run: while it waits for the
