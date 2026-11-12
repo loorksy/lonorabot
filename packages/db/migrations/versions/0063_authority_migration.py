@@ -16,8 +16,9 @@
    grant into authority after this step). Each revocation is the live one:
    ``account_authority.updated`` with reason ``mandate_migration``, the grant's
    account-management Task stopped (a failed Task becomes cancelled, a Task the owner
-   asked to complete becomes completed) with its own watches settled, its Run and any
-   activation review of the grant cancelled, and pending grant cards superseded.
+   asked to complete becomes completed) with its own watches settled, its waiting Run
+   and any waiting activation review of the grant cancelled, and pending grant cards
+   superseded.
 4. Delegated, child and supervisor agents become ordinary team agents: no parent, role
    ``general``, flexible, no binding, template ``supervisor`` becomes ``general``. A bound
    account and symbol become one line of the agent's method (its OPERATING.md), with a
@@ -25,7 +26,8 @@
    any agent other than Lonora are revoked; Lonora's stay until the role check replaces
    them.
 5. Pending Trade Approval rows keep their stored expiry: nothing is written.
-6. Active and scheduled restrictions end (goals already ended in 0068). A pause a
+6. Active and scheduled restrictions end, each with the live ``trading.restriction_revoked``
+   event (goals already ended in 0068). A pause a
    supervisor set on its own ends and the work resumes. A pause the owner holds or asked
    for (``owner_message``, which becomes ``owner``) stays, and so does a pause Lonora made
    (4.7.2). A supervisor's pause on a paused Task needs the Task's Run state machine:
@@ -39,7 +41,9 @@ The stored trading control is not read or written (item 8 is void).
 The downgrade restores nothing and never raises: grants stay revoked, Tasks and Runs
 stay ended, levels stay "Ask me", cards stay (the owner may have tapped them), flattened
 agents and their method lines stay, supervision grants and restrictions stay revoked,
-released pauses stay released. A second upgrade adds nothing.
+released pauses stay released. A second upgrade, after a downgrade, applies the items
+again to the data it then finds (an agent in Full goes back to Ask); it shows no Mandate
+card twice.
 """
 
 import json
@@ -189,9 +193,12 @@ class Migration:
     def settle_cards(
         self, where: str, reason: str, superseded_by: str | None = None, **parameters: Any
     ) -> None:
-        """Pending cards end as superseded, with their event (lonora_db.owner_actions.settle)."""
+        """Pending cards end as superseded, or as expired past their expiry, with their
+        event (lonora_db.owner_actions.settle, supersede_subject)."""
         for card in self.rows(
-            "UPDATE ln_owner_actions SET status = 'superseded', status_reason = :reason,"
+            "UPDATE ln_owner_actions SET status = CASE WHEN expires_at <= :now THEN 'expired'"
+            " ELSE 'superseded' END, status_reason = CASE WHEN expires_at <= :now"
+            " THEN 'expired' ELSE :reason END,"
             " superseded_by = COALESCE(:by, superseded_by), updated_at = :now"
             " WHERE status = 'pending' AND " + where + " RETURNING id, owner_id, agent_id,"
             " thread_id, run_id, kind, status, status_reason",
@@ -205,8 +212,14 @@ class Migration:
     # -- locks ---------------------------------------------------------------------------
 
     def lock(self) -> None:
-        """The locks a live process takes (authority_lock, lock_owner_actions), so a
-        database migrated while the previous release still runs never interleaves."""
+        """The locks a live process takes, in the order a card decision takes them
+        (lock_owner_actions, then authority_lock), so a database migrated while the
+        previous release still runs never interleaves with a tap or a send."""
+        for (owner_id,) in self.rows("SELECT id FROM ln_owners ORDER BY id"):
+            self.run(
+                "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))",
+                key="owner-actions:" + owner_id,
+            )
         for (agent_id,) in self.rows(
             "SELECT id FROM ln_agents UNION SELECT agent_id FROM ln_account_authorities"
             " WHERE status IN ('pending','active') ORDER BY 1"
@@ -214,11 +227,6 @@ class Migration:
             self.run(
                 "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))",
                 key="super-bot:" + agent_id,
-            )
-        for (owner_id,) in self.rows("SELECT id FROM ln_owners ORDER BY id"):
-            self.run(
-                "SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))",
-                key="owner-actions:" + owner_id,
             )
 
     # -- item 6 guard --------------------------------------------------------------------
@@ -372,6 +380,7 @@ class Migration:
                 {
                     "account_id": grant.account_id,
                     "full_delegation": full_delegation(payload_of(grant.envelope)),
+                    "symbol_scope": payload_of(grant.envelope).get("symbol_scope"),
                     "symbols": list(payload_of(grant.envelope).get("symbols") or [])
                     if payload_of(grant.envelope).get("symbol_scope") == "selected"
                     else [],
@@ -455,11 +464,13 @@ class Migration:
             )
             self.stop_management_task(grant)
         if revoked_ids:
-            # The grant's management Run and its activation review end with it.
+            # The grant's waiting management Run and activation review end with it, as
+            # the owner's cancel of a Task ends its Run (lonora_db.tasks.control_task);
+            # a Run a worker holds reads the stopped Task at its next checkpoint.
             self.run(
                 "UPDATE ln_runs SET status = 'cancelled', error_code = :reason,"
                 " lease_owner = NULL, lease_expires_at = NULL, updated_at = :now"
-                " WHERE status NOT IN ('completed','failed','cancelled') AND ("
+                " WHERE status IN ('queued','waiting_input','waiting_takeover') AND ("
                 " CAST(model_metadata AS JSONB) ->> 'account_management_id' = ANY(:ids)"
                 " OR (trigger = 'activation'"
                 " AND CAST(model_metadata AS JSONB) ->> 'account_authority_id' = ANY(:ids)))",
@@ -611,12 +622,27 @@ class Migration:
                 now=self.now,
             )
         # A team agent supervises no one; Lonora's grants stay until the role check.
-        self.run(
+        for grant in self.rows(
             "UPDATE ln_supervision_grants g SET revoked_at = :now WHERE g.revoked_at IS NULL"
             " AND NOT EXISTS (SELECT 1 FROM ln_agents p WHERE p.id = g.supervisor_agent_id"
-            " AND p.role = 'personal')",
+            " AND p.role = 'personal') RETURNING id, owner_id, supervisor_agent_id,"
+            " supervised_agent_id, created_via, revoked_via",
             now=self.now,
-        )
+        ):
+            # Frozen _grant_events: recorded for both agents.
+            for agent_id in (grant.supervisor_agent_id, grant.supervised_agent_id):
+                self.emit(
+                    grant.owner_id,
+                    "supervision.revoked",
+                    {
+                        "id": grant.id,
+                        "supervisor_agent_id": grant.supervisor_agent_id,
+                        "supervised_agent_id": grant.supervised_agent_id,
+                        "created_via": grant.created_via,
+                        "revoked_via": grant.revoked_via,
+                    },
+                    agent_id=agent_id,
+                )
 
     def edit_method(self, agent: Any, transform: Callable[[str], str]) -> None:
         """Frozen commit_memory(transform=...) by the system: one revision, retired
@@ -673,15 +699,52 @@ class Migration:
         ended = self.rows(
             "UPDATE ln_trading_restrictions SET revoked_at = :now, updated_at = :now"
             " WHERE revoked_at IS NULL AND (valid_until IS NULL OR valid_until > :now)"
-            " RETURNING id",
+            " RETURNING *",
             now=self.now,
         )
+        for row in ended:
+            # Frozen revoke_restriction's event, with restriction_data.
+            self.emit(
+                row.owner_id,
+                "trading.restriction_revoked",
+                {"restriction": self.restriction_data(row), "transition_id": row.id + ":revoked"},
+                agent_id=row.agent_id,
+            )
         if ended:
             self.settle_cards(
                 "kind = 'lift_restriction' AND subject = ANY(:subjects)",
                 "restriction_already_ended",
                 subjects=["restriction:" + row.id for row in ended],
             )
+
+    def restriction_data(self, row: Any) -> dict[str, Any]:
+        """Frozen copy of lonora_db.trading_restrictions.restriction_data for a row this
+        migration revoked."""
+        return {
+            "id": row.id,
+            "account_id": row.account_id,
+            "agent_id": row.agent_id,
+            "all_agents": row.agent_id is None,
+            "symbol": row.symbol,
+            "all_symbols": row.symbol is None,
+            "symbol_verified": row.symbol is None or row.symbol_verified is not False,
+            "action_class": row.action_class,
+            "state": "revoked",
+            "valid_from": row.valid_from.isoformat(),
+            "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+            "ended_at": row.revoked_at.isoformat(),
+            "applies_to_owner_manual": row.applies_to_owner_manual,
+            "source": row.source,
+            "source_message_id": row.source_message_id,
+            "source_run_id": row.source_run_id,
+            "reason": row.reason,
+            "created_by": row.created_by,
+            "created_by_agent_id": row.created_by_agent_id,
+            "created_at": row.created_at.isoformat(),
+            "revoked_at": row.revoked_at.isoformat(),
+            "revoked_reason": row.revoked_reason,
+            "lift": "owner_only",
+        }
 
     def end_supervisor_pauses(self, holds: list[Any]) -> None:
         for hold in holds:
@@ -747,7 +810,8 @@ class Migration:
         if state.get("lifecycle") == "expired":
             state["lifecycle"] = "pending"
             state.pop("lifecycle_reason", None)
-        self.changed_watch(owner_id, watch, {**payload, "enabled": True}, state, "holder")
+        # The holder's resume goes through the agent's own control (by "agent").
+        self.changed_watch(owner_id, watch, {**payload, "enabled": True}, state, "agent")
 
 
 def split_legacy(content: str) -> tuple[str, str]:

@@ -427,7 +427,12 @@ async def production_shape(db: Database, ids: dict[str, str]) -> None:
             assert card.payload == {
                 "agent_id": agent,
                 "previous_grants": [
-                    {"account_id": ids["account"], "full_delegation": True, "symbols": []}
+                    {
+                        "account_id": ids["account"],
+                        "full_delegation": True,
+                        "symbol_scope": "account",
+                        "symbols": [],
+                    }
                 ],
             }, card.payload
             assert card.payload_hash == payload_hash("trading_mode", card.payload)
@@ -441,6 +446,7 @@ async def production_shape(db: Database, ids: dict[str, str]) -> None:
         assert facts["previous_grants"] == [
             {
                 "full_delegation": True,
+                "symbol_scope": "account",
                 "symbols": [],
                 "account": facts["previous_grants"][0]["account"],
             }
@@ -575,6 +581,14 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         grant_card = await seed.card(
             lonora, ids["lonora_thread"], "grant_authority", "grant:" + general.id, {"x": 1}
         )
+        stale_card = await seed.card(
+            lonora, ids["lonora_thread"], "grant_authority", "grant:" + pending.id, {"x": 2}
+        )
+        stale_card.expires_at = now - timedelta(hours=1)
+        wide, wide_thread = await new_agent("Wide", **flexible)
+        wide_envelope = full_envelope(owner_id, wide.id, account_id, wide_thread.id)
+        wide_envelope["allow_manual_positions"] = False
+        await seed.grant(wide.id, wide_thread.id, envelope=wide_envelope)
 
         # Restrictions (item 6): active and scheduled end, an expired one keeps its history.
         restrictions: dict[str, str] = {}
@@ -762,6 +776,8 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "revoked_grant": revoked_grant.id,
             "orphan_grant": orphan_grant.id,
             "grant_card": grant_card.id,
+            "stale_card": stale_card.id,
+            "wide": wide.id,
             "lift_card": lift_card.id,
             "helper": helper.id,
             "parent": parent.id,
@@ -850,6 +866,9 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         card = await session.get(OwnerActionRow, refs["grant_card"], populate_existing=True)
         assert card is not None
         assert card.status == "superseded", card.status
+        card = await session.get(OwnerActionRow, refs["stale_card"], populate_existing=True)
+        assert card is not None
+        assert card.status == "expired", "a card past its expiry is settled as expired"
 
         # Item 2: a card for each agent whose grant was active and unexpired, and no other.
         for name in ("Running", "Failed", "Completing", "Cancelled"):
@@ -866,6 +885,7 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
                             ids["lonora"],
                             ids["dino"],
                             refs["bounded"],
+                            refs["wide"],
                             *(manager[0] for manager in managers.values()),
                         )
                     ]
@@ -874,8 +894,17 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         )
         bounded_card = (await mandate_cards(session, refs["bounded"]))[0]
         assert bounded_card.payload["previous_grants"] == [
-            {"account_id": account_id, "full_delegation": False, "symbols": ["XAUUSD", "EURUSD"]}
+            {
+                "account_id": account_id,
+                "full_delegation": False,
+                "symbol_scope": "selected",
+                "symbols": ["XAUUSD", "EURUSD"],
+            }
         ], bounded_card.payload
+        # A Custom grant on the whole account is not Full delegation, and is named by scope.
+        wide_card = (await mandate_cards(session, refs["wide"]))[0]
+        assert wide_card.payload["previous_grants"][0]["full_delegation"] is False
+        assert wide_card.payload["previous_grants"][0]["symbol_scope"] == "account"
         for agent in (ids["lonora"], ids["dino"]):
             assert len(await mandate_cards(session, agent)) == 1
 
@@ -989,6 +1018,13 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         == expired_restriction
     )
     assert len(await events_since(db, cursor, "task.updated")) == 3
+    lifted = await events_since(db, cursor, "trading.restriction_revoked")
+    assert sorted(event.payload["restriction"]["id"] for event in lifted) == sorted(
+        [restrictions["active"], restrictions["scheduled"]]
+    )
+    assert all(event.payload["restriction"]["state"] == "revoked" for event in lifted)
+    # Each revoked supervision grant is recorded for both of its agents.
+    assert len(await events_since(db, cursor, "supervision.revoked")) == 4
     assert len(await events_since(db, cursor, "memory.updated")) == 2
     print(
         "PASS the general cases: every agent in Ask at 'Ask me'; active, expired, pending and"

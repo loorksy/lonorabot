@@ -716,6 +716,9 @@ async def card_facts(
             facts["previous_grants"] = [
                 {
                     "full_delegation": item.get("full_delegation") is True,
+                    "symbol_scope": (
+                        "account" if item.get("symbol_scope") == "account" else "selected"
+                    ),
                     "symbols": [
                         str(symbol) for symbol in cast(list[Any], item.get("symbols") or [])
                     ],
