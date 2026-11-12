@@ -10,9 +10,29 @@
    "feature": "connect from chat with MetaApi provisioning (9.2); the broker-destination Secret card (7.2.3, 10.3)",
    "owners": ["W-BROKER", "W-ENV"],
    "needs": [
-    {"pending": "W-BROKER: MetaApi provisioning from chat (9.2), with its provisioning fake in broker.py"},
-    {"pending": "W-ENV: the broker-destination Secret card (7.2.3)"}
-   ]
+    {"tool": "broker_connect"},
+    {"code": "lonora_trading.broker_provisioning:maintain_broker_provisioning"},
+    {"code": "scripts.agent_eval.broker:FakeMetaApiProvisioning"}
+   ],
+   "partial": {
+    "note": "W-BROKER's fake MetaApi provisioning API and fake terminal stand in for the MetaApi demo account, which only the live run reaches",
+    "until": [{"pending": "the live run on the MetaApi demo account (plan step 5)"}]
+   },
+   "given": {"login": "50000077", "server": "Exness-MT5Trial16", "owner_answers": "رقم الحساب $login والسيرفر $server"},
+   "script": {
+    "lonora_id": [
+     [
+      {"text": "أعطني رقم حساب MT5 واسم سيرفر الوسيط، وكلمة المرور تدخلها في البطاقة لا هنا."}
+     ],
+     [
+      {"calls": [{"tool": "broker_connect", "arguments": {"login": "$login", "server": "$server"}}]},
+      {"text": "أدخل كلمة مرور الحساب في البطاقة، وسأربطه عبر MetaApi."}
+     ],
+     [
+      {"text": "ربطت حساب MT5 عبر MetaApi وقرأت رصيده من الوسيط."}
+     ]
+    ]
+   }
   },
   {
    "id": "2",
@@ -123,11 +143,11 @@
    "title": "Overnight: the euro agent asks",
    "clause": "The euro agent's request waits as a Trade Approval card, and a push reaches the owner's phone.",
    "feature": "Ask mode and the Trade Approval card with reason and tolerance (4.1, 10.3.1); one Expo push per card (11.4)",
-   "owners": ["W-AUTH", "W-PUSH"],
+   "owners": ["W-AUTH", "W-PUSH (#142 merged)"],
    "needs": [
     {"code": "lonora_db.trading_mode:set_trading_mode"},
     {"code": "lonora_trading.approval_drift:check_drift"},
-    {"pending": "W-PUSH: one Expo push per pending card (11.4)"}
+    {"code": "lonora_adapters.channels.expo_push:ExpoPushTransport"}
    ]
   },
   {
@@ -181,7 +201,7 @@
     ]
    },
    "defects": [
-    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) matches a position's operation_id against journal operation ids, but a MetaApi position carries the broker tag broker_operation_tag(operation_id) that the adapter sent as its clientId, so a position an agent opened is shown as opened by the owner (3.3.4); lonora_opened matches both forms"}
+    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) keys a position by its connection's broker account id (account_snapshots returns payload account_id, the MetaApi account) but ticket_openers keys the journal's entries by the journal's account_id (the connection's own id), so a position an agent opened reads as opened by the owner (3.3.4); #177 fixed the broker-tag part; keying account_snapshots by the connection id makes the step pass"}
    ]
   },
   {

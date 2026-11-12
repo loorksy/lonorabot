@@ -76,7 +76,26 @@ unset LONORA_ACCEPT_PROVIDER_KEY
 
 - The same steps run, with the product calling the model through its own router and provider adapter.
 - **The provider key.** It is saved into the disposable template through the product's own credential route. Without `LONORA_ACCEPT_PROVIDER_KEY`, the template keeps the placeholder that a cloud session's network proxy replaces.
-- **The broker is the fake terminal in both modes.** No run of this harness reaches MetaApi.
+- **The broker is the fake terminal**, unless `--broker demo` is given.
+
+## The MetaApi demo account (`--broker demo`), run by the lead on the owner's server
+
+```
+export LONORA_DATABASE_URL='postgresql+asyncpg://<createdb role>:<password>@127.0.0.1:5432/accept_demo_test'
+export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA_BOOTSTRAP_TOKEN=accept-demo-only LONORA_COOKIE_SECURE=false LONORA_AUTH_RATE_LIMIT_PER_MINUTE=10000
+.venv/bin/python scripts/agent_eval/acceptance.py --offline --broker demo --steps 1
+```
+
+- **What it does.** Step 1 against MetaApi itself:
+  - the harness asks at hidden prompts for the demo account's login, server, master password and the MetaApi token;
+  - the owner's chat message names the login and server, as 9.2 has the owner do;
+  - the password and token are saved through the broker Secret card's own route;
+  - the gateway's provisioning step creates and deploys the account through MetaApi;
+  - Lonora is woken with the balance read from the broker.
+- **What it leaves behind.** Nothing. The product's own disconnect (9.3) removes the connection, its password, and the MetaApi account Lonora created; the step checks that MetaApi removed it.
+- **What it prints.** The step table and its checks. It prints no login, server, password, token or account id. The values live in the run's memory and in its disposable database, which is dropped.
+- **The model.** Use `--live` in place of `--offline` (with `LONORA_ACCEPT_PROVIDER_KEY`, as above) to have a real model hold the conversation.
+- **Only step 1 runs on the demo account.** The trading steps need an agent that may trade the new account without asking (Full mode, W-AUTH); until then they run on the fake terminal.
 
 ## Today's state (this commit)
 
@@ -84,8 +103,9 @@ unset LONORA_ACCEPT_PROVIDER_KEY
 |---|---|---|
 | 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. The gold agent is Lonora under the template's signed grant. |
 | 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
+| 1, connecting | pass, partial | W-BROKER's fake MetaApi provisioning API and fake terminal; the MetaApi demo account only with `--broker demo`. |
 | 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |
-| 5, the morning brief | known defect, partial | One defect: the brief shows a position an agent opened as opened by the owner. It belongs to W-BRIEF, and the scenario file names it. Not asserted: the pending approval with its reason, which comes with Ask mode (W-AUTH); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. The gold agent is Lonora under the template's grant. |
+| 5, the morning brief | known defect, partial | One defect: the brief shows a position an agent opened as opened by the owner. It keys a position by its MetaApi account id and the journal's entries by the connection's id. It belongs to W-BRIEF, and the scenario file names it. Not asserted: the pending approval with its reason, which comes with Ask mode (W-AUTH); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. The gold agent is Lonora under the template's grant. |
 | 6 | void | Amendment 1. |
 | 7a, the weekly reports | pass, partial | Each agent's results are its journaled operations only; the per-label statistics wait for W-LEDGER. What each agent learned and changed is the model's own words and is not asserted. The gold agent is Lonora under the template's grant. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |
