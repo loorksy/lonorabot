@@ -2,8 +2,8 @@
 // and the Arabic one is written in Arabic. A label added without its Arabic fails here.
 import assert from "node:assert/strict";
 import test from "node:test";
-import incoming from "../../apps/mobile/lib/incoming-call-labels.json";
 import { labels } from "../../apps/mobile/lib/i18n";
+import incoming from "../../apps/mobile/lib/incoming-call-labels.json";
 
 const arabic = /[؀-ۿ]/;
 
