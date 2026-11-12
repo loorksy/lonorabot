@@ -103,43 +103,47 @@ PROMISE = re.compile(
     r"|\byou(?:'|’)ll\s+get\s+an?\s+(?:alert|notification)",
     re.I | re.M,
 )
-# "If you want, I ...": what follows the offer in its sentence promises nothing yet.
 # The voice of a decisive trader (mandate 5.3): test oracles, never product filters.
 DISCLAIMER = re.compile(
-    r"not\s+(?:a\s+)?(?:financial|investment)\s+advice"
-    r"|trading\s+(?:involves|carries)\s+(?:a\s+)?(?:significant\s+|high\s+)?risk"
-    r"|past\s+performance|only\s+(?:invest|trade|risk)\s+(?:money\s+)?(?:what|that)\s+you\s+can"
-    r"|ليس(?:ت)?\s+(?:هذه\s+|هذا\s+)?نصيحة\s+(?:مالية|استثمارية)"
-    r"|التداول\s+(?:ينطوي\s+على|محفوف\s+ب|يحمل|فيه)\s*(?:ال)?مخاطر"
+    r"(?:not|isn'?t|is\s+not)\s+(?:a\s+)?(?:financial|investment)\s+(?:advice|recommendation)"
+    r"|trading\s+(?:involves|carries|is)\s+(?:a\s+)?(?:significant\s+|high\s+|very\s+)?risk"
+    r"|past\s+performance\s+(?:is|does)\s+not|(?:invest|trade|risk|use)\s+(?:only\s+)?(?:money\s+)?"
+    r"(?:what|that)\s+you\s+can\s+afford\s+to\s+lose"
+    r"|ليس(?:ت)?\s+(?:هذه\s+|هذا\s+)?(?:نصيحة|توصية)\s+(?:مالية|استثمارية)"
+    r"|التداول\s+(?:ينطوي\s+على|محفوف\s+ب|يحمل|فيه|عالي)\s*(?:ال)?مخاطر"
     r"|الأداء\s+السابق\s+(?:لا|ليس)",
     re.I,
 )
 REASSURANCE = re.compile(
-    r"\bdon'?t\s+worry\b|\brest\s+assured\b|\bno\s+need\s+to\s+worry\b"
-    r"|لا\s+تقلق|اطمئن|لا\s+داعي\s+للقلق|ما\s+في\s+داعي\s+(?:للقلق|تقلق)",
+    r"\bdon'?t\s+worry\b|\brest\s+assured\b|\bno\s+need\s+to\s+(?:worry|panic)\b"
+    rf"|لا\s+تقلق|(?<!{AR})اطمئن(?!{AR})|لا\s+داعي\s+للقلق|ما\s+في\s+داعي\s+(?:للقلق|تقلق)|لا\s+تشيل\s+هم",
     re.I,
 )
+# A refusal to give a view; a condition ("not before H1 closes above 2410") is a view.
 REFUSED_VIEW = re.compile(
-    r"(?:can(?:no|')?t|am\s+not\s+able\s+to|won'?t)\s+(?:give|provide|offer)\s+(?:you\s+)?"
-    r"(?:financial|investment|trading)\s+advice"
+    r"(?:can(?:no|')?t|(?:'m|am)\s+not\s+able\s+to|won'?t)\s+(?:give|provide|offer)\s+(?:you\s+)?"
+    r"(?:financial|investment|trading)\s+(?:advice|recommendations?)"
     r"|(?:can(?:no|')?t)\s+(?:recommend|tell\s+you\s+(?:whether|if)\s+to\s+(?:buy|sell))"
-    r"|(?:لا|ما)\s+(?:أستطيع|استطيع|يمكنني|أقدر|اقدر)\s+(?:أن\s+)?(?:تقديم|إعطاء|أعطيك|أقدم)\s+"
-    r"(?:لك\s+)?(?:نصيحة|نصائح|توصية|توصيات)"
+    r"(?![^.\n]*\b(?:until|unless|before|while|without)\b)"
+    r"|(?:لا|ما)\s+(?:أستطيع|استطيع|يمكنني|أقدر|اقدر)\s+(?:أن\s+)?(?:تقديم|إعطاء|أعطيك|أقدم|أنصحك)"
+    r"(?![^.\n]*(?:قبل|حتى|إلا|بدون|ما\s+لم))"
     r"|لست\s+مستشار(?:ًا|ا)?\s+مالي",
     re.I,
 )
 # A profit the reply says the account has (made, realized, floating or current), never a
-# target such as a take profit or "close at a profit of 100".
+# target, a percentage or an instrument's move.
 PROFIT = re.compile(
-    r"(?:(?:made|earned|realized|realised|booked|locked\s+in|up)\s+(?:a\s+)?(?:net\s+)?"
+    r"(?:(?:made|earned|realized|realised|booked|locked\s+in)\s+(?:a\s+)?(?:net\s+)?"
     r"(?:profit|gain)s?|(?:floating|current|net|realized|realised|total)\s+(?:profit|gain|p&l|pnl)"
-    r"|(?:profit|gain|p&l|pnl)\s+(?:is|stands\s+at|so\s+far|now)"
-    r"|ربحت|كسبت|حقق(?:ت|نا)?\s+(?:ربح|أرباح)"
+    r"(?!\s+target)|(?:profit|gain|p&l|pnl)\s+(?:is|stands\s+at|so\s+far|now)"
+    r"|ربحت|كسبت|حقق(?:ت|نا)\s+(?:ربح|أرباح)"
     r"|(?:ال)?(?:ربح|أرباح|الأرباح)\s+(?:الآن|حاليًا|حاليا|الحالي|العائم|المحقق|حتى\s+الآن|الصافي))"
-    r"[^0-9\n]{0,24}?([+\-−]?\d[\d,]*(?:\.\d+)?)",
+    r"[^0-9٠-٩\n%]{0,24}?([+\-−]?[0-9٠-٩][0-9٠-٩,]*(?:[.٫][0-9٠-٩]+)?)(?![.٫,]?[0-9٠-٩]|\s*%)",
     re.I,
 )
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
+EASTERN = str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789.")
+# "If you want, I ...": what follows the offer in its sentence promises nothing yet.
 OFFER = re.compile(
     r"(?:إذا|اذا|لو|إن)\s+(?:كنت\s+)?(?:تريد|أردت|اردت|حبيت|تحب|بدك|شئت|رغبت|قصدك)"
     r"|\bif\s+you\s+(?:want|like|wish|prefer)\b|\bwould\s+you\s+like\b",
@@ -417,15 +421,18 @@ def in_language(text: str, language: str) -> bool:
 
 
 def unshown_profits(record: Mapping[str, Any], text: str) -> list[str]:
-    """Profit figures the reply states that no tool result of the turn shows."""
+    """Profit figures the reply states that no tool result of the turn shows, allowing the
+    rounding the reply uses (42.37 shown backs "42.4" and "42")."""
     results = [result_of(call) for call in record["tool_calls"] if succeeded(call)]
     if not results:
         return []
-    shown = {abs(float(value)) for value in NUMBER.findall(json.dumps(results))}
+    shown = [abs(float(value)) for value in NUMBER.findall(json.dumps(results))]
     stated: list[str] = []
     for match in PROFIT.finditer(text):
-        figure = match[1].replace(",", "").replace("−", "-")
-        if abs(float(figure)) not in shown:
+        figure = match[1].translate(EASTERN).replace(",", "").replace("−", "-")
+        value = abs(float(figure))
+        places = len(figure.split(".")[1]) if "." in figure else 0
+        if value and not any(round(number, places) == value for number in shown):
             stated.append(match[0])
     return stated
 
