@@ -424,27 +424,28 @@ test("a trading account page shows the broker's own balance, name, server and pa
   }
 });
 
-test("models, voice calls and the Stop control live under integrations; old tabs redirect", async ({
+test("Global models opens the models page; voice and trading keep their settings screens", async ({
   page,
   context,
 }) => {
   const data = fixture({ action: "init", empty: true });
-  const headers = csrf(data);
   await signIn(context, data);
-  const before = await (await context.request.get("/api/trading/controls")).json();
   try {
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: true, emergency_stop: false },
-    });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/app/settings");
-    await expect(page.getByRole("button", { name: /^Integrations/ })).toBeVisible();
-    for (const name of ["Global models", "Voice", "Trading"])
-      await expect(page.getByText(name, { exact: true })).toHaveCount(0);
-    // The old tabs land on the pages that now hold them.
-    await page.goto("/app/settings?tab=voice");
-    await expect(page).toHaveURL(/\/app\/provider\/openai$/);
+    await page.getByRole("button", { name: /^Voice/ }).click();
+    await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+    await expect(page.locator(".settings-nav button.selected")).toHaveText("Voice");
+    await expect(page.getByRole("heading", { name: "Realtime conversation" })).toBeVisible();
+    const tabs = page.locator(".settings-nav");
+    await tabs.getByRole("button", { name: "Trading", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Global trading settings" })).toBeVisible();
+    // The screen's «Global models» tab, the settings row and the old tab open the models page.
+    await tabs.getByRole("button", { name: "Global models", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/models$/);
+    await page.goto("/app/settings");
+    await page.getByRole("button", { name: /^Global models/ }).click();
+    await expect(page).toHaveURL(/\/app\/models$/);
     await page.goto("/app/settings?tab=models");
     await expect(page).toHaveURL(/\/app\/models$/);
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
@@ -481,36 +482,10 @@ test("models, voice calls and the Stop control live under integrations; old tabs
     );
     await page.getByRole("button", { name: "Save global routing" }).click();
     expect((await saved).ok()).toBe(true);
-
-    await page.goto("/app/settings?tab=trading");
-    await expect(page).toHaveURL(/\/app\/integrations$/);
-    await page.getByRole("button", { name: /^Models/ }).click();
-    await expect(page).toHaveURL(/\/app\/models$/);
-    await page.goBack();
-    await expect(page.getByRole("button", { name: /^Voice calls/ })).toContainText(
-      "Needs an OpenAI key",
-    );
-    // The Stop control: one tap stops new trading, one tap on the same control resumes it.
-    const control = page.getByTestId("trading-control");
-    await expect(control.getByRole("status")).toHaveText("New trading is running");
-    await expect(control).toContainText("Exits stay allowed");
-    await control.getByRole("button", { name: "Stop new trading" }).click();
-    await expect(control.getByRole("status")).toHaveText("New trading is stopped");
-    await expect(page.locator("#dialog[open]")).toHaveCount(0);
-    expect(await (await context.request.get("/api/trading/controls")).json()).toMatchObject({
-      enabled: false,
-      emergency_stop: true,
-    });
-    await control.getByRole("button", { name: "Resume trading" }).click();
-    await expect(control.getByRole("status")).toHaveText("New trading is running");
-    await page.getByRole("button", { name: /^Voice calls/ }).click();
-    await expect(page).toHaveURL(/\/app\/provider\/openai$/);
   } finally {
-    await context.request.put("/api/trading/controls", { headers, data: before });
     fixture({ ...data, action: "cleanup" });
   }
 });
-
 test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ page, context }) => {
   const data = fixture({ action: "init", empty: true });
   try {

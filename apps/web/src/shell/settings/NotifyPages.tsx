@@ -332,7 +332,6 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
       noValidate
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!draft) return toast(t`Saved`, { type: "success" });
         setBusy(true);
         try {
           rules.set(
@@ -394,7 +393,7 @@ export function CommunicationPage({ agentId }: { agentId: string }) {
         </small>
       </label>
       <div className="actions">
-        <button type="submit" className="btn primary" disabled={busy}>
+        <button type="submit" className="btn primary" disabled={busy || !draft}>
           <Trans>Save</Trans>
         </button>
       </div>

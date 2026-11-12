@@ -10,7 +10,6 @@ import type {
 } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
 import { type FormEvent, useState } from "react";
-import { TradingStatus } from "../../components/trading/TradingStatus";
 import { api } from "../../lib/api";
 import { brokerIdentity } from "../../lib/broker-identity";
 import { userError } from "../../lib/user_error";
@@ -40,15 +39,13 @@ const levelText = (server: CapabilityServer) => {
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
    allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). The one-tap Stop control sits under the trading accounts; «النماذج» (routing)
-   and the voice-call readiness under AI (Q57). */
+   owner (Q53). */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
   const toast = useToast();
   const accounts = useLoad(() => api.get<BrokerConnectionRow[]>("/trading/connections"), []);
   const providers = useLoad(() => api.get<{ id: string; configured: boolean }[]>("/providers"), []);
-  const voice = useLoad(() => api.get<{ transport_configured: boolean }>("/voice/status"), []);
   const report = useLoad(() => api.get<CapabilityReport>("/capabilities"), []);
   const caps = report.value;
   const act = async (run: () => Promise<unknown>, done?: string) => {
@@ -503,9 +500,6 @@ export function IntegrationsPage() {
           })}
         </div>
       )}
-      <div className="legacy-surface">
-        <TradingStatus />
-      </div>
       <BrokerLinkButton first={!linked.length} />
       <h3>
         <Trans>Artificial intelligence</Trans>
@@ -516,18 +510,6 @@ export function IntegrationsPage() {
           label={t`Model providers`}
           to="/app/providers"
           value={configured ? String(configured) : t`Not added yet`}
-        />
-        <NavRow icon="nodes" label={t`Models`} to="/app/models" />
-        <NavRow
-          icon="phone"
-          label={t`Voice calls`}
-          to="/app/provider/openai"
-          value={
-            voice.value &&
-            (voice.value.transport_configured
-              ? t({ message: "Ready", context: "voice calls" })
-              : t`Needs an OpenAI key`)
-          }
         />
       </div>
       <h3>

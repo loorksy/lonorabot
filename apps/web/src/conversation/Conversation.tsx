@@ -628,7 +628,8 @@ export function Conversation({
     [refresh],
   );
   const fixFailure = useCallback(
-    (family: FailureFamily) => nav.go(family === "quota" ? "/app/usage" : "/app/providers"),
+    (family: FailureFamily) =>
+      nav.go(family === "quota" ? "/app/settings?tab=usage" : "/app/settings?tab=models"),
     [nav],
   );
 

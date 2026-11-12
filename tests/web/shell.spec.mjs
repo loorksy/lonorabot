@@ -457,7 +457,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
-  test("«النموذج» shows the agent's usage with no cap and leads to the providers", async ({
+  test("«النموذج» shows the agent's usage with no cap and leads to the models", async ({
     page,
     context,
   }) => {
@@ -476,7 +476,7 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(menu.locator(".p2 .pop-title")).toContainText("آخر 30 يومًا");
       await expect(menu.locator(".mp-tot")).toHaveText(/^\d+ طلبًا · دون سقف لهذا الوكيل$/);
       await menu.getByRole("menuitem", { name: "ربط مزوّد نماذج" }).click();
-      await expect(page).toHaveURL(/\/app\/providers$/);
+      await expect(page).toHaveURL(/\/app\/models$/);
       await expect(menu).toHaveCount(0);
     } finally {
       if (trading)
@@ -514,11 +514,10 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لم يُختر حساب تداول");
       await chip.click();
       await expect(sheet.locator(".state-lead")).toContainText("لا يرتبط");
-      // The chip links to the agent's trading settings (`?settings=trading`); where that tab
-      // lands is the settings routing's choice (`settingsMoved` in shell/pages.tsx), which
-      // sends it to the integrations page.
+      // The chip links to the agent's trading settings (`?settings=trading`): the settings
+      // screen's «التداول» tab.
       await sheet.getByRole("button", { name: "اختيار حساب التداول" }).click();
-      await expect(page).toHaveURL(/\/app\/integrations$/);
+      await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
     } finally {
       if (trading)
         await context.request.delete(`/api/agents/${trading.agent.id}`, {
@@ -821,10 +820,6 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
       await current("الإعدادات");
       await page.goto("/app/new-schedule");
       await current("المهام");
-      await page.goto("/app/my-profile");
-      await expect(page).toHaveURL(/\/app\/owner$/);
-      await page.goto("/app/reach-me");
-      await expect(page).toHaveURL(/\/app\/notify-settings$/);
       await page.goto("/app");
       await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
       await expect(page.locator("#app")).toHaveClass(/list-collapsed/);

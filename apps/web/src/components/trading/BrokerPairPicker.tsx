@@ -149,8 +149,8 @@ export function BrokerPairPicker({
       {!connections.length && (
         <p>
           <Trans>Connect a broker account before creating a trading agent.</Trans>{" "}
-          <Link to="/app/broker">
-            <Trans>Link a trading account</Trans>
+          <Link to="?settings=trading">
+            <Trans>Open trading settings</Trans>
           </Link>
         </p>
       )}
