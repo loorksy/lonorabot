@@ -16,7 +16,12 @@ from typing import Any, cast
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.account import Order, Position
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
-from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_core.user_error import LonoraError
+from lonora_db.broker_sessions import (
+    BrokerSessionRepository,
+    broker_identity_key,
+    current_broker_identity,
+)
 from lonora_db.client import Database
 from lonora_db.schema import BrokerSessionRow, TradingJournalRow
 from pydantic import ValidationError
@@ -87,13 +92,15 @@ async def ticket_owners(
     return owners
 
 
-async def account_books(session: AsyncSession, owner_id: str) -> list[AccountBook]:
-    """Every enabled connection of the owner, in a stable order."""
+async def account_books(
+    session: AsyncSession, owner_id: str, limit: int
+) -> tuple[list[AccountBook], int]:
+    """The first ``limit`` enabled connections of the owner in a stable order, and how
+    many are enabled; tickets are attributed only on the connections returned."""
     books: list[AccountBook] = []
     rows = await BrokerSessionRepository().all_connections(session, owner_id)
-    for row in sorted(rows, key=lambda item: item.id):
-        if not row.payload.get("enabled"):
-            continue
+    enabled = sorted((row for row in rows if row.payload.get("enabled")), key=lambda r: r.id)
+    for row in enabled[:limit]:
         try:
             raw = row.state.get("broker_recovery")
             snapshot = BrokerRecoverySnapshot.model_validate(raw) if raw else None
@@ -105,7 +112,7 @@ async def account_books(session: AsyncSession, owner_id: str) -> list[AccountBoo
             else {}
         )
         books.append(AccountBook(row.id, snapshot, owners, symbol_currencies(row)))
-    return books
+    return books, len(enabled)
 
 
 def instrument_legs(base: str | None, profit: str | None) -> list[str]:
@@ -116,13 +123,26 @@ def instrument_legs(base: str | None, profit: str | None) -> list[str]:
     return [profit.strip().upper()] if profit and profit.strip() else []
 
 
+def account_identity(row: BrokerSessionRow) -> list[str]:
+    """The broker-observed account behind the connection, else its configuration version."""
+    identity = current_broker_identity(row)
+    key = broker_identity_key(identity) if identity else None
+    return list(key) if key else ["connection_version", str(row.version)]
+
+
 def symbol_currencies(row: BrokerSessionRow) -> dict[str, list[str]]:
+    """What the broker reported for each symbol, while the connection's account is the
+    one that reported it (another login or server lists other instruments)."""
     stored: Any = row.state.get(CURRENCIES_KEY)
     if not isinstance(stored, dict):
         return {}
+    kept = cast(dict[str, Any], stored)
+    symbols: Any = kept.get("symbols")
+    if kept.get("identity") != account_identity(row) or not isinstance(symbols, dict):
+        return {}
     return {
         str(symbol): [str(code) for code in cast(list[Any], legs)]
-        for symbol, legs in cast(dict[str, Any], stored).items()
+        for symbol, legs in cast(dict[str, Any], symbols).items()
         if isinstance(legs, list)
     }
 
@@ -130,8 +150,10 @@ def symbol_currencies(row: BrokerSessionRow) -> dict[str, list[str]]:
 async def learn_currencies(db: Database, brokers: BrokerManager, owner_id: str) -> int:
     """Keep the currencies of every held symbol the connection row does not know yet.
 
-    Instrument metadata is static, so each symbol is read from the broker once; a read
-    that fails is tried again on the next pass. Returns how many symbols were learned.
+    Instrument metadata is static, so each symbol is read from the broker once. A symbol
+    the broker answers for without currencies, or refuses (``LonoraError``), is kept with
+    none and not read again; a transport failure is tried again on the next pass.
+    Returns how many symbols were learned.
     """
     async with db.sessions() as session:
         rows = await BrokerSessionRepository().all_connections(session, owner_id)
@@ -154,14 +176,18 @@ async def learn_currencies(db: Database, brokers: BrokerManager, owner_id: str) 
         found: dict[str, list[str]] = {}
         try:
             broker = await brokers.get(owner_id, account_id)
-            for symbol in symbols:
+        except Exception:
+            continue  # The connection is read again on the next pass.
+        for symbol in symbols:
+            try:
                 async with asyncio.timeout(20):
                     instrument = await broker.instrument(symbol)
-                found[symbol] = instrument_legs(
-                    instrument.base_currency, instrument.profit_currency
-                )
-        except Exception:
-            pass  # Kept what was read; the rest is read again on the next pass.
+            except LonoraError:
+                found[symbol] = []  # The broker's answer: it reports no such instrument.
+                continue
+            except Exception:
+                continue  # Transport failure: read again on the next pass.
+            found[symbol] = instrument_legs(instrument.base_currency, instrument.profit_currency)
         if not found:
             continue
         async with db.sessions() as session, session.begin():
@@ -170,8 +196,14 @@ async def learn_currencies(db: Database, brokers: BrokerManager, owner_id: str) 
             )
             if row is None or row.owner_id != owner_id:
                 continue
-            row.state = {**row.state, CURRENCIES_KEY: {**symbol_currencies(row), **found}}
-        learned += len(found)
+            row.state = {
+                **row.state,
+                CURRENCIES_KEY: {
+                    "identity": account_identity(row),
+                    "symbols": {**symbol_currencies(row), **found},
+                },
+            }
+        learned += sum(1 for legs in found.values() if legs)
     return learned
 
 
