@@ -33,9 +33,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `connect_credential` or `secret` |
+| `kind` | `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `connect_credential`, `secret` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
-| `subject` | The record the card acts on: `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
+| `subject` | The record the card acts on: `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |
 | `agent_id`, `thread_id`, `run_id` | Where it is shown and who raised it. Ids are kept as values; a deleted conversation sets `thread_id` to null. |
 | `status`, `status_reason` | `pending`, `confirmed`, `cancelled`, `expired` or `superseded`, with why |
@@ -43,9 +43,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome, the stored limits) |
 
-Lifetimes: limit and grant cards 24 hours, resolve cards 7 days. Expiry needs no
-scheduler: a pending card past `expires_at` reads as expired and is settled as expired
-when next touched.
+Lifetimes: limit and grant cards 24 hours, resolve cards 7 days, Mandate cards 3650
+days. Expiry needs no scheduler: a pending card past `expires_at` reads as expired and is
+settled as expired when next touched.
 
 ## How cards appear
 
@@ -307,6 +307,23 @@ an approval card, and what else changed (the daily loss limit set, no limit by c
 the current limit kept by choice, the other agent or agents stopped on this account).
 The settled card names the agents it
 stopped. A card for an agent that is deleted is superseded with it.
+
+## The Mandate card (mandate 10.3, 4.2)
+
+Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`. The card reads
+the agent's mode live (`facts.trading_mode`) and shows one button for the other mode;
+the decision carries the mode that button showed (`trading_mode`), and the server applies
+exactly that mode (`set_trading_mode(by="owner_tap")`), never a toggle. Only this tap sets
+Full. A confirmed card stays the agent's switch: clients keep its button live
+(`ownerActionLive`). An agent raises its own card; Lonora may raise one for any agent,
+and Lonora's own card is raised when Lonora is created (4.3.1). While a signed grant of
+the agent is in force (`facts.active_grant`), the card says the grant still lets it trade
+within the grant's own terms until the owner revokes it.
+
+Switching an agent to Full withdraws its pending Trade Approval cards (status
+`withdrawn`): a withdrawn card is never approved or executed, and the agent is woken
+with fixed server text to decide again under Full. A card for an agent that is deleted
+ends with it.
 
 ## No model cards
 

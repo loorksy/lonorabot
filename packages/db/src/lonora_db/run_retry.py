@@ -19,7 +19,8 @@ from sqlalchemy.orm import aliased
 
 from .agent_on_its_own import agents_on_their_own
 from .events import emit
-from .genui_taint import TAINT, run_taint
+from .owner_words import submit_provenance_of
+from .pauses import OWNER_ADDRESSED, runs_while_paused
 from .runs import aware, failure_data, run_data
 from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
 from .transactions import owned_agent, owned_thread
@@ -127,7 +128,7 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         if remaining > 0:
             raise RunRetryTooEarly(ceil(remaining))
     agent = await owned_agent(session, owner_id, row.agent_id)
-    if agent.paused:
+    if agent.paused and not runs_while_paused(row.trigger, row.model_metadata):
         raise LonoraError("agent_paused", 409)
     retry = RunRow(
         id=retry_id,
@@ -136,16 +137,19 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         trigger=row.trigger,
         prompt=row.prompt,
         input_seq=row.input_seq,
-        model_metadata={"retry_of": row.id},
+        model_metadata={
+            "retry_of": row.id,
+            **({OWNER_ADDRESSED: True} if row.model_metadata.get(OWNER_ADDRESSED) else {}),
+        },
     )
     # A spoken request stays provisional in its retry (it needs its own approval card), and a
     # later spoken correction withdraws the retry's approvals too.
     await carry_voice_handoff(session, row, retry)
-    # A card send stays tainted in its retry: it can never spend the signed grant either
-    # (docs/genui.md §7).
-    taint = await run_taint(session, row)
-    if taint is not None:
-        retry.model_metadata = {**retry.model_metadata, TAINT: taint}
+    # A card's send stays a card's send in its retry, the same submission run again (6.10): it
+    # can never spend the signed grant either. The retry gets a provenance-only mark naming
+    # the send's own Run, never the send's queue key (``ui_submit_origin``), so none of the
+    # send's queue rules apply to it. Only the failed Run's own mark counts (no parents).
+    retry.model_metadata = {**retry.model_metadata, **submit_provenance_of(row)}
     session.add(retry)
     await session.flush()
     emit(

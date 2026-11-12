@@ -12,6 +12,7 @@ from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import (
     IN_PROGRESS_STATUSES,
     TERMINAL_STATUSES,
+    TradeAnnotation,
     TradeRequest,
     TradeResult,
 )
@@ -137,6 +138,8 @@ class ExecutionService:
         authorization: Callable[[], Awaitable[None]] | None = None,
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
+        owner_message_id: str | None = None,
+        annotation: TradeAnnotation | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -171,7 +174,14 @@ class ExecutionService:
                 origin = await require_lease(session, lease)
                 await authority_lock(session, origin.agent_id)
                 await require_operation_permission(
-                    session, owner_id, origin, request, account_authority_id
+                    session,
+                    owner_id,
+                    origin,
+                    request,
+                    account_authority_id,
+                    reducing=planned_reducing,
+                    target=management_target(planned_snapshot, request),
+                    owner_message_id=owner_message_id,
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -212,6 +222,9 @@ class ExecutionService:
             )
             if not fresh:
                 return receipt(journal)
+            if annotation is not None:
+                # Beside the request, never inside it: the fingerprint stays the request's.
+                journal.annotation = annotation.model_dump(mode="json")
             if leased_run:
                 await anchor_operation(session, journal, leased_run)
             if request.thesis_id:
@@ -348,7 +361,14 @@ class ExecutionService:
                     origin = await require_lease(session, lease)
                     await authority_lock(session, origin.agent_id)
                     await require_operation_permission(
-                        session, owner_id, origin, request, account_authority_id
+                        session,
+                        owner_id,
+                        origin,
+                        request,
+                        account_authority_id,
+                        reducing=reducing,
+                        target=management_target(snapshot, request),
+                        owner_message_id=owner_message_id,
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id
@@ -393,6 +413,19 @@ class ExecutionService:
                         request,
                         material_state(target) if target else None,
                     )
+                    if (
+                        not account_authority_id
+                        and (request.position_id or request.order_id)
+                        and (
+                            expected_target is None
+                            or target is None
+                            or material_state(target) != expected_target
+                        )
+                    ):
+                        # The ticket the agent read changed before the send (an owner's
+                        # intervention), or nothing records what it read: never overwrite
+                        # it, with or without a card (6.6, fail closed).
+                        raise LonoraError("broker_state_changed", 409)
                     if account_authority_id:
                         leased_run = await require_lease(session, lease)
                         await require_account_execution(

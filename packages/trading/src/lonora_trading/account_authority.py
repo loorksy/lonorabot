@@ -40,29 +40,17 @@ GRANT_TERM_REFUSALS = frozenset(
 
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
-    """A provisional handoff and its descendants cannot spend standing authority, and
-    neither can a tainted Run: one a generated card's send started, anything that descends
-    from it or that it started, or the wake of a durable row it created or changed
-    (docs/genui.md, ``lonora_db.genui_taint``): their trades become approval cards."""
-    from lonora_db.genui_taint import is_tainted
+    """Whether this Run answers a provisional voice handoff or a generated card's send
+    (6.10). Such input is the agent's own judgment's input. In Full, trade_execute and
+    trade_close_positions in this Run send like any other; in Ask its risk-increasing
+    trades ask, even where a signed grant would cover them: it never spends a grant
+    (until grants are deleted). The mark is this Run's alone, and its retry's (the same
+    request run again): it never spreads to the agent's later watches, routines or wakes."""
+    from lonora_db.owner_words import ui_submit_provenance
 
-    seen: set[str] = set()
-    current = run
-    for _ in range(16):
-        if current.id in seen:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        seen.add(current.id)
-        if current.model_metadata.get("voice_handoff", {}).get("finalized") is False:
-            return True
-        if not current.parent_run_id:
-            break
-        parent = await session.get(RunRow, current.parent_run_id)
-        if parent is None:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        current = parent
-    else:
-        raise LonoraError("goal_run_ancestry_invalid", 409)
-    return await is_tainted(session, run)
+    if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
+        return True
+    return ui_submit_provenance(run)
 
 
 async def available_authority(
@@ -110,37 +98,62 @@ async def available_authority(
 async def lonora_opened(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> bool:
-    """Whether the journal attributes this ticket to an agent's entry (not the owner's own).
+    """Whether the journal attributes this ticket to an agent's entry (not the owner's own)."""
+    return await ticket_agent(session, owner_id, request, target) is not None
 
-    Attribute by the existing journal and broker identity, never ticket format. Only an
-    entry an Agent's leased Run sent counts (``journal_agent``, the same rule the broker
-    wakes use): the owner's own order from Lonora's Trading page is journaled too, with no
-    agent, and stays the owner's own position. Bounded history is not proof of external
-    ownership; default to requiring explicit manual permission whenever a matching origin
-    is unavailable.
+
+async def ticket_agent(
+    session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
+) -> str | None:
+    """The agent whose journaled entry opened or placed this ticket; None for the owner's own.
+
+    Attribute by the existing journal and broker identity, never ticket format, over every
+    confirmed entry on the ticket's account and symbol. The entry whose operation id (or
+    its ``broker_operation_tag``) the broker reports on the ticket opened or placed it; a
+    filled pending order's position carries its order's tag. Only when none matches does
+    the ticket id decide, and then the oldest entry carrying it: a later netting fill
+    carries the same position id and never takes the position (3.3.4). Only an entry an
+    Agent's leased Run sent counts (``journal_agent``, the same rule the broker wakes use):
+    the owner's own order from Lonora's Trading page is journaled too, with no agent, and
+    stays the owner's own position. A ticket no entry matches is the owner's.
     """
-    entries = await session.scalars(
-        select(TradingJournalRow)
-        .where(
-            TradingJournalRow.owner_id == owner_id,
-            TradingJournalRow.account_id == request.account_id,
-            TradingJournalRow.status == "confirmed",
-            TradingJournalRow.request["symbol"].as_string() == request.symbol,
-            TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-        )
-        .order_by(TradingJournalRow.updated_at.desc())
-        .limit(1000)
+    entry_filter = (
+        TradingJournalRow.owner_id == owner_id,
+        TradingJournalRow.account_id == request.account_id,
+        TradingJournalRow.status == "confirmed",
+        TradingJournalRow.request["symbol"].as_string() == request.symbol,
+        TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
     )
+    if target.operation_id:
+        # A raw operation id (our own, as the simulation reports it) is the primary key:
+        # no scan. A broker tag cannot be inverted, so it is matched in the scan below.
+        opener = await session.scalar(
+            select(TradingJournalRow).where(
+                TradingJournalRow.operation_id == target.operation_id, *entry_filter
+            )
+        )
+        if opener is not None:
+            return journal_agent(opener)
+    entries = list(
+        await session.scalars(
+            select(TradingJournalRow)
+            .where(*entry_filter)
+            .order_by(
+                TradingJournalRow.submitted_at.asc().nulls_last(),
+                TradingJournalRow.updated_at.asc(),
+            )
+        )
+    )
+    for entry in entries:
+        if target.operation_id in {entry.operation_id, broker_operation_tag(entry.operation_id)}:
+            return journal_agent(entry)
     kind = "position_id" if request.position_id else "order_id"
     for entry in entries:
         details = entry.result.get("details", {})
         safe_id = entry.result.get("broker_id") if details.get("simulation") else None
-        if target.operation_id in {
-            entry.operation_id,
-            broker_operation_tag(entry.operation_id),
-        } or target.id in {details.get(kind), safe_id}:
-            return journal_agent(entry) is not None
-    return False
+        if target.id in {details.get(kind), safe_id}:
+            return journal_agent(entry)
+    return None
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:
