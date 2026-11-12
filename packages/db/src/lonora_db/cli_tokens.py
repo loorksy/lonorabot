@@ -71,3 +71,13 @@ async def agent_for_cli_token(session: AsyncSession, token: str) -> AgentRow | N
             AgentCliTokenRow.owner_id == AgentRow.owner_id,
         )
     )
+
+
+async def owner_cli_tokens(session: AsyncSession, key: str, owner_id: str) -> list[str]:
+    """Every token issued to the owner's agents, for the scan of workspace output: a
+    command that prints its token returns [secret:LONORA_AGENT_TOKEN]."""
+    cipher = SecretCipher(key)
+    rows = await session.scalars(
+        select(AgentCliTokenRow.ciphertext).where(AgentCliTokenRow.owner_id == owner_id)
+    )
+    return [cipher.decrypt(row) for row in rows]

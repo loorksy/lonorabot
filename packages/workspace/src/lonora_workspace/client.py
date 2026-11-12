@@ -188,8 +188,11 @@ class WorkspaceClient:
         background: bool = False,
         timeout_seconds: float | None = None,
         secrets: dict[str, str] | None = None,
+        agent_token: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {"agent_id": agent_id, "command": command, "background": background}
+        if agent_token is not None:
+            body["agent_token"] = agent_token
         if timeout_seconds is not None:
             body["timeout_seconds"] = timeout_seconds
         if secrets:

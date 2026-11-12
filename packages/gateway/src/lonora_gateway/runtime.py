@@ -15,6 +15,7 @@ from lonora_db.workspace_given import GivenValues
 from lonora_market.runtime import MarketRuntime
 from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
+from lonora_tools.cli_token import CommandTokens
 from lonora_tools.context import ToolContext
 from lonora_trading.execution import ExecutionService
 from lonora_workspace.client import WorkspaceClient as Workspace
@@ -40,6 +41,7 @@ class OwnerServices:
     browser_url: str | None = None
     mcp_owner_trust: bool = True
     given: GivenValues | None = None
+    cli_tokens: CommandTokens | None = None
 
     @classmethod
     def create(
@@ -86,6 +88,7 @@ class OwnerServices:
             browser_url,
             mcp_owner_trust,
             GivenValues(db, key, owner_id),
+            CommandTokens(db, key, owner_id),
         )
 
     def tool_context(
@@ -117,6 +120,7 @@ class OwnerServices:
             ),
             workspace=WORKSPACE,
             workspace_given=self.given,
+            cli_tokens=self.cli_tokens,
             mcp_declarations=self.mcp_declarations,
             mcp_owner_trust=self.mcp_owner_trust,
             searxng_url=self.searxng_url,
