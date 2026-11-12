@@ -302,9 +302,20 @@ async def main() -> None:
             )
         print("PASS on its own judgment Lonora's agents copy its mode, or start in Ask")
 
-        # 4. The per-run guard against a runaway loop: three creations per run.
+        # 4. The guard against a runaway loop: three creations per minute within one run.
         assert await refused(own, "agent_create", {"name": "Fourth"}) == "agent_create_run_limit"
-        print("PASS at most three creations per run; the total is never counted")
+        # A minute later the same run creates again: a rate, never a count of agents.
+        async with db.sessions() as session, session.begin():
+            for row in await session.scalars(
+                select(EventRow).where(
+                    EventRow.run_id == own.lease.run_id, EventRow.kind == "agent.created"
+                )
+            ):
+                row.created_at = utcnow() - timedelta(minutes=2)
+        fourth = await call(own, "agent_create", {"name": "Fourth", "mode": "ask"})
+        assert fourth["created"] is True, fourth
+        created_ids.append(fourth["agent"]["id"])
+        print("PASS at most three creations per minute in a run; the total is never counted")
 
         # 5. No leading (3.2.2): a team agent's call is refused with the way to ask Lonora.
         async with db.sessions() as session, session.begin():

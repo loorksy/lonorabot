@@ -66,9 +66,9 @@ The execution door never binds the agent to it (3.1.2).
 ### Limits and duplicates
 
 - There is no limit on the number of agents (mandate 3.3.2). The one rate guard against
-  a runaway creation loop is at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations per run
-  (`agent_create_run_limit`), checked under the owner's creation lock; it never counts
-  the owner's agents.
+  a runaway creation loop is at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations per minute
+  within one run (`agent_create_run_limit`, `CREATION_WINDOW`), checked under the owner's
+  creation lock; it never counts the owner's agents.
 - A crash-replayed call returns the agent it created (its id is the call's resource id).
   A retry under a new call id for the same owner message and name returns the same agent
   (an effect receipt), also after a worker restart that lost the transcript. After the

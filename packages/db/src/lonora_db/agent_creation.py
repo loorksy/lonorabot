@@ -12,10 +12,11 @@ Provenance (who created it, from which owner message or run) is kept in the agen
 origin record and in the ``agent.created`` event.
 
 Limits: no limit on the number of agents (3.3.2). The one rate guard against a runaway
-creation loop is ``MAXIMUM_CREATIONS_PER_RUN`` creations per run; it never counts the
-owner's agents.
+creation loop is ``MAXIMUM_CREATIONS_PER_RUN`` creations per minute within one run; it
+never counts the owner's agents.
 """
 
+from datetime import timedelta
 from hashlib import sha256
 from typing import Any, cast
 
@@ -35,6 +36,8 @@ from .schema import (
 from .transactions import owned_agent
 
 MAXIMUM_CREATIONS_PER_RUN = 3
+# The guard counts one run's creations per minute (3.3.2), never the owner's agents.
+CREATION_WINDOW = timedelta(minutes=1)
 MAXIMUM_DESCRIPTION_CHARS = 280
 
 
@@ -75,7 +78,9 @@ async def lock_creation(session: AsyncSession, owner_id: str) -> None:
 
 
 async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> int:
-    """Agents this run created."""
+    """Agents this run created in the last ``CREATION_WINDOW``: the guard against a
+    runaway creation loop (mandate 3.3.2)."""
+    since = utcnow() - CREATION_WINDOW
     created = await session.scalar(
         select(func.count())
         .select_from(EventRow)
@@ -83,6 +88,7 @@ async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> in
             EventRow.owner_id == owner_id,
             EventRow.run_id == run_id,
             EventRow.kind == "agent.created",
+            EventRow.created_at >= since,
         )
     )
     return int(created or 0)
