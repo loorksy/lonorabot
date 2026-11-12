@@ -51,6 +51,7 @@ async def test_the_live_check_reads_finds_and_probes_without_printing_identifier
         fixture.runtime.settings.encryption_key.get_secret_value(),
         fixture.owner,
     )
+    row: Any = None
     try:
         async with fixture.runtime.db.sessions() as session, session.begin():
             await session.execute(
@@ -79,9 +80,11 @@ async def test_the_live_check_reads_finds_and_probes_without_printing_identifier
                 )
                 if r.payload.get("provider") == "metaapi" and r.id != row.id
             ]
-        with patch.object(
-            check, "MetaApiProvisioning", lambda value: FakeMetaApiProvisioning(api, value)
-        ):
+
+        def client(value: str) -> FakeMetaApiProvisioning:
+            return FakeMetaApiProvisioning(api, value)
+
+        with patch.object(check, "MetaApiProvisioning", client):
             code = await check.check(True, owner=fixture.owner)
         out = capsys.readouterr().out
         if not others:  # other tests' connections in a shared database fail their own line
@@ -95,7 +98,8 @@ async def test_the_live_check_reads_finds_and_probes_without_printing_identifier
             assert value not in out
     finally:
         async with fixture.runtime.db.sessions() as session, session.begin():
-            await session.execute(delete(BrokerSessionRow).where(BrokerSessionRow.id == row.id))
+            if row is not None:
+                await session.execute(delete(BrokerSessionRow).where(BrokerSessionRow.id == row.id))
             await session.execute(
                 delete(SecretRow).where(
                     SecretRow.owner_id == fixture.owner, SecretRow.name == METAAPI_TOKEN

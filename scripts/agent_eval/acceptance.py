@@ -583,8 +583,7 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ),
         (
             "the connection carries MetaApi's observed identity",
-            connection is not None
-            and (connection.state.get("broker_identity") or {}).get("login") == login,
+            connection is not None and observed_login(connection.state) == login,
             "connection " + ("made" if connection is not None else "missing"),
         ),
         (
@@ -598,6 +597,11 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             "values absent" if password not in stored else "a value leaked",
         ),
     ]
+
+
+def observed_login(state: dict[str, Any]) -> Any:
+    identity: dict[str, Any] = state.get("broker_identity") or {}
+    return identity.get("login")
 
 
 def digits(text: str) -> str:

@@ -149,7 +149,7 @@ async def check(probe_refusals: bool, owner: str | None = None) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--probe-refusals", action="store_true")
     sys.exit(asyncio.run(check(parser.parse_args().probe_refusals)))
 
