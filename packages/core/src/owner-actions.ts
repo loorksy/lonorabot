@@ -50,6 +50,8 @@ export const ownerActionLabels = {
       "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
     mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
     mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
     mandateGone: "This agent no longer exists.",
     resumeTitle: "Resume trading",
     resumeStopped: "New trading is stopped",
@@ -337,6 +339,7 @@ export const ownerActionLabels = {
     modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
     mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
     mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
+    mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
     mandateGone: "لم يعد هذا الوكيل موجودًا.",
     resumeTitle: "استئناف التداول",
     resumeStopped: "التداول الجديد متوقف",
@@ -1405,6 +1408,7 @@ export function ownerActionCard(
       const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
       lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
       lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
+      if (facts.active_grant) lines.push(text.mandateGrantStays);
       // One button for the other mode; the tap applies the mode this button shows.
       const other: TradingMode = mode === "full" ? "ask" : "full";
       hint = other === "full" ? text.mandateToFull : text.mandateToAsk;

@@ -70,8 +70,14 @@ def permission_guidance(
     mode: str = "ask",
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
-    full = mode == "full" and not observe_only
-    level = "analysis" if observe_only else "full" if full else state["effective_level"]
+    stored = "full" if mode == "full" else "ask"
+    level = (
+        "analysis"
+        if observe_only or state["effective_level"] == "analysis"
+        else "full"
+        if stored == "full" and not state.get("active_authorities")
+        else state["effective_level"]
+    )
     scopes: list[dict[str, Any]] = []
     authorities: list[dict[str, Any]] = (
         state.get("active_authorities", []) if not observe_only else []
@@ -103,7 +109,7 @@ def permission_guidance(
         )
     snapshot = {
         # Your one trading switch (Full or Ask); only the owner sets Full.
-        "trading_mode": "full" if full else "ask",
+        "trading_mode": stored,
         "manages_all_positions": bool(state.get("manages_all_positions")),
         "effective_level": level,
         "financial_mutations_prohibited": level == "analysis",
@@ -150,7 +156,7 @@ def permission_guidance(
         "full": (
             "You are in Full: you trade on your own. Inspect fresh account/market facts, "
             "decide whether and when to trade, size and manage positions; each request "
-            "executes without a card, except one on a ticket your own order did not open, and you report the result afterwards. You may switch "
+            "executes without a card and you report the result afterwards. You may switch "
             "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
             "request that adds risk; the owner switches you on your Mandate card. Owner restrictions, monetary limits and global_trading "
             "still bind you."
@@ -158,9 +164,11 @@ def permission_guidance(
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "
             "size and manage positions, and persist useful monitoring within the exact active "
-            "signed scopes below. Matching actions need no repeated per-operation approval. "
-            "Any other action, a goal step included, becomes the owner's approval card "
-            "(trade_execute does it); never enlarge scope yourself. Optional "
+            "signed scopes below. Matching actions need no repeated per-operation approval; "
+            "the grant decides within its own terms in either mode until it is revoked. "
+            "Any other action follows trading_mode: in Ask, a goal step included, it becomes "
+            "the owner's approval card (trade_execute does it); never enlarge scope yourself. "
+            "Optional "
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "
             "owner's own positions until the owner stops it; the account's monetary limits, "
@@ -168,7 +176,8 @@ def permission_guidance(
         ),
     }[level]
     ownership = (
-        " You act on tickets your own orders opened. Any other ticket is refused "
+        " Outside an active grant's own terms, you act on tickets your own orders opened. "
+        "Any other ticket is refused "
         "(ticket_not_owned) unless you are Lonora, the owner asks for it in the message you "
         "answer, or the owner told you to manage all positions (positions_manage_all; "
         "manages_all_positions below)."

@@ -17,6 +17,7 @@ from lonora_session.idempotency import request_hash
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.idempotency import trade_fingerprint
+from lonora_trading.manual_activity import material_state
 from sqlalchemy import delete, func, select
 
 
@@ -151,7 +152,17 @@ async def main() -> None:
                 }
             )
             await approve(request)
-            return request, await service.execute(fixture.owner, request, context.lease)
+            # A change to a ticket is sent only with the ticket the agent read (6.6).
+            read = None
+            if request.order_id:
+                broker = await context.brokers.get(fixture.owner, connection_id)
+                order = next(
+                    (item for item in await broker.orders() if item.id == request.order_id), None
+                )
+                read = material_state(order) if order else None
+            return request, await service.execute(
+                fixture.owner, request, context.lease, expected_target=read
+            )
 
         requests: list[tuple[TradeRequest, TradeResult]] = []
         for action, price in (

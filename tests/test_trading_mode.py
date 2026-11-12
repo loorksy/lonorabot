@@ -226,7 +226,16 @@ def test_the_frame_gives_the_agent_its_mode_every_turn():
     full = permission_guidance(state, mode="full")
     assert snapshot(full)["trading_mode"] == "full" and "You are in Full" in full
     assert snapshot(full)["owner_approval_required"] is False
-    # An observe-only wake never inherits the agent's Full mode.
+    # An observe-only wake reports the stored mode; its fields carry the restriction.
     observer = permission_guidance(state, mode="full", observe_only=True)
-    assert snapshot(observer)["trading_mode"] == "ask"
+    assert snapshot(observer)["trading_mode"] == "full"
     assert snapshot(observer)["financial_mutations_prohibited"] is True
+    # A No-trading agent is not told it trades on its own, whatever its mode.
+    stopped = permission_guidance({**state, "effective_level": "analysis"}, mode="full")
+    assert snapshot(stopped)["financial_mutations_prohibited"] is True
+    assert "You are in Full" not in stopped
+    # An active signed grant decides within its own terms in either mode.
+    granted = permission_guidance(
+        {**state, "effective_level": "autonomous", "active_authorities": [{"envelope": {}}]}
+    )
+    assert "in either mode until it is revoked" in granted
