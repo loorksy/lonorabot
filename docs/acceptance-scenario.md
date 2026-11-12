@@ -69,6 +69,6 @@ export LONORA_ACCEPT_PROVIDER_KEY=...                             # read from th
 
 | Step | State | Note |
 |---|---|---|
-| 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
+| 4c, a connection drop during a close | pass | Fake terminal. The actor is the gold agent, a team agent set to Full by the owner's tap, whose opening order is journaled as its own (3.3.4); a check names it. A close is risk-reducing, so its mode does not decide it (4.1). |
 | 6 | void | Amendment 1. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |

@@ -130,8 +130,9 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     assert {row["step"] for row in report} == set(STEPS)
     passed = {row["step"]: row for row in report if row["state"] == "pass"}
     assert "4c" in passed
-    # The step's own actor, the gold agent in Full: no stand-in is reported.
+    # The step's own actor: the gold agent in Full sent the close, no stand-in.
     assert "partial" not in passed["4c"]
+    assert {row["check"]: row["ok"] for row in passed["4c"]["checks"]}[acceptance.GOLD_SENT]
 
 
 def test_a_refusal_raised_or_answered_counts_against_authority():
