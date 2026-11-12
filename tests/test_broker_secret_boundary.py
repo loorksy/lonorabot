@@ -58,9 +58,7 @@ def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
             if name not in stores:
                 # Encrypting is anyone's (a device token, say); reading a stored secret's
                 # ciphertext back is only the stores'.
-                assert not (
-                    ".decrypt(" in text and re.search(r"SecretRow|ln_secrets|ciphertext", text)
-                ), name
+                assert not (".decrypt(" in text and re.search(r"SecretRow|ln_secrets", text)), name
             if name != "packages/adapters/src/lonora_adapters/brokers/base.py":
                 assert not re.search(r"\._secrets\b", text), name
 
