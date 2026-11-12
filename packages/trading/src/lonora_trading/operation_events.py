@@ -11,6 +11,7 @@ from typing import Any, Literal, cast
 
 from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_db.events import emit
+from lonora_db.execution_receipts import receipt_thread
 from lonora_db.schema import RunRow, TradingJournalRow
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,6 +81,9 @@ async def operation_event(session: AsyncSession, row: TradingJournalRow) -> None
         if run is not None:
             origin = run.model_metadata.get("origin_thread_id")
             thread_id = origin if isinstance(origin, str) and origin else run.thread_id
+    if thread_id is None:
+        # A run-less operation (the owner's own order): its receipt's conversation.
+        thread_id = await receipt_thread(session, row.operation_id)
     state = lifecycle(row)
     resolution = cast(dict[str, Any], state["resolution"] or {})
     emit(

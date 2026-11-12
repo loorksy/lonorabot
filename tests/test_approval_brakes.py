@@ -1,6 +1,6 @@
 """Brakes come before approval cards (W15-ACC).
 
-An agent at Ask me (or a trade outside an On its own grant) asks the owner with an
+An agent in Ask (or a trade outside an On its own grant) asks the owner with an
 approval card. While Stop new trading or a pause holds new risk, a card for a new entry
 could only fail after the owner's tap, so the trade tool returns the boundary's own code
 instead and no card is raised. Exits are still asked: the executor decides them against
@@ -55,6 +55,8 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
 
         async def cards() -> int:
@@ -86,22 +88,21 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
         )
         assert await refused(context, **entry) == "trading_restriction_active"
         assert await cards() == 0
-        # An exit under the pause is still asked: closing is never held by a pause.
-        close = await call(
-            context,
-            "trade_execute",
-            action="close_position",
-            account_id=connection,
-            symbol="XAUUSD",
-            position_id="held-ticket",
-        )
-        assert close.get("_runtime_wait") and close.get("approval_id"), close
-        assert await cards() == 1
+        # An exit under the pause is never held by a pause. This ticket was opened outside
+        # Lonora (the owner's own), so the agent may not act on it at all (3.3.4).
+        close = {
+            "action": "close_position",
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "position_id": "held-ticket",
+        }
+        assert await refused(context, **close) == "ticket_not_owned"
+        assert await cards() == 0
         # Lifted: the same entry is asked again with a card, as Ask me promises.
         await fixture.request("POST", f"/trading/restrictions/{pause['id']}/revoke", {"reason": ""})
         asked = await call(context, "trade_execute", **entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
-        assert await cards() == 2
+        assert await cards() == 1
     finally:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
@@ -137,6 +138,8 @@ async def test_a_first_trade_on_a_fresh_install_raises_the_start_trading_card() 
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
         first = await call(context, "trade_execute", **entry)
         assert first["code"] == "trading_not_started", first

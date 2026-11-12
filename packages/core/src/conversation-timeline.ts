@@ -1,15 +1,17 @@
-import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
+import type { ExecutionReceipt, Message, OwnerAction, TradeApproval } from "@lonora/contracts";
 
 export type ConversationItem =
   | { kind: "message"; id: string; seq: number; message: Message }
   | { kind: "approval"; id: string; seq: number; approval: TradeApproval }
-  | { kind: "owner_action"; id: string; seq: number; action: OwnerAction };
+  | { kind: "owner_action"; id: string; seq: number; action: OwnerAction }
+  | { kind: "receipt"; id: string; seq: number; receipt: ExecutionReceipt };
 
 /** Server sequence anchors win over fetch timing and mutable approval status. */
 export function conversationTimeline(
   messages: Message[],
   approvals: TradeApproval[],
   ownerActions: OwnerAction[] = [],
+  receipts: ExecutionReceipt[] = [],
 ): ConversationItem[] {
   const ordered = [...new Map(messages.map((message) => [message.id, message])).values()].sort(
     (a, b) => a.seq - b.seq,
@@ -38,13 +40,24 @@ export function conversationTimeline(
       (ordered.at(-1)?.seq ?? 0) + 1;
     rows.push({ kind: "owner_action", id: `owner_action:${action.id}`, seq, action });
   }
-  const order = { approval: 0, owner_action: 1, message: 2 };
+  for (const receipt of new Map(receipts.map((row) => [row.operation_id, row])).values()) {
+    // Posted when the broker confirmed: before the message that came next.
+    const seq =
+      receipt.timeline_seq ??
+      ordered.find((message) => Date.parse(message.created_at) >= Date.parse(receipt.created_at))
+        ?.seq ??
+      (ordered.at(-1)?.seq ?? 0) + 1;
+    rows.push({ kind: "receipt", id: `receipt:${receipt.operation_id}`, seq, receipt });
+  }
+  const order = { approval: 0, owner_action: 1, receipt: 2, message: 3 };
   const time = (item: ConversationItem) =>
     item.kind === "approval"
       ? item.approval.created_at
       : item.kind === "owner_action"
         ? item.action.created_at
-        : item.message.created_at;
+        : item.kind === "receipt"
+          ? item.receipt.created_at
+          : item.message.created_at;
   return rows.sort(
     (a, b) =>
       a.seq - b.seq ||

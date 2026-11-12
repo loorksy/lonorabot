@@ -141,7 +141,14 @@ async def main() -> None:
         assert {first, second}.issubset({item["connection_id"] for item in accounts})
         try:
             denied = await call(
-                "trade_execute", {"action": "buy", "volume": "0.1", "stop_loss": "90"}
+                "trade_execute",
+                {
+                    "action": "buy",
+                    "volume": "0.1",
+                    "stop_loss": "90",
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
+                },
             )
             assert denied.get("code") == "agent_analysis_only", denied
         except LonoraError as error:
@@ -229,6 +236,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )
@@ -245,6 +254,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )
@@ -309,6 +320,8 @@ async def main() -> None:
                 "action": "buy",
                 "volume": "0.1",
                 "stop_loss": "90",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
             fixed_context,
         )

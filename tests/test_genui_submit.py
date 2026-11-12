@@ -1,5 +1,5 @@
 """Generated-card sends (GENUI_PLAN §8.2, §8.4, §8.5, §10.2): the server-composed bubble,
-the queued submission and its rules Q, W, V, N, T and L, provenance and the taint.
+the queued submission and its rules Q, W, V, N, T and L, and its provenance (mandate 6.10).
 
 Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
 """
@@ -134,7 +134,7 @@ async def open_fixture() -> Any:
 
 
 @pytest.mark.asyncio
-async def test_submit_stores_the_server_bubble_and_its_own_tainted_queued_run() -> None:
+async def test_submit_stores_the_server_bubble_and_its_own_marked_queued_run() -> None:
     from lonora_db.schema import MessageRow, RunRow, SteeringRow
     from lonora_trading.account_authority import provisional_voice
     from sqlalchemy import func, select
@@ -188,7 +188,8 @@ async def test_submit_stores_the_server_bubble_and_its_own_tainted_queued_run() 
                 input_seq=0,
                 model_metadata={},
             )
-            assert await provisional_voice(session, child)
+            # The mark is this Run's alone: a child Run is an ordinary Run (6.10).
+            assert not await provisional_voice(session, child)
             assert not await provisional_voice(session, active)
         # Idempotent by client_nonce; a different submission under the same nonce conflicts.
         again = await card.post(
@@ -484,46 +485,6 @@ async def test_card_words_never_stand_for_the_owner() -> None:
         await fixture.close()
 
 
-@pytest.mark.asyncio
-async def test_a_watch_created_by_a_submission_wakes_tainted() -> None:
-    from lonora_db.schema import RunRow
-    from test_proactive_wakes import call, retire, simulation
-
-    fixture = await open_fixture()
-    connection = ""
-    try:
-        connection = await simulation(fixture, [])
-        card = await Card(fixture).open()
-        response = await card.post(card.body({"price": 2450}))
-        assert response.status_code == 202
-        submit_run = {
-            "id": response.json()["run_ids"][0],
-            "agent_id": card.agent["id"],
-            "thread_id": card.thread["id"],
-        }
-        context = await fixture.lease(submit_run)
-        created = await call(
-            context,
-            "watch_create",
-            account_id=connection,
-            symbol="XAUUSD",
-            condition="above",
-            level="2450",
-            prompt="Tell the owner gold crossed 2450.",
-        )
-        from lonora_db.genui_taint import row_taint
-
-        async with fixture.runtime.db.sessions() as session:
-            run = await session.get(RunRow, submit_run["id"])
-            assert run is not None
-            # The ledger keeps the taint; the watch's own state holds no copy to rewrite.
-            taint = await row_taint(session, "watch", created["id"])
-            assert taint == run.model_metadata["ui_submit_origin"]
-    finally:
-        await retire(fixture, connection)
-        await fixture.close()
-
-
 def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
     """§8.4: every query of user messages either goes through ``owner_words``, reads
     ``origin`` or sits on this reviewed allowlist with its reason."""
@@ -645,7 +606,7 @@ async def test_a_send_that_ran_is_never_marked_and_clients_learn_it_started() ->
 async def test_an_owner_message_folded_into_a_queued_send_survives_its_edit() -> None:
     """The owner types while a card's send waits: their message joins that queued Run.
     «تعديل» cancels the send, never the owner's words: they get a normal owner Run."""
-    from lonora_db.genui_taint import SUBMIT
+    from lonora_db.genui_submit import SUBMIT
 
     fixture = await open_fixture()
     try:
