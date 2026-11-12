@@ -776,6 +776,28 @@ export const labels = {
     "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
+  running_title: ["ما يعمل الآن", "What is running"],
+  running_subtitle: ["عمليات وكلائك في مساحة العمل", "Your agents' processes in the workspace"],
+  running_stopAll: ["إيقاف الكل", "Stop all"],
+  running_stoppingAll: ["يجري إيقاف الكل…", "Stopping all…"],
+  running_stop: ["إيقاف", "Stop"],
+  running_stopOne: ["إيقاف {0}", "Stop {0}"],
+  running_stale: [
+    "آخر ردّ من مساحة العمل {0}؛ قد تكون هذه القائمة قديمة.",
+    "The workspace last answered at {0}; this list may be out of date.",
+  ],
+  running_stopping: ["يجري الإيقاف…", "Stopping…"],
+  running_empty: ["لا شيء يعمل في مساحة العمل.", "Nothing is running in the workspace."],
+  running_unknown: [
+    "لم تُجب مساحة العمل بعد، فلا يُعرف ما يعمل الآن.",
+    "The workspace has not answered yet, so what is running is not known.",
+  ],
+  running_noCommand: ["(بلا سطر أمر)", "(no command line)"],
+  running_started: ["بدأت {0}", "Started {0}"],
+  running_note: [
+    "كل عملية يشغّلها وكلاؤك في مساحة العمل، مع الوكيل الذي بدأها.",
+    "Every process your agents run in the workspace, with the agent that started it.",
+  ],
   ...shellLabels,
   ...shellExtraLabels,
 } as const;

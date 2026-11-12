@@ -14,8 +14,10 @@ from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.threads import thread_options
+from lonora_db.workspace_processes import ended_notice
 from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import ToolRegistry
@@ -213,6 +215,12 @@ async def build_context(
                     else None,
                 ),
             )
+        # Told to an ordinary run only: a helper or an observe-only wake would use it up.
+        ended_processes = (
+            await timed("workspace_processes", ended_notice(context.db, agent.id, run.id))
+            if run_scope(run.trigger, run.model_metadata) == "full"
+            else ""
+        )
         evidence = await timed(
             "run_evidence",
             recent_tool_evidence(session, agent.id, thread.id, run.id, query),
@@ -242,6 +250,14 @@ async def build_context(
                 "first_party_runtime",
                 gap.notice() if gap else "",
                 100,
+            ),
+            ContextSection(
+                "workspace_processes",
+                "workspace_supervisor",
+                # It quotes the agent's own command lines.
+                "agent_authored",
+                ended_processes,
+                90,
             ),
             ContextSection(
                 "recent_tool_evidence",

@@ -744,6 +744,73 @@ class WorkspaceOperationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WorkspaceRunningRow(Base):
+    """What is running in the owner's workspace (7.1.5): the supervisor's last listing of
+    every agent process, as the scan left it, written by the Gateway."""
+
+    __tablename__ = "ln_workspace_running"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    processes: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    listed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkspaceStopRow(Base):
+    """The owner's tap on "stop" (one process) or "stop all" in What is running (7.1.5),
+    carried out by the Gateway, the only service that reaches the workspace."""
+
+    __tablename__ = "ln_workspace_stops"
+    __table_args__ = (
+        CheckConstraint("(pid IS NULL) = (agent_id IS NULL)", name="ln_workspace_stop_target"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # Both empty: stop every process of the owner's agents.
+    pid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), nullable=True
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+class WorkspaceProcessRow(Base):
+    """A background process an agent started in the owner's workspace (7.1.2), until the
+    agent has been told it ended. The command is stored as the scan left it."""
+
+    __tablename__ = "ln_workspace_processes"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('exited','stopped','restarted','lost')",
+            name="ln_workspace_process_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    boot_id: Mapped[str] = mapped_column(String(36))
+    pid: Mapped[int] = mapped_column(Integer)
+    command: Mapped[str] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    # The run whose context first carried the notice: it shows for that whole run.
+    reported_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
 class WorkspaceGivenRow(Base):
     """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
 
