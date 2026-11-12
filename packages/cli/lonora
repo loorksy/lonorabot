@@ -19,7 +19,7 @@ import socket
 import sys
 from typing import Any, NoReturn
 
-SOCKET = os.environ.get("LONORA_CLI_SOCKET", "/run/lonora/lonora.sock")
+SOCKET = os.environ.get("LONORA_CLI_SOCKET", "/app/.runtime/cli/lonora.sock")
 TIMEOUT_SECONDS = 120
 EXIT_CODES = {0, 10, 20, 30, 77}
 
