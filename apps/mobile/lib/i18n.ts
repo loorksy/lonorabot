@@ -331,6 +331,7 @@ export const labels = {
     "The account is not deployed on MetaApi",
   ],
   attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
+  attentionBrokerRateLimited: ["MetaApi تحدّ من الطلبات حاليًا", "MetaApi is limiting requests for now"],
   attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [

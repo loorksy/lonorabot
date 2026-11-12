@@ -223,3 +223,16 @@ async def test_a_connection_linked_without_its_region_records_metaapis() -> None
                 if saved is not None:
                     await session.delete(saved)
         await fixture.close()
+
+
+def test_throttling_has_its_own_owner_text_and_wake_text() -> None:
+    from lonora_bus.attention import attention_text
+    from lonora_contracts.attention import BROKER_HEALTH_CODES
+    from lonora_db.system_alerts import PROBLEMS
+
+    assert "broker_rate_limited" in BROKER_HEALTH_CODES
+    lost = {locale: attention_text("broker_connection_lost", locale) for locale in ("ar", "en")}
+    for locale in ("ar", "en"):
+        text = attention_text("broker_rate_limited", locale)
+        assert "MetaApi" in text and text != lost[locale]
+    assert "throttling" in PROBLEMS["broker_rate_limited"]

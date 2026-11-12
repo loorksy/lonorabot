@@ -17,6 +17,7 @@ AttentionCode = Literal[
     "broker_token_rejected",
     "broker_account_undeployed",
     "broker_connection_lost",
+    "broker_rate_limited",
     "external_broker_activity",
     "setup_confirmed",
     "thesis_invalidated",
@@ -47,12 +48,14 @@ ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
     "broker_token_rejected": "broker_health",
     "broker_account_undeployed": "broker_health",
     "broker_connection_lost": "broker_health",
+    "broker_rate_limited": "broker_health",
 }
 # The broker health problems of mandate 9.4, one item per account and problem.
 BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
     "broker_token_rejected",
     "broker_account_undeployed",
     "broker_connection_lost",
+    "broker_rate_limited",
 )
 
 

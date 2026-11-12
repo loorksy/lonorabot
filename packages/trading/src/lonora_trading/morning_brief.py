@@ -74,6 +74,7 @@ COUNTED_ELSEWHERE = (
     "broker_token_rejected",
     "broker_account_undeployed",
     "broker_connection_lost",
+    "broker_rate_limited",
 )
 # A weekly report reaches the brief bounded, as the agent's own words.
 REPORT_CHARACTERS = 1500

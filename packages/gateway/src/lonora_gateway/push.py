@@ -5,7 +5,7 @@ One push per record, at its creation, to every phone that has not signed out:
 - a Settle Uncertain Operation card (``operation_uncertain``);
 - a Secret card an agent's run raised and is waiting on (``secret_requested``);
 - a broker health problem (``broker_token_rejected``, ``broker_account_undeployed``,
-  ``broker_connection_lost``): one push per account and problem, the problem named by the
+  ``broker_connection_lost``, ``broker_rate_limited``): one push per account and problem, the problem named by the
   account and the time it began, so a flapping connection pushes once per outage.
 
 The text is the fixed catalog text of the event in the owner's language, under the agent's

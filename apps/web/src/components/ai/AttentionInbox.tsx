@@ -22,6 +22,7 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     broker_token_rejected: t`MetaApi rejected the access token`,
     broker_account_undeployed: t`The account is not deployed on MetaApi`,
     broker_connection_lost: t`The account connection has been lost`,
+    broker_rate_limited: t`MetaApi is limiting requests for now`,
     external_broker_activity: t`Broker account changed`,
     setup_confirmed: t`Watch confirmed — review current evidence`,
     thesis_invalidated: t`Setup validity changed`,

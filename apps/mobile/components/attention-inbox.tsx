@@ -20,6 +20,7 @@ export const attentionLabels: Record<AttentionCode, Label> = {
   broker_token_rejected: "attentionBrokerTokenRejected",
   broker_account_undeployed: "attentionBrokerUndeployed",
   broker_connection_lost: "attentionBrokerConnectionLost",
+  broker_rate_limited: "attentionBrokerRateLimited",
   external_broker_activity: "attentionAccountChanged",
   setup_confirmed: "attentionSetupConfirmed",
   thesis_invalidated: "attentionThesisChanged",

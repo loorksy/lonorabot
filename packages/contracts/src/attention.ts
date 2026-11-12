@@ -12,6 +12,7 @@ export type AttentionCode =
   | "broker_token_rejected"
   | "broker_account_undeployed"
   | "broker_connection_lost"
+  | "broker_rate_limited"
   | "external_broker_activity"
   | "setup_confirmed"
   | "thesis_invalidated"
@@ -46,6 +47,7 @@ export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = 
   broker_token_rejected: "broker_health",
   broker_account_undeployed: "broker_health",
   broker_connection_lost: "broker_health",
+  broker_rate_limited: "broker_health",
 };
 /** A broker health problem (mandate 9.4): one item per account and problem. */
 export function isBrokerHealth(code: AttentionCode): boolean {

@@ -28,6 +28,8 @@ PROBLEMS = {
     "broker_token_rejected": "MetaApi rejected the access token",
     "broker_account_undeployed": "the account is not deployed on MetaApi, or no longer exists there",
     "broker_connection_lost": "the connection has been lost for more than two minutes",
+    "broker_rate_limited": "MetaApi has been throttling the account's requests for more than "
+    "two minutes (the account itself is fine); the adapter retries at the time MetaApi gives",
 }
 
 

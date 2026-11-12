@@ -13,6 +13,7 @@ from lonora_contracts.attention import (
 )
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
+from lonora_core.broker_health import GRACED as GENERIC
 from lonora_core.broker_health import broker_problem, outage
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
@@ -45,6 +46,8 @@ SYSTEM_ATTENTION = {
     "broker_token_rejected": "action_required",
     "broker_account_undeployed": "action_required",
     "broker_connection_lost": "action_required",
+    # Nothing for the owner to do: the adapter retries at the time MetaApi gives.
+    "broker_rate_limited": "important_change",
 }
 
 
@@ -124,9 +127,7 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         # Within one outage the adapter's reason flaps between polls (a 401, then a
         # timeout): a rejected token or an undeployed account stays the outage's problem
         # while later polls show only a generic lost connection.
-        return found[0] == row.code or (
-            row.code != "broker_connection_lost" and found[0] == "broker_connection_lost"
-        )
+        return found[0] == row.code or (row.code not in GENERIC and found[0] in GENERIC)
     if row.code == "secret_requested":
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
         return (

@@ -14,6 +14,7 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 | `broker_health` | `broker_token_rejected` | the account is disconnected with `broker_credentials_rejected` | the account is no longer disconnected with that problem, or its connection is disabled or removed |
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
+| `broker_health` | `broker_rate_limited` | the account has been disconnected because MetaApi throttles its requests (`broker_rate_limited`) for 2 minutes; the account itself is fine and the adapter retries at the time MetaApi gives | the same |
 
 - Every item is `action_required` (a broker problem on an account with open positions
   or unresolved operations is `critical`), so it is ready at once, and it becomes ready
