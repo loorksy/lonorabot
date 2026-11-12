@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0087_end_money_limits"
-down_revision = "0138_skill_package_files"
+down_revision = "0060_agent_trading_mode"
 branch_labels = None
 depends_on = None
 
