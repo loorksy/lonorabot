@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ChartSheetProvider } from "../components/chart-sheet";
 import { IncomingCallOverlay } from "../components/incoming-call";
+import { PushRegistration } from "../components/shell/notifications";
 import { SheetProvider } from "../components/shell/sheets";
 import { ToastProvider } from "../components/shell/toast";
 import { VoiceOverlay } from "../components/voice-overlay";
@@ -39,6 +40,7 @@ export default function Layout() {
   useOtaUpdates();
   return (
     <SessionProvider>
+      <PushRegistration />
       <ThemeProvider>
         <ShellDataProvider>
           <ToastProvider>

@@ -1,7 +1,7 @@
 """Attention is a projection of runtime truth, not another chat timeline."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
@@ -15,8 +15,9 @@ AttentionCode = Literal[
     "emergency_stop",
     "approval_required",
     "approval_resolved",
-    "broker_degraded",
-    "broker_recovered",
+    "broker_token_rejected",
+    "broker_account_undeployed",
+    "broker_connection_lost",
     "external_broker_activity",
     "setup_confirmed",
     "thesis_invalidated",
@@ -33,7 +34,47 @@ AttentionCode = Literal[
     "operation_uncertain",
     "gateway_degraded",
     "agent_notification",
+    "secret_requested",
 ]
+AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
+
+# The events of mandate 11.4 that need the owner, by code: each is one item, ready at
+# once and withdrawn when its card ends or its problem clears.
+AttentionEvent = Literal["trade_approval", "settle_operation", "secret_request", "broker_health"]
+ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
+    "approval_required": "trade_approval",
+    "operation_uncertain": "settle_operation",
+    "secret_requested": "secret_request",
+    "broker_token_rejected": "broker_health",
+    "broker_account_undeployed": "broker_health",
+    "broker_connection_lost": "broker_health",
+}
+# The broker health problems of mandate 9.4, one item per account and problem.
+BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
+    "broker_token_rejected",
+    "broker_account_undeployed",
+    "broker_connection_lost",
+)
+
+
+class AttentionNotification(Contract):
+    """One attention item as the clients and the channels read it.
+
+    It is the payload of the ``attention.updated`` and ``attention.ready`` events.
+    """
+
+    id: str
+    agent_id: str
+    thread_id: str
+    importance: AttentionImportance
+    code: AttentionCode
+    status: AttentionStatus
+    parameters: dict[str, Any]
+    source_events: list[int]
+    source_count: int
+    version: int
+    created_at: datetime
+    updated_at: datetime
 
 
 class AttentionPolicy(Contract):

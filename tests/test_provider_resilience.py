@@ -1569,7 +1569,7 @@ async def test_model_retry_raise_is_the_existing_worker_release(
         await execute_tool_loop(context, ToolRegistry([]), 8)
 
 
-# --- 7. consult_model: bounded, advisory, budget-aware -----------------------------
+# --- 7. consult_model: advisory, no per-run budget (P1) ------------------------------
 
 
 class ConsultRouter:
@@ -1604,7 +1604,7 @@ async def test_consult_model_sends_a_bounded_escaped_pack_to_another_model(
     from dataclasses import replace
 
     from lonora_db.schema import UsageRow
-    from lonora_tools.consult import MAXIMUM_CONSULTS_PER_RUN, consult
+    from lonora_tools.consult import consult
     from lonora_tools.loader import load_tools
 
     tool = load_tools().tools["consult_model"]
@@ -1623,7 +1623,8 @@ async def test_consult_model_sends_a_bounded_escaped_pack_to_another_model(
     )
     assert result["ok"] is True and result["advisory"] is True
     assert result["model"] == BACKUP.model_dump(mode="json")
-    assert result["consults_remaining"] == MAXIMUM_CONSULTS_PER_RUN - 1
+    # P1: no activity budget, so nothing counts consultations down.
+    assert "consults_remaining" not in result
     assert "none" in result["authority"]
     messages, tools, choices = router.requests[0]
     # The consulted model gets no tools, only the pack, with markup made inert.
@@ -1641,42 +1642,44 @@ async def test_consult_model_sends_a_bounded_escaped_pack_to_another_model(
 
 
 @pytest.mark.asyncio
-async def test_consult_model_budget_and_no_alternative(task_db: Fixture) -> None:
+async def test_consult_model_has_no_per_run_budget_and_needs_an_alternative(
+    task_db: Fixture,
+) -> None:
     from dataclasses import replace
 
-    from lonora_tools.consult import MAXIMUM_CONSULTS_PER_RUN, consult
+    from lonora_tools.consult import consult
 
+    # Mandate P1: no activity budget. Earlier consultations in the transcript never
+    # refuse the next one; the agent decides when a second opinion is worth it.
     done: list[dict[str, Any]] = []
-    for index in range(MAXIMUM_CONSULTS_PER_RUN):
+    for index in range(5):
         call = ToolCall(id=f"c{index}", name="consult_model", arguments={"question": "q"})
         done += [
             ModelMessage(role="assistant", content="", tool_calls=[call]).model_dump(mode="json"),
             ModelMessage(role="tool", tool_call_id=call.id, content="{}").model_dump(mode="json"),
         ]
-    context = await conversation_run(task_db, {"messages": done, "instruction_skill_ids": []})
-    router = ConsultRouter([PRIMARY])
+    state = {
+        "messages": done,
+        "instruction_skill_ids": [],
+        "selection": {"provider": PRIMARY.provider, "model": PRIMARY.model},
+    }
+    context = await conversation_run(task_db, state)
+    router = ConsultRouter([PRIMARY, BACKUP])
     context = replace(context, router=cast(Any, router)).for_call("next")
-    spent = await consult(context, {"question": "Again?"})
-    assert spent["code"] == "consult_budget_exhausted" and router.requests == []
-    async with task_db[0].sessions() as session, session.begin():
-        run = await session.get(RunRow, context.lease.run_id)
-        assert run
-        run.execution_state = {
-            "messages": [ModelMessage(role="user", content="x").model_dump(mode="json")],
-            "instruction_skill_ids": [],
-            "selection": {"provider": PRIMARY.provider, "model": PRIMARY.model},
-        }
+    again = await consult(context, {"question": "Again?"})
+    assert again["ok"] is True and len(router.requests) == 1
+    alone = replace(context, router=cast(Any, ConsultRouter([PRIMARY])))
     # The only configured model is the one already answering: no second opinion.
-    assert (await consult(context, {"question": "Anyone?"}))["code"] == "consult_model_unavailable"
+    assert (await consult(alone, {"question": "Anyone?"}))["code"] == "consult_model_unavailable"
 
 
 @pytest.mark.asyncio
-async def test_consult_budget_holds_when_the_provider_reuses_or_omits_call_ids(
+async def test_consultations_paid_for_in_one_run_never_exhaust_a_budget(
     task_db: Fixture,
 ) -> None:
     from dataclasses import replace
 
-    from lonora_tools.consult import MAXIMUM_CONSULTS_PER_RUN, consult
+    from lonora_tools.consult import consult
 
     state = {
         "messages": [ModelMessage(role="user", content="Analyze gold").model_dump(mode="json")],
@@ -1685,15 +1688,11 @@ async def test_consult_budget_holds_when_the_provider_reuses_or_omits_call_ids(
     }
     context = await conversation_run(task_db, state)
     router = ConsultRouter([PRIMARY, BACKUP])
-    # Every turn's call arrives as "call_0" (or with no id): the transcript cannot
-    # tell them apart, the server's usage records can.
-    for identifier in ("call_0", "call_0", ""):
+    # Usage rows record every paid consultation; however many there are, the next
+    # one is still sent.
+    for identifier in ("call_0", "call_0", "", "call_0", "call_1"):
         answered = await consult(
             replace(context, router=cast(Any, router)).for_call(identifier), {"question": "q"}
         )
-        assert answered["ok"] is True
-    spent = await consult(
-        replace(context, router=cast(Any, router)).for_call("call_0"), {"question": "q"}
-    )
-    assert spent["code"] == "consult_budget_exhausted"
-    assert len(router.requests) == MAXIMUM_CONSULTS_PER_RUN
+        assert answered["ok"] is True and answered.get("code") is None
+    assert len(router.requests) == 5

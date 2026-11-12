@@ -40,7 +40,8 @@ services:
       LONORA_ANDROID_APK_PATH: /app/releases/android/lonora.apk
       LONORA_MIGRATE_ON_START: "false"
     command: ["api"]
-    volumes: ["artifacts:/app/.runtime/artifacts", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
+    # cli-socket holds the `lonora` CLI endpoint's Unix socket (7.3); Caddy never serves it.
+    volumes: ["artifacts:/app/.runtime/artifacts", "cli-socket:/app/.runtime/cli", "../../.runtime/releases/android:/app/releases/android:ro", "../../.runtime/releases/ota:/app/releases/ota:ro"]
     mem_limit: ${LONORA_API_MEMORY:-896m}
     cpus: ${LONORA_API_CPUS:-0.75}
     depends_on:
@@ -91,5 +92,6 @@ services:
 volumes:
   database:
   artifacts:
+  cli-socket:
   caddy-data:
   caddy-config:

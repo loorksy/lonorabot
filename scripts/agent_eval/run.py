@@ -176,8 +176,8 @@ def recording_factory(model: str | None, log: list[dict[str, Any]], origin: floa
     if model is not None:
         return runner.recording_factory(model, log, origin)
 
-    def factory(provider: str, secret: str) -> Any:
-        return AnyModel(model_adapter(provider, secret), "", log, origin)
+    def factory(provider: str, secret: str, base_url: str | None = None) -> Any:
+        return AnyModel(model_adapter(provider, secret, base_url), "", log, origin)
 
     return factory
 
