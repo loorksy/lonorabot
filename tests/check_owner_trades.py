@@ -1,9 +1,6 @@
-"""The trades page's buttons on the server (trades.page, Q30): the owner's own modify and
-close go through POST /api/trading/execute, the single executor, under the owner's pauses.
-
-Under an exits-only pause covering the owner's orders a close is still admitted (an exit), a stop moved toward the market is
-admitted (it only bounds the loss), and a stop moved away from the market is refused by
-the server: the page never relies on hiding a button. Run on a disposable *_test database.
+"""The trades page's buttons on the server (trades.page, Q30): the owner's own buy, modify
+and close go through POST /api/trading/execute, the single executor, and each is confirmed
+from the broker. Run on a disposable *_test database.
 """
 
 import asyncio
@@ -49,53 +46,6 @@ async def main() -> None:
         position = positions[0]["id"]
         print("PASS the owner's buy opens one position through the executor")
 
-        # The owner's own "exits only" pause on the account, covering the owner's orders.
-        await fixture.request(
-            "POST",
-            "/trading/restrictions",
-            {
-                "account_id": account,
-                "action_class": "no_risk_increase",
-                "applies_to_owner_manual": True,
-            },
-        )
-        status, widened = await execute(
-            fixture,
-            {
-                "account_id": account,
-                "action": "modify_position",
-                "position_id": position,
-                "stop_loss": "190",
-            },
-        )
-        # The pause's own refusal, not any refusal.
-        assert status == 409 and widened.get("code") == "trading_restriction_active", (
-            status,
-            widened,
-        )
-        after = (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
-        assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
-        print("PASS under an exits-only pause the server refuses a stop moved away from the market")
-
-        # The page sends an emptied stop as an explicit clear; removing protection widens
-        # risk, so under the pause the server refuses it and the stop stays.
-        status, cleared = await execute(
-            fixture,
-            {
-                "account_id": account,
-                "action": "modify_position",
-                "position_id": position,
-                "clear_stop_loss": True,
-            },
-        )
-        assert status == 409 and cleared.get("code") == "trading_restriction_active", (
-            status,
-            cleared,
-        )
-        after = (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
-        assert after[0]["stop_loss"] in {"200", "200.00", "200.0"}, after
-        print("PASS under an exits-only pause the server refuses clearing the stop")
-
         status, tightened = await execute(
             fixture,
             {
@@ -106,16 +56,14 @@ async def main() -> None:
             },
         )
         assert status == 200 and tightened["status"] == "confirmed", tightened
-        print("PASS under an exits-only pause a stop moved toward the market is admitted")
+        print("PASS the owner's stop moved toward the market is confirmed")
 
         status, closed = await execute(
             fixture, {"account_id": account, "action": "close_position", "position_id": position}
         )
         assert status == 200 and closed["status"] == "confirmed", closed
         assert not (await fixture.request("GET", f"/trading/accounts/{account}"))["positions"]
-        print(
-            "PASS under an exits-only pause the owner's close is admitted and the position is gone"
-        )
+        print("PASS the owner's close is confirmed and the position is gone")
     finally:
         if account:
             await fixture.client.delete(f"/api/trading/connections/{account}")

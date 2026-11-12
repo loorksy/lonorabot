@@ -1,5 +1,6 @@
-/** Server-written message parts: an owner voice note and a call log bubble (WP-E). */
-import type { CallPart, Message, RichContent, VoicePart } from "@lonora/contracts";
+/** Server-written message parts: an owner voice note, a call log bubble (WP-E) and the
+    / command of an owner message. */
+import type { CallPart, CommandPart, Message, RichContent, VoicePart } from "@lonora/contracts";
 import { validateRichContent } from "./visual-response";
 
 type WithRich = Pick<Message, "rich_content">;
@@ -20,7 +21,15 @@ export function callPart(message: WithRich): CallPart | null {
   return part?.type === "call" ? part : null;
 }
 
-/** Rich content an Agent reply may carry: voice and call parts are server-written only. */
+/** The validated command part of an owner message sent as a / command, else null. */
+export function commandPart(message: WithRich): CommandPart | null {
+  const part = validateRichContent(message.rich_content)?.parts.find(
+    (item) => item.type === "command",
+  );
+  return part?.type === "command" ? part : null;
+}
+
+/** Rich content an Agent reply may carry: voice, call and command parts are server-written only. */
 export function validateAgentRichContent(value: unknown): RichContent | null {
   const rich = validateRichContent(value);
   return rich?.parts.every((part) => part.type === "text" || part.type === "ui") ? rich : null;
@@ -29,6 +38,20 @@ export function validateAgentRichContent(value: unknown): RichContent | null {
 /** The voice part a voice note's send body carries, as the rich content of its pending or failed
     bubble, so it is drawn as a voice note before the server's copy arrives. Null otherwise. */
 export function pendingVoiceRich(body: Record<string, unknown>): RichContent | null {
+  const command = body.command as { name?: unknown; argument?: unknown; skill_id?: unknown } | null;
+  if (command && typeof command === "object")
+    // A / command draws its chip at once; a skill's name arrives with the server's copy.
+    return validateRichContent({
+      version: 1,
+      parts: [
+        {
+          type: "command",
+          name: command.name,
+          argument: typeof command.argument === "string" ? command.argument : "",
+          skill_id: command.skill_id ?? null,
+        },
+      ],
+    });
   const voice = body.voice as { artifact_id?: unknown; duration?: unknown; peaks?: unknown } | null;
   if (!voice || typeof voice !== "object" || typeof voice.artifact_id !== "string") return null;
   return validateRichContent({

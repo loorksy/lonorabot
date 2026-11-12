@@ -13,7 +13,7 @@ from typing import Any, cast
 from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import MessageRow, RunRow
+from .schema import MessageRow, RunRow, SteeringRow
 
 OWNER = "owner"
 
@@ -21,6 +21,18 @@ OWNER = "owner"
 def ui_submit_origin(run: RunRow) -> dict[str, Any] | None:
     origin: Any = (run.model_metadata or {}).get("ui_submit_origin")
     return cast(dict[str, Any], origin) if isinstance(origin, dict) else None
+
+
+# A card send's retry names the send's own Run here (``run_retry.retry_run``). Provenance
+# only (mandate 6.10): no queue rule (Q, W, L, V, N, T) reads it.
+RETRY_OF_SUBMIT = "ui_submit_retry_of"
+
+
+def ui_submit_provenance(run: RunRow) -> bool:
+    """Whether this Run answers a card's send, for authority and owner words (6.10): the Run
+    the send started (``ui_submit_origin``, also the queue rules' key) or a retry of it."""
+    retry_of: Any = (run.model_metadata or {}).get(RETRY_OF_SUBMIT)
+    return ui_submit_origin(run) is not None or retry_of is not None
 
 
 TERMINAL = frozenset({"completed", "failed", "cancelled"})
@@ -62,12 +74,12 @@ async def submit_hidden(session: AsyncSession, message: MessageRow, run: RunRow 
 async def owner_typed_message(session: AsyncSession, run: RunRow) -> MessageRow | None:
     """The latest message the owner typed that this Run answers, or None.
 
-    None for any Run a card submission started (its window may include later messages,
-    rule W, but lends it no owner words) and when the latest visible message in the window
-    is card words rather than the owner's (the fail-safe direction). A submission hidden
-    from this Run (rules V and N) is skipped, never read.
+    None for any Run a card submission started and for its retry (its window may include
+    later messages, rule W, but lends it no owner words), and when the latest visible
+    message in the window is card words rather than the owner's (the fail-safe direction).
+    A submission hidden from this Run (rules V and N) is skipped, never read.
     """
-    if ui_submit_origin(run) is not None:
+    if ui_submit_provenance(run):
         return None
     rows = await session.scalars(
         select(MessageRow)
@@ -75,6 +87,16 @@ async def owner_typed_message(session: AsyncSession, run: RunRow) -> MessageRow 
             MessageRow.thread_id == run.thread_id,
             MessageRow.role == "user",
             MessageRow.seq <= run.input_seq,
+            # An answer the owner gave a background run's question went to that run in
+            # its own thread: it never stands for this run's owner words.
+            ~exists(
+                select(SteeringRow.id)
+                .join(RunRow, RunRow.id == SteeringRow.run_id)
+                .where(
+                    SteeringRow.message_id == MessageRow.id,
+                    RunRow.thread_id != MessageRow.thread_id,
+                )
+            ),
         )
         .order_by(MessageRow.seq.desc())
         .limit(12)

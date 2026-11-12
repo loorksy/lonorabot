@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isRequestCancelled, request } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
+import { isTextFile } from "../domain/FilesPages";
 import { useNavigation } from "../navigation";
 import { SkPage, SkPill, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
@@ -178,7 +179,7 @@ function Hit({
       title = <Highlight text={item.title} query={query} />;
       sub = <Highlight text={item.snippet} query={query} />;
       meta = <span className="search-hit-meta">{agentName(item.agent_id)}</span>;
-      open = () => nav.go("/app/tasks");
+      open = () => nav.go(`/app/tasks/${encodeURIComponent(item.id)}`);
       break;
     case "files":
       lead = icon("file");
@@ -190,7 +191,16 @@ function Hit({
           t`Saved file`
         );
       meta = <span className="search-hit-meta">{agentName(item.agent_id)}</span>;
-      open = () => nav.go(`/app/artifacts/${encodeURIComponent(item.id)}`);
+      // A text file opens in the files editor, like from «الملفات»; another kind of file
+      // has no page there (Q36) and keeps its viewer.
+      open = () =>
+        nav.go(
+          isTextFile({ media_type: item.media_type ?? "", name: item.title })
+            ? `/app/file-edit?item=${encodeURIComponent(item.id)}${
+                item.agent_id ? `&agent=${encodeURIComponent(item.agent_id)}` : ""
+              }`
+            : `/app/artifacts/${encodeURIComponent(item.id)}`,
+        );
       break;
     default: {
       const skill = item.category === "skills";
@@ -207,13 +217,13 @@ function Hit({
       const owner = agentName(item.agent_id);
       meta =
         owner && owner !== item.title ? <span className="search-hit-meta">{owner}</span> : null;
-      open = () =>
-        skill
-          ? nav.go(`/app/skills/${encodeURIComponent(item.id)}`)
-          : // A memory hit opens the memory editor, which holds that text; a note «المعرفة».
-            nav.go(
-              `/app/${item.kind === "memory" ? "memory" : "knowledge"}?agent=${encodeURIComponent(item.agent_id ?? "")}`,
-            );
+      const agent = encodeURIComponent(item.agent_id ?? "");
+      open = () => {
+        if (skill) nav.go(`/app/skills/${encodeURIComponent(item.id)}`);
+        // A memory hit opens the memory editor, which holds that text; a note opens itself.
+        else if (item.kind === "memory") nav.go(`/app/memory?agent=${agent}`);
+        else nav.go(`/app/knowledge-edit?agent=${agent}&item=${encodeURIComponent(item.id)}`);
+      };
     }
   }
   return (

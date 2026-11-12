@@ -259,7 +259,11 @@ class FakeSession:
     async def scalar(self, query: Any) -> Any:
         if "ln_agents" in str(query):
             return self.agent
-        return "What do you remember about my project?" if "ln_messages" in str(query) else None
+        sql = str(query)
+        if "ln_messages.rich_content" in sql:
+            # A whole message row (the turn's / command): the message has no command.
+            return None
+        return "What do you remember about my project?" if "ln_messages" in sql else None
 
 
 @pytest.mark.asyncio
@@ -269,7 +273,9 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     from lonora_adapter_kit.types import ModelMessage
     from lonora_agent.context import skills
 
-    agent = SimpleNamespace(id="agent", instructions="Owner style", trading_account_id=None)
+    agent = SimpleNamespace(
+        id="agent", instructions="Owner style", trading_account_id=None, role="general"
+    )
     thread = SimpleNamespace(
         id="thread",
         agent_id=agent.id,

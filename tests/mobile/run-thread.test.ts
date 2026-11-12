@@ -28,12 +28,20 @@ test("a run opens the conversation its output reaches, never a hidden work threa
 });
 
 test("a run waiting for the owner's answer opens the thread that holds its question", () => {
-  assert.equal(
-    reportThread({
+  const waiting = (input_request: unknown) =>
+    ({
       thread_id: "work",
       status: "waiting_input",
       model_metadata: { origin_thread_id: "conversation" },
-    }),
-    "work",
+      input_request,
+    }) as Parameters<typeof reportThread>[0];
+  // A background question is copied into the conversation it reports to.
+  assert.equal(
+    reportThread(waiting({ status: "pending", thread_id: "conversation" })),
+    "conversation",
   );
+  // A question asked before copies existed stays in the run's own thread.
+  assert.equal(reportThread(waiting({ status: "pending" })), "work");
+  // Waiting with no question (an approval): its card is in the conversation it reports to.
+  assert.equal(reportThread(waiting(null)), "conversation");
 });

@@ -352,6 +352,7 @@ class SimpleAgent:
     id = "agent"
     instructions = "Owner style"
     trading_account_id = None
+    role = "general"
 
 
 class SimpleThread:
@@ -1310,7 +1311,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_snapshot", "market_structure",
-        "market_symbols", "model_list", "model_request", "news_feed_subscribe",
+        "market_symbols", "model_list", "model_request", "news_feed_subscribe", "telegram_link",
         "capabilities_list", "owner_action_propose", "owner_attention_list",
         "owner_call_request",
         "owner_notify", "peer_send",
@@ -1320,10 +1321,9 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "task_control", "task_inspect", "task_start", "task_step_update", "trading_mode_ask",
         "trade_approval_withdraw",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
-        "watch_create",
+        "usage_read", "watch_cancel", "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_file_write", "workspace_stop", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
@@ -1335,6 +1335,10 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "consult_model",
         "web_fetch",
         "mcp_execute",
+        # Removed tools whose results earlier Runs stored stay untrusted evidence.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
     ):
         assert is_external(name), name
 
