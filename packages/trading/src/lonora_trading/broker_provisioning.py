@@ -61,6 +61,7 @@ LOGIN_DEADLINE = timedelta(minutes=3)
 # A MetaApi account Lonora created for a card that failed, whose removal failed too, is
 # removed again at most this often until it is gone (it bills while it exists).
 CLEANUP_RETRY = timedelta(minutes=5)
+DUE = "2000-01-01T00:00:00+00:00"
 PLATFORM = re.compile(r"mt\s*-?\s*([45])", re.IGNORECASE)
 
 
@@ -214,10 +215,16 @@ async def _change_credentials(
                 await secrets.delete_unused(found)
 
 
+def lonora_owned(result: dict[str, Any]) -> bool:
+    """Whether the card's MetaApi account is Lonora's own (cards recorded before
+    ``lonora_owned`` existed say it with ``created``)."""
+    return result.get("lonora_owned", result.get("created")) is True
+
+
 class Failing:
     """Ends one card as failed, only from the phase this pass started in, and cleans up:
     the refused password is forgotten, and an account Lonora itself created at MetaApi
-    is removed (no connection and no journal row ever referred to it)."""
+    is removed by the next pass (no connection and no journal row ever referred to it)."""
 
     def __init__(
         self,
@@ -231,13 +238,13 @@ class Failing:
         self.db, self.secrets, self.owner_id, self.card_id = db, secrets, owner_id, card_id
         self.phase, self.result = phase, result
 
-    async def __call__(self, code: str, provisioning: MetaApiProvisioning | None = None) -> None:
+    async def __call__(self, code: str) -> None:
         async with self.db.sessions() as session, session.begin():
             row = await _card(session, self.owner_id, self.card_id)
             if row.result.get("provisioning") != self.phase:
                 return  # Another pass moved this card on.
             await _record(session, row, provisioning="failed", code=code)
-            created = row.result.get("created") is True
+            created = lonora_owned(row.result)
             account_id = row.result.get("metaapi_account_id")
         if code == "broker_token_rejected":
             # Whether the refused token stays (a live connection still names it) decides
@@ -248,22 +255,12 @@ class Failing:
                 row = await _card(session, self.owner_id, self.card_id)
                 row.result = {**row.result, "token_kept": kept}
         if created and account_id:
-            try:
-                if provisioning is None:
-                    raise LonoraError("broker_secret_required", 409)
-                await provisioning.remove(str(account_id))
-            except LonoraError as failure:
-                log.warning(
-                    "broker_provisioning_cleanup_failed card=%s code=%s", self.card_id, failure.code
-                )
-                # Retried by the gateway (retry_cleanup) until MetaApi no longer has it.
-                async with self.db.sessions() as session, session.begin():
-                    row = await _card(session, self.owner_id, self.card_id)
-                    row.result = {
-                        **row.result,
-                        "metaapi_cleanup": "pending",
-                        "cleanup_at": utcnow().isoformat(),
-                    }
+            # Removed by the next pass's retry_cleanup, under the provisioning lock and
+            # only if no connection or other card has taken the account; retried until
+            # MetaApi no longer has it.
+            async with self.db.sessions() as session, session.begin():
+                row = await _card(session, self.owner_id, self.card_id)
+                row.result = {**row.result, "metaapi_cleanup": "pending", "cleanup_at": DUE}
         await _forget(
             self.secrets,
             code,
@@ -314,6 +311,29 @@ async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, car
                 row.result = {**row.result, "metaapi_cleanup": outcome}
     finally:
         await provisioning.close()
+
+
+async def _take_over_cleanup(
+    session: AsyncSession, owner_id: str, card_id: str, account_id: str
+) -> bool:
+    """A leftover account Lonora created for a failed card, found again by this card's
+    connect: this card now owns it as Lonora-created, so a later disconnect or failure
+    removes it, and the failed card's cleanup is handed over."""
+    taken = False
+    for card in await session.scalars(
+        select(OwnerActionRow).where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "secret",
+            OwnerActionRow.id != card_id,
+        )
+    ):
+        if (
+            card.result.get("metaapi_account_id") == account_id
+            and card.result.get("metaapi_cleanup") == "pending"
+        ):
+            card.result = {**card.result, "metaapi_cleanup": "handed_over", "handed_to": card_id}
+            taken = True
+    return taken
 
 
 async def _metaapi_account_taken(
@@ -377,6 +397,12 @@ async def _provision(
             if failed is None:
                 try:
                     # No transaction and no row lock while MetaApi works (up to minutes).
+                    if await provisioning.find(account["login"], account["server"]) is None:
+                        # Kept before the create: if the answer or the record below is
+                        # lost, the account found on the next pass is still this card's.
+                        async with db.sessions() as session, session.begin():
+                            row = await _card(session, owner_id, card_id)
+                            row.result = {**row.result, "create_sent": True}
                     found, created = await provisioning.find_or_create(
                         login=account["login"],
                         server=account["server"],
@@ -394,6 +420,14 @@ async def _provision(
                         row = await _card(session, owner_id, card_id)
                         if row.result.get("provisioning") != "pending":
                             return
+                        # Created by this card, with this card's password: also when the
+                        # create's answer or record was lost (create_sent).
+                        created = created or row.result.get("create_sent") is True
+                        # Lonora's own account, removed on failure or disconnect: also a
+                        # leftover of a failed card this connect found again.
+                        owned = created or await _take_over_cleanup(
+                            session, owner_id, card_id, found.account_id
+                        )
                         # The MetaApi id is kept before any deploy: a retry finds this account.
                         await _record(
                             session,
@@ -402,6 +436,7 @@ async def _provision(
                             metaapi_account_id=found.account_id,
                             region=found.region,
                             created=created,
+                            lonora_owned=owned,
                         )
         if failed:
             await failing(failed)
@@ -483,7 +518,7 @@ async def _deploy(
                 state = await provisioning.deploy(account_id)
         except LonoraError as failure:
             if failure.code not in TRANSIENT or _late(started):
-                await failing(failure.code, provisioning)
+                await failing(failure.code)
             return
         if not (state.deployed and state.connected):
             refused = state.deployed and state.connection_status == "DISCONNECTED_FROM_BROKER"
@@ -493,11 +528,11 @@ async def _deploy(
                     if state.connection_status == "DISCONNECTED_FROM_BROKER"
                     else "broker_connect_timeout"
                 )
-                await failing(code, provisioning)
+                await failing(code)
             return
         code = await _connect(db, failing, state, token, token_id, password_id)
         if code is not None and (code not in TRANSIENT or _late(started)):
-            await failing(code, provisioning)
+            await failing(code)
     finally:
         await provisioning.close()
 
@@ -543,7 +578,7 @@ async def _connect(
             **connection.state,
             "password_secret_id": password_id,
             # Disconnect removes at MetaApi only accounts Lonora itself created (Q8).
-            "provisioned_by_lonora": failing.result.get("created") is True,
+            "provisioned_by_lonora": lonora_owned(failing.result),
         }
         await _record(
             session,

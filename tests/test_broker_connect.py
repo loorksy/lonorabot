@@ -305,7 +305,9 @@ async def test_a_crash_between_create_and_record_never_makes_a_second_account() 
             await world.gateway()
         row = await world.card(card_id)
         assert row.result["provisioning"] == "connected", row.result
-        assert row.result["created"] is False  # found again, not created twice
+        # Found again, not created twice, and still known as Lonora's own (R-SEC M1 on
+        # #179): a later failure or disconnect removes it.
+        assert row.result["created"] is True and row.result["create_sent"] is True
         assert api.calls.count("create_account") == 1 and len(api.accounts) == 1
     finally:
         FakeMetaApiBroker.terminals.clear()
@@ -513,6 +515,17 @@ async def backdate(world: World, card_id: str, *fields: str) -> None:
         row.result = {**row.result, **dict.fromkeys(fields, "2000-01-01T00:00:00+00:00")}
 
 
+async def connection_of(world: World, metaapi_id: str) -> dict[str, Any]:
+    from lonora_db.schema import BrokerSessionRow
+    from sqlalchemy import select
+
+    async with world.fixture.runtime.db.sessions() as session:
+        for row in await session.scalars(select(BrokerSessionRow)):
+            if row.payload.get("account_id") == metaapi_id:
+                return row.state
+    raise AssertionError("no connection for this MetaApi account")
+
+
 async def refused_after_create(world: World, card_id: str, account: str) -> dict[str, Any]:
     """The card created a MetaApi account, then the broker refuses its login past the
     limit, and MetaApi is busy when Lonora removes the account."""
@@ -548,7 +561,10 @@ async def test_an_account_lonora_created_is_removed_later_when_the_first_removal
             card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
             await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
             created = await refused_after_create(world, card_id, account)
-            await world.gateway(1)  # not due yet: MetaApi is not asked every pass
+            await world.gateway(1)  # the removal is due at once; MetaApi refuses it
+            assert api.calls.count("remove") == 1
+            await world.gateway(1)  # not due again yet: MetaApi is not asked every pass
+            assert api.calls.count("remove") == 1
             assert created["metaapi_account_id"] in api.accounts
             await backdate(world, card_id, "cleanup_at")
             await world.gateway(1)
@@ -563,7 +579,8 @@ async def test_an_account_lonora_created_is_removed_later_when_the_first_removal
 @pytest.mark.asyncio
 async def test_a_leftover_account_another_connection_reused_is_never_removed() -> None:
     """Before the retry removes it, the leftover account was found again by the next
-    connect of the same login and server: it is the owner's live account now."""
+    connect of the same login and server: it is the owner's live account now, still
+    known as one Lonora created."""
     database()
     from check_streaming import Fixture
 
@@ -578,6 +595,7 @@ async def test_a_leftover_account_another_connection_reused_is_never_removed() -
             first = (await connect(fixture, agent, account))["owner_action"]["id"]
             await world.save(first, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
             metaapi_id = (await refused_after_create(world, first, account))["metaapi_account_id"]
+            await world.gateway(1)  # the first retry: MetaApi refuses it again
             removals = api.calls.count("remove")
             # The owner connects again with the password the broker now takes.
             second = (await connect(fixture, agent, account))["owner_action"]["id"]
@@ -585,11 +603,14 @@ async def test_a_leftover_account_another_connection_reused_is_never_removed() -
             await world.gateway()
             again = (await world.card(second)).result
             assert again["provisioning"] == "connected"
-            assert again["metaapi_account_id"] == metaapi_id and again["created"] is False
+            # Lonora created it, so this card owns it as such (R-SEC L1 on #179): a later
+            # disconnect removes it.
+            assert again["metaapi_account_id"] == metaapi_id and again["lonora_owned"] is True
+            assert (await world.card(first)).result["metaapi_cleanup"] == "handed_over"
             await backdate(world, first, "cleanup_at")
             await world.gateway(1)
         assert metaapi_id in api.accounts and api.calls.count("remove") == removals
-        assert (await world.card(first)).result["metaapi_cleanup"] == "kept"
+        assert (await connection_of(world, metaapi_id))["provisioned_by_lonora"] is True
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
@@ -597,9 +618,9 @@ async def test_a_leftover_account_another_connection_reused_is_never_removed() -
 
 
 @pytest.mark.asyncio
-async def test_a_leftover_account_a_card_is_still_connecting_with_waits_for_its_outcome() -> None:
-    """The retry does not decide while another card is connecting with the leftover
-    account; when that card fails too, the account is removed, not kept billing."""
+async def test_a_leftover_account_a_new_connect_takes_over_is_removed_when_it_fails() -> None:
+    """A new connect that finds the leftover account takes over its cleanup (R-SEC L1 on
+    #179); when that card fails too, the account is removed, not kept billing."""
     database()
     from check_streaming import Fixture
 
@@ -618,20 +639,17 @@ async def test_a_leftover_account_a_card_is_still_connecting_with_waits_for_its_
             await world.save(second, {"PASSWORD": "still-wrong"})
             await world.gateway(1)
             again = (await world.card(second)).result
-            assert (
-                again["provisioning"] == "deploying" and again["metaapi_account_id"] == metaapi_id
-            )
-            await backdate(world, first, "cleanup_at")
-            await world.gateway(1)
-            assert (await world.card(first)).result["metaapi_cleanup"] == "pending"
-            assert metaapi_id in api.accounts
+            assert again["provisioning"] == "deploying" and again["lonora_owned"] is True
+            assert again["metaapi_account_id"] == metaapi_id
+            assert (await world.card(first)).result["metaapi_cleanup"] == "handed_over"
             await backdate(world, second, "started_at")
             await world.gateway(1)
             refused = (await world.card(second)).result
-            assert refused["provisioning"] == "failed" and refused["created"] is False
+            assert refused["provisioning"] == "failed" and refused["lonora_owned"] is True
+            assert metaapi_id in api.accounts  # the removal is the next pass's
             await world.gateway(1)
         assert metaapi_id not in api.accounts
-        assert (await world.card(first)).result["metaapi_cleanup"] == "removed"
+        assert (await world.card(second)).result["metaapi_cleanup"] == "removed"
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
