@@ -2,7 +2,11 @@
 
 One push per record, at its creation, to every phone that has not signed out:
 - a pending Trade Approval card (``approval_required``);
-- a Settle Uncertain Operation card (``operation_uncertain``).
+- a Settle Uncertain Operation card (``operation_uncertain``);
+- a Secret card an agent's run raised and is waiting on (``secret_requested``);
+- a broker health problem (``broker_token_rejected``, ``broker_account_undeployed``,
+  ``broker_connection_lost``): one push per account and problem, the problem named by the
+  account and the time it began, so a flapping connection pushes once per outage.
 
 The text is the fixed catalog text of the event in the owner's language, under the agent's
 name: no price, no volume, no account number and no model text leaves the server, and the
@@ -24,6 +28,7 @@ from datetime import datetime, timedelta
 from typing import Any, Protocol, cast
 
 from lonora_bus.attention import attention_text
+from lonora_contracts.attention import BROKER_HEALTH_CODES
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current, policy
@@ -40,6 +45,7 @@ from lonora_db.schema import (
     AttentionRow,
     EffectReceiptRow,
     EventRow,
+    OwnerActionRow,
     PushDeviceRow,
     TradeApprovalRow,
     TradingJournalRow,
@@ -51,8 +57,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger("lonora.push")
 
-# Attention code -> the parameter that names the record a push belongs to.
-PUSH_RECORDS = {"approval_required": "approval_id", "operation_uncertain": "operation_id"}
+PUSH_CODES = frozenset(
+    {
+        "approval_required",
+        "operation_uncertain",
+        "secret_requested",
+        *BROKER_HEALTH_CODES,
+    }
+)
 EVENTS_PER_TICK = 100
 # Sends started per tick, each bounded by SEND_TIMEOUT_SECONDS, below the step's 120 s limit.
 PUSHES_PER_TICK = 4
@@ -94,13 +106,32 @@ async def push_lock(session: AsyncSession, owner_id: str) -> None:
         )
 
 
-async def card_anchor(session: AsyncSession, code: str, record: str, thread_id: str) -> int | None:
-    """The card's position, only when the card lives in the conversation the push opens."""
-    model = TradeApprovalRow if code == "approval_required" else TradingJournalRow
-    row = await session.get(model, record)
-    if row is None or row.thread_id != thread_id:
+async def push_record(session: AsyncSession, item: AttentionRow) -> tuple[str, int | None] | None:
+    """The record an item pushes for, and the card's position in the item's conversation;
+    None when the item does not push."""
+    parameters = item.parameters
+    row: TradeApprovalRow | TradingJournalRow | OwnerActionRow | None
+    if item.code in BROKER_HEALTH_CODES:
+        account, since = parameters.get("account_id"), parameters.get("since")
+        if not account or not since:
+            return None
+        return f"{account}:{since}", None
+    if item.code == "approval_required":
+        row = await session.get(TradeApprovalRow, str(parameters.get("approval_id", "")))
+        record = row.id if row else ""
+    elif item.code == "operation_uncertain":
+        row = await session.get(TradingJournalRow, str(parameters.get("operation_id", "")))
+        record = row.operation_id if row else ""
+    else:
+        row = await session.get(OwnerActionRow, str(parameters.get("owner_action_id", "")))
+        # Only a card an agent's run raised and is waiting on (11.4).
+        if row is not None and (row.source != "agent" or not row.run_id):
+            return None
+        record = row.id if row else ""
+    if row is None or not record:
         return None
-    return row.timeline_seq
+    # The position only when the card lives in the conversation the push opens.
+    return record, row.timeline_seq if row.thread_id == item.thread_id else None
 
 
 async def item_deliveries(
@@ -112,17 +143,17 @@ async def item_deliveries(
 ) -> list[Delivery]:
     """The receipts and messages of one attention.ready event; none when it does not push."""
     code = str(event.payload.get("code", ""))
-    if code not in PUSH_RECORDS:
+    if code not in PUSH_CODES:
         return []
     item = await session.get(AttentionRow, str(event.payload.get("id", "")))
     if item is None or item.owner_id != owner_id or not await mandatory_current(session, item):
         return []
-    record = str(item.parameters.get(PUSH_RECORDS[code], ""))
-    if not record:
+    found = await push_record(session, item)
+    if found is None:
         return []
+    record, anchor = found
     agent = await session.get(AgentRow, item.agent_id)
     data: dict[str, Any] = {"thread_id": item.thread_id}
-    anchor = await card_anchor(session, code, record, item.thread_id)
     if anchor:
         data["around"] = anchor
     # The message without its address: kept on the receipt so a send that never left can be
@@ -137,7 +168,9 @@ async def item_deliveries(
     }
     deliveries: list[Delivery] = []
     for device in devices:
-        key = receipt_key(code, record, device.device_id)
+        # One push per account and outage, whichever health code names it.
+        kind = "broker_health" if code in BROKER_HEALTH_CODES else code
+        key = receipt_key(kind, record, device.device_id)
         if await session.get(EffectReceiptRow, key):
             continue
         session.add(
