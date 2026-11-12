@@ -59,13 +59,19 @@ async def live_management_task(
             TicketRow.payload[MARKER].as_string() == agent_id,
         )
         .order_by(TicketRow.created_at.desc())
-        .with_for_update()
         .execution_options(populate_existing=True)
     ):
-        state = task_state(row)
-        if state.status not in TERMINAL and state.control_requested not in {"cancel", "complete"}:
+        if task_live(row):
             return row
     return None
+
+
+def task_live(row: TicketRow) -> bool:
+    """Not ended and not asked to end; a failed Task counts only while a retry is due."""
+    state = task_state(row)
+    if state.status in TERMINAL or state.control_requested in {"cancel", "complete"}:
+        return False
+    return state.status != "failed" or bool(state.failure and state.failure.next_retry_at)
 
 
 async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str) -> bool:
@@ -85,13 +91,8 @@ async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str)
         )
     ):
         task = await session.get(TicketRow, stable_id(grant.id, "account-management-task"))
-        if task is not None and task.state.get("task"):
-            state = task_state(task)
-            if state.status not in TERMINAL and state.control_requested not in {
-                "cancel",
-                "complete",
-            }:
-                return True
+        if task is not None and task.state.get("task") and task_live(task):
+            return True
     return False
 
 
@@ -136,21 +137,29 @@ async def ensure_management_task(
 
 
 async def end_management_task(session: AsyncSession, owner_id: str, agent_id: str) -> None:
-    """End the agent's mode task, if one is live. Its watches move to the agent's own
-    conversation and keep watching; routines, approvals and the broker journal are
-    untouched. A Run waiting on a timer or a watch, or queued, stops now; a Run that is
-    working, or waiting for the owner, stops at its next checkpoint."""
+    """End the agent's mode task, if one is live, as the owner's cancel of a Task does: a
+    queued or waiting Run stops now and the Trade Approval cards it waits on end with it
+    (the switch to Ask is a mode change, a delete withdraws them, a paused agent may not
+    add risk); a working Run stops at its next checkpoint. Its watches move to the
+    agent's own conversation and keep watching; routines and the journal are untouched.
+    Locks follow the Task order elsewhere: the Run, then the Task."""
+    from .tasks import cancel_task_approvals
+
     await authority_lock(session, agent_id)
-    task = await live_management_task(session, owner_id, agent_id)
-    if task is None:
+    found = await live_management_task(session, owner_id, agent_id)
+    if found is None:
+        return
+    current = await active_run(session, found)
+    task = await session.get(TicketRow, found.id, with_for_update=True, populate_existing=True)
+    if task is None or not task_live(task):
         return
     await keep_watches(session, task)
     state = task_state(task)
-    current = await active_run(session, task)
-    if current is not None and current.status in {"queued", "waiting_takeover"}:
+    if current is not None and current.status in {"queued", "waiting_input", "waiting_takeover"}:
         current.status = "cancelled"
         current.updated_at = utcnow()
-    if current is not None and current.status in {"leased", "running", "waiting_input"}:
+        await cancel_task_approvals(session, current.id)
+    if current is not None and current.status in {"leased", "running"}:
         state.control_requested = "cancel"
     else:
         state.status, state.phase, state.control_requested = "cancelled", "cancelled", None

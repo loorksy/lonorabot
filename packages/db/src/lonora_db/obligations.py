@@ -136,7 +136,7 @@ async def prepare_delete(
         grants = grants.where(AccountAuthorityRow.account_id == account_id)
     for grant in list(await session.scalars(grants.order_by(AccountAuthorityRow.id))):
         if grant.status == "active":
-            await revoke(session, owner_id, grant.id)
+            await revoke(session, owner_id, grant.id, handover=False)
         else:
             grant.status = "revoked"
             changed(session, grant)

@@ -228,6 +228,11 @@ async def change_permission(
         row.status = "revoked"
         await stop_management_task(session, row)
         changed(session, row)
+    if grants:
+        from .management_task import ensure_management_task
+
+        # Without the grant's Task, an agent in Full runs its own continuous task (4.5).
+        await ensure_management_task(session, owner_id, agent_id)
     await _write(
         session,
         record.model_copy(
