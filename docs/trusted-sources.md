@@ -180,16 +180,23 @@ connection in the same transaction:
 - A saved name is made unique, and one card's names share their number
   (`MCP_DESK_2_URL` with `MCP_DESK_2_TOKEN`), so one connection's value never replaces
   another's. An agent's own card may not name a value a connection uses: it is refused
-  when raised and again when saved (`owner_action_not_needed_secret_name_in_use`).
+  when raised (`owner_action_not_needed_secret_name_in_use`), and a card raised earlier
+  settles `expired` (`secret_name_in_use`) when the owner saves it, writing nothing.
+- An address is checked as its reader checks it (https, port 443, a host whose labels
+  can be looked up, no user name, password or fragment). A key or token is trimmed, and
+  one with a character no HTTP header carries is refused
+  (`owner_action_secret_value_unsendable`).
 - A feed or calendar saved this way keeps its address in the store (`secret_id`) and
   only its host on the row (`domain`); the feed tool, the calendar and its watches read
   the address from the store, and only while it is on that host
-  (`integration_source_changed` otherwise). An address already connected is that
-  connection: nothing new is saved.
+  (`integration_source_changed` otherwise). An address an enabled feed or calendar
+  already reads is that connection: nothing new is saved. A feed item whose link points
+  back at the feed itself (only a fragment or a query) has no link, since the feed's
+  address may carry a key.
 - An MCP server saved this way keeps its address in the store too (`url_secret_id`) and
   its fingerprint on the row (`endpoint_sha256`), which the trust checks compare.
-- Web search takes one key: a second Brave card saved later writes nothing
-  (`owner_action_not_needed_credential_already_configured`).
+- Web search takes one key: a second Brave card saved later settles `expired`
+  (`credential_already_configured`) and writes nothing.
 - A broker's token is checked with MetaApi first, and the card settles inside the
   transaction that stores it and creates the connection.
 
