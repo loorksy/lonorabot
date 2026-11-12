@@ -55,7 +55,7 @@ const copy = {
   en: {
     connectTitle: "Connect Brave web search",
     connect: "Connect",
-    connected: "Connected. Agents see only that it is configured.",
+    connected: "Connected. No agent sees what you typed.",
     trustTitle: "Trust this source?",
     trust: "Trust",
     trusted: "Trusted.",
@@ -65,7 +65,7 @@ const copy = {
   ar: {
     connectTitle: "ربط بحث Brave",
     connect: "ربط",
-    connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
+    connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
     trustTitle: "الوثوق بهذا المصدر؟",
     trust: "ثقة",
     trusted: "صار موثوقًا.",
