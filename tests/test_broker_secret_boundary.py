@@ -22,6 +22,9 @@ BROKER_READERS = {
     "packages/trading/src/lonora_trading/connections.py",
     "packages/gateway/src/lonora_gateway/runtime.py",
     "apps/api/src/lonora_api/routes/trading.py",
+    # A Secret card with the broker destination checks its token with MetaApi and stores
+    # it with its connection (7.2.3: provisioning), as the route above does.
+    "apps/api/src/lonora_api/routes/secret_cards.py",
 }
 
 
