@@ -13,6 +13,7 @@ reads, one where a release dropped some) and in the migrated schema itself.
 import os
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
@@ -76,7 +77,7 @@ def fingerprint(schema: str | None = None, definition: Path = CONTROLS) -> str:
 
 
 @pytest.fixture
-def schemas():
+def schemas() -> Iterator[tuple[str, str]]:
     """Two schemas: every table the fingerprint reads, and one a release dropped some of."""
     full, dropped = "fp_full_" + uuid4().hex[:8], "fp_dropped_" + uuid4().hex[:8]
     sql(f"CREATE SCHEMA {full}; CREATE SCHEMA {dropped}")
@@ -100,7 +101,7 @@ def schemas():
 
 
 @postgres
-def test_a_dropped_table_never_makes_the_records_unreadable(schemas) -> None:
+def test_a_dropped_table_never_makes_the_records_unreadable(schemas: tuple[str, str]) -> None:
     full, dropped = schemas
     whole, without = fingerprint(full), fingerprint(dropped)
     assert len(whole) == 64 and len(without) == 64
@@ -121,7 +122,9 @@ def test_a_dropped_table_never_makes_the_records_unreadable(schemas) -> None:
         "INSERT INTO ln_messages VALUES ('m3', 'user', 'close everything')",
     ],
 )
-def test_an_owner_control_change_changes_the_fingerprint(schemas, change: str) -> None:
+def test_an_owner_control_change_changes_the_fingerprint(
+    schemas: tuple[str, str], change: str
+) -> None:
     full, _ = schemas
     before = fingerprint(full)
     sql(change, full)
@@ -129,7 +132,7 @@ def test_an_owner_control_change_changes_the_fingerprint(schemas, change: str) -
 
 
 @postgres
-def test_records_that_are_not_controls_leave_it_unchanged(schemas) -> None:
+def test_records_that_are_not_controls_leave_it_unchanged(schemas: tuple[str, str]) -> None:
     full, _ = schemas
     before = fingerprint(full)
     sql(
