@@ -18,7 +18,8 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             conversation, as their own paths raise them; prints their ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
-            to give the slot.
+            to give the slot; with ``number``, also the agent's own Number field, whose Enter
+            must never reach the slot's buttons.
 """
 
 import asyncio
@@ -371,9 +372,15 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
             "when": "false",
             "tone": "good",
         }
+        number = [
+            '{"state":{"lots":0.1}}',
+            '{"type":"Number","bind":"lots","label":"الحجم المقترح"}',
+        ]
         lines = [
             '{"v":2,"kind":"receipt","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
+            *(number[:1] if data.get("number") else []),
             '{"type":"Text","text":"الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."}',
+            *(number[1:] if data.get("number") else []),
             json.dumps(slot, ensure_ascii=False),
             '{"why":"الطلب في مكانه من الشرح.","fallback":"طلب موافقة بانتظار قرارك."}',
         ]

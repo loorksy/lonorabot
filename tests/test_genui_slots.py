@@ -253,6 +253,10 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("«موافقة»") and imitates_fixed_card("APPROVE")
     assert imitates_fixed_card("الوسيط لم يؤكد هذه الصفقة")
     assert imitates_fixed_card("نُفذت") and imitates_fixed_card("نفذت")
+    # Invisible format characters and look-alike letters change nothing (zero-width
+    # non-joiner, zero-width space, a Cyrillic А, a right-to-left mark).
+    assert imitates_fixed_card("موا\u200cفقة") and imitates_fixed_card("رف\u200bض")
+    assert imitates_fixed_card("\u0410pprove") and imitates_fixed_card("\u200fرفض")
     assert not imitates_fixed_card("الموافقة على الخطة")
     assert not imitates_fixed_card("Approved plans")
 

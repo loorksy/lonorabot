@@ -639,12 +639,25 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       live = false;
     };
   }, [around, id]);
+  // Messages drawn as a question's card instead of their rich content (MessageBubble
+  // `body`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set(
+        runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ),
+    [runs],
+  );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
       visibleMessages,
       approvals.filter((row) => row.thread_id === id),
       ownerActions.filter((row) => row.thread_id === id),
+      undrawn,
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -654,7 +667,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -970,6 +983,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   visibleMessages,
                   approvals.filter((row) => row.thread_id === id),
                   ownerActions.filter((row) => row.thread_id === id),
+                  undrawn,
                 ).reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}

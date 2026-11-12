@@ -676,8 +676,11 @@ function NumberField({
             event.preventDefault();
             setChecked(true);
             if (bad) return; // the field's own error says why nothing was sent
+            // The card's own primary Button only, never a fixed card's inside a slot.
             const card = event.currentTarget.closest(".ux");
-            const primary = card?.querySelector<HTMLButtonElement>(".btn.primary");
+            const primary = card?.querySelector<HTMLButtonElement>(
+              '.btn.primary[data-ux-type="Button"]',
+            );
             if (primary && !primary.disabled) primary.click();
             else ctx.checkRequired();
           }}

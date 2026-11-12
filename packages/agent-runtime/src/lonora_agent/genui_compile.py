@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -383,9 +384,21 @@ class AgentScope:
     slot_records: frozenset[tuple[str, str]] = frozenset()
 
 
+# Look-alike letters read as the letter they imitate: Cyrillic and Greek for Latin
+# ("Аpprove"), Persian yeh and keheh for Arabic.
+CONFUSABLES = str.maketrans(
+    "аАвВеЕкКмМнНоОрРсСтТуУхХіІјЈѕЅԁαΑβΒεΕηΗιΙκΚμΜνΝοΟρΡτΤυΥχΧیک",
+    "aAbBeEkKmMhHoOpPcCtTyYxXiIjJsSdaAbBeEnHiIkKmMvNoOpPtTuYxXيك",
+)
+
+
 def _plain(text: str) -> str:
-    # Folded first: Arabic diacritics go before punctuation becomes space.
-    return " ".join(re.sub(r"[^\w\s]", " ", fold(text)).split())
+    """The comparable form: compatibility forms unified, invisible format characters (zero
+    width joiners and spaces, direction marks) removed, look-alike letters read as Latin, then
+    folded before punctuation becomes space, so Arabic diacritics never split a word."""
+    text = unicodedata.normalize("NFKC", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    return " ".join(re.sub(r"[^\w\s]", " ", fold(text.translate(CONFUSABLES))).split())
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)

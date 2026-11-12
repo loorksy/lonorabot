@@ -273,7 +273,8 @@
   line-height: 1.65;
   animation: ux-in 0.25s var(--ease) both;
 }
-.ux.is-sent .ux-body {
+/* A sent card dims its own blocks; a trusted slot is the live fixed card and never dims. */
+.ux.is-sent .ux-body > :not(.ux-slot) {
   opacity: 0.82;
 }
 .ux-col {

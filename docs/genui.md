@@ -115,20 +115,25 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   Badge, Title, option labels) is or starts with a fixed card's title or button
   (`FIXED_LABELS`, the clients' own strings, checked by a test), or when anything it shows,
   why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
-  written, at each sampled state and by their quoted literals. Sentences, values and state may
+  written, at each sampled state and by their quoted literals, after compatibility forms are
+  unified, invisible format characters removed and look-alike letters (Cyrillic, Greek, Persian)
+  read as the letters they imitate. Sentences, values and state may
   use the same words.
 - **Words, numbers and buttons.** Everything inside a slot is the record as the clients read it
   from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
   actions; nothing comes from the agent's card. A generated element still never approves,
-  settles or switches a mode (6.10): only the fixed card inside the slot does.
+  settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
+  agent's own field presses the agent's own primary Button only, never a button inside a slot,
+  and a sent card dims its own blocks, never a slot.
 - **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, its
   frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
   height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
   never folded, and a card over 720 px falls back, which brings the record's row back.
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
   standalone row while a loaded assistant message of the conversation draws it as a slot
-  (`embeddedSlots`: the whole rich content validates, as the renderers require, and the slot is
-  within the card's cut); the row returns when none does. Slot and row draw the same live record with
+  (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is
+  within the card's cut, and the client does not draw the message as a question's or a peer's
+  card instead); the row returns when none does. Slot and row draw the same live record with
   the same callbacks, so they act on one record; a tap refused because the record was already
   decided reads the record again and shows it as it is now.
 

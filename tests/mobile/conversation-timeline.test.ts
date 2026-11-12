@@ -101,6 +101,14 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   assert.ok(ids(conversationTimeline(messages, [approval])).includes("approval:request"));
   const forged = [...messages, slotting(3, "trade_approval", "request", { when: "false" })];
   assert.ok(ids(conversationTimeline(forged, [approval])).includes("approval:request"));
+  // A message the client draws as a question's or a peer's card never draws its slot, so
+  // the row stays.
+  const asked = slotting(3, "trade_approval", "request");
+  assert.ok(
+    ids(conversationTimeline([...messages, asked], [approval], [], new Set([asked.id]))).includes(
+      "approval:request",
+    ),
+  );
   // A slot of another kind never hides the record.
   const other = [...messages, slotting(3, "settle", "request")];
   assert.ok(ids(conversationTimeline(other, [approval])).includes("approval:request"));

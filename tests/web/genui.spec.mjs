@@ -473,6 +473,8 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
   page,
   context,
 }) => {
+  // Three replies, a stale tap, Enter, two decisions and two reloads: more than the default.
+  test.setTimeout(60_000);
   const fixture = await open(page, context);
   const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
   try {
@@ -484,7 +486,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     await expect(page.locator(".ux-slot")).toHaveCount(0);
-    python("slots", { ...fixture.input, record: ids.approval });
+    python("slots", { ...fixture.input, record: ids.approval, number: true });
     python("slots", { ...fixture.input, card: "settle", record: ids.settle });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
     const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
@@ -501,6 +503,15 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
       for (const forged of ["صفقة مضمونة", "0.50 لوت"])
         await expect(frame).not.toContainText(forged);
     }
+    // Enter in the agent's own Number field never reaches the fixed card's buttons: the
+    // approval is still pending on the server afterwards.
+    const lots = page.getByLabel("الحجم المقترح");
+    await lots.fill("0.2");
+    await lots.press("Enter");
+    const after = await context.request.get(
+      `/api/trading/approvals?thread_id=${encodeURIComponent(fixture.thread.id)}`,
+    );
+    expect((await after.json()).find((row) => row.id === ids.approval).status).toBe("pending");
     // The slots are the records' places now: no standalone rows.
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
