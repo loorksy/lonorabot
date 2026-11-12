@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0145_metaapi_token"
-down_revision = "0070_secret_scopes"
+down_revision = "0176_weekly_reports"
 branch_labels = None
 depends_on = None
 
