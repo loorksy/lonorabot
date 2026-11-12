@@ -116,6 +116,14 @@ async def remove_token(fixture: Any) -> None:
                 if row.payload.get("secret_id") == token:
                     await session.delete(row)
             await session.execute(delete(SecretRow).where(SecretRow.id == token))
+        # Cards earlier tests left in flight would be advanced by this test's gateway.
+        from lonora_db.schema import OwnerActionRow
+
+        for card in await session.scalars(
+            select(OwnerActionRow).where(OwnerActionRow.kind == "secret")
+        ):
+            if card.result.get("provisioning") in {"pending", "deploying", "reading"}:
+                card.result = {**card.result, "provisioning": "failed", "code": "test_cleanup"}
 
 
 @pytest.mark.asyncio
@@ -462,5 +470,34 @@ async def test_the_journal_is_never_blocked_while_metaapi_creates_an_account() -
         assert (await world.card(card_id)).result["provisioning"] == "deploying"
     finally:
         FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_refused_token_on_a_first_account_is_forgotten_and_asked_again() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_db.secrets import METAAPI_TOKEN
+
+    fixture = await Fixture().open()
+    account = login()
+    world = World(fixture, FakeProvisioningApi(servers={SERVER: {account: PASSWORD}}))
+    world.api.token_valid = False
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Token refused")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(2)
+        result = (await world.card(card_id)).result
+        assert result["code"] == "broker_token_rejected" and result["token_kept"] is False
+        prompt = await world.wake_prompt(card_id)
+        assert prompt is not None and "call broker_connect again" in prompt
+        broker = BrokerSecrets(fixture.runtime.db, key(fixture), fixture.owner)
+        assert await broker.named(METAAPI_TOKEN) is None
+    finally:
         await remove_token(fixture)
         await fixture.close()

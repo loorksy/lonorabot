@@ -123,12 +123,15 @@ def broker_prompt(row: OwnerActionRow) -> str:
     result = row.result
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
-        token = (
-            " The saved MetaApi API token itself was refused. It cannot be replaced from chat"
-            " yet; never ask the owner for it in chat."
-            if result.get("code") == "broker_token_rejected"
-            else ""
-        )
+        token = ""
+        if result.get("code") == "broker_token_rejected":
+            token = (
+                " The saved MetaApi API token itself was refused. Live connections still use"
+                " it, so it cannot be replaced from chat yet; never ask for it in chat."
+                if result.get("token_kept")
+                else " The MetaApi API token was refused and is forgotten: call broker_connect"
+                " again, and its card asks the owner for a new token. Never ask in chat."
+            )
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
             f"{result.get('code')}.{token} You never see "
