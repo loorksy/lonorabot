@@ -698,6 +698,8 @@ class AnalyticalWorkspaceRow(Base):
     snapshot: Mapped[bytes] = mapped_column(LargeBinary, default=b"{}")
     active_operation_id: Mapped[str | None] = mapped_column(String(36))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When the files were copied into the agent's home in the persistent workspace.
+    moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WorkspaceOperationRow(Base):

@@ -60,7 +60,8 @@ STEPS = (
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
-    # Which background workspace processes ended, for each agent's next wake (7.1.2).
+    # Which background workspace processes ended, for each agent's next wake (7.1.2); and
+    # each agent's analytical-workspace files, copied once into its home (14.1).
     StepSpec("workspace", 10, 60, critical=False),
     # The morning brief: once per local date for each owner (VISION 11.1).
     StepSpec("morning_brief", 30, 120),
@@ -258,6 +259,7 @@ class Gateway:
     async def workspace(self) -> None:
         from datetime import UTC, datetime
 
+        from lonora_agent.workspace_move import move_snapshots
         from lonora_db.workspace_processes import reconcile
         from lonora_security.secrets import SecretScan
 
@@ -271,6 +273,7 @@ class Gateway:
         listing = await WORKSPACE.processes(SecretScan({}))
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
+        await move_snapshots(self.db, WORKSPACE)
 
     async def morning_brief(self) -> None:
         from lonora_trading.morning_brief import brief_tick

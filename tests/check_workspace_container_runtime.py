@@ -157,10 +157,9 @@ async def main(image: str) -> None:
                 )
             script = "import json,statistics\nfrom pathlib import Path\nvalues=json.loads(Path('input.json').read_text())\nresult={'mean':statistics.mean(values),'count':len(values)}\nPath('result.json').write_text(json.dumps(result))\nprint(json.dumps(result))\n"
             rounds = 0
-            exported_id = ""
 
             async def model(_capability: Any, messages: Any, _tools: Any, **_kwargs: Any):
-                nonlocal rounds, exported_id
+                nonlocal rounds
                 rounds += 1
                 observed: dict[str, Any] = {}
                 if rounds > 1:
@@ -196,21 +195,6 @@ async def main(image: str) -> None:
                         name="workspace_read",
                         arguments={"revision": 2, "path": "result.json"},
                     )
-                elif rounds == 5:
-                    assert json.loads(observed["content"]) == {"mean": 101, "count": 3}
-                    call = ToolCall(
-                        id="export-result",
-                        name="workspace_export",
-                        arguments={"revision": 2, "path": "result.json"},
-                    )
-                elif rounds == 6:
-                    exported_id = observed["id"]
-                    assert observed["state"]["workspace_source"]["revision"] == 2
-                    call = ToolCall(
-                        id="verify-attachment",
-                        name="artifact_read",
-                        arguments={"artifact_id": exported_id},
-                    )
                 else:
                     assert json.loads(observed["content"]) == {"mean": 101, "count": 3}
                     return ModelReply(
@@ -235,9 +219,7 @@ async def main(image: str) -> None:
                     .order_by(MessageRow.seq.desc())
                     .limit(1)
                 )
-                assert message and exported_id in message.attachment_ids
-            downloaded = await fixture.client.get("/api/artifacts/" + exported_id + "/file")
-            assert downloaded.status_code == 200 and downloaded.json() == {"mean": 101, "count": 3}
+                assert message is not None
             assert rounds == 7
             checks += 1
 

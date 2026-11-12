@@ -46,6 +46,7 @@ from test_tool_loop_execution import (
     results,
     saved_run,
 )
+from workspace_fake import FakeWorkspace
 
 ROOT = Path(__file__).parents[1]
 
@@ -843,6 +844,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             searxng_url=None,
             browser_url=None,
             workspace_access=None,
+            workspace=None,
             mcp_declarations=(),
             mcp_owner_trust=False,
         ),
@@ -850,13 +852,18 @@ async def test_availability_reflects_configured_backends_and_fails_open(
     assert await catalog.availability(bare) == {
         "web_search": "research_provider_not_configured",
         "web_browse": "browser_unconfigured",
-        "workspace_export": "workspace_unconfigured",
+        "workspace_run": "workspace_unavailable",
+        "workspace_processes": "workspace_unavailable",
+        "workspace_stop": "workspace_unavailable",
+        "workspace_file_read": "workspace_unavailable",
+        "workspace_file_write": "workspace_unavailable",
+        "workspace_export": "workspace_unavailable",
         "workspace_inspect": "workspace_unconfigured",
         "workspace_read": "workspace_unconfigured",
         "workspace_update": "workspace_unconfigured",
         "workspace_execute": "workspace_unconfigured",
         "skill_package_validate": "workspace_unconfigured",
-        "market_candles_to_workspace": "workspace_unconfigured",
+        "market_candles_to_workspace": "workspace_unavailable",
         "mcp_execute": "mcp_tool_not_authorized",
         "economic_calendar_read": "economic_calendar_not_configured",
     }
@@ -868,6 +875,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             searxng_url="http://searxng.internal",
             browser_url="http://browser.internal",
             workspace_access=RunWorkspaceAccess(None),
+            workspace=FakeWorkspace().client(),
             mcp_declarations=(),
             mcp_owner_trust=False,
         ),
@@ -897,6 +905,7 @@ async def test_availability_reflects_configured_backends_and_fails_open(
             searxng_url=None,
             browser_url="http://browser.internal",
             workspace_access=RunWorkspaceAccess(cast(Any, object())),
+            workspace=FakeWorkspace().client(),
             mcp_declarations=(declaration,),
         ),
     )

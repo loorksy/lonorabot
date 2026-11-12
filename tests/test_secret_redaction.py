@@ -23,12 +23,12 @@ from lonora_agent.workspace import WorkspaceResult
 from lonora_agent.workspace_access import RunWorkspaceAccess
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import WorkspaceOperationRow
-from lonora_security.runtime_storage import confined_path
 from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from sqlalchemy import select
+from workspace_fake import FakeWorkspace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 IMAGE = "sha256:" + "a" * 64
@@ -148,8 +148,7 @@ def database() -> None:
 
 class PrintingExecutor:
     """Stands in for a shell. `print NAME` echoes a secret, `print64 NAME` its base64,
-    `say TEXT` echoes text, `mkfile NAME` saves a file named by a secret, `png NAME`
-    saves an image carrying a secret in a text chunk."""
+    `say TEXT` echoes text, `mkfile NAME` saves a file named by a secret."""
 
     def __init__(self, values: dict[str, str]) -> None:
         self.values = values
@@ -175,12 +174,6 @@ class PrintingExecutor:
             printed = base64.b64encode(value).decode() if verb == "print64" else value.decode()
         elif verb == "mkfile":
             files[self.values[argument] + ".txt"] = b"made"
-        elif verb == "png":
-            info = PngInfo()
-            info.add_text("comment", self.values[argument])
-            image = BytesIO()
-            Image.new("RGB", (4, 4)).save(image, "PNG", pnginfo=info)
-            files["chart.png"] = image.getvalue()
         return WorkspaceResult(0, printed, "error: " + printed, files, IMAGE)
 
 
@@ -298,21 +291,19 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
             ).all()
         assert receipts and all(value not in json.dumps(row.result) for row in receipts)
 
-        # An exported text file reaches the chat scanned; reading it back scans it again.
-        exported = await call(
-            "export", "workspace_export", {"revision": 6, "path": "short.txt", "name": None}
-        )
-        stored_file = confined_path(context.artifact_root, exported["payload"]["key"])
-        assert stored_file.read_text() == f"key [secret:{name}]"
-        reread = await call("reread", "artifact_read", {"artifact_id": exported["id"]})
-        assert reread["content"] == f"key [secret:{name}]"
-        # An image that carries a secret is not exported.
-        await run("png", 6, "png " + name)
-        with pytest.raises(LonoraError) as refused:
-            await call(
-                "export-png", "workspace_export", {"revision": 7, "path": "chart.png", "name": None}
-            )
-        assert refused.value.code == "workspace_export_contains_secret"
+        # A workspace file holding a secret is never exported, text or image.
+        files = FakeWorkspace()
+        context = replace(context, workspace=files.client())
+        files.files[(context.agent_id, "short.txt")] = ("key " + value).encode()
+        info = PngInfo()
+        info.add_text("comment", value)
+        image = BytesIO()
+        Image.new("RGB", (4, 4)).save(image, "PNG", pnginfo=info)
+        files.files[(context.agent_id, "chart.png")] = image.getvalue()
+        for identity, path in (("export", "short.txt"), ("export-png", "chart.png")):
+            with pytest.raises(LonoraError) as refused:
+                await call(identity, "workspace_export", {"path": path})
+            assert refused.value.code == "workspace_file_holds_secret"
     finally:
         for secret_id in saved:
             await fixture.client.delete("/api/secrets/" + secret_id)

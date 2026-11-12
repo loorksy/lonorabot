@@ -2,9 +2,12 @@ Superseded by VISION.md
 
 # Analytical container execution boundary
 
-Five ordinary tools now expose persistent analytical files and optional isolated
-execution through the existing Agent: `workspace_inspect`, `workspace_read`,
-`workspace_update`, `workspace_execute`, and `workspace_export`. Files and operation receipts live in
+Four ordinary tools expose the old analytical files and optional isolated execution
+through the existing Agent: `workspace_inspect`, `workspace_read`, `workspace_update` and
+`workspace_execute`. They are being replaced by the owner's persistent workspace
+(VISION.md 7.1; `docs/operations.md`, "The workspace"): `workspace_export` and
+`market_candles_to_workspace` already act on it, and each agent's files here were copied
+once into `old-workspace/` in its home there. Files and operation receipts live in
 PostgreSQL. A dedicated Unix-socket bridge runs commands in fresh, immutable-image
 containers and returns actual exit status, bounded output and validated files.
 No new Agent, model loop, scheduler, broker adapter or financial authority exists.
@@ -107,9 +110,8 @@ before that rule is matched in its own base64 form only, not inside other bytes.
 Overlapping matches merge into one marker; a name two scopes share is shown with its
 scope (`integration:NAME`). A file read scans the whole file before a page is cut; a
 replayed operation receipt and an artifact read are scanned again, so a value saved
-as a secret later is covered too. An image export, JSON that would not parse after
-the replacement, or a Skill package carrying a secret is refused
-(`workspace_export_contains_secret`, `skill_package_contains_secret`). A broker value
+as a secret later is covered too. A Skill package carrying a secret is refused
+(`skill_package_contains_secret`). A broker value
 (a broker password, the MetaApi token) is read only by the execution door and MetaApi
 provisioning (VISION.md 7.2.3): it never enters the workspace and the scan does not
 read it. A program that transforms a value any other way can defeat the scan
@@ -150,12 +152,6 @@ repair failed analysis. A replacement worker abandons an interrupted reservation
 resuming that call returns its interrupted result instead of running it again.
 Late old-worker results cannot overwrite the replacement's files. Inspection
 projects whether a reservation is genuinely running or needs recovery.
-
-Broker candles can enter the workspace without passing through the conversation:
-`market_candles_to_workspace` writes a CSV through `RunWorkspaceAccess.write_generated`,
-which applies the same ownership, fence, path, quota and revision rules and stores a
-receipt keyed on the request rather than the bytes, so an interrupted call replays its
-original write. See [market-analysis.md](market-analysis.md#market_candles_to_workspace).
 
 ## Reproduce the actual container acceptance
 
@@ -231,20 +227,8 @@ runner. It never runs against production money or a production database.
 
 ## Report/image export and visual inspection
 
-`workspace_export` publishes one exact saved file through the existing artifact
-store. It accepts UTF-8 TXT/MD/CSV/TSV/JSON and decoded single-frame PNG/JPEG/WEBP/GIF.
-Unsupported formats (including HTML/SVG), invalid text/JSON, disguised images and
-animations fail explicitly. The existing raster validation is shared with image
-observations rather than duplicated. Exported image size/dimensions and bytes are
-validated before an attachment can be produced.
-
-Each export records the source path, revision and SHA-256 with its producer
-Run/call. Canonical call identity prevents changed arguments from replacing a
-previous attachment. Identical replay returns the original verified bytes even
-if the workspace later advances. Corrupt or missing artifacts fail explicitly;
-they are never silently regenerated from a newer source. Current ownership and
-fences are checked again before writing an attachment. No new database table or
-file-delivery mechanism is added for this capability.
+`workspace_export` now reads a file from the persistent workspace
+(`lonora_tools/workspace_export.py`); a file holding a secret is refused whole.
 
 An export is not visual inspection. The Agent requests `artifact_read` with
 `view_image=true`; the existing model runtime verifies scope/hash/format and

@@ -16,6 +16,7 @@ MODULES = {
     "skills": "memory",
     "workspace": "files",
     "terminal": "files",
+    "workspace_export": "files",
     "routine": "tasks",
     "search": "research",
     "browser": "research",

@@ -1,6 +1,5 @@
 """Injected, fenced access to analytical files; never a financial authority."""
 
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -10,9 +9,6 @@ if TYPE_CHECKING:
 class WorkspaceAccess(Protocol):
     async def profile(self, context: "ToolContext") -> str: ...
 
-    async def export(
-        self, context: "ToolContext", path: str, revision: int, name: str | None
-    ) -> dict[str, Any]: ...
     async def inspect(self, context: "ToolContext") -> dict[str, Any]: ...
     async def read(
         self, context: "ToolContext", path: str, revision: int, offset: int, limit: int
@@ -22,12 +18,4 @@ class WorkspaceAccess(Protocol):
     ) -> dict[str, Any]: ...
     async def execute(
         self, context: "ToolContext", revision: int, command: str, deadline_seconds: int
-    ) -> dict[str, Any]: ...
-    async def write_generated(
-        self,
-        context: "ToolContext",
-        revision: int,
-        path: str,
-        intent: dict[str, Any],
-        produce: Callable[[], Awaitable[tuple[bytes, dict[str, Any]]]],
     ) -> dict[str, Any]: ...
