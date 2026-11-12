@@ -769,7 +769,8 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
     problem, its item stays the only one, and if the problem comes back after its item
     was withdrawn (the reason flapped, the connection was disabled and enabled again),
     it is raised again. An outage with open positions or unresolved operations is
-    critical. Returns how many items were raised; ``withdraw_ended`` withdraws them.
+    critical. Each raised item wakes Lonora once (``system_alerts``). Returns how many
+    items were raised; ``withdraw_ended`` withdraws them.
     """
     await lock_attention(session, owner_id)
     now = utcnow()
@@ -818,7 +819,12 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
             {"account_id": account_id, "since": since, "reason_code": reason},
             importance="critical" if exposed else None,
         )
-        count += item is not None
+        if item is not None:
+            from .system_alerts import wake_lonora
+
+            # Lonora receives the system alert (3.1.5): one wake per item.
+            await wake_lonora(session, item)
+            count += 1
     return count
 
 

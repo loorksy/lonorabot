@@ -30,3 +30,17 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 - Broker health items open in Lonora's conversation, with `account_id`, `since` and the
   adapter's `reason_code` in their parameters; the owner text names the problem
   (`lonora_bus/attention_messages.json`).
+
+## Lonora's system alerts
+
+Lonora receives the system alerts (mandate 3.1.5, 9.4): each broker health item and each
+`operation_uncertain` item wakes Lonora once (`lonora_db/system_alerts.py`).
+
+- The wake is a Run of Lonora with trigger `broker_event` in a new work thread, with
+  `origin_thread_id` set to Lonora's conversation, so its non-empty answer is posted
+  there (`outcome_return`). Its id is derived from the item, so it never runs twice.
+- Its prompt is fixed server text that names only server values (the problem, the
+  account or operation id, the adapter's reason code, the start time). No text from a
+  model, a peer, a page or the owner reaches it.
+- It keeps Lonora's normal authority: it is not observe-only.
+- A paused Lonora is not woken (4.7); the owner still has the item.

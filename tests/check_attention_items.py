@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
+from lonora_agent.collaboration.outcome_return import return_outcome
 from lonora_contracts.attention import AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
@@ -24,10 +25,13 @@ from lonora_db.attention import raise_system_attention, withdraw_ended
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     BrokerSessionRow,
     EventRow,
+    MessageRow,
     OwnerActionRow,
+    RunRow,
     TradingJournalRow,
 )
 from lonora_db.threads import conversation_thread
@@ -62,6 +66,15 @@ async def ready_events(fixture: Fixture, item_id: str) -> int:
                 )
             )
             or 0
+        )
+
+
+async def alert_runs(fixture: Fixture, item: AttentionRow) -> list[RunRow]:
+    async with fixture.runtime.db.sessions() as session:
+        return list(
+            await session.scalars(
+                select(RunRow).where(RunRow.model_metadata["attention_id"].as_string() == item.id)
+            )
         )
 
 
@@ -171,10 +184,32 @@ async def broker_health(fixture: Fixture) -> None:
     assert token.parameters["reason_code"] == "broker_credentials_rejected"
     assert await ready_events(fixture, token.id) == 1
     print("PASS a rejected token is one item at once, in Lonora's conversation")
+    [wake] = await alert_runs(fixture, token)
+    assert (wake.agent_id, wake.trigger, wake.status) == (lonora.id, "broker_event", "queued")
+    assert wake.model_metadata["origin_thread_id"] == lonora_thread
+    assert wake.thread_id != lonora_thread
+    assert wake.model_metadata.get("authority") != "observe_only"
+    assert "MetaApi rejected the access token" in wake.prompt and account in wake.prompt
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, wake.id, with_for_update=True)
+        assert run is not None
+        run.status, run.result = "completed", "The broker token was rejected: " + uuid4().hex
+        said = run.result
+    await return_outcome(fixture.runtime.db, wake.id)
+    async with fixture.runtime.db.sessions() as session:
+        assert await session.scalar(
+            select(MessageRow.id).where(
+                MessageRow.thread_id == lonora_thread, MessageRow.content == said
+            )
+        )
+    print(
+        "PASS the problem wakes Lonora once, in a work thread; its answer lands in Lonora's conversation"
+    )
 
     await set_recovery(fixture, account, "connected", "broker_reconciled", utcnow())
     await tick(fixture)
     [token] = await items(fixture, "broker_token_rejected")
+    assert len(await alert_runs(fixture, token)) == 1
     assert token.status == "suppressed"
     print("PASS the item is withdrawn when the account connects again")
 
@@ -189,6 +224,11 @@ async def broker_health(fixture: Fixture) -> None:
     assert await items(fixture, "broker_connection_lost") == []
     print("PASS a connection lost for 30 seconds is no item")
 
+    # A paused Lonora takes no new work (4.7): the owner still has the item.
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, lonora.id, with_for_update=True)
+        assert row is not None
+        row.paused = True
     await set_recovery(
         fixture,
         account,
@@ -197,9 +237,15 @@ async def broker_health(fixture: Fixture) -> None:
         utcnow() - timedelta(minutes=3),
     )
     await tick(fixture)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, lonora.id, with_for_update=True)
+        assert row is not None
+        row.paused = False
     await tick(fixture)
     [lost] = await items(fixture, "broker_connection_lost")
     assert lost.status == "ready" and lost.parameters["reason_code"] == "broker_connection_closed"
+    assert await alert_runs(fixture, lost) == []
+    print("PASS a paused Lonora is not woken; the owner still has the item")
     print("PASS a connection lost for more than 2 minutes is one item")
 
     # The same outage turns into an undeployed account: one item per problem.
@@ -308,6 +354,12 @@ async def settle_card(fixture: Fixture) -> None:
         if row.parameters.get("operation_id") == operation_id
     ]
     assert item.status == "ready"
+    [wake] = await alert_runs(fixture, item)
+    assert wake.trigger == "broker_event" and operation_id in wake.prompt
+    assert wake.model_metadata.get("authority") != "observe_only"
+    await tick(fixture)
+    assert len(await alert_runs(fixture, item)) == 1
+    print("PASS an uncertain operation wakes Lonora once")
     async with fixture.runtime.db.sessions() as session, session.begin():
         card = await session.scalar(
             select(OwnerActionRow).where(

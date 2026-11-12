@@ -46,6 +46,7 @@ from lonora_db.schema import (
     TradingOpportunityRow,
     TradingRestrictionRow,
 )
+from lonora_db.system_alerts import wake_lonora
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository, owned_agent
 from lonora_market.watchers import observe
@@ -372,7 +373,7 @@ async def project_event(
                 "suppressed:" + classification.resource_id,
             )
     async with db.sessions() as session, session.begin():
-        await decide_attention(
+        item = await decide_attention(
             session,
             event,
             classification,
@@ -382,6 +383,9 @@ async def project_event(
             coalesce_scope=scope,
             suppression_code=suppression,
         )
+        if item is not None and item.code == "operation_uncertain":
+            # Lonora receives the system alert (3.1.5): one wake per item.
+            await wake_lonora(session, item)
     if classification.importance in {"critical", "action_required"}:
         await ready_attention(db, brokers, owner_id)
 
