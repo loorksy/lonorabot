@@ -428,6 +428,31 @@ def check_users(stack: Stack) -> None:
     )
 
 
+def check_secrets(stack: Stack) -> None:
+    a, b = stack.agent_a, stack.agent_b
+    value = "check-" + secrets.token_hex(12)
+    out = stack.run(
+        a,
+        'echo "$CHECK_SECRET"; cat /run/secrets/CHECK_SECRET; echo; stat -c %a ~/.lonora/token',
+        secrets={"CHECK_SECRET": value},
+        agent_token="tok_" + "z" * 40,
+    )
+    record(
+        out["stdout"].split() == [value, value, "600"],
+        "a named secret arrives as env NAME and /run/secrets/NAME; the CLI token file is the agent's only",
+    )
+    other = stack.run(
+        b,
+        f"cat /run/secrets/CHECK_SECRET; echo; cat {stack.run(a, 'echo $HOME')['stdout'].strip()}/.lonora/token",
+    )
+    record(
+        value in other["stdout"] and "tok_" not in other["stdout"],
+        "any agent may use a workspace secret by name; no agent reads another's token",
+    )
+    mounts = stack.run(a, "grep ' /run/secrets ' /proc/mounts")["stdout"]
+    record(mounts.startswith("tmpfs"), "secret files live in memory only (tmpfs)")
+
+
 def check_browser(stack: Stack) -> None:
     out = stack.run(
         stack.agent_a,
@@ -637,6 +662,7 @@ def main() -> None:
             return
         check_gateway_socket(stack)
         check_users(stack)
+        check_secrets(stack)
         check_isolation(stack, args.internet_url)
         internet = any(ok and "internet reachable" in text for ok, text in RESULTS)
         check_browser(stack)

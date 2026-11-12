@@ -16,6 +16,11 @@ from lonora_providers.credentials import ProviderCredentials
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.context import ToolContext
 from lonora_trading.execution import ExecutionService
+from lonora_workspace.client import WorkspaceClient as Workspace
+
+# The owner's workspace is part of every installation (docker-compose.prod.yml): its
+# supervisor's socket is mounted into the Gateway at the client's default path.
+WORKSPACE = Workspace()
 
 
 @dataclass
@@ -107,6 +112,7 @@ class OwnerServices:
             workspace_access=RunWorkspaceAccess(
                 WorkspaceClient(self.workspace_socket) if self.workspace_socket else None
             ),
+            workspace=WORKSPACE,
             mcp_declarations=self.mcp_declarations,
             mcp_owner_trust=self.mcp_owner_trust,
             searxng_url=self.searxng_url,

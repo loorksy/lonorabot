@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from lonora_db.client import Database
 from lonora_providers.router import GlobalModelRouter
 from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService
+from lonora_workspace.client import WorkspaceClient
 
 from .skill_access import SkillAccess
 from .workspace_access import WorkspaceAccess
@@ -34,6 +36,10 @@ class ToolContext:
     chart_visual: ChartVisualRuntime | None = None
     skill_access: SkillAccess | None = None
     workspace_access: WorkspaceAccess | None = None
+    # The owner's persistent workspace (7.1) and, once the CLI exists, the source of an
+    # agent's CLI token: (owner_id, agent_id) -> token, injected as LONORA_AGENT_TOKEN.
+    workspace: WorkspaceClient | None = None
+    agent_token: Callable[[str, str], Awaitable[str | None]] | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     mcp_owner_trust: bool = True
     searxng_url: str | None = None

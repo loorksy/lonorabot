@@ -72,7 +72,8 @@ services:
     env_file: ../../.env
     environment: *runtime
     command: ["gateway"]
-    volumes: ["artifacts:/app/.runtime/artifacts"]
+    # The workspace supervisor's socket (root:10001 0750 directory): the Gateway's road in.
+    volumes: ["artifacts:/app/.runtime/artifacts", "workspace-control:/run/lonora-workspace"]
     mem_limit: ${LONORA_GATEWAY_MEMORY:-768m}
     mem_reservation: ${LONORA_GATEWAY_MEMORY:-768m}
     cpus: ${LONORA_GATEWAY_CPUS:-0.75}
@@ -130,7 +131,8 @@ services:
       # A fixed-size ext4 file (LONORA_WORKSPACE_DISK) that `lonora` mounts on the host.
       - {type: bind, source: ../../workspace-disk, target: /workspace, bind: {create_host_path: false}}
       - workspace-control:/run/lonora-workspace
-    tmpfs: ["/tmp:size=1g,mode=1777", "/var/tmp:size=256m,mode=1777", "/run/lock:size=1m,mode=1777"]
+    # /run/secrets holds the values commands name (7.2.5): memory only, never the disk.
+    tmpfs: ["/tmp:size=1g,mode=1777", "/var/tmp:size=256m,mode=1777", "/run/lock:size=1m,mode=1777", "/run/secrets:size=4m,mode=0750"]
     shm_size: 256m
     cpus: ${LONORA_WORKSPACE_CPUS:-2}
     cpu_shares: 128
