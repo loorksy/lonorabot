@@ -113,6 +113,12 @@ def test_text_without_secrets_and_an_empty_store_are_unchanged() -> None:
     assert not SecretScan({}).found(VALUE.encode())
 
 
+def test_many_short_texts_are_scanned_one_for_one() -> None:
+    assert SCAN.texts([]) == []
+    assert SCAN.texts(["a", VALUE + ".txt", ""]) == ["a", MARK + ".txt", ""]
+    assert SecretScan({}).texts(["x"]) == ["x"]
+
+
 def test_scanned_data_covers_keys_and_nested_values() -> None:
     assert SCAN.data({VALUE: [VALUE, {"x": VALUE}], "n": 3}) == {
         MARK: [MARK, {"x": MARK}],

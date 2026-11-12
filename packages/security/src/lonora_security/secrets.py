@@ -202,6 +202,8 @@ class SecretScan:
     def texts(self, texts: list[str]) -> list[str]:
         """Many short strings (file paths) in one pass. NUL separates them: no form
         holds it and a base64 edge never crosses it."""
+        if not texts:
+            return []
         if not self.separable or any("\x00" in text for text in texts):
             return [self.text(text) for text in texts]
         return self.text("\x00".join(texts)).split("\x00")
