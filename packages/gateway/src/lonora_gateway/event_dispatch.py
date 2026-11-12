@@ -24,7 +24,7 @@ from lonora_db.schema import (
     EventRow,
     IntegrationRow,
 )
-from lonora_db.telegram_pairing import OFFER_TEXT, offer_code
+from lonora_db.telegram_pairing import OFFER_TEXT, offer_code, withdraw_offer
 from sqlalchemy import select
 
 from .push import PUSH_CODES, push_record
@@ -145,12 +145,17 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                         ),
                     }
             for chat_id, text in offers:
-                # Best effort: a lost answer costs the owner one more message to the bot.
                 try:
                     async with asyncio.timeout(CHANNEL_TIMEOUT_SECONDS):
                         await adapter.send(chat_id, text)
                 except Exception:
+                    # The code never reached the chat: its place is freed, so the owner's
+                    # next message to the bot gets a new code.
                     log.warning("telegram_pairing_offer_unsent")
+                    async with db.sessions() as session, session.begin():
+                        locked = await session.get(IntegrationRow, row.id, with_for_update=True)
+                        if locked is not None:
+                            withdraw_offer(locked, chat_id)
         async with db.sessions() as session, session.begin():
             locked = await session.get(IntegrationRow, row.id, with_for_update=True)
             if locked is None:

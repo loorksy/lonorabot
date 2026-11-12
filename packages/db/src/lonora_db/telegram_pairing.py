@@ -72,6 +72,17 @@ def offer_code(row: IntegrationRow, chat_id: str) -> str | None:
     return code
 
 
+def withdraw_offer(row: IntegrationRow, chat_id: str) -> None:
+    """Forget the code offered to ``chat_id`` (its answer was never delivered)."""
+    pending: dict[str, dict[str, Any]] = row.state.get("pending_chats") or {}
+    row.state = {
+        **row.state,
+        "pending_chats": {
+            key: value for key, value in pending.items() if value.get("chat_id") != chat_id
+        },
+    }
+
+
 async def link_chat(session: AsyncSession, owner_id: str, code: str) -> bool:
     """Make the chat that received ``code`` the only destination of its bot; True when a
     waiting chat had that code. Delivery starts at the end of the event stream."""

@@ -415,3 +415,22 @@ async def test_telegram_link_needs_the_code_in_the_owners_own_message() -> None:
         assert (await payload(fixture.runtime.db, integration))["allowed_destinations"] == [CHAT]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_code_that_never_reached_the_chat_frees_its_place(task_db: Fixture) -> None:
+    # R-SEC L1 on #152: a failed answer must not leave the owner without a code for ten
+    # minutes. The next message gets a new code.
+    db, owner_id, agent_id, thread_id = task_db
+    integration = await linked(db, owner_id, agent_id, thread_id)
+    FakeTelegram.fail = True
+    update("hi")
+    await tick(db, owner_id, integration)
+    lost = offered()
+    FakeTelegram.fail = False
+    update("hi again")
+    await tick(db, owner_id, integration)
+    code = offered()
+    assert lost and code and code != lost
+    assert not await link(db, owner_id, lost)
+    assert await link(db, owner_id, code)
