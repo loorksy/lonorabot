@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "a042665702879764c675f92d75e2ccc3fe1f1a47f0c33c1a5d78a55371dfa0cb",
+  "manual_sha256": "995af77ba2815090abbeff9e4478dc6edc1dd3ead76c00bc35a94412c99b420e",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -31,16 +31,12 @@
     "skills_list": "memory",
     "skill_view": "memory",
     "skill_repository_inspect": "memory",
-    "workspace_export": "files",
-    "workspace_inspect": "files",
-    "workspace_read": "files",
-    "workspace_update": "files",
-    "workspace_execute": "files",
     "workspace_run": "files",
     "workspace_processes": "files",
     "workspace_stop": "files",
     "workspace_file_read": "files",
     "workspace_file_write": "files",
+    "workspace_export": "files",
     "routine_create": "tasks",
     "routine_list": "tasks",
     "routine_toggle": "tasks",

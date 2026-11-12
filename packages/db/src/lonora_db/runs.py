@@ -178,7 +178,6 @@ async def create_run(
                 "skill_snapshot",
                 "skill_selection",
                 "skill_authority",
-                "skill_execution_image",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
             }

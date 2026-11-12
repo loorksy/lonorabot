@@ -1152,9 +1152,9 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
         thread = await fixture.conversation(agent)
         registry = load_tools()
 
-        # No workspace host and no workspace access at all: instructions need neither.
+        # No workspace at all: instructions need none.
         def bare(leased: Any) -> Any:
-            return replace(leased, workspace_access=None, skill_access=RunSkillAccess(registry, ()))
+            return replace(leased, skill_access=RunSkillAccess(registry, ()))
 
         # A repository of its own per run: the list is the owner's and outlives the test.
         repository = "briefings-" + uuid4().hex[:8]
@@ -1166,7 +1166,6 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
             "adapted_content": DOCUMENT,
             "review": REVIEW,
             "expected_version": 0,
-            "workspace_revision": 0,
         }
         github = await default_github(fixture)
         assert github["identifier"] == "github.com" and github["added_via"] == "default"
@@ -1209,7 +1208,6 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
                 skill_id="briefing",
                 expected_version=installed["resource_version"],
                 action="activate",
-                workspace_revision=installed["workspace_revision"],
             )
             assert activated["enabled"] is True
         report = await fixture.request("GET", "/capabilities")
@@ -1433,6 +1431,9 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         assert search["state"] == "ready" and search["via"] in {"brave", "searxng"}
         listed = await call(context, "capabilities_list")
         assert "id" not in listed["trusted_sources"][0]
+        # Workspace execution is listed ready; a helper or observe-only wake is told it is not its.
+        assert "never in a helper or an observe-only wake" in listed["guidance"]
+        assert "unavailable_now" in listed["guidance"]
         # The value never reaches a message, an event, a card or a Run.
         async with fixture.runtime.db.sessions() as session:
             for model in (MessageRow, EventRow, OwnerActionRow, RunRow):

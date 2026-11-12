@@ -89,7 +89,6 @@ wipe() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$home"; }
 teardown() {
     if [[ -f "$home/.env" ]]; then dc down -v --remove-orphans >/dev/null 2>&1 || true; fi
     rm -f /usr/local/bin/lonora /usr/local/bin/lonora-lonora2 /usr/local/bin/lonora-lonora3
-    if [[ -n "${made_analysis_dir:-}" ]]; then rm -rf /run/lonora-analysis; fi
     docker compose -p lonora -f "$work/dummy/compose.yml" down -v >/dev/null 2>&1 || true
     rm -rf "$work"
 }
@@ -553,12 +552,7 @@ old_key="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_')"
     printf '%s\n' "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" 'LONORA_WORKER_POLL_SECONDS=1.0'
 } >"$work/old.env"
 chmod 600 "$work/old.env"
-if [[ ! -e /run/lonora-analysis ]]; then made_analysis_dir=1; fi
-[[ ! -S /run/lonora-analysis/host.sock ]] || fail 'this test needs the workspace host socket absent'
-side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --overlay infra/analysis/compose.workspace.yml --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
-grep -q 'warn  overlay infra/analysis/compose.workspace.yml' "$work/side-install.log" || fail 'preflight warns about the missing workspace socket'
-[[ "$(docker exec lonora2-api-1 printenv LONORA_WORKSPACE_SOCKET)" == /run/lonora-analysis/host.sock ]] || fail 'workspace overlay on the API'
-if docker exec lonora2-gateway-1 test -S /run/lonora-analysis/host.sock; then fail 'unexpected workspace socket'; fi
+side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
 val() { sed -n "s/^$1=//p" "$home/.env" | tail -n 1; }
 [[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$old_key" == *= && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef ]] || fail 'env-from: secrets copied'
 grep -qxF "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" "$home/.env" || fail 'env-from: a value with spaces, = and quotes copied byte for byte'
@@ -601,7 +595,7 @@ diff -q "$work/dummy.before" "$work/dummy.after" >/dev/null || { diff "$work/dum
 wipe
 snapshot >"$work/dummy.end"
 diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the new project changed the old one'
-ok "side by side (with --env-from: known keys copied incl. export/indented lines, fresh DB password, names listed, no values printed; workspace overlay with no socket still reaches /ready; a lonora2 backup restored --with-config into lonora3 keeps project and mode): preflight refuses a bad port and a CRLF file, the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
+ok "side by side (with --env-from: known keys copied incl. export/indented lines, fresh DB password, names listed, no values printed; a lonora2 backup restored --with-config into lonora3 keeps project and mode): preflight refuses a bad port and a CRLF file, the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
 
 # 18. No secret in anything the tooling printed or logged.
 for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" 'old webhook secret' livekit-secret-value-456 old-postgres-password-789; do

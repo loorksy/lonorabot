@@ -720,6 +720,23 @@ class AnalyticalWorkspaceRow(Base):
     snapshot: Mapped[bytes] = mapped_column(LargeBinary, default=b"{}")
     active_operation_id: Mapped[str | None] = mapped_column(String(36))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When the files were copied into the agent's home in the persistent workspace.
+    moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The last copy attempt: an agent whose copy keeps failing goes to the back.
+    move_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SkillPackageFileRow(Base):
+    """A file of an agent's skill package version (skills/<id>/<version>/...): the agent's
+    private package store. Packages are the agent's own; workspace files are shared."""
+
+    __tablename__ = "ln_skill_package_files"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(String(512), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WorkspaceOperationRow(Base):

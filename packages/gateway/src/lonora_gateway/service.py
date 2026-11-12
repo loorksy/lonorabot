@@ -69,7 +69,8 @@ STEPS = (
     StepSpec("push", 2, 120, critical=False),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
-    # Which background workspace processes ended, for each agent's next wake (7.1.2).
+    # Which background workspace processes ended, for each agent's next wake (7.1.2); and
+    # each agent's analytical-workspace files, copied once into its home (14.1).
     StepSpec("workspace", 10, 60, critical=False),
     # The owner's stop and stop-all taps in What is running (7.1.5).
     StepSpec("workspace_stops", 2, 60, critical=False),
@@ -90,7 +91,6 @@ class Gateway:
         maximum_subagents: int = 4,
         poll_seconds: float = 0.5,
         chart_visual: ChartVisualRuntime | None = None,
-        workspace_socket: Path | None = None,
         mcp_declarations: tuple[McpToolDeclaration, ...] = (),
         searxng_url: str | None = None,
         browser_url: str | None = None,
@@ -99,8 +99,11 @@ class Gateway:
     ):
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
-        self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        # Old snapshots that cannot be read, set aside until a restart (workspace_move.py).
+        self.unreadable_snapshots: set[str] = set()
+        # Package run copies checked since this Gateway started (skills/run_copies.py).
+        self.run_copies_checked: dict[tuple[str, str, str], bool] = {}
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
@@ -138,7 +141,6 @@ class Gateway:
                     self.maximum_subagents,
                     lane,
                     self.chart_visual,
-                    self.workspace_socket,
                     self.mcp_declarations,
                     self.searxng_url,
                     self.browser_url,
@@ -164,7 +166,6 @@ class Gateway:
                 owner_id,
                 self.key,
                 chart_visual=self.chart_visual,
-                workspace_socket=self.workspace_socket,
                 mcp_declarations=self.mcp_declarations,
                 searxng_url=self.searxng_url,
                 browser_url=self.browser_url,
@@ -302,6 +303,8 @@ class Gateway:
     async def workspace(self) -> None:
         from datetime import UTC, datetime
 
+        from lonora_agent.skills.run_copies import restore_run_copies
+        from lonora_agent.workspace_move import move_snapshots
         from lonora_db.workspace_processes import reconcile
 
         from .runtime import WORKSPACE
@@ -315,6 +318,8 @@ class Gateway:
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
         await self.for_each_owner(self.record_running)
+        await move_snapshots(self.db, WORKSPACE, self.unreadable_snapshots)
+        await restore_run_copies(self.db, WORKSPACE, self.run_copies_checked)
 
     async def workspace_scan(self, service: OwnerServices) -> SecretScan:
         """The owner's scan of what the workspace returns (7.2.6): the tools' own

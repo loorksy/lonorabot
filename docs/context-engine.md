@@ -223,8 +223,8 @@ first. Each entry has the tool, arguments, `observed_at` (or the Run's last
 update, labelled `run_last_updated`), identities, any `result_ref` and a short
 preview. The section is labelled historical, not live market or broker truth.
 Results of tools that return third-party, other-model or stored content
-(`web_*`, `mcp_*`, `search_*`, `artifact_read`, `workspace_read`,
-`workspace_inspect`, `workspace_execute`, `skill_repository_inspect`,
+(`web_*`, `mcp_*`, `search_*`, `artifact_read`, `workspace_run`,
+`workspace_processes`, `workspace_file_read`, `skill_repository_inspect`,
 `session_search`, `economic_calendar_read`, `consult_model`, `subagent_inspect`,
 `collaboration_inspect`) go to a separate `recent_external_evidence` section (4,000 characters) labelled
 `retrieved_untrusted`, like recalled evidence, so page text that was a tool

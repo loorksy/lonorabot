@@ -53,12 +53,12 @@ test("header and turn avatars follow actual work while status reads are unavaila
     await observe("tool.completed", { call_id: "lookup", name: "web_search" }, "thinking");
     const execute = {
       call_id: "execute",
-      name: "workspace_execute",
+      name: "workspace_run",
       toolset: "files",
       effect: "change",
     };
     await observe("tool.started", execute, "executing");
-    await observe("tool.completed", { call_id: "execute", name: "workspace_execute" }, "thinking");
+    await observe("tool.completed", { call_id: "execute", name: "workspace_run" }, "thinking");
     await observe("run.reply_started", { turn_id: "header-status-proof" }, "thinking");
     await observe(
       "run.delta",
