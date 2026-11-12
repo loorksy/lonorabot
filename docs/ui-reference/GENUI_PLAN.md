@@ -6,7 +6,9 @@ Status: plan from a read-only study, 2026-11-09. Checkout: `/home/user/lonorabot
 
 This plan synthesises three designs (adopt-openui, own-engine, hybrid) and two judges' reviews into one plan. It answers the owner's request «تاكد من انه يعمل مثل open-intelligent-ui لكن ب اسلوبنا نحن», his requirement that Lonora decide for itself when to answer with text, text and an interface, or an interface alone, his second message (compact, WhatsApp-sized interfaces with an icon library), and his third message «في المرجع البصري طريقة الارسال بهذا الشكل حافظ عليه» with the alert-card screenshot.
 
-**Inputs.**
+**Inputs.** The study notes, screenshots and decision logs listed here were deleted from the repository
+after the owner's mandate replaced them (`VISION.md`); they remain in git history. This document stays
+only until the phase that replaces it with a reference of the mechanism as built.
 - Reader notes (read as data): `docs/ui-reference/genui-study/oiu.md` (OIU), `docs/ui-reference/genui-study/openui-packages.md` (PKG), `docs/ui-reference/genui-study/reference-genui.md` (REF), `docs/ui-reference/genui-study/lonora-genui.md` (LON), and the 72-case seed `docs/ui-reference/genui-study/answer-shape-eval-seed.jsonl`.
 - Owner screenshots: `docs/ui-reference/genui-study/owner-reference-alert-card.jpg` and `docs/ui-reference/genui-study/owner-example-chatgpt-diagram.jpg`.
 - Binding documents: `docs/ui-reference/OWNER_DECISIONS.md` (Q1-Q58), `docs/lonora-specs/MANDATE_CORRECTIONS.md` (D1-D7, corrections 1-32), `VISION.md`, and `docs/ui-reference/CAPABILITY_MAP.md` (line 18: `Lonora-Desktop-37.html` is the single source of truth for the look).
