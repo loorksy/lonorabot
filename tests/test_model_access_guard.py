@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from lonora_adapters.models.base import BaseModelAdapter
 from lonora_core.model_providers import PROVIDER_URLS
 from lonora_providers.registry import PROVIDERS
 
@@ -279,6 +280,7 @@ def test_every_model_adapter_calls_a_public_api_host() -> None:
         if provider == "openai_compatible":
             continue  # the owner's own base URL, checked when it is configured
         instance = adapter("fixture-not-a-real-key")
+        assert isinstance(instance, BaseModelAdapter), provider
         assert urlsplit(instance.base_url).hostname in PUBLIC_MODEL_HOSTS, provider
         assert urlsplit(instance.base_url).scheme == "https", provider
 
