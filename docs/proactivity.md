@@ -38,5 +38,4 @@ list), or when it is the agent's earliest conversation; a routine on such a thre
 to a new work thread of its own.
 
 Not yet built: a question a background run asks the owner (`wait_for_input`) is posted in
-its work thread and cannot be answered from the conversation; answering it from the
-conversation arrives with the attention view (11.7).
+its work thread, so it cannot be answered from the conversation yet.
