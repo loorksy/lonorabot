@@ -23,10 +23,10 @@ user-facing replies and labels. English examples do not require an English reply
    warranted. Use an existing routine for a requested time/interval. Memory
    entries are not schedules.
 5. Respect cancellation and health suspension. Do not poll the model or promise
-   uninterrupted monitoring. Keep repeated no-change checks quiet.
+   uninterrupted monitoring. On a wake with nothing new, end with an empty reply.
 
 ## Output
 
-Confirm the actual saved condition briefly. Example:
+When you set a watch, confirm the actual saved condition briefly. Example:
 "I'll return when the specified condition is met." Only say this after persistence succeeds.
 Monitoring grants no financial authority.

@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
+from lonora_core.run_state import TERMINAL, is_background, may_end_silent
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -82,7 +83,12 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         "collaboration.completed",
                         thread_id=row.thread_id,
                         agent_id=row.agent_id,
-                        payload={"id": row.id, "version": row.version},
+                        payload={
+                            "id": row.id,
+                            "version": row.version,
+                            # An empty synthesis is nothing new for the owner (11.5).
+                            "result_empty": not state.final_result,
+                        },
                     )
             await report_to_origin(session, child, rich_content)
             session.add(EffectReceiptRow(key=receipt, result={"returned": True, "synthesis": True}))
@@ -157,9 +163,25 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         )
         returned_message: MessageRow | None = None
         await report_to_origin(session, child, rich_content)
+        # VISION 11.5: background work that has ended in a conversation shows a helper's
+        # outcome there only when it completed and the helper has something to show;
+        # nothing acts on an outcome of failed or cancelled work. A work thread still gets
+        # every outcome (it is the work's memory), a Run still running is still told, and
+        # a collaboration still collects every return for its synthesis.
+        quiet = bool(
+            parent
+            and thread
+            and thread.purpose != "work"
+            and parent.status in TERMINAL
+            and may_end_silent(
+                is_background(parent.trigger, parent.model_metadata), parent.execution_state
+            )
+            and not child.model_metadata.get("collaboration_session_id")
+            and (parent.status != "completed" or not (child.result or rich_content))
+        )
         # A follow-up is its parent's continuation, not a helper: its outcome never
         # returns to the parent, so it never starts another follow-up.
-        if parent and thread and child.trigger != "follow_up":
+        if parent and thread and child.trigger != "follow_up" and not quiet:
             outcome = f"<peer_outcome run_id='{child.id}' status='{status}'>\n{child.result or child.error_code or status}\n</peer_outcome>"
             message = MessageRow(
                 thread_id=thread.id,
@@ -209,7 +231,13 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         agent_id=parent.agent_id,
                         trigger="follow_up",
                         parent_run_id=parent.id,
-                        prompt="Use the returned peer outcome to complete the owner's request.",
+                        prompt="Use the returned peer outcome to finish the background work "
+                        "that asked for it."
+                        if may_end_silent(
+                            is_background(parent.trigger, parent.model_metadata),
+                            parent.execution_state,
+                        )
+                        else "Use the returned peer outcome to complete the owner's request.",
                         # A follow-up keeps an observe-only requester's narrowing, so it
                         # never asks the owner to approve a trade the executor refuses.
                         metadata={

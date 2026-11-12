@@ -27,6 +27,9 @@
    Cancellation/failure retains accepted preview and explicit terminal state;
    it never manufactures a completed assistant Message or repeats a privileged
    action. Reload recovers canonical messages plus actual remaining stream state.
+10. A background run (VISION 11.5; `is_background` in `lonora_core/run_state.py`)
+    publishes no `run.delta` or `run.rich_partial` while it may end silent. Its reply exists only as its final Message, so an empty or failed background
+    run leaves no preview. Once the owner writes to it, it streams like an owner turn.
 
 Older clients continue receiving readable text content. New clients render an
 ordered rich projection instead of duplicating its compatibility text.

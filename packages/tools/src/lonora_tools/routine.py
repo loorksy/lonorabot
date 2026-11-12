@@ -151,7 +151,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "routine_create",
-            "Schedule this same agent with either a cron expression/timezone or an interval; work continues with the browser closed.",
+            "Schedule this same agent with either a cron expression/timezone or an interval; work continues with the browser closed. A run with nothing new for the owner posts nothing.",
             RoutineCreate,
             create,
         ),

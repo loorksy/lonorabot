@@ -3,7 +3,7 @@ from typing import Any, cast
 from lonora_contracts.domain import MessageCommand, MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
-from lonora_core.run_state import TERMINAL, is_conversational
+from lonora_core.run_state import OWNER_SPOKE, TERMINAL, is_background, is_conversational
 from lonora_core.user_error import LonoraError
 from pydantic import ValidationError
 from sqlalchemy import delete, select
@@ -683,6 +683,10 @@ async def admit_runs(
             None,
         )
         if active and takes_message(active):
+            if message.origin == "owner" and is_background(active.trigger, active.model_metadata):
+                # Background work the owner writes to answers them from now on (11.5),
+                # even a queued run that will read the words only from its history.
+                active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
             if pending_question and active.status == "waiting_input":
                 updated = [
                     {
