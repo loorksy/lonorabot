@@ -178,7 +178,12 @@ async def main() -> None:
         gold_context = await context_for(gold)
         before = await broker.snapshot()
         for arguments in (
-            {"action": "modify_position", "clear_stop_loss": True},
+            {
+                "action": "modify_position",
+                "clear_stop_loss": True,
+                "tolerance": "5",
+                "reason": "Fixture entry",
+            },
             {"action": "close_position"},
         ):
             try:
@@ -291,6 +296,8 @@ async def main() -> None:
             "symbol": GOLD,
             "volume": "0.3",
             "stop_loss": "90",
+            "tolerance": "5",
+            "reason": "Fixture entry",
         }
         over = await call(capped, "trade_execute", **over_args)
         assert over.get("_runtime_wait") and over.get("approval_id"), over

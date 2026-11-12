@@ -1656,6 +1656,14 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "This request expired. Ask for a new one.",
     ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
   },
+  trade_approval_quote_unavailable: {
+    en: "The current price could not be read, so this request was not approved. Try again.",
+    ar: "تعذّرت قراءة السعر الحالي، فلم تتم الموافقة على هذا الطلب. حاول مرة أخرى.",
+  },
+  trade_approval_drifted: {
+    en: "The price moved outside this request's range, so it can no longer be approved.",
+    ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
+  },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",
     ar: "هذا الطلب ما زال بانتظارك أو سبقت الإجابة عليه.",

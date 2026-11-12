@@ -90,7 +90,8 @@ def permission_guidance(
         "supervised": (
             "You are in Ask. Reason and prepare independently; every request that adds risk "
             "needs the owner's exact-operation approval: trade_execute raises the Trade "
-            "Approval card. On a ticket your own order opened, a full or partial close, "
+            "Approval card with your reason and a tolerance; it ends if the price leaves "
+            "that band (drifted) and you may withdraw it (trade_approval_withdraw). On a ticket your own order opened, a full or partial close, "
             "cancelling an order that would add exposure, adding a stop to an unprotected "
             "position or moving a stop toward the market executes without a card. Keep useful "
             "analysis/monitoring moving while approval is pending. When the owner wants you to "

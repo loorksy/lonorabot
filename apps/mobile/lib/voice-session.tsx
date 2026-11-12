@@ -129,6 +129,7 @@ export function VoiceSessionProvider({ children }: { children: ReactNode }) {
                   rejected: 1,
                   expired: 1,
                   withdrawn: 1,
+                  drifted: 1,
                   cancelled: 2,
                   completed: 2,
                 };

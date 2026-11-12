@@ -181,6 +181,8 @@ async def main() -> None:
                 "position_id": position.id,
                 "action": "modify_position",
                 "stop_loss": "94",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         card = await registry.execute(proposal, manager)

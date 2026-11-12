@@ -786,7 +786,13 @@ async def main() -> None:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, **arguments},
+                # A card for new risk carries a tolerance and the agent's reason (10.3.1).
+                arguments={
+                    "account_id": account,
+                    "tolerance": "5",
+                    "reason": "Fixture request",
+                    **arguments,
+                },
             )
             proposal = await registry.execute(call, context)
             if not proposal.get("_runtime_wait"):

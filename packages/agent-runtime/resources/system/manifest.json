@@ -112,6 +112,7 @@
     "trade_execute": "trading",
     "trade_close_positions": "trading",
     "positions_manage_all": "trading",
+    "trade_approval_withdraw": "trading",
     "trading_mode_ask": "trading",
     "owner_action_propose": "trading",
     "board_list": "tasks",
