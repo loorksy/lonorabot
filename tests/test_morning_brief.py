@@ -370,7 +370,14 @@ async def test_a_wake_too_large_for_its_prompt_still_brings_the_plain_brief(
 
 
 async def facts_now(db: Database, owner: str, at: datetime) -> dict[str, Any]:
-    await brief_tick(db, owner, now=at)
+    if await brief_tick(db, owner, now=at) is None:
+        # A brief after the weekly close first waits for the agents' reports.
+        async with db.sessions() as session, session.begin():
+            for run in await session.scalars(
+                select(RunRow).where(RunRow.trigger == "weekly_report")
+            ):
+                run.status = "completed"
+        assert await brief_tick(db, owner, now=at) is not None
     run = (await brief_runs(db))[-1]
     return json.loads(run.prompt.split("<brief_facts>\n", 1)[1].rsplit("\n</brief_facts>", 1)[0])
 

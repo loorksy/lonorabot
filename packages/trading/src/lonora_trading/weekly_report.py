@@ -1,20 +1,19 @@
 """The weekly report (VISION 5.5.6, 11.3): each agent reports once per trading week.
 
-At the weekly close (the FX week, Friday 17:00 New York) the server wakes each agent once
-in its own conversation with fixed server text and its week's facts; the agent posts its
-report there (results, what it learned, what it changed). The first morning brief after
-the close carries the reports to Lonora as data, and Lonora summarizes them. One effect
-receipt per agent and close keeps it to one wake per agent per week, also after downtime.
+When the first morning brief after the weekly close (the FX week, Friday 17:00 New York)
+falls due, the brief step wakes each agent once in its own conversation with fixed server
+text and its week's facts; the agent posts its report there (results, what it learned,
+what it changed). That brief waits for the reports, carries them to Lonora as each
+agent's own words, and Lonora summarizes them. One effect receipt per agent and close
+keeps it to one wake per agent per week, also after downtime.
 """
 
 import json
 from datetime import datetime
 from typing import Any
 
-from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
 from lonora_core.user_error import LonoraError
-from lonora_db.client import Database
 from lonora_db.runs import create_run
 from lonora_db.schema import AgentRow, EffectReceiptRow, TradingJournalRow
 from lonora_db.threads import conversation_thread
@@ -23,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .journal import journal_data
-from .morning_brief import MAXIMUM_ITEMS, latest_close, locked_record, operation_state
+from .morning_brief import MAXIMUM_ITEMS, operation_state
 
 TRIGGER = "weekly_report"
 
@@ -79,55 +78,45 @@ def wake_prompt(facts: dict[str, Any]) -> str:
     return WAKE_TEXT + "\n<week_facts>\n" + body + "\n</week_facts>"
 
 
-async def weekly_tick(db: Database, owner_id: str, now: datetime | None = None) -> str | None:
-    """Wake every agent once for the latest closed week; returns that close's date."""
-    now = now or utcnow()
-    week = latest_close(now)
-    if week is None:
-        return None
+async def wake_agents(
+    session: AsyncSession, owner_id: str, week: tuple[datetime, datetime]
+) -> list[dict[str, Any]]:
+    """Wake every agent that existed at the close once for its report of that week."""
     opens, closes = week
-    async with db.sessions() as session, session.begin():
-        record = await locked_record(session, owner_id)
-        if record.weekly is not None and record.weekly["close"] >= closes.isoformat():
-            return None
-        entries: list[dict[str, Any]] = []
-        for agent in await session.scalars(
-            # An agent created after the close had no week to report.
-            select(AgentRow)
-            .where(AgentRow.owner_id == owner_id, AgentRow.created_at <= closes)
-            .order_by(AgentRow.created_at)
-        ):
-            entry: dict[str, Any] = {"agent_id": agent.id, "agent": agent.name, "run_id": None}
-            key = report_key(agent.id, closes)
-            if await session.get(EffectReceiptRow, key) is not None:
-                continue
-            session.add(EffectReceiptRow(key=key, result={"close": closes.isoformat()}))
-            if agent.paused:
-                # A paused agent's work is held (4.7.1): no report; the brief says so.
-                entries.append(entry | {"state": "paused"})
-                continue
-            facts = await week_facts(session, owner_id, agent.id, opens, closes)
-            try:
-                # One agent's refused wake never blocks the others' reports.
-                async with session.begin_nested():
-                    thread = await conversation_thread(session, owner_id, agent.id)
-                    run = await create_run(
-                        session,
-                        owner_id,
-                        RunRequest(
-                            thread_id=thread.id,
-                            agent_id=agent.id,
-                            trigger=TRIGGER,
-                            prompt=wake_prompt(facts),
-                        ),
-                        run_id=stable_id(
-                            agent.id, "weekly-report-run:" + closes.date().isoformat()
-                        ),
-                    )
-            except LonoraError:
-                entries.append(entry | {"state": "not_woken"})
-                continue
-            entries.append(entry | {"state": "woken", "run_id": run.id})
-        record.weekly = {"close": closes.isoformat(), "agents": entries, "summarized": False}
-        record.updated_at = now
-        return closes.date().isoformat()
+    entries: list[dict[str, Any]] = []
+    for agent in await session.scalars(
+        # An agent created after the close had no week to report.
+        select(AgentRow)
+        .where(AgentRow.owner_id == owner_id, AgentRow.created_at <= closes)
+        .order_by(AgentRow.created_at)
+    ):
+        entry: dict[str, Any] = {"agent_id": agent.id, "agent": agent.name, "run_id": None}
+        key = report_key(agent.id, closes)
+        if await session.get(EffectReceiptRow, key) is not None:
+            continue
+        session.add(EffectReceiptRow(key=key, result={"close": closes.isoformat()}))
+        if agent.paused:
+            # A paused agent's work is held (4.7.1): no report; the brief says so.
+            entries.append(entry | {"state": "paused"})
+            continue
+        facts = await week_facts(session, owner_id, agent.id, opens, closes)
+        try:
+            # One agent's refused wake never blocks the others' reports.
+            async with session.begin_nested():
+                thread = await conversation_thread(session, owner_id, agent.id)
+                run = await create_run(
+                    session,
+                    owner_id,
+                    RunRequest(
+                        thread_id=thread.id,
+                        agent_id=agent.id,
+                        trigger=TRIGGER,
+                        prompt=wake_prompt(facts),
+                    ),
+                    run_id=stable_id(agent.id, "weekly-report-run:" + closes.date().isoformat()),
+                )
+        except LonoraError:
+            entries.append(entry | {"state": "not_woken"})
+            continue
+        entries.append(entry | {"state": "woken", "run_id": run.id})
+    return entries

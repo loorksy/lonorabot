@@ -62,8 +62,6 @@ STEPS = (
     StepSpec("thread_prefs", 2, 60, critical=False),
     # The morning brief: once per local date for each owner (VISION 11.1).
     StepSpec("morning_brief", 30, 120),
-    # The weekly report: one wake per agent at the weekly close (VISION 5.5.6).
-    StepSpec("weekly_reports", 30, 120),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -260,11 +258,6 @@ class Gateway:
 
         await self.for_each_owner(lambda service: brief_tick(self.db, service.owner_id))
 
-    async def weekly_reports(self) -> None:
-        from lonora_trading.weekly_report import weekly_tick
-
-        await self.for_each_owner(lambda service: weekly_tick(self.db, service.owner_id))
-
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -289,7 +282,6 @@ class Gateway:
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
             "morning_brief": self.morning_brief,
-            "weekly_reports": self.weekly_reports,
             "watchdog": self.watchdog.tick,
         }
 
