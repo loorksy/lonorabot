@@ -15,10 +15,12 @@ from lonora_db.client import Database
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AgentRow,
+    AttentionRow,
     BrokerSessionRow,
     EffectReceiptRow,
     MessageRow,
     MorningBriefRow,
+    OwnerActionRow,
     RunRow,
     SettingRow,
     TradeApprovalRow,
@@ -29,8 +31,6 @@ from lonora_trading.morning_brief import (
     TRIGGER,
     WRITE_DEADLINE,
     brief_tick,
-    learned_minute,
-    moved_minute,
     owner_zone,
     plain_brief,
 )
@@ -42,25 +42,10 @@ Fixture = tuple[Database, str, str, str]
 DAY = datetime(2026, 11, 12, tzinfo=UTC)
 
 
-def test_the_time_is_07_00_until_three_days_of_opens_then_the_median_less_15_minutes() -> None:
-    assert learned_minute([]) is None
-    assert learned_minute([400, 410]) is None
-    assert learned_minute([400, 410, 430]) == 410 - 15
-    # Only the last 14 recorded days count.
-    assert learned_minute([0] * 20 + [480] * 14) == 480 - 15
-
-
-def test_the_time_moves_at_most_one_hour_per_day() -> None:
-    assert moved_minute(DEFAULT_MINUTE, 300) == DEFAULT_MINUTE - 60
-    assert moved_minute(DEFAULT_MINUTE, 560) == DEFAULT_MINUTE + 60
-    assert moved_minute(DEFAULT_MINUTE, 430) == 430
-
-
-def test_the_owner_zone_is_reach_me_then_the_device_then_utc() -> None:
-    assert owner_zone({"timezone": "Asia/Riyadh"}, "Europe/Paris").key == "Asia/Riyadh"
-    assert owner_zone({}, "Europe/Paris").key == "Europe/Paris"
-    assert owner_zone({"timezone": "Not/AZone"}, None).key == "UTC"
-    assert owner_zone({}, None).key == "UTC"
+def test_the_owner_zone_is_the_stored_reach_me_zone_else_utc() -> None:
+    assert owner_zone({"timezone": "Asia/Riyadh"}).key == "Asia/Riyadh"
+    assert owner_zone({"timezone": "Not/AZone"}).key == "UTC"
+    assert owner_zone({}).key == "UTC"
 
 
 def test_the_brief_wake_is_a_request_turn_and_an_empty_reply_is_not_accepted() -> None:
@@ -281,7 +266,6 @@ async def test_after_downtime_one_brief_and_a_paused_lonora_does_not_silence_it(
             MorningBriefRow(
                 owner_id=owner,
                 brief_minute=DEFAULT_MINUTE,
-                planned_date="2026-11-09",
                 last_local_date="2026-11-09",
                 baseline={},
             )
@@ -301,7 +285,16 @@ async def test_after_downtime_one_brief_and_a_paused_lonora_does_not_silence_it(
 def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
     facts: dict[str, Any] = {
         "local_date": "2026-11-12",
-        "accounts": [{"account": "#1", "connection": "disconnected"}],
+        "accounts": [
+            {"account": "#1", "connection": "disconnected"},
+            {
+                "account": "#2",
+                "connection": "degraded",
+                "currency": "USD",
+                "balance": "10",
+                "equity": "9",
+            },
+        ],
         "agents": [
             {
                 "agent": "Euro",
@@ -338,16 +331,23 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
         "pending_approval_count": 0,
         "unsettled_operations": 1,
         "weekly_reports": [],
+        "pending_owner_cards": 0,
+        "questions_waiting": 2,
+        "attention_items": 0,
         "nothing_else_needs_you": False,
     }
     text = plain_brief(facts, "en")
     assert text.splitlines()[0] == "Morning brief · 2026-11-12"
     assert "#1: no broker reading" in text
+    assert "#2: broker connection degraded · Balance 10 USD, Equity 9 USD" in text
     assert "• Euro: no operations" in text
     assert "• EURUSD buy 1 @ 1.1 · floating -3 · you" in text
     assert "• +2 more" in text
     assert "• Gold: buy XAUUSD 0.1 — confirmed by the broker; +2 more" in text
     assert "operations of unknown outcome to settle: 1" in text
+    assert "questions waiting for your answer: 2" in text
+    assert "#1: no broker reading" in text
+    assert "#2: broker connection degraded · Balance 10 USD, Equity 9 USD" in text
     assert "• EURUSD شراء 1 @ 1.1" in plain_brief(facts, "ar")
     assert "Nothing else needs you." not in text
 
@@ -367,3 +367,92 @@ async def test_a_wake_too_large_for_its_prompt_still_brings_the_plain_brief(
     async with db.sessions() as session:
         (message,) = await session.scalars(select(MessageRow))
     assert message.agent_id == lonora and "موجز الصباح" in message.content
+
+
+async def facts_now(db: Database, owner: str, at: datetime) -> dict[str, Any]:
+    await brief_tick(db, owner, now=at)
+    run = (await brief_runs(db))[-1]
+    return json.loads(run.prompt.split("<brief_facts>\n", 1)[1].rsplit("\n</brief_facts>", 1)[0])
+
+
+async def write_brief(db: Database) -> None:
+    async with db.sessions() as session, session.begin():
+        for run in await session.scalars(select(RunRow).where(RunRow.trigger == TRIGGER)):
+            run.status = "completed"
+            run.model_metadata = {**run.model_metadata, "result_message_id": "m-" + run.id}
+
+
+@pytest.mark.asyncio
+async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        session.add(
+            TradingJournalRow(
+                operation_id="op-unknown",
+                owner_id=owner,
+                account_id="acc",
+                request_hash="h",
+                request={"action": "sell", "symbol": "XAUUSD", "volume": "0.1"},
+                status="ambiguous",
+                result={},
+                updated_at=DAY - timedelta(days=5),
+            )
+        )
+    at = DAY + timedelta(hours=4, minutes=1)
+    first = await facts_now(db, owner, at)
+    assert first["unsettled_operations"] == 1 and first["nothing_else_needs_you"] is False
+    await write_brief(db)
+    await brief_tick(db, owner, now=at + timedelta(minutes=1))
+    # Day 2: the operation is still unsettled, from before the last brief.
+    second = await facts_now(db, owner, at + timedelta(days=1))
+    assert second["unsettled_operations"] == 1 and second["nothing_else_needs_you"] is False
+    async with db.sessions() as session, session.begin():
+        row = await session.get(TradingJournalRow, "op-unknown")
+        assert row is not None
+        row.status = "resolved"
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=lonora,
+                source="agent",
+                kind="connect_credential",
+                subject="s",
+                payload={},
+                payload_hash="h",
+                expires_at=DAY + timedelta(days=30),
+                status="pending",
+            )
+        )
+        session.add(RunRow(thread_id=thread, agent_id=agent, status="waiting_input"))
+        session.add(
+            AttentionRow(
+                owner_id=owner,
+                agent_id=agent,
+                thread_id=thread,
+                logical_key="k",
+                coalesce_key="c",
+                importance="action_required",
+                code="owner_action_required",
+                status="ready",
+                due_at=DAY,
+            )
+        )
+    await write_brief(db)
+    await brief_tick(db, owner, now=at + timedelta(days=1, minutes=1))
+    third = await facts_now(db, owner, at + timedelta(days=2))
+    assert {
+        key: third[key]
+        for key in (
+            "unsettled_operations",
+            "pending_owner_cards",
+            "questions_waiting",
+            "attention_items",
+        )
+    } == {
+        "unsettled_operations": 0,
+        "pending_owner_cards": 1,
+        "questions_waiting": 1,
+        "attention_items": 1,
+    }
+    assert third["nothing_else_needs_you"] is False

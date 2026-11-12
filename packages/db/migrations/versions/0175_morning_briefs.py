@@ -19,7 +19,6 @@ def upgrade() -> None:
         "ln_morning_briefs",
         sa.Column("owner_id", sa.String(length=36), nullable=False),
         sa.Column("brief_minute", sa.Integer(), nullable=False, server_default="420"),
-        sa.Column("planned_date", sa.String(length=10), nullable=True),
         sa.Column("last_local_date", sa.String(length=10), nullable=True),
         sa.Column("last_sent_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("baseline", sa.JSON(), nullable=False),
