@@ -163,9 +163,11 @@ async def refuse_held(
     owner_message: bool = False,
 ) -> None:
     """The paused agent never resumes held work on its own initiative: it asks the
-    supervisor or the owner. In a run that answers the owner's message a team agent
-    resumes a supervisor's hold (released as the owner's); Lonora lifts only pauses it
-    made, and a pause the owner holds is lifted only by the owner. A hold on work that is no longer paused is stale and released."""
+    supervisor or the owner. In a run that answers the owner's untainted message a team
+    agent resumes a supervisor's hold (released as the owner's); Lonora lifts only pauses
+    it made. A pause the owner holds is lifted only by the owner: one the owner asked for
+    in chat also from the owner's message, the owner's own pause from a control only from
+    a control. A hold on work that is no longer paused is stale and released."""
     hold = await live_hold(session, kind, target_id, lock=True)
     if hold is None or hold.owner_id != owner_id:
         return
@@ -173,6 +175,10 @@ async def refuse_held(
         await release_hold(session, hold, "stale")
         return
     if hold.source == "owner":
+        if owner_message and hold.source_message_id is not None:
+            # A pause the owner asked for in chat, lifted when the owner asks in chat.
+            await release_hold(session, hold, "owner")
+            return
         raise LonoraError("work_paused_by_owner", 409)
     if hold.holder_agent_id == agent_id:
         return

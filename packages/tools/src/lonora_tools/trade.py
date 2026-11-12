@@ -18,7 +18,6 @@ from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import raise_stop_tightened
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
-    AccountAuthorityRow,
     AgentRow,
     EffectReceiptRow,
     MessageRow,
@@ -36,7 +35,8 @@ from lonora_db.trade_approvals import (
     withdraw_own,
     withdrawn_prompt,
 )
-from lonora_db.trading_mode import set_trading_mode, trading_mode
+from lonora_db.trading_mode import switch_to_ask as ask_mode
+from lonora_db.trading_mode import trading_mode
 from lonora_db.transactions import owned_thread
 from lonora_session.idempotency import stable_id
 from lonora_trading.account_authority import (
@@ -54,7 +54,7 @@ from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
 from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
@@ -1177,25 +1177,18 @@ async def switch_to_ask(context: ToolContext, args: dict[str, Any]) -> dict[str,
         caller = await agent_binding(session, context.owner_id, context.agent_id)
         if target != context.agent_id and caller.role != "personal":
             raise LonoraError("trading_mode_other_agent_forbidden", 403)
-        mode = await set_trading_mode(
+        # A signed grant still decides within its own terms until it is revoked.
+        result = await ask_mode(
             session,
             context.owner_id,
             target,
-            "ask",
             by="agent" if target == context.agent_id else "lonora",
         )
-        # A signed grant still decides within its own terms until it is revoked.
-        grants = await session.scalar(
-            select(func.count())
-            .select_from(AccountAuthorityRow)
-            .where(
-                AccountAuthorityRow.owner_id == context.owner_id,
-                AccountAuthorityRow.agent_id == target,
-                AccountAuthorityRow.status == "active",
-            )
-        )
         await require_lease(session, context.lease, lock=True)
-    return {"agent_id": target, "trading_mode": mode, "active_signed_grants": grants or 0}
+    if target == context.agent_id or not result["changed"]:
+        return result
+    # Lonora switched a team agent: one line to the owner (3.1.2; the conversation gate).
+    return {**result, "owner_line": "required"}
 
 
 def tools() -> list[Tool]:

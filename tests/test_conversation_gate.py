@@ -329,3 +329,13 @@ def test_a_lead_action_on_a_wake_with_an_empty_reply_continues_once():
     assert not gate({}, wake, *lookup, empty).continue_turn
     # An earlier turn's action, already answered, is not this run's.
     assert not gate({}, wake, *calls, line, *lookup, empty).continue_turn
+
+
+def test_a_lead_action_beside_a_trade_still_asks_for_the_one_line():
+    # A financial call holds the other cases; the one line asks for words, never a call.
+    paused = {"changed": True, "paused": True, "owner_line": "required"}
+    calls = exchange("agent_control", paused, agent_id="gold", action="pause")
+    trade = exchange("trade_execute", {"status": "confirmed"}, symbol="XAUUSD")
+    empty = ModelMessage(role="assistant", content="")
+    verdict = gate(started(), OWNER, *calls, *trade, empty)
+    assert verdict.continue_turn and "in one line" in verdict.nudge

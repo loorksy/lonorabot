@@ -82,3 +82,33 @@ async def refresh_mandate_cards(session: AsyncSession, owner_id: str, agent_id: 
         )
     ):
         await owner_action_event(session, row)
+
+
+async def switch_to_ask(
+    session: AsyncSession, owner_id: str, agent_id: str, *, by: ModeChanger
+) -> dict[str, object]:
+    """Switch an agent to Ask (``trading_mode_ask`` and Lonora's ``agent_control``
+    ``set_ask``): whether it changed, read under the authority lock, and how many signed
+    grants still decide within their own terms until revoked."""
+    from sqlalchemy import func, select
+
+    from .schema import AccountAuthorityRow
+
+    await authority_lock(session, agent_id)
+    before = await trading_mode(session, owner_id, agent_id)
+    mode = await set_trading_mode(session, owner_id, agent_id, "ask", by=by)
+    grants = await session.scalar(
+        select(func.count())
+        .select_from(AccountAuthorityRow)
+        .where(
+            AccountAuthorityRow.owner_id == owner_id,
+            AccountAuthorityRow.agent_id == agent_id,
+            AccountAuthorityRow.status == "active",
+        )
+    )
+    return {
+        "agent_id": agent_id,
+        "trading_mode": mode,
+        "changed": before != mode,
+        "active_signed_grants": grants or 0,
+    }

@@ -86,7 +86,13 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
 It has no action that trades, grants, raises a limit, lifts a restriction or edits
-memory or instructions. Lonora steers every team agent's work by its lead role, with or
+memory or instructions. Lonora alone also has `cancel_run` (ends the agent's started
+runs, never Lonora's own run or its ancestors; a queued run stays) and `set_ask` (the
+same switch as `trading_mode_ask`: Ask, except within an active signed grant's own terms
+until revoked, which `active_signed_grants` counts); a team agent gets
+`agent_control_lead_only`. A change Lonora makes returns `owner_line: "required"`, and
+the conversation gate holds an empty reply until Lonora tells the owner in one line what
+it did and why (mandate 3.1.2). Lonora steers every team agent's work by its lead role, with or
 without a grant; any other agent only as its supervisor, whatever message its Run
 answers (`supervision_required`). Narrowing an agent's trading with
 `trade_restriction_create` and its `agent_id` still needs that agent's grant or the
@@ -100,8 +106,11 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   changes nothing and says who holds the pause (`you`, `another_agent`, `owner`).
 - **A paused agent keeps its exits.** A paused agent still wakes for broker events on
   its own positions and pending orders, and for the owner's direct message, and the door
-  sends only its risk-reducing requests (mandate 4.7.1). A supervisor may therefore pause
-  a whole trading agent; the result says `still_reduces_risk` when it has money standing.
+  sends only its risk-reducing requests (mandate 4.7.1). Lonora may therefore pause a
+  whole trading agent on its own. Supervision is not extended before phase 6 removes it:
+  another supervisor still pauses a whole agent with money standing only from the
+  owner's message (`supervision_pause_trading_agent`, 403), and pauses its routines,
+  watches or Tasks otherwise.
 - **Never Lonora.** No agent pauses the Personal Agent itself, not even from the
   owner's message (`supervision_personal_agent`, 403): it is the owner's entry point,
   and a paused Lonora would leave the owner's chat without a reply. Only the owner
@@ -110,7 +119,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 - On its own initiative only the supervisor that set a hold lifts it, while it still
   supervises. A hold set from the owner's message is the owner's (`source='owner'`,
   the agent kept as holder; migration `0155_owner_message_pauses_are_owners`): only
-  the owner lifts it (mandate 4.7.2). A Run that answers the owner's message lifts
+  the owner lifts it (mandate 4.7.2), by a control or by asking in chat (a Run answering
+  the owner's untainted message). Only an untainted owner message makes a pause the
+  owner's: a Run that read others' content never speaks for the owner (6.10). A Run that answers the owner's message lifts
   another supervisor's hold (the paused agent itself through `routine_toggle`,
   `watch_resume` or `task_control`, or a supervisor through `agent_control`); it is
   released as the owner's (`released_by='owner'`). Lonora lifts only the pauses it
@@ -151,8 +162,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   the hold. A watch it cancelled stays cancelled when its supervisor resumes: the
   resume only ends the hold (`stays_cancelled_by_the_agent`). A hold on work that is no
   longer paused is stale and released.
-- **The owner sees who did it.** Every pause raises a `supervision_paused` card in the
-  paused agent's conversation: "Paused by <supervisor>", the agent, and what (the whole
+- **The owner sees who did it.** A team supervisor's pause raises a `supervision_paused`
+  card (Lonora's raises none: only the fixed cards of 10.3 exist, and Lonora tells the
+  owner in one line) in the paused agent's conversation: "Paused by <supervisor>", the agent, and what (the whole
   agent, or a routine, watch or Task with its own short label, isolated), "from your
   message" when it was. Resume is the owner's own resume of that work, whoever holds
   it; Keep paused dismisses the card. Once the pause ends anywhere the card stops
@@ -224,7 +236,8 @@ profile) do not fit and are promoted after first use like any remembered tool.
   `run_not_found` and `supervision_required`; a grant opens labelled reads of threads,
   decisions, runs and memory (an injected instruction stays inside a labelled record);
   revocation closes them inside the same Run; a bound agent and an Ask me agent paused
-  whole on a routine wake (`still_reduces_risk`) and from the owner's message; Lonora
+  refused a whole-agent pause by a team supervisor on a routine wake, paused by Lonora on
+  its own and from the owner's message; Lonora
   never paused by another agent; the pause card with its facts, Resume as the owner's own
   and its stale settle; restricting another agent without a grant or owner message is
   403; supervision from a card and from a sentence with Undo; the supervised agent refused

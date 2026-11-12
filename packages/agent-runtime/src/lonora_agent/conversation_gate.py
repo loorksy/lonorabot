@@ -2,7 +2,8 @@
 
 A Task has steps to finish; a conversation has none, so a reply could end a request with
 one named step left untaken. This gate reads the request's own tool calls and results and
-continues the turn, at most twice per owner message, in five cases:
+continues the turn, at most twice per owner message, in five cases (on a wake, only the
+last):
 
 - ``choice_not_carried_out``: the owner picked a choice of a question, the choice was
   bound to calls when it was offered (``offers``), and fewer calls of those tools have
@@ -15,11 +16,13 @@ continues the turn, at most twice per owner message, in five cases:
 - ``changes_all_failed``: every change failed and a result names how to repeat it;
 - ``lead_action_unreported``: a lead action (``owner_line: required`` in its result)
   changed the team and the reply is empty: Lonora tells the owner in one line (3.1.2).
+  It is checked first, even when a trade holds the other cases, since it asks for words,
+  never a call.
 
-It reads structure only: call names, arguments and result fields. It never reads what the
-owner or the model wrote, never issues a call, and never continues past a refusal for
-permission, a financial call, an uncertain outcome or an exhausted retry. Each
-continuation is recorded in the Run's state.
+It reads structure only: call names, arguments and result fields, and whether the reply
+is empty. It never reads what the owner or the model wrote, never issues a call, and the
+first four cases never continue past a refusal for permission, a financial call, an
+uncertain outcome or an exhausted retry. Each continuation is recorded in the Run's state.
 """
 
 import json
@@ -349,15 +352,20 @@ def conversation_stop_gate(
     if not blocks and obligation is None:
         return ACCEPT
     exchanges = [exchange for block in blocks for exchange in block]
-    # The pick starts at or before the request, so its calls include the request's.
-    if _held(state, messages, picked if obligation and picked else exchanges, registry):
-        return ACCEPT
-    called = {call.name for call, _ in exchanges}
     fired = {
         (cast(dict[str, Any], entry).get("condition"), cast(dict[str, Any], entry).get("call_id"))
         for entry in cast(list[Any], record["fired"])
         if isinstance(entry, dict)
     }
+    # An empty reply after a lead action is never held: it calls nothing, it only asks for
+    # the one line, also when a trade in the same turn holds every other finding.
+    lead = _lead_action_unreported(exchanges, request)
+    if lead is not None and (lead[0], lead[2]) not in fired:
+        return _nudge(state, record, lead)
+    # The pick starts at or before the request, so its calls include the request's.
+    if _held(state, messages, picked if obligation and picked else exchanges, registry):
+        return ACCEPT
+    called = {call.name for call, _ in exchanges}
     finding = next(
         (
             found
@@ -366,7 +374,6 @@ def conversation_stop_gate(
                 _read_step_not_taken(blocks, called, registry, permitted) if blocks else None,
                 _found_tool_unused(exchanges, called, registry),
                 _changes_all_failed(exchanges, registry, permitted),
-                _lead_action_unreported(exchanges, request),
             )
             # One fact is raised once: a reply that keeps its answer after it stands.
             if found is not None and (found[0], found[2]) not in fired

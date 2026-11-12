@@ -180,8 +180,16 @@ async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
         # set_ask switches it to Ask with no card and no owner message (4.2.2).
         asked = await call(lead, "agent_control", agent_id=gold["id"], action="set_ask")
         assert asked["changed"] is True and asked["trading_mode"] == "ask"
+        # The same switch as trading_mode_ask: it says what signed grants still decide.
+        assert asked["active_signed_grants"] == 0 and asked["owner_line"] == "required"
         async with fixture.runtime.db.sessions() as session:
             assert await trading_mode(session, fixture.owner, gold["id"]) == "ask"
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, gold["id"], "full", by="owner_tap")
+        # Through trading_mode_ask, Lonora's switch of a team agent carries the line too.
+        tool = await call(lead, "trading_mode_ask", agent_id=gold["id"])
+        assert tool["changed"] is True and tool["owner_line"] == "required"
+        assert "owner_line" not in await call(lead, "trading_mode_ask", agent_id=gold["id"])
 
         # Lonora's pause raises no card (only the five fixed cards, 10.3): one line instead.
         async def pause_cards() -> int:

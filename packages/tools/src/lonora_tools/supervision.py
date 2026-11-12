@@ -39,7 +39,6 @@ from lonora_db.owner_actions import (
     raise_supervision_card,
     raise_supervision_stopped_card,
 )
-from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
@@ -72,7 +71,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .resolve import Option, resolve, stating
-from .restrictions import OWNER_TRIGGERS, owner_message_id
+from .restrictions import owner_message_id
 
 PAGE_ITEMS = 10
 # What a decisions page shows of each stored decision; the full record is one read away.
@@ -469,11 +468,6 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             action="pause" if params.action == "pause" else "resume",
             owner_message_id=await owner_message_id(session, run),
             run_id=run.id,
-            # The owner's words this run answers, read even after other content: they only
-            # ever make a pause the owner's (4.7.2), never grant a control.
-            owner_words_id=getattr(await owner_typed_message(session, run), "id", None)
-            if run.trigger in OWNER_TRIGGERS
-            else None,
         )
         lead = await is_lead(session, context.owner_id, context.agent_id)
         # Fenced after the conversation lock: the thread-before-run order of admission.
@@ -492,9 +486,8 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
     run, switch it to Ask, or delete it (its tickets transfer to Lonora). None needs a
     grant, a card or the owner's message; a team agent is refused, whatever its grants."""
     from lonora_core.run_state import ACTIVE
-    from lonora_db.authority_lock import authority_lock
     from lonora_db.cancellation import cancel_run
-    from lonora_db.trading_mode import set_trading_mode, trading_mode
+    from lonora_db.trading_mode import switch_to_ask
 
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease)
@@ -511,11 +504,9 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             result.update(await delete_created_agent(session, context.owner_id, agent.id))
             result.update(changed=True, deleted=True)
         elif action == "set_ask":
-            # Read under the authority lock, so an owner's tap in between is not missed.
-            await authority_lock(session, agent.id)
-            before = await trading_mode(session, context.owner_id, agent.id)
-            await set_trading_mode(session, context.owner_id, agent.id, "ask", by="lonora")
-            result.update(changed=before != "ask", trading_mode="ask")
+            # The same switch as trading_mode_ask: a signed grant still decides within its
+            # own terms until revoked, and the result says how many are active.
+            result.update(await switch_to_ask(session, context.owner_id, agent.id, by="lonora"))
         else:
             # Its current run (started, not merely queued: a queued owner message stays),
             # never this run or the runs that started it.
@@ -705,11 +696,13 @@ def tools() -> list[Tool]:
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts a pause "
-            "you made on your own (Lonora: only those); a pause the owner asked for or made "
-            "is the owner's. You cannot pause an agent that holds a pause over you unless the owner "
+            "you made on your own, or one the owner tells you to lift; Lonora never lifts "
+            "another agent's. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A paused agent still wakes for its own positions and orders and only "
-            "reduces their risk. Only the owner pauses Lonora itself. Lonora alone may also "
-            "cancel_run (end its current run), set_ask (switch it to Ask) or delete it (its "
+            "reduces their risk; unless you are Lonora, pause a whole trading agent only "
+            "when the owner asks. Only the owner pauses Lonora itself. Lonora alone may also "
+            "cancel_run (end its current run), set_ask (as trading_mode_ask: Ask, except "
+            "within an active signed grant's own terms until revoked) or delete it (its "
             "open tickets become yours and you are woken with them). It never "
             "trades, grants, raises limits, lifts restrictions or edits its memory or "
             "instructions.",

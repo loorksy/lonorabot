@@ -48,7 +48,7 @@ def main() -> None:
     assert BINDING_POLICY in text
     # Focus pair; reading is open; orders are not bound (3.1.2). No "different bot" wall.
     assert "focus pair" in BINDING_POLICY and "Reading is open" in BINDING_POLICY
-    assert "Your orders are not bound to this pair" in BINDING_POLICY
+    assert "the server does not refuse other symbols" in BINDING_POLICY
     assert "cannot change" not in BINDING_POLICY and "different bot" not in BINDING_POLICY
     unbound = AgentRow(owner_id="owner", name="Legacy")
     assert binding_context(unbound) == ""
