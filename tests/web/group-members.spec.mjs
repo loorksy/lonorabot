@@ -49,10 +49,11 @@ test("a new group takes more than twelve members", async ({ page, owner }) => {
   const main = page.locator("main");
   await main.getByLabel("Group name", { exact: true }).fill(`${prefix} all hands`);
   for (const agent of agents) {
-    const member = main.getByRole("switch", { name: agent.name });
+    const member = main.getByRole("switch", { name: agent.name, exact: true });
     await expect(member).toBeEnabled();
     await member.check();
   }
+  await main.getByRole("combobox", { name: "Coordinator", exact: true }).selectOption(agents[0].id);
   const create = page.waitForResponse(
     (response) => new URL(response.url()).pathname === "/api/groups/create",
   );
