@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHAT_PREFS_DEFAULT, setChatPref } from "../../apps/web/src/conversation/prefs";
 
-/* The chat preferences of this device (reference PREF_DEFAULT, Desktop-37 5748). The module
-   reads the browser only when called. */
+/* The chat preferences of this device: main's defaults, and a change kept in this browser. The
+   module reads the browser only when called. */
 const values = new Map<string, string>();
 Object.assign(globalThis, {
   localStorage: {
@@ -12,7 +12,7 @@ Object.assign(globalThis, {
   },
 });
 
-test("the defaults are the reference's, and a change is kept on this device", () => {
+test("the defaults are main's, and a change is kept on this device", () => {
   assert.deepEqual(CHAT_PREFS_DEFAULT, {
     steps: true,
     stepsOpen: false,

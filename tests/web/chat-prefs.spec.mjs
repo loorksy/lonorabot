@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
 /* «تجربة المحادثة» (reference chatPrefsPage and streamAnswer, Desktop-37 5753-5830): the
-   page's sections and rows, and a streaming reply's pacing. */
+   page's sections and rows, a streaming reply's pacing, and a formatted reply laid out. */
 function fixture(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_streaming.py", "browser"], {
@@ -111,6 +111,22 @@ test("a streaming reply flows a word at a time and a finished one is shown whole
     await expect(preview).toHaveCount(0);
     await expect(page.getByTestId("transcript")).toContainText("chunk-169");
     await expect(page.locator(".caret")).toHaveCount(0);
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("an agent's formatted reply is laid out by default", async ({ page, context }) => {
+  test.setTimeout(60_000);
+  const data = fixture({ action: "init" });
+  await login(context);
+  await prefs(context, {});
+  try {
+    await page.goto(`/app/g/${data.group}`);
+    fixture({ ...data, action: "complete", text: "# Weekly plan\n\n- first step\n- second step" });
+    const reply = page.locator(".msg:not(.mine)").last();
+    await expect(reply.locator(".md")).toHaveCount(1);
+    await expect(reply.locator("li")).toHaveText(["first step", "second step"]);
   } finally {
     fixture({ ...data, action: "cleanup" });
   }
