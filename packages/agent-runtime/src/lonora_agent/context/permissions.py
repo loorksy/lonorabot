@@ -106,8 +106,8 @@ def permission_guidance(
             "decide whether and when to trade, size and manage positions; each request "
             "executes without a card and you report the result afterwards. You may switch "
             "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
-            "request that adds risk; the owner switches you on your Mandate card. The account's monetary limits "
-            "still bind you."
+            "request that adds risk; the owner switches you on your Mandate card. The "
+            "account's monetary limits still bind you."
         ),
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "

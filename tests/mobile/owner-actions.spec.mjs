@@ -45,7 +45,7 @@ async def main():
                     draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
             elif data['kind']=='trading_mode':
-                # As an agent proposes it.
+                # As an agent proposes its own Mandate card.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
