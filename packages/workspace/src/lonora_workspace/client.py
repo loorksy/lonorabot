@@ -206,8 +206,9 @@ class WorkspaceClient:
         listing = await self._call("GET", "/v1/processes", None, 30)
         # The supervisor cuts a command line (4096 bytes): a secret it cut is replaced too.
         for key in ("processes", "jobs"):
-            for item in listing.get(key) or []:
-                if isinstance(item, dict) and isinstance(item.get("command"), str):
+            items: list[dict[str, Any]] = listing.get(key) or []
+            for item in items:
+                if isinstance(item.get("command"), str):
                     item["command"] = trailing(scan, item["command"])
         return scan.data(listing)
 
