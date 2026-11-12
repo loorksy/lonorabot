@@ -40,14 +40,14 @@ def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
     return trigger == "user"
 
 
-def claimable_while_paused() -> ColumnElement[bool]:
-    """``runs_while_paused`` as a claim condition on ``RunRow``."""
-    authority = RunRow.model_metadata["authority"].as_string()
+def claimable_while_paused(run: Any = RunRow) -> ColumnElement[bool]:
+    """``runs_while_paused`` as a claim condition on ``run`` (``RunRow`` or an alias)."""
+    authority = run.model_metadata["authority"].as_string()
     return or_(
-        RunRow.trigger == "user",
-        and_(RunRow.trigger == "group", RunRow.model_metadata[OWNER_ADDRESSED].as_boolean()),
+        run.trigger == "user",
+        and_(run.trigger == "group", run.model_metadata[OWNER_ADDRESSED].as_boolean()),
         and_(
-            RunRow.trigger == "broker_event",
+            run.trigger == "broker_event",
             or_(authority.is_(None), authority != "observe_only"),
         ),
     )
