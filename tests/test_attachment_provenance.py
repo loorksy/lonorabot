@@ -66,3 +66,63 @@ async def test_a_photo_on_the_owners_message_is_not_the_owners_word():
         assert "owner_preferences_require_owner_message" in seen[-1]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_steering_attachment_is_read_in_its_own_conversation(monkeypatch: Any):
+    """A message that steers a background run may come from another conversation: its
+    attachment is looked up there, so it still marks the run (6.10)."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from lonora_agent import steering
+
+    row = SimpleNamespace(
+        id="m1",
+        thread_id="owner-thread",
+        seq=7,
+        attachment_ids=["a1"],
+        content="look",
+        rich_content=None,
+        role="user",
+    )
+    looked_up: list[tuple[str, int]] = []
+
+    async def third_party(session: Any, owner_id: str, thread_id: str, seq: int) -> bool:
+        looked_up.append((thread_id, seq))
+        return True
+
+    marked = AsyncMock()
+    monkeypatch.setattr(steering, "consume_steering", AsyncMock(return_value=[row]))
+    monkeypatch.setattr(steering, "attachment_context", AsyncMock(return_value=("note", [])))
+    monkeypatch.setattr(steering, "third_party_attachment", third_party)
+    monkeypatch.setattr(steering, "mark_external_content", marked)
+
+    def nothing(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(steering, "merge_answer", nothing)
+    monkeypatch.setattr(steering, "checkpoint", AsyncMock())
+    monkeypatch.setattr(steering, "reset_stop_gate", nothing)
+    monkeypatch.setattr(steering, "reset_guardrails", nothing)
+
+    class Session:
+        async def __aenter__(self) -> "Session":
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        def begin(self) -> "Session":
+            return self
+
+    context = SimpleNamespace(
+        db=SimpleNamespace(sessions=Session),
+        owner_id="owner",
+        thread_id="work-thread",
+        artifact_root=None,
+        lease=SimpleNamespace(run_id="run-1"),
+    )
+    await steering.merge_steering(context, {}, [])  # type: ignore[arg-type]
+    assert looked_up == [("owner-thread", 7)]
+    marked.assert_awaited_once()
