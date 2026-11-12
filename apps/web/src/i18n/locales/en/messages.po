@@ -1959,10 +1959,6 @@ msgstr "Closes"
 #~ msgid "closing allowed"
 #~ msgstr "closing allowed"
 
-#: src/conversation/sheets/AgentSheet.tsx:623
-#~ msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
-#~ msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
-
 #: src/conversation/sheets/AgentSheet.tsx:585
 #~ msgid "Closing and tightening the stop loss are always allowed, even while new trades are paused."
 #~ msgstr "Closing and tightening the stop loss are always allowed, even while new trades are paused."
@@ -2892,22 +2888,6 @@ msgstr "Edited"
 msgid "Email"
 msgstr "Email"
 
-#: src/components/trading/TradingStatus.tsx:59
-#~ msgid "Emergency Stop"
-#~ msgstr "Emergency Stop"
-
-#: src/components/trading/TradingStatus.tsx:36
-#~ msgid "Emergency stop active"
-#~ msgstr "Emergency stop active"
-
-#: src/components/ai/AttentionInbox.tsx:47
-#~ msgid "Emergency Stop is active"
-#~ msgstr "Emergency Stop is active"
-
-#: src/lib/user_error.ts:112
-#~ msgid "Emergency stop is active."
-#~ msgstr "Emergency stop is active."
-
 #: src/shell/lists/EmojiPanel.tsx:477
 msgid "Emoji sections"
 msgstr "Emoji sections"
@@ -3439,10 +3419,6 @@ msgstr "Global models"
 #: src/shell/settings/ModelsPage.tsx:270
 msgid "Global routing"
 msgstr "Global routing"
-
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
-#~ msgstr "Global Trading and Emergency Stop still govern every financial operation. Pausing a goal does not close existing broker positions."
 
 #: src/pages/TradingSettingsPanel.tsx:7
 msgid "Global trading settings"
@@ -4618,10 +4594,6 @@ msgstr "New ticket"
 #~ msgid "New trades resumed"
 #~ msgstr "New trades resumed"
 
-#: src/components/ai/AttentionInbox.tsx:20
-#~ msgid "New trading stopped"
-#~ msgstr "New trading stopped"
-
 #: src/conversation/sheets/WatchesSheet.tsx:155
 #~ msgid "New watch"
 #~ msgstr "New watch"
@@ -5166,10 +5138,6 @@ msgstr "OK"
 msgctxt "speaker"
 msgid "On"
 msgstr "On"
-
-#: src/conversation/sheets/AgentSheet.tsx:462
-#~ msgid "On · closing is always allowed"
-#~ msgstr "On · closing is always allowed"
 
 #: src/conversation/ChatPrefsPage.tsx:51
 msgid "On a computer; Shift+Enter for a new line. When off: Ctrl+Enter"
@@ -6203,10 +6171,6 @@ msgstr "Reset"
 msgid "Reset all"
 msgstr "Reset all"
 
-#: src/components/trading/TradingStatus.tsx:67
-#~ msgid "Reset emergency stop"
-#~ msgstr "Reset emergency stop"
-
 #: src/components/charts/ChartSheetHandle.tsx:24
 #~ msgid "Resize chart"
 #~ msgstr "Resize chart"
@@ -7212,10 +7176,6 @@ msgstr "Stop loss"
 msgid "Stop loss · optional"
 msgstr "Stop loss · optional"
 
-#: src/components/goals/TradingGoals.tsx:299
-#~ msgid "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-
 #: src/shell/agent/TradesPage.tsx:73
 msgid "Stop order"
 msgstr "Stop order"
@@ -7253,10 +7213,6 @@ msgstr "Stop unnecessary animations and transitions"
 #: src/components/trading/SuperBotCards.tsx:161
 #~ msgid "Stopped"
 #~ msgstr "Stopped"
-
-#: src/conversation/sheets/AgentSheet.tsx:460
-#~ msgid "Stopped · no new orders are sent"
-#~ msgstr "Stopped · no new orders are sent"
 
 #: src/conversation/Cards.tsx:609
 msgid "Stopped at its work limit"
@@ -8156,10 +8112,6 @@ msgstr "This conversation has no pair to chart. Ask the agent for a chart, or op
 msgid "This exact symbol is not available from your broker."
 msgstr "This exact symbol is not available from your broker."
 
-#: src/components/goals/TradingGoals.tsx:241
-#~ msgid "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-#~ msgstr "This goal is a plan under the agent's trading level and signed grant. Stop new trading, your pauses and the account's money limits still apply to every order. Pausing a goal does not close existing broker positions."
-
 #: src/lib/user_error.ts:118
 #~ msgid "This goal is paused, cancelled or completed. Reload its current state."
 #~ msgstr "This goal is paused, cancelled or completed. Reload its current state."
@@ -8469,14 +8421,6 @@ msgstr "Trading and safety"
 #~ msgid "Trading goals"
 #~ msgstr "Trading goals"
 
-#: src/lib/user_error.ts:110
-#~ msgid "Trading is off."
-#~ msgstr "Trading is off."
-
-#: src/conversation/sheets/AgentSheet.tsx:160
-#~ msgid "Trading is stopped"
-#~ msgstr "Trading is stopped"
-
 #: src/components/trading/TradingStatus.tsx:40
 #~ msgid "Trading OFF"
 #~ msgstr "Trading OFF"
@@ -8492,18 +8436,6 @@ msgstr "Trading pair"
 #: src/components/trading/TradeApprovals.tsx:114
 #~ msgid "Trading request"
 #~ msgstr "Trading request"
-
-#: src/conversation/sheets/AgentSheet.tsx:477
-#~ msgid "Trading resumed"
-#~ msgstr "Trading resumed"
-
-#: src/conversation/sheets/AgentSheet.tsx:480
-#~ msgid "Trading stopped"
-#~ msgstr "Trading stopped"
-
-#: src/conversation/sheets/AgentSheet.tsx:479
-#~ msgid "Trading stopped · closing is still allowed"
-#~ msgstr "Trading stopped · closing is still allowed"
 
 #: src/components/call/CallCard.tsx:160
 #~ msgid "Transcript"
@@ -8536,14 +8468,6 @@ msgstr "Turn into a task"
 #: src/shell/agent/AgentPage.tsx:445
 msgid "Turn the agent on"
 msgstr "Turn the agent on"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading OFF"
-#~ msgstr "Turn trading OFF"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading ON"
-#~ msgstr "Turn trading ON"
 
 #: src/conversation/commands.tsx:77
 msgid "Turn your request into a task the agent follows"
