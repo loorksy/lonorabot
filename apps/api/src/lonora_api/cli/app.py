@@ -1,8 +1,9 @@
 """The `lonora` CLI endpoint (7.1.4, 7.3).
 
 A separate ASGI app served only on a Unix socket (``LONORA_CLI_SOCKET``). Caddy publishes
-port 8000, never this socket; the workspace mounts the socket's directory, so this is its
-one route into Lonora. Every request carries an agent's token; the endpoint maps it to
+port 8000, never this socket. Its directory is the ``cli-socket`` volume, which only the
+API service mounts at this commit; the workspace will reach Lonora through it alone
+(7.1.4). Every request carries an agent's token; the endpoint maps it to
 exactly one agent and runs the command with that agent's identity, through the same
 functions the agent tools call (7.3.1).
 

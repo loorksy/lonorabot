@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The `lonora` command (mandate 7.3): connects workspace scripts to Lonora.
 
-Standard library only, so it runs in the workspace with nothing installed. It reads the
+Standard library only, so it can run in the workspace with nothing installed. It reads the
 calling agent's token from ``LONORA_AGENT_TOKEN`` and talks to the CLI endpoint on its
 Unix socket (``LONORA_CLI_SOCKET``). Every command writes one JSON object to stdout and
 exits with the endpoint's code:
