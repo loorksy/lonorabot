@@ -7,7 +7,7 @@ from typing import Any
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import EffectReceiptRow, SkillRow
+from lonora_db.schema import EffectReceiptRow, RunRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_db.skills import SkillRepository, mark_package, record_version
 from lonora_session.idempotency import request_hash
@@ -240,32 +240,49 @@ async def materialize(
     await write_copy(client(context), await scan(context), context.agent_id, directory, files)
 
 
+async def repository_trusted(
+    session: AsyncSession, context: ToolContext, run: RunRow, owner: str, repository: str
+) -> bool:
+    """Whether a repository is inside the owner's trusted list (github.com by default), or
+    joins it now because the owner's typed message this run answers names it or its
+    GitHub owner (VISION 10.3.2: no card)."""
+    from lonora_db.trusted_sources import github_trusted, trust_source
+    from lonora_tools.source_trust import owner_named
+
+    if await github_trusted(session, context.owner_id, owner, repository):
+        return True
+    slug = (owner + "/" + repository).casefold()
+    named = [form + end for form in (slug, "github.com/" + slug) for end in ("", ".git")]
+    # The repository first (the narrower trust); its owner only as "github.com/<owner>".
+    for kind, identifier, names, closed in (
+        ("github_repo", slug, named, False),
+        ("github_owner", owner.casefold(), ["github.com/" + owner], True),
+    ):
+        if await owner_named(session, run, names, closed=closed) is not None:
+            await trust_source(
+                session,
+                context.owner_id,
+                kind,
+                identifier,
+                via="owner_message",
+                agent_id=context.agent_id,
+            )
+            return True
+    return False
+
+
 async def untrusted_source(context: ToolContext, repository_url: str) -> dict[str, Any] | None:
-    """A repository outside the owner's trusted list: one owner card instead of the
-    import. Inside it (github.com by default) the import goes on silently."""
-    from lonora_db.capability_cards import source_payload, trust_subject
-    from lonora_db.trusted_sources import github_trusted
-    from lonora_tools.owner_actions import propose_capability_card
+    """A repository outside the owner's trusted list that his words this run do not name:
+    the import is refused, nothing trusted or installed. Inside it (github.com by
+    default), or named by him, the import goes on."""
+    from lonora_tools.source_trust import refusal
 
     owner, repository = repository_identity(repository_url)
     async with context.db.sessions() as session, session.begin():
-        if await github_trusted(session, context.owner_id, owner, repository):
+        run = await scoped_run(session, context)
+        if await repository_trusted(session, context, run, owner, repository):
             return None
-    identifier = (owner + "/" + repository).casefold()
-    card = await propose_capability_card(
-        context,
-        "trust_source",
-        trust_subject("github_repo", identifier),
-        source_payload("github_repo", identifier),
-    )
-    return {
-        "status": "owner_trust_required",
-        "repository": identifier,
-        "installed": False,
-        **card,
-        "guidance": "This repository is outside the owner's trusted sources. The card asks "
-        "the owner to trust it; you continue once the owner taps Trust.",
-    }
+    return refusal(repository=(owner + "/" + repository).casefold(), installed=False)
 
 
 async def import_package(

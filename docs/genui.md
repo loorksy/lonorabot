@@ -80,6 +80,8 @@ with an unknown type or a missing required prop is dropped, an unknown icon is o
 or data line that fails makes the whole card fall back. `genui_compile.compile_card` then:
 
 - resolves facts to this request's results only; a failed or private value is never shown,
+  nor anything inside an operation the broker has not confirmed (an agent never draws
+  "confirmed": the server posts its own Execution Receipt),
   and a card whose facts all fail falls back; source metadata is privacy-filtered;
 - binds the card to one account (the first account-bearing fact) and, for a fixed-market agent,
   to its own pair;

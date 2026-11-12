@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "41ce6dee4b438b5d8b109cd4907c840150bd06b0f50a678ff4758c46e2805a7c",
+  "manual_sha256": "1522d52eaea8bf7b28d8e1da5ad65b9d00d21f5447397756c45fe17aac1df9ae",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -16,6 +16,9 @@
     "method_restore": "memory",
     "owner_preferences_update": "memory",
     "session_search": "memory",
+    "knowledge_note_add": "memory",
+    "knowledge_note_list": "memory",
+    "knowledge_note_delete": "memory",
     "scratchpad_read": "memory",
     "scratchpad_write": "memory",
     "skill_save": "memory",
@@ -45,9 +48,11 @@
     "artifact_read": "files",
     "mcp_connections": "research",
     "mcp_tools": "research",
+    "mcp_trust": "research",
     "mcp_execute": "research",
     "news_feed_read": "research",
     "news_feed_subscribe": "research",
+    "telegram_link": "research",
     "capabilities_list": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",

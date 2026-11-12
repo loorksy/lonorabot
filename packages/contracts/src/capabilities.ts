@@ -25,7 +25,7 @@ export type TrustedSource = {
   /** Copied from an operator declaration that no longer stands: it runs nothing until
    * the owner reviews the server. */
   needs_review: boolean;
-  added_via: "default" | "operator" | "owner_ui" | "owner_card";
+  added_via: "default" | "operator" | "owner_ui" | "owner_card" | "owner_message";
   added_by_agent_name: string | null;
   active: boolean;
   created_at: string;

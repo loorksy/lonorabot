@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseRoute, recoveryPath } from "../../apps/web/src/shell/routes";
+import { parseRoute, recoveryPath, sectionOf } from "../../apps/web/src/shell/routes";
 
 test("inherited object names are not route aliases", () => {
   for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__"])
@@ -41,4 +41,10 @@ test("calls: «المكالمة» is one page, «مكالمة واردة» takes
   assert.deepEqual(parseRoute("/app/call/x"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/incoming/c1"), { kind: "page", page: "incoming", item: "c1" });
   assert.deepEqual(parseRoute("/app/incoming/c1/x"), { kind: "not-found" });
+});
+
+test("«ما يعمل الآن» (7.1.5) is a settings page without an item", () => {
+  assert.deepEqual(parseRoute("/app/running"), { kind: "page", page: "running" });
+  assert.equal(sectionOf(parseRoute("/app/running")), "settings");
+  assert.deepEqual(parseRoute("/app/running/x"), { kind: "not-found" });
 });

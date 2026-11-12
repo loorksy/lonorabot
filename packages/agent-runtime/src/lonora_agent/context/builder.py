@@ -131,7 +131,10 @@ async def build_context(
                 "financial authorization. Exact financial confirmation follows the ordinary "
                 "server approval policy. Keep this guidance private.</voice_observation>"
             )
-        memory = await timed("memory", read_memory_context(session, context.owner_id, agent.id))
+        memory = await timed(
+            "memory",
+            read_memory_context(session, context.owner_id, agent.id, lead=agent.role == "personal"),
+        )
         scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
         # A card submission's own message is read by id, not by its widened window (rule W).
         focus = await submission_seq(session, run) or run.input_seq

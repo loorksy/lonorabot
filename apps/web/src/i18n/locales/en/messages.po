@@ -20,6 +20,10 @@ msgstr "«Filled» shows only with the broker's evidence or your confirmation."
 msgid "«New message» shows instead of the content"
 msgstr "«New message» shows instead of the content"
 
+#: src/shell/settings/RunningPage.tsx:132
+msgid "(no command line)"
+msgstr "(no command line)"
+
 #. placeholder {0}: state.watch_count
 #: src/conversation/sheets/AgentSheet.tsx:361
 msgid "{0} active"
@@ -42,7 +46,7 @@ msgid "{0} B"
 msgstr "{0} B"
 
 #. placeholder {0}: Math.round(minutes / 1440)
-#: src/shell/settings/OwnerPage.tsx:37
+#: src/shell/settings/OwnerPage.tsx:45
 msgid "{0} days ago"
 msgstr "{0} days ago"
 
@@ -57,7 +61,7 @@ msgid "{0} follows the work of the chosen agents and answers you about it with e
 msgstr "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 
 #. placeholder {0}: Math.round(minutes / 60)
-#: src/shell/settings/OwnerPage.tsx:35
+#: src/shell/settings/OwnerPage.tsx:43
 msgid "{0} h ago"
 msgstr "{0} h ago"
 
@@ -148,11 +152,11 @@ msgstr "{kb} KB"
 msgid "{label}. Tap to call back"
 msgstr "{label}. Tap to call back"
 
-#: src/shell/settings/SettingsRoot.tsx:327
+#: src/shell/settings/SettingsRoot.tsx:333
 msgid "{linked} linked"
 msgstr "{linked} linked"
 
-#: src/shell/settings/OwnerPage.tsx:34
+#: src/shell/settings/OwnerPage.tsx:42
 msgid "{minutes} min ago"
 msgstr "{minutes} min ago"
 
@@ -298,7 +302,7 @@ msgstr "A new version is available"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 
-#: src/shell/settings/OwnerPage.tsx:106
+#: src/shell/settings/OwnerPage.tsx:114
 msgid "A removed agent"
 msgstr "A removed agent"
 
@@ -353,8 +357,8 @@ msgstr "Access token"
 msgid "Access token — stored encrypted, never shown again"
 msgstr "Access token — stored encrypted, never shown again"
 
-#: src/shell/pages.tsx:143
-#: src/shell/settings/SettingsRoot.tsx:314
+#: src/shell/pages.tsx:146
+#: src/shell/settings/SettingsRoot.tsx:320
 msgid "Accessibility"
 msgstr "Accessibility"
 
@@ -449,7 +453,7 @@ msgstr "Activities"
 msgid "Activity"
 msgstr "Activity"
 
-#: src/shell/pages.tsx:135
+#: src/shell/pages.tsx:136
 msgid "Activity log"
 msgstr "Activity log"
 
@@ -464,9 +468,9 @@ msgstr "Activity updated"
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
 #: src/shell/agent/AgentPage.tsx:638
-#: src/shell/agent/GroupPage.tsx:222
-#: src/shell/settings/IntegrationsPage.tsx:260
-#: src/shell/settings/IntegrationsPage.tsx:348
+#: src/shell/agent/GroupPage.tsx:221
+#: src/shell/settings/IntegrationsPage.tsx:261
+#: src/shell/settings/IntegrationsPage.tsx:349
 msgid "Add"
 msgstr "Add"
 
@@ -482,7 +486,7 @@ msgstr "Add a provider"
 msgid "Add a provider credential"
 msgstr "Add a provider credential"
 
-#: src/shell/settings/IntegrationsPage.tsx:698
+#: src/shell/settings/IntegrationsPage.tsx:699
 msgid "Add a trading account"
 msgstr "Add a trading account"
 
@@ -499,7 +503,7 @@ msgstr "Add agents to supervise"
 msgid "Add an agent"
 msgstr "Add an agent"
 
-#: src/shell/pages.tsx:155
+#: src/shell/pages.tsx:158
 msgid "Add an AI provider"
 msgstr "Add an AI provider"
 
@@ -511,7 +515,7 @@ msgstr "Add an economic calendar feed in Integrations to load events."
 msgid "Add an emoji"
 msgstr "Add an emoji"
 
-#: src/shell/settings/IntegrationsPage.tsx:706
+#: src/shell/settings/IntegrationsPage.tsx:707
 msgid "Add an MCP server"
 msgstr "Add an MCP server"
 
@@ -552,7 +556,7 @@ msgstr "Add knowledge"
 msgid "Add line"
 msgstr "Add line"
 
-#: src/shell/pages.tsx:157
+#: src/shell/pages.tsx:160
 msgid "Add MCP"
 msgstr "Add MCP"
 
@@ -583,7 +587,7 @@ msgid "Add to the conversation"
 msgstr "Add to the conversation"
 
 #. placeholder {0}: new Date(source.created_at).toLocaleDateString()
-#: src/shell/settings/IntegrationsPage.tsx:517
+#: src/shell/settings/IntegrationsPage.tsx:518
 msgid "added {0}"
 msgstr "added {0}"
 
@@ -652,14 +656,14 @@ msgstr "Agent created"
 msgid "Agent files"
 msgstr "Agent files"
 
-#: src/shell/pages.tsx:93
+#: src/shell/pages.tsx:94
 msgid "Agent identity"
 msgstr "Agent identity"
 
 #: src/shell/ChatHeader.tsx:106
 #: src/shell/ChatMenu.tsx:120
 #: src/shell/ChatMenu.tsx:129
-#: src/shell/pages.tsx:91
+#: src/shell/pages.tsx:92
 msgid "Agent info"
 msgstr "Agent info"
 
@@ -695,7 +699,7 @@ msgstr "Agent template"
 #: src/shell/domain/UpdatesPages.tsx:196
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
-#: src/shell/pages.tsx:89
+#: src/shell/pages.tsx:90
 msgid "Agents"
 msgstr "Agents"
 
@@ -713,7 +717,7 @@ msgstr "Agents it supervises"
 msgid "Agents on this account"
 msgstr "Agents on this account"
 
-#: src/shell/settings/IntegrationsPage.tsx:264
+#: src/shell/settings/IntegrationsPage.tsx:265
 msgid "Agents read news from these domains only, and name the source and the time with every piece of information."
 msgstr "Agents read news from these domains only, and name the source and the time with every piece of information."
 
@@ -903,15 +907,15 @@ msgstr "Approval request · {what}"
 msgid "Approve"
 msgstr "Approve"
 
-#: src/shell/settings/IntegrationsPage.tsx:155
+#: src/shell/settings/IntegrationsPage.tsx:156
 msgid "Approve the new schema"
 msgstr "Approve the new schema"
 
-#: src/shell/settings/IntegrationsPage.tsx:155
+#: src/shell/settings/IntegrationsPage.tsx:156
 msgid "Approve the server"
 msgstr "Approve the server"
 
-#: src/shell/settings/IntegrationsPage.tsx:163
+#: src/shell/settings/IntegrationsPage.tsx:164
 msgid "Approve with non-financial writes"
 msgstr "Approve with non-financial writes"
 
@@ -925,7 +929,7 @@ msgstr "Archive"
 
 #: src/shell/DesktopList.tsx:68
 #: src/shell/lists/ChatList.tsx:292
-#: src/shell/pages.tsx:103
+#: src/shell/pages.tsx:104
 msgid "Archived"
 msgstr "Archived"
 
@@ -937,7 +941,7 @@ msgstr "Arrow"
 msgid "Artifacts"
 msgstr "Artifacts"
 
-#: src/shell/settings/IntegrationsPage.tsx:495
+#: src/shell/settings/IntegrationsPage.tsx:496
 msgid "Artificial intelligence"
 msgstr "Artificial intelligence"
 
@@ -969,8 +973,8 @@ msgid "At market price"
 msgstr "At market price"
 
 #: src/lib/user_error.ts:33
-msgid "At most two other agents can join one message."
-msgstr "At most two other agents can join one message."
+#~ msgid "At most two other agents can join one message."
+#~ msgstr "At most two other agents can join one message."
 
 #: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
@@ -1172,7 +1176,7 @@ msgstr "Board"
 msgid "Board title"
 msgstr "Board title"
 
-#: src/shell/settings/IntegrationsPage.tsx:411
+#: src/shell/settings/IntegrationsPage.tsx:412
 msgid "Bot token"
 msgstr "Bot token"
 
@@ -1290,7 +1294,7 @@ msgstr "Browser cache"
 msgid "Built in"
 msgstr "Built in"
 
-#: src/shell/settings/IntegrationsPage.tsx:652
+#: src/shell/settings/IntegrationsPage.tsx:653
 msgid "Built-in"
 msgstr "Built-in"
 
@@ -1342,7 +1346,7 @@ msgctxt "call clock"
 msgid "Call"
 msgstr "Call"
 
-#: src/shell/pages.tsx:171
+#: src/shell/pages.tsx:174
 msgctxt "page title"
 msgid "Call"
 msgstr "Call"
@@ -1396,6 +1400,7 @@ msgstr "Camera not allowed"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
+#: src/shell/settings/OwnerPage.tsx:298
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "Cancel"
@@ -1466,7 +1471,7 @@ msgstr "Card view"
 msgid "Change a value to save it."
 msgstr "Change a value to save it."
 
-#: src/shell/settings/OwnerPage.tsx:279
+#: src/shell/settings/OwnerPage.tsx:347
 msgid "Change log"
 msgstr "Change log"
 
@@ -1531,8 +1536,8 @@ msgstr "Chart could not be displayed."
 msgid "Chat"
 msgstr "Chat"
 
-#: src/shell/pages.tsx:145
-#: src/shell/settings/SettingsRoot.tsx:313
+#: src/shell/pages.tsx:148
+#: src/shell/settings/SettingsRoot.tsx:319
 msgid "Chat experience"
 msgstr "Chat experience"
 
@@ -1704,7 +1709,7 @@ msgstr "Choose an option or write your reply"
 msgid "Choose at least one action"
 msgstr "Choose at least one action"
 
-#: src/shell/agent/GroupPage.tsx:261
+#: src/shell/agent/GroupPage.tsx:260
 msgid "Choose at least one member."
 msgstr "Choose at least one member."
 
@@ -2053,13 +2058,13 @@ msgstr "Content"
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:1053
+#: src/conversation/Conversation.tsx:1052
 #: src/pages/ModelRoutingSettings.tsx:10
 msgid "Conversation"
 msgstr "Conversation"
 
-#: src/shell/pages.tsx:417
-#: src/shell/pages.tsx:419
+#: src/shell/pages.tsx:421
+#: src/shell/pages.tsx:423
 msgid "Conversation history"
 msgstr "Conversation history"
 
@@ -2076,14 +2081,14 @@ msgid "Conversations"
 msgstr "Conversations"
 
 #: src/shell/agent/GroupPage.tsx:100
-#: src/shell/agent/GroupPage.tsx:345
+#: src/shell/agent/GroupPage.tsx:343
 msgid "Coordinator"
 msgstr "Coordinator"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
 #: src/components/genui/UiCard.tsx:867
-#: src/conversation/Conversation.tsx:396
+#: src/conversation/Conversation.tsx:395
 msgid "Copied"
 msgstr "Copied"
 
@@ -2104,9 +2109,14 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/conversation/Conversation.tsx:546
+#: src/conversation/Conversation.tsx:545
 msgid "Copy text"
 msgstr "Copy text"
+
+#: src/shell/settings/OwnerPage.tsx:284
+#: src/shell/settings/OwnerPage.tsx:318
+msgid "Correct the fact"
+msgstr "Correct the fact"
 
 #: src/shell/settings/UsagePage.tsx:289
 msgid "Cost"
@@ -2120,7 +2130,7 @@ msgstr "Cost · {window}"
 msgid "Cost per hour today"
 msgstr "Cost per hour today"
 
-#: src/conversation/Conversation.tsx:398
+#: src/conversation/Conversation.tsx:397
 msgid "Could not copy"
 msgstr "Could not copy"
 
@@ -2149,12 +2159,12 @@ msgstr "Create a group"
 msgid "Create a skill"
 msgstr "Create a skill"
 
-#: src/shell/pages.tsx:131
+#: src/shell/pages.tsx:132
 msgctxt "page title"
 msgid "Create a skill"
 msgstr "Create a skill"
 
-#: src/shell/pages.tsx:137
+#: src/shell/pages.tsx:138
 #: src/shell/TopBar.tsx:59
 msgid "Create agent"
 msgstr "Create agent"
@@ -2175,7 +2185,7 @@ msgstr "Create an agent for each task, and gather them in groups that work toget
 msgid "Create group"
 msgstr "Create group"
 
-#: src/shell/pages.tsx:139
+#: src/shell/pages.tsx:140
 msgctxt "page title"
 msgid "Create group"
 msgstr "Create group"
@@ -2197,7 +2207,7 @@ msgstr "Create group"
 msgid "Create task"
 msgstr "Create task"
 
-#: src/shell/pages.tsx:125
+#: src/shell/pages.tsx:126
 msgctxt "page title"
 msgid "Create task"
 msgstr "Create task"
@@ -2211,7 +2221,7 @@ msgstr "Create task"
 msgid "Create the agent"
 msgstr "Create the agent"
 
-#: src/shell/agent/GroupPage.tsx:358
+#: src/shell/agent/GroupPage.tsx:356
 msgid "Create the group"
 msgstr "Create the group"
 
@@ -2369,7 +2379,7 @@ msgstr "Delegation changed"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:527
+#: src/conversation/Conversation.tsx:526
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2408,7 +2418,7 @@ msgstr "Delete schedule"
 msgid "Delete the chats?"
 msgstr "Delete the chats?"
 
-#: src/shell/settings/OwnerPage.tsx:265
+#: src/shell/settings/OwnerPage.tsx:331
 msgid "Delete the fact"
 msgstr "Delete the fact"
 
@@ -2448,7 +2458,7 @@ msgid "Demo"
 msgstr "Demo"
 
 #. placeholder {0}: agentsCount(count)
-#: src/shell/settings/IntegrationsPage.tsx:484
+#: src/shell/settings/IntegrationsPage.tsx:485
 msgid "Demo · {0}"
 msgstr "Demo · {0}"
 
@@ -2623,6 +2633,10 @@ msgstr "Each agent has its own permissions"
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "Each member keeps its own permissions. The group has no shared financial authority."
 
+#: src/shell/settings/OwnerPage.tsx:187
+msgid "Earlier"
+msgstr "Earlier"
+
 #: src/components/market/EconomicCalendar.tsx:25
 #: src/components/market/MarketWatch.tsx:137
 msgid "Economic calendar"
@@ -2637,7 +2651,7 @@ msgstr "Economic calendar feed"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/conversation/Conversation.tsx:547
+#: src/conversation/Conversation.tsx:546
 msgid "Edit and resend"
 msgstr "Edit and resend"
 
@@ -2648,15 +2662,15 @@ msgstr "Edit and resend"
 msgid "Edit avatar"
 msgstr "Edit avatar"
 
-#: src/shell/pages.tsx:133
+#: src/shell/pages.tsx:134
 msgid "Edit file"
 msgstr "Edit file"
 
-#: src/shell/pages.tsx:119
+#: src/shell/pages.tsx:120
 msgid "Edit goal"
 msgstr "Edit goal"
 
-#: src/shell/pages.tsx:113
+#: src/shell/pages.tsx:114
 msgid "Edit knowledge"
 msgstr "Edit knowledge"
 
@@ -2669,7 +2683,7 @@ msgstr "Edit order"
 #~ msgid "Edit routine"
 #~ msgstr "Edit routine"
 
-#: src/shell/pages.tsx:129
+#: src/shell/pages.tsx:130
 msgid "Edit skill"
 msgstr "Edit skill"
 
@@ -2770,7 +2784,7 @@ msgid "Ending call"
 msgstr "Ending call"
 
 #: src/shell/settings/ConnectionPages.tsx:750
-#: src/shell/settings/IntegrationsPage.tsx:281
+#: src/shell/settings/IntegrationsPage.tsx:282
 msgid "Enter a link that starts with https://"
 msgstr "Enter a link that starts with https://"
 
@@ -2778,7 +2792,7 @@ msgstr "Enter a link that starts with https://"
 msgid "Enter a name."
 msgstr "Enter a name."
 
-#: src/shell/settings/IntegrationsPage.tsx:203
+#: src/shell/settings/IntegrationsPage.tsx:204
 msgid "Enter a valid domain like example.com"
 msgstr "Enter a valid domain like example.com"
 
@@ -2804,7 +2818,7 @@ msgstr "Enter the API key"
 msgid "Enter the code again"
 msgstr "Enter the code again"
 
-#: src/shell/agent/GroupPage.tsx:257
+#: src/shell/agent/GroupPage.tsx:256
 msgid "Enter the group's name."
 msgstr "Enter the group's name."
 
@@ -2880,6 +2894,15 @@ msgstr "Every order is shown to you for approval before it is sent"
 #: src/conversation/PermissionMenu.tsx:36
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "Every order is shown to you for approval before it is sent."
+
+#: src/shell/settings/RunningPage.tsx:177
+msgid "Every process your agents run in the workspace, with the agent that started it."
+msgstr "Every process your agents run in the workspace, with the agent that started it."
+
+#. placeholder {0}: ago(view.listed_at)
+#: src/shell/settings/RunningPage.tsx:172
+msgid "Every process your agents run in the workspace, with the agent that started it. Updated {0}."
+msgstr "Every process your agents run in the workspace, with the agent that started it. Updated {0}."
 
 #: src/components/market/SymbolSearch.tsx:17
 #: src/components/trading/TradeActionCard.tsx:65
@@ -2975,7 +2998,7 @@ msgctxt "chat filter"
 msgid "Favourites"
 msgstr "Favourites"
 
-#: src/shell/settings/IntegrationsPage.tsx:344
+#: src/shell/settings/IntegrationsPage.tsx:345
 msgid "Feed link"
 msgstr "Feed link"
 
@@ -2983,7 +3006,7 @@ msgstr "Feed link"
 #~ msgid "Feed or webhook URL"
 #~ msgstr "Feed or webhook URL"
 
-#: src/shell/settings/IntegrationsPage.tsx:123
+#: src/shell/settings/IntegrationsPage.tsx:124
 msgid "Fetch the tools to review them before approving the server."
 msgstr "Fetch the tools to review them before approving the server."
 
@@ -3015,8 +3038,8 @@ msgstr "File name"
 #: src/shell/lists/UnifiedSearch.tsx:275
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
-#: src/shell/pages.tsx:101
-#: src/shell/settings/SettingsRoot.tsx:337
+#: src/shell/pages.tsx:102
+#: src/shell/settings/SettingsRoot.tsx:343
 msgid "Files"
 msgstr "Files"
 
@@ -3129,7 +3152,7 @@ msgstr "For urgent matters: the agent calls you"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "For your account's safety, sign in again. Your conversations and drafts are saved."
 
-#: src/shell/settings/OwnerPage.tsx:199
+#: src/shell/settings/OwnerPage.tsx:218
 msgid "Form of address"
 msgstr "Form of address"
 
@@ -3162,7 +3185,7 @@ msgstr "From 22:00 to 08:00"
 msgid "From the cache"
 msgstr "From the cache"
 
-#: src/conversation/Conversation.tsx:502
+#: src/conversation/Conversation.tsx:501
 msgid "From the conversation"
 msgstr "From the conversation"
 
@@ -3208,7 +3231,7 @@ msgid "Global embedding model"
 msgstr "Global embedding model"
 
 #: src/pages/settings-sidebar.tsx:13
-#: src/shell/settings/SettingsRoot.tsx:330
+#: src/shell/settings/SettingsRoot.tsx:336
 msgid "Global models"
 msgstr "Global models"
 
@@ -3220,11 +3243,11 @@ msgstr "Global routing"
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
-#: src/conversation/Conversation.tsx:1126
+#: src/conversation/Conversation.tsx:1125
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:1126
+#: src/conversation/Conversation.tsx:1125
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -3242,7 +3265,7 @@ msgstr "Goal title"
 
 #: src/shell/agent/AgentPage.tsx:290
 #: src/shell/ChatMenu.tsx:155
-#: src/shell/pages.tsx:117
+#: src/shell/pages.tsx:118
 msgid "Goals"
 msgstr "Goals"
 
@@ -3279,7 +3302,7 @@ msgstr "Group members"
 
 #: src/pages/GroupPanel.tsx:53
 #: src/pages/GroupPanel.tsx:128
-#: src/shell/agent/GroupPage.tsx:294
+#: src/shell/agent/GroupPage.tsx:293
 msgid "Group name"
 msgstr "Group name"
 
@@ -3293,7 +3316,7 @@ msgstr "Group name"
 msgid "Groups"
 msgstr "Groups"
 
-#: src/shell/pages.tsx:97
+#: src/shell/pages.tsx:98
 msgctxt "page title"
 msgid "Groups"
 msgstr "Groups"
@@ -3302,7 +3325,7 @@ msgstr "Groups"
 msgid "Happy"
 msgstr "Happy"
 
-#: src/conversation/Conversation.tsx:1204
+#: src/conversation/Conversation.tsx:1203
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -3405,7 +3428,7 @@ msgid "In-app notifications"
 msgstr "In-app notifications"
 
 #: src/shell/call/CallPages.tsx:587
-#: src/shell/pages.tsx:173
+#: src/shell/pages.tsx:176
 msgid "Incoming call"
 msgstr "Incoming call"
 
@@ -3454,7 +3477,7 @@ msgstr "Install Lonora"
 msgid "Install now"
 msgstr "Install now"
 
-#: src/shell/settings/SettingsRoot.tsx:351
+#: src/shell/settings/SettingsRoot.tsx:357
 msgid "Install the app"
 msgstr "Install the app"
 
@@ -3482,8 +3505,8 @@ msgstr "Instructions"
 #~ msgstr "Insufficient data for performance conclusions"
 
 #: src/conversation/ToolsSheet.tsx:184
-#: src/shell/pages.tsx:151
-#: src/shell/settings/SettingsRoot.tsx:325
+#: src/shell/pages.tsx:154
+#: src/shell/settings/SettingsRoot.tsx:331
 msgid "Integrations"
 msgstr "Integrations"
 
@@ -3596,7 +3619,7 @@ msgstr "Key saved · never shown again"
 msgid "Keyboard"
 msgstr "Keyboard"
 
-#: src/shell/settings/SettingsRoot.tsx:364
+#: src/shell/settings/SettingsRoot.tsx:370
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
@@ -3610,7 +3633,7 @@ msgstr "Kind of mandate"
 #: src/shell/agent/AgentPage.tsx:285
 #: src/shell/ChatMenu.tsx:121
 #: src/shell/ChatMenu.tsx:149
-#: src/shell/pages.tsx:111
+#: src/shell/pages.tsx:112
 msgid "Knowledge"
 msgstr "Knowledge"
 
@@ -3638,7 +3661,7 @@ msgstr "Knowledge note"
 msgid "Knowledge of <0>{0}</0>"
 msgstr "Knowledge of <0>{0}</0>"
 
-#: src/shell/pages.tsx:175
+#: src/shell/pages.tsx:178
 msgid "Lab"
 msgstr "Lab"
 
@@ -3717,7 +3740,7 @@ msgstr "Limit at"
 msgid "Limit order"
 msgstr "Limit order"
 
-#: src/shell/settings/IntegrationsPage.tsx:628
+#: src/shell/settings/IntegrationsPage.tsx:629
 msgid "Link"
 msgstr "Link"
 
@@ -3730,7 +3753,7 @@ msgid "Link"
 msgstr "Link"
 
 #: src/shell/settings/ConnectionPages.tsx:248
-#: src/shell/settings/IntegrationsPage.tsx:698
+#: src/shell/settings/IntegrationsPage.tsx:699
 msgid "Link a trading account"
 msgstr "Link a trading account"
 
@@ -3742,7 +3765,7 @@ msgstr "Link a trading account from Settings → Integrations to choose the pair
 msgid "Link a trading account from Settings first."
 msgstr "Link a trading account from Settings first."
 
-#: src/shell/settings/IntegrationsPage.tsx:384
+#: src/shell/settings/IntegrationsPage.tsx:385
 msgid "Link Telegram"
 msgstr "Link Telegram"
 
@@ -3750,21 +3773,29 @@ msgstr "Link Telegram"
 msgid "Link the account"
 msgstr "Link the account"
 
-#: src/shell/pages.tsx:159
+#: src/shell/pages.tsx:162
 msgid "Link the broker"
 msgstr "Link the broker"
 
-#: src/shell/settings/IntegrationsPage.tsx:624
+#: src/shell/settings/IntegrationsPage.tsx:625
 msgid "Linked"
 msgstr "Linked"
 
+#: src/shell/settings/IntegrationsPage.tsx:617
+msgid "Linked · alerts reach your chat, your messages reach {telegramAgent}"
+msgstr "Linked · alerts reach your chat, your messages reach {telegramAgent}"
+
+#: src/shell/settings/IntegrationsPage.tsx:618
+msgid "Linked · alerts reach your chat, your messages reach an agent"
+msgstr "Linked · alerts reach your chat, your messages reach an agent"
+
 #: src/shell/settings/IntegrationsPage.tsx:616
-msgid "Linked · messages to the bot reach {telegramAgent}"
-msgstr "Linked · messages to the bot reach {telegramAgent}"
+#~ msgid "Linked · messages to the bot reach {telegramAgent}"
+#~ msgstr "Linked · messages to the bot reach {telegramAgent}"
 
 #: src/shell/settings/IntegrationsPage.tsx:617
-msgid "Linked · messages to the bot reach an agent"
-msgstr "Linked · messages to the bot reach an agent"
+#~ msgid "Linked · messages to the bot reach an agent"
+#~ msgstr "Linked · messages to the bot reach an agent"
 
 #: src/shell/agent/IdentityPage.tsx:326
 msgid "Linked symbol"
@@ -3838,7 +3869,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:1092
+#: src/conversation/Conversation.tsx:1091
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -3861,11 +3892,11 @@ msgstr "Loading preview…"
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/SkillsSection.tsx:101
 #: src/shell/agent/AgentPage.tsx:320
-#: src/shell/pages.tsx:78
+#: src/shell/pages.tsx:79
 msgid "Loading…"
 msgstr "Loading…"
 
-#: src/shell/settings/SettingsRoot.tsx:344
+#: src/shell/settings/SettingsRoot.tsx:350
 msgid "Lock on"
 msgstr "Lock on"
 
@@ -3882,7 +3913,7 @@ msgstr "Long-term memory"
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:390
+#: src/shell/settings/SettingsRoot.tsx:396
 msgid "Lonora · version {version}"
 msgstr "Lonora · version {version}"
 
@@ -3968,7 +3999,7 @@ msgid "Mark as unread"
 msgstr "Mark as unread"
 
 #: src/pages/Market.tsx:23
-#: src/shell/pages.tsx:105
+#: src/shell/pages.tsx:106
 msgid "Market"
 msgstr "Market"
 
@@ -4015,7 +4046,7 @@ msgid "Maximum volume"
 msgstr "Maximum volume"
 
 #. placeholder {0}: levelText(server)
-#: src/shell/settings/IntegrationsPage.tsx:541
+#: src/shell/settings/IntegrationsPage.tsx:542
 msgid "MCP server · {0}"
 msgstr "MCP server · {0}"
 
@@ -4024,14 +4055,14 @@ msgstr "MCP server · {0}"
 #~ msgid "MCP servers"
 #~ msgstr "MCP servers"
 
-#: src/shell/settings/IntegrationsPage.tsx:183
+#: src/shell/settings/IntegrationsPage.tsx:184
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 
 #: src/conversation/PermissionMenu.tsx:71
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:85
-#: src/shell/agent/GroupPage.tsx:318
+#: src/shell/agent/GroupPage.tsx:317
 msgid "Members"
 msgstr "Members"
 
@@ -4039,7 +4070,7 @@ msgstr "Members"
 msgid "Members' permissions"
 msgstr "Members' permissions"
 
-#: src/shell/pages.tsx:115
+#: src/shell/pages.tsx:116
 msgid "Memory"
 msgstr "Memory"
 
@@ -4077,8 +4108,8 @@ msgstr "Message {name}"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/conversation/Conversation.tsx:529
-#: src/conversation/Conversation.tsx:552
+#: src/conversation/Conversation.tsx:528
+#: src/conversation/Conversation.tsx:551
 #: src/conversation/Message.tsx:567
 msgid "Message options"
 msgstr "Message options"
@@ -4099,7 +4130,7 @@ msgstr "Messages"
 msgid "Messages cleared"
 msgstr "Messages cleared"
 
-#: src/shell/settings/IntegrationsPage.tsx:425
+#: src/shell/settings/IntegrationsPage.tsx:426
 msgid "Messages reach"
 msgstr "Messages reach"
 
@@ -4175,8 +4206,8 @@ msgstr "Model"
 msgid "Model provider unavailable — retry scheduled"
 msgstr "Model provider unavailable — retry scheduled"
 
-#: src/shell/pages.tsx:153
-#: src/shell/settings/IntegrationsPage.tsx:500
+#: src/shell/pages.tsx:156
+#: src/shell/settings/IntegrationsPage.tsx:501
 msgid "Model providers"
 msgstr "Model providers"
 
@@ -4236,7 +4267,7 @@ msgstr "Muted"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:164
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:187
+#: src/shell/settings/OwnerPage.tsx:206
 msgid "Name"
 msgstr "Name"
 
@@ -4261,7 +4292,7 @@ msgstr "New agent"
 msgid "New chat"
 msgstr "New chat"
 
-#: src/shell/settings/IntegrationsPage.tsx:256
+#: src/shell/settings/IntegrationsPage.tsx:257
 msgid "New domain"
 msgstr "New domain"
 
@@ -4326,12 +4357,12 @@ msgstr "New trades paused until 23:59"
 msgid "New trades resumed"
 msgstr "New trades resumed"
 
-#: src/shell/settings/IntegrationsPage.tsx:568
+#: src/shell/settings/IntegrationsPage.tsx:569
 msgid "News and channels"
 msgstr "News and channels"
 
-#: src/shell/settings/IntegrationsPage.tsx:215
-#: src/shell/settings/IntegrationsPage.tsx:577
+#: src/shell/settings/IntegrationsPage.tsx:216
+#: src/shell/settings/IntegrationsPage.tsx:578
 msgid "News domains"
 msgstr "News domains"
 
@@ -4440,11 +4471,11 @@ msgstr "No execution: no trading account is chosen"
 msgid "No expiry"
 msgstr "No expiry"
 
-#: src/shell/settings/IntegrationsPage.tsx:600
+#: src/shell/settings/IntegrationsPage.tsx:601
 msgid "No feeds"
 msgstr "No feeds"
 
-#: src/shell/settings/IntegrationsPage.tsx:334
+#: src/shell/settings/IntegrationsPage.tsx:335
 msgid "No feeds."
 msgstr "No feeds."
 
@@ -4588,7 +4619,7 @@ msgstr "No skills available."
 msgid "No skills for this agent."
 msgstr "No skills for this agent."
 
-#: src/shell/settings/IntegrationsPage.tsx:686
+#: src/shell/settings/IntegrationsPage.tsx:687
 msgid "No skills."
 msgstr "No skills."
 
@@ -4616,7 +4647,7 @@ msgstr "No tickets yet"
 msgid "No tools"
 msgstr "No tools"
 
-#: src/shell/settings/IntegrationsPage.tsx:121
+#: src/shell/settings/IntegrationsPage.tsx:122
 msgid "No tools."
 msgstr "No tools."
 
@@ -4666,7 +4697,7 @@ msgstr "No voice provider is configured yet. Add an OpenAI key in the model prov
 msgid "No watches."
 msgstr "No watches."
 
-#: src/shell/settings/IntegrationsPage.tsx:114
+#: src/shell/settings/IntegrationsPage.tsx:115
 msgid "Non-financial write"
 msgstr "Non-financial write"
 
@@ -4675,11 +4706,11 @@ msgctxt "skill tool"
 msgid "None"
 msgstr "None"
 
-#: src/shell/settings/IntegrationsPage.tsx:502
+#: src/shell/settings/IntegrationsPage.tsx:503
 msgid "Not added yet"
 msgstr "Not added yet"
 
-#: src/shell/settings/IntegrationsPage.tsx:556
+#: src/shell/settings/IntegrationsPage.tsx:557
 msgid "Not approved"
 msgstr "Not approved"
 
@@ -4691,9 +4722,13 @@ msgstr "Not carried out"
 msgid "Not linked"
 msgstr "Not linked"
 
+#: src/shell/settings/IntegrationsPage.tsx:619
+msgid "Not linked · alerts can reach you in Telegram"
+msgstr "Not linked · alerts can reach you in Telegram"
+
 #: src/shell/settings/IntegrationsPage.tsx:618
-msgid "Not linked · messages to a bot can reach an agent"
-msgstr "Not linked · messages to a bot can reach an agent"
+#~ msgid "Not linked · messages to a bot can reach an agent"
+#~ msgstr "Not linked · messages to a bot can reach an agent"
 
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Not sent"
@@ -4727,7 +4762,11 @@ msgstr "note.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
-#: src/shell/settings/OwnerPage.tsx:274
+#: src/shell/settings/RunningPage.tsx:108
+msgid "Nothing is running in the workspace."
+msgstr "Nothing is running in the workspace."
+
+#: src/shell/settings/OwnerPage.tsx:342
 msgid "Nothing yet."
 msgstr "Nothing yet."
 
@@ -4751,8 +4790,8 @@ msgctxt "updates section"
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/shell/pages.tsx:147
-#: src/shell/settings/SettingsRoot.tsx:319
+#: src/shell/pages.tsx:150
+#: src/shell/settings/SettingsRoot.tsx:325
 msgid "Notifications and contact"
 msgstr "Notifications and contact"
 
@@ -4782,13 +4821,22 @@ msgid "now"
 msgstr "now"
 
 #: src/pages/ActivityList.tsx:180
-#: src/shell/settings/OwnerPage.tsx:33
+#: src/shell/settings/OwnerPage.tsx:41
 msgid "Now"
 msgstr "Now"
 
 #: src/shell/lists/EmojiPanel.tsx:19
 msgid "Objects"
 msgstr "Objects"
+
+#: src/shell/settings/OwnerPage.tsx:190
+msgid "Observed"
+msgstr "Observed"
+
+#. placeholder {0}: fact.author_agent_name
+#: src/shell/settings/OwnerPage.tsx:189
+msgid "Observed by {0}"
+msgstr "Observed by {0}"
 
 #. placeholder {0}: bytes(cap)
 #: src/shell/settings/DevicePages.tsx:151
@@ -4836,7 +4884,7 @@ msgstr "One model for text work"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
-#: src/shell/settings/OwnerPage.tsx:338
+#: src/shell/settings/OwnerPage.tsx:406
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 
@@ -5020,7 +5068,7 @@ msgstr "Order price"
 
 #: src/components/ai/AttentionInbox.tsx:141
 #: src/shell/lists/HeadsUp.tsx:254
-#: src/shell/pages.tsx:99
+#: src/shell/pages.tsx:100
 msgid "Outage and recovery"
 msgstr "Outage and recovery"
 
@@ -5037,11 +5085,11 @@ msgstr "Outage and recovery"
 msgid "Output {0}"
 msgstr "Output {0}"
 
-#: src/shell/pages.tsx:163
+#: src/shell/pages.tsx:166
 msgid "Overall usage"
 msgstr "Overall usage"
 
-#: src/shell/settings/IntegrationsPage.tsx:652
+#: src/shell/settings/IntegrationsPage.tsx:653
 msgid "Owner"
 msgstr "Owner"
 
@@ -5091,7 +5139,7 @@ msgstr "Password"
 msgid "Password · at least 12 characters"
 msgstr "Password · at least 12 characters"
 
-#: src/shell/settings/IntegrationsPage.tsx:420
+#: src/shell/settings/IntegrationsPage.tsx:421
 msgid "Paste the value here"
 msgstr "Paste the value here"
 
@@ -5247,7 +5295,7 @@ msgstr "Personal Agent"
 msgid "Phone notification"
 msgstr "Phone notification"
 
-#: src/conversation/Conversation.tsx:496
+#: src/conversation/Conversation.tsx:495
 msgid "Photo"
 msgstr "Photo"
 
@@ -5325,8 +5373,8 @@ msgstr "Position ID"
 msgid "Positions"
 msgstr "Positions"
 
-#: src/shell/settings/OwnerPage.tsx:226
-#: src/shell/settings/OwnerPage.tsx:287
+#: src/shell/settings/OwnerPage.tsx:245
+#: src/shell/settings/OwnerPage.tsx:355
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -5382,12 +5430,12 @@ msgstr "Price level"
 msgid "Price zone"
 msgstr "Price zone"
 
-#: src/shell/pages.tsx:169
-#: src/shell/settings/SettingsRoot.tsx:342
+#: src/shell/pages.tsx:172
+#: src/shell/settings/SettingsRoot.tsx:348
 msgid "Privacy and security"
 msgstr "Privacy and security"
 
-#: src/shell/pages.tsx:149
+#: src/shell/pages.tsx:152
 msgid "Proactive contact"
 msgstr "Proactive contact"
 
@@ -5399,7 +5447,7 @@ msgstr "Proactive contact"
 #~ msgid "Profile"
 #~ msgstr "Profile"
 
-#: src/shell/pages.tsx:141
+#: src/shell/pages.tsx:142
 msgctxt "owner"
 msgid "Profile"
 msgstr "Profile"
@@ -5442,7 +5490,7 @@ msgid "Providers and official catalog"
 msgstr "Providers and official catalog"
 
 #: src/components/skills/CreateSkill.tsx:101
-#: src/shell/agent/GroupPage.tsx:308
+#: src/shell/agent/GroupPage.tsx:307
 msgid "Purpose"
 msgstr "Purpose"
 
@@ -5465,8 +5513,8 @@ msgctxt "task state"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/conversation/Conversation.tsx:422
-#: src/conversation/Conversation.tsx:558
+#: src/conversation/Conversation.tsx:421
+#: src/conversation/Conversation.tsx:557
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
@@ -5490,7 +5538,7 @@ msgstr "Raising or removing a limit needs the passkey."
 msgid "Ray"
 msgstr "Ray"
 
-#: src/conversation/Conversation.tsx:428
+#: src/conversation/Conversation.tsx:427
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
@@ -5498,8 +5546,8 @@ msgstr "React {emoji}"
 msgid "React to the message"
 msgstr "React to the message"
 
-#: src/conversation/Conversation.tsx:569
-#: src/conversation/Conversation.tsx:603
+#: src/conversation/Conversation.tsx:568
+#: src/conversation/Conversation.tsx:602
 msgid "Reactions"
 msgstr "Reactions"
 
@@ -5507,7 +5555,7 @@ msgstr "Reactions"
 msgid "Reactions: {label}"
 msgstr "Reactions: {label}"
 
-#: src/shell/settings/IntegrationsPage.tsx:114
+#: src/shell/settings/IntegrationsPage.tsx:115
 msgid "Read"
 msgstr "Read"
 
@@ -5691,8 +5739,8 @@ msgstr "Remove"
 #. placeholder {0}: label()
 #. placeholder {0}: source.identifier
 #: src/conversation/sheets/LimitsSheet.tsx:223
-#: src/shell/settings/IntegrationsPage.tsx:230
-#: src/shell/settings/IntegrationsPage.tsx:317
+#: src/shell/settings/IntegrationsPage.tsx:231
+#: src/shell/settings/IntegrationsPage.tsx:318
 msgid "Remove {0}"
 msgstr "Remove {0}"
 
@@ -5722,8 +5770,8 @@ msgstr "Remove take profit"
 
 #. placeholder {0}: feed.name ?? ""
 #. placeholder {0}: source.identifier
-#: src/shell/settings/IntegrationsPage.tsx:235
-#: src/shell/settings/IntegrationsPage.tsx:324
+#: src/shell/settings/IntegrationsPage.tsx:236
+#: src/shell/settings/IntegrationsPage.tsx:325
 msgid "Removed {0}"
 msgstr "Removed {0}"
 
@@ -5740,7 +5788,7 @@ msgstr "Repeat"
 msgid "Replies"
 msgstr "Replies"
 
-#: src/conversation/Conversation.tsx:545
+#: src/conversation/Conversation.tsx:544
 #: src/shell/lists/HeadsUp.tsx:254
 msgid "Reply"
 msgstr "Reply"
@@ -5862,11 +5910,11 @@ msgstr "Responsible agent"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:330
+#: src/shell/settings/OwnerPage.tsx:398
 msgid "Restore"
 msgstr "Restore"
 
-#: src/shell/settings/OwnerPage.tsx:326
+#: src/shell/settings/OwnerPage.tsx:394
 msgid "Restored"
 msgstr "Restored"
 
@@ -5904,14 +5952,14 @@ msgstr "Retried. The state updates when the broker answers."
 
 #: src/App.tsx:55
 #: src/conversation/Cards.tsx:127
-#: src/conversation/Conversation.tsx:524
+#: src/conversation/Conversation.tsx:523
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
 #: src/shell/call/CallPages.tsx:257
 #: src/shell/lists/ChatList.tsx:353
-#: src/shell/pages.tsx:399
-#: src/shell/pages.tsx:410
+#: src/shell/pages.tsx:403
+#: src/shell/pages.tsx:414
 msgid "Retry"
 msgstr "Retry"
 
@@ -5944,7 +5992,7 @@ msgstr "Return to the call with {0}"
 msgid "Review and sign with the passkey"
 msgstr "Review and sign with the passkey"
 
-#: src/shell/settings/IntegrationsPage.tsx:547
+#: src/shell/settings/IntegrationsPage.tsx:548
 msgid "Review needed"
 msgstr "Review needed"
 
@@ -5964,7 +6012,7 @@ msgstr "Review skill dependencies and unique identities before saving."
 msgid "Review the skill identity, version and manifest before saving."
 msgstr "Review the skill identity, version and manifest before saving."
 
-#: src/shell/settings/IntegrationsPage.tsx:149
+#: src/shell/settings/IntegrationsPage.tsx:150
 msgid "Review the tools"
 msgstr "Review the tools"
 
@@ -5991,8 +6039,8 @@ msgstr "Route by capability"
 #~ msgid "Routines"
 #~ msgstr "Routines"
 
-#: src/shell/settings/IntegrationsPage.tsx:298
-#: src/shell/settings/IntegrationsPage.tsx:598
+#: src/shell/settings/IntegrationsPage.tsx:299
+#: src/shell/settings/IntegrationsPage.tsx:599
 msgid "RSS feeds"
 msgstr "RSS feeds"
 
@@ -6025,9 +6073,10 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/agent/TradesPage.tsx:440
 #: src/shell/domain/GoalsKnowledgePages.tsx:73
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
-#: src/shell/settings/IntegrationsPage.tsx:442
+#: src/shell/settings/IntegrationsPage.tsx:443
 #: src/shell/settings/NotifyPages.tsx:382
-#: src/shell/settings/OwnerPage.tsx:238
+#: src/shell/settings/OwnerPage.tsx:257
+#: src/shell/settings/OwnerPage.tsx:291
 msgid "Save"
 msgstr "Save"
 
@@ -6085,11 +6134,11 @@ msgstr "Save with the passkey"
 #: src/shell/agent/IdentityPage.tsx:132
 #: src/shell/settings/ConnectionPages.tsx:639
 #: src/shell/settings/NotifyPages.tsx:329
-#: src/shell/settings/OwnerPage.tsx:136
+#: src/shell/settings/OwnerPage.tsx:144
 msgid "Saved"
 msgstr "Saved"
 
-#: src/shell/settings/IntegrationsPage.tsx:391
+#: src/shell/settings/IntegrationsPage.tsx:392
 msgid "Saved · never shown again"
 msgstr "Saved · never shown again"
 
@@ -6101,7 +6150,7 @@ msgstr "Saved chart"
 msgid "Saved file"
 msgstr "Saved file"
 
-#: src/shell/settings/IntegrationsPage.tsx:380
+#: src/shell/settings/IntegrationsPage.tsx:381
 msgid "Saved securely"
 msgstr "Saved securely"
 
@@ -6126,7 +6175,7 @@ msgstr "Schedule"
 
 #: src/shell/domain/SchedulesPages.tsx:374
 #: src/shell/domain/TasksPages.tsx:92
-#: src/shell/pages.tsx:121
+#: src/shell/pages.tsx:122
 msgid "Schedule a task"
 msgstr "Schedule a task"
 
@@ -6153,7 +6202,7 @@ msgstr "Scheduled"
 
 #: src/shell/agent/AgentPage.tsx:294
 #: src/shell/ChatMenu.tsx:165
-#: src/shell/pages.tsx:109
+#: src/shell/pages.tsx:110
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
 
@@ -6365,7 +6414,7 @@ msgstr "Server name"
 #~ msgid "Server URL"
 #~ msgstr "Server URL"
 
-#: src/shell/settings/IntegrationsPage.tsx:506
+#: src/shell/settings/IntegrationsPage.tsx:507
 msgid "Servers and repositories"
 msgstr "Servers and repositories"
 
@@ -6501,7 +6550,7 @@ msgstr "Sign in"
 
 #: src/shell/settings/SettingsRoot.tsx:272
 #: src/shell/settings/SettingsRoot.tsx:294
-#: src/shell/settings/SettingsRoot.tsx:378
+#: src/shell/settings/SettingsRoot.tsx:384
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -6514,7 +6563,7 @@ msgid "Signals"
 msgstr "Signals"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:381
+#: src/shell/settings/SettingsRoot.tsx:387
 msgid "Signed in as <0>{0}</0>"
 msgstr "Signed in as <0>{0}</0>"
 
@@ -6591,8 +6640,8 @@ msgstr "Skill version controls could not be verified. Reload before making chang
 #: src/conversation/ToolsSheet.tsx:191
 #: src/pages/Knowledge.tsx:44
 #: src/shell/agent/AgentPage.tsx:288
-#: src/shell/pages.tsx:127
-#: src/shell/settings/IntegrationsPage.tsx:637
+#: src/shell/pages.tsx:128
+#: src/shell/settings/IntegrationsPage.tsx:638
 msgid "Skills"
 msgstr "Skills"
 
@@ -6714,6 +6763,11 @@ msgstr "Start now"
 #~ msgid "Start voice conversation"
 #~ msgstr "Start voice conversation"
 
+#. placeholder {0}: ago(item.started_at)
+#: src/shell/settings/RunningPage.tsx:137
+msgid "Started {0}"
+msgstr "Started {0}"
+
 #: src/shell/agent/RecoveryPage.tsx:87
 #: src/shell/agent/RecoveryPage.tsx:159
 msgid "State details"
@@ -6741,6 +6795,7 @@ msgstr "Still unknown"
 
 #: src/conversation/Composer.tsx:832
 #: src/pages/ActivityList.tsx:259
+#: src/shell/settings/RunningPage.tsx:159
 msgid "Stop"
 msgstr "Stop"
 
@@ -6748,6 +6803,15 @@ msgstr "Stop"
 msgctxt "chart"
 msgid "Stop"
 msgstr "Stop"
+
+#. placeholder {0}: item.command
+#: src/shell/settings/RunningPage.tsx:150
+msgid "Stop {0}"
+msgstr "Stop {0}"
+
+#: src/shell/settings/RunningPage.tsx:86
+msgid "Stop all"
+msgstr "Stop all"
 
 #: src/components/trading/TradeApprovals.tsx:245
 #: src/components/trading/TradeApprovals.tsx:261
@@ -6776,7 +6840,7 @@ msgstr "Stop the agent"
 msgid "Stop the reply"
 msgstr "Stop the reply"
 
-#: src/shell/settings/IntegrationsPage.tsx:179
+#: src/shell/settings/IntegrationsPage.tsx:180
 msgid "Stop the server"
 msgstr "Stop the server"
 
@@ -6802,8 +6866,17 @@ msgstr "Stop unnecessary animations and transitions"
 msgid "Stopped at its work limit"
 msgstr "Stopped at its work limit"
 
-#: src/shell/pages.tsx:167
-#: src/shell/settings/SettingsRoot.tsx:336
+#: src/shell/settings/RunningPage.tsx:86
+msgid "Stopping all…"
+msgstr "Stopping all…"
+
+#: src/shell/settings/RunningPage.tsx:62
+#: src/shell/settings/RunningPage.tsx:143
+msgid "Stopping…"
+msgstr "Stopping…"
+
+#: src/shell/pages.tsx:170
+#: src/shell/settings/SettingsRoot.tsx:342
 msgid "Storage and data"
 msgstr "Storage and data"
 
@@ -6931,7 +7004,7 @@ msgstr "Tap to call back"
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
-#: src/conversation/Conversation.tsx:589
+#: src/conversation/Conversation.tsx:588
 msgid "Tap to remove"
 msgstr "Tap to remove"
 
@@ -6940,7 +7013,7 @@ msgctxt "chart"
 msgid "Target"
 msgstr "Target"
 
-#: src/conversation/Conversation.tsx:409
+#: src/conversation/Conversation.tsx:408
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/shell/domain/SchedulesPages.tsx:477
@@ -6962,14 +7035,14 @@ msgstr "Task cancelled"
 msgid "Task completed"
 msgstr "Task completed"
 
-#: src/conversation/Conversation.tsx:411
+#: src/conversation/Conversation.tsx:410
 #: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task created"
 msgstr "Task created"
 
 #: src/pages/Board.tsx:343
 #: src/shell/domain/TasksPages.tsx:195
-#: src/shell/pages.tsx:123
+#: src/shell/pages.tsx:124
 msgid "Task details"
 msgstr "Task details"
 
@@ -7012,7 +7085,7 @@ msgstr "Tasks"
 msgid "Technical details"
 msgstr "Technical details"
 
-#: src/shell/settings/IntegrationsPage.tsx:401
+#: src/shell/settings/IntegrationsPage.tsx:402
 msgid "Telegram is unlinked"
 msgstr "Telegram is unlinked"
 
@@ -7071,7 +7144,7 @@ msgstr "The account's current limits stay in force."
 msgid "The account's limit stays"
 msgstr "The account's limit stays"
 
-#: src/shell/settings/IntegrationsPage.tsx:461
+#: src/shell/settings/IntegrationsPage.tsx:462
 msgid "The accounts and sources your agents can reach. Any source outside this list needs your approval first."
 msgstr "The accounts and sources your agents can reach. Any source outside this list needs your approval first."
 
@@ -7205,7 +7278,7 @@ msgstr "The connection works · {count} tools"
 msgid "The connection works · <0>{who}</0>"
 msgstr "The connection works · <0>{who}</0>"
 
-#: src/shell/agent/GroupPage.tsx:264
+#: src/shell/agent/GroupPage.tsx:263
 msgid "The coordinator must be one of the group's members."
 msgstr "The coordinator must be one of the group's members."
 
@@ -7229,7 +7302,11 @@ msgstr "The device did not confirm. Try again."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "The existing fixed market stays unchanged until you choose a new scope."
 
-#: src/shell/settings/OwnerPage.tsx:167
+#: src/shell/settings/OwnerPage.tsx:176
+msgid "The fact is corrected"
+msgstr "The fact is corrected"
+
+#: src/shell/settings/OwnerPage.tsx:176
 msgid "The fact is removed"
 msgstr "The fact is removed"
 
@@ -7281,12 +7358,12 @@ msgstr "The list of agents while you write"
 msgid "The market"
 msgstr "The market"
 
-#: src/conversation/Conversation.tsx:236
-#: src/conversation/Conversation.tsx:239
+#: src/conversation/Conversation.tsx:237
+#: src/conversation/Conversation.tsx:240
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
-#: src/conversation/Conversation.tsx:520
+#: src/conversation/Conversation.tsx:519
 msgid "The message was not sent"
 msgstr "The message was not sent"
 
@@ -7347,7 +7424,7 @@ msgstr "The model provider’s safety system withheld this answer."
 msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 msgstr "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 
-#: src/shell/settings/IntegrationsPage.tsx:80
+#: src/shell/settings/IntegrationsPage.tsx:81
 msgid "The new schema is approved"
 msgstr "The new schema is approved"
 
@@ -7355,7 +7432,7 @@ msgstr "The new schema is approved"
 msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
-#: src/conversation/Conversation.tsx:490
+#: src/conversation/Conversation.tsx:489
 #: src/conversation/Message.tsx:126
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
@@ -7372,7 +7449,7 @@ msgstr "the previous seven days"
 msgid "the previous thirty days"
 msgstr "the previous thirty days"
 
-#: src/shell/settings/OwnerPage.tsx:151
+#: src/shell/settings/OwnerPage.tsx:159
 msgid "The previous value is restored"
 msgstr "The previous value is restored"
 
@@ -7440,15 +7517,15 @@ msgstr "The selected model is not available from this provider. Choose another m
 msgid "The server is added"
 msgstr "The server is added"
 
-#: src/shell/settings/IntegrationsPage.tsx:80
+#: src/shell/settings/IntegrationsPage.tsx:81
 msgid "The server is approved"
 msgstr "The server is approved"
 
-#: src/shell/settings/IntegrationsPage.tsx:176
+#: src/shell/settings/IntegrationsPage.tsx:177
 msgid "The server is stopped"
 msgstr "The server is stopped"
 
-#: src/shell/settings/IntegrationsPage.tsx:96
+#: src/shell/settings/IntegrationsPage.tsx:97
 msgid "The server's schema changed. Review the tools before approving them."
 msgstr "The server's schema changed. Review the tools before approving them."
 
@@ -7464,7 +7541,7 @@ msgstr "The signed mandate is revoked; going back to it needs a new signature."
 msgid "The skill no longer exists."
 msgstr "The skill no longer exists."
 
-#: src/shell/settings/IntegrationsPage.tsx:671
+#: src/shell/settings/IntegrationsPage.tsx:672
 msgid "The skill version is undone"
 msgstr "The skill version is undone"
 
@@ -7489,11 +7566,11 @@ msgstr "The test did not get an answer in time. Nothing was saved."
 msgid "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 msgstr "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 
-#: src/shell/settings/IntegrationsPage.tsx:438
+#: src/shell/settings/IntegrationsPage.tsx:439
 msgid "The value is sent encrypted and is not shown after saving."
 msgstr "The value is sent encrypted and is not shown after saving."
 
-#: src/shell/settings/IntegrationsPage.tsx:363
+#: src/shell/settings/IntegrationsPage.tsx:364
 msgid "The value is too short"
 msgstr "The value is too short"
 
@@ -7512,6 +7589,15 @@ msgstr "The watch resumed"
 #: src/conversation/sheets/WatchesSheet.tsx:88
 msgid "The watch was cancelled"
 msgstr "The watch was cancelled"
+
+#: src/shell/settings/RunningPage.tsx:104
+msgid "The workspace has not answered yet, so what is running is not known."
+msgstr "The workspace has not answered yet, so what is running is not known."
+
+#. placeholder {0}: ago(view.listed_at)
+#: src/shell/settings/RunningPage.tsx:91
+msgid "The workspace last answered {0}; this list may be out of date."
+msgstr "The workspace last answered {0}; this list may be out of date."
 
 #: src/pages/LocalSettings.tsx:26
 #: src/pages/LocalSettings.tsx:28
@@ -7592,6 +7678,10 @@ msgstr "This card is not available here."
 #: src/shell/agent/ChartSheet.tsx:468
 msgid "This chart is no longer available."
 msgstr "This chart is no longer available."
+
+#: src/lib/user_error.ts:33
+msgid "This collaboration has used all its rounds. Mention the agents in a new message to start a new one."
+msgstr "This collaboration has used all its rounds. Mention the agents in a new message to start a new one."
 
 #: src/lib/user_error.ts:233
 #~ msgid "This conversation could not be resumed. Start a new conversation."
@@ -7741,7 +7831,7 @@ msgstr "Tightening is saved at once."
 msgid "Time"
 msgstr "Time"
 
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:229
 msgid "Time zone"
 msgstr "Time zone"
 
@@ -7776,7 +7866,7 @@ msgstr "To do"
 #~ msgid "To:"
 #~ msgstr "To:"
 
-#: src/conversation/Conversation.tsx:89
+#: src/conversation/Conversation.tsx:90
 #: src/pages/Artifacts.tsx:235
 #: src/shell/settings/UsagePage.tsx:85
 #: src/shell/settings/UsagePage.tsx:234
@@ -7818,12 +7908,12 @@ msgstr "Tool"
 msgid "Tool activity"
 msgstr "Tool activity"
 
-#: src/shell/settings/IntegrationsPage.tsx:101
+#: src/shell/settings/IntegrationsPage.tsx:102
 msgid "Tools and their levels"
 msgstr "Tools and their levels"
 
 #. placeholder {0}: preview.blocked.join("، ")
-#: src/shell/settings/IntegrationsPage.tsx:130
+#: src/shell/settings/IntegrationsPage.tsx:131
 msgid "Tools that could move money are refused: {0}"
 msgstr "Tools that could move money are refused: {0}"
 
@@ -7831,7 +7921,7 @@ msgstr "Tools that could move money are refused: {0}"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:890
+#: src/conversation/Conversation.tsx:889
 msgid "Trade order"
 msgstr "Trade order"
 
@@ -7841,11 +7931,11 @@ msgid "Trade risk limit"
 msgstr "Trade risk limit"
 
 #: src/shell/agent/AgentPage.tsx:301
-#: src/shell/pages.tsx:107
+#: src/shell/pages.tsx:108
 msgid "Trades"
 msgstr "Trades"
 
-#: src/shell/pages.tsx:95
+#: src/shell/pages.tsx:96
 msgctxt "agent page"
 msgid "Trades"
 msgstr "Trades"
@@ -7859,7 +7949,7 @@ msgstr "Trades on its own"
 #: src/conversation/sheets/AgentSheet.tsx:444
 #: src/pages/settings-sidebar.tsx:15
 #: src/pages/Trading.tsx:24
-#: src/shell/settings/SettingsRoot.tsx:332
+#: src/shell/settings/SettingsRoot.tsx:338
 msgid "Trading"
 msgstr "Trading"
 
@@ -7869,11 +7959,11 @@ msgstr "Trading · New trades · Restrictions · Account limits"
 
 #: src/shell/agent/AgentPage.tsx:330
 #: src/shell/agent/IdentityPage.tsx:214
-#: src/shell/pages.tsx:161
+#: src/shell/pages.tsx:164
 msgid "Trading account"
 msgstr "Trading account"
 
-#: src/shell/settings/IntegrationsPage.tsx:467
+#: src/shell/settings/IntegrationsPage.tsx:468
 msgid "Trading accounts"
 msgstr "Trading accounts"
 
@@ -7918,8 +8008,8 @@ msgstr "Travel & places"
 msgid "Trend line"
 msgstr "Trend line"
 
-#: src/shell/settings/IntegrationsPage.tsx:522
-#: src/shell/settings/IntegrationsPage.tsx:552
+#: src/shell/settings/IntegrationsPage.tsx:523
+#: src/shell/settings/IntegrationsPage.tsx:553
 msgid "Trusted"
 msgstr "Trusted"
 
@@ -7929,7 +8019,7 @@ msgstr "Trusted"
 msgid "Try again"
 msgstr "Try again"
 
-#: src/conversation/Conversation.tsx:550
+#: src/conversation/Conversation.tsx:549
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
@@ -7988,11 +8078,11 @@ msgstr "Under the agent's name: analysing, searching, watching, waiting for the 
 #: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
-#: src/shell/settings/IntegrationsPage.tsx:237
+#: src/shell/settings/IntegrationsPage.tsx:238
 msgid "Undo"
 msgstr "Undo"
 
-#: src/shell/settings/IntegrationsPage.tsx:676
+#: src/shell/settings/IntegrationsPage.tsx:677
 msgid "Undo this version"
 msgstr "Undo this version"
 
@@ -8004,7 +8094,7 @@ msgstr "Unified model"
 msgid "Unknown account"
 msgstr "Unknown account"
 
-#: src/shell/settings/IntegrationsPage.tsx:404
+#: src/shell/settings/IntegrationsPage.tsx:405
 msgid "Unlink"
 msgstr "Unlink"
 
@@ -8137,7 +8227,7 @@ msgstr "Urgent alerts always arrive and do not count."
 msgid "Urgent always arrives"
 msgstr "Urgent always arrives"
 
-#: src/shell/settings/SettingsRoot.tsx:335
+#: src/shell/settings/SettingsRoot.tsx:341
 msgid "Usage"
 msgstr "Usage"
 
@@ -8145,7 +8235,7 @@ msgstr "Usage"
 msgid "Usage breakdown"
 msgstr "Usage breakdown"
 
-#: src/shell/pages.tsx:165
+#: src/shell/pages.tsx:168
 msgid "Usage details"
 msgstr "Usage details"
 
@@ -8188,7 +8278,7 @@ msgid "Version"
 msgstr "Version"
 
 #. placeholder {0}: skill.version
-#: src/shell/settings/IntegrationsPage.tsx:653
+#: src/shell/settings/IntegrationsPage.tsx:654
 msgid "version {0}"
 msgstr "version {0}"
 
@@ -8232,7 +8322,7 @@ msgid "Vision"
 msgstr "Vision"
 
 #: src/pages/settings-sidebar.tsx:14
-#: src/shell/settings/SettingsRoot.tsx:331
+#: src/shell/settings/SettingsRoot.tsx:337
 msgid "Voice"
 msgstr "Voice"
 
@@ -8424,11 +8514,20 @@ msgstr "Welcome to Lonora"
 msgid "What happened at the broker"
 msgstr "What happened at the broker"
 
+#: src/shell/settings/OwnerPage.tsx:262
+msgid "What I know about you"
+msgstr "What I know about you"
+
 #: src/shell/domain/TasksPages.tsx:304
 msgid "What is needed"
 msgstr "What is needed"
 
-#: src/conversation/Conversation.tsx:1210
+#: src/shell/pages.tsx:144
+#: src/shell/settings/SettingsRoot.tsx:312
+msgid "What is running"
+msgstr "What is running"
+
+#: src/conversation/Conversation.tsx:1209
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -8445,8 +8544,8 @@ msgstr "What should this agent know about its work?"
 #~ msgstr "What this agent is for"
 
 #: src/shell/settings/OwnerPage.tsx:243
-msgid "What your agents know about you"
-msgstr "What your agents know about you"
+#~ msgid "What your agents know about you"
+#~ msgstr "What your agents know about you"
 
 #: src/shell/domain/SchedulesPages.tsx:346
 #: src/shell/domain/SchedulesPages.tsx:409
@@ -8505,7 +8604,7 @@ msgstr "Worried"
 msgid "Write the alert condition."
 msgstr "Write the alert condition."
 
-#: src/conversation/Conversation.tsx:1208
+#: src/conversation/Conversation.tsx:1207
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
@@ -8518,8 +8617,8 @@ msgstr "Writing"
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
 #: src/shell/settings/OwnerPage.tsx:257
-msgid "Written by {0} · {1}"
-msgstr "Written by {0} · {1}"
+#~ msgid "Written by {0} · {1}"
+#~ msgstr "Written by {0} · {1}"
 
 #: src/shell/settings/AppLock.tsx:138
 msgid "Wrong code"
@@ -8530,18 +8629,18 @@ msgstr "Wrong code"
 msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
-#: src/conversation/Conversation.tsx:90
-#: src/shell/settings/OwnerPage.tsx:36
+#: src/conversation/Conversation.tsx:91
+#: src/shell/settings/OwnerPage.tsx:44
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:586
+#: src/conversation/Conversation.tsx:585
 #: src/conversation/Message.tsx:121
 #: src/conversation/Message.tsx:140
 #: src/shell/lists/UnifiedSearch.tsx:152
-#: src/shell/settings/OwnerPage.tsx:103
+#: src/shell/settings/OwnerPage.tsx:111
 msgid "You"
 msgstr "You"
 
@@ -8581,6 +8680,10 @@ msgstr "You reached the name's maximum length"
 #: src/shell/domain/UpdatesPages.tsx:44
 msgid "You rejected a request"
 msgstr "You rejected a request"
+
+#: src/shell/settings/OwnerPage.tsx:185
+msgid "You said"
+msgstr "You said"
 
 #: src/conversation/sheets/MandateSheet.tsx:140
 msgid "You set the markets, actions, duration and money limit"
@@ -8622,6 +8725,10 @@ msgstr "Your agent needs a secret from you"
 #: src/pages/ActivityList.tsx:166
 msgid "Your agents’ activity will appear here."
 msgstr "Your agents’ activity will appear here."
+
+#: src/shell/settings/SettingsRoot.tsx:313
+msgid "Your agents' processes in the workspace"
+msgstr "Your agents' processes in the workspace"
 
 #: src/components/trading/SuperBotCards.tsx:244
 #~ msgid "Your approval is needed."

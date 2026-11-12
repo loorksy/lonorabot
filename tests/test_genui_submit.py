@@ -693,7 +693,7 @@ async def test_alert_off_names_the_watch_in_the_conversations_language(language:
         )
         receipt = "\n".join(
             [
-                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","icon":"check"}',
+                '{"v":2,"kind":"summary","title":"تنبيه فعّال","icon":"check"}',
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":'
                 '{"do":"send","intent":"alert.off","data":{"watch_id":"' + watch["id"] + '"}}}',
                 '{"why":"w","fallback":"التنبيه فعّال."}',
