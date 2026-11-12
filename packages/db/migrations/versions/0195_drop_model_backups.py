@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0195_drop_model_backups"
-down_revision = "0131_agent_model_owner_only"
+down_revision = "0102_genui_summary_kind"
 branch_labels = None
 depends_on = None
 
