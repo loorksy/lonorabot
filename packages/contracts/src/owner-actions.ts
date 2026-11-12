@@ -108,6 +108,13 @@ export type OwnerAction = {
     trading_mode?: TradingMode;
     /** The Mandate card: a signed grant of this agent is still in force. */
     active_grant?: boolean;
+    /** The Mandate card shown by migration 0063 (14.3.18.2): the grants that ended. */
+    previous_grants?: Array<{
+      full_delegation: boolean;
+      symbol_scope: "selected" | "account";
+      symbols: string[];
+      account: OwnerActionAccount;
+    }>;
     account?: OwnerActionAccount;
     operation?: {
       operation_id: string;

@@ -69,6 +69,8 @@ CHECKS = (
     "check_shadow_removal_migration.py",
     "check_goal_removal_migration.py",
     "check_restriction_removal_migration.py",
+    "check_approval_validity_migration.py",
+    "check_authority_migration.py",
     "check_task_recovery.py",
     "check_attention.py",
     "check_relationships.py",

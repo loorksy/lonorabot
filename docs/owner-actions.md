@@ -310,7 +310,9 @@ stopped. A card for an agent that is deleted is superseded with it.
 
 ## The Mandate card (mandate 10.3, 4.2)
 
-Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`. The card reads
+Kind `trading_mode`, subject `trading_mode:<agent>`, payload `{agent_id}`; its effect,
+and so its `payload_hash`, is the agent alone, so one agent's switch is one live card per
+proposer. The card reads
 the agent's mode live (`facts.trading_mode`) and shows one button for the other mode;
 the decision carries the mode that button showed (`trading_mode`), and the server applies
 exactly that mode (`set_trading_mode(by="owner_tap")`), never a toggle. Only this tap sets
@@ -319,6 +321,16 @@ Full. A confirmed card stays the agent's switch: clients keep its button live
 and Lonora's own card is raised when Lonora is created (4.3.1). While a signed grant of
 the agent is in force (`facts.active_grant`), the card says the grant still lets it trade
 within the grant's own terms until the owner revokes it.
+
+Migration 0063 (mandate 14.3.18.2) showed, once, the Mandate card of each agent that held
+an active, unexpired grant: a system card in Lonora's conversation whose payload also
+carries `previous_grants` (`{account_id, full_delegation, symbol_scope, symbols}` per
+grant). The card reads them as `facts.previous_grants`, with the account read live, and
+names the old grant in one line: Full delegation, «كل أزواج الحساب» / "every pair on the
+account" for a Custom grant on the whole account, or its markets
+(«انتهت صلاحيته الموقّعة السابقة (تفويض كامل)، وهذه البطاقة تحلّ محلّها.»);
+the line stays after a tap. That card replaced an older pending Mandate card of the same
+agent.
 
 Switching an agent to Full withdraws its pending Trade Approval cards (status
 `withdrawn`): a withdrawn card is never approved or executed, and the agent is woken

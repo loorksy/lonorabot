@@ -45,6 +45,14 @@ shows Custom.
 
 ## The ladder: No trading / Ask me / On its own
 
+Migration 0063 (mandate 14.3.18) moved every existing agent to Ask at the stored level
+Ask me, and revoked every grant that was active or pending, stopping its management Task,
+its Run and any activation review, and superseding pending grant cards. The Task's watches
+stay the agent's own, without the Task (4.5.3), so a pause on one can still lift; a paused
+Task's live watches stay paused under the Task's hold, and a Task the owner had already
+ended keeps its watches as they were. A grant signed after it follows the rules below until
+grants are deleted.
+
 Each agent has one level, in the same words on Web and Mobile, in English and
 Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask me
 (`supervised`), On its own (`autonomous`, an active signed grant). The ladder is

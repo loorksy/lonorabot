@@ -289,7 +289,8 @@ async def main() -> None:
         async with engine.begin() as connection:
             ids = await seed(connection)
         await engine.dispose()
-        await asyncio.to_thread(alembic, "upgrade", "heads")
+        # 0053's own effect: a later revision (0063, mandate 14.3.18.3) revokes every grant.
+        await asyncio.to_thread(alembic, "upgrade", REVISION)
         async with engine.connect() as connection:
             await verify_upgraded(connection, ids)
         await engine.dispose()

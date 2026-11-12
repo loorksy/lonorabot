@@ -260,7 +260,10 @@ async def migration_round_trip(f: Fixture) -> None:
         await alembic("upgrade", "head")
         rows, item, receipt = await observed()
         assert rows == retired, rows
-        assert item == "suppressed" and receipt == {"skipped": "granted_before_review"}, receipt
+        # The first pass skips the review of the grant signed before it. On the second the
+        # grant is already revoked (0063, mandate 14.3.18.3): there is nothing to review.
+        expected = {"skipped": "granted_before_review"} if attempt == 0 else None
+        assert item == "suppressed" and receipt == expected, receipt
         # No agent is woken for a grant signed before the review existed.
         assert await dispatch_activation_reviews(f.runtime.db) == 0
         if attempt == 0:
