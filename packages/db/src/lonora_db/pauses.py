@@ -163,9 +163,9 @@ async def refuse_held(
     owner_message: bool = False,
 ) -> None:
     """The paused agent never resumes held work on its own initiative: it asks the
-    supervisor or the owner. In a run that answers the owner's message it resumes a
-    supervisor's hold (released as the owner's); a pause the owner holds is lifted only
-    by the owner. A hold on work that is no longer paused is stale and released."""
+    supervisor or the owner. In a run that answers the owner's message a team agent
+    resumes a supervisor's hold (released as the owner's); Lonora lifts only pauses it
+    made, and a pause the owner holds is lifted only by the owner. A hold on work that is no longer paused is stale and released."""
     hold = await live_hold(session, kind, target_id, lock=True)
     if hold is None or hold.owner_id != owner_id:
         return
@@ -176,7 +176,9 @@ async def refuse_held(
         raise LonoraError("work_paused_by_owner", 409)
     if hold.holder_agent_id == agent_id:
         return
-    if not owner_message:
+    agent = await session.get(AgentRow, agent_id)
+    if not owner_message or (agent is not None and agent.role == "personal"):
+        # Lonora lifts only the pauses Lonora made (4.7.2), even from the owner's words.
         raise LonoraError("work_paused_by_supervisor", 409)
     await release_hold(session, hold, "owner")
 

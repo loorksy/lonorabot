@@ -502,6 +502,7 @@ async def control_work(
     action: WorkAction,
     owner_message_id: str | None,
     run_id: str | None,
+    owner_words_id: str | None = None,
 ) -> dict[str, Any]:
     """A supervisor pauses or resumes another agent's work (the agent itself, a Task, a
     routine or a watch). Repeating either changes nothing.
@@ -518,8 +519,13 @@ async def control_work(
     (``source='owner'``, the actor kept as holder). A pause the owner holds, the owner's
     pause without a hold and the agent's own stay until they lift them. A watch the
     agent cancelled itself while held stays cancelled; the resume only ends the hold.
+
+    ``owner_words_id`` is the owner's typed message the run answers even after it read
+    other content: it never grants anything here, it only makes a pause the owner's.
     """
     owner_message = owner_message_id is not None
+    # A pause asked for in the owner's words is the owner's (4.7.2); stronger is safe.
+    asked_by_owner = owner_message_id or owner_words_id
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)
@@ -540,6 +546,27 @@ async def control_work(
         hold = None
     result: dict[str, Any] = {"agent_id": agent.id, "target": kind, "target_id": item}
     if action == "pause":
+        if paused and asked_by_owner and (hold is None or hold.source != "owner"):
+            # The owner asks to pause work that is already paused: the pause becomes the
+            # owner's, so neither the agent nor the one that paused it lifts it alone.
+            if hold is None:
+                session.add(
+                    SupervisionHoldRow(
+                        owner_id=owner_id,
+                        holder_agent_id=actor_id,
+                        agent_id=agent.id,
+                        target_kind=kind,
+                        target_id=item,
+                        source="owner",
+                        source_message_id=asked_by_owner,
+                        source_run_id=run_id,
+                        created_at=utcnow(),
+                    )
+                )
+            else:
+                hold.source = "owner"
+            await session.flush()
+            return {**result, "changed": False, "paused": True, "paused_by": "owner"}
         if paused:
             held_by = (
                 "owner_or_the_agent"
@@ -563,8 +590,8 @@ async def control_work(
             target_kind=kind,
             target_id=item,
             # A pause the owner asked for in chat is the owner's: only the owner lifts it.
-            source="owner" if owner_message else "agent",
-            source_message_id=owner_message_id,
+            source="owner" if asked_by_owner else "agent",
+            source_message_id=asked_by_owner,
             source_run_id=run_id,
             created_at=utcnow(),
         )
