@@ -65,16 +65,27 @@ def pdf_layers(content: bytes) -> PdfLayers:
         reader = PdfReader(io.BytesIO(content))
         if reader.is_encrypted and not reader.decrypt(""):
             return PdfLayers()
-        pages = reader.pages[:MAX_PAGES]
+        total = len(reader.pages)
         texts: list[str] = []
         images: list[bytes] = []
-        for number, page in enumerate(pages, 1):
+        skipped_scans = 0
+        for number, page in enumerate(reader.pages[:MAX_PAGES], 1):
             text = (page.extract_text() or "").strip()
             if text:
                 texts.append(f"[page {number}]\n{text}")
-            elif len(images) < MAX_PAGE_IMAGES and (image := page_image(page)) is not None:
+            elif len(images) >= MAX_PAGE_IMAGES:
+                skipped_scans += 1
+            elif (image := page_image(page)) is not None:
                 images.append(image)
-        return PdfLayers("\n\n".join(texts)[:MAX_TEXT_CHARS], images)
+        # Say what was left out, so a partial strategy is never taken for the whole one.
+        if total > MAX_PAGES:
+            texts.append(f"[Pages {MAX_PAGES + 1} to {total} were not read.]")
+        if skipped_scans:
+            texts.append(f"[{skipped_scans} more scanned pages were not attached as images.]")
+        text = "\n\n".join(texts)
+        if len(text) > MAX_TEXT_CHARS:
+            text = text[:MAX_TEXT_CHARS] + "\n[Text layer truncated.]"
+        return PdfLayers(text, images)
     except Exception as error:  # noqa: BLE001 - malformed input is data, not a failure
         log.info("pdf_layers_unreadable", extra={"error": type(error).__name__})
         return PdfLayers()
@@ -89,11 +100,13 @@ def is_pdf(media_type: str, name: str) -> bool:
 
 async def extract(content: bytes) -> PdfLayers:
     """``pdf_layers`` in a child process, killed at EXTRACT_SECONDS; nothing on failure."""
+    # -I ignores the working directory and PYTHONPATH; the child gets this process's own
+    # import path, so it runs exactly the code the API runs.
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-I",
-        "-m",
-        __name__,
+        "-c",
+        f"import sys; sys.path[:0] = {sys.path!r}; from {__name__} import main; main()",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
@@ -106,7 +119,7 @@ async def extract(content: bytes) -> PdfLayers:
         log.info("pdf_layers_timeout")
         return PdfLayers()
     if process.returncode != 0:
-        log.info("pdf_layers_failed", extra={"returncode": process.returncode})
+        log.warning("pdf_layers_failed", extra={"returncode": process.returncode})
         return PdfLayers()
     try:
         data = json.loads(output)

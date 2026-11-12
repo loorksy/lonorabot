@@ -183,6 +183,31 @@ def test_only_pdf_typed_or_untyped_pdf_files_get_sidecars():
     assert not is_pdf("text/plain", "x.pdf")
 
 
+def test_left_out_text_is_named_never_silent():
+    from lonora_agent.context.attachments import ATTACHMENT_CHARS, bounded
+
+    assert bounded("short", "a1") == "short"
+    long = bounded("x" * (ATTACHMENT_CHARS + 10), "a1")
+    assert long.startswith("x" * ATTACHMENT_CHARS)
+    assert f"offset {ATTACHMENT_CHARS}" in long and "a1" in long
+    many = pdf(
+        [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids ["
+            + b" ".join(b"%d 0 R" % (3 + index) for index in range(102))
+            + b"] /Count 102 >>",
+            *[
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 105 0 R "
+                b"/Resources << /Font << /F1 106 0 R >> >> >>"
+            ]
+            * 102,
+            stream(b"BT /F1 12 Tf 72 720 Td (rule) Tj ET"),
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ]
+    )
+    assert "[Pages 101 to 102 were not read.]" in pdf_layers(many).text
+
+
 def test_readers_ignore_forged_sidecar_keys(tmp_path: Any):
     from lonora_agent.context.attachments import sidecar
 
@@ -242,7 +267,12 @@ async def test_an_uploaded_strategy_pdf_ends_as_a_method_version_quoting_its_rul
                 ],
             },
         )
-        turns = [write]
+        # Text in a file is someone else's words (6.10): the run no longer stands for the
+        # owner's typed message, so a setting only the owner's word changes is refused.
+        injected = ToolCall(
+            id="prefs", name="owner_preferences_update", arguments={"reach_me": "activity"}
+        )
+        turns = [write, injected]
 
         async def model(_: Any, messages: list[Any], *args: Any, **kwargs: Any):
             seen.append("\n".join(str(message.content) for message in messages))
@@ -266,6 +296,7 @@ async def test_an_uploaded_strategy_pdf_ends_as_a_method_version_quoting_its_rul
             )["version"]["text"]
         # A rule about adding without waiting for the first position is saved as written.
         assert all(rule in text for rule in RULES)
-        assert latest["from_owner_message"] is True
+        assert latest["from_owner_message"] is False
+        assert "owner_preferences_require_owner_message" in seen[-1]
     finally:
         await fixture.close()

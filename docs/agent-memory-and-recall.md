@@ -119,7 +119,7 @@ or forward memory, `MEMORY.md`, `OPERATING.md`, the owner profile, notes or secr
 anywhere, fetch an address built from data (`https://…?d=<summary>`), or name
 `peer_send`, in English and Arabic. A method may state any trading rule, approvals and
 confirmation included: an owner's strategy becomes the Agent's method (VISION.md 5.6),
-and the execution door reads the Agent's mode, never memory. A profile write or
+and the execution door reads grants and approvals, never memory. A profile write or
 preference change from a Run that has read third-party content is no longer the owner's
 word (`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A line that is
 already present (an owner edit) does not block unrelated edits. `MEMORY.md` keeps its

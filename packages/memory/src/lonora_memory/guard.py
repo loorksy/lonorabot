@@ -3,7 +3,7 @@ reads as guidance (an Agent's method and the shared owner profile).
 
 Such a line is injected or misplaced, so a memory write that adds one is refused.
 A method may say anything about trading, approvals or confirmation: the owner's
-strategy is the Agent's method (5.6), and the execution door reads the Agent's mode,
+strategy is the Agent's method (5.6), and the execution door reads grants and approvals,
 never memory. ``authority_claim`` still serves the agent-creation responsibility check.
 """
 
