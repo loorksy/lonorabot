@@ -133,7 +133,7 @@
             {
               "type": "Note",
               "tone": "warn",
-              "when": "$risk>2",
+              "when": "$risk>=2",
               "text": "مخاطرة مرتفعة"
             },
             {

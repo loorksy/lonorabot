@@ -29,6 +29,17 @@ export type UiServerNodeType = (typeof UI_SERVER_NODE_TYPES)[number];
 export type UiRenderedNodeType = UiNodeType | UiServerNodeType;
 export const UI_ACTIONS = ["set", "toggle", "reset", "copy", "open", "go", "send"] as const;
 export type UiActionKind = (typeof UI_ACTIONS)[number];
+/** The client routes a `go` action may name (`lonora_agent.genui_capabilities`). */
+export const UI_ROUTES = [
+  "market",
+  "tasks",
+  "schedules",
+  "usage",
+  "chat-prefs",
+  "files",
+  "agents",
+] as const;
+export type UiRoute = (typeof UI_ROUTES)[number];
 /** Each node's props: true when required. */
 export const UI_NODE_PROPS: Record<UiNodeType, Readonly<Record<string, boolean>>> = {
   Segmented: { bind: true, label: true, options: true, when: false },

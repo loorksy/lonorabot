@@ -3,7 +3,7 @@
  * values, and sends through `MessageCreate.ui_submit` only: the server writes the owner's
  * bubble and data. While the card builds, and until its message is committed, every control
  * is disabled. While it is locked only go, open and copy stay enabled. */
-import type { UiBlock, UiPart } from "@lonora/contracts";
+import type { UiBlock, UiPart, UiRoute } from "@lonora/contracts";
 import { cardLock, environment, evaluate, renderTemplate, sendBlocked } from "@lonora/core";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,11 +24,14 @@ import { useCardHost } from "./host";
 import { type CardCtx, CardIcon, Node, visible } from "./nodes";
 import { useCardPalette } from "./theme";
 
-/** The server's routes (`lonora_agent.genui_capabilities.ROUTES`) on mobile's screens. */
-const ROUTES: Record<string, string> = {
+/** The server's routes on mobile's screens. Mobile has no chat-preferences page: that route
+ * opens Settings. */
+const ROUTES: Record<UiRoute, string> = {
   market: "/charts",
   tasks: "/tasks",
+  schedules: "/routine",
   usage: "/account",
+  "chat-prefs": "/settings",
   files: "/artifacts",
   agents: "/agents",
 };
@@ -225,8 +228,8 @@ export function NativeUiCard({
       if (!action || action.do === "send") {
         void send(block, path);
       } else if (action.do === "go") {
-        const route = ROUTES[String(action.route)];
-        if (route) router.push(route as never);
+        const name = String(action.route);
+        if (Object.hasOwn(ROUTES, name)) router.push(ROUTES[name as UiRoute] as never);
       } else if (action.do === "open") {
         // A literal https URL the server matched to the owner's message or a tool result.
         const url = String(action.url);
