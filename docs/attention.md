@@ -23,10 +23,10 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
   checked on every attention tick: one item per account and problem episode (its
   subject is the account and the time the account became disconnected).
 - `withdraw_ended` (`lonora_db/attention.py`) checks the open items of these codes on
-  every tick (at most 200 at a time) and withdraws the ones whose card ended or whose
-  problem cleared, including one the owner has already seen, with `suppression_code`
-  `attention_superseded_state`; a seen item keeps its `updated_at`, so withdrawing it
-  does not move it in the history.
+  every tick, 200 at a time, rotating through them in id order, and withdraws the ones
+  whose card ended or whose problem cleared, including one the owner has already seen,
+  with `suppression_code` `attention_superseded_state`; a seen item keeps its
+  `updated_at`, so withdrawing it does not move it in the history.
 - Broker health items open in Lonora's conversation, with `account_id`, `since` and the
   adapter's `reason_code` in their parameters; the owner text names the problem
   (`lonora_bus/attention_messages.json`).
