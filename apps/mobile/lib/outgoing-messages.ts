@@ -167,6 +167,8 @@ export function hydrateOutgoing(key: string): Promise<void> {
 }
 // The running uploads of a sent message, by its nonce. Never saved: a picked file cannot be.
 const handles = new Map<string, ComposerUpload[]>();
+// The files that message already had when it was sent: given back with it if an upload fails.
+const attachedFiles = new Map<string, Artifact[]>();
 export const outgoingUploads = (nonce: string): readonly ComposerUpload[] =>
   handles.get(nonce) ?? [];
 export async function enqueueOutgoing(
@@ -176,6 +178,7 @@ export async function enqueueOutgoing(
   body: Record<string, unknown>,
   afterSeq: number,
   uploads: ComposerUpload[] = [],
+  attached: Artifact[] = [],
 ): Promise<OutgoingIntent> {
   const epoch = generation;
   await hydrateOutgoing(key);
@@ -224,13 +227,17 @@ export async function enqueueOutgoing(
         : {}),
     },
   };
-  if (uploads.length) handles.set(nonce, uploads);
+  if (uploads.length) {
+    handles.set(nonce, uploads);
+    attachedFiles.set(nonce, attached);
+  }
   notify(key, [...outgoingMessages(key), intent]);
   try {
     await persist(key);
     if (epoch !== generation) throw new Error("session_request_cancelled");
   } catch (error) {
     handles.delete(nonce);
+    attachedFiles.delete(nonce);
     notify(
       key,
       outgoingMessages(key).filter((row) => row.nonce !== nonce),
@@ -245,7 +252,7 @@ export class OutgoingUploadFailed extends Error {
     public cause: unknown,
     /** The message as it was sent (its text and reply). */
     public intent: OutgoingIntent,
-    /** Its files that did arrive. */
+    /** Its files that are up: those it was sent with and those that arrived since. */
     public finished: Artifact[],
   ) {
     super("upload_failed");
@@ -269,18 +276,20 @@ export async function settleOutgoingUploads(
   try {
     files = await Promise.all(held.map((upload) => upload.done));
   } catch (cause) {
+    const before = attachedFiles.get(nonce) ?? [];
     handles.delete(nonce);
+    attachedFiles.delete(nonce);
     for (const upload of held) upload.cancel();
     const row = find();
     if (!row) return null;
     dropOutgoing(key, nonce);
-    throw new OutgoingUploadFailed(
-      cause,
-      row,
-      held.flatMap((upload) => (upload.result ? [upload.result] : [])),
-    );
+    throw new OutgoingUploadFailed(cause, row, [
+      ...before,
+      ...held.flatMap((upload) => (upload.result ? [upload.result] : [])),
+    ]);
   }
   handles.delete(nonce);
+  attachedFiles.delete(nonce);
   const row = find();
   if (!row) return null;
   const attachment_ids = [...row.message.attachment_ids, ...files.map((file) => file.id)];
@@ -301,6 +310,7 @@ export async function settleOutgoingUploads(
 export function cancelOutgoingUploads(key: string, nonce: string) {
   for (const upload of handles.get(nonce) ?? []) upload.cancel();
   handles.delete(nonce);
+  attachedFiles.delete(nonce);
   dropOutgoing(key, nonce);
 }
 export function failOutgoing(
@@ -390,6 +400,7 @@ registerSessionTeardown(async () => {
   generation += 1;
   for (const held of handles.values()) for (const upload of held) upload.cancel();
   handles.clear();
+  attachedFiles.clear();
   entries.clear();
   hydration.clear();
   for (const listener of listeners) listener();
