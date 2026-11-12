@@ -303,6 +303,8 @@ export const ownerActionLabels = {
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
     brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerFailed: "Could not connect. Lonora said why in the conversation.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
@@ -587,6 +589,8 @@ export const ownerActionLabels = {
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
     brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
@@ -746,7 +750,13 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "connect_credential":
         return text.connected;
       case "secret":
-        return card.facts.secret?.destination === "broker" ? text.brokerSaved : text.secretSaved;
+        if (card.facts.secret?.destination !== "broker") return text.secretSaved;
+        // The card's own record of how provisioning ended, read on the server.
+        return card.result.provisioning === "failed"
+          ? text.brokerFailed
+          : card.result.provisioning === "connected"
+            ? text.brokerConnected
+            : text.brokerSaved;
       case "watch_changed":
         return text.watchUndone;
       case "stop_tightened":
