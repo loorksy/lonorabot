@@ -90,9 +90,8 @@ a provider failure, and it is never shown as one.
   grant in force is never queued this way: a late instruction to it could move money
   without a card, so it waits for the owner's own retry.
 - **Installing.** `scripts/install.sh` writes no provider key; keys arrive through
-  Settings, the environment (`LONORA_<PROVIDER>_API_KEY`) or the one-off import in
-  `docs/handoff/vps/import_secrets.py`, which now chooses the default as its last
-  provider step and prints it. Whichever way they arrive, the first request chooses.
+  Settings or the environment (`LONORA_<PROVIDER>_API_KEY`). Whichever way they arrive,
+  the first request chooses.
 
 ## One request: retries, fallback and cooldown
 

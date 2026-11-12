@@ -258,7 +258,7 @@ card shows, from server facts: the agent, the account, the markets, the actions 
 words, until when, one daily loss line, the account's other money limits (or "No money
 limit set"), Stop new trading when it is in force, other agents already trading an
 overlapping market on that account on their own, the agent's own grant it replaces, and
-on the owner's first grant the one rule from `VISION.md`.
+on the owner's first grant the one rule of the previous vision.
 
 The daily loss line is exactly what confirming does: the amount the card sets on an
 account without one ("Daily loss limit: 300.00 USD (suggested: 3% of equity)"), the
