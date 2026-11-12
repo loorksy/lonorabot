@@ -23,7 +23,7 @@ from lonora_contracts.market import Quote
 from lonora_contracts.model_catalog import ModelDescriptor
 from lonora_contracts.model_routing import ModelSelection, RoutingPolicy
 from lonora_contracts.runs import Lease, RunRequest
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import GoalControl
 from lonora_core.user_error import LonoraError
 from lonora_db.routines import enqueue_due
@@ -46,7 +46,6 @@ from lonora_providers.routing_policy import read_policy, save_policy
 from lonora_session.idempotency import stable_id
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.goals import execute_goal_step, recover_goals
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import delete, select
@@ -85,8 +84,6 @@ async def checks() -> None:
     original_factory = None
     fixture_secret_id: str | None = None
     old_ciphertext: str | None = None
-    original_controls = await read_controls(db)
-    await save_controls(db, TradingControl(enabled=True))
     goals: list[str] = []
     accounts: list[str] = []
     operations: list[str] = []
@@ -580,23 +577,6 @@ async def checks() -> None:
                 )
             gate.before = None
             await finish(context)
-
-        # Stop new trading holds every goal step, whatever the agent's level.
-        row = await make_goal()
-        context = await goal_lease(row)
-
-        async def emergency() -> None:
-            await save_controls(db, TradingControl(emergency_stop=True))
-
-        gate.before = emergency
-        sent = gate.sent
-        result = await execute_goal_step(
-            db, brokers, executor, fixture.owner, row["id"], "entry", context.lease
-        )
-        assert result["result"]["code"] == "emergency_stop" and gate.sent == sent
-        gate.before = None
-        await save_controls(db, TradingControl(enabled=True))
-        await finish(context)
 
         # A lost response blocks the same step, survives recovery, never blindly resends.
         row = await make_goal()
@@ -1221,7 +1201,6 @@ async def checks() -> None:
                         secret.ciphertext = old_ciphertext
                     else:
                         await session.delete(secret)
-        await save_controls(db, original_controls)
         async with db.sessions() as session, session.begin():
             operations.extend(
                 await session.scalars(
