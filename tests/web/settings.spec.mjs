@@ -486,6 +486,7 @@ test("Global models opens the models page; voice and trading keep their settings
     fixture({ ...data, action: "cleanup" });
   }
 });
+
 test("auth: intro once, e-mail sign-in, and «Your session ended»", async ({ page, context }) => {
   const data = fixture({ action: "init", empty: true });
   try {

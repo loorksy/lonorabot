@@ -448,6 +448,25 @@ body {
   object-fit: contain;
   margin-bottom: 24px;
 }
+:where(.settings-layout):where(:not(.app-shell *), .legacy-surface *) {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 28px;
+}
+:where(.settings-nav):where(:not(.app-shell *), .legacy-surface *) {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 15px 0;
+}
+:where(.settings-nav button):where(:not(.app-shell *), .legacy-surface *) {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+}
+:where(.settings-nav button.selected):where(:not(.app-shell *), .legacy-surface *) {
+  background: var(--legacy-accent);
+}
 :where(.tabs):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
   gap: 8px;
@@ -575,6 +594,17 @@ body {
   }
   .calendar-row {
     grid-template-columns: 1fr 50px;
+  }
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .settings-nav {
+    flex-direction: row;
+    overflow: auto;
+  }
+  .settings-nav button {
+    white-space: nowrap;
   }
   .modal-backdrop {
     padding: 12px;
