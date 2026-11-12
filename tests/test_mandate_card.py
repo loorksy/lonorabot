@@ -8,7 +8,7 @@ mode change. Runs on the real migrated PostgreSQL schema and the simulation brok
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lonora_contracts.account import Position
@@ -45,7 +45,10 @@ async def test_the_mandate_card_switches_the_mode_the_button_showed() -> None:
         # A repeated proposal returns the card already shown.
         repeat = await call(context, "owner_action_propose", kind="trading_mode")
         assert repeat["owner_action"]["id"] == card["id"] and repeat["already_shown"], repeat
-        shown = await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}")
+        shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}"),
+        )
         row = next(item for item in shown if item["id"] == card["id"])
         # Read live: the agent's current mode and its name, never the agent's words.
         assert row["facts"]["trading_mode"] == "ask"
@@ -271,7 +274,10 @@ async def test_the_card_is_refreshed_when_the_mode_changes_elsewhere() -> None:
                 )
             )
         assert any(event.payload.get("id") == card["id"] for event in events), events
-        shown = await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}")
+        shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}"),
+        )
         assert next(row for row in shown if row["id"] == card["id"])["facts"]["trading_mode"] == (
             "ask"
         )
@@ -305,7 +311,10 @@ async def test_lonoras_card_for_a_deleted_agent_ends_with_it() -> None:
         )["owner_action"]
         await fixture.request("DELETE", "/agents/" + team["id"])
         fixture.agents.remove(team["id"])
-        shown = await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}")
+        shown = cast(
+            list[dict[str, Any]],
+            await fixture.request("GET", f"/owner-actions?thread_id={context.thread_id}"),
+        )
         row = next(item for item in shown if item["id"] == card["id"])
         assert row["status"] != "pending", row
     finally:
