@@ -27,7 +27,6 @@ from lonora_contracts.trading import (
     TradeAnnotation,
     TradeRequest,
     TradeResult,
-    TradingControl,
 )
 from lonora_core.user_error import LonoraError
 from lonora_db import execution_receipts as receipts_module
@@ -45,7 +44,6 @@ from lonora_db.schema import (
     TradingJournalRow,
 )
 from lonora_db.trading_journal import resolve_operation
-from lonora_trading.controls import save_controls
 from lonora_trading.execution import ExecutionService
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import delete, func, select
@@ -108,7 +106,6 @@ async def checks() -> None:
     broker = FillingBroker()
     manager = cast(BrokerManager, ScriptedManager(broker))
     service = ExecutionService(db, manager)
-    await save_controls(db, TradingControl(enabled=True))
     async with db.sessions() as session, session.begin():
         owner = OwnerRow(email=f"receipts-{uuid4().hex[:8]}@example.test", password_hash="x")
         session.add(owner)
