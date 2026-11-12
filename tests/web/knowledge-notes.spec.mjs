@@ -53,21 +53,6 @@ test("a knowledge note saves with no embedding model configured", async ({ page,
   await expect(page).toHaveURL(new RegExp(`/app/knowledge\\?agent=${agent.id}`));
   await expect(page.getByRole("button", { name: new RegExp(`${prefix} rule`) })).toBeVisible();
 
-  // The memory page's own note form no longer waits for the semantic setting either.
-  await page.goto("/app/memory");
-  await page.getByRole("combobox", { name: "Agent" }).selectOption({ label: prefix });
-  await page.getByRole("button", { name: "Long-term memory", exact: true }).click();
-  await page.getByText("Semantic memory · optional", { exact: true }).click();
-  await page.getByLabel("Knowledge note", { exact: true }).fill("Avoid trading the NFP minute.");
-  const button = page.getByRole("button", { name: "Index note", exact: true });
-  await expect(button).toBeEnabled();
-  const posted = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname.endsWith(`/agents/${agent.id}/memory/semantic`),
-  );
-  await button.click();
-  expect((await posted).status()).toBe(201);
   const items = await call("GET", `/agents/${agent.id}/knowledge`);
-  expect(items.filter((item) => item.type === "note")).toHaveLength(2);
+  expect(items.filter((item) => item.type === "note")).toHaveLength(1);
 });

@@ -3653,10 +3653,6 @@ msgstr "Knowledge and skills"
 msgid "Knowledge note"
 msgstr "Knowledge note"
 
-#: src/pages/KnowledgeSection.tsx:144
-msgid "Knowledge notes are found by their words. With an OpenAI embedding model enabled below, they are also ranked by meaning."
-msgstr "Knowledge notes are found by their words. With an OpenAI embedding model enabled below, they are also ranked by meaning."
-
 #. placeholder {0}: agent.name
 #: src/shell/domain/GoalsKnowledgePages.tsx:158
 msgid "Knowledge of <0>{0}</0>"
@@ -6267,8 +6263,8 @@ msgid "Search runs"
 msgstr "Search runs"
 
 #: src/pages/KnowledgeSection.tsx:144
-#~ msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
-#~ msgstr "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
+msgid "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
+msgstr "Search separate knowledge notes using real embeddings from a globally selected OpenAI model."
 
 #: src/components/ai/primitives.tsx:77
 #: src/components/ai/TurnActivity.tsx:29
