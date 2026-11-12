@@ -44,7 +44,7 @@ export function MessageBubble({
   onReactions?: (message: Message) => void;
   /** A tap on the quoted message: jump to it. */
   onQuote?: (message: Message) => void;
-  /** Rule N on a card's send that never ran (GENUI_PLAN §8.2), from core `submitMark`. */
+  /** Rule N on a card's send that never ran (docs/genui.md §7), from core `submitMark`. */
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;

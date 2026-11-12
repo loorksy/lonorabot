@@ -343,19 +343,13 @@ def saved_prompt(row: OwnerActionRow) -> str:
             "under the keys you chose; you never see them. Tell the owner in one line what "
             "they are saved for."
         )
-    review = row.result.get("review")
-    if target == "mcp_server" and review in {"unread", "nothing_to_trust"}:
-        reason = (
-            "its tools could not be read yet"
-            if review == "unread"
-            else "none of its tools can be trusted (a tool that can trade or move money never runs)"
-        )
+    if target == "mcp_server":
         return (
             "The owner connected an MCP server (connection_id="
             f"{row.result.get('connection_id')}) on your Secret card; its credential stays on "
-            f"the server. No review card followed: {reason}. Check it with mcp_tools now: if "
-            "it lists tools to review, propose trust_source for this connection_id; otherwise "
-            "tell the owner in one line what is wrong."
+            "the server. Its tools run only once the owner trusts it: tell him in one line to "
+            "name the server in chat (then call mcp_trust first in that run) or review it in "
+            "Capabilities."
         )
     return (
         f"The owner connected {target} on your Secret card; it is configured on the server "

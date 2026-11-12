@@ -14,8 +14,10 @@ from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.threads import thread_options
+from lonora_db.workspace_processes import ended_notice
 from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
+from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_tools.registry import ToolRegistry
@@ -27,6 +29,7 @@ from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
 from .attachments import attachment_parts, third_party_attachment
+from .command import command_context
 from .decisions import decision_context
 from .environment import operational_context
 from .governance import govern_context
@@ -119,6 +122,8 @@ async def build_context(
             if thread_options(thread).web_search:
                 # The per-chat option (Q33) preselects web_search for this turn.
                 blocks.append(load_prompt("web_search_on"))
+            # A / command says what this message asks for (chat.composer.slash-commands).
+            blocks.append(await command_context(session, thread.id, run.input_seq))
         if run.trigger == "subagent":
             blocks.append(load_prompt("subagent_system"))
         if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
@@ -129,7 +134,10 @@ async def build_context(
                 "financial authorization. Exact financial confirmation follows the ordinary "
                 "server approval policy. Keep this guidance private.</voice_observation>"
             )
-        memory = await timed("memory", read_memory_context(session, context.owner_id, agent.id))
+        memory = await timed(
+            "memory",
+            read_memory_context(session, context.owner_id, agent.id, lead=agent.role == "personal"),
+        )
         scratchpad = await timed("scratchpad", scratchpad_context(session, agent.id))
         # A card submission's own message is read by id, not by its widened window (rule W).
         focus = await submission_seq(session, run) or run.input_seq
@@ -210,6 +218,12 @@ async def build_context(
                     else None,
                 ),
             )
+        # Told to an ordinary run only: a helper or an observe-only wake would use it up.
+        ended_processes = (
+            await timed("workspace_processes", ended_notice(context.db, agent.id, run.id))
+            if run_scope(run.trigger, run.model_metadata) == "full"
+            else ""
+        )
         evidence = await timed(
             "run_evidence",
             recent_tool_evidence(session, agent.id, thread.id, run.id, query),
@@ -239,6 +253,14 @@ async def build_context(
                 "first_party_runtime",
                 gap.notice() if gap else "",
                 100,
+            ),
+            ContextSection(
+                "workspace_processes",
+                "workspace_supervisor",
+                # It quotes the agent's own command lines.
+                "agent_authored",
+                ended_processes,
+                90,
             ),
             ContextSection(
                 "recent_tool_evidence",

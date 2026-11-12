@@ -3,6 +3,7 @@
 from typing import Any
 
 from lonora_contracts.collaboration import (
+    MAXIMUM_ROUNDS,
     CollaborationParticipant,
     CollaborationRound,
     CollaborationState,
@@ -70,7 +71,8 @@ async def invite(
         raise LonoraError("collaboration_host_required", 409)
     ids = list(dict.fromkeys(participant_ids))
     ids = [identifier for identifier in ids if identifier != thread.agent_id]
-    if not ids or len(ids) > 16:
+    # No cap on how many agents take part (mandate P1, 3.3.2).
+    if not ids:
         raise LonoraError("collaboration_participants_required", 422)
     ancestor: RunRow | None = host_run
     seen: set[str] = set()
@@ -117,7 +119,12 @@ async def invite(
         if round.subject != subject or set(round.participant_run_ids) != expected_ids:
             raise LonoraError("collaboration_intent_conflict", 409)
         return resource_data(row)
-    if len(state.rounds) >= 8:
+    # A runaway guard, not a cap on agents or on work: one collaboration session takes at
+    # most this many rounds, as 3.3.2 allows a guard against a runaway loop. It never limits
+    # what an agent does across sessions or time: the owner's next mention opens a new
+    # session (lonora_db.messages), and an agent may start a new collaboration. A hit
+    # refuses this round with collaboration_round_limit, which the owner reads as one line.
+    if len(state.rounds) >= MAXIMUM_ROUNDS:
         raise LonoraError("collaboration_round_limit", 409)
     round = CollaborationRound(
         id=round_id, request_id=request_id, host_run_id=host_run.id, subject=subject
@@ -126,8 +133,6 @@ async def invite(
     for target in targets:
         participant = next((p for p in state.participants if p.agent_id == target.id), None)
         if participant is None:
-            if len(state.participants) >= 16:
-                raise LonoraError("collaboration_participant_limit", 409)
             participant = CollaborationParticipant(agent_id=target.id)
             state.participants.append(participant)
         run_id = stable_id(row.id, "participant:" + round_id + ":" + target.id)
@@ -136,8 +141,6 @@ async def invite(
             if existing.prompt != subject or existing.agent_id != target.id:
                 raise LonoraError("collaboration_intent_conflict", 409)
             continue
-        if len(participant.run_ids) >= 64:
-            raise LonoraError("collaboration_round_limit", 409)
         target_thread = await conversation_thread(session, owner_id, target.id)
         require_collaboration(owner_id, target.owner_id, len(seen) - 1)
         try:
@@ -305,9 +308,9 @@ async def schedule_synthesis(
             request_id=host.id,
             host_run_id=host.id,
             subject=str(row.payload.get("subject", "")),
-            participant_run_ids=[run.id for run in children][:16],
+            participant_run_ids=[run.id for run in children],
         )
-        if len(state.rounds) >= 8:
+        if len(state.rounds) >= MAXIMUM_ROUNDS:
             raise LonoraError("collaboration_round_limit", 409)
         state.rounds.append(round)
     if round.synthesis_run_id:

@@ -3,16 +3,14 @@
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
-function for its effect: Stop/Resume (``apply_controls``), lifting a restriction
+function for its effect: lifting a restriction
 (``revoke_restriction``), the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
 undoing or restoring supervision, and the owner's own resume of work a supervisor
-paused (``lonora_db.supervision``; never money authority), adding a source to the
-trusted list (``lonora_db.trusted_sources``; an MCP server at the tier the owner picks,
-with exactly the tools the card listed). A Secret card's values never come here: the
-card has its own route (``secret_cards``).
+paused (``lonora_db.supervision``; never money authority). A Secret card's values
+never come here: the card has its own route (``secret_cards``).
 Raising or removing a money limit also needs a verified passkey assertion bound to the
 card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
 setting supervision, choosing a model and Undo are one tap.
@@ -21,7 +19,7 @@ A grant card signs through the existing account-authority ceremony: its challeng
 the full-management proposal from the card's stored draft (``propose``) and returns the
 WebAuthn options bound to that envelope (``begin_activation``); its confirmation verifies
 the assertion (``finish_activation``). The card's other choices only narrow (the daily
-loss limit, stopping another agent's grant) or widen nothing (Resume). Its one choice,
+loss limit, stopping another agent's grant). Its one choice,
 Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
 next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
 nothing and grants nothing, and Full needs the same passkey confirmation as Custom. The
@@ -44,7 +42,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionChallenge,
     OwnerActionDecision,
 )
-from lonora_contracts.trading import OperationResolution, TradingControl
+from lonora_contracts.trading import OperationResolution
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
 from lonora_db.agent_creation import (
@@ -54,8 +52,6 @@ from lonora_db.agent_creation import (
     undo_plan,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.capability_cards import review_writes
-from lonora_db.integrations import subscribe_feed
 from lonora_db.notice_cards import undo_watch_change
 from lonora_db.owner_actions import (
     account_policy,
@@ -63,9 +59,7 @@ from lonora_db.owner_actions import (
     card_facts,
     choose_delegation,
     confirm_in_thread,
-    continue_after_card,
     daily_loss_change,
-    global_trading,
     grant_conflicts,
     grant_facts,
     grant_proposal,
@@ -95,9 +89,7 @@ from lonora_db.threads import conversation_thread
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import create_restriction, revoke_restriction
 from lonora_db.transactions import owned_thread
-from lonora_db.trusted_sources import trust_source
 from lonora_session.idempotency import stable_id
-from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
     attest_operation,
     require_account_currency,
@@ -297,15 +289,7 @@ async def decide(
         raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "resume_trading":
-        first = (await global_trading(session))["changed_by"] == "default"
-        controls = await apply_controls(session, TradingControl.model_validate(row.payload))
-        result = {
-            "global_trading": "running" if controls.enabled else "stopped",
-            # Trading had never been started: the card said Start, its line says so too.
-            "started": first,
-        }
-    elif row.kind == "lift_restriction":
+    if row.kind == "lift_restriction":
         await revoke_restriction(
             session, owner.id, row.payload["restriction_id"], "Lifted by the owner from a card"
         )
@@ -363,8 +347,6 @@ async def decide(
     elif row.kind == "watch_changed":
         # Undo: the expiry the watch had before the agent extended it (owner only).
         result = await undo_watch_change(session, owner.id, row.payload)
-    elif row.kind == "trust_source":
-        result = await trust_from_card(session, rt, owner, row, body)
     else:
         account_id = row.payload["account_id"]
         policy = await account_policy(session, owner.id, account_id)
@@ -425,10 +407,6 @@ async def decide(
     if created_agent is not None:
         # The agent that proposed it hands it its first task, after the line above.
         await start_first_task(session, row, created_agent)
-    if row.kind == "trust_source":
-        # The agent that asked continues the work that needed this source (or checks a
-        # server whose tools could not be reviewed).
-        await continue_after_card(session, row)
 
 
 async def pause_new_today(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> str:
@@ -515,10 +493,6 @@ async def confirm_grant(
         await revoke(session, owner.id, other)
         stopped.append(other)
     names = await agent_names(session, owner.id, {conflicts[item].agent_id for item in stopped})
-    resumed = False
-    if body.resume_trading and (await global_trading(session))["state"] == "stopped":
-        await apply_controls(session, TradingControl(enabled=True, emergency_stop=False))
-        resumed = True
     daily = kept = None
     # Full delegation has no daily loss line to opt out of: the account's own limits stay
     # as they are either way, and the confirmation says so once.
@@ -555,7 +529,6 @@ async def confirm_grant(
         **signed["grant"],
         "allow_manual_positions": bool(row.result.get("allow_manual_positions")),
     }
-    signed["global_trading"] = await global_trading(session)
     # Decided now: the stopped agents are named in the result, the rest stay as they were.
     signed["conflicts"] = []
     return {
@@ -563,7 +536,6 @@ async def confirm_grant(
         "authority_id": authority.id,
         "delegation": draft.delegation,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
-        "resumed": resumed,
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
         "daily_loss": daily,
@@ -571,58 +543,6 @@ async def confirm_grant(
         "daily_loss_kept": kept,
         "money_limit": money_limit,
     }
-
-
-async def trust_from_card(
-    session: AsyncSession,
-    rt: ApiRuntime,
-    owner: OwnerIdentity,
-    row: OwnerActionRow,
-    body: OwnerActionDecision,
-) -> dict[str, Any]:
-    """The owner's tap adds the card's source to the trusted list (an MCP server with
-    exactly the tools the card listed, at the tier the owner chose) and, for a feed
-    domain, subscribes the feed the card names."""
-    payload = row.payload
-    kind = payload["source_kind"]
-    if kind == "mcp_server":
-        if not rt.settings.mcp_owner_trust:
-            raise LonoraError("mcp_owner_trust_disabled", 403)
-        if body.tier is None:
-            raise LonoraError("owner_action_tier_required", 422)
-        await trust_source(
-            session,
-            owner.id,
-            kind,
-            payload["identifier"],
-            via="owner_card",
-            tier=body.tier,
-            agent_id=row.agent_id,
-            card_id=row.id,
-            endpoint_sha256=payload["endpoint_sha256"],
-            tool_hashes=payload["tools"],
-            read_only_tools=payload.get("read_only", []),
-            blocked_tools=payload["blocked"],
-        )
-        return {
-            "tier": body.tier,
-            "tools": len(payload["tools"]),
-            "writes": len(review_writes(payload)),
-        }
-    await trust_source(
-        session,
-        owner.id,
-        kind,
-        payload["identifier"],
-        via="owner_card",
-        agent_id=row.agent_id,
-        card_id=row.id,
-    )
-    subscribe = payload.get("subscribe")
-    if subscribe is None:
-        return {"tier": "read"}
-    _, created = await subscribe_feed(session, owner.id, subscribe["url"], subscribe["name"])
-    return {"tier": "read", "subscribed": True, "subscription_created": created}
 
 
 async def create_agent_from_card(

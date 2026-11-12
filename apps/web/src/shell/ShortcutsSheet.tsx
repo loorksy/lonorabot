@@ -33,7 +33,7 @@ export function useShortcutsSheet() {
               </span>
               <span className="keys" dir="ltr">
                 {keys.map((key, index) =>
-                  key === "/" && keys.length > 1 ? (
+                  key === "/" && index > 0 && index < keys.length - 1 ? (
                     // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list
                     <span key={index}>{key}</span>
                   ) : (

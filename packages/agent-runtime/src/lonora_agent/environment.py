@@ -204,7 +204,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "ui_submit_disabled",
         "memory_disclosure_refused",
         "restriction_owner_manual_agent_conflict",
-        "collaboration_guest_limit",
     }:
         category, action = "permission_denied", "respect_scope"
     elif code.startswith("risk_"):
@@ -225,8 +224,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
     elif code in {
         "broker_reconciliation_pending",
         "market_health_blocked",
-        "trading_disabled",
-        "emergency_stop",
     }:
         category, action = "health_blocked", "wait_for_authoritative_recovery"
     elif status is not None and not code.startswith("broker_"):

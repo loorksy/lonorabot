@@ -12,10 +12,13 @@ function fixture(data) {
 }
 
 /* Older pages load when the skeleton bubbles above the first message come into view
-   (reference olderSentinel): scroll the conversation to its top. */
+   (reference olderSentinel): scroll the conversation to its top. After a reload the client
+   may already hold the whole history (no older page, so no skeleton): nothing to page. */
 async function older(page) {
-  await expect(page.locator(".sk-older")).toHaveCount(1);
-  await page.getByTestId("transcript").evaluate((element) => {
+  const transcript = page.getByTestId("transcript");
+  const oldest = transcript.getByText("HISTORY 000 immutable fixture", { exact: true });
+  await expect(page.locator(".sk-older").or(oldest).first()).toBeVisible();
+  await transcript.evaluate((element) => {
     element.scrollTop = 0;
   });
 }
@@ -62,9 +65,10 @@ test("header and turn avatars follow actual work while status reads are unavaila
       { turn_id: "header-status-proof", text: "The observed result is ready." },
       "writing",
     );
-    await expect(page.locator(`[data-stream-run-id='${data.parent.id}']`)).toContainText(
-      "The observed result is ready.",
-    );
+    const reply = page.locator(`[data-stream-run-id='${data.parent.id}']`);
+    await expect(reply).toContainText("The observed result is ready.");
+    // While the text streams, the folded steps line already carries its time («· Nث»).
+    await expect(reply.locator(".steps-head")).toHaveText(/ · \d+/);
   } finally {
     fixture({ ...data, action: "peer_cleanup" });
   }

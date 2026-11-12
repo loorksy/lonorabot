@@ -28,6 +28,8 @@ async def main():
     try:
         async with f.runtime.db.sessions() as session, session.begin():
             fields={'kind':data['kind']}
+            if data.get('restriction'):
+                fields['restriction_id']=data['restriction']
             if data['kind']=='resolve_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
@@ -45,9 +47,6 @@ async def main():
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
-            elif data['kind']=='resume_trading':
-                # As an agent proposes it when the owner asks to resume.
-                row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
@@ -75,7 +74,6 @@ async function setup(context, locale) {
   );
   await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   const connected = await context.request.post("/api/trading/connections", {
     headers,
     data: { provider: "simulation", account_id: `cards-${randomUUID()}`, enabled: true },
@@ -124,20 +122,13 @@ async function setup(context, locale) {
   const thread = await (
     await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
   ).json();
-  const controls = async (value) => {
-    const response = await context.request.put("/api/trading/controls", { headers, data: value });
-    expect(response.ok()).toBeTruthy();
-  };
   return {
     data,
     headers,
     account,
     agent,
     thread,
-    controls,
-    read: async () => (await context.request.get("/api/trading/controls")).json(),
     async cleanup() {
-      await controls(original);
       // Every test's own agent goes; leaked ones count against the agent-creation cap.
       await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
@@ -147,9 +138,8 @@ async function setup(context, locale) {
 
 const copy = {
   en: {
-    resumeTitle: "Resume trading",
-    resumeButton: "Resume trading",
-    resumed: "Trading resumed.",
+    liftTitle: "New entries paused",
+    lifted: "Pause lifted.",
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
     unknown: "Unknown: release the hold",
@@ -157,7 +147,6 @@ const copy = {
     lift: "Lift pause",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
-    resumeToo: "Resume trading too",
     includeOwn: "Include positions I opened myself",
     password: "Account password",
     register: "Register this device first",
@@ -168,9 +157,8 @@ const copy = {
     arrow: "→",
   },
   ar: {
-    resumeTitle: "استئناف التداول",
-    resumeButton: "استئناف التداول",
-    resumed: "استؤنف التداول.",
+    liftTitle: "الصفقات الجديدة متوقفة",
+    lifted: "رُفع الإيقاف.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
     unknown: "غير معروفة — ارفع التعليق",
@@ -178,7 +166,6 @@ const copy = {
     lift: "رفع الإيقاف",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
-    resumeToo: "استأنف التداول أيضًا",
     includeOwn: "اشمل المراكز التي فتحتها بنفسي",
     password: "كلمة مرور الحساب",
     register: "سجّل هذا الجهاز أولًا",
@@ -218,9 +205,6 @@ for (const locale of ["en", "ar"])
       },
     });
     try {
-      // The owner's own Stop: the card's Resume switch waits for the owner.
-      await state.controls({ enabled: true, emergency_stop: false });
-      await state.controls({ enabled: false, emergency_stop: false });
       // The owner's own 500 daily loss limit; the sentence asked for 3% (300).
       const limit = await context.request.put(
         `/api/trading/accounts/${state.account}/execution-policy`,
@@ -253,13 +237,13 @@ for (const locale of ["en", "ar"])
       await expect(card.getByRole("switch", { name: text.keepLimit })).not.toBeChecked();
       // The switch states the owner's own positions; no fixed line contradicts it.
       await expect(card.getByText(text.ownExcluded, { exact: true })).toHaveCount(0);
-      // D1: the owner's own positions are excluded unless switched on; Resume waits for
-      // the owner after the owner's own Stop.
+      // D1: the owner's own positions are excluded unless switched on.
       const own = card.getByRole("switch", { name: text.includeOwn });
-      const resume = card.getByRole("switch", { name: text.resumeToo });
       await expect(own).not.toBeChecked();
-      await expect(resume).not.toBeChecked();
-      await resume.check();
+      // Amendment 1: the card offers no Resume trading switch.
+      await expect(card.getByRole("switch", { name: /Resume trading|استأنف التداول/ })).toHaveCount(
+        0,
+      );
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         await card.screenshot({ path: test.info().outputPath("owner-action-grant-ar.png") });
@@ -278,7 +262,7 @@ for (const locale of ["en", "ar"])
       expect(challenges.at(-1)).toEqual({ delegation: "custom", allow_manual_positions: false });
       const decision = bodies.find(([kind]) => kind === "decision")?.[1];
       expect(decision.decision).toBe("confirm");
-      expect(decision.resume_trading).toBe(true);
+      expect(decision).not.toHaveProperty("resume_trading");
       expect(decision.money_limit).toBe("apply");
       expect(decision.proof?.challenge_id).toBeTruthy();
       const permission = await (
@@ -286,7 +270,6 @@ for (const locale of ["en", "ar"])
       ).json();
       expect(permission.effective_level).toBe("autonomous");
       expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-      expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
       const policy = await (
         await context.request.get(`/api/trading/accounts/${state.account}/execution-policy`)
       ).json();
@@ -369,7 +352,6 @@ for (const locale of ["en", "ar"])
       })
     ).json();
     try {
-      await state.controls({ enabled: true, emergency_stop: false });
       // A money limit the owner set elsewhere: Full keeps it in force.
       const limit = await context.request.put(
         `/api/trading/accounts/${state.account}/execution-policy`,
@@ -462,7 +444,7 @@ for (const locale of ["en", "ar"])
       // «الحالة والأمان» from the chat's ⋮ menu says what the card signed.
       await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
       await page
-        .getByRole("button", {
+        .getByRole("menuitem", {
           name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
         })
         .click();
@@ -585,7 +567,7 @@ for (const locale of ["en", "ar"])
   });
 
 for (const locale of ["en", "ar"])
-  test(`${locale}: a Resume card in the conversation resumes trading with one tap`, async ({
+  test(`${locale}: a Lift card in the conversation lifts the pause with one tap`, async ({
     page,
     context,
   }) => {
@@ -593,10 +575,15 @@ for (const locale of ["en", "ar"])
     const text = copy[locale];
     const state = await setup(context, locale);
     try {
-      await state.controls({ enabled: true, emergency_stop: false });
-      await state.controls({ enabled: false, emergency_stop: true });
+      const created = await context.request.post("/api/trading/restrictions", {
+        headers: state.headers,
+        data: { account_id: state.account, action_class: "no_new_entries" },
+      });
+      expect(created.status()).toBe(201);
+      const pause = (await created.json()).id;
       const seeded = seedCard({
-        kind: "resume_trading",
+        kind: "lift_restriction",
+        restriction: pause,
         agent: state.agent.id,
         thread: state.thread.id,
       });
@@ -608,31 +595,26 @@ for (const locale of ["en", "ar"])
       await page.goto(`/app/${state.agent.id}`);
       const card = page.locator(`[data-owner-action="${seeded.id}"]`);
       await expect(card).toHaveAttribute("data-owner-action-status", "pending");
-      await expect(card.locator(".oa-kind")).toHaveText(text.resumeTitle);
+      await expect(card.locator(".oa-kind")).toHaveText(text.liftTitle);
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
         // The primary action starts the row on the reading side: right in Arabic.
-        const [resume, later] = await Promise.all([
+        const [lift, later] = await Promise.all([
           card.locator('[data-owner-action-button="confirm"]').boundingBox(),
           card.locator('[data-owner-action-button="cancel"]').boundingBox(),
         ]);
-        expect(resume && later && resume.x > later.x).toBeTruthy();
-        await card.screenshot({ path: test.info().outputPath("owner-action-resume-ar.png") });
+        expect(lift && later && lift.x > later.x).toBeTruthy();
+        await card.screenshot({ path: test.info().outputPath("owner-action-lift-ar.png") });
       }
-      await card.getByRole("button", { name: text.resumeButton, exact: true }).click();
+      await card.getByRole("button", { name: text.lift, exact: true }).click();
       await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
-      await expect(card.getByRole("status")).toHaveText(text.resumed);
+      await expect(card.getByRole("status")).toHaveText(text.lifted);
       await expect(card.locator("[data-owner-action-button]")).toHaveCount(0);
       expect(decisions).toEqual([{ decision: "confirm" }]);
-      expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
-      // The conversation confirms the change in one server-written line.
-      await expect(
-        // Written in the conversation's language (Arabic until the owner writes in English); the
-        // chat list beside the conversation previews the same line, so look in the transcript.
-        page
-          .getByTestId("transcript")
-          .getByText(/Trading resumed\. Each agent|استؤنف التداول\. يبقى/),
-      ).toBeVisible();
+      const current = await (
+        await context.request.get(`/api/trading/restrictions?account_id=${state.account}`)
+      ).json();
+      expect(current.map((row) => row.id)).not.toContain(pause);
     } finally {
       await state.cleanup();
     }

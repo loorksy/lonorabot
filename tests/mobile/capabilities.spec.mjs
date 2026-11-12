@@ -11,8 +11,9 @@ function simulation(data) {
   );
 }
 
-// A news agent whose cards ask the owner to add a news feed (a Secret card for its
-// address) and to trust another feed's site, as the tools raise them (no model involved).
+// A news agent whose card asks the owner to add a news feed (a Secret card for its
+// address), as the tool raises it (no model involved), and another feed's site it trusted
+// on the owner's own words (no card: VISION 10.3.2).
 function seedCards(data) {
   const script = `
 import asyncio,json,sys
@@ -22,10 +23,10 @@ from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate
 from lonora_db.agents import create_agent
 from lonora_contracts.owner_actions import OwnerActionProposal
-from lonora_db.capability_cards import source_payload, trust_subject
-from lonora_db.owner_actions import propose, propose_capability
+from lonora_db.owner_actions import propose
 from lonora_db.schema import SkillRow
 from lonora_db.threads import conversation_thread
+from lonora_db.trusted_sources import trust_source
 async def main():
     data=json.load(sys.stdin)
     f=await Fixture().open()
@@ -34,11 +35,10 @@ async def main():
             agent=await create_agent(session,f.owner,AgentCreate(name=data['agent'],scope_mode='flexible'))
             thread=await conversation_thread(session,f.owner,agent.id)
             credential,_=await propose(session,f.owner,OwnerActionProposal(kind='secret',target='news_feed',name=data['feed']),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
-            domain=data['domain']
-            trust,_=await propose_capability(session,f.owner,'trust_source',trust_subject('feed_domain',domain),source_payload('feed_domain',domain),card_id=str(uuid4()),agent_id=agent.id,thread_id=thread.id,run_id=None)
+            await trust_source(session,f.owner,'feed_domain',data['domain'],via='owner_message',agent_id=agent.id)
             skill=data['skill']
             session.add(SkillRow(id=str(uuid4()),owner_id=f.owner,agent_id=agent.id,version=1,payload={'name':skill,'content':'---\\nname: '+skill+'\\ndescription: Short sourced notes.\\n---\\nUse cited evidence only.\\n','enabled':True,'manifest':{'id':skill,'version':'1.0.0','title':skill,'description':'Short sourced notes.','source':'installed','activation':{'mode':'explicit'}}}))
-            print(json.dumps({'agent':agent.id,'thread':thread.id,'credential':credential.id,'trust':trust.id}))
+            print(json.dumps({'agent':agent.id,'thread':thread.id,'credential':credential.id}))
     finally:
         await f.close(cleanup=False)
 asyncio.run(main())
@@ -57,9 +57,6 @@ const copy = {
     url: "عنوان الموجز",
     connect: "ربط",
     connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
-    trustTitle: "الوثوق بهذا المصدر؟",
-    trust: "ثقة",
-    trusted: "صار موثوقًا.",
     title: "القدرات",
     remove: "إزالة",
     undo: "تراجع",
@@ -71,9 +68,6 @@ const copy = {
     url: "Feed URL",
     connect: "Connect",
     connected: "Connected. No agent sees what you typed.",
-    trustTitle: "Trust this source?",
-    trust: "Trust",
-    trusted: "Trusted.",
     title: "Capabilities",
     remove: "Remove",
     undo: "Undo",
@@ -83,7 +77,7 @@ const copy = {
 };
 
 for (const locale of ["ar", "en"])
-  test(`Expo ${locale}: a feed form and a trust card in the chat, then Capabilities`, async ({
+  test(`Expo ${locale}: a feed form in the chat and a site trusted from chat, then Capabilities`, async ({
     page,
     context,
   }) => {
@@ -124,11 +118,11 @@ for (const locale of ["ar", "en"])
       await card.getByRole("button", { name: text.connect, exact: true }).click();
       await expect(card.getByText(text.connected, { exact: true })).toBeVisible();
 
-      const trust = page.getByTestId(`owner-action-${seeded.trust}`);
-      await expect(trust.getByText(text.trustTitle, { exact: true })).toBeVisible();
-      await expect(trust).toContainText(`⁨${site}⁩`);
-      await trust.getByRole("button", { name: text.trust, exact: true }).click();
-      await expect(trust.getByText(text.trusted, { exact: true })).toBeVisible();
+      // Trusting the site raised no card: the credential card is the conversation's only one.
+      const cards = await (
+        await context.request.get(`/api/owner-actions?thread_id=${seeded.thread}`)
+      ).json();
+      expect(cards.map((item) => item.kind)).toEqual(["secret"]);
 
       await page.goto("/integrations");
       await expect(page.getByText(text.title, { exact: true }).first()).toBeVisible();
@@ -137,7 +131,7 @@ for (const locale of ["ar", "en"])
       expect(added.type).toBe("news_feed");
       expect(added.domain).toBe(`desk-${suffix}.news.example`);
       const trusted = report.trusted_sources.find((item) => item.identifier === site);
-      expect(trusted.added_via).toBe("owner_card");
+      expect(trusted.added_via).toBe("owner_message");
       const row = page.getByTestId(`integration-${added.id}`);
       await expect(row).toContainText(`⁨Desk ${suffix}⁩`);
       if (locale === "ar")

@@ -89,6 +89,7 @@ CHECKS = (
     "check_lossless_downgrades.py",
     "check_agent_model_choice.py",
     "check_agent_model_migration.py",
+    "check_trust_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
 )
@@ -114,13 +115,15 @@ def main() -> None:
     base = make_url(get_settings().database_url)
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
-    # UI phase 5: delivery rules, dry-run tests, owner identity and usage (PostgreSQL cases).
+    # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
+    # composer's / commands (PostgreSQL cases).
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",
+        "test_slash_commands.py",
         "test_usage_tool.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])

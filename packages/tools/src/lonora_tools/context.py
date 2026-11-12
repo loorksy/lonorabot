@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from lonora_adapter_kit.secrets import SecretStore
 from lonora_adapters.brokers.base import BrokerManager
@@ -8,12 +9,17 @@ from lonora_contracts.mcp import McpToolDeclaration
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease
 from lonora_db.client import Database
+from lonora_db.workspace_given import GivenValues
 from lonora_providers.router import GlobalModelRouter
 from lonora_session.idempotency import stable_id
 from lonora_trading.execution import ExecutionService
+from lonora_workspace.client import WorkspaceClient
 
 from .skill_access import SkillAccess
 from .workspace_access import WorkspaceAccess
+
+if TYPE_CHECKING:
+    from .cli_token import CommandTokens
 
 
 @dataclass(frozen=True)
@@ -34,6 +40,12 @@ class ToolContext:
     chart_visual: ChartVisualRuntime | None = None
     skill_access: SkillAccess | None = None
     workspace_access: WorkspaceAccess | None = None
+    # The owner's persistent workspace (7.1), and the encrypted record of the secret
+    # values given to its commands (kept in the scan after a rotation or a deletion).
+    workspace: WorkspaceClient | None = None
+    workspace_given: GivenValues | None = None
+    # Each agent's `lonora` CLI token (7.3.3), set in the commands its full runs start.
+    cli_tokens: "CommandTokens | None" = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = ()
     mcp_owner_trust: bool = True
     searxng_url: str | None = None

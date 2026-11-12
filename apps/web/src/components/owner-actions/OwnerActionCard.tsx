@@ -136,7 +136,6 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
-    if (button.tier) body.tier = button.tier;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
@@ -473,14 +472,12 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   set_account_limits: "scale",
   lift_restriction: "lock",
   resolve_operation: "alert",
-  resume_trading: "power",
   create_agent: "userPlus",
   agent_created: "userPlus",
   supervise: "eye",
   supervision_created: "eye",
   supervision_stopped: "eye",
   supervision_paused: "pause",
-  trust_source: "shield",
   secret: "key",
   watch_changed: "radar",
   stop_tightened: "shield",

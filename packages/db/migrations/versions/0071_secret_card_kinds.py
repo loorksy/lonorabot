@@ -27,7 +27,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0071_secret_card_kinds"
-down_revision = "0145_metaapi_token"
+down_revision = "0139_workspace_running"
 branch_labels = None
 depends_on = None
 

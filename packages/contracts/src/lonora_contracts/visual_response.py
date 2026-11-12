@@ -406,7 +406,7 @@ class RichTextPart(Contract):
 
 class RichUiPart(Contract):
     type: Literal["ui"]
-    # A v1 document (legacy, read-only) or a compiled lonora-ui v2 card (GENUI_PLAN §2.2).
+    # A v1 document (legacy, read-only) or a compiled lonora-ui v2 card (docs/genui.md).
     document: VisualDocument | UiDocument
     # While a v2 card streams; ``cut`` is the number of blocks built when the owner stopped.
     building: bool | None = None
@@ -453,14 +453,28 @@ class RichCallPart(Contract):
     missed: bool
 
 
-# Parts only the server writes (owner voice notes, call logs). An Agent reply never carries
-# them: ``lonora_db.rich_response.validated_rich_content`` rejects them at publication.
-SERVER_PART_TYPES = frozenset({"voice", "call"})
+class RichCommandPart(Contract):
+    """The / command an owner message is (server-written): the chip in the owner's bubble.
+
+    ``skill_name`` is the skill's name when the message was sent. Agents never emit this part.
+    """
+
+    type: Literal["command"]
+    name: Literal["task", "search", "summary", "skill"]
+    argument: str = Field(default="", max_length=30000)
+    skill_id: str | None = Field(default=None, max_length=36)
+    skill_name: str | None = Field(default=None, max_length=80)
+
+
+# Parts only the server writes (owner voice notes, call logs, owner commands). An Agent reply
+# never carries them: ``lonora_db.rich_response.validated_rich_content`` rejects them at
+# publication.
+SERVER_PART_TYPES = frozenset({"voice", "call", "command"})
 
 
 class RichContent(Contract):
     version: Literal[1] = 1
-    parts: list[RichTextPart | RichUiPart | RichVoicePart | RichCallPart] = Field(
+    parts: list[RichTextPart | RichUiPart | RichVoicePart | RichCallPart | RichCommandPart] = Field(
         min_length=1, max_length=24
     )
 
