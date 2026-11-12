@@ -13,6 +13,7 @@ import type {
   UiPart,
   UiRenderedNodeType,
   UiRoute,
+  UiSlotCard,
 } from "@lonora/contracts";
 import {
   type CardInline,
@@ -518,6 +519,30 @@ function Delivery({ block, common, id }: NodeProps) {
   );
 }
 
+/** A trusted slot (mandate 10.2): a fixed card in the agent's card. The agent chose only
+ * where it sits; the conversation draws the live record inside (`GenuiHost.slot`), with its
+ * own server actions, and this frame, which no agent node can draw, says it is Lonora's. */
+function Slot({ block, common }: NodeProps) {
+  const host = useGenuiHost();
+  const card = block.card as UiSlotCard;
+  const inner = host?.slot?.({ card, record: String(block.record) }) ?? null;
+  return (
+    <section
+      className="ux-slot"
+      {...common}
+      data-slot-card={card}
+      data-slot-live={inner ? "" : undefined}
+      aria-label={t`Fixed card from Lonora`}
+    >
+      <div className="ux-slot-mark" aria-hidden="true">
+        <Icon name="shield" width={14} height={14} style={{ flex: "none" }} />
+        <span>{t`Fixed card from Lonora`}</span>
+      </div>
+      {inner ?? <p className="ux-slot-gone">{t`This card is not available here.`}</p>}
+    </section>
+  );
+}
+
 /** Every node type of the catalog generated from the server contract, and the server's
  * delivery row (mandate 10.1.5): a node the server accepts and this map lacks fails
  * `pnpm check`. */
@@ -540,6 +565,7 @@ const NODES: Record<UiRenderedNodeType, (props: NodeProps) => ReactNode> = {
   Grid,
   Card,
   More,
+  Slot,
   Delivery,
 };
 
@@ -580,6 +606,7 @@ export const DRAWN_PROPS: UiNodeProps = {
   Grid: { children: true, cols: true, when: true },
   Card: { children: true, title: true, icon: true, when: true },
   More: { children: true, label: true, when: true },
+  Slot: { card: true, record: true },
 };
 
 function NumberField({
@@ -649,8 +676,11 @@ function NumberField({
             event.preventDefault();
             setChecked(true);
             if (bad) return; // the field's own error says why nothing was sent
+            // The card's own primary Button only, never a fixed card's inside a slot.
             const card = event.currentTarget.closest(".ux");
-            const primary = card?.querySelector<HTMLButtonElement>(".btn.primary");
+            const primary = card?.querySelector<HTMLButtonElement>(
+              '.btn.primary[data-ux-type="Button"]',
+            );
             if (primary && !primary.disabled) primary.click();
             else ctx.checkRequired();
           }}

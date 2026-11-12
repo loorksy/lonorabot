@@ -273,7 +273,8 @@
   line-height: 1.65;
   animation: ux-in 0.25s var(--ease) both;
 }
-.ux.is-sent .ux-body {
+/* A sent card dims its own blocks; a trusted slot is the live fixed card and never dims. */
+.ux.is-sent .ux-body > :not(.ux-slot) {
   opacity: 0.82;
 }
 .ux-col {
@@ -802,4 +803,34 @@
   to {
     background-position: 0 0;
   }
+}
+
+/* A trusted slot (mandate 10.2): the trust frame around a fixed card. Its tokens are declared
+   here only, and no node an agent writes takes a class or a colour, so no agent node can
+   draw it: a double rule in the frame colour and the «بطاقة ثابتة من Lonora» mark. */
+.ux-slot {
+  --ux-slot-frame: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  --ux-slot-ground: color-mix(in srgb, var(--accent) 6%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 3px double var(--ux-slot-frame);
+  border-radius: 14px;
+  background: var(--ux-slot-ground);
+}
+.ux-slot-mark {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ux-slot-frame);
+}
+.ux-slot-gone {
+  margin: 0;
+  padding: 4px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
 }

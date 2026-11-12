@@ -350,13 +350,19 @@ export function NativeUiCard({
           paddingTop: 10,
           paddingHorizontal: 12,
           paddingBottom: 12,
-          opacity: locked ? 0.82 : 1,
         }}
       >
         {doc.blocks.map((block, position) =>
           part.cut !== undefined && position >= part.cut ? null : (
-            // biome-ignore lint/suspicious/noArrayIndexKey: blocks are positional and append-only
-            <Node key={position} block={block} path={String(position)} ctx={ctx} />
+            // A sent card dims its own blocks; a trusted slot is the live fixed card and
+            // never dims.
+            <View
+              // biome-ignore lint/suspicious/noArrayIndexKey: blocks are positional and append-only
+              key={position}
+              style={{ opacity: locked && block.type !== "Slot" ? 0.82 : 1 }}
+            >
+              <Node block={block} path={String(position)} ctx={ctx} />
+            </View>
           ),
         )}
         {building ? (

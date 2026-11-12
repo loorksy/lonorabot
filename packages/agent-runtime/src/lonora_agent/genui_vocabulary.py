@@ -4,7 +4,7 @@ contract (mandate 10.1.5) and its props, the functions, the actions, the intents
 data, the icon names and the instrument name table. Deterministic, so the block stays in the
 cached prompt prefix."""
 
-from lonora_contracts.genui import ACTIONS, COMMON, NODES, TONES
+from lonora_contracts.genui import ACTIONS, COMMON, NODES, SLOT, TONES
 from lonora_contracts.genui_functions import FUNCTIONS
 from lonora_contracts.genui_icons import ICON_NAMES
 from lonora_contracts.instrument_names import vocabulary_line
@@ -28,6 +28,7 @@ NODE_ORDER = (
     "Card",
     "More",
     "Divider",
+    "Slot",
 )
 
 
@@ -43,7 +44,11 @@ def genui_vocabulary() -> str:
     functions = ", ".join(sorted(name for name in FUNCTIONS if name != "Fact"))
     return "\n".join(
         [
-            "Nodes (every node takes when?): " + " · ".join(_node(n) for n in NODE_ORDER),
+            f"Nodes (every node but {SLOT} takes when?): "
+            + " · ".join(_node(n) for n in NODE_ORDER),
+            f"{SLOT}: a fixed card at the top level of your card, never in a container: card"
+            " trade_approval with its approval_id, or settle with the id of its"
+            " resolve_operation card. Lonora draws every word, number and button in it, live.",
             "Options: a list of {value, label?, also?{key: value}}; also is merged into state when picked.",
             "Segmented for 2-4 options, Select for 5-20. Slider min, max, step: numbers; show: a template for its readout. Grid cols: 1, 2 or 3. Card: an inner panel with an optional title. Markdown: a short Markdown passage. Stat trend: an expression giving 'up' or 'down'.",
             "tone ("

@@ -33,13 +33,19 @@ template `"…{expr}…"`. `@Fact('key')` reads a data-line fact. Shared vectors
 The server contract `lonora_contracts.genui` is the single source of the set (mandate 10.1.5):
 
 - **Nodes (`NODES`):** Segmented, Select, Number, Slider, Title, Text, Markdown, Note, Badge,
-  KeyValue, Stat, Button, Divider, Row, Col, Grid, Card, More. Every node takes `when`.
+  KeyValue, Stat, Button, Divider, Row, Col, Grid, Card, More, Slot. Every node but Slot takes
+  `when`.
 - **Server rows (`SERVER_NODES`):** Delivery, the read-only delivery row the compiler adds
   above an alert's send. The model never writes it.
 - **Actions (`ACTIONS`):** `send {intent, data, lock?}`, `go {route}`, `set {key, value}`,
   `toggle {key}`, `reset`, `copy {text}`, `open {url}`.
 - **Icons:** `genui_icons.ICON_NAMES`, the keys of `packages/ui-tokens/src/icons.ts`, which
   both clients draw.
+
+- **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval` and `settle`); `record` is
+  the record's id. The agent chooses only where the slot sits; section 4a says what the server
+  and the clients do with it.
 
 `scripts/export_genui_catalog.py` generates `packages/contracts/src/genui-catalog.ts` (node
 types, props, server rows, actions, routes, tones; `--check` in `scripts/build.sh`). Each part
@@ -89,6 +95,47 @@ or data line that fails makes the whole card fall back. `genui_compile.compile_c
 
 A card that cannot be built shows its model-written fallback. One card per reply: a second is
 dropped and its fallback kept as text. Diagnostics carry structural codes only, never model text.
+
+## 4a. Trusted slots
+
+- **Placement (10.2.1).** The projector reads the records a card's slots name
+  (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
+  `resolve_operation` owner-action card (`settle`) of this owner, in the reply's conversation
+  (the Run's origin conversation when it works in its own thread, as broker-event and watch
+  Runs do). A slot
+  whose record is missing, of another kind, another owner's or another conversation's is
+  refused (`slot_refused`) and the card shows its fallback. A record appears once per card.
+- **Protection (10.2.2).** A slot sits at the top level only (`slot_nested` drops it from a
+  container); it takes no `when`, text or style (dropped as `prop_dropped`), so the stored node
+  is exactly `{type, card, record}`. The budget never folds it. The clients draw the live record
+  inside a trust frame (`.ux-slot`, a double rule, on web; the `slotFrame` palette, a solid
+  rule, on mobile, which has no double rule) with the mark «بطاقة ثابتة من Lonora». Agents set no
+  class or colour, and the agent's own card falls back (`card_fallback_imitation`) when it wears
+  the frame's `shield` icon, when a heading or control label (head title and sub, label, title,
+  Badge, Title, option labels) is or starts with a fixed card's title or button
+  (`FIXED_LABELS`, the clients' own strings, checked by a test), or when anything it shows,
+  why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
+  written, at each sampled state and by their quoted literals, after compatibility forms are
+  unified, invisible format characters removed and look-alike letters (Cyrillic, Greek, Persian)
+  read as the letters they imitate. Sentences, values and state may
+  use the same words.
+- **Words, numbers and buttons.** Everything inside a slot is the record as the clients read it
+  from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
+  actions; nothing comes from the agent's card. A generated element still never approves,
+  settles or switches a mode (6.10): only the fixed card inside the slot does. Enter in the
+  agent's own field presses the agent's own primary Button only, never a button inside a slot,
+  and a sent card dims its own blocks, never a slot.
+- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, its
+  frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
+  height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
+  never folded, and a card over 720 px falls back, which brings the record's row back.
+- **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
+  standalone row while a loaded assistant message of the conversation draws it as a slot
+  (`embeddedSlots`: the whole rich content validates, as the renderers require, the slot is
+  within the card's cut, and the client does not draw the message as a question's or a peer's
+  card instead); the row returns when none does. Slot and row draw the same live record with
+  the same callbacks, so they act on one record; a tap refused because the record was already
+  decided reads the record again and shows it as it is now.
 
 ## 5. Budgets
 

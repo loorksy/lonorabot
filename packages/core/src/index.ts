@@ -109,7 +109,12 @@ export {
   cardInline,
   cardMarkdown,
 } from "./genui/markdown";
-export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
+export {
+  isUiPart,
+  type UiSlotRef,
+  validateUiDocument,
+  validateUiPart,
+} from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {
   archivedSummary,

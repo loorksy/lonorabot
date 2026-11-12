@@ -69,6 +69,9 @@ function palette(mode: "dark" | "light") {
     } as Record<string, string>,
     badgeGood: alpha(t.accent, 0.16),
     focus: alpha(t.accent, 0.22),
+    // The trust frame of a slot (mandate 10.2.2): used by the slot renderer only.
+    slotFrame: mix(t.accent, 0.55, t["line-strong"]),
+    slotGround: alpha(t.accent, 0.06),
   };
 }
 

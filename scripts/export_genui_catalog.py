@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 from lonora_agent.genui_capabilities import ROUTES
-from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, TONES
+from lonora_contracts.genui import ACTIONS, NODES, SERVER_NODES, SLOT_CARDS, TONES, node_props
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "packages/contracts/src/genui-catalog.ts"
@@ -38,8 +38,8 @@ def _props(name: str, spec: dict[str, bool]) -> str:
 
 def generated() -> str:
     props = {
-        name: {key: required for key, (required, _check) in (spec | COMMON).items()}
-        for name, spec in NODES.items()
+        name: {key: required for key, (required, _check) in node_props(name).items()}
+        for name in NODES
     }
     nodes = _list(list(NODES))
     server = _list(SERVER_NODES)
@@ -63,6 +63,10 @@ def generated() -> str:
         f"export const UI_ROUTES = {routes} as const;\n"
         "export type UiRoute = (typeof UI_ROUTES)[number];\n"
         f"export const UI_TONES = {_list(TONES)} as const;\n"
+        "/** The fixed cards a Slot may place (mandate 10.2); the client draws them from the\n"
+        " * live record. */\n"
+        f"export const UI_SLOT_CARDS = {_list(SLOT_CARDS)} as const;\n"
+        "export type UiSlotCard = (typeof UI_SLOT_CARDS)[number];\n"
         "export type UiTone = (typeof UI_TONES)[number];\n"
         "/** Each node's props: true when required. Each renderer declares that it draws every\n"
         " * one (`UiNodeProps`), so a prop the contract gains fails `pnpm check`. */\n"

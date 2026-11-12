@@ -14,6 +14,12 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
 ``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
             message falls outside the newest history page.
+``records`` a pending Trade Approval and a resolve card for an uncertain operation in the
+            conversation, as their own paths raise them; prints their ids.
+``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
+            trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
+            to give the slot; with ``number``, also the agent's own Number field, whose Enter
+            must never reach the slot's buttons.
 """
 
 import asyncio
@@ -274,6 +280,126 @@ async def pad(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def records(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.owner_actions import create_card
+    from lonora_db.schema import RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"])
+            assert thread is not None and thread.agent_id is not None
+            # The approval's waiting Run sits in its own conversation, so the owner's next
+            # message here starts a new Run instead of answering it.
+            waiting_thread = ThreadRow(owner_id=thread.owner_id, agent_id=thread.agent_id)
+            session.add(waiting_thread)
+            await session.flush()
+            run = RunRow(
+                thread_id=waiting_thread.id, agent_id=thread.agent_id, status="waiting_input"
+            )
+            session.add(run)
+            await session.flush()
+            approval = TradeApprovalRow(
+                id=uuid4().hex,
+                owner_id=thread.owner_id,
+                run_id=run.id,
+                thread_id=thread.id,
+                agent_id=thread.agent_id,
+                call_id="call-slot",
+                timeline_seq=thread.next_seq,
+                requests=[
+                    {
+                        "account_id": data["connection"],
+                        "symbol": "XAUUSD",
+                        "action": "buy",
+                        "volume": "0.10",
+                        "stop_loss": "2350.00",
+                        "take_profit": "2420.00",
+                    }
+                ],
+                status="pending",
+                results=[],
+                broker_snapshot={},
+                created_at=utcnow(),
+                updated_at=utcnow(),
+            )
+            session.add(approval)
+            operation = uuid4().hex
+            session.add(
+                TradingJournalRow(
+                    operation_id=operation,
+                    owner_id=thread.owner_id,
+                    account_id=data["connection"],
+                    request_hash="h",
+                    request={"symbol": "XAGUSD", "action": "sell", "volume": "1"},
+                    status="ambiguous",
+                    result={},
+                )
+            )
+            await session.flush()
+            settle = await create_card(
+                session,
+                thread.owner_id,
+                card_id=uuid4().hex,
+                agent_id=thread.agent_id,
+                thread=thread,
+                run_id=None,
+                source="system",
+                kind="resolve_operation",
+                subject="operation:" + operation,
+                payload={"operation_id": operation},
+            )
+            return {"approval": approval.id, "settle": settle.id}
+    finally:
+        await fixture.close(cleanup=False)
+
+
+async def slots(data: dict[str, Any]) -> dict[str, Any]:
+    fixture = await Fixture().open()
+    try:
+        sent = await fixture.request(
+            "POST", f"/threads/{data['thread_id']}/messages", {"content": "ما الذي ينتظر قراري؟"}
+        )
+        run = sent["runs"][0]
+        context = await fixture.lease(run)
+        slot = {
+            "type": "Slot",
+            "card": data.get("card", "trade_approval"),
+            "record": data["record"],
+            # Never drawn: the server keeps only where the slot sits (mandate 10.2.1).
+            "label": "صفقة مضمونة",
+            "text": "0.50 لوت",
+            "when": "false",
+            "tone": "good",
+        }
+        number = [
+            '{"state":{"lots":0.1}}',
+            '{"type":"Number","bind":"lots","label":"الحجم المقترح"}',
+        ]
+        lines = [
+            '{"v":2,"kind":"receipt","title":"ينتظر قرارك","sub":"طلب معلّق","icon":"check"}',
+            *(number[:1] if data.get("number") else []),
+            '{"type":"Text","text":"الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."}',
+            *(number[1:] if data.get("number") else []),
+            json.dumps(slot, ensure_ascii=False),
+            '{"why":"الطلب في مكانه من الشرح.","fallback":"طلب موافقة بانتظار قرارك."}',
+        ]
+        reply = "قبل أن تقرر:\n```lonora-ui\n" + "\n".join(lines) + "\n```"
+
+        async def complete(*args: Any, **kwargs: Any):
+            on_delta = kwargs.get("on_delta")
+            if on_delta is not None:
+                for line in reply.split("\n"):
+                    await on_delta(line + "\n")
+            return ModelReply(text=reply), SELECTION
+
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, load_tools(), 120, 6)
+        return {"run": await fixture.request("GET", "/runs/" + run["id"])}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
@@ -284,5 +410,7 @@ if __name__ == "__main__":
         "parity": parity,
         "card": card,
         "pad": pad,
+        "records": records,
+        "slots": slots,
     }[command]
     print(json.dumps(asyncio.run(action(payload))))

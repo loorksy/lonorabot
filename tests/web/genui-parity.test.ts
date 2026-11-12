@@ -50,3 +50,19 @@ test("a node or action outside the catalog is refused", () => {
   const action = { ...card, blocks: [{ type: "Button", label: "x", action: { do: "eval" } }] };
   assert.equal(validateUiDocument(action), null);
 });
+
+test("a trusted slot is its card and record at the top level, nothing else", () => {
+  const [card] = documents;
+  assert.ok(card);
+  const slot = { type: "Slot", card: "trade_approval", record: "approval-1" };
+  assert.ok(validateUiDocument({ ...card, blocks: [slot] }));
+  for (const forged of [
+    { ...slot, when: "false" },
+    { ...slot, label: "Approve" },
+    { ...slot, card: "grant_authority" },
+    { ...slot, record: "../x" },
+  ])
+    assert.equal(validateUiDocument({ ...card, blocks: [forged] }), null, JSON.stringify(forged));
+  const nested = { type: "More", children: [slot] };
+  assert.equal(validateUiDocument({ ...card, blocks: [nested] }), null);
+});

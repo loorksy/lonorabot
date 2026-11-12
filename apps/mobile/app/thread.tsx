@@ -602,7 +602,41 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   );
   // A card's submission is sent at once, never through the auto-flushed outbox (docs/genui.md §7): the
   // server writes its bubble, and a retry after a failure is the owner's tap, not ours.
+  /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
+     one live record, one set of server actions. */
+  const ownerActionCard = (action: OwnerAction) => (
+    <OwnerActionCard
+      row={action}
+      onChange={(updated) => {
+        setOwnerActions((old) =>
+          old.map((row) => (row.id === updated.id ? mergeOwnerAction(row, updated) : row)),
+        );
+        // A decided card changes what the header pill says (a lifted pause,
+        // Resume, a signed grant): read it now, not at the next poll.
+        void liveState.refresh();
+      }}
+    />
+  );
+  const approvalCard = (approval: TradeApproval) => (
+    <TradeApprovalCard
+      row={approval}
+      onChange={(updated) => {
+        setApprovals((old) => old.map((row) => (row.id === updated.id ? updated : row)));
+        void liveState.refresh();
+      }}
+    />
+  );
   const cardHost: CardHostValue = {
+    slot: ({ card, record }) => {
+      if (card === "trade_approval") {
+        const approval = approvals.find((row) => row.id === record && row.thread_id === id);
+        return approval ? approvalCard(approval) : null;
+      }
+      const action = ownerActions.find(
+        (row) => row.id === record && row.thread_id === id && row.kind === "resolve_operation",
+      );
+      return action ? ownerActionCard(action) : null;
+    },
     threadId: id,
     messages,
     runs,
@@ -779,12 +813,25 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       live = false;
     };
   }, [around, id, dropReactionOverrides]);
+  // Messages drawn as a question's card instead of their rich content (MessageBubble
+  // `body`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set(
+        runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ),
+    [runs],
+  );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
       visibleMessages,
       approvals.filter((row) => row.thread_id === id),
       ownerActions.filter((row) => row.thread_id === id),
+      undrawn,
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -794,7 +841,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -1261,6 +1308,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   visibleMessages,
                   approvals.filter((row) => row.thread_id === id),
                   ownerActions.filter((row) => row.thread_id === id),
+                  undrawn,
                 ).reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -1304,34 +1352,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   </Text>
                 }
                 renderItem={({ item }) => {
-                  if (item.kind === "owner_action")
-                    return (
-                      <OwnerActionCard
-                        row={item.action}
-                        onChange={(updated) => {
-                          setOwnerActions((old) =>
-                            old.map((row) =>
-                              row.id === updated.id ? mergeOwnerAction(row, updated) : row,
-                            ),
-                          );
-                          // A decided card changes what the header pill says (a lifted pause,
-                          // Resume, a signed grant): read it now, not at the next poll.
-                          void liveState.refresh();
-                        }}
-                      />
-                    );
-                  if (item.kind === "approval")
-                    return (
-                      <TradeApprovalCard
-                        row={item.approval}
-                        onChange={(updated) => {
-                          setApprovals((old) =>
-                            old.map((row) => (row.id === updated.id ? updated : row)),
-                          );
-                          void liveState.refresh();
-                        }}
-                      />
-                    );
+                  if (item.kind === "owner_action") return ownerActionCard(item.action);
+                  if (item.kind === "approval") return approvalCard(item.approval);
                   const message = item.message;
                   const question = questions.get(message.id);
                   const previous =
