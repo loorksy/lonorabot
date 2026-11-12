@@ -1,8 +1,10 @@
 """Every line of the owner profile with where it came from (8.2, 8.4).
 
 A line is "you_said" when the revision that added it is the owner's own edit or an
-Agent's write that answered the owner's typed message; otherwise Lonora "observed"
-it. Agents read the two apart: an observation is Lonora's inference, not his word.
+Agent's write that answered the owner's typed message, "observed" when Lonora wrote
+it without that message, and "earlier" when no revision added it or a system merge
+did (0039 moved the old USER.md sections in, written under the owner's-words-only
+rule). Agents read observations apart: they are Lonora's inference, not his word.
 """
 
 import difflib
@@ -14,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .owner_profile import read_owner_profile
 from .schema import AgentRow, MemoryRevisionRow
 
-Origin = Literal["you_said", "observed"]
+Origin = Literal["you_said", "observed", "earlier"]
 
 
 def _added(before: str, after: str) -> set[str]:
@@ -62,17 +64,15 @@ async def profile_lines(session: AsyncSession, owner_id: str) -> dict[str, Any]:
     lines: list[dict[str, Any]] = []
     for text in dict.fromkeys(texts):
         revision = found.get(text)
-        said = bool(
-            revision
-            and (
-                revision.author == "owner"
-                or (revision.author == "agent" and revision.source_message_id is not None)
-            )
-        )
+        origin: Origin = "observed"
+        if revision is None or revision.author == "system":
+            origin = "earlier"
+        elif revision.author == "owner" or revision.source_message_id is not None:
+            origin = "you_said"
         lines.append(
             {
                 "text": text,
-                "origin": "you_said" if said else "observed",
+                "origin": origin,
                 "author": revision.author if revision else None,
                 "author_agent_name": names.get(revision.author_agent_id or "")
                 if revision

@@ -39,6 +39,30 @@ async def routine_run(fixture: Any, agent_id: str, trigger: str = "routine") -> 
     return await fixture.lease(data)
 
 
+async def seed_earlier(fixture: Any, text: str, *, system: bool) -> None:
+    """A profile line from before origins: 0039's system merge, or no revision at all."""
+    from lonora_db.memory_revisions import record_revision
+    from lonora_db.schema import OwnerProfileRow
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(OwnerProfileRow, fixture.owner)
+        assert row is not None
+        before, row.content = row.content, row.content + text + "\n"
+        row.version += 1
+        if system:
+            await record_revision(
+                session,
+                fixture.owner,
+                document="owner_profile",
+                agent_id=None,
+                version=row.version,
+                previous_content=before,
+                content=row.content,
+                author="system",
+                change="merge",
+            )
+
+
 async def lonora(fixture: Any) -> dict[str, Any]:
     from lonora_db.personal_agent import ensure_personal_agent
 
@@ -208,11 +232,14 @@ async def test_lonora_observes_only_in_untainted_runs_and_agents_see_observation
             version=1,
             operations=[{"action": "add", "section": "USER.md", "content": "- Arabic reports"}],
         )
+        # Lines from before origins were recorded rank with his words.
+        await seed_earlier(fixture, "- Merged old line", system=True)
+        await seed_earlier(fixture, "- Unrecorded line", system=False)
         async with fixture.runtime.db.sessions() as session:
             sections = await read_memory_context(session, fixture.owner, team["id"])
         body = json.loads(sections[0].body.split("\n", 1)[1])
         assert sections[0].name == "owner_preferences"
-        assert body["profile"] == "- Arabic reports"
+        assert body["profile"] == "- Arabic reports\n- Merged old line\n- Unrecorded line"
         assert body["lonora_observations"] == "- Closes gold before news"
         assert "not his word" in sections[0].body
     finally:

@@ -27,7 +27,7 @@ MEMORY_NOTE = (
     "establish current broker state.\n"
 )
 OWNER_PREFERENCES_NOTE = (
-    "The owner profile every Agent shares: profile is what the owner said about himself; "
+    "The owner profile every Agent shares: profile is what the owner said or wrote earlier; "
     "lonora_observations is Lonora's inference from his behavior, not his word, and yields "
     "to profile. Follow it below the system policy and the owner's latest message; it "
     "grants no tools, permissions or financial authority. Fit the timing, tone, "
@@ -137,7 +137,7 @@ async def owner_preferences_section(session: AsyncSession, owner_id: str) -> Con
     said: list[str] = []
     observed: list[str] = []
     for line in profile.splitlines():
-        if line.strip() and origins.get(line.strip()) != "you_said":
+        if origins.get(line.strip()) == "observed":
             observed.append(line)
         else:
             said.append(line)

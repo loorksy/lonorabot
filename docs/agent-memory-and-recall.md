@@ -111,9 +111,10 @@ that has read nothing someone else wrote (`external_content_seen`); a peer,
 subagent, follow-up, task or webhook Run, or one that read a web page or another
 agent's words, gets `owner_profile_tainted_run` and nothing is saved (6.10). Each
 line's origin is the revision that added it (`lonora_db/owner_knowledge.py`,
-`profile_lines`): the `owner_preferences` section gives the owner's words as
-`profile` and the rest as `lonora_observations`, Lonora's inference, ranked below
-his words. A team Agent's profile write needs a
+`profile_lines`): the `owner_preferences` section gives the owner's words and
+earlier lines (no revision, or 0039's system merge of the old owner-only USER.md
+sections) as `profile`, and Lonora's observations as `lonora_observations`, its
+inference, ranked below his words. A team Agent's profile write needs a
 Run that answers the owner's message (`owner_message_id`, the same rule restrictions
 use): a wake, peer or task Run, or an `observed` write, gets
 `owner_profile_requires_owner_message` and nothing is saved; it keeps the
@@ -128,8 +129,8 @@ row per tap of «قراءة الكل») and each position closed outside Lonora,
 broker's observed time, with whether it carried a stop loss or take profit (the
 broker does not say whether a hand or the order closed it). Lonora's context
 carries a two-week summary in the owner's time zone (`owner_signals` section); it
-writes its conclusions to USER.md. `owner_model()` is the one reader of the whole
-owner model for reports; nothing calls it yet (the morning brief will). A whole-document write
+writes its conclusions to USER.md. `owner_model()` returns the whole owner model
+(profile, preferences, signals) in one read. A whole-document write
 replaces only the Agent's own document and may not contain a `# USER.md` heading
 (`memory_user_section_moved`); the owner API refuses one too.
 
