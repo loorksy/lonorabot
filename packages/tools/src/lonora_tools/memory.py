@@ -271,7 +271,7 @@ async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str
         params.memory_version,
         lease=context.lease,
         effect_key=context.effect_key,
-        source_message_id=await _owner_message(context),
+        source_message_id=(await _owner_message(context))[0],
     )
 
 
