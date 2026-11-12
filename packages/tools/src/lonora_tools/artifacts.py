@@ -14,12 +14,12 @@ from lonora_db.artifacts import ArtifactRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
-from lonora_security.secrets import SecretScan
 from PIL import Image, UnidentifiedImageError
 from pydantic import Field
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .terminal import owner_scan
 
 
 class ArtifactRead(Contract):
@@ -245,8 +245,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         ):
             raise LonoraError("artifact_integrity_failed", 409)
         # A text file may hold workspace bytes saved before a secret existed: the whole
-        # text is scanned like workspace output before a page is cut (VISION.md 7.2.6).
-        scan = SecretScan(await context.secrets.scanned_values())
+        # text passes the one scan of workspace output before a page is cut (VISION.md
+        # 7.2.6), given values and agents' CLI tokens included.
+        scan = await owner_scan(context.secrets, context.workspace_given, context.cli_tokens)
         text = await asyncio.to_thread(scan.text, content.decode("utf-8", errors="replace"))
         offset, limit = args.get("offset", 0), args.get("limit", 24000)
         result["content"] = text[offset : offset + limit]
