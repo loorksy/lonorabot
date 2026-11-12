@@ -7,7 +7,9 @@ from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
 
 from .context.attachments import attachment_context
+from .context.command import command_block
 from .offers import merge_answer
+from .runtime_notices import notice_message
 from .stop_gates import reset_stop_gate
 from .tool_guardrails import reset_guardrails
 
@@ -39,6 +41,11 @@ async def merge_steering(
                     images=images,
                 )
             )
+            block = command_block(row.rich_content) if row.role == "user" else ""
+            if block:
+                # A / command sent while the reply was running: the turn is told what was
+                # asked, as the turn that starts on such a message is.
+                messages.append(notice_message("owner_command", block))
             merge_answer(state, messages, str(row.id), owner=row.role == "user")
         if fresh:
             if any(

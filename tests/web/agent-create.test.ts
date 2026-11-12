@@ -245,7 +245,7 @@ test("the status line says what it monitors and until when, in both languages", 
   assert.equal(agentStatusLine(one, "en", now), "Monitoring ⁨XAUUSD⁩");
   assert.equal(
     agentStatusLine({ ...monitoring, phase: "thinking", state: "working" }, "en"),
-    "Working",
+    "Analysing",
   );
   assert.equal(
     agentStatusLine({ ...monitoring, phase: "paused", state: "paused" }, "ar"),

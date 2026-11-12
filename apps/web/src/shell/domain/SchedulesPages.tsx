@@ -8,7 +8,7 @@ import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
-import { SkRows } from "../Skeleton";
+import { SkPage, SkRows } from "../Skeleton";
 import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
@@ -279,7 +279,12 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
   );
   const details = useScheduleDetails(routines.reload);
   const watchDetails = useWatchDetails(() => watches.reload());
-  if (routines.loading && !routines.data) return <SkRows count={3} />;
+  if (routines.loading && !routines.data)
+    return (
+      <SkPage>
+        <SkRows count={4} icon group />
+      </SkPage>
+    );
   if (routines.error != null && !routines.data)
     return <p role="alert">{userError(routines.error)}</p>;
   const rows = routines.data ?? [];

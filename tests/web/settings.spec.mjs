@@ -54,6 +54,21 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
         .first()
         .evaluate((node) => getComputedStyle(node).paddingInlineStart),
     ).toBe("14px");
+    // The language menu opens at its pill's width, aligned with it (the reference's openPop match).
+    const pill = page.locator(".lang-select");
+    await pill.click();
+    const langMenu = page.locator(".pop.lang-pop");
+    await expect(langMenu).toBeVisible();
+    const pillBox = await pill.boundingBox();
+    // Polled: the menu's pop-in scales it for a moment.
+    await expect
+      .poll(async () => {
+        const box = await langMenu.boundingBox();
+        return Math.abs(box.width - pillBox.width) < 1 && Math.abs(box.x - pillBox.x) < 1;
+      })
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(langMenu).toHaveCount(0);
     await page.getByRole("button", { name: /^Notifications and contact/ }).click();
     await expect(page.getByRole("radio", { name: /Activity log only/ })).toBeVisible();
     // No browser notification permission until a push channel exists (Q10).
@@ -108,6 +123,83 @@ test("settings root, quiet hours to the minute and one agent's delivery rules", 
   } finally {
     const { enabled: _enabled, ...policy } = before;
     await context.request.put("/api/owner/preferences", { headers, data: { reach_me: policy } });
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("the new theme grows from its switch; without view transitions the thumb leads it", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/settings");
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    const html = page.locator("html");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // The new theme is on the page when the circle starts, and the circle takes 720 ms.
+    const reveal = await page.evaluate(async () => {
+      document.querySelector(".theme-switch").click();
+      const started = performance.now();
+      let circle;
+      while (!circle && performance.now() - started < 2000) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        circle = document
+          .getAnimations()
+          .find(
+            (animation) =>
+              animation.effect?.pseudoElement === "::view-transition-new(root)" &&
+              animation.effect.getKeyframes().some((frame) => "clipPath" in frame),
+          );
+      }
+      const timing = circle?.effect.getTiming();
+      return {
+        theme: document.documentElement.dataset.theme,
+        marked: document.documentElement.classList.contains("theme-vt"),
+        duration: timing?.duration,
+        easing: timing?.easing,
+      };
+    });
+    expect(reveal).toEqual({
+      theme: "light",
+      marked: true,
+      duration: 720,
+      easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+    });
+    await expect(html).not.toHaveClass(/theme-vt/);
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    // A browser without view transitions: the thumb slides first, the theme follows after
+    // 280 ms, and a second tap meanwhile is ignored.
+    await page.addInitScript(() => {
+      Document.prototype.startViewTransition = undefined;
+    });
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    const lead = await page.evaluate(async () => {
+      const button = document.querySelector(".theme-switch");
+      button.click();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const seen = {
+        thumb: button.classList.contains("is-dark"),
+        theme: document.documentElement.dataset.theme,
+        stored: localStorage.getItem("lonora.theme"),
+      };
+      button.click();
+      return seen;
+    });
+    expect(lead).toEqual({ thumb: true, theme: "light", stored: '"light"' });
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.waitForTimeout(400);
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    // Reduced motion: the theme changes at once, with no reveal.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await toggle.click();
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).not.toHaveClass(/theme-vt/);
+  } finally {
     fixture({ ...data, action: "cleanup" });
   }
 });
@@ -253,6 +345,8 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await expect(page.getByText(/allowed agents/i)).toHaveCount(0);
     await page.goto("/app/usage");
     await expect(page.getByText("No spending cap: usage never stops a request.")).toBeVisible();
+    // Nothing used yet: each ranking says so, not an empty box.
+    await expect(page.getByText("No usage in this period.").first()).toBeVisible();
     await expect(page.getByText(/Edit (the )?limit/)).toHaveCount(0);
     const csv = page.getByRole("link", { name: "Export CSV" });
     await expect(csv).toHaveAttribute("href", /period=month/);
@@ -262,7 +356,157 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     expect((await exported.text()).replace(/^﻿/, "").split(/\r?\n/)[0]).toBe(
       "date,cost_usd,tokens,requests",
     );
+    // A browser quota in gigabytes reads in gigabytes.
+    await page.addInitScript(() => {
+      navigator.storage.estimate = async () => ({ usage: 2048, quota: 3 * 1024 ** 3 });
+    });
+    await page.goto("/app/storage");
+    await expect(page.getByText("3.00 GB")).toBeVisible();
   } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("a trading account page shows the broker's own balance, name, server and pair icons", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const row = {
+      id,
+      agent_id: null,
+      thread_id: null,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+      state: {},
+      payload: { provider: "metaapi", account_id: "meta-1", region: "london", enabled: true },
+    };
+    await page.route("**/api/trading/connections", (route) => route.fulfill({ json: [row] }));
+    // The server's own shape: the account under `account`, beside its positions and orders.
+    await page.route(`**/api/trading/accounts/${id}`, (route) =>
+      route.fulfill({
+        json: {
+          account: {
+            id,
+            broker: "Northwind Markets",
+            login: "50012345",
+            server: "Northwind-Demo4",
+            currency: "USD",
+            balance: "10000.00",
+            equity: "10000.00",
+            margin: "0",
+            free_margin: "10000.00",
+            observed_at: now,
+          },
+          positions: [],
+          orders: [],
+        },
+      }),
+    );
+    await page.route("**/api/market/symbols?*", (route) =>
+      route.fulfill({ json: ["XAUUSDm", "EURUSDm"] }),
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/app/broker-account/${id}`);
+    await expect(page.getByText("10000.00 USD")).toBeVisible();
+    await expect(page.getByText("Northwind Markets")).toBeVisible();
+    await expect(page.getByText("50012345")).toBeVisible();
+    await expect(page.getByText("Northwind-Demo4")).toBeVisible();
+    await expect(page.locator(".sym-cell")).toHaveCount(2);
+    await expect(page.locator(".sym-cell .pair-ic img").first()).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("models, voice calls and the Stop control live under integrations; old tabs redirect", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  const headers = csrf(data);
+  await signIn(context, data);
+  const before = await (await context.request.get("/api/trading/controls")).json();
+  try {
+    await context.request.put("/api/trading/controls", {
+      headers,
+      data: { enabled: true, emergency_stop: false },
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/settings");
+    await expect(page.getByRole("button", { name: /^Integrations/ })).toBeVisible();
+    for (const name of ["Global models", "Voice", "Trading"])
+      await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+    // The old tabs land on the pages that now hold them.
+    await page.goto("/app/settings?tab=voice");
+    await expect(page).toHaveURL(/\/app\/provider\/openai$/);
+    await page.goto("/app/settings?tab=models");
+    await expect(page).toHaveURL(/\/app\/models$/);
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+    // No provider yet: the page says where models come from and offers no empty form.
+    await expect(
+      page.getByText("Models appear here after you add a model provider."),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
+    await page.getByRole("button", { name: /^Model providers/ }).click();
+    await expect(page).toHaveURL(/\/app\/providers$/);
+    await page.route("**/api/providers/openai/models", (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: "gpt-test",
+            provider: "openai",
+            name: "GPT Test",
+            capabilities: ["conversation"],
+            verified: true,
+            source: "discovered",
+            context_window: null,
+          },
+        ],
+      }),
+    );
+    await page.goto("/app/models");
+    await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
+    await expect(page.locator("[data-allowed-models]")).toBeVisible();
+    // One key form: the provider page. This page has none.
+    await expect(page.getByText("API key")).toHaveCount(0);
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/settings/models") && response.request().method() === "PUT",
+    );
+    await page.getByRole("button", { name: "Save global routing" }).click();
+    expect((await saved).ok()).toBe(true);
+
+    await page.goto("/app/settings?tab=trading");
+    await expect(page).toHaveURL(/\/app\/integrations$/);
+    await page.getByRole("button", { name: /^Models/ }).click();
+    await expect(page).toHaveURL(/\/app\/models$/);
+    await page.goBack();
+    await expect(page.getByRole("button", { name: /^Voice calls/ })).toContainText(
+      "Needs an OpenAI key",
+    );
+    // The Stop control: one tap stops new trading, one tap on the same control resumes it.
+    const control = page.getByTestId("trading-control");
+    await expect(control.getByRole("status")).toHaveText("New trading is running");
+    await expect(control).toContainText("Exits stay allowed");
+    await control.getByRole("button", { name: "Stop new trading" }).click();
+    await expect(control.getByRole("status")).toHaveText("New trading is stopped");
+    await expect(page.locator("#dialog[open]")).toHaveCount(0);
+    expect(await (await context.request.get("/api/trading/controls")).json()).toMatchObject({
+      enabled: false,
+      emergency_stop: true,
+    });
+    await control.getByRole("button", { name: "Resume trading" }).click();
+    await expect(control.getByRole("status")).toHaveText("New trading is running");
+    await page.getByRole("button", { name: /^Voice calls/ }).click();
+    await expect(page).toHaveURL(/\/app\/provider\/openai$/);
+  } finally {
+    await context.request.put("/api/trading/controls", { headers, data: before });
     fixture({ ...data, action: "cleanup" });
   }
 });

@@ -10,7 +10,7 @@ import {
   stopTargets,
   turnActivity,
 } from "@lonora/core";
-import { Icon } from "@lonora/ui-web";
+import { GroupAvatar, Icon } from "@lonora/ui-web";
 import {
   Fragment,
   type ReactNode,
@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AgentAvatar } from "../components/ai/AgentAvatar";
 import { FilePreviewPanel } from "../components/common/FilePreviewPanel";
 import { GenuiHost } from "../components/genui";
 import { OwnerActionCard, useOwnerActions } from "../components/owner-actions/OwnerActionCard";
@@ -34,11 +35,12 @@ import { draftKey, readComposerDraft } from "../lib/composer-drafts";
 import { failedReplies } from "../lib/failed-replies";
 import { isOutgoingMessage } from "../lib/outgoing-messages";
 import { streamForRun } from "../lib/response_streaming";
-import { activityTimeline, streamVisible } from "../lib/stream-timeline";
+import { activityTimeline, stepsSeconds, streamVisible } from "../lib/stream-timeline";
 import { userError } from "../lib/user_error";
 import { useClient } from "../providers/ClientProvider";
-import { useShellData } from "../shell/data";
+import { ownerDisplayName, useShellData } from "../shell/data";
 import { usePopover } from "../shell/lists/Popover";
+import { useNetworkPhase } from "../shell/NetworkStrip";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
@@ -57,6 +59,7 @@ import {
   type ConversationApi,
   ConversationContext,
   type ConversationMessage,
+  commandPart,
   type MessageReaction,
   REACTIONS,
   voicePart,
@@ -153,6 +156,14 @@ export function Conversation({
   const [stopped, setStopped] = useState<Set<string>>(new Set());
   const [jump, setJump] = useState<string | null>(jumpTo ? `${jumpTo}#arrival` : null);
   const [actionError, setActionError] = useState<unknown>();
+  // Offline, the header's network strip explains failed background reads; the owner's own
+  // action failing still shows.
+  const net = useNetworkPhase(connected);
+  const error =
+    actionError ??
+    (net === "off" || net === "connecting"
+      ? undefined
+      : (thread.error ?? approvals.error ?? ownerActions.error));
 
   useLayoutEffect(() => wallDefs(), []);
   // «عرض الطلب» / «حسم» in the AgentSheet: bring that card into view. A card that names
@@ -330,8 +341,8 @@ export function Conversation({
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
-    (text, attachments, replyTo, address, extra) => {
-      thread.queue(text, attachments, replyTo, address, undefined, extra);
+    (text, attachments, replyTo, address, extra, uploads) => {
+      thread.queue(text, attachments, replyTo, address, undefined, extra, uploads);
     },
     [thread],
   );
@@ -471,6 +482,10 @@ export function Conversation({
     onReact: (message, emoji) => void react(message, emoji),
     onRetry: (nonce) => void thread.retry(nonce).catch(() => undefined),
     onDrop: (nonce) => thread.drop(nonce),
+    onCancelUpload: (nonce) => {
+      thread.cancelUploads(nonce);
+      toast(t`Upload cancelled`);
+    },
     onJump: (id) => {
       if (byId.has(id)) setJump(`${id}#${Date.now()}`);
       else toast(t`The original message is no longer available.`);
@@ -505,11 +520,13 @@ export function Conversation({
             <div className="pop-title">
               <Trans>The message was not sent</Trans>
             </div>
-            {item(
-              "refresh",
-              t`Retry`,
-              () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
-            )}
+            {/* Files that never arrived cannot be sent again: only «حذف» is left. */}
+            {!outgoing.uploading?.length &&
+              item(
+                "refresh",
+                t`Retry`,
+                () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
+              )}
             {item("trash", t`Delete`, () => thread.drop(outgoing.retry_nonce), true)}
           </>,
           t`Message options`,
@@ -521,6 +538,8 @@ export function Conversation({
         message.role === "user" &&
         !message.attachment_ids.length &&
         !voicePart(message) &&
+        // An edit is sent as plain text: a command is resent from the composer instead.
+        !commandPart(message) &&
         !message.superseded_by &&
         message.origin !== "ui_submit";
       popover.open(
@@ -533,6 +552,7 @@ export function Conversation({
           {ownText && item("edit", t`Edit and resend`, () => api_.onEdit(message))}
           {!hasGenUi(message) &&
             !voicePart(message) &&
+            !message.attachment_ids.length &&
             item("task", t`Turn into a task`, () => void toTask(message))}
         </>,
         t`Message options`,
@@ -608,8 +628,7 @@ export function Conversation({
     [refresh],
   );
   const fixFailure = useCallback(
-    (family: FailureFamily) =>
-      nav.go(family === "quota" ? "/app/settings?tab=usage" : "/app/settings?tab=models"),
+    (family: FailureFamily) => nav.go(family === "quota" ? "/app/usage" : "/app/providers"),
     [nav],
   );
 
@@ -941,7 +960,7 @@ export function Conversation({
               <Steps
                 calls={calls}
                 running={!stream.text}
-                seconds={0}
+                seconds={stream.text ? stepsSeconds(run, calls) : 0}
                 defaultOpen={prefs.stepsOpen}
               />
             ) : undefined
@@ -981,7 +1000,7 @@ export function Conversation({
             <Steps
               calls={doneCalls}
               running={false}
-              seconds={done?.seconds ?? 0}
+              seconds={done ? stepsSeconds(done.run, doneCalls) || done.seconds : 0}
               defaultOpen={prefs.stepsOpen}
             />
           ) : undefined
@@ -1047,12 +1066,7 @@ export function Conversation({
       >
         <GenuiHost value={{ threadId, messages: thread.messages, runs, agents }}>
           {empty ? (
-            <ChatEmpty
-              agent={agent}
-              name={name}
-              ownerName={owner.email.split("@")[0]}
-              group={isGroup}
-            />
+            <ChatEmpty agent={agent} members={agents} name={name} group={isGroup} />
           ) : (
             <div ref={content} className="messages" id="messages">
               {canPage && (
@@ -1082,10 +1096,17 @@ export function Conversation({
             </div>
           )}
         </GenuiHost>
-        {(thread.error ?? actionError ?? approvals.error ?? ownerActions.error) != null && (
-          <p className="fail-inline" role="alert">
-            {userError(thread.error ?? actionError ?? approvals.error ?? ownerActions.error)}
-          </p>
+        {error != null && (
+          <div className="msg theirs first k-error" data-chat-error="">
+            <div className="err-card" role="alert">
+              <div className="err-top">
+                <span className="err-ic">
+                  <Icon name="alert" />
+                </span>
+                <strong>{userError(error)}</strong>
+              </div>
+            </div>
+          </div>
         )}
       </div>
       <div className={`float-date${floatDay ? " on" : ""}`} aria-hidden="true">
@@ -1160,18 +1181,28 @@ function cardMessage(
 
 function ChatEmpty({
   agent,
+  members,
   name,
-  ownerName,
   group,
 }: {
   agent?: Agent;
+  /** In a group, its members. */
+  members: Agent[];
   name: string;
-  ownerName: string;
   group: boolean;
 }) {
+  const { owner, ownerProfile } = useShellData();
+  const ownerName = ownerDisplayName(ownerProfile, owner);
   return (
     <div className="chat-empty">
       <div className="arcs" aria-hidden="true" />
+      {group
+        ? members.length > 0 && (
+            <span className="group-av">
+              <GroupAvatar members={members} />
+            </span>
+          )
+        : agent && <AgentAvatar agent={agent} />}
       <h2>
         <Trans>Hello {ownerName}</Trans>
       </h2>

@@ -146,6 +146,46 @@ test("supervision: add from the picker, remove from the row; never money authori
   await expect(main).toContainText("It does not supervise any agent now.");
 });
 
+test("the trading and safety row opens the sheet over the agent page; closing stays there", async ({
+  page,
+}) => {
+  await page.goto(`/app/agent/${data.trader.id}`);
+  const main = page.locator("main");
+  const url = page.url();
+  await main.getByRole("button", { name: /Trading · New trades · Restrictions/ }).click();
+  const sheet = page.locator("#dialog");
+  await expect(sheet.getByTestId("agent-live-state")).toBeVisible();
+  expect(page.url()).toBe(url);
+  await page.keyboard.press("Escape");
+  await expect(sheet).not.toBeVisible();
+  await expect(page).toHaveURL(url);
+  await expect(main.locator(".hero h2")).toHaveText(data.trader.name);
+});
+
+test("a trading agent with no linked account links one through the broker form", async ({
+  page,
+}) => {
+  await page.route("**/api/trading/connections", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.route("**/api/agents", async (route) => {
+    const response = await route.fetch();
+    const agents = await response.json();
+    await route.fulfill({
+      response,
+      json: agents.map((agent) =>
+        agent.id === data.trader.id ? { ...agent, trading_account_id: null } : agent,
+      ),
+    });
+  });
+  await page.goto(`/app/agent/${data.trader.id}`);
+  await page
+    .locator("main")
+    .getByRole("button", { name: /No trading account linked/ })
+    .click();
+  await expect(page).toHaveURL(/\/app\/broker$/);
+});
+
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {
   const status = await (await page.request.get("/api/voice/status")).json();
   test.skip(status.transport_configured, "a voice provider is configured in this environment");
@@ -157,7 +197,7 @@ test("the call button follows Q58 when no voice provider is configured", async (
   const sheet = page.locator("#dialog");
   await expect(sheet).toContainText("Calls are not set up");
   await sheet.getByRole("button", { name: "Open voice settings", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/settings\?tab=voice$/);
+  await expect(page).toHaveURL(/\/app\/provider\/openai$/);
 });
 
 test("trades: the owner's own close goes through the executor; the order log shows states", async ({
@@ -206,7 +246,7 @@ test("trades: the owner's own close goes through the executor; the order log sho
 test("the chart sheet draws the broker's candles for the agent's pair (Q37)", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const sheet = page.locator("#dialog");
   await expect(sheet).toHaveClass(/expandable/);
   await sheet.getByRole("tab", { name: "15m" }).click();
@@ -558,7 +598,7 @@ test("the card shows the last action: a refused close, then a modify that went t
 test("the chart sheet follows a new chart on its pair without reopening", async ({ page }) => {
   await page.goto(`/app/${data.trader.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect(body).not.toHaveAttribute("data-chart-id", /.+/);
@@ -609,7 +649,7 @@ test("a streamed scene update re-reads only that scene; a chart moved off the pa
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toHaveAttribute("data-chart-id", chart.id);
   await body.getByRole("tab", { name: "15m" }).click();
@@ -688,7 +728,7 @@ test("after a failed chart list, the agent's next scene update lists again", asy
     page.getByRole("region", { name: "Workspace" }).getByRole("button", { name: data.trader.name }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Chart", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Chart" }).click();
   const body = page.locator("#dialog .chart-body");
   await expect(body).toBeVisible();
   await expect.poll(() => failed).toBe(true);
@@ -752,4 +792,47 @@ test("the agent page's rows open T7's pages filtered to that agent", async ({ pa
     await expect(main).not.toContainText("Page not found");
     if (text) await expect(main).toContainText(text);
   }
+});
+
+test("identity: the agent's instructions are edited on its identity form", async ({ page }) => {
+  await page.goto(`/app/identity/${data.research.id}`);
+  const main = page.locator("main");
+  const save = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" && request.url().endsWith(`/api/agents/${data.research.id}`),
+  );
+  await main.getByLabel("Instructions", { exact: true }).fill("Cite every source.");
+  await main.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await save).postDataJSON()).toEqual({
+    name: data.research.name,
+    description: "Reads",
+    instructions: "Cite every source.",
+  });
+});
+
+test("the group page renames the group and removes a member; a removed coordinator is cleared", async ({
+  page,
+}) => {
+  await page.goto(`/app/group/${data.group.id}`);
+  const main = page.locator("main");
+  await main.getByRole("button", { name: "Edit the group", exact: true }).click();
+  const sheet = page.locator("#dialog");
+  await sheet.getByLabel("Group name", { exact: true }).fill("Gold desk");
+  await sheet.getByRole("checkbox", { name: new RegExp(data.research.name) }).click();
+  const put = page.waitForRequest(
+    (request) =>
+      request.method() === "PUT" &&
+      new URL(request.url()).pathname === `/api/groups/${data.group.id}`,
+  );
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  const body = (await put).postDataJSON();
+  expect(body.version).toBe(data.group.version);
+  expect(body.payload).toMatchObject({
+    name: "Gold desk",
+    member_ids: [data.trader.id],
+    lead_agent_id: null,
+    purpose: "Gold research",
+  });
+  await expect(main.locator(".hero h2")).toHaveText("Gold desk");
+  await expect(main.locator(".hero p")).toHaveText("one agent");
 });

@@ -15,9 +15,9 @@ import {
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
+import { useNavigation } from "../../shell/navigation";
 import "./genui.css";
 import { type UiPartHost, useGenuiHost } from "./index";
 
@@ -397,7 +397,7 @@ export default function UiCard({
   host: UiPartHost;
 }) {
   const { i18n } = useLingui();
-  const navigate = useNavigate();
+  const nav = useNavigation();
   const genui = useGenuiHost();
   const doc = part.document;
   const message = genui?.messages.find((item) => item.id === host.messageId);
@@ -521,7 +521,7 @@ export default function UiCard({
         void send(block, path);
       } else if (action.do === "go") {
         const route = ROUTES[String(action.route)];
-        if (route) navigate(route);
+        if (route) nav.go(route);
       } else if (action.do === "set") {
         setValues((old) => ({ ...old, [String(action.key)]: evaluate(action.value, env) }));
       } else if (action.do === "toggle") {

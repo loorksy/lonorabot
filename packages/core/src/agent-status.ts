@@ -194,7 +194,11 @@ export function agentStatusLine(
   if (work?.kind === "searching") return text.searching;
   if (state.state === "action_required") return text.action_required;
   const watches = state.watches ?? [];
-  if (state.phase !== "monitoring" || !watches.length) return text[state.state];
+  if (state.phase !== "monitoring" || !watches.length) {
+    // The owner's words for an agent busy on its own: «يحلّل». Every other state keeps its
+    // own sentence: a waiting, recovering or unwell agent is not «نشط».
+    return state.state === "working" ? text.analysing : text[state.state];
+  }
   const first = watches[0];
   if (!first) return text.monitoring;
   const subject = first.symbol ? isolate(first.symbol) : watchCondition(first, locale);

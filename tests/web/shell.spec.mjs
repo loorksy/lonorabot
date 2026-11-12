@@ -259,8 +259,10 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(page).toHaveURL(new RegExp(`/app/${agent.id}`));
       await expect(page.locator(".chat-head .chat-name")).toContainText(agent.name);
       await page.getByRole("button", { name: "قائمة المحادثة", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "قائمة المحادثة");
-      await dialog.getByRole("button", { name: "الشارت", exact: true }).click();
+      await page
+        .getByRole("menu", { name: "قائمة المحادثة" })
+        .getByRole("menuitem", { name: "الشارت" })
+        .click();
       await expect(dialog).toHaveClass(/expandable/);
       // The chart sheet names the pair when the agent has one (chart.sheet, Q37).
       await expect(dialog).toHaveAttribute("aria-label", `الشارت ${agent.trading_symbol}`);
@@ -276,16 +278,12 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(dialog).not.toHaveClass(/expanded/);
       await page.keyboard.press("Escape");
       await expect(dialog).not.toHaveAttribute("open", "");
-      // The in-sheet pages: a menu row slides a page in with ← back to the menu.
+      // «معلومات الوكيل» opens the agent page; Back returns to the chat.
       await page.getByRole("button", { name: "قائمة المحادثة", exact: true }).click();
-      await dialog.getByRole("button", { name: "معلومات الوكيل", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "معلومات الوكيل");
-      await expect(dialog.locator(".sheet-page")).toHaveClass(/go-fwd/);
-      await dialog.getByRole("button", { name: "رجوع", exact: true }).click();
-      await expect(dialog).toHaveAttribute("aria-label", "قائمة المحادثة");
-      await expect(dialog.locator(".sheet-page")).toHaveClass(/go-back/);
-      await page.keyboard.press("Escape");
-      await expect(dialog).not.toHaveAttribute("open", "");
+      await page.getByRole("menuitem", { name: "معلومات الوكيل" }).click();
+      await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+      await page.getByRole("button", { name: "رجوع", exact: true }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
       // Back from the chat returns to the list.
       await page.getByRole("button", { name: "رجوع", exact: true }).click();
       await expect(page).toHaveURL(/\/app$/);
@@ -298,9 +296,458 @@ test.describe("phone shell (390×844, Arabic)", () => {
       fixture({ ...data, action: "cleanup" });
     }
   });
+
+  test("every page keeps its scroll: back, a tab round trip, a chat and back", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await settingsScrollRoundTrip(page);
+      const main = page.locator("#view-scroll");
+      const nav = page.locator("nav.tabbar");
+      await main.evaluate((element) => {
+        element.scrollTop = 120;
+      });
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(120);
+      await nav.locator('button[data-root="tasks"]').click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await expect.poll(() => page.locator(".pager-ghost").count()).toBe(0);
+      await nav.locator('button[data-root="settings"]').click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(120);
+      // The chat list rests past its filters, and stays so after a round trip or a chat.
+      // While the list loads it is a skeleton without filters: the poll waits for them.
+      const filters = () =>
+        main.evaluate((element) => ({
+          top: element.scrollTop,
+          rest: element.querySelector(".list-filters")?.offsetHeight,
+          opacity: element.querySelector(".list-filters")?.style.opacity,
+          // The room to rest that way is the same on every visit.
+          room: element.querySelector("#chat-rows")?.style.minHeight,
+        }));
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(async () => (await filters()).opacity).toBe("0");
+      const { rest, room } = await filters();
+      await nav.locator('button[data-root="updates"]').click();
+      await expect(page).toHaveURL(/\/app\/updates$/);
+      await nav.locator('button[data-root="chats"]').click();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
+      await page.locator("#chat-rows .row.thread").first().click();
+      await expect(page.locator(".composer")).toBeVisible();
+      await page.goBack();
+      await expect(page).toHaveURL(/\/app$/);
+      await expect.poll(filters).toEqual({ top: rest, rest, opacity: "0", room });
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+
+  test("a tab change moves the lens once, straight to the new tab", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/app/updates");
+      const nav = page.locator("nav.tabbar");
+      await expect(nav.locator('button[data-root="updates"]')).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      for (const [from, to] of [
+        ["updates", "tasks"],
+        ["tasks", "updates"],
+        ["updates", "settings"],
+      ]) {
+        await expect(nav.locator(`button[data-root="${from}"]`)).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        await page.waitForTimeout(500);
+        const trace = await page.evaluate(async (to) => {
+          const nav = document.querySelector("nav.tabbar");
+          const lens = nav.querySelector(".nav-lens");
+          const target = nav.querySelector(`button[data-root="${to}"]`);
+          const left = () => lens.getBoundingClientRect().left;
+          const xs = [left()];
+          target.click();
+          const end = performance.now() + 1500;
+          while (performance.now() < end) {
+            await new Promise(requestAnimationFrame);
+            xs.push(left());
+          }
+          return { xs, goal: target.getBoundingClientRect().left };
+        }, to);
+        const { xs, goal } = trace;
+        expect(Math.abs(xs.at(-1) - goal)).toBeLessThan(1);
+        // Once the lens has reached the new tab it never leaves it again.
+        const arrived = xs.findIndex((x) => Math.abs(x - goal) < 2);
+        expect(arrived).toBeGreaterThan(0);
+        for (const x of xs.slice(arrived)) expect(Math.abs(x - goal)).toBeLessThan(6);
+        // On the way it only travels toward the new tab.
+        const dir = Math.sign(goal - xs[0]);
+        for (let i = 1; i < arrived; i++) expect((xs[i] - xs[i - 1]) * dir).toBeGreaterThan(-2);
+      }
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("popover menus: Back and Escape leave «النموذج» first, then close; the chip toggles its menu", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/app");
+      await page.locator(`[data-inbox-agent-id="${agent.id}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`/app/${agent.id}`));
+      const chat = page.url();
+      // The chat header keeps its own tight gap and padding, which leaves the title its room.
+      expect(
+        await page.locator("header.chat-head").evaluate((head) => {
+          const style = getComputedStyle(head);
+          return [style.columnGap, style.paddingInlineStart];
+        }),
+      ).toEqual(["2px", "6px"]);
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const pages = menu.locator(".mp-pages");
+      // Back closes the menu and stays in the chat.
+      await chip.click();
+      await expect(menu).toBeVisible();
+      await page.goBack();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      // From «النموذج», Back returns to the first page, then closes the menu.
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await page.goBack();
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu.locator(".mp-model-row")).toBeFocused();
+      await page.goBack();
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      // Escape does the same, and a second tap on the chip closes its menu.
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await page.keyboard.press("Escape");
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu).toBeVisible();
+      await chip.click();
+      await expect(menu).toHaveCount(0);
+      // Menus closed in the page leave no dead Back: one Back leaves the chat.
+      await page.goBack();
+      await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("«النموذج» shows the agent's usage with no cap and leads to the providers", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${agent.id}`);
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      await chip.click();
+      await menu.locator(".mp-model-row").click();
+      await expect(menu.locator(".p2 .pop-title")).toContainText("آخر 30 يومًا");
+      await expect(menu.locator(".mp-tot")).toHaveText(/^\d+ طلبًا · دون سقف لهذا الوكيل$/);
+      await menu.getByRole("menuitem", { name: "ربط مزوّد نماذج" }).click();
+      await expect(page).toHaveURL(/\/app\/providers$/);
+      await expect(menu).toHaveCount(0);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("a trading agent with no account is led to choose one", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      const { agent } = trading;
+      // The server gives a trading agent its account when it is created; one whose account
+      // is gone is what this agent looks like on the wire.
+      await page.route("**/api/agents", async (route) => {
+        const response = await route.fetch();
+        const rows = await response.json();
+        return route.fulfill({
+          response,
+          json: rows.map((row) =>
+            row.id === agent.id
+              ? { ...row, template: "trading", trading_account_id: null, trading_symbol: null }
+              : row,
+          ),
+        });
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${agent.id}`);
+      const chip = page.locator("button.no-trade");
+      const sheet = page.locator("#dialog");
+      await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لم يُختر حساب تداول");
+      await chip.click();
+      await expect(sheet.locator(".state-lead")).toContainText("لا يرتبط");
+      // The chip links to the agent's trading settings (`?settings=trading`); where that tab
+      // lands is the settings routing's choice (`settingsMoved` in shell/pages.tsx), which
+      // sends it to the integrations page.
+      await sheet.getByRole("button", { name: "اختيار حساب التداول" }).click();
+      await expect(page).toHaveURL(/\/app\/integrations$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
 });
 
+test.describe("phone with touch (390×844, Arabic)", () => {
+  test.use({ hasTouch: true });
+  test("the tap that dismisses the chip menu does not also go back", async ({ page, context }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const back = page.locator(".chat-back");
+      await chip.tap();
+      await expect(menu).toBeVisible();
+      // The menu's scrim covers the header: the tap lands where the back button is.
+      const at = await back.boundingBox();
+      await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+      await expect(menu).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+      await back.tap();
+      await expect(page).toHaveURL(/\/app$/);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("the permission menu forms out of the composer; a drag down folds it back, a sideways drag leaves «النموذج»", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chat = page.url();
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      const card = page.locator(".composer-card");
+      const pages = menu.locator(".mp-pages");
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bmorph\b/);
+      await expect(card).toHaveClass(/\bmp-open\b/);
+      await expect(page.locator(".mp-scrim")).toHaveClass(/\bon\b/);
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      // Joined to the composer: as wide as it less its corners and fillets, standing on its top edge.
+      const at = await page.evaluate(() => {
+        const c = document.querySelector(".composer-card").getBoundingClientRect();
+        const p = document.querySelector(".pop.morph .mp-in").getBoundingClientRect();
+        return { card: [c.left, c.top, c.width], panel: [p.left, p.bottom, p.width] };
+      });
+      expect(at.panel[0]).toBeCloseTo(at.card[0] + 26, 0);
+      expect(at.panel[1]).toBeCloseTo(at.card[1], 0);
+      expect(at.panel[2]).toBeCloseTo(at.card[2] - 52, 0);
+      const row = await menu.locator(".mp-model-row").boundingBox();
+      const x = row.x + row.width / 2;
+      const y = row.y + row.height / 2;
+      // A short drag springs it back open.
+      await swipe(page, ".pop.morph .mp-model-row", { x, y }, { x, y: y + 30 }, { hold: 200 });
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await expect(menu).not.toHaveAttribute("aria-hidden", "true");
+      // Sideways toward where «النموذج» came from: back to the first page.
+      await menu.locator(".mp-model-row").tap();
+      await expect(pages).toHaveAttribute("data-page", "2");
+      await swipe(page, ".pop.morph .p2 .mp-head", { x: 300, y }, { x: 100, y });
+      await expect(pages).toHaveAttribute("data-page", "1");
+      await expect(menu).toBeVisible();
+      // Down past 28%: it folds back into the composer and is gone; the chat stays.
+      await swipe(page, ".pop.morph .mp-model-row", { x, y }, { x, y: y + 260 });
+      await expect(menu).toHaveAttribute("aria-hidden", "true");
+      await expect(card).not.toHaveClass(/\bmp-open\b/);
+      await expect(chip).toHaveAttribute("aria-expanded", "false");
+      await expect(menu).toHaveCount(0);
+      await expect(page.locator(".mp-scrim")).toHaveCount(0);
+      expect(page.url()).toBe(chat);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("with reduced motion the permission menu fades in place and out", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const chip = page.getByTestId("permission-chip");
+      const menu = page.locator(".pop.mode-pop");
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bfade\b/);
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await chip.tap();
+      await expect(menu).toHaveClass(/\bleaving\b/);
+      await expect(menu).toHaveCount(0);
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
+/** Leave the settings page scrolled, open an inner page, come back: the list is where it was.
+    The positions stay within the short list's travel on a phone. */
+async function settingsScrollRoundTrip(page) {
+  await page.goto("/app/settings");
+  const main = page.locator("#view-scroll");
+  await expect(page.getByText("الإشعارات والتواصل")).toBeVisible();
+  await main.evaluate((element) => {
+    element.scrollTop = 160;
+  });
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(160);
+  await page.getByText("الإشعارات والتواصل").click();
+  await expect(page).toHaveURL(/\/app\/notify-settings$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/app\/settings$/);
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(160);
+}
+
 test.describe("desktop shell (1280×800, Arabic)", () => {
+  test("a window narrowed to the phone layout takes the open permission menu with it", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`/app/${trading.agent.id}`);
+      const menu = page.locator(".pop.mode-pop");
+      await page.getByTestId("permission-chip").click();
+      await expect(menu).toHaveClass(/\bsettled\b/);
+      await page.setViewportSize({ width: 700, height: 700 });
+      await expect(menu).toHaveCount(0);
+      await expect(page.locator(".mp-scrim")).toHaveCount(0);
+      await expect(page.getByTestId("permission-chip")).toHaveAttribute("aria-expanded", "false");
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+  test("the press that dismisses the list menu does not open the row beneath", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    let trading;
+    try {
+      await signIn(context, data);
+      trading = await tradingAgent(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/app");
+      const more = page.locator(".desktop-list [aria-haspopup=menu]");
+      const menu = page.locator(".pop[role=menu]");
+      const row = page.locator(`.desktop-list [data-inbox-agent-id="${trading.agent.id}"]`);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await more.click();
+      await expect(menu).toHaveCount(0);
+      await more.click();
+      await expect(menu).toBeVisible();
+      await row.click();
+      await expect(menu).toHaveCount(0);
+      await expect(page).toHaveURL(/\/app$/);
+      await row.click();
+      await expect(page).toHaveURL(new RegExp(`/app/${trading.agent.id}`));
+    } finally {
+      if (trading)
+        await context.request.delete(`/api/agents/${trading.agent.id}`, {
+          headers: trading.headers,
+        });
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+
+  test("the settings page keeps its scroll across an inner page and a rail round trip", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await settingsScrollRoundTrip(page);
+      const rail = page.locator(".desktop-rail");
+      await rail.getByRole("button", { name: "المهام", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/tasks$/);
+      await rail.getByRole("button", { name: "الإعدادات", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/settings$/);
+      await expect
+        .poll(() => page.locator("#view-scroll").evaluate((element) => element.scrollTop))
+        .toBe(160);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
   for (const theme of ["dark", "light"]) {
     test(`rail, list pane, welcome and the solid header (${theme})`, async ({ page, context }) => {
       const data = fixture({ action: "init", empty: true });
@@ -353,5 +800,152 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
         fixture({ ...data, action: "cleanup" });
       }
     });
+  }
+  test("the rail follows the section, Ctrl+K opens a folded list, the shortcuts are keys", async ({
+    page,
+    context,
+  }) => {
+    const data = fixture({ action: "init", empty: true });
+    try {
+      await signIn(context, data);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      const rail = page.locator(".desktop-rail");
+      const current = (name) =>
+        expect(rail.getByRole("button", { name, exact: true })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+      await page.goto("/app/artifacts");
+      await current("الإعدادات");
+      await page.goto("/app/recovery");
+      await current("الإعدادات");
+      await page.goto("/app/new-schedule");
+      await current("المهام");
+      await page.goto("/app/my-profile");
+      await expect(page).toHaveURL(/\/app\/owner$/);
+      await page.goto("/app/reach-me");
+      await expect(page).toHaveURL(/\/app\/notify-settings$/);
+      await page.goto("/app");
+      await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
+      await expect(page.locator("#app")).toHaveClass(/list-collapsed/);
+      await page.keyboard.press("Control+k");
+      await expect(page.locator("#app")).not.toHaveClass(/list-collapsed/);
+      await expect(page.locator("#desktop-search")).toBeFocused();
+      await page.keyboard.press("Control+/");
+      const rows = page.locator("#dialog .kbd-list .row");
+      const show = rows.filter({ hasText: "عرض الاختصارات" });
+      await expect(show.locator("kbd")).toHaveText(["Ctrl", "/"]);
+      const step = rows.filter({ hasText: "المحادثة السابقة / التالية" });
+      await expect(step.locator("kbd")).toHaveCount(4);
+    } finally {
+      fixture({ ...data, action: "cleanup" });
+    }
+  });
+});
+
+test("an unknown address shows the not-found page without a chat header", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data);
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 800 },
+    ]) {
+      await page.setViewportSize(size);
+      for (const path of ["/app/nope-route", "/app/g/nope-group"]) {
+        await page.goto(path);
+        await expect(page.locator("main .state-page h2")).toHaveText("الصفحة غير موجودة");
+        await expect(page.locator(".chat-head")).toHaveCount(0);
+        await expect(page.locator(".topbar")).toHaveAttribute("data-route", "not-found");
+      }
+    }
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("a server that does not answer at startup shows maintenance, which leaves when it answers", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    let down = true;
+    const gateway = (route) => (down ? route.fulfill({ status: 502, body: "" }) : route.continue());
+    await page.route("**/api/onboarding", gateway);
+    await page.route("**/health", gateway);
+    await page.goto("/app");
+    const heading = page.getByRole("heading", { name: "Lonora is under maintenance" });
+    await expect(heading).toBeVisible();
+    await expect(page.locator(".auth-card")).toHaveCount(0);
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(
+      page.getByText("Maintenance is still in progress. Try again shortly"),
+    ).toBeVisible();
+    down = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(heading).toHaveCount(0);
+    await expect(page.locator("header.chats-header")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("an unexpected startup error is its own page with a retry, not maintenance", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    let broken = true;
+    await page.route("**/api/onboarding", (route) =>
+      broken ? route.fulfill({ status: 500, json: { code: "internal_error" } }) : route.continue(),
+    );
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { name: "An unexpected error occurred" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lonora is under maintenance" })).toHaveCount(0);
+    broken = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator("header.chats-header")).toBeVisible();
+  } finally {
+    fixture({ ...data, action: "cleanup" });
+  }
+});
+
+test("gateway errors in the middle of a session bring maintenance, which clears by itself", async ({
+  page,
+  context,
+}) => {
+  const data = fixture({ action: "init", empty: true });
+  try {
+    await signIn(context, data, { locale: "en" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app");
+    await expect(page.locator("header.chats-header")).toBeVisible();
+    let down = true;
+    const gateway = (route) =>
+      down && !route.request().url().includes("/events")
+        ? route.fulfill({ status: 504, body: "" })
+        : route.continue();
+    await page.route("**/api/**", gateway);
+    await page.route("**/health", gateway);
+    const heading = page.getByRole("heading", { name: "Lonora is under maintenance" });
+    // Three reads without an answer within half a minute.
+    for (const tab of ["Updates", "Tasks", "Settings", "Chats"]) {
+      if (await heading.isVisible()) break;
+      await page.locator("nav.tabbar").getByRole("button", { name: tab }).click({ force: true });
+    }
+    await expect(heading).toBeVisible();
+    down = false;
+    await expect(heading).toHaveCount(0, { timeout: 12_000 });
+  } finally {
+    fixture({ ...data, action: "cleanup" });
   }
 });

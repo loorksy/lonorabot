@@ -482,7 +482,7 @@ test("M11: an amount limit saves in the account's own currency, prefilled from t
     });
     await page.goto(`/app/${agent.id}`);
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Status and safety" }).click();
     await page.locator("#dialog").getByRole("button", { name: "Edit the limits" }).click();
     const sheet = page.locator("#dialog");
     // Daily loss is an amount: «استعادة» sets it, the currency comes from the account.

@@ -108,6 +108,10 @@ test("refresh waits for the real session without flashing sign-in or workspace s
     await page.goto(`/app/${agent.id}`, { waitUntil: "domcontentloaded" });
     await requested;
     await expect(page.getByTestId("workspace-loading")).toBeVisible();
+    // The brand mark, inside the shell so that tokens and reduced motion apply.
+    await expect(
+      page.locator(".app-shell [data-testid=workspace-loading] .logo-mark"),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toHaveCount(0);
     await expect(page.getByTestId("transcript")).toHaveCount(0);
     await expect(page.locator("#app")).toHaveCount(0);
@@ -154,7 +158,7 @@ test("recoverable task failure shows authoritative review and resumes the same R
   await page.goto(`/app/${agent.id}`);
   // A task that needs the owner opens from ⋮ «الحالة والأمان» (the AgentSheet).
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.getByRole("button", { name: "Status and safety", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Status and safety" }).click();
   const live = page.locator("#dialog").getByTestId("agent-live-state");
   await expect(live).toHaveAttribute("data-state", "action_required");
   const row = page.locator(`#dialog [data-task-id="${task.id}"]`);
@@ -421,10 +425,9 @@ test("knowledge and recurring trading work use durable API edits", async ({
   workspace,
 }) => {
   const { agent, prefix, remember, headers } = workspace;
-  await page.goto(`/app/${agent.id}`);
-  await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await page.locator("#dialog").getByRole("button", { name: "Knowledge", exact: true }).click();
-  const panel = page.locator("#dialog");
+  await page.goto(`/app/memory?agent=${agent.id}`);
+  const panel = page.locator("main");
+  await panel.getByLabel("Agent", { exact: true }).selectOption(agent.id);
   await panel.getByRole("button", { name: "Skills", exact: true }).click();
   const skillForm = panel.locator(".skill-create");
   await skillForm.locator("summary", { hasText: "Add owner instructions" }).click();
@@ -497,8 +500,8 @@ test("knowledge and recurring trading work use durable API edits", async ({
     )
     .toBe(false);
   await page.goto(`/app/${agent.id}?settings=trading`);
-  await expect(page).toHaveURL(/\/app\/settings\?tab=trading$/);
-  await expect(page.locator(".settings-nav button.selected")).toHaveText("Trading");
+  await expect(page).toHaveURL(/\/app\/integrations$/);
+  await expect(page.getByTestId("trading-control")).toBeVisible();
   // The test owns this routine; no scheduler or provider credentials are needed.
   const durable = await context.request.get(`/api/skills/${skill.id}`, { headers });
   expect((await durable.json()).payload.content).toContain("economic calendar");
@@ -640,7 +643,7 @@ test("cancelled durable task stays cancelled after reload and offers no completi
   await expect(page.getByRole("button", { name: "Run task", exact: true })).toHaveCount(0);
 });
 
-test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gold role badge", async ({
+test("agents are never deleted from the UI (Q1) and the chat header carries no role badge", async ({
   page,
   context,
   workspace,
@@ -655,11 +658,12 @@ test("agents are never deleted from the UI (Q1) and Personal Agent keeps its gol
       deletes.push(request.url());
   });
   await page.goto(`/app/${personal.id}`);
-  // The reference's list rows carry no role badge; the chat header keeps it.
+  // Lonora is told apart by its avatar alone: no role badge in the list or the chat header.
   await expect(page.locator(`.desktop-list [data-inbox-agent-id="${personal.id}"]`)).toBeVisible();
+  await expect(page.locator(".chat-head .chat-name")).toBeVisible();
   await expect(
     page.locator(".chat-head").getByRole("img", { name: "Personal Agent", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("textbox", { name: "Name" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);

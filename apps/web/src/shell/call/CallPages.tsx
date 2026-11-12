@@ -426,7 +426,7 @@ export function useCallStarter() {
               className="btn primary"
               onClick={() => {
                 sheets.close();
-                nav.go("/app/providers");
+                nav.go("/app/provider/openai");
               }}
             >
               <Trans>Set up the voice provider</Trans>

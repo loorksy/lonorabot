@@ -2,11 +2,11 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import type { AgentModelSummary, AgentPermissionLevel, PermissionState } from "@lonora/contracts";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Agent } from "../lib/api";
 import { api } from "../lib/api";
 import { userError } from "../lib/user_error";
-import { usePopover } from "../shell/lists/Popover";
+import { usePopover, usePopoverPage } from "../shell/lists/Popover";
 import { useNavigation } from "../shell/navigation";
 import { useSheets } from "../shell/sheets/SheetHost";
 import { useToast } from "../shell/Toast";
@@ -63,7 +63,6 @@ export function PermissionChip({
       <button
         type="button"
         className="mode-chip"
-        aria-haspopup="dialog"
         onClick={() => window.dispatchEvent(new CustomEvent("lonora:members-permissions"))}
       >
         <Icon name="users" />
@@ -163,7 +162,7 @@ export function PermissionChip({
             threadId={threadId}
           />,
           t`Permission level`,
-          { cls: "mode-pop", above: true },
+          { cls: "mode-pop", morph: true },
         )
       }
     >
@@ -197,6 +196,12 @@ function PermissionMenu({
   });
   const [summary, setSummary] = useState<AgentModelSummary | null>(null);
   const [busy, setBusy] = useState(false);
+  const modelRow = useRef<HTMLButtonElement>(null);
+  const toLadder = () => {
+    setPage({ kind: "ladder" });
+    requestAnimationFrame(() => modelRow.current?.focus({ preventScroll: true }));
+  };
+  usePopoverPage(page.kind !== "ladder", toLadder);
   const level = permission.effective_level;
   const path = `/agents/${encodeURIComponent(agent.id)}`;
   useEffect(() => {
@@ -265,6 +270,7 @@ function PermissionMenu({
         ))}
         <div className="pop-sep" />
         <button
+          ref={modelRow}
           type="button"
           className="pop-row mp-model-row"
           role="menuitem"
@@ -309,7 +315,7 @@ function PermissionMenu({
                 type="button"
                 className="icon mp-back"
                 aria-label={t`Back`}
-                onClick={() => setPage({ kind: "ladder" })}
+                onClick={toLadder}
               >
                 <Icon name="back" />
               </button>
@@ -351,12 +357,7 @@ function PermissionMenu({
                 </small>
               </span>
             </button>
-            <button
-              type="button"
-              className="pop-opt"
-              role="menuitem"
-              onClick={() => setPage({ kind: "ladder" })}
-            >
+            <button type="button" className="pop-opt" role="menuitem" onClick={toLadder}>
               <span className="pop-opt-body">
                 <strong>
                   <Trans>Keep «{levelName("autonomous")}»</Trans>
@@ -373,7 +374,7 @@ function PermissionMenu({
             agent={agent}
             summary={summary}
             onSummary={setSummary}
-            onBack={() => setPage({ kind: "ladder" })}
+            onBack={toLadder}
           />
         ) : null}
       </div>
@@ -489,7 +490,7 @@ function ModelPage({
         role="menuitem"
         onClick={() => {
           popover.close();
-          go("/app/settings?tab=models");
+          go("/app/providers");
         }}
       >
         <Icon name="plus" />

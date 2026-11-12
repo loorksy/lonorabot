@@ -105,6 +105,28 @@ class VoiceNote(Contract):
         return self
 
 
+class MessageCommand(Contract):
+    """A / command at the start of the owner's message: what was asked for. It grants nothing.
+
+    ``skill_id`` is the id of the Agent's own skill resource the owner picked.
+    """
+
+    name: Literal["task", "search", "summary", "skill"]
+    # As long as the message it is the end of.
+    argument: str = Field(default="", max_length=30000)
+    skill_id: str | None = Field(default=None, max_length=36)
+
+    @model_validator(mode="after")
+    def shaped(self) -> "MessageCommand":
+        if (
+            (self.name in {"task", "search"} and not self.argument.strip())
+            or (self.name == "summary" and self.argument)
+            or (self.name == "skill") != (self.skill_id is not None)
+        ):
+            raise ValueError("message_command_invalid")
+        return self
+
+
 class MessageCreate(Contract):
     input_answer: InputAnswer | None = None
     ui_submit: UiSubmit | None = None
@@ -120,6 +142,9 @@ class MessageCreate(Contract):
     # An owner voice note: the audio artifact uploaded to this thread. The server
     # transcribes it into the message content before the Agent is asked to answer.
     voice: VoiceNote | None = None
+    # The / command this message is (chat.composer.slash-commands). The content stays the
+    # owner's own words, "/name argument"; this says which command they are.
+    command: MessageCommand | None = None
 
     @model_validator(mode="after")
     def content_or_voice(self) -> "MessageCreate":
@@ -141,6 +166,17 @@ class MessageCreate(Contract):
             self.input_answer or self.attachment_ids or self.voice or self.edited_from
         ):
             raise ValueError("ui_submit_invalid")
+        if self.command is not None and (
+            self.voice
+            or self.ui_submit
+            or self.input_answer
+            or self.edited_from
+            or self.attachment_ids
+            # The words after the command are what the Agent acts on: they are the message's.
+            or not self.content.lstrip("\u200e\u200f \t\n").startswith("/")
+            or not self.content.rstrip().endswith(self.command.argument.strip())
+        ):
+            raise ValueError("message_command_invalid")
         return self
 
 

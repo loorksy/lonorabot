@@ -173,6 +173,22 @@ test("call screen in Arabic: clock, listening, live wave, mute, speaker, pull-do
   await expect(screen.getByRole("heading", { name: agent.name })).toBeVisible();
   await expect(screen.locator(".call-status")).toHaveText("أستمع إليك");
   await expect(screen.locator(".wave i")).toHaveCount(4);
+  // Between sentences the bars keep the reference's 0.7 s rise and fall.
+  const bars = () =>
+    screen
+      .locator(".wave i")
+      .evaluateAll((items) =>
+        items.map((item) => [
+          getComputedStyle(item).animationName,
+          getComputedStyle(item).animationDelay,
+        ]),
+      );
+  expect(await bars()).toEqual([
+    ["wave", "0s"],
+    ["wave", "0.2s"],
+    ["wave", "0.4s"],
+    ["wave", "0.1s"],
+  ]);
   await page.screenshot({ path: ".runtime/calls/call-screen-ar.png" });
   expect(sessions).toHaveLength(1);
   expect(sessions[0].agent_id).toBe(agent.id);
@@ -183,6 +199,7 @@ test("call screen in Arabic: clock, listening, live wave, mute, speaker, pull-do
   await screen.getByRole("button", { name: "كتم", exact: true }).click();
   await expect(screen.locator(".call-status")).toHaveText("الميكروفون مكتوم");
   await expect(screen.locator(".wave")).toHaveClass(/muted/);
+  expect((await bars()).map(([name]) => name)).toEqual(["none", "none", "none", "none"]);
   expect(await page.evaluate(() => window.__calls.streams[0].getAudioTracks()[0].enabled)).toBe(
     false,
   );
@@ -221,6 +238,14 @@ test("call screen in Arabic: clock, listening, live wave, mute, speaker, pull-do
     clientY: y + 260,
   });
   await expect(page).toHaveURL(`/app/${agent.id}`);
+  // The capsule fades between its live and muted looks, and its buttons press in.
+  const transition = (selector) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((item) => getComputedStyle(item).transitionProperty);
+  expect(await transition(".chat-head .call-pill")).toBe("background, box-shadow");
+  expect(await transition(".chat-head .cp-btn")).toBe("background, color, transform");
   // The call's own chat has no strip; any other screen does, and it returns to the call.
   await expect(page.locator(".call-strip")).toHaveCount(0);
   // In-app navigation only: a reload ends a call.
@@ -268,7 +293,7 @@ test("Q58: with no voice provider the call button warns and opens the provider s
   await expect(sheet).toContainText("No voice provider is configured yet.");
   await expect(page).toHaveURL(`/app/${agent.id}`);
   await sheet.getByRole("button", { name: "Set up the voice provider", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/providers$/);
+  await expect(page).toHaveURL(/\/app\/provider\/openai$/);
   // Nothing was dialled and no microphone was asked for.
   expect(sessions).toHaveLength(0);
   expect(await page.evaluate(() => window.__calls.streams.length)).toBe(0);
