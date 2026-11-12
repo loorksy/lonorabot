@@ -6,14 +6,17 @@ values come only from the workspace scope (7.2.3, 7.2.5)."""
 
 from typing import Annotated, Any
 
+from lonora_adapter_kit.secrets import SecretStore
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow
+from lonora_db.workspace_given import GivenValues
 from lonora_security.secrets import SecretScan
 from lonora_workspace.client import WorkspaceClient, with_guard
 from pydantic import Field, StringConstraints
 
 from .base import Tool, run_scope
+from .cli_token import CommandTokens
 from .context import ToolContext
 
 MODEL_OUTPUT = 64 * 1024
@@ -60,19 +63,26 @@ def client(context: ToolContext) -> WorkspaceClient:
     return context.workspace
 
 
-async def scan(context: ToolContext) -> SecretScan:
-    """Every stored value but the broker's (workspace, integration, provider: W-ENV's
-    `scanned_values`), every value given to a workspace command in the last 30 days
-    (rotated and deleted ones included), and every agent's CLI token, replaced in what
-    reaches the model."""
-    values = await context.secrets.scanned_values()
-    given = await context.workspace_given.values() if context.workspace_given else []
-    tokens = await context.cli_tokens.values() if context.cli_tokens else []
+async def owner_scan(
+    secrets: SecretStore, given: GivenValues | None, tokens: CommandTokens | None
+) -> SecretScan:
+    """The one scan of every byte that comes back from the workspace (7.2.6), on every road:
+    tool results and the `lonora` CLI's notify and wake text. Every stored value but the
+    broker's (workspace, integration, provider: W-ENV's `scanned_values`), every value
+    given to a workspace command in the last 30 days (rotated and deleted ones included),
+    and every agent's CLI token."""
+    values = await secrets.scanned_values()
+    once = await given.values() if given else []
+    issued = await tokens.values() if tokens else []
     return with_guard(
         SecretScan(values),
-        [[name, value] for name, value in given]
-        + [["LONORA_AGENT_TOKEN", token] for token in tokens],
+        [[name, value] for name, value in once]
+        + [["LONORA_AGENT_TOKEN", token] for token in issued],
     )
+
+
+async def scan(context: ToolContext) -> SecretScan:
+    return await owner_scan(context.secrets, context.workspace_given, context.cli_tokens)
 
 
 async def ordinary_run(context: ToolContext) -> bool:
