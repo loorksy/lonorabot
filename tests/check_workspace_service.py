@@ -296,6 +296,7 @@ def check_defaults(stack: Stack) -> None:
         int(gw.get("mem_reservation", 0)) == int(gw["mem_limit"]),
         "the Gateway's memory is reserved",
     )
+    record(int(gw.get("cpu_shares", 1024)) > 1024, "the Gateway has the highest CPU weight")
     record(
         "env_file" not in ws and "env_file" not in services["workspace-net"],
         "no .env (Lonora's secrets) reaches the workspace",

@@ -17,6 +17,7 @@ import struct
 import subprocess
 import sys
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 from lonora_core.broker_endpoints import METAAPI_KNOWN_HOSTS
@@ -100,30 +101,85 @@ def verdict(packet: bytes, domains: tuple[str, ...]) -> bytes | None:
 
 class Answers:
     """The addresses the forwarder recently gave out per name, so the relay can check
-    that a connection goes where its name points (a CDN may rotate its answers)."""
+    that a connection goes where its name points (a CDN may rotate its answers). A chain
+    that leads into a denied domain gives nothing, and its addresses are blocked."""
 
-    def __init__(self, seconds: float = 900) -> None:
+    LIMIT: int = 20000
+
+    def __init__(self, domains: tuple[str, ...] = (), seconds: float = 900) -> None:
+        self.domains = domains
         self.seconds = seconds
-        self.names: dict[str, tuple[float, set[str]]] = {}
+        self.names: OrderedDict[str, tuple[float, set[str]]] = OrderedDict()
+        self.denied: set[str] = set()
+        self.changed = asyncio.Event()
 
     def record(self, query: bytes, answer: bytes) -> None:
         with contextlib.suppress(dns.DnsError):
             name, _ = dns.question(query)
+            if any(name_denied(n, self.domains) for n in dns.names(answer)):
+                return
             found = set(dns.addresses(answer))
             if found:
-                now = time.monotonic()
-                _, old = self.names.get(name, (0.0, set()))
-                self.names[name] = (now + self.seconds, old | found)
-                if len(self.names) > 20000:
-                    self.names = {k: v for k, v in self.names.items() if v[0] > now}
+                _, old = self.names.pop(name, (0.0, set()))
+                self.names[name] = (time.monotonic() + self.seconds, old | found)
+                while len(self.names) > self.LIMIT:
+                    self.names.popitem(last=False)
+
+    async def lookup(self, name: str) -> set[str]:
+        found: set[str] = set()
+        for kind in (dns.A, dns.AAAA):
+            try:
+                answer = await forward_udp(dns.query(name, kind))
+                addresses = set(dns.addresses(answer))
+                if any(name_denied(n, self.domains) for n in dns.names(answer)):
+                    if not addresses <= self.denied:
+                        self.denied |= addresses
+                        self.changed.set()
+                    return set()
+                found |= addresses
+            except (TimeoutError, OSError, dns.DnsError):
+                continue
+        return found
 
     async def of(self, name: str) -> set[str]:
-        expiry, cached = self.names.get(name.lower().rstrip("."), (0.0, set()))
-        fresh = set(await resolve([name]))
+        key = name.lower().rstrip(".")
+        if name_denied(key, self.domains):
+            return set()
+        expiry, cached = self.names.get(key, (0.0, set()))
+        fresh = await self.lookup(key)
         return fresh | (cached if expiry > time.monotonic() else set())
 
 
+class Rate:
+    """At most PER_SECOND lookups per agent uid per second (a flood of unique names must
+    not stall the loop that serves every DNS answer and relayed connection)."""
+
+    PER_SECOND = 200
+
+    def __init__(self) -> None:
+        self.window = 0
+        self.counts: dict[int | None, int] = {}
+
+    def allow(self, uid: int | None) -> bool:
+        now = int(time.monotonic())
+        if now != self.window:
+            self.window, self.counts = now, {}
+        self.counts[uid] = self.counts.get(uid, 0) + 1
+        return uid == 0 or self.counts[uid] <= self.PER_SECOND
+
+
+def udp_uid(host: str, port: int) -> int | None:
+    wanted = f"{socket.inet_aton(host)[::-1].hex().upper()}:{port:04X}"
+    with contextlib.suppress(OSError):
+        for line in Path("/proc/net/udp").read_text().splitlines()[1:]:
+            fields = line.split()
+            if fields[1] == wanted:
+                return int(fields[7])
+    return None
+
+
 ANSWERS = Answers()
+RATE = Rate()
 
 
 def screened(query: bytes, answer: bytes, domains: tuple[str, ...]) -> bytes:
@@ -146,6 +202,8 @@ class Udp(asyncio.DatagramProtocol):
         self.transport = transport  # type: ignore[assignment]
 
     def datagram_received(self, data: bytes, addr: tuple[str | int, int]) -> None:
+        if not RATE.allow(udp_uid(str(addr[0]), int(addr[1]))):
+            return
         if len(self.pending) >= IN_FLIGHT:
             return  # a flood is dropped; the guard and other lookups keep working
         task = asyncio.get_running_loop().create_task(self.answer(data, addr))
@@ -202,16 +260,21 @@ async def serve(
                 writer.close()
 
     await asyncio.start_server(tcp, *LISTEN)
+    ANSWERS.domains = domains
     await Relay(domains, ANSWERS.of).serve(RELAY_PORT)
     announce()
     log.warning("workspace_netguard_ready domains=%d", len(domains))
     known = [*METAAPI_KNOWN_HOSTS, *domains]
     while True:
-        await asyncio.sleep(refresh_seconds)
+        # Every few minutes, or at once when a lookup found a chain into a denied domain.
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(ANSWERS.changed.wait(), refresh_seconds)
+        ANSWERS.changed.clear()
         try:
             # Grow only: a failed or empty lookup never removes an address already blocked.
             learned.update(await resolve(known))
-            apply([*extra, *sorted(learned)])
+            learned.update(ANSWERS.denied)
+            await asyncio.to_thread(apply, [*extra, *sorted(learned)])
         except (subprocess.SubprocessError, OSError) as error:
             log.warning("workspace_netguard_refresh_failed type=%s", type(error).__name__)
 
