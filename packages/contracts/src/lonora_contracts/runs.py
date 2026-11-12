@@ -44,7 +44,3 @@ class Lease(Contract):
     run_id: str
     owner: str
     fence: int
-
-
-class SteeringInput(Contract):
-    content: str = Field(min_length=1, max_length=30000)

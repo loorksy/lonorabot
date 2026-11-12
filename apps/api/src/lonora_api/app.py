@@ -37,7 +37,6 @@ ROUTES = (
     "chat_lists",
     "messages",
     "runs",
-    "steering",
     "cancellation",
     "groups",
     "peer_messages",
