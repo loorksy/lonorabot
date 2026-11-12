@@ -225,6 +225,11 @@ class ExecutionService:
                 return receipt(journal)
             if leased_run:
                 await anchor_operation(session, journal, leased_run)
+            if request.thesis_id:
+                from .opportunities import link_pending_operation
+
+                # Agent memory only (14.2.5): it never refuses the operation.
+                await link_pending_operation(session, owner_id, request)
             # Reserved is durable identity only. The send boundary below atomically
             # moves it to submitted; recovery proves an abandoned reservation unsent.
             journal.status = "reserved"
@@ -419,9 +424,6 @@ class ExecutionService:
                 await require_unrestricted(
                     session, owner_id, request, agent_id=restricted_agent, reducing=reducing
                 )
-                from .opportunities import require_entry_thesis
-
-                await require_entry_thesis(session, owner_id, request)
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )
