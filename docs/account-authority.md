@@ -2,8 +2,7 @@ Superseded by VISION.md
 
 # Account management through one existing execution boundary
 
-An owner may sign one immutable account delegation without first authoring a
-Trading Goal. This extends the existing financial executor, device verification,
+An owner may sign one immutable account delegation. This extends the existing financial executor, device verification,
 account serialization and journal; it creates no second execution or risk engine.
 
 ## Explicit full management (v2)
@@ -58,8 +57,7 @@ monotonic:
   protection rules, its action budget and the owner's own positions. The tool
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
-  (`grant_covers`, `GRANT_TERM_REFUSALS`); a Goal step uses the same check
-  (`covering_authority`). The executor admits an operation without a grant only
+  (`grant_covers`, `GRANT_TERM_REFUSALS`). The executor admits an operation without a grant only
   with the owner's approval of that exact operation
   (`require_operation_permission`), and repeats the grant check at send for every
   operation sent under one. A grant's management Task is held to its own grant;
@@ -234,7 +232,7 @@ Matching ignores letter case only. The action classes:
 - `all_mutations`: no broker mutation in the scope, reduce-only included.
 
 Restrictions govern agent-originated operations: every leased path (signed account
-grant, exact approval, Goal step). Owner-manual operations through `POST
+grant, exact approval). Owner-manual operations through `POST
 /trading/execute` are exempt unless the owner sets `applies_to_owner_manual` on an
 all-agent restriction; agents cannot set it. The flag binds the owner's own trades, so
 it is rejected together with `agent_id` (a restriction scoped to one agent never
@@ -272,7 +270,7 @@ passes `all_symbols: true` for every symbol on that account (rejected together w
 `symbol`).
 
 `all_mutations` created by the owner also blocks risk-reducing exits (closes,
-cancellations, tighter stops and Goal protective steps). A restriction an agent recorded
+cancellations and tighter stops). A restriction an agent recorded
 never blocks a risk-reducing exit, whatever its class: its scope and reason are
 model-authored and may come from injected content, so it can stop new risk but never
 trap a position, including an exit the owner approves. An agent may impose
@@ -385,8 +383,7 @@ actual EN/AR owner surfaces, full and bounded signatures, and unchanged global
 controls; Expo Web checks are not physical native acceptance.
 
 The complete trading mandate remains open: this scope does not implement generic
-strategy equivalence, native background calls or new Goal-bound execution policy.
-Goal-linked Runs retain the existing Goal/device authorization boundary. A fresh
+strategy equivalence or native background calls. A fresh
 ordinary Task can use the account grant. No production grant or trade is activated
 by migration, deployment or these tests.
 

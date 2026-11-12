@@ -124,8 +124,6 @@ export type Routine = {
   /** The owner's name for the schedule; null on older routines (show the prompt). */
   title: string | null;
   prompt: string;
-  goal_id: string | null;
-  step_id: string | null;
   interval_seconds: number | null;
   cron: string | null;
   /** A one-shot routine («مرة واحدة») fires once at this time, then switches off. */

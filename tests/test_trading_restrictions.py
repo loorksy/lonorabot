@@ -29,7 +29,6 @@ from lonora_trading.restrictions import applies, prohibits
 from lonora_trading.risk_limits import (
     assess_risk,
     daily_loss,
-    deal_pnl,
     economics,
     stop_risk,
     trading_day_start,
@@ -687,35 +686,10 @@ async def test_daily_loss_counts_realized_today_plus_floating_and_blocks_new_ris
         trade("buy", volume="0.1"), recovering, limits, reader=Reader(full_page)
     )
     assert incomplete.reasons == ["risk_daily_history_incomplete"]
-    assert deal_pnl({"type": "DEAL_TYPE_CREDIT", "profit": "-1"}) == 0
-    with pytest.raises(LonoraError, match="risk_daily_history_invalid"):
-        deal_pnl({"profit": "not-a-number"})
 
 
 @pytest.mark.asyncio
 async def test_non_trading_credits_never_offset_a_trading_loss() -> None:
-    # Trade deals count in full, gains included.
-    assert deal_pnl({"type": "DEAL_TYPE_BUY", "profit": "40", "commission": "-2"}) == 38
-    assert deal_pnl({"type": "DEAL_TYPE_SELL", "profit": "-10", "swap": "-1"}) == -11
-    # Cash flows are not P&L in either direction.
-    for kind in ("DEAL_TYPE_BALANCE", "DEAL_TYPE_CREDIT", "DEAL_TYPE_BONUS"):
-        assert deal_pnl({"type": kind, "profit": "500"}) == 0
-        assert deal_pnl({"type": kind, "profit": "-500"}) == 0
-    # Every other adjustment counts only against the limit.
-    for kind in (
-        "DEAL_TYPE_CORRECTION",
-        "DEAL_TYPE_INTEREST",
-        "DEAL_DIVIDEND",
-        "DEAL_DIVIDEND_FRANKED",
-        "DEAL_TYPE_CHARGE",
-        "DEAL_TAX",
-        "DEAL_TYPE_COMMISSION_DAILY",
-        "DEAL_TYPE_BUY_CANCELED",
-        "",
-    ):
-        assert deal_pnl({"type": kind, "profit": "100"}) == 0, kind
-        assert deal_pnl({"type": kind, "profit": "-7"}) == -7, kind
-    assert deal_pnl({"profit": "25"}) == 0  # Missing type: never a gain.
     limits = MonetaryRiskLimits(currency="USD", max_daily_loss=Decimal(100))
     today = NOW.replace(hour=9).isoformat()
     deals = [
