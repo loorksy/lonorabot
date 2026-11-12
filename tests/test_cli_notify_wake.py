@@ -179,6 +179,7 @@ async def test_notify_and_wake_text_pass_the_secret_scan() -> None:
         runtime = setup.fixture.runtime
         token = await setup.token()
         encoded = base64.b64encode(value.encode()).decode()
+        other = await setup.token((await setup.fixture.agent("other-token"))["id"])
         leaked = f"key {value} and {encoded}"
         code, output = await setup.call("notify", token, text=leaked)
         assert code == 0, output
@@ -196,6 +197,13 @@ async def test_notify_and_wake_text_pass_the_secret_scan() -> None:
         marker = "[secret:" + name + "]"
         assert message.content == f"key {marker} and {marker}"
         assert section.body == f"key {marker} and {marker}"
+        # Its own token and another agent's are scanned the same way.
+        code, output = await setup.call("notify", token, text=f"mine {token} theirs {other}")
+        async with runtime.db.sessions() as session:
+            message = await session.get(MessageRow, output["message_id"])
+        assert message is not None
+        hidden = "[secret:LONORA_AGENT_TOKEN]"
+        assert message.content == f"mine {hidden} theirs {hidden}"
     finally:
         await services.secrets.delete(secret_id)
         await setup.close()

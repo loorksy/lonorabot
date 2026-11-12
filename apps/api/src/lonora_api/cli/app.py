@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.cli_tokens import agent_for_cli_token
+from lonora_db.cli_tokens import agent_for_cli_token, owner_cli_tokens
 from lonora_db.messages import post_agent_message
 from lonora_db.schema import AgentRow
 from lonora_db.workspace_wakes import MAXIMUM_TEXT, wake_by_handle
@@ -134,8 +134,18 @@ def snapshot_part(part: str) -> Command:
 
 async def scanned(rt: ApiRuntime, owner_id: str, text: str) -> str:
     """Text a workspace script sent, as the scan of workspace output leaves it: each stored
-    value outside the broker scope, and its encoded forms, become [secret:NAME] (7.2.6)."""
-    return SecretScan(await rt.services(owner_id).secrets.scanned_values()).text(text)
+    value outside the broker scope and every agent's CLI token, and their encoded forms,
+    become [secret:NAME] (7.2.6)."""
+    values = await rt.services(owner_id).secrets.scanned_values()
+    async with rt.db.sessions() as session:
+        tokens = await owner_cli_tokens(
+            session, rt.settings.encryption_key.get_secret_value(), owner_id
+        )
+    result = SecretScan(values).text(text)
+    # One name for every agent's token, so one scan per token.
+    for token in tokens:
+        result = SecretScan({"LONORA_AGENT_TOKEN": token}).text(result)
+    return result
 
 
 async def notify(rt: ApiRuntime, agent: AgentRow, body: dict[str, Any]) -> JSONResponse:
