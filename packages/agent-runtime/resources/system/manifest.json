@@ -80,6 +80,7 @@
     "model_request": "intelligence",
     "model_list": "intelligence",
     "market_performance_read": "intelligence",
+    "usage_read": "intelligence",
     "chart_open": "charts",
     "chart_list": "charts",
     "chart_inspect": "charts",
