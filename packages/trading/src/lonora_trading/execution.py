@@ -75,7 +75,12 @@ async def require_goal_lineage(
     goal: GoalExecution | None,
     owner_id: str | None = None,
     request: TradeRequest | None = None,
+    *,
+    reducing: bool = False,
 ) -> None:
+    """Run integrity (6.9): the lease, the run's Task authority, no research subagent and
+    no observe-only wake, for the run and every ancestor. ``reducing`` is the door's
+    classification of the request, which a paused Task still lets through (4.7)."""
     origin_run = await require_lease(session, lease)
     if owner_id is not None:
         await require_financial_agent(session, owner_id, origin_run.agent_id)
@@ -84,7 +89,7 @@ async def require_goal_lineage(
         or origin_run.model_metadata.get("authority") == "observe_only"
     ):
         raise LonoraError("observe_only_execution_forbidden", 403)
-    await require_task_authority(session, origin_run)
+    await require_task_authority(session, origin_run, reducing=reducing)
     if owner_id is not None and request is not None:
         assert_market_binding(
             await require_financial_agent(session, owner_id, origin_run.agent_id),
@@ -108,7 +113,7 @@ async def require_goal_lineage(
             or ancestor.model_metadata.get("authority") == "observe_only"
         ):
             raise LonoraError("observe_only_execution_forbidden", 403)
-        await require_task_authority(session, ancestor)
+        await require_task_authority(session, ancestor, reducing=reducing)
         if owner_id is not None and request is not None:
             assert_market_binding(
                 await require_financial_agent(session, owner_id, ancestor.agent_id),
@@ -127,7 +132,9 @@ async def require_goal_lineage(
         raise LonoraError("goal_step_required", 409)
 
 
-async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
+async def require_task_authority(
+    session: AsyncSession, run: RunRow, *, reducing: bool = False
+) -> None:
     # Shadow trading is removed (Q57); a Run started in it still never sends.
     if run.model_metadata.get("execution_mode", "live") != "live":
         raise LonoraError("shadow_execution_forbidden", 403)
@@ -138,6 +145,12 @@ async def require_task_authority(session: AsyncSession, run: RunRow) -> None:
     if row is None or row.agent_id != run.agent_id or row.thread_id != run.thread_id:
         raise LonoraError("task_run_mismatch", 409)
     state = TaskState.model_validate(row.state.get("task"))
+    if (
+        reducing
+        and state.control_requested in {None, "pause"}
+        and (state.status == "paused" or state.control_requested == "pause")
+    ):
+        return  # Paused work still reduces its risk (4.7, 6.9).
     if state.control_requested or state.status in {"paused", "cancelled", "completed", "failed"}:
         raise LonoraError("task_execution_stopped", 409)
 
@@ -161,7 +174,9 @@ class ExecutionService:
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
-                await require_goal_lineage(session, lease, goal, owner_id, request)
+                await require_goal_lineage(
+                    session, lease, goal, owner_id, request, reducing=may_reduce_risk(request)
+                )
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
                 if previous.owner_id != owner_id or previous.request_hash != trade_fingerprint(
@@ -448,7 +463,9 @@ class ExecutionService:
                 )
                 if lease:
                     await require_lease(session, lease, lock=True)
-                    await require_goal_lineage(session, lease, goal, owner_id, request)
+                    await require_goal_lineage(
+                        session, lease, goal, owner_id, request, reducing=reducing
+                    )
                     target = (
                         next(
                             (
