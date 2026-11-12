@@ -48,7 +48,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
 the members: an observe-only wake keeps every non-financial member (no financial
 effects), and a helper (subagent) keeps the read-only members plus
-`workspace_execute` and `artifact_create`. The eager set
+`artifact_create`. The eager set
 is at most `EAGER_SCHEMA_BUDGET` (26,950) characters of serialized schema for
 every profile combination (largest today: the Personal Agent's conversation
 with coordination, 26,929, and market Task Runs, 26,923; a market conversation
@@ -148,8 +148,7 @@ handler remains authoritative.
 | --- | --- | --- |
 | `web_search` | no SearXNG URL and no enabled Brave integration with a secret | `research_provider_not_configured` |
 | `web_browse` | no browser service URL | `browser_unconfigured` |
-| `workspace_*` | no analytical workspace | `workspace_unconfigured` |
-| `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
+| `workspace_*`, `market_candles_to_workspace`, `skill_package_validate` | the owner's workspace is not present (no supervisor socket in this service) | `workspace_unavailable` |
 | `mcp_execute` | no operator declaration and no MCP server the owner trusted (or the operator's deny override) | `mcp_tool_not_authorized` |
 | `trade_execute`, `trade_close_positions` | Run of an agent whose current permission is analysis | `agent_analysis_only` |
 

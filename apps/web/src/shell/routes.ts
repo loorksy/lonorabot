@@ -43,6 +43,7 @@ export const PAGES = [
   "integrations",
   "providers",
   "provider",
+  "models",
   "mcp",
   "broker",
   "broker-account",
@@ -96,6 +97,7 @@ const SETTINGS_PAGES = new Set<string>([
   "integrations",
   "providers",
   "provider",
+  "models",
   "mcp",
   "broker",
   "broker-account",
@@ -103,6 +105,7 @@ const SETTINGS_PAGES = new Set<string>([
   "usage-detail",
   "storage",
   "privacy",
+  "recovery",
 ]);
 const rootNames = new Set<string>(ROOTS);
 const pageNames = new Set<string>(PAGES);
@@ -138,10 +141,19 @@ export function parseRoute(pathname: string): ShellRoute {
   return { kind: "not-found" };
 }
 
-export function sectionOf(route: ShellRoute): Root {
+/** `search` tells workspace files (Settings opens them) from an agent's (`?agent=`). */
+export function sectionOf(route: ShellRoute, search = ""): Root {
   if (route.kind === "root") return route.root;
   if (route.kind === "page" && SETTINGS_PAGES.has(route.page)) return "settings";
-  if (route.kind === "page" && (route.page === "task" || route.page === "new-task")) return "tasks";
+  if (
+    route.kind === "page" &&
+    route.page === "artifacts" &&
+    !route.item &&
+    !new URLSearchParams(search).has("agent")
+  )
+    return "settings";
+  if (route.kind === "page" && ["task", "new-task", "new-schedule"].includes(route.page))
+    return "tasks";
   if (route.kind === "page" && route.page === "activity") return "updates";
   return "chats";
 }

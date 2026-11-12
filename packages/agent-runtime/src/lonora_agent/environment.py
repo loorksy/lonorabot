@@ -164,7 +164,7 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         category, action = "ambiguous_mutation", "reconcile_before_any_resend"
     elif code in TRANSIENT_READ_CODES:
         category, action = "temporary_unavailable", "inspect_health"
-    elif code in {"version_conflict", "stale_state", "workspace_revision_conflict"}:
+    elif code in {"version_conflict", "stale_state"}:
         category, action = "version_conflict", "reload_authoritative_state"
     elif code in {"quote_stale", "market_data_stale", "market_evidence_stale", "stale_evidence"}:
         category, action = "stale_state", "refresh_evidence"

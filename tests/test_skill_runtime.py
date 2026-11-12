@@ -259,7 +259,11 @@ class FakeSession:
     async def scalar(self, query: Any) -> Any:
         if "ln_agents" in str(query):
             return self.agent
-        return "What do you remember about my project?" if "ln_messages" in str(query) else None
+        sql = str(query)
+        if "ln_messages.rich_content" in sql:
+            # A whole message row (the turn's / command): the message has no command.
+            return None
+        return "What do you remember about my project?" if "ln_messages" in sql else None
 
 
 @pytest.mark.asyncio

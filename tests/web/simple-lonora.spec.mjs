@@ -37,7 +37,7 @@ const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map
 async function modeLine(page) {
   await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
   await page
-    .getByRole("button", {
+    .getByRole("menuitem", {
       name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
     })
     .click();

@@ -1,4 +1,4 @@
-import type { InputAnswer } from "@lonora/contracts";
+import type { InputAnswer, MessageCommand } from "@lonora/contracts";
 import {
   isPlainOutgoing,
   type MentionAddress,
@@ -7,16 +7,20 @@ import {
 } from "@lonora/core";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, isRequestCancelled, type Message, type Run, type Thread } from "../lib/api";
+import type { DraftUpload } from "../lib/composer-drafts";
 import { conversationKey, readConversation, retainConversation } from "../lib/conversation-cache";
 import {
   acknowledgeOutgoing,
+  cancelOutgoingUploads,
   dropOutgoing,
   enqueueOutgoing,
   failOutgoing,
   type OutgoingIntent,
   outgoingKey,
   outgoingMessages,
+  outgoingUploads,
   serverAnswered,
+  settleOutgoingUploads,
   subscribeOutgoing,
 } from "../lib/outgoing-messages";
 import { useClient } from "../providers/ClientProvider";
@@ -180,12 +184,19 @@ export function useThreads(
     );
   }, [canonicalMessages, outgoing]);
 
-  async function deliver(intent: OutgoingIntent): Promise<void> {
+  async function deliver(sent: OutgoingIntent): Promise<void> {
     if (!threadId) throw new Error("thread_not_found");
-    const flightKey = `${key}:${intent.nonce}`;
+    const flightKey = `${key}:${sent.nonce}`;
     const existing = inFlightSends.get(flightKey);
     if (existing) return existing;
     const operation = (async () => {
+      // A message sent while its files were still uploading is posted once they are up.
+      const ready = outgoingUploads(sent.nonce).length
+        ? await settleOutgoingUploads(key, sent.nonce)
+        : sent;
+      // Its uploads were cancelled: the message is gone and nothing is posted.
+      if (!ready) return;
+      const intent = ready;
       // Owner decision Q6: a plain message written offline waits (clock) and goes out by
       // itself when the network returns; an answer or a decision is never sent later.
       const plain = isPlainOutgoing(intent.body);
@@ -246,7 +257,10 @@ export function useThreads(
     extra?: {
       edited_from?: string;
       voice?: { artifact_id: string; duration: number; peaks: number[] };
+      command?: MessageCommand;
     },
+    /** Files still uploading when the owner pressed send: the message waits for them. */
+    uploads: DraftUpload[] = [],
   ): OutgoingIntent {
     if (!threadId) throw new Error("thread_not_found");
     const fingerprint = JSON.stringify([
@@ -257,6 +271,7 @@ export function useThreads(
       mentions,
       inputAnswer,
       extra,
+      ...(uploads.length ? [uploads.map((upload) => upload.id)] : []),
     ]);
     const intent = enqueueOutgoing(
       key,
@@ -273,6 +288,7 @@ export function useThreads(
         ...(extra ?? {}),
       },
       Math.max(0, ...canonicalMessages.map((message) => message.seq)),
+      uploads,
     );
     return intent;
   }
@@ -299,10 +315,12 @@ export function useThreads(
     retry: async (nonce: string) => {
       if (!threadId) return;
       const prior = outgoingMessages(key).find((row) => row.nonce === nonce);
-      if (!prior) return;
+      // A row whose files never arrived cannot be sent again: their bytes are gone.
+      if (!prior || prior.message.uploading?.length) return;
       await deliver(enqueueOutgoing(key, threadId, prior.fingerprint, prior.body));
     },
     drop: (nonce: string) => dropOutgoing(key, nonce),
+    cancelUploads: (nonce: string) => cancelOutgoingUploads(key, nonce),
     cancel: async (id: string) => {
       await api.post(`/runs/${id}/cancel`, {});
       refresh();

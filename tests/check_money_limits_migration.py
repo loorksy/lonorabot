@@ -28,7 +28,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0086_end_trading_restrictions"
+BEFORE = "0138_skill_package_files"
 AGES = {"quote_max_age_seconds": 15, "account_max_age_seconds": 20}
 OLD_POLICY = {
     **AGES,

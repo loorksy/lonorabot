@@ -51,6 +51,7 @@ import {
 } from "./settings/ConnectionPages";
 import { AccessibilityPage, PrivacyPage, StoragePage } from "./settings/DevicePages";
 import { IntegrationsPage } from "./settings/IntegrationsPage";
+import { ModelsPage } from "./settings/ModelsPage";
 import { CommunicationPage, NotifyPage } from "./settings/NotifyPages";
 import { OwnerPage } from "./settings/OwnerPage";
 import { RunningPage } from "./settings/RunningPage";
@@ -62,15 +63,16 @@ const Trading = lazy(() => import("../pages/Trading").then((m) => ({ default: m.
 const Settings = lazy(() =>
   import("../pages/SettingsOverlay").then((m) => ({ default: m.SettingsOverlay })),
 );
-/** Old settings tabs: the ones with a reference page go there; models and voice keep the
- * existing screen until their phase (model routing and the trading controls have no reference
- * home yet, OQ47; voice is phase 6). */
-const settingsTabs = new Set<string>(["models", "voice", "trading"]);
+/** Old settings tabs: the ones with a reference page go there (model routing: /app/models);
+ * voice and the trading controls keep the existing screen until their phase (the trading
+ * controls have no reference home yet, OQ47; voice is phase 6). */
+const settingsTabs = new Set<string>(["voice", "trading"]);
 const settingsMoved: Readonly<Record<string, string>> = {
   capabilities: "/app/integrations",
   integrations: "/app/integrations",
   mcp: "/app/integrations",
   usage: "/app/usage",
+  models: "/app/models",
   overview: "/app/settings",
 };
 
@@ -156,6 +158,8 @@ export function pageTitle(page: Page): string {
       return t`Model providers`;
     case "provider":
       return t`Add an AI provider`;
+    case "models":
+      return t`Models`;
     case "mcp":
       return t`Add MCP`;
     case "broker":
@@ -213,7 +217,7 @@ function SettingsPage({ desktop: _desktop }: { desktop: boolean }) {
     return (
       <Legacy>
         <Suspense fallback={<Loading />}>
-          <Settings key={tab} initialTab={tab as SettingsTab} />
+          <Settings key={tab} initialTab={tab as Exclude<SettingsTab, "models">} />
         </Suspense>
       </Legacy>
     );
@@ -340,6 +344,7 @@ export function DetailPages({
           path="/app/provider/:item"
           element={<ItemPage render={(item) => <ProviderFormPage key={item} initial={item} />} />}
         />
+        <Route path="/app/models" element={<ModelsPage />} />
         <Route path="/app/mcp" element={<McpFormPage />} />
         <Route path="/app/broker" element={<BrokerFormPage />} />
         <Route

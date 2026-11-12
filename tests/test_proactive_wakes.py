@@ -95,7 +95,7 @@ def test_scopes_follow_the_run_not_the_tool_list():
     catalog = load_tools()
     wake = catalog.names("observe_only")
     assert {"memory_write", "watch_create", "peer_send", "owner_notify", "routine_create"} <= wake
-    assert {"artifact_create", "workspace_update"} <= wake
+    assert {"artifact_create", "workspace_file_read"} <= wake
     assert not {name for name, tool in catalog.tools.items() if tool.financial} & wake
     helper = catalog.names("helper")
     assert HELPER_EFFECTS <= helper

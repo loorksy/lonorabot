@@ -30,7 +30,6 @@ CHECKS = (
     "check_skill_packages.py",
     "check_managed_skill_updates.py",
     "check_workspace_skill_creation.py",
-    "check_workspace_runtime.py",
     "check_workspace_artifacts.py",
     "check_workspace_migrations.py",
     "check_durable_records.py",
@@ -117,13 +116,15 @@ def main() -> None:
     base = make_url(get_settings().database_url)
     commands = [[sys.executable, "tests/" + script] for script in CHECKS]
     commands.append([sys.executable, "-m", "pytest", "tests/test_task_runtime.py", "-q"])
-    # UI phase 5: delivery rules, dry-run tests, owner identity and usage (PostgreSQL cases).
+    # UI phase 5: delivery rules, dry-run tests, owner identity and usage, and the
+    # composer's / commands (PostgreSQL cases).
     for name in (
         "test_agent_delivery_rules.py",
         "test_connection_tests.py",
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",
+        "test_slash_commands.py",
         "test_usage_tool.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
