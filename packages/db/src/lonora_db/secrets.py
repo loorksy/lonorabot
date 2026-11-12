@@ -16,7 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, SecretRow
 
 WORKSPACE = "workspace"
-SCOPES = ("broker", "provider", "integration", WORKSPACE)
+BROKER = "broker"
+# The owner's one MetaApi API token (scope ``broker``); every MetaApi connection names it.
+METAAPI_TOKEN = "metaapi_token"
+SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 CONNECTIONS = (BrokerSessionRow, IntegrationRow, McpConnectionRow)
 
