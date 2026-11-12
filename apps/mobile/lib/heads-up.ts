@@ -1,6 +1,11 @@
 // The heads-up banner's rules, as Web's HeadsUp (owner decisions Q4 and Q47, the reach-me
 // policy): what an event or an attention item puts at the top of the screen, if anything.
-import type { Agent, AttentionNotification, Event } from "@lonora/contracts";
+import {
+  type Agent,
+  type AttentionNotification,
+  type Event,
+  isBrokerHealth,
+} from "@lonora/contracts";
 import {
   attentionAlwaysShows,
   type ChatRow,
@@ -53,7 +58,8 @@ export function messageBanner(
 
 /**
  * An urgent attention item (critical or action required) always shows, quiet hours included,
- * on its agent's or group's row.
+ * on its agent's or group's row; a broker health problem with no row of its own on Lonora's,
+ * who speaks for the team about it (3.1.5, 9.4).
  */
 export function attentionBanner(
   item: AttentionNotification,
@@ -65,7 +71,11 @@ export function attentionBanner(
   const key = parameters.group_id
     ? rowKey("group", parameters.group_id)
     : rowKey("agent", item.agent_id ?? "");
-  const row = context.rows.find((candidate) => candidate.key === key);
+  const row =
+    context.rows.find((candidate) => candidate.key === key) ??
+    (isBrokerHealth(item.code)
+      ? context.rows.find((candidate) => candidate.agent?.role === "personal")
+      : undefined);
   const text = parameters.summary || context.labels[item.code];
   return row && text ? { row, text: cut(text) } : null;
 }

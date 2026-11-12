@@ -57,6 +57,7 @@ async function scriptedStream(page) {
     socket.onClose(() => sockets.delete(socket));
   });
   return {
+    ready: () => sockets.size,
     push: (thread, agent, content) => {
       cursor += 1;
       const now = new Date().toISOString();
@@ -102,13 +103,15 @@ test("an answer in another chat shows at the top; Reply opens it; a muted chat s
   try {
     await page.goto("/");
     await expect(page.getByText(gold.agent.name, { exact: true })).toBeVisible();
-    await page.waitForTimeout(1500);
+    await expect.poll(stream.ready).toBeGreaterThan(0);
+    // A muted chat stays silent.
     stream.push(euro.thread.id, euro.agent.id, "EURUSD at 1.0850, no trade.");
-    stream.push(gold.thread.id, gold.agent.id, "Gold broke 2,425; I added 0.05.");
     const banner = page.getByTestId("heads-up");
+    await page.waitForTimeout(1200);
+    await expect(banner).toHaveCount(0);
+    stream.push(gold.thread.id, gold.agent.id, "Gold broke 2,425; I added 0.05.");
     await expect(banner).toContainText("Gold broke 2,425; I added 0.05.");
     await expect(banner).toContainText(gold.agent.name);
-    await expect(banner).not.toContainText("EURUSD");
     await banner.getByRole("button", { name: "Reply", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`id=${gold.thread.id}`));
     await expect(banner).toHaveCount(0);

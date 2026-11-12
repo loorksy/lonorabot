@@ -107,3 +107,38 @@ test("an urgent attention item always shows on its agent's row; an informational
     null,
   );
 });
+
+test("urgent items: old ones stay quiet, a group's shows on its row, a broker outage on Lonora's", () => {
+  const lonora = row("l", { agent: { role: "personal" } });
+  const group = row("g", { kind: "group", key: "group:g" });
+  const item = (fields: Record<string, unknown>) =>
+    ({
+      id: "n",
+      code: "approval_required",
+      importance: "action_required",
+      agent_id: "a",
+      parameters: {},
+      created_at: "2026-11-12T08:01:00Z",
+      ...fields,
+    }) as never;
+  const context = {
+    rows: [row("a"), group, lonora],
+    openedAt: opened,
+    labels: { approval_required: "Waiting for approval", broker_connection_lost: "Broker lost" },
+  };
+  // The label stands in for a missing summary.
+  assert.equal(attentionBanner(item({}), context)?.text, "Waiting for approval");
+  assert.equal(attentionBanner(item({ created_at: "2026-11-12T07:00:00Z" }), context), null);
+  assert.equal(
+    attentionBanner(item({ agent_id: "zz", parameters: { group_id: "g" } }), context)?.row.id,
+    "g",
+  );
+  const outage = attentionBanner(
+    item({ code: "broker_connection_lost", agent_id: "zz", importance: "action_required" }),
+    context,
+  );
+  assert.equal(outage?.row.id, "l");
+  assert.equal(outage?.text, "Broker lost");
+  // Any other urgent item with no row of its own shows nowhere.
+  assert.equal(attentionBanner(item({ agent_id: "zz" }), context), null);
+});

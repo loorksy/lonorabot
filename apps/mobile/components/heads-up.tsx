@@ -6,7 +6,7 @@ import type { Event } from "@lonora/contracts";
 import type { QuietHours } from "@lonora/core";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, Text, View } from "react-native";
+import { Animated, AppState, PanResponder, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../lib/api";
 import { subscribeOwnerEvents } from "../lib/events";
@@ -19,12 +19,30 @@ import { attentionLabels } from "./attention-inbox";
 import { useOpenChat } from "./shell/chat-list";
 import { RowAvatar } from "./shell/kit";
 
-/** The owner's quiet hours and the agents whose in-app rule is off, read once per sign-in. */
-function useDeliveryRules(ownerId: string | undefined) {
+/**
+ * The owner's quiet hours and the agents whose in-app rule is off. Read at sign-in, again when
+ * the app returns to the foreground, and at most once a minute on the shell's poll (`tick`),
+ * so a change made on Web, or a read that failed offline, is not kept for the whole session.
+ */
+function useDeliveryRules(ownerId: string | undefined, tick: unknown) {
   const [quiet, setQuiet] = useState<QuietHours | null>(null);
   const [off, setOff] = useState<ReadonlySet<string>>(new Set());
+  const [revision, setRevision] = useState(0);
+  const lastRead = useRef(0);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") setRevision((value) => value + 1);
+    });
+    return () => subscription.remove();
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `tick` is the shell's poll
+  useEffect(() => {
+    if (Date.now() - lastRead.current >= 60_000) setRevision((value) => value + 1);
+  }, [tick]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `revision` asks for a fresh read
   useEffect(() => {
     if (!ownerId) return;
+    lastRead.current = Date.now();
     let live = true;
     api
       .get<{ reach_me: QuietHours }>("/owner/profile")
@@ -47,7 +65,7 @@ function useDeliveryRules(ownerId: string | undefined) {
     return () => {
       live = false;
     };
-  }, [ownerId]);
+  }, [ownerId, revision]);
   return { quiet, off };
 }
 
@@ -58,7 +76,7 @@ export function HeadsUp() {
   const data = useShellData();
   const lists = useLists();
   const openChat = useOpenChat();
-  const rules = useDeliveryRules(owner?.id);
+  const rules = useDeliveryRules(owner?.id, data.inbox);
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ id?: string | string[]; groupId?: string | string[] }>();
   const first = (value?: string | string[]) => (Array.isArray(value) ? value[0] : value);
@@ -70,6 +88,7 @@ export function HeadsUp() {
         : undefined;
   const [banner, setBanner] = useState<(Banner & { serial: number }) | null>(null);
   const offset = useRef(new Animated.Value(-160)).current;
+  // News is what arrives after this owner signed in (or the app opened).
   const openedAt = useRef(Date.now());
   const serial = useRef(0);
   const announced = useRef(new Set<string>());
@@ -77,8 +96,12 @@ export function HeadsUp() {
   live.current = { rows: lists.rows, agents: data.agents, current, rules, t };
 
   const hide = useCallback(() => {
-    Animated.timing(offset, { toValue: -160, duration: 220, useNativeDriver: true }).start(() =>
-      setBanner(null),
+    const shown = serial.current;
+    // A banner that arrives while this one slides out is not cleared with it.
+    Animated.timing(offset, { toValue: -160, duration: 220, useNativeDriver: true }).start(
+      ({ finished }) => {
+        if (finished && serial.current === shown) setBanner(null);
+      },
     );
   }, [offset]);
   const show = useCallback(
@@ -96,6 +119,12 @@ export function HeadsUp() {
     return () => clearTimeout(timer);
   }, [banner, hide]);
 
+  useEffect(() => {
+    openedAt.current = Date.now();
+    announced.current = new Set();
+    if (!owner) setBanner(null);
+  }, [owner]);
+
   // Answers in other chats, from the owner's live stream.
   useEffect(() => {
     if (!owner) return;
@@ -109,7 +138,9 @@ export function HeadsUp() {
           current: context.current,
           quiet: context.rules.quiet,
           off: context.rules.off,
-          openedAt: openedAt.current,
+          // After a reconnect the stream replays what was missed in the background: only an
+          // answer from the last moments is news (push covers the rest).
+          openedAt: Math.max(openedAt.current, Date.now() - 15_000),
           now: new Date(),
           newMessage: context.t("newMessage"),
         });
@@ -144,7 +175,7 @@ export function HeadsUp() {
       },
     }),
   ).current;
-  if (!banner) return null;
+  if (!banner || !owner) return null;
   const open = () => {
     hide();
     void openChat(banner.row);
