@@ -3,8 +3,8 @@
 Exercises crash-before-send recovery, interruption after submission (Owner addendum §6
 step 7), scoped blocking against reduce-only admission on an uncertain market, degraded/
 disconnected recovery, owner attestation through the authenticated API,
-target-state reconciliation of modify/cancel operations, verification rechecks and a
-close-all whose exits never wait on one another. No live broker, MetaApi key or
+target-state reconciliation of modify/cancel operations, verification rechecks and an
+approved close-all whose exits never wait on one another. No live broker, MetaApi key or
 real order is involved.
 """
 
@@ -22,6 +22,7 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
+from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
@@ -91,6 +92,16 @@ class LossyBroker(SimulationBroker):
         # Operation -> gate: cross the send boundary, wait, then report a broker rejection.
         self.reject_after_boundary: dict[str, asyncio.Event] = {}
         self.boundary = asyncio.Event()
+        # Runs once, right after the next positions read: a ticket changes at the broker
+        # between the set a call read and its sends.
+        self.after_read: Callable[[], Awaitable[None]] | None = None
+
+    async def positions(self) -> list[Position]:
+        positions = await super().positions()
+        hook, self.after_read = self.after_read, None
+        if hook is not None:
+            await hook()
+        return positions
 
     async def execute(
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
@@ -669,8 +680,40 @@ async def main() -> None:
         def close_operation(call: ToolCall, position_id: str) -> str:
             return stable_id(context.lease.run_id, "close:" + call.id + ":" + position_id)
 
-        # 7a. The broker rejects the first close: the others are sent.
+        # 7a. The first position the call read is stopped out before its batch runs: that
+        # close fails on the changed target, the others are sent.
         call, gold = await close_all("batch-stopped-" + uuid4().hex)
+        sent_before = -1
+
+        async def stop_out() -> None:
+            nonlocal sent_before
+            stopped_out = await run(trade("close_position", position_id=gold[0]))
+            assert stopped_out.status == "confirmed", stopped_out
+            sent_before = len(lossy.sent)
+
+        lossy.after_read = stop_out
+        outcome = await registry.execute(call, context)
+        results = outcome["results"]
+        operations.extend(item["operation_id"] for item in results)
+        assert sent_before >= 0 and lossy.after_read is None
+        assert "approval_id" not in outcome, outcome
+        assert len(results) == len(gold)
+        assert results[0]["operation_id"] == close_operation(call, gold[0]), results[0]
+        assert results[0]["status"] == "failed" and results[0]["code"] in {
+            "trade_approval_broker_state_changed",
+            "position_not_found",
+        }, results[0]
+        assert all(item["status"] == "confirmed" for item in results[1:]), results
+        assert len(lossy.sent) == sent_before + len(gold) - 1
+        assert not any(p.symbol == GOLD for p in await broker.positions())
+        print(
+            "PASS a close-all still sends every other exit after one position it read was stopped out"
+        )
+
+        # The broker rejects the first close: the others are sent.
+        for volume in ("0.3", "0.4", "0.5"):
+            assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
+        call, gold = await close_all("batch-rejected-" + uuid4().hex)
         rejected_close = asyncio.Event()
         rejected_close.set()
         lossy.reject_after_boundary[close_operation(call, gold[0])] = rejected_close
@@ -712,7 +755,7 @@ async def main() -> None:
             assert result.status == "confirmed" and result.broker_id, result
             later.append(result.broker_id)
         # A protective order: a sell stop that would offset the net long GOLD book. It is
-        # placed while GOLD is still settled; section 8 tries to cancel it once uncertain.
+        # placed while GOLD is settled; section 8 tries to cancel it once GOLD is uncertain.
         guard = await run(trade("sell_stop", volume="0.2", price="96"))
         assert guard.status == "confirmed" and guard.broker_id, guard
         sent_before = len(lossy.sent)
@@ -738,17 +781,16 @@ async def main() -> None:
         )
 
         # 8. Agent requests in Ask: exits stay admissible on the still-uncertain GOLD
-        # market (without a card, they reduce risk); new risk there never is, even once
-        # the owner approved its card.
+        # market (without a card, they reduce risk), new risk there never is.
         async def approved(arguments: dict[str, Any]) -> dict[str, Any]:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
-                # A card for new risk carries the agent's reason and tolerance (10.3).
+                # A card for new risk carries a tolerance and the agent's reason (10.3.1).
                 arguments={
                     "account_id": account,
-                    "reason": "Recovery check",
                     "tolerance": "5",
+                    "reason": "Fixture request",
                     **arguments,
                 },
             )
@@ -823,7 +865,7 @@ async def main() -> None:
         assert entry["status"] == "failed", entry
         assert entry["code"] == "broker_reconciliation_required", entry
         print(
-            "PASS agent requests close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked even when approved"
+            "PASS agent requests close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked"
         )
     finally:
         async with db.sessions() as session, session.begin():

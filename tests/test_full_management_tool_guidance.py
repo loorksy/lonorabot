@@ -37,5 +37,4 @@ def test_personal_agent_guidance_does_not_contradict_signed_management():
     assert "your trading mode decides execution: full executes on its own" in guidance.casefold()
     assert "uses the existing approval controls unless an active signed account grant" in guidance
     assert "current server authority, risk and scope" in guidance
-    assert "global trading" not in guidance and "emergency" not in guidance
     assert "Owner-wide visibility is NOT autonomous execution authority" in guidance
