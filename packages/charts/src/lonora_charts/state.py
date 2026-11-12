@@ -144,12 +144,6 @@ def stored_scene(data: dict[str, Any], version: int) -> dict[str, Any]:
     return cast(dict[str, Any], scene)
 
 
-async def load_chart_state(db: Database, owner_id: str, chart_id: str) -> ChartState:
-    async with db.sessions() as session:
-        row = await CloudChartRepository().get(session, owner_id, chart_id)
-        return ChartState.model_validate(row.payload)
-
-
 async def inspect_chart(db: Database, owner_id: str, chart_id: str) -> dict[str, Any]:
     async with db.sessions() as session:
         row = await CloudChartRepository().get(session, owner_id, chart_id)

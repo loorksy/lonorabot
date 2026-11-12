@@ -10,7 +10,6 @@
 import type {
   AttestedOutcome,
   CredentialTarget,
-  EffectTier,
   GrantDelegation,
   OwnerAction,
   OwnerActionAccount,
@@ -174,37 +173,6 @@ export const ownerActionLabels = {
     resumedWork: "Resumed.",
     keptPaused: "Kept paused.",
     watchExpired: "This watch is past its expiry: move its expiry in the watch list to resume it.",
-    trustTitle: "Trust this source?",
-    trustReviewTitle: "This server's tools changed",
-    trustServer: "MCP server",
-    trustRepo: "GitHub repository",
-    trustPublisher: "GitHub publisher",
-    trustFeed: "News feed site",
-    trustTools: "Tools",
-    trustBlocked: "Blocked, can trade or move money",
-    trustWrites: "May change something (only with non-financial writes)",
-    trustSubscribe: "It also subscribes the feed for every agent.",
-    trustHint:
-      "Agents use it without asking again; you can remove it in Capabilities. It never carries money authority.",
-    trustServerHint:
-      "Read only runs just the tools that only read; non-financial writes runs them all. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review. Money moves only through your grants.",
-    trustServerReadHint:
-      "Its tools only read. Tools that look like they trade or move money are blocked and never run, and a changed tool waits for your review.",
-    trustServerBlockedHint:
-      "It offers tools that look like they trade or move money. They are blocked, so only its reading tools can run. Money moves only through your grants.",
-    trust: "Trust",
-    trustRead: "Trust: read only",
-    trustWrite: "Trust: non-financial writes",
-    trusted: "Trusted.",
-    trustedRead: "Trusted for reading.",
-    trustedWrite: "Trusted for non-financial writes.",
-    unnamedServer: "Unnamed server",
-    alreadyTrusted: "This source is already trusted. Nothing changed.",
-    serverMissing: "This server is no longer saved. Nothing changed.",
-    serverChanged: "This server's address changed. Nothing changed; review it again.",
-    nothingToTrust: "This server offers no tool that can be trusted.",
-    feedSubscribed: "This feed is already subscribed.",
-    serverChangedAgain: "The server changed again; the newer card replaces this one.",
     connectMcp: "Connect an MCP server",
     connectX: "Connect X",
     connectFeed: "Add a news feed",
@@ -411,37 +379,6 @@ export const ownerActionLabels = {
     resumedWork: "تم الاستئناف.",
     keptPaused: "بقي موقوفًا.",
     watchExpired: "انتهت مدة هذه المراقبة: مدّد مدتها من قائمة المراقبات لاستئنافها.",
-    trustTitle: "الوثوق بهذا المصدر؟",
-    trustReviewTitle: "تغيّرت أدوات هذا الخادم",
-    trustServer: "خادم MCP",
-    trustRepo: "مستودع على GitHub",
-    trustPublisher: "ناشر على GitHub",
-    trustFeed: "موقع موجز الأخبار",
-    trustTools: "الأدوات",
-    trustBlocked: "محظورة، تتداول أو تحرّك المال",
-    trustWrites: "قد تغيّر شيئًا (مع الكتابة غير المالية فقط)",
-    trustSubscribe: "ويشترك أيضًا في الموجز لكل الوكلاء.",
-    trustHint:
-      "يستخدمه الوكلاء دون أن يسألوك مجددًا، وتستطيع إزالته من القدرات. لا يحمل أي صلاحية مالية.",
-    trustServerHint:
-      "القراءة فقط تشغّل الأدوات التي تقرأ فحسب، والكتابة غير المالية تشغّلها كلها. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك. المال لا يتحرك إلا ضمن تفويضاتك.",
-    trustServerReadHint:
-      "أدواته تقرأ فقط. الأدوات التي يبدو أنها تتداول أو تحرّك المال محظورة ولا تعمل أبدًا، وأي أداة تتغيّر تنتظر مراجعتك.",
-    trustServerBlockedHint:
-      "يقدّم أدوات يبدو أنها تتداول أو تحرّك المال. هي محظورة، فلا تعمل إلا أدواته التي تقرأ. المال لا يتحرك إلا ضمن تفويضاتك.",
-    trust: "ثقة",
-    trustRead: "ثقة: قراءة فقط",
-    trustWrite: "ثقة: كتابة غير مالية",
-    trusted: "صار موثوقًا.",
-    trustedRead: "صار موثوقًا للقراءة.",
-    trustedWrite: "صار موثوقًا للكتابة غير المالية.",
-    unnamedServer: "خادم بلا اسم",
-    alreadyTrusted: "هذا المصدر موثوق مسبقًا. لم يتغير شيء.",
-    serverMissing: "لم يعد هذا الخادم محفوظًا. لم يتغير شيء.",
-    serverChanged: "تغيّر عنوان هذا الخادم. لم يتغير شيء؛ راجعه من جديد.",
-    nothingToTrust: "لا يقدّم هذا الخادم أي أداة يمكن الوثوق بها.",
-    feedSubscribed: "هذا الموجز مشترك فيه مسبقًا.",
-    serverChangedAgain: "تغيّر الخادم مجددًا؛ البطاقة الأحدث تحل محل هذه.",
     connectMcp: "ربط خادم MCP",
     connectX: "ربط X",
     connectFeed: "إضافة موجز أخبار",
@@ -508,14 +445,12 @@ export function ownerActionText(locale: string): OwnerActionText {
   return ownerActionLabels[language(locale)];
 }
 
-/** What a button sends: confirm (with an outcome for a resolve card, or the tier an MCP
- * server is trusted for) or cancel. */
+/** What a button sends: confirm (with an outcome for a resolve card) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome;
+  key: "confirm" | "cancel" | AttestedOutcome;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
-  tier?: EffectTier;
   primary: boolean;
 };
 /** An owner switch on a card (a grant card's own positions, a conflict); the client
@@ -614,13 +549,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.restored;
       case "supervision_paused":
         return text.resumedWork;
-      case "trust_source":
-        // Read only matters only when some tool may change something.
-        return card.result.tier === "write_nonfinancial"
-          ? text.trustedWrite
-          : card.facts.source?.kind === "mcp_server" && card.result.writes
-            ? text.trustedRead
-            : text.trusted;
       case "connect_credential":
         return text.connected;
       case "secret":
@@ -674,18 +602,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.watchChangedAgain;
     case "watch_removed":
       return text.watchRemoved;
-    case "source_already_trusted":
-      return text.alreadyTrusted;
-    case "mcp_connection_missing":
-      return text.serverMissing;
-    case "mcp_connection_changed":
-      return text.serverChanged;
-    case "mcp_nothing_to_trust":
-      return text.nothingToTrust;
-    case "feed_already_subscribed":
-      return text.feedSubscribed;
-    case "server_changed_again":
-      return text.serverChangedAgain;
     case "credential_already_configured":
       return text.alreadyConnected;
     case "expired":
@@ -1001,32 +917,6 @@ function agentLines(
   // standing instruction, so the owner sees exactly what the tap keeps.
   const task = agent.responsibility?.split(/\s+/).filter(Boolean).join(" ");
   if (task) lines.push(`${text.task}: ${isolate(task)}`);
-  return lines;
-}
-
-const SOURCE_LABEL = {
-  mcp_server: "trustServer",
-  github_repo: "trustRepo",
-  github_owner: "trustPublisher",
-  feed_domain: "trustFeed",
-} as const;
-
-/** A trust card's lines: which source, the tools it would trust and those it blocks. */
-function sourceLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
-  const source = card.facts.source;
-  if (!source) return [];
-  const label = source.label
-    ? isolate(source.label)
-    : source.kind === "mcp_server"
-      ? text.unnamedServer
-      : "";
-  const lines = [`${text[SOURCE_LABEL[source.kind]]}: ${label}`];
-  if (source.tools?.length) lines.push(`${text.trustTools}: ${nameList(source.tools, lang)}`);
-  // A server with a blocked tool runs only its reading tools, so no write is listed.
-  if (source.writes?.length && !source.blocked?.length)
-    lines.push(`${text.trustWrites}: ${nameList(source.writes, lang)}`);
-  if (source.blocked?.length) lines.push(`${text.trustBlocked}: ${nameList(source.blocked, lang)}`);
-  if (source.subscribe) lines.push(text.trustSubscribe);
   return lines;
 }
 
@@ -1366,45 +1256,6 @@ export function ownerActionCard(
       buttons = pair(text.resumeWork, text.keepPaused);
       break;
     }
-    case "trust_source": {
-      const source = facts.source;
-      title = source?.review ? text.trustReviewTitle : text.trustTitle;
-      lines.push(...sourceLines(card, lang, text));
-      if (source?.kind === "mcp_server" && (!source.writes?.length || source.blocked?.length)) {
-        // Every tool only reads, or the server offers a tool that can trade or move money
-        // (then only its reading tools may run): one tap, nothing to choose.
-        hint = source.blocked?.length ? text.trustServerBlockedHint : text.trustServerReadHint;
-        buttons = [
-          { key: "confirm", label: text.trust, decision: "confirm", tier: "read", primary: true },
-          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
-        ];
-        break;
-      }
-      if (source?.kind === "mcp_server") {
-        hint = text.trustServerHint;
-        buttons = [
-          {
-            key: "confirm",
-            label: text.trustRead,
-            decision: "confirm",
-            tier: "read",
-            primary: true,
-          },
-          {
-            key: "trust_write",
-            label: text.trustWrite,
-            decision: "confirm",
-            tier: "write_nonfinancial",
-            primary: false,
-          },
-          { key: "cancel", label: text.notNow, decision: "cancel", primary: false },
-        ];
-        break;
-      }
-      hint = text.trustHint;
-      buttons = pair(text.trust, text.notNow);
-      break;
-    }
     case "connect_credential": {
       const credential = facts.credential;
       title = credential ? credentialTitle(credential, text) : text.connectMcp;
@@ -1562,10 +1413,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_choice_unsupported: {
     en: "This card has no such choice.",
     ar: "لا يوجد هذا الخيار في هذه البطاقة.",
-  },
-  owner_action_tier_required: {
-    en: "Choose what its tools may do.",
-    ar: "اختر ما يُسمح لأدواته بفعله.",
   },
   trusted_source_write_blocked: {
     en: "This server offers tools that look like they trade or move money, so only its reading tools can run.",

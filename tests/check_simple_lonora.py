@@ -57,6 +57,7 @@ from lonora_db.schema import (
     TradeApprovalRow,
     TradingAccountRow,
     TradingJournalRow,
+    TrustedSourceRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
@@ -1161,13 +1162,14 @@ class Acceptance:
         assert len(await self.positions(self.account)) == before + 1  # Never resent.
         self.journey(name, 1)
 
-    # MCP (D3): the owner's secure form and the trust tap --------------------------------
+    # MCP (D3): the owner's secure form, then his words trust it ------------------------
 
     async def connect_mcp(
         self, journey: str, card_id: str, name: str, token: str | None, url: str = MCP_URL
     ) -> str:
         """The secure card's form posts the token and server straight to the owner API (one
-        tap: Connect); the server's tools come back on a trust card (one tap: Trust)."""
+        tap: Connect); then the owner names the server in chat and Lonora trusts its tools
+        (VISION 10.3.2: no card)."""
         secret_id = None
         if token is not None:
             secret_id = (
@@ -1194,15 +1196,33 @@ class Acceptance:
             {"decision": "confirm", "connected": {"resource": "mcp", "id": server["id"]}},
         )
         assert connected["status"] == "confirmed" and connected["result"]["configured"], connected
-        thread = await self.request("GET", "/owner-actions?thread_id=" + self.lonora_thread)
-        trust = [c for c in thread if c["kind"] == "trust_source" and c["status"] == "pending"]
-        assert len(trust) == 1, trust
-        source = trust[0]["facts"]["source"]
-        assert source["tools"] == ["search_posts"] and source["blocked"] == ["place_order"], source
-        trusted = await self.decide(
-            journey, trust[0]["id"], {"decision": "confirm", "tier": "read"}
+        # Lonora continues after the card (and asks the owner to name the server).
+        for queued in await self.runs(self.lonora, "owner_card"):
+            if queued.status == "queued":
+                await self.work(queued.id)
+        words = "ثق بخادم " + name
+        trusted: dict[str, Any] = {}
+
+        def done(t: Turn) -> ModelReply:
+            trusted.update(t.result("trust-" + name))
+            return ModelReply(text="وثقت بأدوات الخادم للقراءة.")
+
+        self.model.script(
+            words, lambda t: call("trust-" + name, "mcp_trust", {"server": name}), done
         )
-        assert trusted["status"] == "confirmed", trusted
+        run = await self.work(await self.say(self.lonora_thread, words))
+        assert run.status == "completed", (run.status, run.error_code)
+        assert trusted["trusted"] is True and trusted["tier"] == "read", trusted
+        assert trusted["tools_trusted"] == 1 and trusted["tools_blocked_moving_money"] == 1
+        async with self.db.sessions() as session:
+            row = await session.scalar(
+                select(TrustedSourceRow).where(
+                    TrustedSourceRow.identifier == server["id"],
+                    TrustedSourceRow.revoked_at.is_(None),
+                )
+            )
+            assert row is not None and row.added_via == "owner_message", row
+        assert await self.pending(self.lonora_thread, "trust_source") == []
         return cast(str, server["id"])
 
     # Journey 4 -----------------------------------------------------------------------
@@ -1396,17 +1416,17 @@ class Acceptance:
             r for r in await self.runs(gold_id) if "Analysts expect gold bid into CPI" in r.prompt
         ]
         assert len(peer) == 1, [r.prompt[:80] for r in await self.runs(gold_id)]
-        # Two owner steps by the vision's own rule: a new credential (one secure card) and
-        # a source outside the trusted list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts the Connect X card alone (1)")
+        # One owner step: a new credential (one secure card). The source outside the
+        # trusted list is trusted by the owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
         return news_id, desk_id, connection
 
     # Journey 6 -----------------------------------------------------------------------
 
     async def add_mcp_server(self) -> None:
         """«أضف خادم MCP هذا» with its URL: one secure card for the server (and its token, if
-        any), one trust tap; then every agent uses its tools with no declaration and no
-        further card, and a tool that could trade is never trusted."""
+        any), then the owner names it in chat; every agent then uses its tools with no
+        declaration and no further card, and a tool that could trade is never trusted."""
         name = "J6 add an MCP server"
         words = "أضف خادم MCP هذا: " + NOTES_URL
         self.model.script(
@@ -1472,9 +1492,9 @@ class Acceptance:
             if item["kind"] == "mcp_server" and item["active"]
         ]
         assert len(trusted) >= 2, trusted  # X and the notes server, each once.
-        # Two owner steps by the vision's own rule: connecting a new server (one secure
-        # card) and trusting a source outside the list (one tap, remembered).
-        self.journey(name, 2, "the journey list counts one card for both (1)")
+        # One owner step: connecting a new server (one secure card). Trusting it is the
+        # owner's own words, no card (VISION 10.3.2).
+        self.journey(name, 1)
 
     # Journey 5 -----------------------------------------------------------------------
 

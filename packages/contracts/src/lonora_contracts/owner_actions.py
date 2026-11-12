@@ -19,7 +19,6 @@ from .domain import Contract
 OwnerActionKind = Literal[
     "resolve_operation",
     "grant_authority",
-    "trust_source",
     "connect_credential",
     # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
     # straight to the encrypted store as workspace secrets; the agent learns "saved".
@@ -34,9 +33,6 @@ GrantDuration = Literal["until_stopped", "12h", "24h", "7d"]
 # card shows; owner decision D1 defaults) or Full delegation (every pair on the account,
 # every action and the owner's own positions, until stopped).
 GrantDelegation = Literal["custom", "full"]
-# trust_source: what the owner adds to the trusted list (an MCP server with the tools it
-# advertises now, a GitHub owner or repository, or a news feed's domain).
-TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
 # connect_credential: which secure form the card offers; "x" names an X MCP server.
 CredentialTarget = Literal["mcp_server", "news_feed", "brave_search", "economic_calendar", "broker"]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
@@ -87,11 +83,6 @@ class OwnerActionProposal(Contract):
     # "full" preselects Full delegation when the owner's own message asked for it; the
     # other fields still shape the Custom choice the owner can switch back to.
     delegation: GrantDelegation | None = None
-    # trust_source: mcp_server takes connection_id (its tools are read from the server);
-    # the others take identifier ("owner", "owner/repository" or a feed domain).
-    source_kind: TrustSourceKind | None = None
-    connection_id: str | None = Field(default=None, min_length=1, max_length=80)
-    identifier: str | None = Field(default=None, min_length=1, max_length=300)
     # connect_credential: the form to offer; service "x" for an X MCP server (D3).
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
@@ -106,18 +97,9 @@ class OwnerActionProposal(Contract):
             return self.secret_card_fields()
         if self.label is not None or self.secret_fields is not None:
             raise ValueError("owner_action_fields_invalid")
-        if self.kind in {"trust_source", "connect_credential"}:
+        if self.kind == "connect_credential":
             return self.capability_fields()
-        if any(
-            value is not None
-            for value in (
-                self.source_kind,
-                self.connection_id,
-                self.identifier,
-                self.target,
-                self.service,
-            )
-        ):
+        if self.target is not None or self.service is not None:
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
 
@@ -136,26 +118,8 @@ class OwnerActionProposal(Contract):
     def capability_fields(self) -> "OwnerActionProposal":
         if self.operation_id or self.account_id or self.grant_fields():
             raise ValueError("owner_action_fields_invalid")
-        if self.kind == "connect_credential":
-            if (
-                self.target is None
-                or self.source_kind
-                or self.connection_id
-                or self.identifier
-                or (self.service is not None and self.target != "mcp_server")
-            ):
-                raise ValueError("owner_action_fields_invalid")
-            return self
-        if self.target is not None or self.service is not None or self.source_kind is None:
+        if self.target is None or (self.service is not None and self.target != "mcp_server"):
             raise ValueError("owner_action_fields_invalid")
-        if (self.source_kind == "mcp_server") != (self.connection_id is not None) or (
-            self.source_kind == "mcp_server"
-        ) == (self.identifier is not None):
-            raise ValueError("owner_action_fields_invalid")
-        if self.identifier is not None:
-            from .trusted_sources import normalize_identifier
-
-            self.identifier = normalize_identifier(self.source_kind, self.identifier)
         return self
 
     def grant_fields(self) -> bool:
@@ -293,9 +257,8 @@ class ConnectedResource(Contract):
 
 class OwnerActionDecision(Contract):
     """The owner's tap. ``outcome`` answers a resolve card; ``proof`` is the passkey
-    assertion a widening card requires (obtained from the card's challenge); ``tier`` is
-    what the owner trusts an MCP server for; ``connected`` names what a credential card's
-    form created.
+    assertion a widening card requires (obtained from the card's challenge); ``connected``
+    names what a credential card's form created.
 
     ``choose`` changes a pending grant card's own choice (``delegation``: Custom or Full
     delegation) in its stored draft and settles nothing; signing still needs the
@@ -307,7 +270,6 @@ class OwnerActionDecision(Contract):
 
     decision: Literal["confirm", "cancel", "choose"]
     delegation: GrantDelegation | None = None
-    tier: Literal["read", "write_nonfinancial"] | None = None
     connected: ConnectedResource | None = None
     outcome: AttestedOutcome | None = None
     note: str | None = Field(default=None, max_length=2000)

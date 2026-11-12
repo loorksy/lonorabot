@@ -1437,3 +1437,13 @@ body.rm *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+/* «ما يعمل الآن»: each agent's processes under its name. */
+.running-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.running-agent .avatar {
+  width: 28px;
+  height: 28px;
+}

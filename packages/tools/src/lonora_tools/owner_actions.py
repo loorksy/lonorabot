@@ -27,7 +27,6 @@ from lonora_db.schema import (
     ThreadRow,
 )
 from lonora_db.transactions import owned_thread
-from lonora_session.idempotency import stable_id
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -194,37 +193,8 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
     return run, thread
 
 
-async def propose_capability_card(
-    context: ToolContext, kind: str, subject: str, payload: dict[str, Any], *, key: str = ""
-) -> dict[str, Any]:
-    """A trust or credential card on this agent's behalf, its effect built on the server
-    (``key`` separates the cards one call may raise)."""
-    from lonora_db.owner_actions import propose_capability
-
-    async with context.db.sessions() as session, session.begin():
-        run, thread = await card_scope(context, session)
-        row, created = await propose_capability(
-            session,
-            context.owner_id,
-            kind,
-            subject,
-            payload,
-            card_id=stable_id(context.resource_id, "capability-card:" + key),
-            agent_id=context.agent_id,
-            thread_id=thread.id,
-            run_id=run.id,
-        )
-        await require_lease(session, context.lease, lock=True)
-        return card_summary(row, created, thread.id, False)
-
-
 async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     proposal = OwnerActionProposal.model_validate(args)
-    if proposal.kind == "trust_source" and proposal.source_kind == "mcp_server":
-        from .mcp import propose_review
-
-        assert proposal.connection_id is not None
-        return await propose_review(context, proposal.connection_id)
     grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
@@ -268,10 +238,8 @@ def tools() -> list[Tool]:
             "server fills the obvious defaults; delegation full only when the owner's own "
             "words ask for full delegation, which the server checks: the card then "
             "preselects it (every pair, every action, the owner's own positions, until "
-            "stopped) and the owner still chooses Custom or Full and signs), trust_source "
-            "(source_kind mcp_server with connection_id: "
-            "the card lists its tools for the owner to trust; github_owner, github_repo or "
-            "feed_domain with identifier) and connect_credential (target mcp_server, "
+            "stopped) and the owner still chooses Custom or Full and signs) and "
+            "connect_credential (target mcp_server, "
             "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "
             "server): a secure form whose value goes straight to the server, never to you; "
             "secret (any other credential: label and secret_fields, each a key, the name its "

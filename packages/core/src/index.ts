@@ -76,7 +76,6 @@ export {
 } from "./chat-rows";
 export {
   guestCandidates,
-  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
@@ -218,6 +217,7 @@ export {
   supervisionText,
   unsupervisedAgents,
 } from "./supervision";
+export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
