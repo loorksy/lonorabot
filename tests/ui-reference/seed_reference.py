@@ -250,9 +250,7 @@ async def init(fixture: Fixture) -> dict[str, Any]:
         },
     )
     # The trades page's open position (the reference's demo trade), opened by the owner
-    # through the executor; the trading controls are put back as they were.
-    controls = await fixture.request("GET", "/trading/controls")
-    await fixture.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
+    # through the executor.
     await fixture.request(
         "POST",
         "/trading/execute",
@@ -266,7 +264,6 @@ async def init(fixture: Fixture) -> dict[str, Any]:
             "take_profit": "2350",
         },
     )
-    await fixture.request("PUT", "/trading/controls", controls)
     research = await fixture.request(
         "POST",
         "/agents/create",

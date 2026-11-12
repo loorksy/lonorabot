@@ -27,14 +27,11 @@ const text = {
   authorize: "التفويض بمفتاح المرور",
   lift: "رفع الإيقاف",
   paused: "لا صفقات جديدة",
-  stop: "إيقاف الصفقات الجديدة",
-  resume: "استئناف التداول",
-  stopped: "التداول الجديد متوقف · الخروج متاح",
 };
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
-test("Expo ar: one sentence creates the agent and its grant card; one tap lifts the pause; one tap stops and one resumes", async ({
+test("Expo ar: one sentence creates the agent and its grant card; one tap lifts the pause", async ({
   page,
   context,
 }) => {
@@ -50,7 +47,6 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   const lonora = (await (await context.request.get("/api/agents")).json()).find(
     (row) => row.role === "personal",
   );
@@ -61,30 +57,17 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
   const name = `Gold agent ${randomUUID().slice(0, 6)}`;
   let gold;
   let pause;
-  const taps = { pause: 0, stop: 0, resume: 0 };
+  const taps = { pause: 0 };
   const said = async (sentence) => {
     await page.getByRole("textbox", { name: text.composer, exact: true }).fill(sentence);
     await page.getByRole("button", { name: text.send, exact: true }).click();
     await expect(page.getByText(sentence, { exact: true }).first()).toBeVisible();
   };
-  const writes = [];
-  page.on("request", (request) => {
-    if (request.method() === "PUT" && request.url().endsWith("/api/trading/controls"))
-      writes.push(request.postDataJSON());
-  });
   try {
-    for (const enabled of [true, false])
-      await context.request.put("/api/trading/controls", {
-        headers,
-        data: { enabled, emergency_stop: false },
-      });
     await page.goto(`/thread?id=${thread.id}`);
 
     // «أنشئ وكيل ذهب …»: the creation card and the grant card, the same server cards
     // the Web shows, with the daily loss from the sentence.
-    // An agent's own creation is capped at 20 active agents per owner: agents earlier
-    // specs left active must not use up the room this one needs (they are paused).
-    python(["tests/browser_agents.py"], { action: "headroom", needed: 1 });
     await said(words.createGold);
     const created = worker({ thread: thread.id, account: data.account, symbol: data.symbol, name });
     expect(created.status).toBe("completed");
@@ -102,10 +85,6 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
     await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
 
     // «أوقف فتح صفقات جديدة اليوم …»: one Lift card; one tap lifts it.
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: true, emergency_stop: false },
-    });
     await said(words.pauseToday);
     const paused = worker({ thread: thread.id, account: data.account, symbol: data.symbol });
     expect(paused.status).toBe("completed");
@@ -122,31 +101,13 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap lifts 
     await expect(pill).not.toContainText(text.paused);
     pause = undefined;
 
-    // Stop all new trading from the phone: one tap; Resume: one tap, both flags cleared.
-    await pill.click();
-    const sheet = page.getByTestId("safety-sheet");
-    await sheet.getByRole("button", { name: text.stop, exact: true }).click();
-    taps.stop += 1;
-    await expect(pill).toContainText(text.stopped);
-    await sheet.getByRole("button", { name: text.resume, exact: true }).click();
-    taps.resume += 1;
-    await expect(pill).not.toContainText(text.stopped);
-    expect(writes).toEqual([
-      { enabled: false, emergency_stop: true },
-      { enabled: true, emergency_stop: false },
-    ]);
-    expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({
-      enabled: true,
-      emergency_stop: false,
-    });
-    expect(taps).toEqual({ pause: 1, stop: 1, resume: 1 });
+    expect(taps).toEqual({ pause: 1 });
   } finally {
     if (pause)
       await context.request.post(`/api/trading/restrictions/${pause}/revoke`, {
         headers,
         data: { reason: "" },
       });
-    await context.request.put("/api/trading/controls", { headers, data: original });
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
   }

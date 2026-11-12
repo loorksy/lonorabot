@@ -13,7 +13,7 @@ the migration:
 3. A database already at 0061: an agent in Full and older pending Mandate cards.
 4. A supervisor's pause on a paused Task: the upgrade refuses and changes nothing.
 
-Item 8 is void under Amendment 1: the stored trading control is left as it is.
+Item 8 is void under Amendment 1: no trading setting is written.
 """
 
 import asyncio
@@ -32,7 +32,7 @@ from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS, AccountAut
 from lonora_contracts.agent_permissions import PermissionRecord
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskState
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.agent_creation import origin_key
@@ -65,7 +65,6 @@ from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.account_authority import ticket_agent
 from lonora_trading.agent_permission import require_operation_permission
-from lonora_trading.controls import save_controls
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -189,13 +188,19 @@ class Seed:
         return row
 
     async def watch(
-        self, agent_id: str, thread_id: str, *, enabled: bool, state: dict[str, Any] | None = None
+        self,
+        agent_id: str,
+        thread_id: str,
+        *,
+        enabled: bool,
+        state: dict[str, Any] | None = None,
+        symbol: str = "XAUUSD",
     ) -> MarketWatchRow:
         row = MarketWatchRow(
             owner_id=self.owner_id,
             agent_id=agent_id,
             thread_id=thread_id,
-            payload={"symbol": "XAUUSD", "condition": "price_above", "enabled": enabled},
+            payload={"symbol": symbol, "condition": "price_above", "enabled": enabled},
             state=state or {},
         )
         self.session.add(row)
@@ -363,10 +368,14 @@ async def production_shape(db: Database, ids: dict[str, str]) -> None:
                 created_via="default",
             )
         )
-        # Three pauses the owner holds, one of them taken over from Lonora.
+        # Three pauses the owner holds on EURUSDm watches, one taken over from Lonora.
         for holder in (None, None, lonora.id):
             watch = await seed.watch(
-                dino.id, dino_thread.id, enabled=False, state={"code": "watch_paused"}
+                dino.id,
+                dino_thread.id,
+                enabled=False,
+                state={"code": "watch_paused"},
+                symbol="EURUSDm",
             )
             await seed.hold(dino.id, "watch", watch.id, "owner", holder)
         ids.update(
@@ -380,7 +389,6 @@ async def production_shape(db: Database, ids: dict[str, str]) -> None:
             dino_grant=dino_grant.id,
             device=device.id,
         )
-    await save_controls(db, TradingControl(enabled=True))
 
     untouched = {
         "supervision": "SELECT * FROM ln_supervision_grants",
@@ -498,7 +506,7 @@ async def production_shape(db: Database, ids: dict[str, str]) -> None:
     print(
         "PASS the production shape: both agents in Ask at the 'Ask me' level, both grants"
         " revoked intact, each agent's Mandate card shown once in Lonora's conversation with"
-        " its old grant; supervision, owner pauses, watches and the trading control untouched;"
+        " its old grant; supervision, owner pauses, watches and the trading settings untouched;"
         " the door asks Lonora for new risk and lets a close through"
     )
 

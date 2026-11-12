@@ -59,6 +59,9 @@ class ResourceRepository:
     row_type: type[ResourceRow]
     payload_model: type[BaseModel] | None = None
     kind: str
+    # The scope of the secret a resource's ``secret_id`` may name; None: no secret.
+    secret_scope: str | None = None
+    secret_scope_refusal = "secret_scope_forbidden"
 
     async def list(
         self,
@@ -102,12 +105,21 @@ class ResourceRepository:
     ) -> None:
         for agent_id in payload.get("member_ids", []):
             await owned_agent(session, owner_id, agent_id)
-        for key, row_type in [("board_id", BoardRow), ("secret_id", SecretRow)]:
-            reference = payload.get(key)
-            if reference:
-                row = await session.get(row_type, reference)
-                if row is None or row.owner_id != owner_id:
-                    raise LonoraError(key + "_not_found", 404)
+        board_id = payload.get("board_id")
+        if board_id:
+            board = await session.get(BoardRow, board_id)
+            if board is None or board.owner_id != owner_id:
+                raise LonoraError("board_id_not_found", 404)
+        secret_id = payload.get("secret_id")
+        if secret_id:
+            # Shared lock: a delete of this secret waits for this write, then sees it used.
+            secret = await session.get(SecretRow, secret_id, with_for_update={"read": True})
+            if secret is None or secret.owner_id != owner_id:
+                raise LonoraError("secret_id_not_found", 404)
+            # A connection uses only a secret of its own scope: a workspace or broker
+            # value is never sent to a feed, search or chat service.
+            if secret.scope != self.secret_scope:
+                raise LonoraError(self.secret_scope_refusal, 403)
         if self.kind in {"charts", "watches", "cloud_charts", "market_watches"} and payload.get(
             "account_id"
         ):

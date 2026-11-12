@@ -37,7 +37,7 @@
 7. Positions are attributed from the journal per 3.3.4 when they are read
    (``ticket_agent``): nothing is written.
 
-The stored trading control is not read or written (item 8 is void).
+Item 8 is void under Amendment 1 (Stop is removed, 0150): nothing is written for it.
 
 The downgrade restores nothing and never raises: grants stay revoked, Tasks and Runs
 stay ended, levels stay "Ask me", cards stay (the owner may have tapped them), flattened
