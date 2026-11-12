@@ -514,7 +514,9 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(chip).toHaveAttribute("aria-label", "دون تنفيذ: لم يُختر حساب تداول");
       await chip.click();
       await expect(sheet.locator(".state-lead")).toContainText("لا يرتبط");
-      // The agent's trading settings: `?settings=trading` opens the integrations page.
+      // The chip links to the agent's trading settings (`?settings=trading`); where that tab
+      // lands is the settings routing's choice (`settingsMoved` in shell/pages.tsx), which
+      // sends it to the integrations page.
       await sheet.getByRole("button", { name: "اختيار حساب التداول" }).click();
       await expect(page).toHaveURL(/\/app\/integrations$/);
     } finally {
