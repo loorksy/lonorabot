@@ -66,10 +66,11 @@ for (const locale of ["en", "ar"]) {
       );
       await option.click();
       expect((await response).ok()).toBeTruthy();
-      // Answered: the rows give way to one check badge with the choice (reference 3770).
-      const badge = card.locator(".badge");
-      await expect(badge).toHaveText(fixture.question.choices[0].label);
-      await expect(card.getByRole("button")).toHaveCount(0);
+      await expect(option).toHaveAttribute("aria-pressed", "true");
+      await expect(option).toBeDisabled();
+      const chosen = await option.locator("svg").boundingBox();
+      expect([chosen.width, chosen.height]).toEqual([14, 14]);
+      await expect(card.getByRole("button")).toHaveCount(2);
       expect(submissions).toHaveLength(1);
       expect(submissions[0].input_answer).toEqual({
         run_id: fixture.run.id,
@@ -96,8 +97,10 @@ for (const locale of ["en", "ar"]) {
         journal.filter((row) => row.agent_id === fixture.agent.id || row.run_id === fixture.run.id),
       ).toHaveLength(0);
       await page.reload();
-      await expect(badge).toHaveText(fixture.question.choices[0].label);
-      await expect(card.locator(".opt-list")).toHaveCount(0);
+      await expect(
+        card.getByRole("button", { name: fixture.question.choices[0].label, exact: false }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await expect(card.getByRole("button").first()).toBeDisabled();
     } finally {
       await fixture.cleanup();
     }
@@ -116,44 +119,10 @@ test("ordinary free text can answer a card without selecting or granting an opti
     const composer = page.locator("textarea");
     await composer.fill("Please compare both scenarios first");
     await composer.press("Enter");
-    await expect(card.locator(".badge")).toHaveText("Please compare both scenarios first");
-    await expect(card.locator(".opt-list")).toHaveCount(0);
+    await expect(card.getByRole("button").first()).toBeDisabled();
     const current = await (await context.request.get(`/api/runs/${fixture.run.id}`)).json();
     expect(current.input_request.status).toBe("answered");
     expect(current.input_request.selected_choice_id).toBeNull();
-  } finally {
-    await fixture.cleanup();
-  }
-});
-
-test("a choice that was bound to calls says what its pick does, in the owner's words", async ({
-  page,
-  context,
-}) => {
-  const fixture = await setup(context, "ar");
-  try {
-    // The server sends what a pick does with the choice (phase 3c): two watch changes here.
-    const bound = (run) => {
-      for (const request of [run.input_request, ...(run.input_requests ?? [])].filter(Boolean))
-        request.choices[0].effects = [
-          { name: "watch_cancel", toolset: "watch", effect: "change", count: 2 },
-        ];
-      return run;
-    };
-    await page.route("**/api/runs?thread_id=*", async (route) => {
-      const response = await route.fetch();
-      await route.fulfill({ response, json: (await response.json()).map(bound) });
-    });
-    await page.goto(`/app/${fixture.agent.id}?thread=${fixture.thread.id}`);
-    const card = page.locator(`[data-question-id="${fixture.question.id}"]`);
-    const rows = card.locator(".opt-row");
-    await expect(rows.first().locator(".opt-does")).toHaveText("يحدّث مراقبة للسوق ×2");
-    // No registry name reaches the card, and a choice that changes nothing says nothing.
-    await expect(card).not.toContainText("watch_cancel");
-    await expect(rows.nth(1).locator(".opt-does")).toHaveCount(0);
-    await expect(rows.first().locator("span[dir=auto]")).toHaveText(
-      fixture.question.choices[0].label,
-    );
   } finally {
     await fixture.cleanup();
   }

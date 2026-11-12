@@ -5,7 +5,6 @@ import type { InputAnswer, InputRequest, Journal } from "@lonora/contracts";
 import {
   type ActivityCall,
   activityCallLabel,
-  choiceEffectsLabel,
   financialBoundaryError,
   type OrderLineState,
   orderLineAction,
@@ -17,7 +16,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Message, Resource, Run } from "../lib/api";
 import { userError } from "../lib/user_error";
-import { useConversation } from "./context";
 import { md } from "./Markdown";
 
 /* Cards that live inside the conversation's Message frame: the agent error card, the question
@@ -146,18 +144,12 @@ export function QuestionCard({
   /** A custom answer is a normal message replying to the question (the run reads it). */
   onCustom: (text: string) => Promise<void>;
 }) {
-  const { byId } = useConversation();
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
   // The chosen row until the server's own answer arrives, then the server's.
   const [picked, setPicked] = useState<string | null>(null);
-  const chosen = request.status === "answered" ? request.selected_choice_id : picked;
-  const answered = request.status === "answered" || picked != null;
+  const chosen = request.status !== "pending" ? request.selected_choice_id : picked;
   const open = request.status === "pending" && !picked;
-  // Answered: one check badge with the chosen row, or the owner's own words.
-  const answer =
-    request.choices.find((choice) => choice.id === chosen)?.label ??
-    (request.answer_message_id ? byId.get(request.answer_message_id)?.content : undefined);
   return (
     <div className="mcard" data-input-request={request.id} data-question-id={request.id}>
       <div className="mcard-kicker">
@@ -165,45 +157,31 @@ export function QuestionCard({
         <Trans>Question from the agent</Trans>
       </div>
       <strong dir="auto">{request.question}</strong>
-      {answered ? (
-        <span className="badge">
-          <Icon name="check" />
-          <span dir="auto">{answer || t`Answered`}</span>
-        </span>
-      ) : (
-        // biome-ignore lint/a11y/useSemanticElements: the reference's answer rows
-        <div className="opt-list" role="group" aria-label={t`Answers`}>
-          {request.choices.map((choice) => (
-            <button
-              key={choice.id}
-              type="button"
-              className="opt-row"
-              disabled={busy || !open}
-              onClick={() => {
-                setBusy(true);
-                setPicked(choice.id);
-                void onAnswer(
-                  { run_id: request.run_id, question_id: request.id, choice_id: choice.id },
-                  choice.label,
-                )
-                  .catch(() => setPicked(null))
-                  .finally(() => setBusy(false));
-              }}
-            >
-              <span className="opt-text">
-                <span dir="auto">{choice.label}</span>
-                {/* What the agent does on this pick, in the activity line's own words. */}
-                {choice.effects?.length ? (
-                  <small className="opt-does">
-                    {choiceEffectsLabel(choice.effects, i18n.locale)}
-                  </small>
-                ) : null}
-              </span>
-              <Icon name="chev" />
-            </button>
-          ))}
-        </div>
-      )}
+      {/* biome-ignore lint/a11y/useSemanticElements: the reference's answer rows */}
+      <div className="opt-list" role="group" aria-label={t`Answers`}>
+        {request.choices.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            className={`opt-row${chosen === choice.id ? " on" : ""}`}
+            aria-pressed={chosen === choice.id}
+            disabled={busy || !open}
+            onClick={() => {
+              setBusy(true);
+              setPicked(choice.id);
+              void onAnswer(
+                { run_id: request.run_id, question_id: request.id, choice_id: choice.id },
+                choice.label,
+              )
+                .catch(() => setPicked(null))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <span dir="auto">{choice.label}</span>
+            <Icon name={chosen === choice.id ? "check" : "chev"} />
+          </button>
+        ))}
+      </div>
       {open && (
         <form
           className="mcard-form"
