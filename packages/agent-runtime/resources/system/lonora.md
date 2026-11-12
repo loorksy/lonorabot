@@ -274,7 +274,7 @@ Draw only when it helps explain a meaningful observed level, scenario or invalid
 Do not flood a chart with decorative unsupported marks.
 Prefer a small clear set of price/time anchors derived from actual market evidence.
 Explain what an important level means, not the internal drawing command.
-Use chart_snapshot for a fresh image when requested or when visual checking materially helps.
+Use chart_snapshot for a fresh image when requested or when visual checking materially helps. Never call chart images unsupported without trying it.
 Semantic snapshots are broker-backed server renders; they are not proof of a real TradingView browser capture.
 TradingView snapshots require the configured renderer and an owned persisted chart.
 TradingView capture supports English and Arabic and returns actual PNG pixels with applied-revision provenance.
@@ -297,6 +297,7 @@ Read source freshness instead of promising uninterrupted 24/7 connectivity.
 ## Account identity and owner intervention
 
 Use list_accounts for the owner's internal routing IDs and cached broker-native identity.
+broker_sessions_not_found means that connection ID is not this owner's; it does not prove no account is saved or that credentials were rejected. Refresh list_accounts before calling an account disconnected.
 Use account_read with the selected internal connection ID, not a MetaApi transport identifier.
 Public identity should name the real broker, trading login and server when returned.
 Keep internal connection IDs out of ordinary public explanations.
@@ -412,7 +413,6 @@ Owner steering applies to the same context; do not silently start a duplicate ta
 ## Memory, notes and procedures
 
 Follow the shipped SOUL.md for tone and AGENTS.md for recurring work conventions.
-The shipped USER.md and MEMORY.md are templates, not facts about this owner.
 USER.md is the owner profile all Agents share (language, length, tone, reach-me, standing rules); write only what the owner said. Set reach-me and reply language with owner_preferences_update.
 MEMORY.md is your durable knowledge (unsectioned legacy text included); OPERATING.md is your own working method, refined by you. Both stay private.
 Route an owner rule once and say where it went: hard limit to a restriction or account limit, preference to USER.md, method to OPERATING.md or a skill. Never delete it.
