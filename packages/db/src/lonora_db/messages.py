@@ -47,10 +47,6 @@ async def voice_artifact(
     return artifact
 
 
-# A direct chat's @mention invites at most this many guests per message (Q29).
-MAX_DIRECT_GUESTS = 2
-
-
 def message_data(row: MessageRow) -> dict[str, Any]:
     """One message as clients read it. ``reactions`` and ``superseded_by`` are empty here
     (a new message has neither); ``messages_data`` fills them for a page."""
@@ -78,7 +74,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
 
 
 def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
-    """What a client may see of a card submission (GENUI_PLAN §8.2 step 4)."""
+    """What a client may see of a card submission (docs/genui.md §7)."""
     if not submit:
         return None
     keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")
@@ -91,7 +87,7 @@ def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
 
 async def follow_up_tap(session: AsyncSession, thread_id: str, content: str) -> bool:
     """A plain message equal to a v1 follow-up action text of a card among the thread's
-    last 20 assistant messages was a tap, not the owner's typed words (§8.4)."""
+    last 20 assistant messages was a tap, not the owner's typed words (docs/genui.md §7)."""
     rows = await session.scalars(
         select(MessageRow.rich_content)
         .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
@@ -228,6 +224,106 @@ async def command_part(
     return part
 
 
+async def answerable_run(session: AsyncSession, run_id: str, thread_id: str) -> RunRow | None:
+    """The run a choice answers, locked. A run of this thread is waited for, as before; a
+    run working in another thread (whose question was copied here) is locked without
+    waiting, so admission, which holds this thread, never waits on another thread's work:
+    a run being changed at that moment reads as expired."""
+    run = await session.get(RunRow, run_id)
+    if run is None or run.thread_id == thread_id:
+        return await session.get(RunRow, run_id, with_for_update=True, populate_existing=True)
+    return await session.scalar(
+        select(RunRow)
+        .where(RunRow.id == run_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+
+
+def takes_message(run: RunRow) -> bool:
+    """Whether an active run of a thread takes the owner's next message there: a
+    conversational run is steered, and a run waiting on its own question is answered."""
+    pending = any(
+        item.get("status") == "pending" for item in run.execution_state.get("input_requests", [])
+    )
+    return is_conversational(run.trigger) or (run.status == "waiting_input" and pending)
+
+
+async def asking_run(
+    session: AsyncSession,
+    owner_id: str,
+    thread: ThreadRow,
+    agent_id: str,
+    message: MessageRow,
+    reply: MessageRow | None,
+    *,
+    idle: bool,
+) -> RunRow | None:
+    """A background run whose question, copied into this conversation, the owner's message
+    answers (VISION 11.6), locked without waiting.
+
+    A reply to the question answers it whenever it is sent. Otherwise only the owner's next
+    message answers it, and only when nothing in this conversation would take that message
+    (``idle``) and the question is the last message there (nobody wrote after it, and the
+    owner has not cleared the conversation). A live voice transcript answers only by reply.
+    A run being changed at that moment is passed over.
+    """
+    from .thread_prefs import hidden_floor
+    from .threads import asks_in
+
+    candidates = list(
+        await session.scalars(
+            select(RunRow)
+            .where(
+                asks_in(thread.id),
+                RunRow.agent_id == agent_id,
+                RunRow.status == "waiting_input",
+            )
+            .with_for_update(skip_locked=True)
+        )
+    )
+    asked: list[tuple[int, RunRow]] = []
+    for run in candidates:
+        pending_id = run.execution_state.get("pending_input_request", {}).get("id")
+        item = next(
+            (
+                item
+                for item in reversed(run.execution_state.get("input_requests", []))
+                if item.get("id") == pending_id and item.get("status") == "pending"
+            ),
+            None,
+        )
+        if item is None or item.get("thread_id") != thread.id:
+            continue
+        if reply is not None and reply.id == item.get("message_id"):
+            return run
+        question = await session.get(MessageRow, item.get("message_id"))
+        if question is not None and question.seq < message.seq:
+            asked.append((question.seq, run))
+    if (
+        not idle
+        or reply is not None
+        or message.edited_from
+        # A live voice session revises its transcript; its words answer only by reply.
+        or (message.client_nonce or "").startswith("voice:")
+        or not asked
+    ):
+        return None
+    newest, run = max(asked, key=lambda pair: pair[0])
+    # The next message answers the question only when the question is the last thing in
+    # the conversation: anything said after it (the owner's or an agent's) is what the
+    # owner is answering instead.
+    last = await session.scalar(
+        select(MessageRow.seq)
+        .where(MessageRow.thread_id == thread.id, MessageRow.seq < message.seq)
+        .order_by(MessageRow.seq.desc())
+        .limit(1)
+    )
+    if newest != last or newest <= await hidden_floor(session, owner_id, thread.id):
+        return None
+    return run
+
+
 async def send_message(
     session: AsyncSession, owner_id: str, thread_id: str, request: MessageCreate
 ) -> dict[str, Any]:
@@ -294,7 +390,7 @@ async def send_message(
             "deduplicated": True,
         }
     if request.ui_submit is not None:
-        # A card's send: its own queued Run, never folded into an active one (§8.2).
+        # A card's send: its own queued Run, never folded into an active one (docs/genui.md §7).
         from .genui_submit import submit_card, submit_receipt
 
         # ``create_run`` emitted ``run.queued``.
@@ -313,10 +409,9 @@ async def send_message(
     answer_question: dict[str, Any] | None = None
     if request.input_answer:
         supplied = request.input_answer
-        answer_run = await session.get(RunRow, supplied.run_id, with_for_update=True)
+        answer_run = await answerable_run(session, supplied.run_id, thread_id)
         if (
             answer_run is None
-            or answer_run.thread_id != thread_id
             or answer_run.status != "waiting_input"
             or (thread.agent_id and answer_run.agent_id != thread.agent_id)
         ):
@@ -336,6 +431,9 @@ async def send_message(
             answer_question is None
             or answer_run.execution_state.get("pending_input_request", {}).get("id")
             != supplied.question_id
+            # The answer is given where the question is shown (a background run's question
+            # is in the conversation it reports to), never in another thread.
+            or answer_question.get("thread_id", answer_run.thread_id) != thread_id
         ):
             raise LonoraError("input_answer_expired", 409)
         choice = next(
@@ -370,8 +468,6 @@ async def send_message(
         if thread.agent_id
         else []
     )
-    if len(guest_ids) > MAX_DIRECT_GUESTS:
-        raise LonoraError("collaboration_guest_limit", 422)
     collaboration = None
     if request.mention_all or request.collaboration_session_id:
         from .collaboration import CollaborationRepository, current_session
@@ -393,7 +489,7 @@ async def send_message(
         # Guests join the chat's open session while it has room for another round;
         # otherwise the invitation starts a new one.
         current = await current_session(session, owner_id, thread_id)
-        if current is not None and len(current.state.get("rounds", [])) < 8:
+        if current is not None and has_room(current):
             collaboration = current
     reply = None
     if request.reply_to:
@@ -443,7 +539,7 @@ async def send_message(
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
             "all": request.mention_all,
-            "session_id": collaboration.id if collaboration else None,
+            "session_id": collaboration.id if collaboration and has_room(collaboration) else None,
         },
         client_nonce=request.client_nonce,
     )
@@ -543,27 +639,50 @@ async def admit_runs(
         agent = await owned_agent(session, owner_id, agent_id)
         if agent.paused:
             continue
-        active = await session.scalar(
-            select(RunRow)
-            .where(
-                RunRow.thread_id == thread_id,
-                RunRow.agent_id == agent_id,
-                RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+        if answer_run is not None and answer_run.thread_id != thread_id:
+            # A background run's question copied into this conversation: the choice
+            # answers that run directly, whatever else is active here.
+            active: RunRow | None = answer_run
+        else:
+            active = await session.scalar(
+                select(RunRow)
+                .where(
+                    RunRow.thread_id == thread_id,
+                    RunRow.agent_id == agent_id,
+                    RunRow.status.in_(["queued", "leased", "running", "waiting_input"]),
+                )
+                .order_by(RunRow.created_at)
+                .limit(1)
             )
-            .order_by(RunRow.created_at)
-            .limit(1)
-        )
-        if answer_run and (active is None or active.id != answer_run.id):
-            raise LonoraError("input_answer_expired", 409)
+            if answer_run and (active is None or active.id != answer_run.id):
+                raise LonoraError("input_answer_expired", 409)
+            if (
+                answer_run is None
+                and thread.agent_id
+                and message.origin == "owner"
+                and not (
+                    request.mention_agent_ids
+                    or request.mention_all
+                    or request.collaboration_session_id
+                )
+            ):
+                routed = await asking_run(
+                    session,
+                    owner_id,
+                    thread,
+                    agent_id,
+                    message,
+                    reply,
+                    idle=not (active is not None and takes_message(active)),
+                )
+                if routed is not None:
+                    active = routed
         question_history = list(active.execution_state.get("input_requests", [])) if active else []
         pending_question = next(
             (item for item in reversed(question_history) if item.get("status") == "pending"),
             None,
         )
-        if active and (
-            is_conversational(active.trigger)
-            or (active.status == "waiting_input" and pending_question)
-        ):
+        if active and takes_message(active):
             if pending_question and active.status == "waiting_input":
                 updated = [
                     {
@@ -667,9 +786,18 @@ async def admit_runs(
                 participant_ids,
                 request.content,
                 message_id=message.id,
-                session_id=collaboration.id if collaboration else None,
+                # A session with no room left for a round (the runaway guard) never refuses
+                # the owner: its participants are invited into a new session instead.
+                session_id=collaboration.id if collaboration and has_room(collaboration) else None,
             )
     return run_ids
+
+
+def has_room(collaboration: Any) -> bool:
+    """Whether a collaboration session can take another round (MAXIMUM_ROUNDS)."""
+    from lonora_contracts.collaboration import MAXIMUM_ROUNDS
+
+    return len(collaboration.state.get("rounds", [])) < MAXIMUM_ROUNDS
 
 
 async def supersede(
@@ -707,6 +835,14 @@ async def supersede(
         raise LonoraError("message_not_editable", 409)
     if await session.scalar(select(MessageRow.id).where(MessageRow.edited_from == original.id)):
         raise LonoraError("message_already_edited", 409)
+    # An answer that went to background work in another thread was already acted on there.
+    if await session.scalar(
+        select(SteeringRow.id)
+        .join(RunRow, RunRow.id == SteeringRow.run_id)
+        .where(SteeringRow.message_id == original.id, RunRow.thread_id != thread_id)
+        .limit(1)
+    ):
+        raise LonoraError("message_not_editable", 409)
     active = list(
         await session.scalars(
             select(RunRow.id).where(

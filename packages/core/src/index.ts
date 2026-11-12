@@ -5,9 +5,6 @@ export {
   agentModelLabels,
   agentModelLines,
   agentModelText,
-  type ModelCardSpec,
-  modelCard,
-  modelChoiceLine,
   modelName,
   offersDefaultModel,
   tokenCount,
@@ -88,7 +85,6 @@ export {
 } from "./composer-commands";
 export {
   guestCandidates,
-  MAX_DIRECT_GUESTS,
   type MentionAddress,
   type MentionRange,
   matchesEveryone,
@@ -117,7 +113,18 @@ export {
 export { display as genuiDisplay, environment, evaluate, renderTemplate } from "./genui/expr";
 export { DASH as GENUI_DASH } from "./genui/functions";
 export { parseCardNumber } from "./genui/input";
-export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
+export {
+  type CardInline,
+  type CardMarkdownBlock,
+  cardInline,
+  cardMarkdown,
+} from "./genui/markdown";
+export {
+  isUiPart,
+  type UiSlotRef,
+  validateUiDocument,
+  validateUiPart,
+} from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {
   archivedSummary,
@@ -162,7 +169,10 @@ export {
   ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
+  type SecretFormField,
   submitCredential,
+  submitSecret,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,
@@ -220,6 +230,7 @@ export {
   supervisionText,
   unsupervisedAgents,
 } from "./supervision";
+export { threadQuestions } from "./thread-questions";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
 export * from "./trading-avatar-motion";
 export {
@@ -227,10 +238,8 @@ export {
   listSeparator,
   moneyLimitLabel,
   moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
-  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyLabels,

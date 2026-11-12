@@ -1,12 +1,15 @@
-import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AllowedModels } from "@lonora/contracts";
-import { agentModelText } from "@lonora/core";
-import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
-import { api, type Capability, type Model, type Routing, type Selection } from "../../lib/api";
-import { providers, readModels } from "../../lib/model_catalog";
+import {
+  api,
+  type Capability,
+  type Model,
+  type Provider,
+  type Routing,
+  type Selection,
+} from "../../lib/api";
+import { discoverModels, providers, readModels } from "../../lib/model_catalog";
 import { capabilities, readRouting, saveRouting } from "../../lib/model_routing";
 import { userError } from "../../lib/user_error";
 import { useToast } from "../Toast";
@@ -29,41 +32,153 @@ const key = (item: Selection) => `${item.provider}:${item.model}`;
 const modelKey = (model: Model) => `${model.provider}:${model.id}`;
 const modelName = (model: Model) => `${providerName(model.provider)} · ${model.name}`;
 
-/* «النماذج» (route `models`, under التكاملات › الذكاء الاصطناعي): the global routing and the models
-   agents may choose on their own (W15-10). Keys are added on the provider form. */
+type Configured = { id: string; configured: boolean };
+
+/* «النماذج» (route `models`, under التكاملات › الذكاء الاصطناعي): main's model overlay on one
+   page. The global routing, the provider catalog (a key, then a fresh discovery) and the
+   discovered models. Only the owner assigns an agent's model (Q20 a). */
 export function ModelsPage() {
   const load = useLoad(
     () =>
       Promise.all([
         readRouting(),
         Promise.all(providers.map(readModels)),
-        api.get<AllowedModels>("/settings/models/allowed"),
+        api.get<Configured[]>("/providers"),
       ]),
     [],
   );
   if (!load.value) return load.error != null ? <Note>{userError(load.error)}</Note> : null;
-  const [routing, catalogs, allowed] = load.value;
+  const [routing, catalogs, configured] = load.value;
   const models = catalogs.flat();
-  if (!models.length)
-    return (
-      <>
-        <Note>
-          <Trans>Models appear here after you add a model provider.</Trans>
-        </Note>
-        <div className="group">
-          <NavRow icon="cpu" label={t`Model providers`} to="/app/providers" />
-        </div>
-      </>
-    );
   return (
     <>
-      <RoutingForm
-        key={JSON.stringify(routing)}
-        initial={routing}
-        models={models}
-        onSaved={load.reload}
-      />
-      <AllowedList key={JSON.stringify(allowed)} initial={allowed} models={models} />
+      {models.length ? (
+        <RoutingForm
+          key={JSON.stringify(routing)}
+          initial={routing}
+          models={models}
+          onSaved={load.reload}
+        />
+      ) : (
+        <>
+          <Note>
+            <Trans>Models appear here after you add a model provider.</Trans>
+          </Note>
+          <div className="group">
+            <NavRow icon="cpu" label={t`Model providers`} to="/app/providers" />
+          </div>
+        </>
+      )}
+      <CatalogForm configured={configured} onDone={load.reload} />
+      {models.length > 0 && <DiscoveredModels models={models} />}
+    </>
+  );
+}
+
+/* Main's «Providers and official catalog»: the key is optional once one is stored, and the
+   provider's catalog is discovered again. */
+function CatalogForm({ configured, onDone }: { configured: Configured[]; onDone: () => void }) {
+  const toast = useToast();
+  const [provider, setProvider] = useState<Provider>(providers[0]);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  // A key stored before a failed discovery counts, so «Save and discover models» can try again.
+  const [saved, setSaved] = useState<Provider[]>([]);
+  const stored =
+    saved.includes(provider) || configured.some((item) => item.id === provider && item.configured);
+  return (
+    <form
+      noValidate
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (busy || (!key && !stored)) return;
+        setBusy(true);
+        try {
+          if (key) {
+            await api.put(`/providers/${provider}/credential`, { api_key: key });
+            setKey("");
+            setSaved((list) => [...list, provider]);
+          }
+          await discoverModels(provider);
+          toast(t`Saved`, { type: "success" });
+          onDone();
+        } catch (error) {
+          toast(userError(error), { type: "error" });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h3>
+        <Trans>Providers and official catalog</Trans>
+      </h3>
+      <label className="field">
+        <span>
+          <Trans>Provider</Trans>
+        </span>
+        <select value={provider} onChange={(event) => setProvider(event.target.value as Provider)}>
+          {providers.map((item) => (
+            <option key={item} value={item}>
+              {providerName(item)}
+            </option>
+          ))}
+        </select>
+        <small>
+          {stored ? <Trans>Credential configured</Trans> : <Trans>Add a provider credential</Trans>}
+        </small>
+      </label>
+      <label className="field">
+        <span>
+          <Trans>API key</Trans>
+        </span>
+        <input
+          type="password"
+          autoComplete="off"
+          dir="ltr"
+          value={key}
+          onChange={(event) => setKey(event.target.value)}
+        />
+      </label>
+      <Note>
+        <Trans>
+          The catalog is read from the provider. Unknown capabilities are shown as unverified.
+        </Trans>
+      </Note>
+      <div className="actions">
+        <button type="submit" className="btn primary" disabled={busy || (!key && !stored)}>
+          <Trans>Save and discover models</Trans>
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* Main's «Discovered models»: every model of every provider, with whether its metadata is
+   verified. */
+function DiscoveredModels({ models }: { models: Model[] }) {
+  return (
+    <>
+      <h3>
+        <Trans>Discovered models</Trans> ({models.length})
+      </h3>
+      <div className="group">
+        {models.map((model) => (
+          <div className="row" key={modelKey(model)}>
+            <span className="body">
+              <bdi>{modelName(model)}</bdi>
+            </span>
+            {model.verified ? (
+              <span className="badge">
+                <Trans>Verified metadata</Trans>
+              </span>
+            ) : (
+              <span className="badge off">
+                <Trans>Capabilities unverified</Trans>
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </>
   );
 }
@@ -205,94 +320,5 @@ function RoutingForm({
         </button>
       </div>
     </form>
-  );
-}
-
-/** The models agents may choose on their own: the global routes and backups always, plus the
- * owner's additions. Any other model is a one-tap card in the chat. */
-function AllowedList({ initial, models }: { initial: AllowedModels; models: Model[] }) {
-  const text = agentModelText(i18n.locale);
-  const toast = useToast();
-  const [value, setValue] = useState(initial);
-  const [pick, setPick] = useState("");
-  const [busy, setBusy] = useState(false);
-  const included = new Set([...value.routed, ...value.added].map(key));
-  const name = (item: Selection) =>
-    `${providerName(item.provider)} · ${models.find((m) => modelKey(m) === key(item))?.name ?? item.model}`;
-  const save = async (added: Selection[]) => {
-    setBusy(true);
-    try {
-      setValue(await api.put<AllowedModels>("/settings/models/allowed", { added }));
-      toast(text.saved, { type: "success" });
-    } catch (error) {
-      toast(userError(error), { type: "error" });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section aria-label={text.allowedTitle} data-allowed-models="">
-      <h3>{text.allowedTitle}</h3>
-      {included.size > 0 && (
-        <div className="group">
-          {value.routed.map((item) => (
-            <div className="row" key={key(item)}>
-              <Icon name="cpu" />
-              <span className="body">
-                <strong>
-                  <bdi>{name(item)}</bdi>
-                </strong>
-              </span>
-            </div>
-          ))}
-          {value.added.map((item) => (
-            <div className="row" key={key(item)}>
-              <Icon name="cpu" />
-              <span className="body">
-                <strong>
-                  <bdi>{name(item)}</bdi>
-                </strong>
-              </span>
-              <button
-                type="button"
-                className="icon"
-                aria-label={t`Remove ${name(item)}`}
-                disabled={busy}
-                onClick={() => void save(value.added.filter((other) => key(other) !== key(item)))}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <label className="field">
-        <span>{t`Model`}</span>
-        <select value={pick} onChange={(event) => setPick(event.target.value)}>
-          <option value="">{text.chooseModel}</option>
-          {models
-            .filter((m) => !included.has(modelKey(m)))
-            .map((m) => (
-              <option key={modelKey(m)} value={modelKey(m)}>
-                {modelName(m)}
-              </option>
-            ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="btn full outline"
-        disabled={busy || !pick}
-        onClick={() => {
-          const model = models.find((m) => modelKey(m) === pick);
-          if (!model) return;
-          setPick("");
-          void save([...value.added, { provider: model.provider, model: model.id }]);
-        }}
-      >
-        {text.add}
-      </button>
-      <Note>{text.allowedHint}</Note>
-    </section>
   );
 }

@@ -83,7 +83,7 @@ class InputAnswer(Contract):
 
 
 class UiSubmit(Contract):
-    """A generated card's send (GENUI_PLAN §8.2): the card message, its part, the button's
+    """A generated card's send (docs/genui.md): the card message, its part, the button's
     node path and the card's current values. The server computes the intent's data and
     composes the owner's bubble; a client's ``content`` is ignored."""
 
@@ -131,7 +131,8 @@ class MessageCreate(Contract):
     input_answer: InputAnswer | None = None
     ui_submit: UiSubmit | None = None
     collaboration_session_id: str | None = Field(default=None, max_length=36)
-    mention_agent_ids: list[str] = Field(default_factory=list[str], max_length=16)
+    # No cap on the agents the owner names (mandate P1); each id is checked as owned.
+    mention_agent_ids: list[str] = Field(default_factory=list[str])
     mention_all: bool = False
     content: str = Field(default="", max_length=30000)
     client_nonce: str = Field(default_factory=new_id, min_length=1, max_length=80)

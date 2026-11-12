@@ -311,7 +311,7 @@ test("watches: pause, resume and cancel with undo, each through the watch's cont
   await expect(main.locator(".wt-row")).toHaveCount(1);
 });
 
-test("«وكيل جديد»: the supervision switch sends the agents it supervises; the model stays automatic", async ({
+test("«وكيل جديد»: the supervision switch sends the agents it supervises; no model is sent, so it starts on Lonora's", async ({
   page,
 }) => {
   await page.goto("/app/new-agent");
@@ -568,7 +568,7 @@ test("the card shows the last action: a refused close, then a modify that went t
     const body = route.request().postDataJSON();
     if (body.action === "close_position" && refuse) {
       refuse = false;
-      return route.fulfill({ status: 409, json: { code: "emergency_stop" } });
+      return route.fulfill({ status: 409, json: { code: "broker_observation_unavailable" } });
     }
     return route.continue();
   });

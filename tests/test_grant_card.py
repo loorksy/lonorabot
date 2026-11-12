@@ -190,10 +190,12 @@ def test_grant_fields_belong_to_grant_cards_and_decisions_default_to_narrowing()
     assert proposal.account_id is None and proposal.daily_loss_percent == 2
     assert OwnerActionProposal.model_validate({"kind": "grant_authority"}).all_pairs is False
     with pytest.raises(ValidationError):
-        OwnerActionProposal.model_validate({"kind": "resume_trading", "agent_id": "gold"})
+        OwnerActionProposal.model_validate(
+            {"kind": "resolve_operation", "operation_id": "op", "agent_id": "gold"}
+        )
     decision = OwnerActionDecision(decision="confirm")
     assert decision.money_limit == "apply"
-    assert decision.resume_trading is False and decision.stop_authorities == []
+    assert decision.stop_authorities == []
 
 
 def test_full_delegation_signs_every_pair_action_and_own_position_with_no_card_limit() -> None:
@@ -283,7 +285,9 @@ def test_the_choice_is_a_grant_field_and_a_decision_that_signs_nothing() -> None
     proposal = OwnerActionProposal.model_validate({"kind": "grant_authority", "delegation": "full"})
     assert proposal.delegation == "full" and proposal.grant_fields()
     with pytest.raises(ValidationError):
-        OwnerActionProposal.model_validate({"kind": "resume_trading", "delegation": "full"})
+        OwnerActionProposal.model_validate(
+            {"kind": "resolve_operation", "operation_id": "op", "delegation": "full"}
+        )
     choose = OwnerActionDecision.model_validate({"decision": "choose", "delegation": "full"})
     assert choose.proof is None and choose.delegation == "full"
     with pytest.raises(ValidationError):

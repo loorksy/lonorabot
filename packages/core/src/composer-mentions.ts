@@ -69,12 +69,12 @@ export function mentionAddress(
   const named = valid.flatMap((range) => (range.agent_id ? [range.agent_id] : []));
   if (all && everyone)
     return {
-      agent_ids: [...new Set([...named, ...everyone])].slice(0, 16),
+      agent_ids: [...new Set([...named, ...everyone])],
       all: false,
       collaboration_session_id: undefined,
     };
   return {
-    agent_ids: [...new Set(named)].slice(0, 16),
+    agent_ids: [...new Set(named)],
     all,
     collaboration_session_id: valid.find((range) => range.agent_id === null)?.session_id,
   };
@@ -100,22 +100,14 @@ export function mentionSegments(
   return segments;
 }
 
-/** A direct chat invites at most this many guest agents per message (server MAX_DIRECT_GUESTS,
-    code ``collaboration_guest_limit``). */
-export const MAX_DIRECT_GUESTS = 2;
-
-/** Once a direct chat's message names its two guests, only they stay offered. */
+/** A direct chat offers every other agent as a guest; its own agent is never one. There is
+    no cap on how many the owner names (mandate P1). */
 export function guestCandidates(
   candidates: Agent[],
-  committed: readonly Pick<MentionRange, "agent_id">[],
+  _committed: readonly Pick<MentionRange, "agent_id">[],
   direct: boolean,
-  /** A direct chat's own agent: never a guest, never counted toward the cap. */
+  /** A direct chat's own agent: never a guest. */
   self?: string | null,
 ): Agent[] {
-  if (!direct) return candidates;
-  const others = candidates.filter((agent) => agent.id !== self);
-  const named = new Set(
-    committed.map((row) => row.agent_id).filter((id): id is string => Boolean(id) && id !== self),
-  );
-  return named.size >= MAX_DIRECT_GUESTS ? others.filter((agent) => named.has(agent.id)) : others;
+  return direct ? candidates.filter((agent) => agent.id !== self) : candidates;
 }

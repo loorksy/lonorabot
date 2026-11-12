@@ -38,8 +38,9 @@ const levelText = (server: CapabilityServer) => {
 
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
-   allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). */
+   allow list (Q55). Telegram delivers to the owner's paired chat the same alerts a push carries
+   (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
+   never decides a card. */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
@@ -623,9 +624,9 @@ export function IntegrationsPage() {
             <small>
               {telegram
                 ? telegramAgent
-                  ? t`Linked · messages to the bot reach ${telegramAgent}`
-                  : t`Linked · messages to the bot reach an agent`
-                : t`Not linked · messages to a bot can reach an agent`}
+                  ? t`Linked · alerts reach your chat, your messages reach ${telegramAgent}`
+                  : t`Linked · alerts reach your chat, your messages reach an agent`
+                : t`Not linked · alerts can reach you in Telegram`}
             </small>
           </span>
           {telegram ? (

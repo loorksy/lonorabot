@@ -1,4 +1,4 @@
-"""The owner's own words, and nothing a card composed (GENUI_PLAN §8.4).
+"""The owner's own words, and nothing a card composed (docs/genui.md).
 
 Every owner-words check (supervision, agent creation and control, the owner profile and
 reach-me, model switches, full delegation, a rejected trade card) reads the owner's typed
@@ -13,7 +13,7 @@ from typing import Any, cast
 from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import MessageRow, RunRow
+from .schema import MessageRow, RunRow, SteeringRow
 
 OWNER = "owner"
 
@@ -44,7 +44,7 @@ def visible_to_recall() -> ColumnElement[bool]:
 
 
 async def submit_hidden(session: AsyncSession, message: MessageRow, run: RunRow | None) -> bool:
-    """Whether a card submission is invisible to ``run`` (GENUI_PLAN §8.2 rules V and N):
+    """Whether a card submission is invisible to ``run`` (docs/genui.md §7, rules V and N):
     until its own Run has ended it is visible only to that Run, and a submission whose Run
     ended without ever starting stays invisible to every Run for good."""
     if message.origin != "ui_submit":
@@ -75,6 +75,16 @@ async def owner_typed_message(session: AsyncSession, run: RunRow) -> MessageRow 
             MessageRow.thread_id == run.thread_id,
             MessageRow.role == "user",
             MessageRow.seq <= run.input_seq,
+            # An answer the owner gave a background run's question went to that run in
+            # its own thread: it never stands for this run's owner words.
+            ~exists(
+                select(SteeringRow.id)
+                .join(RunRow, RunRow.id == SteeringRow.run_id)
+                .where(
+                    SteeringRow.message_id == MessageRow.id,
+                    RunRow.thread_id != MessageRow.thread_id,
+                )
+            ),
         )
         .order_by(MessageRow.seq.desc())
         .limit(12)

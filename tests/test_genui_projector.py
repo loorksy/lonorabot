@@ -1,5 +1,5 @@
 """The v2 projector and compiler: line streaming, facts, the card's account, option checks,
-the delivery row, budget and deterministic repair (GENUI_PLAN §9.2, §9.4, §10.1)."""
+the delivery row, budget and deterministic repair (docs/genui.md)."""
 
 import json
 import re
@@ -48,7 +48,13 @@ class _Db:
 def context(agent: _Agent | None = None) -> ToolContext:
     return cast(
         ToolContext,
-        SimpleNamespace(db=_Db(agent), owner_id="o", agent_id="agent-1", thread_id="t"),
+        SimpleNamespace(
+            db=_Db(agent),
+            owner_id="o",
+            agent_id="agent-1",
+            thread_id="t",
+            lease=SimpleNamespace(run_id="run-1"),
+        ),
     )
 
 
@@ -240,7 +246,7 @@ async def test_missing_why_and_fallback_get_defaults() -> None:
 
 @pytest.mark.asyncio
 async def test_second_card_is_dropped_with_its_fallback_as_text() -> None:
-    second = '{"v":2,"kind":"receipt","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
+    second = '{"v":2,"kind":"summary","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
     text = reply() + "\n```lonora-ui\n" + second + "\n```\n"
     projection, projector = await project(text)
     parts = cast(dict[str, Any], projection.rich_until())["parts"]
@@ -259,9 +265,7 @@ async def test_over_budget_blocks_fold_but_the_send_stays_last() -> None:
     assert any(d["code"] == "budget_folded" for d in projector.diagnostics)
 
 
-def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_v2_prompt_block_is_bounded_generated_and_the_only_one() -> None:
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.skills.visual_policy import (
         MAX_GENUI_GUIDANCE_CHARS,
@@ -270,9 +274,6 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
         native_visual_policy,
     )
 
-    monkeypatch.delenv("LONORA_GENUI_V2", raising=False)
-    assert "<lonora_generative_ui>" not in native_visual_policy()
-    monkeypatch.setenv("LONORA_GENUI_V2", "1")
     block = native_visual_policy()
     assert block.startswith(VISUAL_MARKER) and block.endswith(VISUAL_END)
     assert len(block) <= MAX_GENUI_GUIDANCE_CHARS
@@ -282,12 +283,7 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
     names = block.index("Instrument names")
     rest = block[:names] + block[block.index("\n", names) :]
     assert not re.search("[\u0600-\u06ff]", rest)
-    monkeypatch.setenv("LONORA_GENUI_PROMPT", "O")
-    other = native_visual_policy()
-    assert other != block and len(other) <= MAX_GENUI_GUIDANCE_CHARS and "<!--" not in other
-    assert not re.search("[\u0600-\u06ff]", other[: other.index("Instrument names")])
-    monkeypatch.setenv("LONORA_GENUI_PROMPT", "P")
-    assert "{vocabulary}" not in block and native_visual_policy() == block
+    assert "{vocabulary}" not in block and "{teaching}" not in block and "<!--" not in block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
         "go: market, tasks, usage, files, agents\n"
@@ -296,7 +292,7 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
 
 
 @pytest.mark.asyncio
-async def test_a_receipt_with_a_literal_watch_id_compiles() -> None:
+async def test_a_summary_with_a_literal_watch_id_compiles() -> None:
     history = messages()
     history.insert(
         2,
@@ -314,7 +310,7 @@ async def test_a_receipt_with_a_literal_watch_id_compiles() -> None:
     )
     body = "\n".join(
         [
-            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
+            '{"v":2,"kind":"summary","title":"Alert active","icon":"check"}',
             '{"type":"KeyValue","rows":[["Asset","Gold"]]}',
             '{"type":"Button","label":"Stop alert","action":{"do":"send","intent":"alert.off","data":{"watch_id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}}}',
             '{"why":"w","fallback":"f"}',
@@ -547,7 +543,7 @@ async def test_a_fixed_market_agents_card_on_another_account_falls_back() -> Non
 async def test_a_second_card_after_a_fallback_is_still_dropped() -> None:
     """One card per reply even when the first fell back to text (review)."""
     first = A01.replace('"alert.create"', '"trade.execute"')  # falls back
-    second = '{"v":2,"kind":"receipt","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
+    second = '{"v":2,"kind":"summary","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
     text = reply(first) + "\n```lonora-ui\n" + second + "\n```\n"
     projection, projector = await project(text)
     parts = (projection.rich_until() or {"parts": []})["parts"]
@@ -570,7 +566,7 @@ async def test_the_skeleton_shows_as_soon_as_the_fence_opens() -> None:
 
 @pytest.mark.asyncio
 async def test_an_alert_card_on_an_account_the_server_cannot_name_falls_back() -> None:
-    """With several accounts, an alert card's bubble must name its account (§8.3)."""
+    """With several accounts, an alert card's bubble must name its account (docs/genui.md §7)."""
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.genui_compile import AgentScope, CardError, compile_card
     from lonora_contracts.genui import parse_lines
@@ -675,3 +671,235 @@ async def test_typed_market_fields_beyond_quotes_are_caught(field: str) -> None:
     projection, projector = await project(reply(body), history=history)
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
     assert any(d["code"] == "card_fallback_typed_fact" for d in projector.diagnostics)
+
+
+def _card(*blocks: str, fallback: bool = True) -> str:
+    close = '{"why":"w","fallback":"f"}' if fallback else '{"why":"w"}'
+    head = '{"v":2,"kind":"calculator","title":"Size","icon":"chart"}'
+    data = '{"state":{"x":1}}'
+    return "\n".join([head, data, *blocks, close])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "block",
+    [
+        '{"type":"Slider","bind":"x","label":"Lots","show":"{$x} lots password=opaque-secret"}',
+        '{"type":"Button","label":"Copy","action":{"do":"copy","text":"api_key: opaque-secret"}}',
+        '{"type":"Slider","bind":"x","label":"Lots","show":"at {{price}}"}',
+        '{"type":"Button","label":"Copy","action":{"do":"copy","text":"buy at {{price}}"}}',
+    ],
+)
+async def test_a_slider_readout_and_copied_text_pass_the_same_guards_as_shown_text(
+    block: str,
+) -> None:
+    """Slider `show` is displayed and a copy action's text reaches the clipboard (and the
+    card's notice): private values and unfilled placeholders never pass through them."""
+    projection, projector = await project(reply(_card(block)))
+    rich = cast(dict[str, Any], projection.rich_until())
+    assert all(part["type"] != "ui" for part in rich["parts"])
+    codes = {d["code"] for d in projector.diagnostics}
+    assert codes & {"card_fallback_private", "card_fallback_binding"}
+    assert "opaque-secret" not in json.dumps(rich)
+
+
+@pytest.mark.asyncio
+async def test_a_list_valued_mode_is_dropped_never_a_crash() -> None:
+    body = A01.replace('"mode":"observed"', '"mode":["observed"]')
+    projection, projector = await project(reply(body))
+    rich = cast(dict[str, Any], projection.rich_until())
+    document = rich["parts"][1]["document"]
+    assert "mode" not in document
+    assert any(d["code"] == "prop_dropped" for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_the_generated_fallback_reads_stat_markdown_and_badge() -> None:
+    body = _card(
+        '{"type":"Stat","label":"Risk","value":"{$x} %"}',
+        '{"type":"Markdown","text":"- one\\n- two"}',
+        '{"type":"Badge","text":"Estimate"}',
+        fallback=False,
+    )
+    projection, _ = await project(reply(body))
+    document = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    fallback = document["fallback"]
+    assert "**Risk:** 1 %" in fallback and "- one" in fallback and "Estimate" in fallback
+
+
+def trade_history(status: str) -> list[ModelMessage]:
+    """A request in which trade_execute answered with an operation in ``status``."""
+    history = messages()
+    history.insert(
+        2,
+        ModelMessage(
+            role="assistant",
+            content="",
+            tool_calls=[ToolCall(id="t1", name="trade_execute", arguments={"symbol": "XAUUSD"})],
+        ),
+    )
+    history.insert(
+        3,
+        ModelMessage(
+            role="tool",
+            tool_call_id="t1",
+            content=json.dumps(
+                {
+                    "results": [{"operation_id": "op-1", "status": status, "broker_id": "50071"}],
+                    "operation_id": "op-1",
+                    "status": status,
+                    "broker_id": "50071",
+                }
+            ),
+        ),
+    )
+    return history
+
+
+def trade_card(path: str) -> str:
+    return "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Order","icon":"check","mode":"observed"}',
+            '{"facts":{"ticket":{"call":"t1","path":"' + path + '"}}}',
+            '{"type":"KeyValue","rows":[["Ticket","@Fact(ticket)"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["ambiguous", "submitted", "reserved", "resolved"])
+@pytest.mark.parametrize("path", ["/broker_id", "/results/0/broker_id"])
+async def test_an_agent_cannot_draw_an_unconfirmed_operation_as_done(
+    status: str, path: str
+) -> None:
+    """10.3 "The agent can never draw 'confirmed' itself" and 6.10: a fact bound to an
+    operation the broker has not confirmed resolves to nothing, so the card falls back."""
+    projection, projector = await project(
+        "Done.\n```lonora-ui\n" + trade_card(path) + "\n```\n", history=trade_history(status)
+    )
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"].startswith("card_fallback") for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_operation_can_be_cited() -> None:
+    projection, _ = await project(
+        "Done.\n```lonora-ui\n" + trade_card("/broker_id") + "\n```\n",
+        history=trade_history("confirmed"),
+    )
+    card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    assert card["facts"]["ticket"]["value"] == 50071 and card["kind"] == "summary"
+
+
+@pytest.mark.asyncio
+async def test_the_old_receipt_kind_is_not_a_card_kind() -> None:
+    """The generic kind no longer bears the fixed Execution Receipt's name (10.3)."""
+    body = (
+        '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}\n{"why":"w","fallback":"f"}'
+    )
+    projection, _ = await project("Done.\n```lonora-ui\n" + body + "\n```\n")
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+
+
+def history_with(name: str, result: dict[str, Any]) -> list[ModelMessage]:
+    history = messages()
+    history.insert(
+        2,
+        ModelMessage(
+            role="assistant", content="", tool_calls=[ToolCall(id="t1", name=name, arguments={})]
+        ),
+    )
+    history.insert(3, ModelMessage(role="tool", tool_call_id="t1", content=json.dumps(result)))
+    return history
+
+
+async def falls_back(body: str, history: list[ModelMessage]) -> bool:
+    projection, _ = await project("Done.\n```lonora-ui\n" + body + "\n```\n", history=history)
+    return all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+
+
+TWO_RESULTS = {
+    "results": [
+        {"operation_id": "op-1", "status": "confirmed", "broker_id": "50071"},
+        {"operation_id": "op-2", "status": "ambiguous", "broker_id": "50072"},
+    ]
+}
+
+
+@pytest.mark.asyncio
+async def test_a_whole_list_with_an_unconfirmed_operation_is_never_shown() -> None:
+    body = trade_card("/results")
+    assert await falls_back(body, history_with("trade_close_positions", TWO_RESULTS))
+
+
+@pytest.mark.asyncio
+async def test_a_journal_excerpt_of_an_unconfirmed_operation_shows_nothing() -> None:
+    excerpt = {
+        "operation_id": "op-9",
+        "request": {"action": "buy", "price": "2401.35", "volume": "0.1"},
+        "result": {"operation_id": "op-9", "status": "ambiguous"},
+        "submitted_at": "2026-11-12T09:00:00Z",
+    }
+    for path in ("/request/price", "/submitted_at", "/request"):
+        assert await falls_back(trade_card(path), history_with("trade_record_read", excerpt))
+
+
+@pytest.mark.asyncio
+async def test_one_unconfirmed_fact_makes_the_whole_card_fall_back() -> None:
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Orders","icon":"check","mode":"observed"}',
+            '{"facts":{"a":{"call":"t1","path":"/results/0/broker_id"},'
+            '"b":{"call":"t1","path":"/results/1/broker_id"}}}',
+            '{"type":"KeyValue","rows":[["A","@Fact(a)"],["B","@Fact(b)"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    assert await falls_back(body, history_with("trade_close_positions", TWO_RESULTS))
+
+
+@pytest.mark.asyncio
+async def test_a_trades_ticket_and_price_are_cited_never_typed() -> None:
+    result: dict[str, Any] = {
+        "operation_id": "op-1",
+        "status": "ambiguous",
+        "broker_id": "50071",
+        "details": {"price": "2401.35", "volume": "0.10"},
+    }
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Order","icon":"check"}',
+            '{"type":"KeyValue","rows":[["Ticket","50071"],["Price","2,401.35"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    assert await falls_back(body, history_with("trade_execute", result))
+
+
+@pytest.mark.asyncio
+async def test_no_card_at_all_beside_an_unconfirmed_trade() -> None:
+    """10.3: after a trade the broker has not confirmed, a card that cites nothing can
+    still not read as done; the reply carries text only."""
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"تم تنفيذ الصفقة","icon":"check"}',
+            '{"type":"Badge","text":"مؤكَّد","tone":"good"}',
+            '{"type":"KeyValue","rows":[["الحالة","نُفّذت بنجاح"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    for name in ("trade_execute", "trade_close_positions"):
+        ambiguous = {"operation_id": "op-1", "status": "ambiguous"}
+        assert await falls_back(body, history_with(name, ambiguous))
+        assert await falls_back(body, history_with(name, TWO_RESULTS))
+    # A confirmed trade does not hold the card back.
+    confirmed = {"operation_id": "op-1", "status": "confirmed", "broker_id": "50071"}
+    assert not await falls_back(body, history_with("trade_execute", confirmed))
+
+
+@pytest.mark.asyncio
+async def test_the_length_of_a_list_with_an_unconfirmed_operation_is_not_shown() -> None:
+    assert await falls_back(
+        trade_card("/results/length"), history_with("trade_record_history", TWO_RESULTS)
+    )

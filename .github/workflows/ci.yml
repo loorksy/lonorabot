@@ -806,6 +806,7 @@ jobs:
           .venv/bin/python tests/check_chart_history.py
           .venv/bin/python tests/check_generated_artifacts.py
           .venv/bin/python tests/check_trading.py
+          .venv/bin/python tests/check_attention_items.py
           .venv/bin/python tests/check_metaapi_adapter.py
           .venv/bin/python tests/check_broker_history.py
           .venv/bin/python tests/check_broker_recovery.py
@@ -825,7 +826,7 @@ jobs:
       - name: Verify coherent shared foundations in isolated PostgreSQL databases
         run: .venv/bin/python tests/run_foundation_checks.py --isolated-databases
       - name: Verify shared permission proposal construction, financial-boundary, safety and owner-profile texts
-        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts tests/web/financial-boundary.test.ts tests/web/trading-readiness.test.ts tests/web/held-operation.test.ts tests/web/owner-actions.test.ts tests/web/owner-profile.test.ts tests/web/one-vocabulary.test.ts tests/web/agent-model.test.ts tests/web/agent-create.test.ts tests/web/agent-status.test.ts tests/web/supervision.test.ts tests/web/capabilities.test.ts tests/web/inbox-order.test.ts tests/web/chat-rows.test.ts tests/web/shell-routes.test.ts tests/web/message-parts.test.ts tests/web/order-state.test.ts tests/web/chart-geometry.test.ts tests/web/ticket-action.test.ts tests/web/genui-engine.test.ts tests/web/chat-prefs.test.ts tests/web/composer-commands.test.ts tests/web/composer-mentions.test.ts tests/web/first-frame.test.ts tests/web/owner-name.test.ts tests/web/popover-morph.test.ts tests/web/reveal.test.ts
+        run: pnpm exec tsx --test tests/web/agent-permission.test.ts tests/web/account-authority.test.ts tests/web/financial-boundary.test.ts tests/web/trading-readiness.test.ts tests/web/held-operation.test.ts tests/web/owner-actions.test.ts tests/web/owner-profile.test.ts tests/web/one-vocabulary.test.ts tests/web/agent-model.test.ts tests/web/agent-create.test.ts tests/web/agent-status.test.ts tests/web/supervision.test.ts tests/web/capabilities.test.ts tests/web/secret-card.test.ts tests/web/inbox-order.test.ts tests/web/chat-rows.test.ts tests/web/shell-routes.test.ts tests/web/message-parts.test.ts tests/web/order-state.test.ts tests/web/chart-geometry.test.ts tests/web/ticket-action.test.ts tests/web/genui-engine.test.ts tests/web/genui-parity.test.ts tests/web/thread-questions.test.ts tests/web/chat-prefs.test.ts tests/web/composer-commands.test.ts tests/web/composer-mentions.test.ts tests/web/first-frame.test.ts tests/web/owner-name.test.ts tests/web/popover-morph.test.ts tests/web/reveal.test.ts
       - name: Verify native sessions and concurrent persistent conversations
         run: .venv/bin/python tests/check_clients.py
       - name: Verify durable reply streams and idempotent peer communication
@@ -840,7 +841,7 @@ jobs:
       - name: Verify signed mobile OTA service and safe client update lifecycle
         run: |
           .venv/bin/python -m pytest tests/test_mobile_updates.py -q
-          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts tests/mobile/reach-me.test.ts tests/mobile/text-direction.test.ts tests/mobile/search-feed.test.ts tests/mobile/routine-title.test.ts tests/mobile/offline-queue.test.ts tests/mobile/message-actions.test.ts tests/mobile/arabic-labels.test.ts tests/mobile/run-retry.test.ts
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts tests/mobile/reach-me.test.ts tests/mobile/text-direction.test.ts tests/mobile/search-feed.test.ts tests/mobile/routine-title.test.ts tests/mobile/offline-queue.test.ts tests/mobile/message-actions.test.ts tests/mobile/arabic-labels.test.ts tests/mobile/run-retry.test.ts tests/mobile/composer-uploads.test.ts tests/mobile/draft-store.test.ts tests/mobile/run-thread.test.ts
 
       - name: Guard model access, API keys only and one engine (mandate 12.2, P4)
         run: .venv/bin/python -m pytest tests/test_model_access_guard.py -q
