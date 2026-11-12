@@ -44,7 +44,7 @@ from lonora_db.schema import (
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
-from lonora_session.idempotency import broker_operation_tag, stable_id
+from lonora_session.idempotency import stable_id
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import ENTRY_ACTIONS
 from .journal import journal_data
-from .manual_activity import SENT_STATUSES, journal_agent
+from .manual_activity import SENT_STATUSES, ticket_openers
 
 TRIGGER = "morning_brief"
 # 07:00 in the owner's time zone until Lonora has seen the owner open the app on at least
@@ -196,17 +196,16 @@ async def brief_facts(
                     "_ticket": (account_id, order.id, order.operation_id),
                 }
             )
-    # Who opened each ticket (3.3.4): the agent of the journaled entry order that opened or
-    # placed it, else the owner. The broker reports that order's operation id as is
-    # (simulation) or as its broker tag (MetaApi's clientId), and its ticket as the
-    # journal's broker id.
-    openers = await ticket_openers(
+    # Who opened each ticket (3.3.4): the agent of the earliest journaled entry order that
+    # names it, else the owner (also for the owner's own journaled order).
+    openers = await journaled_openers(
         session, owner_id, {item["symbol"] for item in positions + orders}
     )
     for item in positions + orders:
         account_id, ticket, operation_id = item.pop("_ticket")
-        agent_id = openers.get((account_id, "op", operation_id or "")) or openers.get(
-            (account_id, "ticket", ticket)
+        tagged = (account_id, "op", operation_id or "")
+        agent_id = (
+            openers[tagged] if tagged in openers else openers.get((account_id, "ticket", ticket))
         )
         item["opened_by"] = names.get(agent_id, lead) if agent_id else "owner"
     since = record.last_sent_at or now - timedelta(days=1)
@@ -317,14 +316,12 @@ async def brief_facts(
     }
 
 
-async def ticket_openers(
+async def journaled_openers(
     session: AsyncSession, owner_id: str, symbols: set[str]
-) -> dict[tuple[str, str, str], str]:
-    """The agent of each journaled entry order on these symbols, keyed by account and by
-    its operation id, its broker tag and its broker ticket ids; the newest entry wins."""
-    openers: dict[tuple[str, str, str], str] = {}
+) -> dict[tuple[str, str, str], str | None]:
+    """Who opened each ticket on these symbols (3.3.4), from the journaled entry orders."""
     if not symbols:
-        return openers
+        return {}
     rows = await session.scalars(
         select(TradingJournalRow)
         .where(
@@ -333,30 +330,10 @@ async def ticket_openers(
             TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
             TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
         )
-        .order_by(TradingJournalRow.updated_at.desc())
+        .order_by(TradingJournalRow.updated_at)
         .limit(5000)
     )
-    for row in rows:
-        agent = journal_agent(row)
-        if agent is None:
-            continue
-        details = row.result.get("details", {})
-        keys = [
-            ("op", row.operation_id),
-            ("op", broker_operation_tag(row.operation_id)),
-            *(
-                ("ticket", str(value))
-                for value in (
-                    row.result.get("broker_id"),
-                    details.get("position_id"),
-                    details.get("order_id"),
-                )
-                if value
-            ),
-        ]
-        for kind, value in keys:
-            openers.setdefault((row.account_id, kind, value), agent)
-    return openers
+    return ticket_openers(list(rows))
 
 
 async def _count(session: AsyncSession, query: Any) -> int:
