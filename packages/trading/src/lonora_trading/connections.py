@@ -30,6 +30,13 @@ async def verified_identity(config: BrokerConnection, token: str) -> dict[str, A
         await broker.close()
 
 
+# A legacy connection MetaApi can no longer answer for (its account deleted, its token
+# refused); a timeout or an outage is retried instead.
+UNREADABLE = frozenset(
+    {"broker_account_not_found", "broker_credentials_rejected", "broker_token_rejected"}
+)
+
+
 async def observe_legacy_identities(
     db: Database, secrets: BrokerSecrets, owner_id: str
 ) -> list[tuple[str, int, BrokerConnection, dict[str, Any]]]:
@@ -50,7 +57,15 @@ async def observe_legacy_identities(
         existing = BrokerConnection.model_validate(row.payload)
         if not existing.secret_id:
             raise LonoraError("broker_identity_unavailable", 503)
-        observed = await verified_identity(existing, await secrets.read(existing.secret_id))
+        try:
+            observed = await verified_identity(existing, await secrets.read(existing.secret_id))
+        except LonoraError as failure:
+            if failure.code in UNREADABLE:
+                # Its account is gone at MetaApi or its token is refused: whether a new
+                # account is the same broker account cannot be told. The owner removes the
+                # old connection (broker_manage disconnect) and connects again.
+                raise LonoraError("broker_legacy_connection_unreadable", 409) from None
+            raise
         observations.append((row.id, row.version, existing, observed))
     return observations
 
@@ -82,25 +97,15 @@ async def record_identities(
         }
 
 
-async def connect_account(
-    db: Database,
-    secrets: BrokerSecrets,
-    owner_id: str,
-    config: BrokerConnection,
-    api_key: str | None,
-) -> dict[str, Any]:
-    """A simulation (demo) connection. A MetaApi account is connected from chat
-    (``broker_connect``, mandate 9.2): Lonora provisions it, nobody types its id."""
+async def connect_account(db: Database, owner_id: str, config: BrokerConnection) -> dict[str, Any]:
+    """A simulation (demo) connection; it has no credential. A MetaApi account is connected
+    from chat (``broker_connect``, mandate 9.2): Lonora provisions it, nobody types its id."""
     if config.provider != "simulation":
         raise LonoraError("broker_connect_from_chat", 409)
     repository = BrokerSessionRepository()
-    # A repeated click on an existing provider ID should not replace its credential.
-    async with db.sessions() as session:
-        await repository.assert_unique(session, owner_id, config.model_dump(mode="json"))
     async with db.sessions() as session, session.begin():
         await repository.lock_owner(session, owner_id)
-        await repository.assert_unique(session, owner_id, config.model_dump(mode="json"))
-        if api_key:
-            config.secret_id = await secrets.write_in_session(session, config.account_id, api_key)
-        row = await repository.create(session, owner_id, config.model_dump(mode="json"))
+        row = await repository.create(
+            session, owner_id, config.model_copy(update={"secret_id": None}).model_dump(mode="json")
+        )
         return resource_data(row)

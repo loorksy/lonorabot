@@ -398,6 +398,13 @@ def broker_prompt(row: OwnerActionRow) -> str:
                 else " The MetaApi API token was refused and is forgotten: call broker_connect"
                 " again, and its card asks the owner for a new token. Never ask in chat."
             )
+        if result.get("code") == "broker_legacy_connection_unreadable":
+            token = (
+                " A MetaApi connection saved earlier (the one without a broker identity in"
+                " list_accounts) can no longer be read at MetaApi, so it may be this same"
+                " account. With the owner's word, remove it with broker_manage (action"
+                " disconnect), then call broker_connect again."
+            )
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
             f"{result.get('code')}.{token} You never see "

@@ -276,8 +276,8 @@ async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, car
     removal failed. Under the provisioning lock, so it never races a connect from chat:
     an account a connection or a connected card has taken since (a connect of the same
     login and server finds and reuses it) is the owner's now and is kept; one a card is
-    still connecting with waits for that card's outcome. (The old link-by-id route,
-    ``connect_account``, does not take this lock; step 6 removes it for MetaApi.)"""
+    still connecting with waits for that card's outcome. No other path creates a MetaApi
+    connection."""
     token_id = await secrets.named(METAAPI_TOKEN)
     if token_id is None:
         return  # MetaApi cannot be reached without a token; retried once one is saved.

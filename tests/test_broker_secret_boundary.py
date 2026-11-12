@@ -21,8 +21,7 @@ BROKER_READERS = {
     "packages/adapters/src/lonora_adapters/brokers/base.py",
     "packages/trading/src/lonora_trading/connections.py",
     "packages/gateway/src/lonora_gateway/runtime.py",
-    "apps/api/src/lonora_api/routes/trading.py",
-    # Connect from chat: the card's save and the gateway's provisioning step.
+    # Connect from chat (the API no longer links a MetaApi account by id, step 6): the card's save and the gateway's provisioning step.
     "apps/api/src/lonora_api/routes/secret_cards.py",
     "packages/trading/src/lonora_trading/broker_provisioning.py",
     "packages/gateway/src/lonora_gateway/service.py",

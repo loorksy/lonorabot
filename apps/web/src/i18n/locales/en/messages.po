@@ -429,7 +429,7 @@ msgstr "Account changes"
 msgid "Account currency"
 msgstr "Account currency"
 
-#: src/components/trading/BrokerConnection.tsx:49
+#: src/components/trading/BrokerConnection.tsx:48
 msgid "Account ID"
 msgstr "Account ID"
 
@@ -2141,7 +2141,7 @@ msgstr "Connect a provider and choose a global model in Settings."
 #~ msgid "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
 #~ msgstr "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
 
-#: src/components/trading/BrokerConnection.tsx:69
+#: src/components/trading/BrokerConnection.tsx:68
 msgid "Connect account"
 msgstr "Connect account"
 
@@ -6960,7 +6960,7 @@ msgstr "Simulation"
 msgid "Simulation · imported snapshot"
 msgstr "Simulation · imported snapshot"
 
-#: src/components/trading/BrokerConnection.tsx:53
+#: src/components/trading/BrokerConnection.tsx:52
 msgid "Simulation snapshot JSON"
 msgstr "Simulation snapshot JSON"
 
@@ -6968,7 +6968,7 @@ msgstr "Simulation snapshot JSON"
 #~ msgid "Simulation with an imported snapshot"
 #~ msgstr "Simulation with an imported snapshot"
 
-#: src/components/trading/BrokerConnection.tsx:43
+#: src/components/trading/BrokerConnection.tsx:42
 msgid "Simulation with an imported snapshot. A real trading account is connected from chat: ask Lonora to connect it."
 msgstr "Simulation with an imported snapshot. A real trading account is connected from chat: ask Lonora to connect it."
 
@@ -7366,7 +7366,7 @@ msgstr "Supervision ended"
 msgid "Supervision started"
 msgstr "Supervision started"
 
-#: src/components/trading/BrokerConnection.tsx:62
+#: src/components/trading/BrokerConnection.tsx:61
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 

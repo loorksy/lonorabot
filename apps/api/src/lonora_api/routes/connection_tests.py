@@ -81,21 +81,16 @@ async def dry_run_mcp(
     }
 
 
-class BrokerTest(BrokerConnection):
-    api_key: str | None = Field(default=None, max_length=4096)
-
-
 @router.post("/trading/connections/test")
 async def dry_run_broker(
-    request: Request, body: BrokerTest, owner: OwnerIdentity = Depends(require_owner)
+    request: Request, body: BrokerConnection, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, Any]:
-    config = BrokerConnection.model_validate(body.model_dump(exclude={"api_key"}))
+    if body.provider != "simulation":
+        # A MetaApi account is connected from chat (broker_connect, mandate 9.2).
+        raise LonoraError("broker_connect_from_chat", 409)
     async with runtime(request).db.sessions() as session:
         # The same refusal a save would meet: this account is already linked.
         await BrokerSessionRepository().assert_unique(
-            session, owner.id, config.model_dump(mode="json")
+            session, owner.id, body.model_dump(mode="json")
         )
-    if config.provider != "simulation":
-        # A MetaApi account is connected from chat (broker_connect, mandate 9.2).
-        raise LonoraError("broker_connect_from_chat", 409)
     return {"ok": True, "provider": "simulation"}

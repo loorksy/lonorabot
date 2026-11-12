@@ -132,21 +132,20 @@ async def test_mcp_test_is_remote_only_and_broker_test_refuses_a_linked_account(
         )
         assert simulation.status_code == 200, simulation.text
         assert simulation.json() == {"ok": True, "provider": "simulation"}
-        # The token is never echoed back, also when the account is rejected.
+        # No credential is taken any more, and a sent one is never echoed back.
         token = "secret-token-" + uuid4().hex
         rejected = await fixture.client.post(
             "/api/trading/connections/test",
             json={"provider": "simulation", "account_id": "sim-x", "api_key": token},
         )
-        assert token not in rejected.text
+        assert rejected.status_code == 422 and token not in rejected.text
         # A MetaApi account is connected from chat (9.2), never tested or linked by its id.
         by_id = await fixture.client.post(
             "/api/trading/connections/test",
-            json={"provider": "metaapi", "account_id": "acct-" + uuid4().hex[:8], "api_key": token},
+            json={"provider": "metaapi", "account_id": "acct-" + uuid4().hex[:8]},
         )
         assert by_id.status_code == 409
         assert by_id.json()["code"] == "broker_connect_from_chat"
-        assert token not in by_id.text
     finally:
         await fixture.close()
 

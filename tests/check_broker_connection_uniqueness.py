@@ -18,6 +18,7 @@ from lonora_contracts.broker import BrokerConnection
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import BrokerSessionRow, SecretRow
+from lonora_db.secrets import METAAPI_TOKEN
 from lonora_trading import connections
 from sqlalchemy import select
 
@@ -35,12 +36,10 @@ async def main() -> None:
     def metadata(login: str, server: str = "Fixture-MT5") -> dict[str, Any]:
         return {"login": login, "server": server, "platform": "mt5", "broker": "Scripted fixture"}
 
-    async def post(
-        account: str, *, provider: str = "simulation", key: str | None = "fixture-token"
-    ):
+    async def post(account: str, *, provider: str = "simulation", **extra: Any):
         return await fixture.client.post(
             "/api/trading/connections",
-            json={"provider": provider, "account_id": account, "enabled": True, "api_key": key},
+            json={"provider": provider, "account_id": account, "enabled": True, **extra},
         )
 
     async def identities() -> set[str]:
@@ -91,15 +90,15 @@ async def main() -> None:
             next(response.json()["code"] for response in responses if response.status_code == 409)
             == "broker_account_already_connected"
         )
-        secret_id = success["payload"]["secret_id"]
-        # Broker values are read only through the broker layer's reader (7.2.3).
-        assert await store.read(secret_id) == "fixture-token"
-        retry = await post(first_id + " ", key="bad-replacement")
+        assert success["payload"]["secret_id"] is None  # a demo account has no credential
+        retry = await post(first_id + " ")
         assert retry.status_code == 409
-        assert await store.read(secret_id) == "fixture-token"
-        print(
-            "PASS concurrent repeat links create one connection; duplicate retry never overwrites its credential"
-        )
+        # The route takes no credential: none can overwrite a broker secret by its name.
+        before = await identities()
+        named = await post(METAAPI_TOKEN, api_key="x")
+        assert named.status_code == 422
+        assert await identities() == before
+        print("PASS concurrent repeat links create one connection; the route stores no credential")
 
         # A MetaApi account is never linked by its id any more (9.2); nothing is saved.
         before = await identities()

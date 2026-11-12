@@ -429,7 +429,7 @@ msgstr "تغيرات الحساب"
 msgid "Account currency"
 msgstr "عملة الحساب"
 
-#: src/components/trading/BrokerConnection.tsx:49
+#: src/components/trading/BrokerConnection.tsx:48
 msgid "Account ID"
 msgstr "معرّف الحساب"
 
@@ -2141,7 +2141,7 @@ msgstr "اربط مزودًا واختر نموذجًا عالميًا في ال
 #~ msgid "Connect a server, then review and trust its tools in Capabilities. Until you trust them, agents can see the server but not use its tools; tools that can trade or move money never run."
 #~ msgstr "اربط خادمًا، ثم راجع أدواته وثِق بها من القدرات. قبل أن تثق بها يرى الوكلاء الخادم ولا يستخدمون أدواته؛ والأدوات التي تتداول أو تحرّك المال لا تعمل أبدًا."
 
-#: src/components/trading/BrokerConnection.tsx:69
+#: src/components/trading/BrokerConnection.tsx:68
 msgid "Connect account"
 msgstr "ربط الحساب"
 
@@ -6954,7 +6954,7 @@ msgstr "محاكاة"
 msgid "Simulation · imported snapshot"
 msgstr "محاكاة · بيانات مستوردة"
 
-#: src/components/trading/BrokerConnection.tsx:53
+#: src/components/trading/BrokerConnection.tsx:52
 msgid "Simulation snapshot JSON"
 msgstr "بيانات المحاكاة بصيغة JSON"
 
@@ -6962,7 +6962,7 @@ msgstr "بيانات المحاكاة بصيغة JSON"
 #~ msgid "Simulation with an imported snapshot"
 #~ msgstr "محاكاة باستخدام بيانات مستوردة"
 
-#: src/components/trading/BrokerConnection.tsx:43
+#: src/components/trading/BrokerConnection.tsx:42
 msgid "Simulation with an imported snapshot. A real trading account is connected from chat: ask Lonora to connect it."
 msgstr "محاكاة بلقطة مستوردة. يُربط حساب التداول الحقيقي من المحادثة: اطلب من لونورا ربطه."
 
@@ -7360,7 +7360,7 @@ msgstr "أُلغي الإشراف"
 msgid "Supervision started"
 msgstr "بدأ الإشراف"
 
-#: src/components/trading/BrokerConnection.tsx:62
+#: src/components/trading/BrokerConnection.tsx:61
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "أدخل بيانات الحساب والأدوات والأسعار والشموع. تظهر بيانات المحاكاة بوسم واضح في مساحة العمل."
 
