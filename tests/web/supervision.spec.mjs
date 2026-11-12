@@ -60,13 +60,10 @@ asyncio.run(main())
 
 const copy = {
   en: {
-    settings: "Agent info",
-    section: "Lonora supervises your agents",
-    byDefault: "by default",
-    byYou: "set by you",
-    stop: "Stop",
-    supervise: "Supervise",
-    notSupervised: "Not supervised by Lonora",
+    section: "Supervises",
+    stop: "Remove",
+    addSupervised: "Add agents to supervise",
+    supervise: "Add",
     title: "Let it supervise?",
     allow: "Allow",
     set: "Supervision set.",
@@ -79,13 +76,10 @@ const copy = {
     resumed: "Resumed.",
   },
   ar: {
-    settings: "معلومات الوكيل",
-    section: "لونورا تشرف على وكلائك",
-    byDefault: "افتراضيًا",
-    byYou: "عيّنته أنت",
-    stop: "إيقاف",
-    supervise: "إشراف",
-    notSupervised: "لا تشرف عليهم لونورا",
+    section: "يشرف على",
+    stop: "إزالة",
+    addSupervised: "إضافة وكلاء للإشراف",
+    supervise: "إضافة",
     title: "السماح له بالإشراف؟",
     allow: "السماح",
     set: "تم تعيين الإشراف.",
@@ -126,36 +120,33 @@ for (const locale of ["en", "ar"])
       routine: `Review gold ${suffix}`,
     });
     try {
-      // Lonora's profile: every agent is supervised by default, each with one-tap Stop.
-      await page.goto(`/app/${seeded.lonora}`);
-      await page.getByRole("button", { name: text.settings, exact: true }).click();
-      const section = page.getByTestId("supervision-settings");
-      await section.locator("summary").click();
-      await expect(section.locator("summary")).toHaveText(text.section);
-      const row = section.locator("li").filter({ hasText: `Gold ${suffix}` });
-      await expect(row).toContainText(text.byDefault);
+      // Lonora's page: every agent is supervised by default; «إزالة» stops one and
+      // «إضافة وكلاء للإشراف» sets it again, by the owner.
+      const grants = async () =>
+        (await (await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)).json())
+          .supervised_by;
+      expect(
+        (await grants()).find((grant) => grant.supervisor.id === seeded.lonora)?.created_via,
+      ).toBe("default");
+      await page.goto(`/app/agent/${seeded.lonora}`);
+      const main = page.locator("main");
+      await expect(main.getByRole("heading", { name: text.section, exact: true })).toBeVisible();
+      const row = main.locator(".row").filter({ hasText: `Gold ${suffix}` });
       if (locale === "ar") {
         await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-        await section.screenshot({ path: test.info().outputPath("supervision-profile-ar.png") });
+        await main.screenshot({ path: test.info().outputPath("supervision-profile-ar.png") });
       }
       await row.getByRole("button", { name: text.stop, exact: true }).click();
-      const offered = section
-        .locator(".supervision-list")
-        .filter({ hasText: text.notSupervised })
-        .locator("li")
-        .filter({ hasText: `Gold ${suffix}` });
-      await expect(offered).toBeVisible();
-      const view = await (
-        await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
-      ).json();
-      expect(view.supervised_by.some((grant) => grant.supervisor.id === seeded.lonora)).toBe(false);
-      await offered.getByRole("button", { name: text.supervise, exact: true }).click();
-      await expect(
-        section
-          .locator("li")
-          .filter({ hasText: `Gold ${suffix}` })
-          .first(),
-      ).toContainText(text.byYou);
+      await expect(row).toHaveCount(0);
+      expect((await grants()).some((grant) => grant.supervisor.id === seeded.lonora)).toBe(false);
+      await main.getByRole("button", { name: text.addSupervised, exact: true }).click();
+      const picker = page.locator("#dialog");
+      await picker.getByRole("checkbox", { name: new RegExp(`Gold ${suffix}`) }).click();
+      await picker.getByRole("button", { name: text.supervise, exact: true }).click();
+      await expect(row).toBeVisible();
+      expect(
+        (await grants()).find((grant) => grant.supervisor.id === seeded.lonora)?.created_via,
+      ).toBe("owner_ui");
 
       // The watcher's card: Allow sets supervision; its Undo card stops it again.
       await page.goto(`/app/${seeded.watcher}`);
