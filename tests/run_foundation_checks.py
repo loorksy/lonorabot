@@ -121,6 +121,7 @@ def main() -> None:
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",
+        "test_usage_tool.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:

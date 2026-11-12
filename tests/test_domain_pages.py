@@ -346,7 +346,7 @@ async def test_seen_all_keeps_action_items_and_activity_comes_from_events():
                         logical_key=f"t7-{agent['id'][:8]}-{index}",
                         coalesce_key=f"t7-{index}",
                         importance=importance,
-                        code="task_failed",
+                        code="task_review",
                         due_at=utcnow(),
                     )
                 )

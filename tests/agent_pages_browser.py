@@ -303,12 +303,14 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                 row = await session.get(BrokerSessionRow, data["account"], with_for_update=True)
                 assert row is not None
                 now = datetime.now(UTC).isoformat()
+                # Lost for three minutes: past the grace, a problem for the owner (9.4).
+                since = (datetime.now(UTC) - timedelta(minutes=3)).isoformat()
                 row.state = {
                     **row.state,
                     "broker_recovery": {
                         "status": "disconnected",
                         "reason_code": "broker_unreachable",
-                        "since": now,
+                        "since": since,
                         "observed_at": now,
                         "last_success_at": None,
                         "unresolved_operations": [],
@@ -325,19 +327,6 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                         ],
                     },
                 }
-                # The transition broker_recovery emits; the attention gateway raises it.
-                emit(
-                    session,
-                    fixture.owner,
-                    "broker.degraded",
-                    payload={
-                        "account_id": data["account"],
-                        "status": "disconnected",
-                        "reason_code": "broker_unreachable",
-                        "previous_status": "connected",
-                        "transition_id": "disconnected:" + now,
-                    },
-                )
             await attention_tick(
                 fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
             )

@@ -652,7 +652,7 @@ test("a broker outage: the heads-up and the updates list open the recovery page"
   // The updates page's notification row opens the same page.
   await page.goto("/app/updates");
   await page
-    .locator("main [data-attention-id]", { hasText: "Broker connection needs review" })
+    .locator("main [data-attention-id]", { hasText: "The account connection has been lost" })
     .first()
     .click();
   await expect(page).toHaveURL(
