@@ -1,6 +1,6 @@
 """Push to the owner's phones (VISION 11.4).
 
-One push per record, at its creation, to every phone whose sign-in session is live:
+One push per record, at its creation, to every phone that has not signed out:
 - a pending Trade Approval card (``approval_required``);
 - a Settle Uncertain Operation card (``operation_uncertain``).
 
@@ -10,18 +10,21 @@ notification has no action button. A tap opens the conversation at the card, whi
 live record; a push is never an approval (6.7, 6.10). Quiet hours do not hold these items.
 
 Each push has an effect receipt written, in the same transaction that advances the owner's
-cursor, before any network call. A receipt is never sent twice: a send whose outcome is unknown
-(a timeout, a dropped connection, a restart) stays unconfirmed. So one record pushes once per
-phone across restarts and across two gateways.
+cursor, before any network call. A send whose outcome is unknown (a timeout after sending, a
+5xx, a restart) stays unconfirmed and is never sent again, so one record pushes once per phone
+across restarts and two gateways. Only a send that certainly never reached Expo (no connection
+was made, or Expo answered 429) is tried again, with backoff and a limit.
 """
 
 import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Protocol, cast
 
 from lonora_bus.attention import attention_text
+from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current, policy
 from lonora_db.client import Database
@@ -53,6 +56,11 @@ PUSH_RECORDS = {"approval_required": "approval_id", "operation_uncertain": "oper
 EVENTS_PER_TICK = 100
 # Sends started per tick, each bounded by SEND_TIMEOUT_SECONDS, below the step's 120 s limit.
 PUSHES_PER_TICK = 4
+# A send that never reached Expo (no connection, rate limited) is tried again, at most this
+# many times in all, after 30 s, 60 s, 120 s and 240 s.
+NOT_SENT = frozenset({"push_not_sent", "push_rate_limited"})
+MAX_ATTEMPTS = 5
+RETRY_BASE_SECONDS = 30
 SEND_TIMEOUT_SECONDS = 20
 
 
@@ -117,6 +125,16 @@ async def item_deliveries(
     anchor = await card_anchor(session, code, record, item.thread_id)
     if anchor:
         data["around"] = anchor
+    # The message without its address: kept on the receipt so a send that never left can be
+    # tried again (it holds no secret: the agent's name, fixed text, where to open).
+    message: dict[str, Any] = {
+        "title": agent.name if agent else "Lonora",
+        "body": attention_text(code, locale),
+        "data": data,
+        "sound": "default",
+        "priority": "high",
+        "channelId": "attention",
+    }
     deliveries: list[Delivery] = []
     for device in devices:
         key = receipt_key(code, record, device.device_id)
@@ -131,25 +149,52 @@ async def item_deliveries(
                     "code": code,
                     "record_id": record,
                     "device_id": device.device_id,
+                    "message": message,
+                    "attempts": 0,
                 },
             )
         )
-        deliveries.append(
-            Delivery(
-                key,
-                device.id,
-                push_token_hash(device.token),
-                {
-                    "to": device.token,
-                    "title": agent.name if agent else "Lonora",
-                    "body": attention_text(code, locale),
-                    "data": data,
-                    "sound": "default",
-                    "priority": "high",
-                    "channelId": "attention",
-                },
+        deliveries.append(addressed(key, device, message))
+    return deliveries
+
+
+def addressed(key: str, device: PushDevice, message: dict[str, Any]) -> Delivery:
+    return Delivery(key, device.id, push_token_hash(device.token), {"to": device.token, **message})
+
+
+async def due_retries(
+    session: AsyncSession, owner_id: str, devices: list[PushDevice], room: int
+) -> list[Delivery]:
+    """Sends that never reached Expo and are due again, re-armed as submitted."""
+    if room <= 0:
+        return []
+    rows = (
+        await session.scalars(
+            select(EffectReceiptRow)
+            .where(
+                EffectReceiptRow.key.like("push:%"),
+                EffectReceiptRow.result["owner_id"].as_string() == owner_id,
+                EffectReceiptRow.result["status"].as_string() == "retry",
             )
+            .order_by(EffectReceiptRow.created_at)
+            .limit(EVENTS_PER_TICK)
+            .with_for_update()
         )
+    ).all()
+    now = utcnow()
+    by_device = {device.device_id: device for device in devices}
+    deliveries: list[Delivery] = []
+    for row in rows:
+        if len(deliveries) >= room:
+            break
+        if datetime.fromisoformat(str(row.result.get("retry_at"))) > now:
+            continue
+        device = by_device.get(str(row.result.get("device_id")))
+        if device is None:
+            row.result = {**row.result, "status": "rejected", "code": "push_device_gone"}
+            continue
+        row.result = {**row.result, "status": "submitted"}
+        deliveries.append(addressed(row.key, device, dict(row.result["message"])))
     return deliveries
 
 
@@ -189,9 +234,8 @@ async def dispatch_push(
                 .limit(EVENTS_PER_TICK)
             )
         ).all()
-        if not events:
-            return 0
         devices = await live_devices(session, owner_id, cipher)
+        deliveries.extend(await due_retries(session, owner_id, devices, PUSHES_PER_TICK))
         locale = (await policy(session, owner_id)).locale
         for event in events:
             # Each send may take up to its timeout: the rest waits for the next tick, so the
@@ -209,7 +253,8 @@ async def dispatch_push(
                     )
             except Exception as error:
                 log.error("push_item_failed code=%s", getattr(error, "code", type(error).__name__))
-        await settings.put(session, cursor_key(owner_id), {"last": cursor})
+        if events:
+            await settings.put(session, cursor_key(owner_id), {"last": cursor})
     for delivery in deliveries:
         await send_one(db, transport, delivery)
     return len(deliveries)
@@ -223,14 +268,30 @@ async def send_one(db: Database, transport: PushTransport, delivery: Delivery) -
             tickets = await transport.send([delivery.message])
         outcome = ticket_outcome(tickets[0])
     except LonoraError as error:
-        # Refused (4xx): Expo accepted nothing. Anything else: the outcome is unknown.
-        status = "rejected" if error.code == "push_request_refused" else "ambiguous"
-        outcome = {"status": status, "code": error.code}
+        # Not sent (no connection, or rate limited): tried again later. Refused (other 4xx):
+        # Expo accepted nothing. Anything else: the outcome is unknown, never resent.
+        if error.code in NOT_SENT:
+            outcome = {"status": "retry", "code": error.code}
+        elif error.code == "push_request_refused":
+            outcome = {"status": "rejected", "code": error.code}
+        else:
+            outcome = {"status": "ambiguous", "code": error.code}
     except Exception:
         outcome = {"status": "ambiguous", "code": "push_delivery_unconfirmed"}
     async with db.sessions() as session, session.begin():
         row = await session.get(EffectReceiptRow, delivery.receipt, with_for_update=True)
         if row is not None:
+            if outcome["status"] == "retry":
+                attempts = int(row.result.get("attempts", 0)) + 1
+                if attempts >= MAX_ATTEMPTS:
+                    outcome = {"status": "rejected", "code": outcome["code"]}
+                else:
+                    delay = RETRY_BASE_SECONDS * 2 ** (attempts - 1)
+                    outcome = {
+                        **outcome,
+                        "attempts": attempts,
+                        "retry_at": (utcnow() + timedelta(seconds=delay)).isoformat(),
+                    }
             row.result = {**row.result, **outcome}
         if outcome.get("code") == "DeviceNotRegistered":
             # Expo says the app is gone from that phone. Only that token: a phone that has

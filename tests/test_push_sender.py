@@ -199,7 +199,7 @@ async def test_an_unconfirmed_send_is_never_repeated(task_db: Fixture) -> None:
     db, owner_id, agent_id, thread_id = task_db
     await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
     await started(db, owner_id, FakeExpo(db))
-    for answer in (httpx.ConnectError("reset"), LonoraError("push_request_failed", 502)):
+    for answer in (httpx.ReadTimeout("sent, no answer"), LonoraError("push_request_failed", 502)):
         expo = FakeExpo(db, answer)
         await card(db, owner_id, agent_id, thread_id, "approval_required")
         await dispatch_push(db, owner_id, CIPHER, expo)
@@ -273,7 +273,11 @@ async def test_other_items_and_settled_cards_never_push(task_db: Fixture) -> Non
 
 
 @pytest.mark.asyncio
-async def test_a_signed_out_phone_gets_nothing_and_is_deleted(task_db: Fixture) -> None:
+async def test_a_signed_out_phone_gets_nothing_and_an_expired_session_still_does(
+    task_db: Fixture,
+) -> None:
+    # A mobile session has an absolute lifetime; the phone stays reachable until it signs
+    # out (R-SEC M1 on #142).
     db, owner_id, agent_id, thread_id = task_db
     expired = await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
     revoked = await phone(db, owner_id, TABLET, "ExponentPushToken[tablet00000000002]")
@@ -286,9 +290,11 @@ async def test_a_signed_out_phone_gets_nothing_and_is_deleted(task_db: Fixture) 
     expo = FakeExpo(db)
     await started(db, owner_id, expo)
     await card(db, owner_id, agent_id, thread_id, "approval_required")
-    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0 and expo.sent == []
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert [message["to"] for message in expo.sent] == ["ExponentPushToken[phone000000000001]"]
     async with db.sessions() as session:
-        assert list(await session.scalars(select(PushDeviceRow))) == []
+        left = [row.device_id for row in await session.scalars(select(PushDeviceRow))]
+    assert left == [PHONE]
 
 
 @pytest.mark.asyncio
@@ -337,6 +343,7 @@ async def test_the_expo_adapter_request_and_its_failures() -> None:
     assert "authorization" not in seen[-1].headers
     failures: list[tuple[int, dict[str, Any], str]] = [
         (400, {"errors": []}, "push_request_refused"),
+        (429, {"errors": []}, "push_rate_limited"),
         (503, {}, "push_request_failed"),
         (200, {"data": []}, "push_response_invalid"),
     ]
@@ -471,3 +478,68 @@ async def test_a_phone_that_registered_a_new_token_is_kept(task_db: Fixture) -> 
     await dispatch_push(db, owner_id, CIPHER, expo)
     async with db.sessions() as session:
         assert [row.device_id for row in await session.scalars(select(PushDeviceRow))] == [PHONE]
+
+
+async def make_due(db: Database) -> None:
+    async with db.sessions() as session, session.begin():
+        for row in await session.scalars(select(EffectReceiptRow)):
+            if row.result.get("status") == "retry":
+                row.result = {**row.result, "retry_at": utcnow().isoformat()}
+
+
+@pytest.mark.asyncio
+async def test_a_send_that_never_reached_expo_is_tried_again_until_a_limit(
+    task_db: Fixture,
+) -> None:
+    # R-SEC M2 on #142: no connection or a 429 means nothing was sent, so it is retried with
+    # backoff; it gives up after MAX_ATTEMPTS. A send that may have arrived never is.
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    down = FakeExpo(db, LonoraError("push_not_sent", 502))
+    await started(db, owner_id, down)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, down)
+    [receipt] = await receipts(db)
+    assert receipt["status"] == "retry" and receipt["attempts"] == 1
+    # Not yet due: nothing is sent.
+    assert await dispatch_push(db, owner_id, CIPHER, down) == 0
+    await make_due(db)
+    limited = FakeExpo(db, LonoraError("push_rate_limited", 502))
+    assert await dispatch_push(db, owner_id, CIPHER, limited) == 1
+    await make_due(db)
+    up = FakeExpo(db)
+    assert await dispatch_push(db, owner_id, CIPHER, up) == 1
+    assert up.sent[0]["to"] == "ExponentPushToken[phone000000000001]"
+    assert up.sent[0]["body"] == attention_text("approval_required", "ar")
+    [receipt] = await receipts(db)
+    assert receipt["status"] == "confirmed" and receipt["attempts"] == 2
+    assert await dispatch_push(db, owner_id, CIPHER, up) == 0
+
+
+@pytest.mark.asyncio
+async def test_retries_stop_at_the_limit(task_db: Fixture) -> None:
+    import lonora_gateway.push as push
+
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    down = FakeExpo(db, LonoraError("push_not_sent", 502))
+    await started(db, owner_id, down)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    for _ in range(push.MAX_ATTEMPTS):
+        await dispatch_push(db, owner_id, CIPHER, down)
+        await make_due(db)
+    assert len(down.sent) == push.MAX_ATTEMPTS
+    [receipt] = await receipts(db)
+    assert receipt["status"] == "rejected" and receipt["code"] == "push_not_sent"
+    assert await dispatch_push(db, owner_id, CIPHER, down) == 0
+
+
+@pytest.mark.asyncio
+async def test_the_adapter_reports_a_connection_that_was_never_made() -> None:
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    message = {"to": "ExponentPushToken[phone000000000001]"}
+    with pytest.raises(LonoraError) as failed:
+        await ExpoPushTransport(None, httpx.MockTransport(refuse)).send([message])
+    assert failed.value.code == "push_not_sent"

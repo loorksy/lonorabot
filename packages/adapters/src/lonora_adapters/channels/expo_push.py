@@ -28,12 +28,19 @@ class ExpoPushTransport:
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if self.access_token:
             headers["Authorization"] = "Bearer " + self.access_token
-        async with httpx.AsyncClient(
-            timeout=EXPO_TIMEOUT_SECONDS, follow_redirects=False, transport=self.http
-        ) as client:
-            response = await client.post(EXPO_PUSH_URL, json=messages, headers=headers)
-        # A 4xx is Expo refusing the request: nothing in it was accepted. A 5xx may have
-        # been partly accepted, so its outcome is unknown.
+        try:
+            async with httpx.AsyncClient(
+                timeout=EXPO_TIMEOUT_SECONDS, follow_redirects=False, transport=self.http
+            ) as client:
+                response = await client.post(EXPO_PUSH_URL, json=messages, headers=headers)
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            # No connection was made, so nothing was sent: the caller may try again.
+            raise LonoraError("push_not_sent", 502) from None
+        # A 429 and any other 4xx are Expo refusing the request: nothing in it was accepted
+        # (a 429 may be tried again later). A 5xx may have been partly accepted, so its
+        # outcome is unknown.
+        if response.status_code == 429:
+            raise LonoraError("push_rate_limited", 502)
         if 400 <= response.status_code < 500:
             raise LonoraError("push_request_refused", 502)
         if response.status_code >= 500:

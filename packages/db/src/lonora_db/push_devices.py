@@ -96,15 +96,17 @@ async def remove_session_devices(session: AsyncSession, session_hash: str) -> No
 async def live_devices(
     session: AsyncSession, owner_id: str, cipher: SecretCipher
 ) -> list[PushDevice]:
-    """The phones a push may go to now: their registering session is neither revoked nor
-    expired."""
+    """The phones a push may go to: those whose registering session was not signed out.
+
+    An expired session still receives push: a mobile session has an absolute lifetime, and
+    the phone must stay reachable while the app is closed (11.4). The push carries no
+    secret (the agent's name and fixed text), and signing out (revocation) ends it."""
     rows = await session.scalars(
         select(PushDeviceRow)
         .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
         .where(
             PushDeviceRow.owner_id == owner_id,
             SessionRow.revoked.is_(False),
-            SessionRow.expires_at > utcnow(),
         )
         .order_by(PushDeviceRow.created_at, PushDeviceRow.id)
     )
@@ -121,13 +123,12 @@ async def live_devices(
 
 
 async def prune_signed_out(session: AsyncSession, owner_id: str) -> None:
-    """Delete the phones whose sign-in session was revoked or has expired: a session that
-    ended without an explicit sign-out (an expired mobile session, a logout lost offline)
-    leaves no token behind."""
+    """Delete the phones whose sign-in session was signed out (revoked) by any path, so no
+    token outlives a sign-out even when the route's own deletion did not run."""
     dead = (
         select(SessionRow.token_hash)
         .where(SessionRow.owner_id == owner_id)
-        .where(SessionRow.revoked.is_(True) | (SessionRow.expires_at <= utcnow()))
+        .where(SessionRow.revoked.is_(True))
     )
     await session.execute(
         delete(PushDeviceRow).where(
@@ -137,11 +138,11 @@ async def prune_signed_out(session: AsyncSession, owner_id: str) -> None:
 
 
 async def push_configured(session: AsyncSession) -> bool:
-    """Readiness: push is configured once a phone with a live session is registered."""
+    """Readiness: push is configured once a phone that was not signed out is registered."""
     row = await session.scalar(
         select(PushDeviceRow.id)
         .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
-        .where(SessionRow.revoked.is_(False), SessionRow.expires_at > utcnow())
+        .where(SessionRow.revoked.is_(False))
         .limit(1)
     )
     return row is not None

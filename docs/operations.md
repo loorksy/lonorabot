@@ -494,27 +494,28 @@ it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds t
 turned off (`DELETE /api/push/devices/<install id>`). The token is never logged and never
 shown to a model.
 
-The gateway step `push` sends one push per record, when it is created, to every phone whose
-sign-in session is live: a pending Trade Approval card and a Settle Uncertain Operation card. The text is
+The gateway step `push` sends one push per record, when it is created, to every phone that has
+not signed out: a pending Trade Approval card and a Settle Uncertain Operation card. The text is
 Lonora's fixed text for that event in the owner's language under the agent's name; no price,
 volume, symbol or account number leaves the server, and the notification has no button. A tap
 opens the conversation at the card, and the card itself is where the owner approves or
 settles. Quiet hours do not hold these pushes. Execution Receipts and reports never push. Each
 push has an effect receipt written before the call to Expo, and a push whose outcome is unknown
 (a timeout, a restart) is never sent again, so a record pushes once per phone even across
-restarts and two gateways. Each phone gets its own request, so a token Expo refuses never
+restarts and two gateways. A push that certainly never reached Expo (no connection, or "too
+many requests") is tried again up to five times over about eight minutes. Each phone gets its own request, so a token Expo refuses never
 costs another phone its push. When push is first installed it starts from the end of the event
 stream: cards that were already waiting do not push.
 
-A phone receives push only while the sign-in session that registered it is live. A mobile
-session lasts `LONORA_SESSION_SECONDS` (default one day, at most 30 days); when it expires,
-or a sign-out never reached the server, the gateway deletes that phone's row, and the app
-registers again at the next sign-in. Set `LONORA_SESSION_SECONDS` to keep a phone reachable
-for longer without opening the app.
+A phone keeps receiving push until it signs out, even after its sign-in session has expired
+(a session lasts `LONORA_SESSION_SECONDS`, default one day): a push carries only the agent's
+name and fixed text, and the phone must stay reachable while the app is closed. Signing out
+revokes the session and the gateway deletes that phone's row; the app registers again at the
+next sign-in.
 
 `LONORA_EXPO_ACCESS_TOKEN` (optional, in `.env`) is sent to Expo only when the Expo project has
 "enhanced security for push notifications" turned on. `/ready` reports `"push":
-"configured"` once a phone with a live session is registered and `"not_configured"` before;
+"configured"` once a phone that has not signed out is registered and `"not_configured"` before;
 push never makes the server unready.
 
 A native release with push needs, once:
