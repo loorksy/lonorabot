@@ -59,19 +59,8 @@ async def available_authority(
     """The active grant whose account, market and action cover this request, or None.
 
     None never refuses the trade: the caller asks the owner for exact approval instead
-    (the ladder is monotonic). A grant's management Run is held to its own grant.
+    (the ladder is monotonic).
     """
-    management_id = run.model_metadata.get("account_management_id")
-    # The mode task's Runs carry the agent's own id: they are ordinary Runs of the agent.
-    if management_id and management_id != run.agent_id:
-        _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
-        if (
-            request.account_id != envelope.account_id
-            or not envelope.permits_symbol(request.symbol)
-            or request.action not in envelope.actions
-        ):
-            return None
-        return management_id
     rows = await session.scalars(
         select(AccountAuthorityRow)
         .where(
@@ -211,8 +200,6 @@ async def require_account_execution(
 ) -> None:
     # The central permission gate additionally requires exact-operation owner
     # approval for provisional speech; a signed grant alone cannot spend it.
-    if run.model_metadata.get("account_management_id") not in (None, identifier, run.agent_id):
-        raise LonoraError("account_authority_scope_mismatch", 403)
     _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
     if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):
         raise LonoraError("account_authority_scope_mismatch", 403)

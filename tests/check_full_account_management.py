@@ -10,9 +10,10 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
-from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
+from lonora_db.management_task import live_management_task
 from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingAccountRow
+from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
@@ -159,19 +160,26 @@ async def main():
         async with f.runtime.db.sessions() as session:
             saved, envelope = await require_authority(session, f.owner, agent["id"], grant["id"])
             assert saved.valid_until is None and envelope.symbol_scope == "account"
-        task_id = stable_id(grant["id"], "account-management-task")
+        # A grant starts no task (4.5.1): the owner's Full tap starts the agent's one task.
         async with f.runtime.db.sessions() as session:
-            task = await session.get(TicketRow, task_id)
+            assert (
+                await session.get(TicketRow, stable_id(grant["id"], "account-management-task"))
+                is None
+            )
+        async with f.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, f.owner, agent["id"], "full", by="owner_tap")
+        async with f.runtime.db.sessions() as session:
+            task = await live_management_task(session, f.owner, agent["id"])
             assert task and task.state["task"]["origin_thread_id"] == thread["id"]
             assert task.state["task"]["completion_mode"] == "continuous"
             kickoff = await session.get(RunRow, task.payload["run_id"])
-            assert kickoff and kickoff.model_metadata["account_management_id"] == grant["id"]
+            assert kickoff and kickoff.model_metadata["account_management_id"] == agent["id"]
             assert (
                 await session.scalar(
                     select(func.count())
                     .select_from(RunRow)
                     .where(
-                        RunRow.model_metadata["account_management_id"].as_string() == grant["id"]
+                        RunRow.model_metadata["account_management_id"].as_string() == agent["id"]
                     )
                 )
                 == 1
@@ -239,18 +247,8 @@ async def main():
         )
 
         # Optional explicit limits still apply; full mode never nulls them silently.
-        management_context = context
         context = await f.lease(await f.run(agent, thread))
         limited = await sign(await propose(maximum_order_volume="0.2"))
-        async with f.runtime.db.sessions() as session:
-            old_task = await session.get(TicketRow, task_id)
-            assert old_task and old_task.state["task"]["status"] == "cancelled"
-        try:
-            await registry.execute(call(volume="0.1"), management_context)
-        except LonoraError as error:
-            assert error.code == "account_authority_unavailable"
-        else:
-            raise AssertionError("old management task spent replacement authority")
         # Over the signed cap the agent asks the owner (correction 6); nothing is sent.
         before = await broker.snapshot()
         over = await trade(volume="0.3")
@@ -263,10 +261,10 @@ async def main():
         assert next(r for r in current if r["id"] == grant["id"])["status"] == "revoked"
         await f.request("POST", f"/account-authorities/{limited['id']}/revoke", {})
         async with f.runtime.db.sessions() as session:
-            stopped = await session.get(
-                TicketRow, stable_id(limited["id"], "account-management-task")
+            assert (
+                await session.get(TicketRow, stable_id(limited["id"], "account-management-task"))
+                is None
             )
-            assert stopped and stopped.state["task"]["status"] == "cancelled"
         context = await f.lease(await f.run(agent, thread))
         after_revoke = await trade(volume="0.1")
         assert after_revoke.get("_runtime_wait"), after_revoke
@@ -323,13 +321,13 @@ async def main():
         devices = (await f.client.get("/api/auth/devices")).json()
         await f.request("DELETE", f"/auth/devices/{devices[0]['id']}")
         async with f.runtime.db.sessions() as session:
-            stopped = await session.get(
-                TicketRow, stable_id(device_grant["id"], "account-management-task")
+            assert (
+                await session.get(
+                    TicketRow, stable_id(device_grant["id"], "account-management-task")
+                )
+                is None
             )
-            assert stopped and stopped.state["task"]["status"] == "cancelled"
-        print(
-            "PASS device revocation cancels its exact management task without deleting broker history"
-        )
+        print("PASS device revocation leaves no grant task and deletes no broker history")
     finally:
         await save_controls(f.runtime.db, controls)
         await f.close()

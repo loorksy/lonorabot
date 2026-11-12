@@ -356,9 +356,8 @@ Ending the Task (`close_task`) keeps what the agent set up:
   untouched. The agent keeps managing its own positions and orders in Ask.
 - A Task the owner already asked to cancel or complete ends that way.
 
-While an active signed grant's own management Task runs for the agent, that Task drives
-the account and the Full-mode Task does not start; revoking the grant starts it, also
-when a broker connection is deleted. Deleting the agent or a conversation starts none.
+It is the only account-management Task (4.5.1): signing a grant starts none, and a
+grant neither holds it back nor ends it.
 
 ## Model cards (W15-10)
 

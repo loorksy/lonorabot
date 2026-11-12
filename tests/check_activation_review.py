@@ -193,9 +193,10 @@ async def main() -> None:
             receipt = await session.get(EffectReceiptRow, "activation-review:" + full["id"])
             task = await session.get(TicketRow, stable_id(full["id"], "account-management-task"))
             assert receipt and receipt.result == {"skipped": "management_task"}
-            assert task and task.agent_id == manager["id"]
+            # A grant starts no task: the continuous task comes with Full mode (4.5.1).
+            assert task is None
             assert await session.get(RunRow, stable_id(full["id"], "activation-review")) is None
-        print("PASS a full-management grant starts its management Task and gets no extra review")
+        print("PASS a full-management grant starts no task and gets no extra review")
 
         unconfigured = await f.agent("Unconfigured review", supervised=True)
         unconfigured_thread = await f.conversation(unconfigured)

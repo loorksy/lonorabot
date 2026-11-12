@@ -173,7 +173,7 @@ Options: `--model` (default `openai/gpt-5.4-mini`, the model genui_eval uses),
 - **The owner.** An Arabic profile and no reply language chosen, as on production.
 - **The mandate.** The template holds a full mandate for the Personal Agent on the demo
   account, signed through the owner routes with the test suite's scripted authenticator, and
-  trading resumed. Signing starts the account-management Task, as on production. The
+  trading resumed. Signing starts no Task; the account-management Task comes with Full mode. The
   Personal Agent is the only agent, bound to no account or symbol; X_owner adds a second one.
 - **Tool exposure** is the product's own: the run gets the native tools the registry gives a
   Personal Agent and reaches the rest (`watch_cancel`, `watch_list`, …) through

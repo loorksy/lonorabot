@@ -15,7 +15,7 @@ from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import AgentUpdate, utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.tasks import TaskCreate, TaskFailure
+from lonora_contracts.tasks import TaskFailure
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import revoke
@@ -39,7 +39,6 @@ from lonora_db.schema import (
 )
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import (
-    create_task,
     is_continuous_task,
     require_completed_task_steps,
     save_task,
@@ -478,42 +477,9 @@ async def checks() -> None:
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
     print("PASS a pause takes the task's Run before the agent row: no deadlock")
 
-    # An active signed grant's own Task drives the account until the grant is revoked.
-    await tap("ask", by="agent")
-    async with db.sessions() as session, session.begin():
-        grant = AccountAuthorityRow(
-            owner_id=owner_id,
-            agent_id=agent_id,
-            thread_id=conversation_id,
-            account_id=account_id,
-            status="active",
-            envelope={},
-            envelope_hash="0" * 64,
-            activation_expires_at=utcnow() + timedelta(minutes=5),
-        )
-        session.add(grant)
-        await session.flush()
-        grant_id = grant.id
-        await create_task(
-            session,
-            owner_id,
-            agent_id,
-            conversation_id,
-            TaskCreate(title="grant management", completion_mode="continuous"),
-            task_id=stable_id(grant_id, "account-management-task"),
-        )
-    await tap("full")
-    assert await live() is None, "a Full-mode task ran beside the grant's own task"
-    async with db.sessions() as session, session.begin():
-        await revoke(session, owner_id, grant_id)
-    assert await live() is not None, "revoking the grant did not hand over to the mode task"
-    async with db.sessions() as session:
-        grant_task = await session.get(TicketRow, stable_id(grant_id, "account-management-task"))
-        assert grant_task is not None and task_state(grant_task).status == "cancelled"
-    print("PASS the grant's task drives while its grant is active; revoking hands over")
-
-    # Deleting a broker connection revokes its grants and hands a Full agent over to its
-    # own task; a deleted agent or conversation gets none.
+    # 4.5.1: the Full-mode task is the only account-management task. An active signed
+    # grant starts none and never holds the agent's task back; revoking it, or deleting
+    # its broker connection, leaves the task running.
     await tap("ask", by="agent")
     async with db.sessions() as session, session.begin():
         other = await BrokerSessionRepository().create(
@@ -534,20 +500,19 @@ async def checks() -> None:
         )
         session.add(grant)
         await session.flush()
-        await create_task(
-            session,
-            owner_id,
-            agent_id,
-            conversation_id,
-            TaskCreate(title="grant management", completion_mode="continuous"),
-            task_id=stable_id(grant.id, "account-management-task"),
-        )
+        grant_id = grant.id
     await tap("full")
-    assert await live() is None
+    beside = await live()
+    assert beside is not None, "an active grant held the Full-mode task back"
     async with db.sessions() as session, session.begin():
+        await revoke(session, owner_id, grant_id)
         await prepare_delete(session, owner_id, account_id=other_id)
-    assert await live() is not None, "deleting the connection left the Full agent without a task"
-    print("PASS deleting a connection hands a Full agent over to its own task")
+    after = await live()
+    assert after is not None and after.id == beside.id
+    async with db.sessions() as session:
+        assert await session.get(TicketRow, stable_id(grant_id, "account-management-task")) is None
+        assert len(await open_management_tasks(session, owner_id, agent_id)) == 1
+    print("PASS the Full-mode task is the only one: a grant neither starts nor holds it back")
 
     # Deleting the agent ends the task before the agent row goes.
     ending = await live()

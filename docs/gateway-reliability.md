@@ -179,7 +179,7 @@ passkey, so nothing is left looking active while it can no longer run:
 - open approvals (pending, or approved but not yet sent) are cancelled, so a cancelled
   approval can no longer authorize a send;
 - grants of the agent, of the account, or signed in the deleted conversation are
-  revoked through the normal revocation (their full-management Task stops), so the
+  revoked through the normal revocation, so the
   permission frame shows "autonomous stopped" and the trade path asks for approval
   again, instead of a grant that still reads active but always fails;
 - retired Super Bot requests (W15-9) are audit history only and are left as they are;

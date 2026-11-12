@@ -6,11 +6,9 @@ of ``is_continuous_task``). It is bound to no account: every wake reads the acco
 connected at that moment, so a newly connected account joins it and a disconnected one
 leaves it. Its Runs are ordinary Runs of the agent under the agent's mode.
 
-- ``ensure_management_task`` starts the task when the agent is in Full, not paused, and
-  no active signed grant's own management Task drives the account (the grant decides
-  within its own terms until it is revoked, 0.4); otherwise it does nothing.
-- ``end_management_task`` ends it: on the switch to Ask, a pause, a delete, or a signed
-  grant's Task taking over. Ending keeps what the agent set up (``close_task``): its Runs
+- ``ensure_management_task`` starts the task when the agent is in Full and not paused;
+  otherwise it does nothing. It is the only account-management task (4.5.1).
+- ``end_management_task`` ends it: on the switch to Ask, a pause or a delete. Ending keeps what the agent set up (``close_task``): its Runs
   go on outside the task with their Trade Approval cards still decidable, its watches
   move to its conversation, a pending timer becomes a one-shot routine there, and its
   routines are untouched; the agent keeps managing its positions in Ask.
@@ -23,13 +21,13 @@ from typing import Any
 from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskCreate
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .authority_lock import authority_lock
 from .conversation_locale import conversation_locale
 from .events import emit
-from .schema import AccountAuthorityRow, AgentRow, MarketWatchRow, RunRow, TicketRow
+from .schema import AgentRow, MarketWatchRow, RunRow, TicketRow
 from .tasks import create_task, save_task, task_state
 from .threads import conversation_thread
 
@@ -85,28 +83,6 @@ def task_live(row: TicketRow) -> bool:
     return state.status != "failed" or bool(state.failure and state.failure.next_retry_at)
 
 
-async def grant_task_drives(session: AsyncSession, owner_id: str, agent_id: str) -> bool:
-    """Whether an active, unexpired signed grant's own management Task is still running
-    for this agent: that Task drives the account until its grant is revoked."""
-    from lonora_session.idempotency import stable_id
-
-    for grant in await session.scalars(
-        select(AccountAuthorityRow).where(
-            AccountAuthorityRow.owner_id == owner_id,
-            AccountAuthorityRow.agent_id == agent_id,
-            AccountAuthorityRow.status == "active",
-            or_(
-                AccountAuthorityRow.valid_until.is_(None),
-                AccountAuthorityRow.valid_until > utcnow(),
-            ),
-        )
-    ):
-        task = await session.get(TicketRow, stable_id(grant.id, "account-management-task"))
-        if task is not None and task.state.get("task") and task_live(task):
-            return True
-    return False
-
-
 async def ensure_management_task(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> TicketRow | None:
@@ -120,8 +96,6 @@ async def ensure_management_task(
     existing = await live_management_task(session, owner_id, agent_id)
     if existing is not None:
         return existing
-    if await grant_task_drives(session, owner_id, agent_id):
-        return None
     # A mode task that failed for good, or that is ending, is closed before the new one,
     # so the agent never has two.
     for row in await open_management_tasks(session, owner_id, agent_id):

@@ -60,6 +60,7 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
+from lonora_db.trading_mode import set_trading_mode
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
 from lonora_gateway.service import Gateway
@@ -723,11 +724,19 @@ class Acceptance:
         # Lonora confirms in one Arabic line in the conversation where the owner asked.
         line = (await self.lines(self.lonora_thread))[-1]
         assert any("؀" <= char <= "ۿ" for char in line), line
-        # The agent starts its responsibility: one management Task in its conversation.
-        management = [
+        # A grant starts no task (4.5.1); the owner's tap on the gold agent's Mandate card
+        # sets Full, and that starts its one continuous management Task.
+        assert not [
             row
             for row in await self.runs(gold.id)
             if row.model_metadata.get("account_management_id") == active[0].id
+        ]
+        async with self.db.sessions() as session, session.begin():
+            await set_trading_mode(session, self.owner, gold.id, "full", by="owner_tap")
+        management = [
+            row
+            for row in await self.runs(gold.id)
+            if row.model_metadata.get("account_management_id") == gold.id
         ]
         assert len(management) == 1 and management[0].status == "queued", management
         self.journey(name, 1)

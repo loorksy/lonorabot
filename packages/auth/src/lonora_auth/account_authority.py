@@ -3,11 +3,9 @@
 import json
 from typing import Any
 
-from lonora_bus.attention import attention_text
 from lonora_contracts.account_authority import AccountAuthorityEnvelope
 from lonora_contracts.devices import DeviceProof
 from lonora_contracts.domain import utcnow
-from lonora_contracts.tasks import TaskCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import (
     changed,
@@ -17,10 +15,8 @@ from lonora_db.account_authority import (
     validate_scope,
 )
 from lonora_db.authority_lock import authority_lock
-from lonora_db.conversation_locale import conversation_locale
-from lonora_db.schema import AccountAuthorityRow, RunRow
-from lonora_db.tasks import create_task
-from lonora_session.idempotency import request_hash, stable_id
+from lonora_db.schema import AccountAuthorityRow
+from lonora_session.idempotency import request_hash
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,54 +124,6 @@ async def finish_activation(
     await session.flush()
     device.sign_count, challenge.status = sign_count, "used"
     row.status, row.device_id = "active", device.id
-    if envelope.management_mode == "full":
-        # validate_scope above proved the origin conversation exists; deleting it later
-        # revokes this grant, so a NULL thread is only ever history.
-        origin = row.thread_id or ""
-        locale = await conversation_locale(session, owner.id, origin)
-        task = await create_task(
-            session,
-            owner.id,
-            row.agent_id,
-            origin,
-            TaskCreate(
-                title=attention_text("account_management_task", locale),
-                completion_mode="continuous",
-                description=(
-                    "The owner has authenticated automatic management of account "
-                    + row.account_id
-                    + ". Inspect the current signed account scope and actual broker state. "
-                    "Assess existing positions and relevant markets, choose your own justified "
-                    "direction, lot size, stops, targets and management plan within that scope. "
-                    "Do not ask for each order or ask the owner to choose routine trading parameters. "
-                    "Trade only when fresh evidence supports the action; activation alone is not an entry signal. "
-                    "Use the existing journaled trade services and verify actual broker effects. "
-                    "Global controls, revocation, exact specialist binding and owner intervention still apply. "
-                    "Inspect existing watches and schedules before creating any; persist meaningful "
-                    "market-triggered follow-up without duplicate monitoring or continuous model polling. "
-                    "Continue useful authorized work while the owner is away. Report actual results "
-                    "and concrete blockers concisely in the conversation language; never promise returns. "
-                    "A review or reply does not finish this ongoing responsibility. Before yielding, "
-                    "persist a real wait on the relevant watch, broker recovery or a justified timer "
-                    "so this same work resumes with fresh evidence. Include a brief useful owner update "
-                    "with that wait when there is an actual result or changed blocker to report."
-                ),
-            ),
-            task_id=stable_id(row.id, "account-management-task"),
-        )
-        run = await session.get(RunRow, task.payload["run_id"])
-        assert run is not None
-        run.model_metadata = {
-            **run.model_metadata,
-            "account_id": row.account_id,
-            "account_management_id": row.id,
-            "reply_locale": locale,
-        }
-        from lonora_db.management_task import end_management_task
-
-        # The grant's Task drives the account until the grant is revoked; the agent's
-        # Full-mode task does not run beside it.
-        await end_management_task(session, owner.id, row.agent_id)
     changed(session, row)
     await bump_permission(session, owner.id, row.agent_id)
     return row

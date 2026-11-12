@@ -84,7 +84,8 @@ async def review_one(session: AsyncSession, identifier: str) -> bool:
         session.add(EffectReceiptRow(key=receipt, result={"skipped": error.code}))
         return False
     if envelope.management_mode == "full":
-        # Its continuous management Task, created at signing, is the agent's first work.
+        # A full grant starts no work of its own: the agent's one continuous
+        # account-management Task comes with Full mode (4.5.1).
         session.add(EffectReceiptRow(key=receipt, result={"skipped": "management_task"}))
         return False
     if row.thread_id is None:

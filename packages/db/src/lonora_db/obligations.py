@@ -134,11 +134,7 @@ async def prepare_delete(
         grants = grants.where(AccountAuthorityRow.account_id == account_id)
     for grant in list(await session.scalars(grants.order_by(AccountAuthorityRow.id))):
         if grant.status == "active":
-            # A deleted agent or conversation gets no new task; an account-only delete
-            # hands a Full agent over to its own continuous task (4.5).
-            await revoke(
-                session, owner_id, grant.id, handover=agent_id is None and thread_id is None
-            )
+            await revoke(session, owner_id, grant.id)
         else:
             grant.status = "revoked"
             changed(session, grant)
