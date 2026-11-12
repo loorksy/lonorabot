@@ -599,7 +599,9 @@ settles. Quiet hours do not hold these pushes. Execution Receipts and reports ne
 push has an effect receipt written before the call to Expo, and a push whose outcome is unknown
 (a timeout, a restart) is never sent again, so a record pushes once per phone even across
 restarts and two gateways. A push that certainly never reached Expo (no connection, or "too
-many requests") is tried again up to five times over about eight minutes. Each phone gets its own request, so a token Expo refuses never
+many requests") is tried again up to five times over about eight minutes. Fifteen minutes after
+Expo accepts a push the gateway reads its delivery receipt: a phone Apple or Google report as
+no longer having the app is removed. Each phone gets its own request, so a token Expo refuses never
 costs another phone its push. When push is first installed it starts from the end of the event
 stream: cards that were already waiting do not push.
 
