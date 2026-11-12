@@ -24,9 +24,9 @@ from typing import Annotated, Any
 
 from fastapi import FastAPI
 from fastapi import Request as HttpRequest
-from lonora_security.secrets import SecretScan
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from lonora_security.secrets import SecretScan
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from .users import AGENTS_GID, Users, is_agent_uid, user_name
@@ -39,7 +39,16 @@ SECRETS = Path("/run/secrets")
 FILE_LIMIT = 2 * 1024 * 1024
 OUTPUT_LIMIT = 1024 * 1024
 ENDED_KEPT = 500
-PROTECTED_ENV = {"HOME", "USER", "LOGNAME", "SHELL", "PATH", "PWD", "LONORA_AGENT_TOKEN"}
+PROTECTED_ENV = {
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "PATH",
+    "PWD",
+    "LONORA_AGENT_TOKEN",
+    "LONORA_WORKSPACE_JOB",
+}
 ENV_NAME = re.compile(r"^[A-Z_][A-Z0-9_]{0,127}$")
 SECRET_NAME = r"^[A-Z][A-Z0-9_]{0,63}$"
 # Runs as the agent's user: every path below is resolved with the agent's permissions.
@@ -222,6 +231,20 @@ def owner(pid: int) -> int | None:
     return None
 
 
+JOB_MARKER = "LONORA_WORKSPACE_JOB"
+
+
+def marked(job_id: str) -> set[int]:
+    needle = f"{JOB_MARKER}={job_id}".encode()
+    found: set[int] = set()
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit():
+            with contextlib.suppress(OSError):
+                if needle in (entry / "environ").read_bytes().split(b"\0"):
+                    found.add(int(entry.name))
+    return found
+
+
 def stop_family(pid: int, job_id: str) -> None:
     """A job's process group, every descendant that left it (setsid), and every process
     still carrying its job marker (a double-forked daemon, reparented to init)."""
@@ -398,7 +421,7 @@ class Supervisor:
             raise ValueError("workspace_cwd_invalid")
         log_path = f"{home}/.lonora/processes/{job_id}.log" if request.background else ""
         pipe = asyncio.subprocess.DEVNULL if request.background else asyncio.subprocess.PIPE
-        env = self.environment(uid, request.env)
+        env = self.environment(uid, request.env) | {JOB_MARKER: job_id}
         if set(request.secrets) & (PROTECTED_ENV | set(request.env)):
             raise ValueError("workspace_secret_name_invalid")
         self.place_secrets(request.secrets)
@@ -483,13 +506,7 @@ class Supervisor:
             self.ended(job, None)
             raise
         if timed_out:
-            # Its process group, and every descendant that left it (setsid, daemonize).
-            family = descendants(process.pid)
-            with contextlib.suppress(OSError):
-                os.killpg(process.pid, signal.SIGKILL)
-            for pid in family:
-                with contextlib.suppress(OSError):
-                    os.kill(pid, signal.SIGKILL)
+            stop_family(process.pid, job.id)
             await exited(process, 10)
         code = await returncode(process)
         # A background child may keep the pipes open: read what is there, then stop.

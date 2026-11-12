@@ -1,29 +1,36 @@
 """The workspace's connection relay (7.1.4): every agent TCP connection leaving the host
-is redirected here by the guard's nftables rules. The relay reads what the program asks
-for in its first bytes: the TLS ClientHello's server name, an HTTP Host header, or an HTTP
-proxy's CONNECT target. It refuses any name under a denied domain (MetaApi, Lonora's
-own), a TLS hello with no server name or with Encrypted Client Hello, and an HTTP request
-with no host. A protocol it does not recognise (SSH, databases, servers that speak
-first) passes through. Accepted connections go to the original destination from the
-guard as root, still under the guard's address rules, and bytes are copied both ways.
+is redirected here by the guard's nftables rules.
 
-So a hard-coded MetaApi address, DNS-over-HTTPS or a public HTTP proxy does not reach
-MetaApi: the name a MetaApi endpoint needs is itself refused. An encrypted tunnel the
-agent builds itself (SSH -D, a VPN) is not visible to it; the MetaApi token never being
-in the workspace (7.2.3) is what holds there.
+A connection whose client speaks first must be TLS, HTTP or SSH; anything else (SOCKS,
+h2c, raw tunnels) is refused. For TLS and HTTP the relay reads the name the client asks
+for (the ClientHello's server name, the Host header, a proxy's CONNECT target or absolute
+URI), refuses names under a denied domain (MetaApi, Lonora's own), and requires the
+address being dialled to be one that name resolves to: a hard-coded MetaApi address
+behind an innocent name, or a public proxy, does not pass. A connection whose server
+speaks first (SMTP, databases) passes once the server has spoken. Accepted connections
+go to the original destination from the guard as root, still under its address rules.
+
+What it cannot see: an encrypted tunnel the agent builds itself over SSH, and a CDN that
+serves MetaApi and other names on the same addresses (domain fronting). The MetaApi token
+never being in the workspace (7.2.3) is what holds there.
 """
 
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import socket
 import struct
+from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from .egress import name_denied
 
 SO_ORIGINAL_DST = 80
 PEEK_BYTES = 16384
 PEEK_SECONDS = 10
+IDLE_SECONDS = 3600
+PER_USER = 256
 # A server that speaks first (SSH banners, SMTP, databases) gets the connection after this.
 FIRST_BYTES_SECONDS = 1.5
 HTTP_METHODS = (
@@ -133,25 +140,40 @@ def strip_port(host: str) -> str:
 
 
 def kind(first: bytes) -> str:
-    """'tls', 'http', 'unknown', or '' while too few bytes have arrived to tell."""
+    """'tls', 'http', 'ssh', or '' while too few bytes have arrived to tell.
+    Any other client-first protocol is refused."""
     if first[:1] == b"\x16":
         return "tls"
     if any(first.startswith(method) for method in HTTP_METHODS):
         return "http"
-    if len(first) < 8 and any(method.startswith(first) for method in HTTP_METHODS):
+    if first.startswith(b"SSH-"):
+        return "ssh"
+    prefixes = (*HTTP_METHODS, b"SSH-")
+    if len(first) < 8 and any(prefix.startswith(first) for prefix in prefixes):
         return ""
-    return "unknown"
+    raise Refused("relay_protocol_refused")
 
 
 def requested_name(first: bytes) -> str | None:
-    """The name the connection asks for; '' for a protocol the relay passes through;
-    None until enough bytes have arrived."""
+    """The name the connection asks for; '' for SSH, which names nothing; None until
+    enough bytes have arrived."""
     found = kind(first)
     if found == "tls":
         return tls_server_name(first)
     if found == "http":
         return http_host(first)
-    return "" if found else None
+    return "" if found == "ssh" else None
+
+
+def peer_uid(host: str, port: int) -> int | None:
+    """The uid owning the client end of a connection to the relay (same namespace)."""
+    wanted = f"{socket.inet_aton(host)[::-1].hex().upper()}:{port:04X}"
+    with contextlib.suppress(OSError):
+        for line in Path("/proc/net/tcp").read_text().splitlines()[1:]:
+            fields = line.split()
+            if fields[1] == wanted:
+                return int(fields[7])
+    return None
 
 
 def original_destination(sock: socket.socket) -> tuple[str, int]:
@@ -162,66 +184,118 @@ def original_destination(sock: socket.socket) -> tuple[str, int]:
 
 async def pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     try:
-        while data := await reader.read(65536):
+        while data := await asyncio.wait_for(reader.read(65536), IDLE_SECONDS):
             writer.write(data)
             await writer.drain()
-    except (OSError, asyncio.IncompleteReadError):
+    except (OSError, asyncio.IncompleteReadError, TimeoutError):
         pass
     finally:
         with contextlib.suppress(OSError):
             writer.close()
 
 
+Resolver = Callable[[str], Awaitable[set[str]]]
+
+
 class Relay:
-    def __init__(self, domains: tuple[str, ...], limit: int = 512):
+    def __init__(self, domains: tuple[str, ...], resolve: Resolver, limit: int = 2048):
         self.domains = domains
+        self.resolve = resolve
         self.slots = asyncio.Semaphore(limit)
+        self.users: dict[int, int] = {}
+
+    async def bound(self, name: str, address: str) -> None:
+        """The dialled address must be the name itself or one of its addresses."""
+        if name_denied(name, self.domains):
+            raise Refused("relay_name_denied")
+        with contextlib.suppress(ValueError):
+            if ipaddress.ip_address(name) == ipaddress.ip_address(address):
+                return
+            raise Refused("relay_address_mismatch")
+        if address not in await self.resolve(name):
+            raise Refused("relay_address_mismatch")
+
+    async def inspect(self, reader: asyncio.StreamReader, first: bytes, address: str) -> bytes:
+        """Read until the client's request names its target, then check it."""
+        async with asyncio.timeout(PEEK_SECONDS):
+            while (name := requested_name(first)) is None:
+                chunk = await reader.read(PEEK_BYTES)
+                if not chunk:
+                    raise Refused("relay_closed_early")
+                first += chunk
+                if len(first) > PEEK_BYTES * 4:
+                    raise Refused("relay_hello_too_long")
+        if name:
+            await self.bound(name, address)
+        return first
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        if self.slots.locked():
+        client = writer.get_extra_info("peername")
+        uid = peer_uid(client[0], client[1]) if client else None
+        key = -1 if uid is None else uid
+        if self.slots.locked() or self.users.get(key, 0) >= PER_USER:
             writer.close()
             return
-        async with self.slots:
-            upstream: asyncio.StreamWriter | None = None
-            try:
-                sock = writer.get_extra_info("socket")
-                host, port = original_destination(sock)
+        self.users[key] = self.users.get(key, 0) + 1
+        upstream: asyncio.StreamWriter | None = None
+        try:
+            async with self.slots:
+                host, port = original_destination(writer.get_extra_info("socket"))
                 first = b""
-                name: str | None = None
-                try:
+                with contextlib.suppress(TimeoutError):
                     first = await asyncio.wait_for(reader.read(PEEK_BYTES), FIRST_BYTES_SECONDS)
                     if not first:
                         return
-                except TimeoutError:
-                    name = ""  # the server speaks first
-                async with asyncio.timeout(PEEK_SECONDS):
-                    while name is None:
-                        name = requested_name(first)
-                        if name is None:
-                            chunk = await reader.read(PEEK_BYTES)
-                            if not chunk:
-                                return
-                            first += chunk
-                            if len(first) > PEEK_BYTES * 4:
-                                raise Refused("relay_hello_too_long")
-                if name and name_denied(name, self.domains):
-                    raise Refused("relay_name_denied")
-                up_reader, upstream = await asyncio.wait_for(
-                    asyncio.open_connection(host, port), 15
-                )
                 if first:
+                    first = await self.inspect(reader, first, host)
+                    up_reader, upstream = await asyncio.wait_for(
+                        asyncio.open_connection(host, port), 15
+                    )
                     upstream.write(first)
                     await upstream.drain()
+                else:
+                    # Quiet client: whoever speaks first decides. Only a server that
+                    # speaks first passes uninspected; a client is checked as above.
+                    up_reader, upstream = await asyncio.wait_for(
+                        asyncio.open_connection(host, port), 15
+                    )
+                    from_client = asyncio.ensure_future(reader.read(PEEK_BYTES))
+                    from_server = asyncio.ensure_future(up_reader.read(65536))
+                    done, _ = await asyncio.wait(
+                        {from_client, from_server},
+                        timeout=PEEK_SECONDS * 6,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if from_client in done:
+                        from_server.cancel()
+                        first = from_client.result()
+                        if not first:
+                            return
+                        first = await self.inspect(reader, first, host)
+                        upstream.write(first)
+                        await upstream.drain()
+                    elif from_server in done:
+                        from_client.cancel()
+                        greeting = from_server.result()
+                        if not greeting:
+                            return
+                        writer.write(greeting)
+                        await writer.drain()
+                    else:
+                        from_client.cancel()
+                        from_server.cancel()
+                        return
                 await asyncio.gather(pipe(reader, upstream), pipe(up_reader, writer))
-            except Refused as refusal:
-                log.warning("workspace_relay_refused reason=%s", refusal)
-            except (OSError, TimeoutError):
-                pass
-            finally:
-                for stream in (writer, upstream):
-                    if stream is not None:
-                        with contextlib.suppress(OSError):
-                            stream.close()
+        except Refused as refusal:
+            log.warning("workspace_relay_refused reason=%s uid=%s", refusal, uid)
+        except (OSError, TimeoutError):
+            pass
+        finally:
+            self.users[key] -= 1
+            for stream in (writer, upstream):
+                if stream is not None:
+                    with contextlib.suppress(OSError):
+                        stream.close()
 
     async def serve(self, port: int) -> None:
-        await asyncio.start_server(self.handle, "127.0.0.1", port, backlog=256)
+        await asyncio.start_server(self.handle, "127.0.0.1", port, backlog=512)

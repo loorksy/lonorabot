@@ -136,11 +136,8 @@ class WorkspaceClient:
         timeout_seconds: float | None = None,
         secrets: dict[str, str] | None = None,
         agent_token: str | None = None,
-        current_secrets: list[str] | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {"agent_id": agent_id, "command": command, "background": background}
-        if current_secrets is not None:
-            body["current_secrets"] = sorted(current_secrets)
         if timeout_seconds is not None:
             body["timeout_seconds"] = timeout_seconds
         if secrets:
