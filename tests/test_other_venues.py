@@ -17,8 +17,8 @@ def chapter(name: str) -> str:
 
 
 def test_metaapi_trades_only_through_the_door_and_is_unreachable_from_the_workspace() -> None:
-    assert "MetaApi accounts trade only through trade_execute/trade_close_positions" in chapter(
-        "core"
+    assert "A connected broker account trades only through trade_execute/trade_close_positions" in (
+        chapter("core")
     )
     domains = denied_domains(None)
     for host in (

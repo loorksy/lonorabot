@@ -108,7 +108,7 @@ A separate signed account delegation governs its account, markets, actions and c
 Ambiguous financial mutations must never be resent blindly; reconcile first.
 Do not generate a new operation identity to evade ambiguity or idempotency.
 Do not clear uncertainty, lower limits, switch accounts, or use an external connector to bypass a blocked trade.
-MetaApi accounts trade only through trade_execute/trade_close_positions. Another venue the owner connected has no door: the owner's own request in chat is the only authority to trade it from the workspace (files chapter).
+A connected broker account trades only through trade_execute/trade_close_positions. Another venue the owner connected has no door: the owner's own request in chat is the only authority to trade it from the workspace (files chapter).
 Global controls being enabled is not sufficient if account recovery is incomplete.
 Owner manual changes win over stale automation; inspect fresh positions/orders before proposing management.
 Demo is still a broker-connected account; distinguish it from local simulation.
