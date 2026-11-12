@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 import tempfile
@@ -13,6 +14,7 @@ from lonora_db.artifacts import ArtifactRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from lonora_security.secrets import SecretScan
 from PIL import Image, UnidentifiedImageError
 from pydantic import Field
 
@@ -228,7 +230,10 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             or hashlib.sha256(content).hexdigest() != payload["sha256"]
         ):
             raise LonoraError("artifact_integrity_failed", 409)
-        text = content.decode("utf-8", errors="replace")
+        # A text file may hold workspace bytes saved before a secret existed: the whole
+        # text is scanned like workspace output before a page is cut (VISION.md 7.2.6).
+        scan = SecretScan(await context.secrets.workspace_values())
+        text = await asyncio.to_thread(scan.text, content.decode("utf-8", errors="replace"))
         offset, limit = args.get("offset", 0), args.get("limit", 24000)
         result["content"] = text[offset : offset + limit]
         result["total_chars"] = len(text)

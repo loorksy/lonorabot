@@ -360,6 +360,9 @@ async def decide(
     if reason is not None:
         await settle(session, row, "expired", reason)
         return
+    if row.kind == "secret":
+        # Its values come only through the card's own submit (``secret_cards``).
+        raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
     if row.kind == "resume_trading":

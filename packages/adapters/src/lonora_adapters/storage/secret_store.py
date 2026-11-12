@@ -2,7 +2,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import SecretRow
-from lonora_db.secrets import BROKER, require_scope, secret_in_use
+from lonora_db.secrets import BROKER, WORKSPACE, require_scope, secret_in_use
 from lonora_security.secrets import SecretCipher
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +45,19 @@ class EncryptedSecretStore:
             if row.scope == BROKER:
                 raise LonoraError("secret_scope_forbidden", 403)
             return self.cipher.decrypt(row.ciphertext)
+
+    async def workspace_values(self) -> dict[str, str]:
+        """Every workspace secret by name, for the scan of workspace output. Only the
+        workspace scope: a broker, provider or integration value never comes out."""
+        async with self.db.sessions() as session:
+            rows = (
+                await session.scalars(
+                    select(SecretRow).where(
+                        SecretRow.owner_id == self.owner_id, SecretRow.scope == WORKSPACE
+                    )
+                )
+            ).all()
+        return {row.name: self.cipher.decrypt(row.ciphertext) for row in rows}
 
     async def write(self, name: str, value: str, scope: str) -> str:
         async with self.db.sessions() as session, session.begin():

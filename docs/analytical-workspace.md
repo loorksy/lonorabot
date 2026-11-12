@@ -96,6 +96,19 @@ independently revalidates exported paths, file sizes, counts, total size and
 base64 structure, and computes digests. No archive is extracted to the host.
 All file contents and analytical output remain untrusted evidence.
 
+Before command output, file reads, file paths and text exports reach the model,
+chat, logs or memory, each of the owner's workspace secrets (scope `workspace`) is
+replaced by `[secret:NAME]`: its value, its hex, URL-encoded and JSON-string forms,
+and its base64 at every byte alignment (standard and URL-safe), also when a tool
+wraps hex or base64 across lines. Overlapping matches merge into one marker. A file
+read scans the whole file before a page is cut; a replayed operation receipt and an
+artifact read are scanned again, so a value saved as a secret later is covered too.
+An image export, JSON that would not parse after the replacement, or a Skill
+package carrying a workspace secret is refused (`workspace_export_contains_secret`,
+`skill_package_contains_secret`). Secrets of other scopes (broker, provider,
+integration) never enter the workspace and are not scanned for. A program that
+transforms a value any other way can defeat the scan (VISION.md 7.2.6).
+
 The entire container is force-removed after success, failure, timeout, excessive
 output or cancellation. Cleanup waits are bounded and an unconfirmed cleanup
 logs a constant diagnostic without command contents or secrets. If the host
