@@ -294,12 +294,15 @@ class GlobalModelRouter:
         input_scale: float = 1.0,
         choices: Sequence[ModelSelection] | None = None,
         run_choice: ModelSelection | None = None,
+        allow_empty: bool = False,
     ) -> tuple[ModelReply, ModelSelection]:
         """One model reply from the first candidate that can give one.
 
         ``choices`` replaces the routed chain (a consultation names its model);
         ``run_choice`` leads it (a subagent started on a chosen model); ``input_scale``
-        tightens admission after a provider-proven overflow.
+        tightens admission after a provider-proven overflow. ``allow_empty`` accepts a
+        reply with no text and no call that the provider ended normally: a background
+        run with nothing new may end silent (VISION 11.5).
         """
         started = monotonic()
         route = await self.usable_route(
@@ -347,6 +350,7 @@ class GlobalModelRouter:
                     input_scale=input_scale,
                     on_delta=on_delta,
                     on_attempt=on_attempt,
+                    allow_empty=allow_empty,
                     timings={
                         "routing_configuration_ms": routing_ms,
                         "credentials_and_adapter_ms": credentials_ms,
@@ -431,6 +435,7 @@ class GlobalModelRouter:
         input_scale: float,
         on_delta: Callable[[str], Awaitable[None]] | None,
         on_attempt: Callable[[ModelSelection], Awaitable[None]] | None,
+        allow_empty: bool,
         timings: dict[str, float],
         started: float,
     ) -> ModelReply:
@@ -480,6 +485,7 @@ class GlobalModelRouter:
                     tools,
                     max_output_tokens=output,
                     on_delta=observed_delta if on_delta else None,
+                    allow_empty=allow_empty,
                 )
             except LonoraError as raw:
                 error = classified(raw)

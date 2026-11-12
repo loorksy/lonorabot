@@ -2,6 +2,7 @@ from typing import Any
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.message_preview import model_content, voice_part
+from lonora_core.run_state import OWNER_SPOKE
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
@@ -62,6 +63,9 @@ async def merge_steering(
             ):
                 reset_stop_gate(state)
                 reset_guardrails(state)
+                # The owner wrote to this Run: from now on it answers them, even if it is
+                # background work that could otherwise end silent (VISION 11.5).
+                state[OWNER_SPOKE] = True
             state["messages"] = [message.model_dump(mode="json") for message in messages]
             await checkpoint(session, context.lease, state)
         return bool(fresh)

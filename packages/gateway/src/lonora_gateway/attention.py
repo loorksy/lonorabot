@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.attention import AttentionClassification
@@ -11,6 +11,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.market_watch import Watch
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
+from lonora_core.run_state import is_background
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import (
     decide_attention,
@@ -107,6 +108,65 @@ async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchR
     if config.expires_at:
         deadlines.append(config.expires_at)
     return min(deadlines)
+
+
+async def projected(db: Database, event: EventRow) -> EventRow:
+    """The event an item is decided on. A background wake that failed stands for the source
+    that woke it: a source whose agent was to report it raised no item (VISION 11.5), so
+    when that run fails the source is decided again as if no agent had been woken."""
+    if event.kind != "run.failed" or not event.run_id:
+        return event
+    async with db.sessions() as session:
+        run = await session.get(RunRow, event.run_id)
+        if run is None or not is_background(run.trigger, run.model_metadata):
+            return event
+        metadata = run.model_metadata
+        query = select(EventRow).where(
+            EventRow.owner_id == event.owner_id, EventRow.cursor < event.cursor
+        )
+        stored: object = metadata.get("broker_event_ids")
+        sources = (
+            [str(item) for item in cast(list[object], stored)] if isinstance(stored, list) else []
+        )
+        if run.trigger == "broker_event" and sources:
+            query = query.where(
+                EventRow.kind == "broker.external_activity",
+                EventRow.payload["id"].as_string().in_(sources),
+            )
+        elif metadata.get("opportunity_id"):
+            query = query.where(
+                EventRow.kind == "opportunity.transition",
+                EventRow.payload["id"].as_string() == str(metadata["opportunity_id"]),
+                EventRow.payload["version"].as_integer()
+                == int(metadata.get("opportunity_version") or 0),
+            )
+        elif metadata.get("watch_id"):
+            query = query.where(
+                EventRow.kind == "watch.confirmed",
+                EventRow.payload["woken_run_id"].as_string() == run.id,
+            )
+        else:
+            return event
+        found = [
+            row
+            for row in await session.scalars(query.order_by(EventRow.cursor.desc()))
+            if row.payload.get("wakes_agent") is True
+        ]
+    if not found:
+        return event
+    source = found[0]
+    payload = {**source.payload, "wakes_agent": False}
+    if len({row.payload.get("symbol") for row in found}) > 1:
+        # One item for every change this wake stood for: the account's, not one symbol's.
+        payload["symbol"] = None
+    return EventRow(
+        owner_id=source.owner_id,
+        kind=source.kind,
+        agent_id=source.agent_id,
+        thread_id=source.thread_id,
+        run_id=source.run_id,
+        payload=payload,
+    )
 
 
 async def candidate(
@@ -340,7 +400,9 @@ async def project_event(
             await follow_event(session, event)
     suppression: str | None = None
     try:
-        classification, agent_id, thread_id, parameters, scope = await candidate(db, brokers, event)
+        classification, agent_id, thread_id, parameters, scope = await candidate(
+            db, brokers, await projected(db, event)
+        )
     except (LonoraError, TimeoutError) as error:
         suppression = (
             error.code if isinstance(error, LonoraError) else "attention_revalidation_timeout"
@@ -355,6 +417,15 @@ async def project_event(
                 {},
                 "suppressed:" + classification.resource_id,
             )
+    if (
+        suppression is None
+        and classification.importance == "silent"
+        and event.payload.get("wakes_agent") is True
+        and event.kind in {"broker.external_activity", "opportunity.transition"}
+    ):
+        # The agent this change woke reports it (11.5); it stands for no other item, so it
+        # withdraws none (another change on the symbol, the watch behind a thesis).
+        suppression = "woken_agent_reports"
     async with db.sessions() as session, session.begin():
         await decide_attention(
             session,
@@ -569,7 +640,7 @@ async def ready_one(
             source = await session.get(EventRow, original.source_events[-1])
         if source:
             try:
-                await candidate(db, brokers, source)
+                await candidate(db, brokers, await projected(db, source))
             except (LonoraError, TimeoutError) as error:
                 suppression = (
                     error.code

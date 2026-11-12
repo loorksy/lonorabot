@@ -1,7 +1,8 @@
 from typing import Any, cast
 
-from lonora_contracts.domain import utcnow
+from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import RunRequest
+from lonora_core.run_state import TERMINAL, is_background, may_end_silent
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -17,10 +18,13 @@ from lonora_db.schema import (
     ThreadRow,
     TicketRow,
 )
-from lonora_db.threads import origin_read_threads, wake_origin
+from lonora_db.threads import create_thread, origin_read_threads, wake_origin
 from sqlalchemy import String, exists, literal, or_, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# The hidden thread of a background Run in a conversation that holds its helpers' outcomes.
+OUTCOME_THREAD = "outcome_thread_id"
 
 
 def outcome_receipt(run_id: str, fence: int) -> str:
@@ -82,7 +86,12 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         "collaboration.completed",
                         thread_id=row.thread_id,
                         agent_id=row.agent_id,
-                        payload={"id": row.id, "version": row.version},
+                        payload={
+                            "id": row.id,
+                            "version": row.version,
+                            # An empty synthesis is nothing new for the owner (11.5).
+                            "result_empty": not state.final_result,
+                        },
                     )
             await report_to_origin(session, child, rich_content)
             session.add(EffectReceiptRow(key=receipt, result={"returned": True, "synthesis": True}))
@@ -157,19 +166,41 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         )
         returned_message: MessageRow | None = None
         await report_to_origin(session, child, rich_content)
+        # VISION 11.5: background work that may end silent in a conversation reads its
+        # helpers' outcomes out of the owner's sight: the card goes to a hidden thread of
+        # that work and reaches it only by steering, and its own reply, if any, is the
+        # owner's news. Nothing acts on an outcome of ended work that failed, was
+        # cancelled or got nothing back. A work thread keeps every outcome (it is the
+        # work's memory) and a collaboration collects every return for its synthesis.
+        hidden = bool(
+            parent
+            and thread
+            and thread.purpose != "work"
+            and may_end_silent(
+                is_background(parent.trigger, parent.model_metadata), parent.execution_state
+            )
+            and not child.model_metadata.get("collaboration_session_id")
+        )
+        quiet = bool(
+            hidden
+            and parent
+            and parent.status in TERMINAL
+            and (parent.status != "completed" or not (child.result or rich_content))
+        )
         # A follow-up is its parent's continuation, not a helper: its outcome never
         # returns to the parent, so it never starts another follow-up.
-        if parent and thread and child.trigger != "follow_up":
+        if parent and thread and child.trigger != "follow_up" and not quiet:
             outcome = f"<peer_outcome run_id='{child.id}' status='{status}'>\n{child.result or child.error_code or status}\n</peer_outcome>"
+            target = await outcome_thread(session, parent) if hidden else thread
             message = MessageRow(
-                thread_id=thread.id,
+                thread_id=target.id,
                 agent_id=child.agent_id,
                 role="assistant",
-                seq=thread.next_seq,
+                seq=target.next_seq,
                 content=outcome,
                 rich_content=rich_content,
             )
-            thread.next_seq += 1
+            target.next_seq += 1
             session.add(message)
             await session.flush()
             returned_message = message
@@ -184,14 +215,18 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 session,
                 thread.owner_id,
                 "message.created",
-                thread_id=thread.id,
+                thread_id=target.id,
                 agent_id=child.agent_id,
                 payload=message_data(message),
             )
             if parent.status == "queued":
-                parent.input_seq = max(parent.input_seq, message.seq)
-                if parent.execution_state:
+                if hidden:
+                    # Read before its first turn, whatever thread the card is in.
                     session.add(SteeringRow(run_id=parent.id, message_id=message.id))
+                else:
+                    parent.input_seq = max(parent.input_seq, message.seq)
+                    if parent.execution_state:
+                        session.add(SteeringRow(run_id=parent.id, message_id=message.id))
             elif parent.status in {"running", "leased", "waiting_input", "waiting_takeover"}:
                 session.add(SteeringRow(run_id=parent.id, message_id=message.id))
                 if parent.status == "waiting_input":
@@ -201,7 +236,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
                 and child.status != "cancelled"
                 and not child.model_metadata.get("collaboration_session_id")
             ):
-                await create_run(
+                continuation = await create_run(
                     session,
                     thread.owner_id,
                     RunRequest(
@@ -209,7 +244,13 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         agent_id=parent.agent_id,
                         trigger="follow_up",
                         parent_run_id=parent.id,
-                        prompt="Use the returned peer outcome to complete the owner's request.",
+                        prompt="Use the returned peer outcome to finish the background work "
+                        "that asked for it."
+                        if may_end_silent(
+                            is_background(parent.trigger, parent.model_metadata),
+                            parent.execution_state,
+                        )
+                        else "Use the returned peer outcome to complete the owner's request.",
                         # A follow-up keeps an observe-only requester's narrowing, so it
                         # never asks the owner to approve a trade the executor refuses.
                         metadata={
@@ -219,6 +260,8 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         },
                     ),
                 )
+                if hidden:
+                    session.add(SteeringRow(run_id=continuation.id, message_id=message.id))
         from lonora_db.collaboration import record_outcome
 
         if returned_message:
@@ -272,6 +315,23 @@ async def return_outcome(db: Database, run_id: str) -> None:
                     key="outcome:" + run_id, result={"returned": True, "fence": child.lease_fence}
                 )
             )
+
+
+async def outcome_thread(session: AsyncSession, parent: RunRow) -> ThreadRow:
+    """The hidden thread where background work in a conversation receives its helpers'
+    outcomes (11.5): one per Run, created when its first helper returns."""
+    stored = parent.model_metadata.get(OUTCOME_THREAD)
+    if isinstance(stored, str):
+        found = await session.get(ThreadRow, stored, with_for_update=True)
+        if found is not None:
+            return found
+    conversation = await session.get(ThreadRow, parent.thread_id)
+    assert conversation is not None
+    row = await create_thread(
+        session, conversation.owner_id, ThreadCreate(agent_id=parent.agent_id), purpose="work"
+    )
+    parent.model_metadata = {**parent.model_metadata, OUTCOME_THREAD: row.id}
+    return row
 
 
 async def report_to_origin(

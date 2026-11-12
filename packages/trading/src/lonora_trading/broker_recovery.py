@@ -193,7 +193,9 @@ async def wake_for_activity(
             "broker.external_activity",
             agent_id=agent.id,
             thread_id=thread.id,
-            payload=change.model_dump(mode="json"),
+            # The agent woken below reports the change or stays silent (VISION 11.5);
+            # only a change no agent is woken for stays the owner's attention item.
+            payload={**change.model_dump(mode="json"), "wakes_agent": not agent.paused},
         )
         session.add(EffectReceiptRow(key=key, result={"event_id": change.id, "agent_id": agent.id}))
         if change.resource == "position" and change.change in {"closed", "partial_close"}:
@@ -242,7 +244,8 @@ async def wake_for_activity(
             # the Tasks it starts; watches it sets fire later as the Agent's own work.
             prompt = (
                 f"Use account_activity for account_id={account_id} and inspect current account "
-                "state. Explain observed changes without inventing owner intent. This wake has "
+                "state. Say what changed only if the owner may not know it, without inventing "
+                "owner intent. This wake has "
                 "no financial effects: do not change broker state; you may save findings, adjust "
                 "watches, tell colleagues or notify the owner."
             )

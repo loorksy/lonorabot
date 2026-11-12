@@ -42,7 +42,7 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_contracts.runs import WORK_TRIGGERS
-from lonora_core.run_state import is_conversational
+from lonora_core.run_state import is_background, may_end_silent
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.schema import RunRow
@@ -52,6 +52,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 
 from .cancellation import cancellation_checkpoint
+from .context.financial_result import unverified_financial_result
 from .context.skills import assert_skill_authority, refresh_skill_context
 from .context_engine import (
     FENCE_CODES,
@@ -233,25 +234,29 @@ async def finish_turn(
     *,
     reason: str,
     task_run: bool,
+    background: bool,
 ) -> LoopOutcome:
     """One final tool-less model call instead of failing the Run at a limit.
 
     Adapted from Hermes Agent's iteration-budget grace call (see the module
     notice). The reply is checkpointed before it is returned, so a restart
-    commits the same text instead of making another model call.
+    commits the same text instead of making another model call. A background Run
+    with nothing new ends with an empty report and no fallback text (VISION 11.5).
     """
     saved = state.get("limit_exit")
     if isinstance(saved, dict) and isinstance(cast(dict[str, Any], saved).get("text"), str):
         text = cast(str, cast(dict[str, Any], saved)["text"])
     else:
         halt = halt_reason(state) or {}
+        quiet = may_end_silent(background, state)
         closed, uncertain = await close_pending(
             context, registry, state, messages, pending, reason, "tool_call_not_executed"
         )
         # The final request is its own trailing notice, the last thing read. A
         # restart after this checkpoint finds it already there: never add it twice.
         notice = notice_message(
-            "work_limit", finish_instruction(reason, str(halt.get("message") or ""))
+            "work_limit",
+            finish_instruction(reason, str(halt.get("message") or ""), background=quiet),
         )
         if not (messages and is_runtime_notice(messages[-1]) and messages[-1] == notice):
             messages.append(notice)
@@ -271,6 +276,7 @@ async def finish_turn(
                 turn_capability,
                 resolve_calls=registry.resolve_calls,
                 context_view=view,
+                quiet=quiet,
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:
@@ -283,7 +289,15 @@ async def finish_turn(
             # No tools were offered. A provider that still proposes calls gets
             # none executed; financial prose was already withheld upstream.
             log.info("finish_turn_ignored_tool_calls count=%s", len(reply.tool_calls))
-        text = reply.text.strip() or limit_fallback(prefers_arabic(messages))
+        text = reply.text.strip()
+        chose_silence = (
+            quiet and selection is not None and not reply.tool_calls and reply.rich_content is None
+        )
+        if not text and not chose_silence:
+            # Only the model chooses silence, by an empty answer: a failed final call, a
+            # turn of calls or a card without text leaves the fixed report, and an order
+            # nothing verified is that report (5.3.3).
+            text = unverified_financial_result(messages) or limit_fallback(prefers_arabic(messages))
         if reply.rich_content is None or not reply.text.strip():
             state.pop("rich_content", None)
         else:
@@ -299,6 +313,9 @@ async def finish_turn(
         )
         # The round-limit and guardrail report gets the runtime's fixed lines too.
         text = closing_lines(state, messages, text, registry)
+        if not text:
+            # An empty assistant turn never enters a checkpoint a Task may resume.
+            messages.pop()
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
     if task_run:
@@ -336,6 +353,7 @@ async def execute_tool_loop(
             Capability.BACKGROUND if run.trigger in WORK_TRIGGERS else Capability.CONVERSATION
         )
         task_run = bool(run.model_metadata.get("task_id"))
+        background = is_background(run.trigger, run.model_metadata)
     messages, pending, exposure = await restore_checkpoint(
         context, registry, run, state, scope=scope, task_run=task_run
     )
@@ -437,6 +455,7 @@ async def execute_tool_loop(
                 save,
                 reason=reason,
                 task_run=task_run,
+                background=background,
             )
         # The pending tool block, one segment at a time. New user input follows
         # the complete tool-result block, never splits it.
@@ -484,6 +503,7 @@ async def execute_tool_loop(
                 save,
                 reason="tool_round_limit",
                 task_run=task_run,
+                background=background,
             )
         if executable <= BUDGET_WARNING_ROUNDS and state.get("budget_warned") != executable:
             append_notice(messages, "budget", budget_warning(executable))
@@ -515,6 +535,8 @@ async def execute_tool_loop(
                 policy_tools=policy_tools,
                 context_view=view,
                 input_scale=input_scale(state),
+                # Background work streams and answers once the owner writes to it.
+                quiet=may_end_silent(background, state),
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:
@@ -573,20 +595,24 @@ async def execute_tool_loop(
             len(state["selection"]["visual_errors"]),
         )
         empty = not reply.text.strip() and reply.rich_content is None and not reply.tool_calls
-        if empty and is_conversational(run.trigger):
+        if empty and not may_end_silent(background, state):
             # An empty provider turn carries nothing to keep; the notice follows
-            # the existing tail instead of an empty assistant message.
+            # the existing tail instead of an empty assistant message. A background
+            # Run with nothing new ends silent instead (VISION 11.5).
             append_notice(messages, "no_answer", NO_ANSWER)
             await save()
             continue
-        messages.append(
-            ModelMessage(
-                role="assistant",
-                content=reply.text,
-                tool_calls=reply.tool_calls,
-                rich_content=reply.rich_content,
+        if not empty:
+            # A silent background turn leaves nothing in the transcript: an empty
+            # assistant turn is never sent back to a provider.
+            messages.append(
+                ModelMessage(
+                    role="assistant",
+                    content=reply.text,
+                    tool_calls=reply.tool_calls,
+                    rich_content=reply.rich_content,
+                )
             )
-        )
         pending = list(reply.tool_calls)
         await save()
         if pending:

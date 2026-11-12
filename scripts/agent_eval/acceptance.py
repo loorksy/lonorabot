@@ -155,8 +155,9 @@ class ScriptedAdapter:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
-        del model, tools, max_output_tokens, on_delta
+        del model, tools, max_output_tokens, on_delta, allow_empty
         if not self.script.shown[-1][1]:
             self.script.shown[-1][1].extend(messages)
         if not self.script.replies:

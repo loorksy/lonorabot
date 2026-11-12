@@ -3,7 +3,7 @@ from typing import Any, Literal
 from lonora_contracts.domain import Board, Contract, Ticket
 from lonora_contracts.input_request import InputChoice
 from lonora_core.public_reply import public_reply_violation
-from lonora_core.run_state import is_conversational
+from lonora_core.run_state import is_background, may_end_silent
 from lonora_db.boards import BoardRepository
 from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
@@ -105,14 +105,16 @@ async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def silence(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
+        # Background work with nothing new may end silent until the owner writes to it.
+        quiet = may_end_silent(is_background(run.trigger, run.model_metadata), run.execution_state)
         thread = await session.get(ThreadRow, context.thread_id)
-        if thread is None or (not thread.group_id and is_conversational(run.trigger)):
+        if thread is None or (not thread.group_id and not quiet):
             return {
                 "ok": False,
                 "code": "silence_requires_group",
                 "guidance": "Respond to the request in this conversation.",
             }
-        if is_conversational(run.trigger):
+        if not quiet:
             return {
                 "ok": False,
                 "code": "reply_required",

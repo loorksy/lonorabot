@@ -1229,7 +1229,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           (run) =>
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ||
-            run.status === "failed",
+            // 11.5: a failed background run posts nothing in the conversation, unless its
+            // failure is news only the owner can act on: their model access or quota.
+            (run.status === "failed" &&
+              (!run.background ||
+                run.failure?.family === "model" ||
+                run.failure?.family === "quota")),
         )
         .slice(0, 1)
         .map((run) => (
