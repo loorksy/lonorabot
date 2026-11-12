@@ -16,7 +16,6 @@ from lonora_db.schema import (
     AgentRow,
     BrokerSessionRow,
     CloudChartRow,
-    TradingGoalRow,
 )
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -25,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .context import ToolContext
 from .resolve import Option, resolve, several
 
-MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "goal_", "account_")
+MARKET_TOOLS = ("market_", "chart_", "watch_", "trade_", "account_")
 # Reading records and narrowing admission need no financial authority: any agent may
 # record an owner's restriction, and none can lift one.
 NONFINANCIAL_TRADE_TOOLS = frozenset(
@@ -41,7 +40,7 @@ NONFINANCIAL_TRADE_TOOLS = frozenset(
 # Reading is open: a fixed-market agent reads every owned account and symbol (quotes,
 # candles, accounts, full history and activity, records), like every other Agent. Its
 # bound account and symbol stay its focus for every mutation path (charts, watches,
-# goals, decisions, trades), and the executor independently re-checks the binding for
+# decisions, trades), and the executor independently re-checks the binding for
 # every financial request. Copying market data into the agent's own workspace is a read
 # of the market.
 OPEN_READ_EFFECTS = frozenset({"market_candles_to_workspace"})
@@ -210,9 +209,7 @@ async def guard_market_tool(
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        if (name.startswith("trade_") and name not in NONFINANCIAL_TRADE_TOOLS) or (
-            name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
-        ):
+        if name.startswith("trade_") and name not in NONFINANCIAL_TRADE_TOOLS:
             await require_lease(session, context.lease)
             await require_financial_agent(session, context.owner_id, context.agent_id)
         if not fixed_market(agent):
@@ -230,11 +227,6 @@ async def guard_market_tool(
             if chart is None or chart.owner_id != context.owner_id:
                 raise LonoraError("cloud_charts_not_found", 404)
             assert_payload_binding(agent, chart.payload)
-        if args.get("goal_id"):
-            goal = await session.get(TradingGoalRow, args["goal_id"])
-            if goal is None or goal.owner_id != context.owner_id:
-                raise LonoraError("goal_not_found", 404)
-            assert_payload_binding(agent, goal.payload)
         if name == "watch_create" and args.get("position_id"):
             broker = await context.brokers.get(context.owner_id, str(agent.trading_account_id))
             position = next(
@@ -247,7 +239,7 @@ async def guard_market_tool(
 
 
 EXECUTION_SCOPE_NOTE = (
-    "Reading is open across every owned account and symbol; charts, watches, goals, "
+    "Reading is open across every owned account and symbol; charts, watches, "
     "decisions and trades stay on this bound account and symbol."
 )
 

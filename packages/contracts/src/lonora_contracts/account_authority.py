@@ -1,4 +1,4 @@
-"""Explicit, signed account delegation; independent of a predeclared Goal plan."""
+"""Explicit, signed account delegation."""
 
 from collections.abc import Mapping
 from datetime import datetime

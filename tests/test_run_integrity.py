@@ -24,7 +24,7 @@ async def check(fixture: Any, lease: Lease, *, reducing: bool = False) -> str | 
 
     async with fixture.runtime.db.sessions() as session:
         try:
-            await require_goal_lineage(session, lease, None, fixture.owner, BUY, reducing=reducing)
+            await require_goal_lineage(session, lease, fixture.owner, BUY, reducing=reducing)
         except LonoraError as error:
             return error.code
     return None
