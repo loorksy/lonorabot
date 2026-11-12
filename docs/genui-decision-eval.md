@@ -230,7 +230,7 @@ calls per case), one sample per case:
 | Two runs (today's prompt, then the new prompt) | 7.88 M | 5.16 M | 41 k | about 524 |
 
 - **Mix.** The probe holds no follow-up (the full set has 20) and one of the 17 safety
-  cases. A follow-up adds earlier turns of at most 275 characters, well under 200 tokens per
+  cases of that date (13 today). A follow-up adds earlier turns of at most 275 characters, well under 200 tokens per
   call. Of the other safety cases, 12 are trade, limit or grant requests (I01 to I12),
   several of which end at a tool's approval card, and 4 are out-of-scope requests whose
   expected answer is one line; they likely need fewer calls than the average. The number of

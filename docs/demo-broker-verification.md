@@ -1,3 +1,5 @@
+Superseded by VISION.md
+
 # Demo broker verification
 
 Use a MetaApi **demo** account. These checks submit real broker orders: run them
@@ -44,7 +46,7 @@ registry/wrappers with scripted transports; `tests/check_trade_approvals.py`
 exercises PostgreSQL, approval HTTP admission and the simulation adapter.
 These fixtures do not substitute for verification against an external demo broker.
 
-## Not yet verified against a real MetaApi account
+## Not yet verified against a real MetaApi account (as recorded on 2026-11-08)
 
 These were exercised only against the simulation broker or SDK-shaped fixtures:
 
