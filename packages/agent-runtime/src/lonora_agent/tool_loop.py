@@ -594,7 +594,12 @@ async def execute_tool_loop(
             len(state["selection"]["visual_errors"]),
         )
         empty = not reply.text.strip() and reply.rich_content is None and not reply.tool_calls
-        if empty and is_conversational(run.trigger):
+        # A close-review wake may end without a reply: nothing needs the owner (11.5).
+        if (
+            empty
+            and is_conversational(run.trigger)
+            and not run.model_metadata.get("closed_trade_id")
+        ):
             # An empty provider turn carries nothing to keep; the notice follows
             # the existing tail instead of an empty assistant message.
             append_notice(messages, "no_answer", NO_ANSWER)

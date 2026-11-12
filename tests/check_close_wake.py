@@ -19,16 +19,19 @@ from lonora_agent.executor import execute_run
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_db.memory import read_memory
+from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import claim_next
 from lonora_db.schema import (
     AgentRow,
     ClosedTradeRow,
+    EffectReceiptRow,
     MemoryRevisionRow,
+    MessageRow,
     RunRow,
     TradingJournalRow,
 )
 from lonora_tools.loader import load_tools
-from lonora_trading.close_wake import wake_for_closes
+from lonora_trading.close_wake import MAXIMUM_PER_PASS, wake_for_closes
 from sqlalchemy import func, select
 
 SELECTION = ModelSelection(provider="openai", model="scripted-close")
@@ -100,7 +103,13 @@ async def runs_of(f: Fixture, agent_id: str, trigger: str) -> list[RunRow]:
         )
 
 
-def reviewer(version: int, seen: list[list[ModelMessage]], *, read_first: bool = False) -> Any:
+def reviewer(
+    version: int,
+    seen: list[list[ModelMessage]],
+    *,
+    read_first: bool = False,
+    final: str = "Reviewed.",
+) -> Any:
     """A model that answers the close text with a self-review in its memory; with
     ``read_first`` its first turn is a tool call, so the text arrives after a tool block."""
 
@@ -134,7 +143,7 @@ def reviewer(version: int, seen: list[list[ModelMessage]], *, read_first: bool =
                     )
                 ]
             ), SELECTION
-        return ModelReply(text="Reviewed."), SELECTION
+        return ModelReply(text=final), SELECTION
 
     return complete
 
@@ -159,10 +168,77 @@ async def stop_loss_hit(f: Fixture, account: str) -> None:
     seen: list[list[ModelMessage]] = []
     data = {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
     ctx = await f.lease(data)
-    with patch.object(ctx.router, "complete", reviewer(await memory_version(f, agent["id"]), seen)):
+    posted = await messages_in(f, run.model_metadata["origin_thread_id"])
+    # The review needs nothing from the owner: the Run ends without a reply.
+    version = await memory_version(f, agent["id"])
+    with patch.object(ctx.router, "complete", reviewer(version, seen, final="")):
         await execute_run(ctx, load_tools(), 120, 8)
     assert await revisions(f, agent["id"]) == before + 1, "no self-review was written"
+    async with f.runtime.db.sessions() as session:
+        done = await session.get(RunRow, run.id)
+        assert done and done.status == "completed", done and (done.status, done.error_code)
+    assert await messages_in(f, run.model_metadata["origin_thread_id"]) == posted
+    assert len(seen) == 2, "the empty reply was nudged into a chat message"
     print("PASS a stop-loss hit wakes the position's owner, which writes a self-review")
+    print("PASS a review that needs nothing from the owner posts nothing in the chat")
+
+
+async def messages_in(f: Fixture, thread_id: str) -> int:
+    async with f.runtime.db.sessions() as session:
+        return int(
+            await session.scalar(
+                select(func.count())
+                .select_from(MessageRow)
+                .where(MessageRow.thread_id == thread_id)
+            )
+            or 0
+        )
+
+
+async def many_woken(f: Fixture, account: str) -> None:
+    """Trades already woken never crowd out a new close (more than a pass's limit)."""
+    agent = await f.agent("Gold busy")
+    async with f.runtime.db.sessions() as session, session.begin():
+        for _ in range(MAXIMUM_PER_PASS + 10):
+            trade = new_id()
+            session.add(
+                ClosedTradeRow(
+                    id=trade,
+                    owner_id=f.owner,
+                    account_id=account,
+                    position_id="old-" + trade[:8],
+                    closing_deal_id="old-out-" + trade[:8],
+                    symbol="XAUUSD",
+                    side="buy",
+                    volume=Decimal("0.1"),
+                    agent_id=agent["id"],
+                    currency="USD",
+                    realized_pnl=Decimal(1),
+                    closed_at=utcnow(),
+                    deals=[],
+                )
+            )
+            session.add(EffectReceiptRow(key="close-wake:" + trade, result={"run_id": None}))
+    fresh = await closed(f, account, agent["id"], "sl-busy", "2")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    (run,) = await runs_of(f, agent["id"], "broker_event")
+    assert run.model_metadata["closed_trade_id"] == fresh
+    print("PASS woken trades never crowd out a new close")
+
+
+async def deleted_owner(f: Fixture, account: str) -> None:
+    """A trade of an agent that no longer exists wakes Lonora, which answers for it."""
+    trade = await closed(f, account, new_id(), "sl-gone", "-3")
+    assert await wake_for_closes(f.runtime.db, f.owner) == 1
+    async with f.runtime.db.sessions() as session:
+        lonora = await ensure_personal_agent(session, f.owner)
+    woken = [
+        run
+        for run in await runs_of(f, lonora.id, "broker_event")
+        if run.model_metadata.get("closed_trade_id") == trade
+    ]
+    assert len(woken) == 1 and "no longer exists" in woken[0].prompt, woken
+    print("PASS a deleted agent's closed trade wakes Lonora")
 
 
 async def own_close(f: Fixture, account: str, *, read_first: bool) -> None:
@@ -283,6 +359,8 @@ async def main() -> None:
         await own_close(f, account, read_first=False)
         await unread_notice(f, account)
         await paused_and_owner(f, account)
+        await many_woken(f, account)
+        await deleted_owner(f, account)
     finally:
         await f.close()
 
