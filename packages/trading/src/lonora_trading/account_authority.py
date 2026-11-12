@@ -133,14 +133,19 @@ async def lonora_opened(
     )
     kind = "position_id" if request.position_id else "order_id"
     for entry in entries:
-        details = entry.result.get("details", {})
-        safe_id = entry.result.get("broker_id") if details.get("simulation") else None
-        if target.operation_id in {
-            entry.operation_id,
-            broker_operation_tag(entry.operation_id),
-        } or target.id in {details.get(kind), safe_id}:
+        if entry_opened(entry, target, kind):
             return journal_agent(entry) is not None
     return False
+
+
+def entry_opened(entry: TradingJournalRow, target: Position | Order, kind: str) -> bool:
+    """Whether this confirmed entry opened or placed ``target`` (``kind`` names its id)."""
+    details = entry.result.get("details", {})
+    safe_id = entry.result.get("broker_id") if details.get("simulation") else None
+    return target.operation_id in {
+        entry.operation_id,
+        broker_operation_tag(entry.operation_id),
+    } or target.id in {details.get(kind), safe_id}
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:
