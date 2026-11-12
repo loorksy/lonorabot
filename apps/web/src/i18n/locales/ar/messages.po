@@ -52,7 +52,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:595
+#: src/shell/agent/AgentPage.tsx:591
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
@@ -112,7 +112,7 @@ msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:229
+#: src/shell/domain/UpdatesPages.tsx:211
 msgid "{0}, has something new"
 msgstr "{0}، لديه جديد"
 
@@ -149,7 +149,7 @@ msgstr "{count, plural, one {# مرتبطة} two {# مرتبطة} few {# مرت�
 msgid "{count, plural, one {one skill enabled} two {two skills enabled} few {# skills enabled} many {# skills enabled} other {# skills enabled}}"
 msgstr "{count, plural, one {مهارة واحدة مفعّلة} two {مهارتان مفعّلتان} few {# مهارات مفعّلة} many {# مهارة مفعّلة} other {# مهارة مفعّلة}}"
 
-#: src/shell/settings/IntegrationsPage.tsx:31
+#: src/shell/settings/IntegrationsPage.tsx:30
 msgid "{count} agents"
 msgstr "{count} وكلاء"
 
@@ -201,7 +201,7 @@ msgstr "{n} خطوات"
 msgid "{queued, plural, one {one message waiting} two {two messages waiting} few {# messages waiting} many {# messages waiting} other {# messages waiting}}"
 msgstr "{queued, plural, one {رسالة واحدة تنتظر} two {رسالتان تنتظران} few {# رسائل تنتظر} many {# رسالة تنتظر} other {# رسالة تنتظر}}"
 
-#: src/shell/settings/IntegrationsPage.tsx:36
+#: src/shell/settings/IntegrationsPage.tsx:35
 msgid "{reads} read"
 msgstr "{reads} قراءة"
 
@@ -233,7 +233,7 @@ msgstr "{typingName} يكتب…"
 #~ msgid "{unpriced} requests have no list price"
 #~ msgstr "{unpriced} طلبات دون سعر معلن"
 
-#: src/shell/settings/IntegrationsPage.tsx:36
+#: src/shell/settings/IntegrationsPage.tsx:35
 msgid "{writes} non-financial write"
 msgstr "{writes} كتابة غير مالية"
 
@@ -355,7 +355,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "تنتهي المراقبة تلقائيًا في موعدها، ويمكن إيقافها مؤقتًا أو تمديدها أو إلغاؤها."
 
-#: src/shell/domain/UpdatesPages.tsx:56
+#: src/shell/domain/UpdatesPages.tsx:55
 msgid "A watch was met"
 msgstr "تحققت مراقبة"
 
@@ -394,14 +394,14 @@ msgstr "رمز الوصول"
 msgid "Access token — stored encrypted, never shown again"
 msgstr "رمز الوصول — يُحفظ مشفّرًا ولا يُعرض مرة أخرى"
 
-#: src/shell/pages.tsx:140
+#: src/shell/pages.tsx:145
 #: src/shell/settings/SettingsRoot.tsx:344
 msgid "Accessibility"
 msgstr "سهولة الاستخدام"
 
 #: src/conversation/Cards.tsx:473
-#: src/shell/agent/IdentityPage.tsx:255
-#: src/shell/agent/IdentityPage.tsx:324
+#: src/shell/agent/IdentityPage.tsx:239
+#: src/shell/agent/IdentityPage.tsx:308
 #: src/shell/agent/RecoveryPage.tsx:96
 msgid "Account"
 msgstr "الحساب"
@@ -427,7 +427,7 @@ msgstr "معرّف الحساب"
 msgid "Account limits"
 msgstr "حدود الحساب"
 
-#: src/shell/domain/UpdatesPages.tsx:30
+#: src/shell/domain/UpdatesPages.tsx:29
 msgid "Account limits changed"
 msgstr "تغيّرت حدود الحساب"
 
@@ -490,7 +490,7 @@ msgstr "أنشطة"
 msgid "Activity"
 msgstr "النشاط"
 
-#: src/shell/pages.tsx:132
+#: src/shell/pages.tsx:137
 msgid "Activity log"
 msgstr "سجل الإجراءات"
 
@@ -504,10 +504,10 @@ msgstr "تم تحديث النشاط"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:642
-#: src/shell/agent/GroupPage.tsx:243
-#: src/shell/settings/IntegrationsPage.tsx:264
-#: src/shell/settings/IntegrationsPage.tsx:352
+#: src/shell/agent/AgentPage.tsx:638
+#: src/shell/agent/GroupPage.tsx:222
+#: src/shell/settings/IntegrationsPage.tsx:261
+#: src/shell/settings/IntegrationsPage.tsx:349
 msgid "Add"
 msgstr "إضافة"
 
@@ -523,7 +523,7 @@ msgstr "إضافة مزود"
 #~ msgid "Add a provider credential"
 #~ msgstr "أضف مفتاح المزود"
 
-#: src/shell/settings/IntegrationsPage.tsx:726
+#: src/shell/settings/IntegrationsPage.tsx:708
 msgid "Add a trading account"
 msgstr "إضافة حساب تداول"
 
@@ -531,16 +531,16 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/agent/AgentPage.tsx:559
+#: src/shell/agent/AgentPage.tsx:555
 msgid "Add agents to supervise"
 msgstr "إضافة وكلاء للإشراف"
 
-#: src/shell/agent/GroupPage.tsx:116
-#: src/shell/agent/GroupPage.tsx:128
+#: src/shell/agent/GroupPage.tsx:115
+#: src/shell/agent/GroupPage.tsx:127
 msgid "Add an agent"
 msgstr "إضافة وكيل"
 
-#: src/shell/pages.tsx:152
+#: src/shell/pages.tsx:157
 msgid "Add an AI provider"
 msgstr "إضافة مزود ذكاء اصطناعي"
 
@@ -552,7 +552,7 @@ msgstr "أضف مصدرًا للتقويم الاقتصادي في التكام�
 msgid "Add an emoji"
 msgstr "إضافة رمز تعبيري"
 
-#: src/shell/settings/IntegrationsPage.tsx:734
+#: src/shell/settings/IntegrationsPage.tsx:716
 msgid "Add an MCP server"
 msgstr "إضافة خادم MCP"
 
@@ -593,7 +593,7 @@ msgstr "إضافة معرفة"
 msgid "Add line"
 msgstr "إضافة خط"
 
-#: src/shell/pages.tsx:156
+#: src/shell/pages.tsx:161
 msgid "Add MCP"
 msgstr "إضافة MCP"
 
@@ -624,7 +624,7 @@ msgid "Add to the conversation"
 msgstr "إضافة إلى المحادثة"
 
 #. placeholder {0}: new Date(source.created_at).toLocaleDateString()
-#: src/shell/settings/IntegrationsPage.tsx:545
+#: src/shell/settings/IntegrationsPage.tsx:527
 msgid "added {0}"
 msgstr "أُضيف {0}"
 
@@ -632,7 +632,7 @@ msgstr "أُضيف {0}"
 msgid "Added to favourites"
 msgstr "أُضيفت إلى المفضلة"
 
-#: src/pages/shell/bot-settings.tsx:115
+#: src/pages/shell/bot-settings.tsx:122
 msgid "Advanced"
 msgstr "إعدادات متقدمة"
 
@@ -676,7 +676,7 @@ msgstr "الوكيل"
 msgid "Agent call"
 msgstr "مكالمة الوكيل"
 
-#: src/shell/settings/NotifyPages.tsx:363
+#: src/shell/settings/NotifyPages.tsx:362
 msgid "Agent calls"
 msgstr "مكالمات الوكيل"
 
@@ -685,22 +685,22 @@ msgstr "مكالمات الوكيل"
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
-#: src/shell/domain/UpdatesPages.tsx:26
+#: src/shell/domain/UpdatesPages.tsx:25
 msgid "Agent created"
 msgstr "أُنشئ وكيل"
 
-#: src/shell/ChatMenu.tsx:188
+#: src/shell/ChatMenu.tsx:206
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
-#: src/shell/pages.tsx:90
+#: src/shell/pages.tsx:95
 msgid "Agent identity"
 msgstr "هوية الوكيل"
 
 #: src/shell/ChatHeader.tsx:102
-#: src/shell/ChatMenu.tsx:73
-#: src/shell/ChatMenu.tsx:156
-#: src/shell/pages.tsx:88
+#: src/shell/ChatMenu.tsx:79
+#: src/shell/ChatMenu.tsx:174
+#: src/shell/pages.tsx:93
 msgid "Agent info"
 msgstr "معلومات الوكيل"
 
@@ -733,10 +733,10 @@ msgstr "قالب الوكيل"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:223
+#: src/shell/domain/UpdatesPages.tsx:205
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
-#: src/shell/pages.tsx:86
+#: src/shell/pages.tsx:91
 msgid "Agents"
 msgstr "الوكلاء"
 
@@ -754,7 +754,7 @@ msgstr "الوكلاء تحت إشرافه"
 msgid "Agents on this account"
 msgstr "الوكلاء على هذا الحساب"
 
-#: src/shell/settings/IntegrationsPage.tsx:268
+#: src/shell/settings/IntegrationsPage.tsx:265
 msgid "Agents read news from these domains only, and name the source and the time with every piece of information."
 msgstr "يقرأ الوكلاء الأخبار من هذه النطاقات فقط، ويذكرون المصدر والوقت مع كل معلومة."
 
@@ -786,7 +786,7 @@ msgstr "الكل"
 msgid "All already in «{0}»"
 msgstr "كلها موجودة في «{0}»"
 
-#: src/shell/agent/AgentPage.tsx:76
+#: src/shell/agent/AgentPage.tsx:74
 msgid "All pairs"
 msgstr "جميع الأزواج"
 
@@ -873,7 +873,7 @@ msgstr "يحلّل السوق ويتابعه دون إرسال أي أمر."
 msgid "Analyzing"
 msgstr "يحلل"
 
-#: src/shell/agent/AvatarSheet.tsx:27
+#: src/components/ai/AvatarStudio.tsx:29
 msgid "Angry"
 msgstr "غاضب"
 
@@ -952,15 +952,15 @@ msgstr "طلب موافقة · {what}"
 msgid "Approve"
 msgstr "موافقة"
 
-#: src/shell/settings/IntegrationsPage.tsx:159
+#: src/shell/settings/IntegrationsPage.tsx:156
 msgid "Approve the new schema"
 msgstr "اعتماد المخطط الجديد"
 
-#: src/shell/settings/IntegrationsPage.tsx:159
+#: src/shell/settings/IntegrationsPage.tsx:156
 msgid "Approve the server"
 msgstr "اعتماد الخادم"
 
-#: src/shell/settings/IntegrationsPage.tsx:167
+#: src/shell/settings/IntegrationsPage.tsx:164
 msgid "Approve with non-financial writes"
 msgstr "اعتماد مع الكتابة غير المالية"
 
@@ -974,7 +974,7 @@ msgstr "أرشفة"
 
 #: src/shell/DesktopList.tsx:68
 #: src/shell/lists/ChatList.tsx:292
-#: src/shell/pages.tsx:100
+#: src/shell/pages.tsx:105
 msgid "Archived"
 msgstr "المؤرشفة"
 
@@ -986,7 +986,7 @@ msgstr "سهم"
 msgid "Artifacts"
 msgstr "الملفات والمخرجات"
 
-#: src/shell/settings/IntegrationsPage.tsx:511
+#: src/shell/settings/IntegrationsPage.tsx:505
 msgid "Artificial intelligence"
 msgstr "الذكاء الاصطناعي"
 
@@ -999,7 +999,7 @@ msgctxt "level"
 msgid "Ask me"
 msgstr "تنفيذ بموافقة"
 
-#: src/shell/agent/AgentPage.tsx:85
+#: src/shell/agent/AgentPage.tsx:83
 msgid "Ask me on every order"
 msgstr "تنفيذ بموافقة على كل أمر"
 
@@ -1062,7 +1062,7 @@ msgid "Automatic"
 msgstr "تلقائي"
 
 #: src/pages/shell/bot-panel.tsx:228
-#: src/shell/agent/IdentityPage.tsx:219
+#: src/shell/agent/IdentityPage.tsx:203
 msgctxt "model"
 msgid "Automatic"
 msgstr "تلقائي"
@@ -1093,13 +1093,13 @@ msgstr "الرموز المتاحة · {0}"
 #~ msgid "Avatar"
 #~ msgstr "الصورة الرمزية"
 
-#: src/shell/agent/AvatarSheet.tsx:188
+#: src/shell/agent/AvatarSheet.tsx:167
 msgid "Avatar saved"
 msgstr "تم حفظ الأفتار"
 
 #: src/components/ai/AvatarStudio.tsx:116
-#~ msgid "Avatar Studio"
-#~ msgstr "استوديو الأفاتار"
+msgid "Avatar Studio"
+msgstr "استوديو الأفاتار"
 
 #: src/shell/settings/UsagePage.tsx:431
 msgid "Average cost per request"
@@ -1221,7 +1221,7 @@ msgstr "اللوحة"
 msgid "Board title"
 msgstr "عنوان اللوحة"
 
-#: src/shell/settings/IntegrationsPage.tsx:415
+#: src/shell/settings/IntegrationsPage.tsx:412
 msgid "Bot token"
 msgstr "رمز البوت"
 
@@ -1339,7 +1339,7 @@ msgstr "ذاكرة المتصفح المؤقتة"
 msgid "Built in"
 msgstr "مدمجة"
 
-#: src/shell/settings/IntegrationsPage.tsx:680
+#: src/shell/settings/IntegrationsPage.tsx:662
 msgid "Built-in"
 msgstr "مدمجة"
 
@@ -1390,7 +1390,7 @@ msgctxt "slash command"
 msgid "call"
 msgstr "اتصال"
 
-#: src/shell/agent/AgentPage.tsx:280
+#: src/shell/agent/AgentPage.tsx:273
 msgid "Call"
 msgstr "اتصال"
 
@@ -1399,7 +1399,7 @@ msgctxt "call clock"
 msgid "Call"
 msgstr "مكالمة"
 
-#: src/shell/pages.tsx:170
+#: src/shell/pages.tsx:175
 msgctxt "page title"
 msgid "Call"
 msgstr "المكالمة"
@@ -1422,11 +1422,11 @@ msgstr "مكالمة مع {0}"
 #~ msgid "Call with {name}"
 #~ msgstr "مكالمة مع {name}"
 
-#: src/shell/agent/AgentPage.tsx:161
+#: src/shell/agent/AgentPage.tsx:154
 msgid "Calling an agent needs a voice provider. Add one in the voice settings."
 msgstr "يحتاج الاتصال بالوكيل إلى مزود صوت. أضِفه من إعدادات الصوت."
 
-#: src/shell/agent/AgentPage.tsx:157
+#: src/shell/agent/AgentPage.tsx:150
 #: src/shell/call/CallPages.tsx:411
 msgid "Calls are not set up"
 msgstr "المكالمات غير مُعدّة"
@@ -1444,6 +1444,7 @@ msgid "Camera not allowed"
 msgstr "الكاميرا غير مسموحة"
 
 #: src/components/ai/AgentLiveStatus.tsx:127
+#: src/components/ai/AvatarStudio.tsx:225
 #: src/components/skills/RevokeVersion.tsx:103
 #: src/components/skills/SkillCard.tsx:133
 #: src/components/skills/SkillEditor.tsx:141
@@ -1451,11 +1452,11 @@ msgstr "الكاميرا غير مسموحة"
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
-#: src/shell/agent/AgentPage.tsx:410
-#: src/shell/agent/AvatarSheet.tsx:132
+#: src/shell/agent/AgentPage.tsx:406
+#: src/shell/agent/AvatarSheet.tsx:111
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/call/CallPages.tsx:422
-#: src/shell/ChatMenu.tsx:108
+#: src/shell/ChatMenu.tsx:126
 #: src/shell/domain/FilesPages.tsx:63
 #: src/shell/domain/SchedulesPages.tsx:63
 #: src/shell/domain/TasksPages.tsx:187
@@ -1536,7 +1537,7 @@ msgstr "عرض البطاقات"
 msgid "Change a value to save it."
 msgstr "عدّل قيمة لحفظها."
 
-#: src/shell/settings/OwnerPage.tsx:285
+#: src/shell/settings/OwnerPage.tsx:284
 msgid "Change log"
 msgstr "سجل التغييرات"
 
@@ -1564,7 +1565,7 @@ msgstr "يتغيّر"
 #~ msgid "Changing mode pauses active trading goals. Live trading still requires existing approvals and safety controls."
 #~ msgstr "تغيير الوضع يوقف أهداف التداول النشطة مؤقتًا. التنفيذ الحقيقي يبقى خاضعًا للموافقات وضوابط الأمان."
 
-#: src/shell/agent/IdentityPage.tsx:310
+#: src/shell/agent/IdentityPage.tsx:294
 msgid "Changing the market makes this agent's account and pair a flexible default. A signed grant stays on its own account and pair: outside it, every order is shown to you for approval before it is sent."
 msgstr "تغيير السوق يجعل حساب هذا الوكيل وزوجه خيارًا افتراضيًا مرنًا. يبقى التفويض الموقَّع على حسابه وزوجه: خارجه يُعرض عليك كل أمر للموافقة قبل إرساله."
 
@@ -1588,7 +1589,7 @@ msgstr "شارت"
 #: src/shell/agent/ChartSheet.tsx:501
 #: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/agent/ChartSheet.tsx:507
-#: src/shell/ChatMenu.tsx:162
+#: src/shell/ChatMenu.tsx:180
 msgid "Chart"
 msgstr "الشارت"
 
@@ -1606,7 +1607,7 @@ msgstr "تعذّر عرض الشارت."
 #~ msgid "Charts"
 #~ msgstr "الرسوم البيانية"
 
-#: src/shell/agent/AgentPage.tsx:270
+#: src/shell/agent/AgentPage.tsx:263
 msgid "Chat"
 msgstr "محادثة"
 
@@ -1616,7 +1617,7 @@ msgstr "محادثة"
 #~ msgid "Chat background"
 #~ msgstr "خلفية المحادثة"
 
-#: src/shell/pages.tsx:142
+#: src/shell/pages.tsx:147
 #: src/shell/settings/SettingsRoot.tsx:343
 msgid "Chat experience"
 msgstr "تجربة المحادثة"
@@ -1626,7 +1627,7 @@ msgid "Chat list"
 msgstr "قائمة المحادثات"
 
 #: src/shell/ChatHeader.tsx:179
-#: src/shell/ChatMenu.tsx:200
+#: src/shell/ChatMenu.tsx:218
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
 
@@ -1743,8 +1744,8 @@ msgid "Choose a file smaller than 600 KB."
 msgstr "اختر ملفًا أصغر من 600 كيلوبايت."
 
 #: src/components/ai/AvatarStudio.tsx:128
-#~ msgid "Choose a glowing face and color. Preview your changes before applying them."
-#~ msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
+msgid "Choose a glowing face and color. Preview your changes before applying them."
+msgstr "اختر وجهًا مضيئًا ولونًا، وعاين التغييرات قبل تطبيقها."
 
 #: src/shell/domain/SchedulesPages.tsx:163
 #: src/shell/domain/SchedulesPages.tsx:454
@@ -1755,7 +1756,7 @@ msgstr "اختر وقتًا لم يمضِ بعد."
 msgid "Choose a valid time zone for the trading day."
 msgstr "اختر منطقة زمنية صحيحة ليوم التداول."
 
-#: src/shell/agent/IdentityPage.tsx:243
+#: src/shell/agent/IdentityPage.tsx:227
 msgid "Choose an account"
 msgstr "اختر حسابًا"
 
@@ -1789,7 +1790,7 @@ msgstr "اختر إجابة أو اكتب ردك"
 msgid "Choose at least one action"
 msgstr "اختر إجراءً واحدًا على الأقل"
 
-#: src/shell/agent/GroupPage.tsx:378
+#: src/shell/agent/GroupPage.tsx:261
 msgid "Choose at least one member."
 msgstr "اختر عضوًا واحدًا على الأقل."
 
@@ -1845,7 +1846,7 @@ msgctxt "slash command"
 msgid "clear"
 msgstr "مسح"
 
-#: src/shell/ChatMenu.tsx:127
+#: src/shell/ChatMenu.tsx:145
 #: src/shell/lists/Selection.tsx:99
 msgid "Clear"
 msgstr "مسح"
@@ -1858,8 +1859,8 @@ msgstr "مسح البحث"
 msgid "Clear search and close"
 msgstr "مسح البحث وإغلاقه"
 
-#: src/shell/ChatMenu.tsx:90
-#: src/shell/ChatMenu.tsx:196
+#: src/shell/ChatMenu.tsx:108
+#: src/shell/ChatMenu.tsx:214
 msgid "Clear the chat"
 msgstr "مسح المحادثة"
 
@@ -1890,11 +1891,12 @@ msgstr "اضغط أيقونة التثبيت في شريط العنوان."
 
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:69
 #: ../../packages/ui-web/src/components/ui/dialog.tsx:104
+#: src/components/ai/AvatarStudio.tsx:121
 #: src/components/common/FilePreviewPanel.tsx:99
 #: src/conversation/Composer.tsx:749
 #: src/pages/Board.tsx:345
 #: src/pages/Board.tsx:537
-#: src/pages/shell/bot-settings.tsx:147
+#: src/pages/shell/bot-settings.tsx:154
 #: src/shell/sheets/SheetHost.tsx:587
 #: src/shell/sheets/SheetHost.tsx:615
 msgid "Close"
@@ -1981,14 +1983,14 @@ msgstr "طي قائمة المحادثات"
 #: src/components/ai/AvatarStudio.tsx:187
 #: src/components/ai/AvatarStudio.tsx:190
 #: src/components/ai/AvatarStudio.tsx:196
-#~ msgid "Color"
-#~ msgstr "اللون"
+msgid "Color"
+msgstr "اللون"
 
-#: src/shell/agent/AvatarSheet.tsx:100
+#: src/shell/agent/AvatarSheet.tsx:79
 msgid "Colour"
 msgstr "اللون"
 
-#: src/shell/agent/AvatarSheet.tsx:109
+#: src/shell/agent/AvatarSheet.tsx:88
 msgid "Colour {color}"
 msgstr "لون {color}"
 
@@ -2075,8 +2077,8 @@ msgid "Configure an OpenAI credential with GPT-Live access to start a voice call
 msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى GPT-Live لبدء المكالمة."
 
 #: src/pages/VoiceSettingsOverlay.tsx:33
-#~ msgid "Configure an OpenAI credential with GPT-Live API access"
-#~ msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-Live"
+msgid "Configure an OpenAI credential with GPT-Live API access"
+msgstr "اضبط مفتاح OpenAI يتيح الوصول إلى واجهة GPT-Live"
 
 #: src/components/trading/SuperBotCards.tsx:397
 #~ msgid "Confirm account password"
@@ -2175,13 +2177,13 @@ msgstr "المحتوى"
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
-#: src/conversation/Conversation.tsx:1044
+#: src/conversation/Conversation.tsx:1045
 #: src/shell/settings/ModelsPage.tsx:18
 msgid "Conversation"
 msgstr "المحادثة"
 
-#: src/shell/pages.tsx:409
-#: src/shell/pages.tsx:411
+#: src/shell/pages.tsx:422
+#: src/shell/pages.tsx:424
 msgid "Conversation history"
 msgstr "سجل المحادثات"
 
@@ -2197,9 +2199,8 @@ msgstr "نص المحادثة"
 msgid "Conversations"
 msgstr "المحادثات"
 
-#: src/shell/agent/GroupPage.tsx:101
-#: src/shell/agent/GroupPage.tsx:324
-#: src/shell/agent/GroupPage.tsx:462
+#: src/shell/agent/GroupPage.tsx:100
+#: src/shell/agent/GroupPage.tsx:345
 msgid "Coordinator"
 msgstr "المنسق"
 
@@ -2271,12 +2272,12 @@ msgstr "إنشاء مجموعة"
 msgid "Create a skill"
 msgstr "إنشاء مهارة"
 
-#: src/shell/pages.tsx:128
+#: src/shell/pages.tsx:133
 msgctxt "page title"
 msgid "Create a skill"
 msgstr "إنشاء مهارة"
 
-#: src/shell/pages.tsx:134
+#: src/shell/pages.tsx:139
 #: src/shell/TopBar.tsx:59
 msgid "Create agent"
 msgstr "إنشاء وكيل"
@@ -2297,7 +2298,7 @@ msgstr "أنشئ وكيلًا لكل مهمة، واجمعهم في مجموعا
 msgid "Create group"
 msgstr "إنشاء المجموعة"
 
-#: src/shell/pages.tsx:136
+#: src/shell/pages.tsx:141
 msgctxt "page title"
 msgid "Create group"
 msgstr "إنشاء مجموعة"
@@ -2319,7 +2320,7 @@ msgstr "إنشاء مجموعة"
 msgid "Create task"
 msgstr "إنشاء مهمة"
 
-#: src/shell/pages.tsx:122
+#: src/shell/pages.tsx:127
 msgctxt "page title"
 msgid "Create task"
 msgstr "إنشاء مهمة"
@@ -2333,7 +2334,7 @@ msgstr "إنشاء المهمة"
 msgid "Create the agent"
 msgstr "إنشاء الوكيل"
 
-#: src/shell/agent/GroupPage.tsx:475
+#: src/shell/agent/GroupPage.tsx:358
 msgid "Create the group"
 msgstr "إنشاء المجموعة"
 
@@ -2388,10 +2389,10 @@ msgstr "العمل الحالي"
 
 #: src/components/ai/AvatarStudio.tsx:202
 #: src/components/ai/AvatarStudio.tsx:205
-#~ msgid "Custom color"
-#~ msgstr "لون مخصص"
+msgid "Custom color"
+msgstr "لون مخصص"
 
-#: src/shell/agent/AvatarSheet.tsx:116
+#: src/shell/agent/AvatarSheet.tsx:95
 msgid "Custom colour"
 msgstr "لون مخصص"
 
@@ -2400,8 +2401,8 @@ msgid "Custom mandate"
 msgstr "تفويض مخصّص"
 
 #: src/components/ai/AvatarStudio.tsx:99
-#~ msgid "Customize avatar"
-#~ msgstr "تخصيص الأفاتار"
+msgid "Customize avatar"
+msgstr "تخصيص الأفاتار"
 
 #: src/shell/domain/SchedulesPages.tsx:103
 #: src/shell/domain/SchedulesPages.tsx:501
@@ -2422,11 +2423,11 @@ msgid "Daily loss limit"
 msgstr "حد الخسارة اليومي"
 
 #. placeholder {0}: isolate(daily.currency ? `${daily.amount} ${daily.currency}` : daily.amount)
-#: src/shell/agent/AgentPage.tsx:80
+#: src/shell/agent/AgentPage.tsx:78
 msgid "Daily loss limit {0}"
 msgstr "حد الخسارة اليومي {0}"
 
-#: src/shell/settings/NotifyPages.tsx:373
+#: src/shell/settings/NotifyPages.tsx:372
 msgid "Daily notification limit"
 msgstr "حد الإشعارات اليومي"
 
@@ -2497,7 +2498,7 @@ msgstr "تنفيذ مفوَّض"
 msgid "Delegated task"
 msgstr "مهمة مفوّضة"
 
-#: src/shell/domain/UpdatesPages.tsx:28
+#: src/shell/domain/UpdatesPages.tsx:27
 msgid "Delegation changed"
 msgstr "تغيّر التفويض"
 
@@ -2547,7 +2548,7 @@ msgstr "حذف الجدول"
 msgid "Delete the chats?"
 msgstr "حذف المحادثات؟"
 
-#: src/shell/settings/OwnerPage.tsx:271
+#: src/shell/settings/OwnerPage.tsx:270
 msgid "Delete the fact"
 msgstr "حذف المعلومة"
 
@@ -2587,14 +2588,14 @@ msgid "Demo"
 msgstr "تجريبي"
 
 #. placeholder {0}: agentsCount(count)
-#: src/shell/settings/IntegrationsPage.tsx:495
+#: src/shell/settings/IntegrationsPage.tsx:492
 msgid "Demo · {0}"
 msgstr "تجريبي · {0}"
 
 #: src/shell/settings/ConnectionPages.tsx:65
 #: src/shell/settings/ConnectionPages.tsx:247
 #: src/shell/settings/ConnectionPages.tsx:487
-#: src/shell/settings/IntegrationsPage.tsx:489
+#: src/shell/settings/IntegrationsPage.tsx:486
 msgid "Demo account"
 msgstr "حساب تجريبي"
 
@@ -2613,7 +2614,7 @@ msgstr "اعتمادية غير متاحة"
 #: src/pages/Board.tsx:390
 #: src/pages/Board.tsx:392
 #: src/pages/shell/bot-panel.tsx:201
-#: src/pages/shell/bot-settings.tsx:105
+#: src/pages/shell/bot-settings.tsx:112
 #: src/shell/domain/GoalsKnowledgePages.tsx:101
 #: src/shell/domain/SkillsPages.tsx:316
 msgid "Description"
@@ -2623,7 +2624,7 @@ msgstr "الوصف"
 msgid "Detailed agent status"
 msgstr "حالة الوكيل التفصيلية"
 
-#: src/shell/agent/AvatarSheet.tsx:35
+#: src/components/ai/AvatarStudio.tsx:37
 msgid "Determined"
 msgstr "مصمم"
 
@@ -2731,7 +2732,7 @@ msgstr "المسودات والرسائل غير المرسلة"
 #~ msgid "Drawing clarity"
 #~ msgstr "وضوح الرسومات"
 
-#: src/shell/agent/AvatarSheet.tsx:31
+#: src/components/ai/AvatarStudio.tsx:33
 msgid "Dreamy"
 msgstr "حالم"
 
@@ -2767,7 +2768,7 @@ msgstr "مثل: 7310"
 msgid "Each agent has its own permissions"
 msgstr "لكل وكيل صلاحياته الخاصة"
 
-#: src/shell/agent/GroupPage.tsx:159
+#: src/shell/agent/GroupPage.tsx:138
 msgid "Each member keeps its own permissions. The group has no shared financial authority."
 msgstr "كل عضو يحتفظ بصلاحياته. لا توجد صلاحية مالية مشتركة للمجموعة."
 
@@ -2790,22 +2791,21 @@ msgid "Edit and resend"
 msgstr "تعديل وإعادة الإرسال"
 
 #: src/pages/shell/bot-panel.tsx:172
-#: src/pages/shell/bot-settings.tsx:64
-#: src/shell/agent/AgentPage.tsx:234
-#: src/shell/agent/AvatarSheet.tsx:167
-#: src/shell/agent/IdentityPage.tsx:161
+#: src/shell/agent/AgentPage.tsx:227
+#: src/shell/agent/AvatarSheet.tsx:146
+#: src/shell/agent/IdentityPage.tsx:158
 msgid "Edit avatar"
 msgstr "تعديل الأفتار"
 
-#: src/shell/pages.tsx:130
+#: src/shell/pages.tsx:135
 msgid "Edit file"
 msgstr "تحرير الملف"
 
-#: src/shell/pages.tsx:116
+#: src/shell/pages.tsx:121
 msgid "Edit goal"
 msgstr "تحرير الهدف"
 
-#: src/shell/pages.tsx:110
+#: src/shell/pages.tsx:115
 msgid "Edit knowledge"
 msgstr "تحرير المعرفة"
 
@@ -2818,7 +2818,7 @@ msgstr "تعديل الأمر"
 #~ msgid "Edit routine"
 #~ msgstr "تعديل المهمة المجدولة"
 
-#: src/shell/pages.tsx:126
+#: src/shell/pages.tsx:131
 msgid "Edit skill"
 msgstr "تعديل المهارة"
 
@@ -2830,8 +2830,8 @@ msgstr "تعديل الوقف والهدف"
 
 #: src/shell/agent/GroupPage.tsx:137
 #: src/shell/agent/GroupPage.tsx:149
-msgid "Edit the group"
-msgstr "تعديل المجموعة"
+#~ msgid "Edit the group"
+#~ msgstr "تعديل المجموعة"
 
 #: src/conversation/Cards.tsx:83
 #~ msgid "Edit the limit"
@@ -2944,15 +2944,15 @@ msgid "Ending call"
 msgstr "جارٍ إنهاء المكالمة"
 
 #: src/shell/settings/ConnectionPages.tsx:738
-#: src/shell/settings/IntegrationsPage.tsx:285
+#: src/shell/settings/IntegrationsPage.tsx:282
 msgid "Enter a link that starts with https://"
 msgstr "أدخل رابطًا يبدأ بـ https://"
 
-#: src/shell/agent/IdentityPage.tsx:105
+#: src/shell/agent/IdentityPage.tsx:103
 msgid "Enter a name."
 msgstr "أدخل الاسم."
 
-#: src/shell/settings/IntegrationsPage.tsx:207
+#: src/shell/settings/IntegrationsPage.tsx:204
 msgid "Enter a valid domain like example.com"
 msgstr "أدخل نطاقًا صحيحًا مثل example.com"
 
@@ -2978,7 +2978,7 @@ msgstr "أدخل مفتاح API"
 msgid "Enter the code again"
 msgstr "أعد إدخال الرمز"
 
-#: src/shell/agent/GroupPage.tsx:374
+#: src/shell/agent/GroupPage.tsx:257
 msgid "Enter the group's name."
 msgstr "أدخل اسم المجموعة."
 
@@ -2988,7 +2988,7 @@ msgstr "أدخل اسم المجموعة."
 msgid "Enter the lock code"
 msgstr "أدخل رمز القفل"
 
-#: src/shell/agent/IdentityPage.tsx:106
+#: src/shell/agent/IdentityPage.tsx:104
 msgid "Enter the role."
 msgstr "أدخل الدور."
 
@@ -3060,7 +3060,7 @@ msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله."
 msgid "Exact broker symbol"
 msgstr "رمز الوسيط كما هو"
 
-#: src/shell/agent/AvatarSheet.tsx:29
+#: src/components/ai/AvatarStudio.tsx:31
 msgid "Excited"
 msgstr "متحمس"
 
@@ -3129,7 +3129,9 @@ msgstr "مُدّدت ساعتين"
 #~ msgid "Extended until {until}"
 #~ msgstr "مُدّدت حتى {until}"
 
-#: src/shell/agent/AvatarSheet.tsx:67
+#: src/components/ai/AvatarStudio.tsx:142
+#: src/components/ai/AvatarStudio.tsx:158
+#: src/shell/agent/AvatarSheet.tsx:46
 msgid "Face"
 msgstr "الوجه"
 
@@ -3151,7 +3153,7 @@ msgctxt "chat filter"
 msgid "Favourites"
 msgstr "المفضلة"
 
-#: src/shell/settings/IntegrationsPage.tsx:348
+#: src/shell/settings/IntegrationsPage.tsx:345
 msgid "Feed link"
 msgstr "رابط خلاصة"
 
@@ -3159,7 +3161,7 @@ msgstr "رابط خلاصة"
 #~ msgid "Feed or webhook URL"
 #~ msgstr "رابط المصدر أو Webhook"
 
-#: src/shell/settings/IntegrationsPage.tsx:127
+#: src/shell/settings/IntegrationsPage.tsx:124
 msgid "Fetch the tools to review them before approving the server."
 msgstr "اجلب الأدوات لمراجعتها قبل اعتماد الخادم."
 
@@ -3171,7 +3173,7 @@ msgstr "تُجلب من حساب الوسيط تلقائيًا، وتظهر في
 msgid "Fetching the symbols from <0>{broker}</0>…"
 msgstr "جارٍ جلب الرموز من <0>{broker}</0>…"
 
-#: src/shell/agent/IdentityPage.tsx:267
+#: src/shell/agent/IdentityPage.tsx:251
 msgid "Fetching the symbols from <0>{brokerName}</0>…"
 msgstr "جارٍ جلب الرموز من <0>{brokerName}</0>…"
 
@@ -3187,12 +3189,12 @@ msgstr "ملف"
 msgid "File name"
 msgstr "اسم الملف"
 
-#: src/shell/agent/AgentPage.tsx:304
+#: src/shell/agent/AgentPage.tsx:297
 #: src/shell/lists/UnifiedSearch.tsx:285
 #: src/shell/lists/UnifiedSearch.tsx:320
 #: src/shell/lists/UnifiedSearch.tsx:327
-#: src/shell/pages.tsx:98
-#: src/shell/settings/SettingsRoot.tsx:363
+#: src/shell/pages.tsx:103
+#: src/shell/settings/SettingsRoot.tsx:367
 msgid "Files"
 msgstr "الملفات"
 
@@ -3253,7 +3255,7 @@ msgstr "فُعّل الفتح بالبصمة أو الوجه"
 msgid "Flags"
 msgstr "أعلام"
 
-#: src/shell/agent/AvatarSheet.tsx:32
+#: src/components/ai/AvatarStudio.tsx:34
 msgid "Focused"
 msgstr "مركّز"
 
@@ -3294,7 +3296,7 @@ msgstr "للأمور العاجلة: يتصل بك الوكيل"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "لأمان حسابك، سجّل الدخول مجددًا. محادثاتك ومسوداتك محفوظة."
 
-#: src/shell/settings/OwnerPage.tsx:205
+#: src/shell/settings/OwnerPage.tsx:204
 msgid "Form of address"
 msgstr "طريقة المخاطبة"
 
@@ -3335,7 +3337,7 @@ msgstr "من الذاكرة المؤقتة"
 msgid "From the conversation"
 msgstr "من المحادثة"
 
-#: src/shell/agent/IdentityPage.tsx:300
+#: src/shell/agent/IdentityPage.tsx:284
 msgid "From the symbols of the account <0>{brokerName}</0>, fetched automatically."
 msgstr "من رموز حساب <0>{brokerName}</0>، تُجلب تلقائيًا."
 
@@ -3380,10 +3382,10 @@ msgstr "ينجز المهام اليومية دون زوج محدد"
 msgid "Global embedding model"
 msgstr "نموذج التضمين العالمي"
 
-#: src/pages/settings-sidebar.tsx:13
-#: src/shell/settings/SettingsRoot.tsx:330
-#~ msgid "Global models"
-#~ msgstr "النماذج العالمية"
+#: src/pages/settings-sidebar.tsx:14
+#: src/shell/settings/SettingsRoot.tsx:360
+msgid "Global models"
+msgstr "النماذج العالمية"
 
 #: src/shell/settings/ModelsPage.tsx:155
 msgid "Global routing"
@@ -3394,14 +3396,14 @@ msgstr "التوجيه العالمي"
 #~ msgstr "يبقى التحكم العام بالتداول والإيقاف الطارئ مطبقًا على كل عملية مالية. إيقاف الهدف مؤقتًا لا يغلق الصفقات المفتوحة لدى الوسيط."
 
 #: src/pages/TradingSettingsPanel.tsx:8
-#~ msgid "Global trading settings"
-#~ msgstr "إعدادات التداول العالمية"
+msgid "Global trading settings"
+msgstr "إعدادات التداول العالمية"
 
-#: src/conversation/Conversation.tsx:1119
+#: src/conversation/Conversation.tsx:1120
 msgid "Go to the latest messages"
 msgstr "الانتقال إلى آخر الرسائل"
 
-#: src/conversation/Conversation.tsx:1119
+#: src/conversation/Conversation.tsx:1120
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
@@ -3409,7 +3411,7 @@ msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
-#: src/shell/domain/UpdatesPages.tsx:58
+#: src/shell/domain/UpdatesPages.tsx:57
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
@@ -3417,14 +3419,14 @@ msgstr "أُضيف هدف"
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
-#: src/shell/agent/AgentPage.tsx:297
-#: src/shell/pages.tsx:114
+#: src/shell/agent/AgentPage.tsx:290
+#: src/shell/pages.tsx:119
 msgid "Goals"
 msgstr "الأهداف"
 
 #: src/pages/VoiceSettingsOverlay.tsx:23
-#~ msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
-#~ msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI المحفوظ على الخادم. اختر نموذج الصوت في التوجيه العام؛ وينفذ وكيل Lonora نفسه المهام المفوضة بأدواته."
+msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
+msgstr "يتصل GPT-Live مباشرة عبر WebRTC باستخدام مفتاح OpenAI المحفوظ على الخادم. اختر نموذج الصوت في التوجيه العام؛ وينفذ وكيل Lonora نفسه المهام المفوضة بأدواته."
 
 #: src/lib/user_error.ts:119
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
@@ -3444,7 +3446,8 @@ msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
 #: src/shell/ChatHeader.tsx:102
-#: src/shell/ChatMenu.tsx:156
+#: src/shell/ChatMenu.tsx:79
+#: src/shell/ChatMenu.tsx:174
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
@@ -3458,8 +3461,7 @@ msgstr "أعضاء المجموعة"
 
 #: src/pages/GroupPanel.tsx:53
 #: src/pages/GroupPanel.tsx:128
-#: src/shell/agent/GroupPage.tsx:291
-#: src/shell/agent/GroupPage.tsx:411
+#: src/shell/agent/GroupPage.tsx:294
 msgid "Group name"
 msgstr "اسم المجموعة"
 
@@ -3473,12 +3475,12 @@ msgstr "اسم المجموعة"
 msgid "Groups"
 msgstr "المجموعات"
 
-#: src/shell/pages.tsx:94
+#: src/shell/pages.tsx:99
 msgctxt "page title"
 msgid "Groups"
 msgstr "المجموعات"
 
-#: src/shell/agent/AvatarSheet.tsx:23
+#: src/components/ai/AvatarStudio.tsx:25
 msgid "Happy"
 msgstr "سعيد"
 
@@ -3486,7 +3488,7 @@ msgstr "سعيد"
 #~ msgid "Headings, lists, tables and code with a copy button"
 #~ msgstr "عناوين وقوائم وجداول وكود مع زر نسخ"
 
-#: src/conversation/Conversation.tsx:1207
+#: src/conversation/Conversation.tsx:1208
 msgid "Hello {ownerName}"
 msgstr "مرحبًا {ownerName}"
 
@@ -3532,7 +3534,7 @@ msgstr "طريقة التواصل"
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "توقفت عند حد الخطوات لهذا التشغيل. أرسل رسالة وأكمل من حيث توقفت."
 
-#: src/shell/agent/AgentPage.tsx:287
+#: src/shell/agent/AgentPage.tsx:280
 msgid "Identity and model"
 msgstr "الهوية والنموذج"
 
@@ -3584,7 +3586,7 @@ msgstr "قيد التنفيذ"
 msgid "In the app"
 msgstr "داخل التطبيق"
 
-#: src/shell/settings/NotifyPages.tsx:358
+#: src/shell/settings/NotifyPages.tsx:357
 msgid "In-app messages"
 msgstr "رسائل داخل التطبيق"
 
@@ -3593,7 +3595,7 @@ msgid "In-app notifications"
 msgstr "إشعارات داخل التطبيق"
 
 #: src/shell/call/CallPages.tsx:587
-#: src/shell/pages.tsx:172
+#: src/shell/pages.tsx:177
 msgid "Incoming call"
 msgstr "مكالمة واردة"
 
@@ -3642,7 +3644,7 @@ msgstr "تثبيت Lonora"
 msgid "Install now"
 msgstr "تثبيت الآن"
 
-#: src/shell/settings/SettingsRoot.tsx:377
+#: src/shell/settings/SettingsRoot.tsx:381
 msgid "Install the app"
 msgstr "تثبيت التطبيق"
 
@@ -3660,9 +3662,7 @@ msgstr "تم تجاوز حد التعليمات"
 msgid "Instruction version"
 msgstr "إصدار التعليمات"
 
-#: src/pages/shell/bot-settings.tsx:119
-#: src/shell/agent/IdentityPage.tsx:198
-#: src/shell/agent/IdentityPage.tsx:202
+#: src/pages/shell/bot-settings.tsx:126
 #: src/shell/domain/SkillsPages.tsx:322
 msgid "Instructions"
 msgstr "التعليمات"
@@ -3672,7 +3672,7 @@ msgstr "التعليمات"
 #~ msgstr "بيانات غير كافية لاستنتاجات الأداء"
 
 #: src/conversation/ToolsSheet.tsx:223
-#: src/shell/pages.tsx:148
+#: src/shell/pages.tsx:153
 #: src/shell/settings/SettingsRoot.tsx:355
 msgid "Integrations"
 msgstr "التكاملات"
@@ -3724,7 +3724,7 @@ msgstr "القيمة غير صحيحة."
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/shell/agent/AgentPage.tsx:554
+#: src/shell/agent/AgentPage.tsx:550
 msgid "It does not supervise any agent now."
 msgstr "لا يشرف على أي وكيل حاليًا."
 
@@ -3794,7 +3794,7 @@ msgstr "المفتاح محفوظ · لا يُعرض مرة أخرى"
 msgid "Keyboard"
 msgstr "لوحة المفاتيح"
 
-#: src/shell/settings/SettingsRoot.tsx:390
+#: src/shell/settings/SettingsRoot.tsx:394
 #: src/shell/ShortcutsSheet.tsx:21
 msgid "Keyboard shortcuts"
 msgstr "اختصارات لوحة المفاتيح"
@@ -3805,8 +3805,8 @@ msgstr "نوع التفويض"
 
 #: src/conversation/ToolsSheet.tsx:239
 #: src/pages/Knowledge.tsx:20
-#: src/shell/agent/AgentPage.tsx:292
-#: src/shell/pages.tsx:108
+#: src/shell/agent/AgentPage.tsx:285
+#: src/shell/pages.tsx:113
 msgid "Knowledge"
 msgstr "المعرفة"
 
@@ -3815,7 +3815,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/domain/UpdatesPages.tsx:60
+#: src/shell/domain/UpdatesPages.tsx:59
 msgid "Knowledge added"
 msgstr "أُضيفت معرفة"
 
@@ -3834,7 +3834,7 @@ msgstr "ملاحظة معرفية"
 msgid "Knowledge of <0>{0}</0>"
 msgstr "معرفة خاصة بـ <0>{0}</0>"
 
-#: src/shell/pages.tsx:174
+#: src/shell/pages.tsx:179
 msgid "Lab"
 msgstr "مختبر الحالات"
 
@@ -3871,11 +3871,11 @@ msgstr "آخر تحديث"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:337
+#: src/shell/domain/UpdatesPages.tsx:317
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
-#: src/shell/agent/AvatarSheet.tsx:34
+#: src/components/ai/AvatarStudio.tsx:36
 msgid "Laugh"
 msgstr "ضاحك"
 
@@ -3917,7 +3917,7 @@ msgstr "محدد عند"
 msgid "Limit order"
 msgstr "أمر محدد"
 
-#: src/shell/settings/IntegrationsPage.tsx:656
+#: src/shell/settings/IntegrationsPage.tsx:638
 msgid "Link"
 msgstr "ربط"
 
@@ -3929,13 +3929,12 @@ msgctxt "knowledge"
 msgid "Link"
 msgstr "رابط"
 
-#: src/components/trading/BrokerPairPicker.tsx:153
 #: src/shell/settings/ConnectionPages.tsx:238
-#: src/shell/settings/IntegrationsPage.tsx:726
+#: src/shell/settings/IntegrationsPage.tsx:708
 msgid "Link a trading account"
 msgstr "ربط حساب تداول"
 
-#: src/shell/agent/IdentityPage.tsx:332
+#: src/shell/agent/IdentityPage.tsx:316
 msgid "Link a trading account from Settings → Integrations to choose the pair from its symbols."
 msgstr "اربط حساب تداول من الإعدادات ← التكاملات لاختيار الزوج من رموزه."
 
@@ -3943,7 +3942,7 @@ msgstr "اربط حساب تداول من الإعدادات ← التكامل�
 msgid "Link a trading account from Settings first."
 msgstr "اربط حساب تداول أولًا من الإعدادات."
 
-#: src/shell/settings/IntegrationsPage.tsx:388
+#: src/shell/settings/IntegrationsPage.tsx:385
 msgid "Link Telegram"
 msgstr "ربط Telegram"
 
@@ -3951,23 +3950,23 @@ msgstr "ربط Telegram"
 msgid "Link the account"
 msgstr "ربط الحساب"
 
-#: src/shell/pages.tsx:158
+#: src/shell/pages.tsx:163
 msgid "Link the broker"
 msgstr "ربط الوسيط"
 
-#: src/shell/settings/IntegrationsPage.tsx:652
+#: src/shell/settings/IntegrationsPage.tsx:634
 msgid "Linked"
 msgstr "مرتبط"
 
-#: src/shell/settings/IntegrationsPage.tsx:644
+#: src/shell/settings/IntegrationsPage.tsx:626
 msgid "Linked · messages to the bot reach {telegramAgent}"
 msgstr "مرتبط · تصل رسائل البوت إلى {telegramAgent}"
 
-#: src/shell/settings/IntegrationsPage.tsx:645
+#: src/shell/settings/IntegrationsPage.tsx:627
 msgid "Linked · messages to the bot reach an agent"
 msgstr "مرتبط · تصل رسائل البوت إلى وكيل"
 
-#: src/shell/agent/IdentityPage.tsx:345
+#: src/shell/agent/IdentityPage.tsx:329
 msgid "Linked symbol"
 msgstr "الرمز المرتبط"
 
@@ -4039,7 +4038,7 @@ msgstr "جارٍ تحميل الشارت…"
 #~ msgid "Loading group…"
 #~ msgstr "جارٍ تحميل المجموعة…"
 
-#: src/conversation/Conversation.tsx:1078
+#: src/conversation/Conversation.tsx:1079
 msgid "Loading older messages"
 msgstr "جارٍ تحميل الرسائل الأقدم"
 
@@ -4061,12 +4060,12 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/Board.tsx:202
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/agent/AgentPage.tsx:327
-#: src/shell/pages.tsx:75
+#: src/shell/agent/AgentPage.tsx:320
+#: src/shell/pages.tsx:80
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
 
-#: src/shell/settings/SettingsRoot.tsx:370
+#: src/shell/settings/SettingsRoot.tsx:374
 msgid "Lock on"
 msgstr "القفل مفعّل"
 
@@ -4083,11 +4082,11 @@ msgstr "الذاكرة الدائمة"
 msgid "Lonora"
 msgstr "Lonora"
 
-#: src/shell/settings/SettingsRoot.tsx:421
+#: src/shell/settings/SettingsRoot.tsx:425
 msgid "Lonora · version {version}"
 msgstr "Lonora · الإصدار {version}"
 
-#: src/shell/settings/SettingsRoot.tsx:417
+#: src/shell/settings/SettingsRoot.tsx:421
 msgid "Lonora · version {version} · <0>{build}</0>"
 msgstr "Lonora · الإصدار {version} · <0>{build}</0>"
 
@@ -4149,7 +4148,7 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:247
+#: src/shell/domain/UpdatesPages.tsx:229
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -4172,7 +4171,7 @@ msgid "Mark as unread"
 msgstr "تمييز كغير مقروءة"
 
 #: src/pages/Market.tsx:23
-#: src/shell/pages.tsx:102
+#: src/shell/pages.tsx:107
 msgid "Market"
 msgstr "السوق"
 
@@ -4219,7 +4218,7 @@ msgid "Maximum volume"
 msgstr "أقصى حجم"
 
 #. placeholder {0}: levelText(server)
-#: src/shell/settings/IntegrationsPage.tsx:569
+#: src/shell/settings/IntegrationsPage.tsx:551
 msgid "MCP server · {0}"
 msgstr "خادم MCP · {0}"
 
@@ -4228,7 +4227,7 @@ msgstr "خادم MCP · {0}"
 #~ msgid "MCP servers"
 #~ msgstr "خوادم MCP"
 
-#: src/shell/settings/IntegrationsPage.tsx:187
+#: src/shell/settings/IntegrationsPage.tsx:184
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات الكتابة غير مالية (ملاحظات وتنبيهات)."
 
@@ -4239,9 +4238,8 @@ msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات ا�
 
 #: src/conversation/PermissionMenu.tsx:70
 #: src/pages/GroupPanel.tsx:63
-#: src/shell/agent/GroupPage.tsx:86
-#: src/shell/agent/GroupPage.tsx:302
-#: src/shell/agent/GroupPage.tsx:435
+#: src/shell/agent/GroupPage.tsx:85
+#: src/shell/agent/GroupPage.tsx:318
 msgid "Members"
 msgstr "الأعضاء"
 
@@ -4249,7 +4247,7 @@ msgstr "الأعضاء"
 msgid "Members' permissions"
 msgstr "صلاحيات الأعضاء"
 
-#: src/shell/pages.tsx:112
+#: src/shell/pages.tsx:117
 msgid "Memory"
 msgstr "الذاكرة"
 
@@ -4313,7 +4311,7 @@ msgstr "الرسائل"
 msgid "Messages cleared"
 msgstr "مُسحت الرسائل"
 
-#: src/shell/settings/IntegrationsPage.tsx:429
+#: src/shell/settings/IntegrationsPage.tsx:426
 msgid "Messages reach"
 msgstr "تصل الرسائل إلى"
 
@@ -4373,7 +4371,7 @@ msgstr "الوضع"
 #: src/conversation/PermissionMenu.tsx:281
 #: src/conversation/PermissionMenu.tsx:431
 #: src/pages/shell/bot-panel.tsx:225
-#: src/shell/agent/IdentityPage.tsx:211
+#: src/shell/agent/IdentityPage.tsx:195
 #: src/shell/settings/ModelsPage.tsx:270
 msgid "Model"
 msgstr "النموذج"
@@ -4386,14 +4384,13 @@ msgstr "النموذج"
 msgid "Model provider unavailable — retry scheduled"
 msgstr "مزود النموذج غير متاح — إعادة المحاولة مجدولة"
 
-#: src/shell/pages.tsx:150
-#: src/shell/settings/IntegrationsPage.tsx:516
+#: src/shell/pages.tsx:155
+#: src/shell/settings/IntegrationsPage.tsx:510
 #: src/shell/settings/ModelsPage.tsx:54
 msgid "Model providers"
 msgstr "مزوّدو النماذج"
 
-#: src/shell/pages.tsx:154
-#: src/shell/settings/IntegrationsPage.tsx:520
+#: src/shell/pages.tsx:159
 msgid "Models"
 msgstr "النماذج"
 
@@ -4454,24 +4451,24 @@ msgstr "مكتومة"
 #~ msgid "My device"
 #~ msgstr "جهازي"
 
-#: src/pages/shell/bot-settings.tsx:92
-#: src/shell/agent/IdentityPage.tsx:170
+#: src/pages/shell/bot-settings.tsx:99
+#: src/shell/agent/IdentityPage.tsx:167
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:192
+#: src/shell/settings/OwnerPage.tsx:191
 msgid "Name"
 msgstr "الاسم"
 
 #: src/shell/settings/IntegrationsPage.tsx:529
-msgid "Needs an OpenAI key"
-msgstr "تحتاج مفتاح OpenAI"
+#~ msgid "Needs an OpenAI key"
+#~ msgstr "تحتاج مفتاح OpenAI"
 
 #: src/lib/goal-status.ts:10
 #~ msgid "Needs attention"
 #~ msgstr "يحتاج إلى مراجعة"
 
 #: src/shell/domain/UpdatesPages.tsx:273
-msgid "Needs your action"
-msgstr "يتطلب إجراء"
+#~ msgid "Needs your action"
+#~ msgstr "يتطلب إجراء"
 
 #: src/shell/FloatingTabBar.tsx:164
 msgid "new"
@@ -4490,7 +4487,7 @@ msgstr "وكيل جديد"
 msgid "New chat"
 msgstr "محادثة جديدة"
 
-#: src/shell/settings/IntegrationsPage.tsx:260
+#: src/shell/settings/IntegrationsPage.tsx:257
 msgid "New domain"
 msgstr "نطاق جديد"
 
@@ -4521,7 +4518,7 @@ msgid "New request"
 msgstr "طلب جديد"
 
 #: src/conversation/ToolsSheet.tsx:156
-#: src/shell/ChatMenu.tsx:182
+#: src/shell/ChatMenu.tsx:200
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "مهمة جديدة"
@@ -4563,12 +4560,12 @@ msgstr "التداول الجديد متوقف"
 #~ msgid "New watch"
 #~ msgstr "مراقبة جديدة"
 
-#: src/shell/settings/IntegrationsPage.tsx:596
+#: src/shell/settings/IntegrationsPage.tsx:578
 msgid "News and channels"
 msgstr "الأخبار والقنوات"
 
-#: src/shell/settings/IntegrationsPage.tsx:219
-#: src/shell/settings/IntegrationsPage.tsx:605
+#: src/shell/settings/IntegrationsPage.tsx:216
+#: src/shell/settings/IntegrationsPage.tsx:587
 msgid "News domains"
 msgstr "نطاقات الأخبار"
 
@@ -4590,8 +4587,8 @@ msgstr "التالي"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/domain/UpdatesPages.tsx:114
-#: src/shell/domain/UpdatesPages.tsx:360
+#: src/shell/domain/UpdatesPages.tsx:113
+#: src/shell/domain/UpdatesPages.tsx:336
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -4599,7 +4596,7 @@ msgstr "لا يوجد نشاط بعد."
 msgid "No agent works on this account."
 msgstr "لا يعمل أي وكيل على هذا الحساب."
 
-#: src/shell/settings/IntegrationsPage.tsx:31
+#: src/shell/settings/IntegrationsPage.tsx:30
 msgid "No agents"
 msgstr "دون وكلاء"
 
@@ -4660,7 +4657,7 @@ msgstr "لا توجد محادثات."
 msgid "No command by that name"
 msgstr "لا يوجد أمر بهذا الاسم"
 
-#: src/shell/domain/UpdatesPages.tsx:331
+#: src/shell/domain/UpdatesPages.tsx:311
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -4685,11 +4682,11 @@ msgstr "دون تنفيذ: لم يُختر حساب تداول"
 msgid "No expiry"
 msgstr "دون انتهاء"
 
-#: src/shell/settings/IntegrationsPage.tsx:628
+#: src/shell/settings/IntegrationsPage.tsx:610
 msgid "No feeds"
 msgstr "لا توجد خلاصات"
 
-#: src/shell/settings/IntegrationsPage.tsx:338
+#: src/shell/settings/IntegrationsPage.tsx:335
 msgid "No feeds."
 msgstr "لا توجد خلاصات."
 
@@ -4722,7 +4719,7 @@ msgstr "لا يوجد اتصال بالإنترنت"
 #: src/conversation/sheets/LimitsSheet.tsx:129
 #: src/conversation/sheets/LimitsSheet.tsx:188
 #: src/conversation/sheets/LimitsSheet.tsx:224
-#: src/shell/settings/NotifyPages.tsx:382
+#: src/shell/settings/NotifyPages.tsx:381
 msgid "No limit"
 msgstr "دون حد"
 
@@ -4746,7 +4743,7 @@ msgstr "لم يُعثر على ميكروفون في هذا الجهاز"
 msgid "No model is set up yet"
 msgstr "لم يُضبط نموذج بعد"
 
-#: src/shell/agent/AgentPage.tsx:81
+#: src/shell/agent/AgentPage.tsx:79
 msgid "No money limit"
 msgstr "دون حد مالي"
 
@@ -4754,7 +4751,7 @@ msgstr "دون حد مالي"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:285
+#: src/shell/domain/UpdatesPages.tsx:269
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -4838,7 +4835,7 @@ msgstr "لا توجد مهارات مفعّلة"
 msgid "No skills for this agent."
 msgstr "لا توجد مهارات لهذا الوكيل."
 
-#: src/shell/settings/IntegrationsPage.tsx:714
+#: src/shell/settings/IntegrationsPage.tsx:696
 msgid "No skills."
 msgstr "لا توجد مهارات."
 
@@ -4862,11 +4859,11 @@ msgstr "لا توجد مهام."
 msgid "No tickets yet"
 msgstr "لا توجد مهام بعد"
 
-#: src/shell/settings/IntegrationsPage.tsx:37
+#: src/shell/settings/IntegrationsPage.tsx:36
 msgid "No tools"
 msgstr "دون أدوات"
 
-#: src/shell/settings/IntegrationsPage.tsx:125
+#: src/shell/settings/IntegrationsPage.tsx:122
 msgid "No tools."
 msgstr "لا أدوات."
 
@@ -4879,11 +4876,11 @@ msgctxt "level"
 msgid "No trading"
 msgstr "دون تنفيذ"
 
-#: src/shell/agent/AgentPage.tsx:87
+#: src/shell/agent/AgentPage.tsx:85
 msgid "No trading · analysis and follow-up"
 msgstr "دون تنفيذ · تحليل ومتابعة"
 
-#: src/shell/agent/AgentPage.tsx:357
+#: src/shell/agent/AgentPage.tsx:351
 msgid "No trading account chosen · choose an account"
 msgstr "لم يُختر حساب تداول · اختر حسابًا"
 
@@ -4896,7 +4893,7 @@ msgstr "لم يُختر حساب تداول · اختر حسابًا"
 msgid "No trading account is linked."
 msgstr "لا يوجد حساب تداول مرتبط."
 
-#: src/shell/agent/AgentPage.tsx:358
+#: src/shell/agent/AgentPage.tsx:352
 msgid "No trading account linked · link an account"
 msgstr "لا يوجد حساب تداول مرتبط · اربط حسابًا"
 
@@ -4921,11 +4918,11 @@ msgid "No voice provider is configured yet. Add an OpenAI key in the model provi
 msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
 
 #: src/conversation/sheets/WatchesSheet.tsx:101
-#: src/shell/agent/AgentPage.tsx:420
+#: src/shell/agent/AgentPage.tsx:416
 msgid "No watches."
 msgstr "لا توجد مراقبات."
 
-#: src/shell/settings/IntegrationsPage.tsx:118
+#: src/shell/settings/IntegrationsPage.tsx:115
 msgid "Non-financial write"
 msgstr "كتابة غير مالية"
 
@@ -4939,11 +4936,11 @@ msgstr "بلا أداة"
 #~ msgid "None"
 #~ msgstr "بدون"
 
-#: src/shell/settings/IntegrationsPage.tsx:518
+#: src/shell/settings/IntegrationsPage.tsx:512
 msgid "Not added yet"
 msgstr "لم يُضف بعد"
 
-#: src/shell/settings/IntegrationsPage.tsx:584
+#: src/shell/settings/IntegrationsPage.tsx:566
 msgid "Not approved"
 msgstr "غير معتمد"
 
@@ -4951,7 +4948,7 @@ msgstr "غير معتمد"
 msgid "Not carried out"
 msgstr "لم يُنفَّذ"
 
-#: src/shell/agent/IdentityPage.tsx:327
+#: src/shell/agent/IdentityPage.tsx:311
 msgid "Not linked"
 msgstr "غير مرتبط"
 
@@ -4960,7 +4957,7 @@ msgctxt "integrations"
 msgid "Not linked"
 msgstr "غير مرتبطة"
 
-#: src/shell/settings/IntegrationsPage.tsx:646
+#: src/shell/settings/IntegrationsPage.tsx:628
 msgid "Not linked · messages to a bot can reach an agent"
 msgstr "غير مرتبط · يمكن أن تصل رسائل بوت إلى وكيل"
 
@@ -4996,7 +4993,7 @@ msgstr "ملاحظة.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور؛ تعرض الخطوة التالية ما ستوقّعه بالضبط."
 
-#: src/shell/settings/OwnerPage.tsx:280
+#: src/shell/settings/OwnerPage.tsx:279
 msgid "Nothing yet."
 msgstr "لا شيء بعد."
 
@@ -5020,12 +5017,12 @@ msgstr "طريقة الإشعار"
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/shell/domain/UpdatesPages.tsx:243
+#: src/shell/domain/UpdatesPages.tsx:225
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
 
-#: src/shell/pages.tsx:144
+#: src/shell/pages.tsx:149
 #: src/shell/settings/SettingsRoot.tsx:349
 msgid "Notifications and contact"
 msgstr "الإشعارات والتواصل"
@@ -5106,7 +5103,7 @@ msgctxt "schedule type"
 msgid "Once"
 msgstr "مرة واحدة"
 
-#: src/shell/settings/IntegrationsPage.tsx:31
+#: src/shell/settings/IntegrationsPage.tsx:30
 msgid "One agent"
 msgstr "وكيل واحد"
 
@@ -5118,7 +5115,7 @@ msgstr "نموذج واحد للمهام النصية"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
-#: src/shell/settings/OwnerPage.tsx:347
+#: src/shell/settings/OwnerPage.tsx:346
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
@@ -5134,7 +5131,7 @@ msgstr "موعد واحد أو متكرر"
 msgid "Ongoing call"
 msgstr "مكالمة جارية"
 
-#: src/shell/agent/AvatarSheet.tsx:122
+#: src/shell/agent/AvatarSheet.tsx:101
 msgid "Only a preview until you press save."
 msgstr "تُعرض معاينة فقط حتى تضغط حفظ."
 
@@ -5210,7 +5207,7 @@ msgstr "افتح قائمة ⋮ في المتصفح."
 #~ msgid "Open the agent's chat to change its permissions."
 #~ msgstr "افتح محادثة الوكيل لتعديل صلاحياته."
 
-#: src/shell/agent/GroupPage.tsx:156
+#: src/shell/agent/GroupPage.tsx:135
 msgid "Open the group chat"
 msgstr "فتح محادثة المجموعة"
 
@@ -5227,16 +5224,16 @@ msgid "Open the steps automatically"
 msgstr "فتح الخطوات تلقائيًا"
 
 #: src/components/trading/BrokerPairPicker.tsx:153
-#~ msgid "Open trading settings"
-#~ msgstr "فتح إعدادات التداول"
+msgid "Open trading settings"
+msgstr "فتح إعدادات التداول"
 
-#: src/shell/agent/AgentPage.tsx:171
+#: src/shell/agent/AgentPage.tsx:164
 msgid "Open voice settings"
 msgstr "فتح إعدادات الصوت"
 
 #: src/pages/VoiceSettingsOverlay.tsx:31
-#~ msgid "OpenAI voice credential configured"
-#~ msgstr "تم ضبط مفتاح OpenAI للصوت"
+msgid "OpenAI voice credential configured"
+msgstr "تم ضبط مفتاح OpenAI للصوت"
 
 #: src/pages/Shell.tsx:156
 #~ msgid "Opening conversation…"
@@ -5266,7 +5263,7 @@ msgstr "يُفتح"
 msgid "Operation id"
 msgstr "رقم العملية"
 
-#: src/shell/domain/UpdatesPages.tsx:36
+#: src/shell/domain/UpdatesPages.tsx:35
 msgid "Operation resolved"
 msgstr "حُسمت عملية"
 
@@ -5314,7 +5311,7 @@ msgstr "سعر الأمر"
 
 #: src/components/ai/AttentionInbox.tsx:135
 #: src/shell/lists/HeadsUp.tsx:253
-#: src/shell/pages.tsx:96
+#: src/shell/pages.tsx:101
 msgid "Outage and recovery"
 msgstr "التعطل والاستعادة"
 
@@ -5331,11 +5328,11 @@ msgstr "التعطل والاستعادة"
 msgid "Output {0}"
 msgstr "مخرج {0}"
 
-#: src/shell/pages.tsx:162
+#: src/shell/pages.tsx:167
 msgid "Overall usage"
 msgstr "الاستهلاك العام"
 
-#: src/shell/settings/IntegrationsPage.tsx:680
+#: src/shell/settings/IntegrationsPage.tsx:662
 msgid "Owner"
 msgstr "المالك"
 
@@ -5355,7 +5352,7 @@ msgstr "مصدر أضافه المالك"
 msgid "Page not found"
 msgstr "الصفحة غير موجودة"
 
-#: src/shell/agent/IdentityPage.tsx:276
+#: src/shell/agent/IdentityPage.tsx:260
 msgid "Pair"
 msgstr "الزوج"
 
@@ -5385,7 +5382,7 @@ msgstr "كلمة المرور"
 msgid "Password · at least 12 characters"
 msgstr "كلمة المرور · 12 حرفًا على الأقل"
 
-#: src/shell/settings/IntegrationsPage.tsx:424
+#: src/shell/settings/IntegrationsPage.tsx:421
 msgid "Paste the value here"
 msgstr "الصق القيمة هنا"
 
@@ -5408,11 +5405,11 @@ msgctxt "task"
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/pages/shell/bot-settings.tsx:136
+#: src/pages/shell/bot-settings.tsx:143
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:403
+#: src/shell/agent/AgentPage.tsx:399
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
@@ -5447,7 +5444,7 @@ msgctxt "task status"
 msgid "Paused"
 msgstr "متوقفة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:395
+#: src/shell/agent/AgentPage.tsx:391
 msgid "Paused for now"
 msgstr "موقوفة مؤقتًا"
 
@@ -5520,7 +5517,7 @@ msgstr "الصلاحية: {0}"
 #~ msgid "permissions"
 #~ msgstr "صلاحيات"
 
-#: src/shell/agent/AgentPage.tsx:438
+#: src/shell/agent/AgentPage.tsx:434
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "تُغيَّر الصلاحيات من الشريحة بجانب حقل الكتابة في المحادثة. ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -5533,7 +5530,7 @@ msgstr "الصلاحيات مستقلة لكل وكيل"
 msgid "Permissions: {0}"
 msgstr "الصلاحيات: {0}"
 
-#: src/pages/shell/bot-settings.tsx:140
+#: src/pages/shell/bot-settings.tsx:147
 msgid "Persistent child agent"
 msgstr "وكيل ابن دائم"
 
@@ -5604,7 +5601,7 @@ msgstr "موضع التشغيل"
 msgid "Playback speed"
 msgstr "سرعة التشغيل"
 
-#: src/shell/agent/AvatarSheet.tsx:28
+#: src/components/ai/AvatarStudio.tsx:30
 msgid "Playful"
 msgstr "مرح"
 
@@ -5624,8 +5621,8 @@ msgstr "معرّف الصفقة"
 msgid "Positions"
 msgstr "الصفقات"
 
-#: src/shell/settings/OwnerPage.tsx:232
-#: src/shell/settings/OwnerPage.tsx:293
+#: src/shell/settings/OwnerPage.tsx:231
+#: src/shell/settings/OwnerPage.tsx:292
 msgid "Preferences"
 msgstr "التفضيلات"
 
@@ -5681,12 +5678,12 @@ msgstr "المستوى السعري"
 msgid "Price zone"
 msgstr "منطقة سعرية"
 
-#: src/shell/pages.tsx:168
-#: src/shell/settings/SettingsRoot.tsx:368
+#: src/shell/pages.tsx:173
+#: src/shell/settings/SettingsRoot.tsx:372
 msgid "Privacy and security"
 msgstr "الخصوصية والأمان"
 
-#: src/shell/pages.tsx:146
+#: src/shell/pages.tsx:151
 msgid "Proactive contact"
 msgstr "التواصل الاستباقي"
 
@@ -5698,7 +5695,7 @@ msgstr "التواصل الاستباقي"
 #~ msgid "Profile"
 #~ msgstr "الهوية"
 
-#: src/shell/pages.tsx:138
+#: src/shell/pages.tsx:143
 msgctxt "owner"
 msgid "Profile"
 msgstr "الملف الشخصي"
@@ -5739,7 +5736,7 @@ msgstr "المزود"
 #~ msgstr "المزودون والكتالوج الرسمي"
 
 #: src/components/skills/CreateSkill.tsx:101
-#: src/shell/agent/GroupPage.tsx:425
+#: src/shell/agent/GroupPage.tsx:308
 msgid "Purpose"
 msgstr "الغرض"
 
@@ -5771,7 +5768,7 @@ msgstr "تفاعل سريع"
 msgid "Quiet hours"
 msgstr "ساعات الهدوء"
 
-#: src/shell/settings/NotifyPages.tsx:369
+#: src/shell/settings/NotifyPages.tsx:368
 msgid "Quiet hours are in Settings ← Notifications and contact."
 msgstr "ساعات الهدوء من الإعدادات ← الإشعارات والتواصل."
 
@@ -5804,7 +5801,7 @@ msgstr "التفاعلات"
 msgid "Reactions: {label}"
 msgstr "التفاعلات: {label}"
 
-#: src/shell/settings/IntegrationsPage.tsx:118
+#: src/shell/settings/IntegrationsPage.tsx:115
 msgid "Read"
 msgstr "قراءة"
 
@@ -5823,9 +5820,9 @@ msgid "Reading"
 msgstr "يقرأ"
 
 #: src/shell/settings/IntegrationsPage.tsx:528
-msgctxt "voice calls"
-msgid "Ready"
-msgstr "جاهزة"
+#~ msgctxt "voice calls"
+#~ msgid "Ready"
+#~ msgstr "جاهزة"
 
 #: src/lib/goal-status.ts:20
 #~ msgid "Ready to execute"
@@ -5838,8 +5835,8 @@ msgstr "جاهزة"
 #~ msgstr "حقيقي"
 
 #: src/pages/VoiceSettingsOverlay.tsx:14
-#~ msgid "Realtime conversation"
-#~ msgstr "محادثة مباشرة"
+msgid "Realtime conversation"
+msgstr "محادثة مباشرة"
 
 #: src/shell/settings/ModelsPage.tsx:22
 msgid "Realtime voice"
@@ -5989,7 +5986,7 @@ msgstr "إعادة تحميل"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
-#: src/shell/agent/AgentPage.tsx:546
+#: src/shell/agent/AgentPage.tsx:542
 msgid "Remove"
 msgstr "إزالة"
 
@@ -5997,8 +5994,8 @@ msgstr "إزالة"
 #. placeholder {0}: label()
 #. placeholder {0}: name(item)
 #: src/conversation/sheets/LimitsSheet.tsx:223
-#: src/shell/settings/IntegrationsPage.tsx:234
-#: src/shell/settings/IntegrationsPage.tsx:321
+#: src/shell/settings/IntegrationsPage.tsx:231
+#: src/shell/settings/IntegrationsPage.tsx:318
 #: src/shell/settings/ModelsPage.tsx:259
 msgid "Remove {0}"
 msgstr "إزالة {0}"
@@ -6029,8 +6026,8 @@ msgstr "إزالة جني الربح"
 
 #. placeholder {0}: feed.name ?? ""
 #. placeholder {0}: source.identifier
-#: src/shell/settings/IntegrationsPage.tsx:239
-#: src/shell/settings/IntegrationsPage.tsx:328
+#: src/shell/settings/IntegrationsPage.tsx:236
+#: src/shell/settings/IntegrationsPage.tsx:325
 msgid "Removed {0}"
 msgstr "أُزيل {0}"
 
@@ -6111,10 +6108,10 @@ msgid "Research tools"
 msgstr "أدوات الأبحاث"
 
 #: src/components/ai/AvatarStudio.tsx:155
-#~ msgid "Reset"
-#~ msgstr "إعادة الضبط"
+msgid "Reset"
+msgstr "إعادة الضبط"
 
-#: src/shell/agent/AvatarSheet.tsx:75
+#: src/shell/agent/AvatarSheet.tsx:54
 msgctxt "avatar"
 msgid "Reset"
 msgstr "إعادة تعيين"
@@ -6173,7 +6170,7 @@ msgstr "الوكيل المسؤول"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:339
+#: src/shell/settings/OwnerPage.tsx:338
 msgid "Restore"
 msgstr "استعادة"
 
@@ -6182,7 +6179,7 @@ msgstr "استعادة"
 #~ msgid "Restore to version {0}"
 #~ msgstr "الرجوع إلى الإصدار {0}"
 
-#: src/shell/settings/OwnerPage.tsx:335
+#: src/shell/settings/OwnerPage.tsx:334
 msgid "Restored"
 msgstr "استُعيدت"
 
@@ -6194,11 +6191,11 @@ msgstr "مقيَّد: {what}"
 msgid "Restricted: {what} until {until}"
 msgstr "مقيَّد: {what} حتى {until}"
 
-#: src/shell/domain/UpdatesPages.tsx:34
+#: src/shell/domain/UpdatesPages.tsx:33
 msgid "Restriction lifted"
 msgstr "رُفع قيد"
 
-#: src/shell/domain/UpdatesPages.tsx:32
+#: src/shell/domain/UpdatesPages.tsx:31
 msgid "Restriction set"
 msgstr "فُرض قيد"
 
@@ -6209,7 +6206,7 @@ msgstr "فُرض قيد"
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
-#: src/shell/agent/AgentPage.tsx:403
+#: src/shell/agent/AgentPage.tsx:399
 #: src/shell/domain/TasksPages.tsx:249
 msgid "Resume"
 msgstr "استئناف"
@@ -6225,8 +6222,8 @@ msgstr "أُعيدت المحاولة. تتحدّث الحالة عندما يس
 #: src/pages/Board.tsx:139
 #: src/shell/call/CallPages.tsx:257
 #: src/shell/lists/ChatList.tsx:353
-#: src/shell/pages.tsx:391
-#: src/shell/pages.tsx:402
+#: src/shell/pages.tsx:404
+#: src/shell/pages.tsx:415
 msgid "Retry"
 msgstr "إعادة المحاولة"
 
@@ -6259,7 +6256,7 @@ msgstr "العودة إلى المكالمة مع {0}"
 msgid "Review and sign with the passkey"
 msgstr "المراجعة والتوقيع بمفتاح المرور"
 
-#: src/shell/settings/IntegrationsPage.tsx:575
+#: src/shell/settings/IntegrationsPage.tsx:557
 msgid "Review needed"
 msgstr "مراجعة مطلوبة"
 
@@ -6283,7 +6280,7 @@ msgstr "راجع اعتماديات المهارات ومعرّفاتها الف
 msgid "Review the skill identity, version and manifest before saving."
 msgstr "راجع معرّف المهارة وإصدارها وبياناتها الوصفية قبل الحفظ."
 
-#: src/shell/settings/IntegrationsPage.tsx:153
+#: src/shell/settings/IntegrationsPage.tsx:150
 msgid "Review the tools"
 msgstr "مراجعة الأدوات"
 
@@ -6299,7 +6296,7 @@ msgstr "مراجعة حظر الإصدار"
 #~ msgid "Riyadh"
 #~ msgstr "الرياض"
 
-#: src/shell/agent/IdentityPage.tsx:184
+#: src/shell/agent/IdentityPage.tsx:181
 msgid "Role"
 msgstr "الدور"
 
@@ -6314,8 +6311,8 @@ msgstr "التوجيه حسب القدرة"
 #~ msgid "Routines"
 #~ msgstr "المهام المجدولة"
 
-#: src/shell/settings/IntegrationsPage.tsx:302
-#: src/shell/settings/IntegrationsPage.tsx:626
+#: src/shell/settings/IntegrationsPage.tsx:299
+#: src/shell/settings/IntegrationsPage.tsx:608
 msgid "RSS feeds"
 msgstr "خلاصات RSS"
 
@@ -6337,20 +6334,20 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #~ msgid "Sampled quote fills are hypothetical. Monetary profit is unavailable."
 #~ msgstr "التنفيذ بأسعار مأخوذة دوريًا افتراضي. الربح المالي غير متاح."
 
+#: src/components/ai/AvatarStudio.tsx:235
 #: src/components/skills/SkillEditor.tsx:123
 #: src/conversation/sheets/LimitsSheet.tsx:285
 #: src/pages/Board.tsx:486
 #: src/pages/KnowledgeSection.tsx:187
 #: src/pages/ScratchpadSection.tsx:195
-#: src/pages/shell/bot-settings.tsx:160
-#: src/shell/agent/GroupPage.tsx:339
-#: src/shell/agent/IdentityPage.tsx:355
+#: src/pages/shell/bot-settings.tsx:167
+#: src/shell/agent/IdentityPage.tsx:339
 #: src/shell/agent/TradesPage.tsx:440
 #: src/shell/domain/GoalsKnowledgePages.tsx:73
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
-#: src/shell/settings/IntegrationsPage.tsx:446
-#: src/shell/settings/NotifyPages.tsx:398
-#: src/shell/settings/OwnerPage.tsx:244
+#: src/shell/settings/IntegrationsPage.tsx:443
+#: src/shell/settings/NotifyPages.tsx:397
+#: src/shell/settings/OwnerPage.tsx:243
 msgid "Save"
 msgstr "حفظ"
 
@@ -6358,7 +6355,7 @@ msgstr "حفظ"
 #~ msgid "Save and discover models"
 #~ msgstr "حفظ واكتشاف النماذج"
 
-#: src/shell/agent/AvatarSheet.tsx:150
+#: src/shell/agent/AvatarSheet.tsx:129
 msgid "Save avatar"
 msgstr "حفظ الأفتار"
 
@@ -6404,17 +6401,15 @@ msgstr "الحفظ بمفتاح المرور"
 
 #: src/components/skills/SkillEditor.tsx:119
 #: src/pages/KnowledgeSection.tsx:96
-#: src/shell/agent/IdentityPage.tsx:138
+#: src/shell/agent/IdentityPage.tsx:135
 #: src/shell/settings/ConnectionPages.tsx:627
 #: src/shell/settings/ModelsPage.tsx:147
-#: src/shell/settings/NotifyPages.tsx:335
-#: src/shell/settings/NotifyPages.tsx:345
-#: src/shell/settings/OwnerPage.tsx:118
-#: src/shell/settings/OwnerPage.tsx:138
+#: src/shell/settings/NotifyPages.tsx:344
+#: src/shell/settings/OwnerPage.tsx:137
 msgid "Saved"
 msgstr "تم الحفظ"
 
-#: src/shell/settings/IntegrationsPage.tsx:395
+#: src/shell/settings/IntegrationsPage.tsx:392
 msgid "Saved · never shown again"
 msgstr "محفوظ · لا يُعرض مرة أخرى"
 
@@ -6426,10 +6421,11 @@ msgstr "الشارت المحفوظ"
 msgid "Saved file"
 msgstr "ملف محفوظ"
 
-#: src/shell/settings/IntegrationsPage.tsx:384
+#: src/shell/settings/IntegrationsPage.tsx:381
 msgid "Saved securely"
 msgstr "حُفظت بأمان"
 
+#: src/components/ai/AvatarStudio.tsx:235
 #: src/pages/Board.tsx:194
 #: src/pages/Board.tsx:486
 msgid "Saving…"
@@ -6455,7 +6451,7 @@ msgstr "جدولة"
 
 #: src/shell/domain/SchedulesPages.tsx:379
 #: src/shell/domain/TasksPages.tsx:104
-#: src/shell/pages.tsx:118
+#: src/shell/pages.tsx:123
 msgid "Schedule a task"
 msgstr "جدولة مهمة"
 
@@ -6480,8 +6476,8 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "مجدولة"
 
-#: src/shell/agent/AgentPage.tsx:301
-#: src/shell/pages.tsx:106
+#: src/shell/agent/AgentPage.tsx:294
+#: src/shell/pages.tsx:111
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
 
@@ -6702,7 +6698,7 @@ msgstr "اسم الخادم"
 #~ msgid "Server URL"
 #~ msgstr "رابط الخادم"
 
-#: src/shell/settings/IntegrationsPage.tsx:534
+#: src/shell/settings/IntegrationsPage.tsx:516
 msgid "Servers and repositories"
 msgstr "الخوادم والمستودعات"
 
@@ -6710,7 +6706,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/agent/AgentPage.tsx:439
+#: src/shell/agent/AgentPage.tsx:435
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -6800,12 +6796,12 @@ msgstr "عرض كجدول"
 #~ msgstr "عرض كنص"
 
 #: src/components/genui/UiCard.tsx:363
-#: src/shell/domain/UpdatesPages.tsx:136
+#: src/shell/domain/UpdatesPages.tsx:135
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:355
+#: src/shell/domain/UpdatesPages.tsx:331
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -6845,7 +6841,7 @@ msgstr "تسجيل الدخول"
 #~ msgstr "سجّل دخولك إلى مساحة عملك الدائمة"
 
 #: src/shell/settings/SettingsRoot.tsx:324
-#: src/shell/settings/SettingsRoot.tsx:404
+#: src/shell/settings/SettingsRoot.tsx:408
 msgid "Sign out"
 msgstr "تسجيل الخروج"
 
@@ -6857,12 +6853,12 @@ msgstr "تسجيل الخروج؟"
 msgid "Sign-in failed. Check your email and password."
 msgstr "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
 
-#: src/shell/agent/AvatarSheet.tsx:20
+#: src/components/ai/AvatarStudio.tsx:22
 msgid "Signals"
 msgstr "أعمدة الإشارة"
 
 #. placeholder {0}: data.owner.email
-#: src/shell/settings/SettingsRoot.tsx:407
+#: src/shell/settings/SettingsRoot.tsx:411
 msgid "Signed in as <0>{0}</0>"
 msgstr "مسجَّل الدخول باسم <0>{0}</0>"
 
@@ -6891,7 +6887,7 @@ msgstr "محاكاة باستخدام بيانات مستوردة"
 msgid "Since"
 msgstr "منذ"
 
-#: src/shell/agent/AvatarSheet.tsx:30
+#: src/components/ai/AvatarStudio.tsx:32
 msgid "Skeptical"
 msgstr "متشكك"
 
@@ -6908,7 +6904,7 @@ msgstr "مهارة"
 msgid "Skill catalog"
 msgstr "مكتبة المهارات"
 
-#: src/shell/domain/UpdatesPages.tsx:48
+#: src/shell/domain/UpdatesPages.tsx:47
 msgid "Skill created"
 msgstr "أُنشئت مهارة"
 
@@ -6933,7 +6929,7 @@ msgstr "أُعيدت المهارة إلى الإصدار {version}"
 msgid "Skill saved"
 msgstr "حُفظت المهارة"
 
-#: src/shell/domain/UpdatesPages.tsx:50
+#: src/shell/domain/UpdatesPages.tsx:49
 msgid "Skill updated"
 msgstr "حُدّثت مهارة"
 
@@ -6943,9 +6939,9 @@ msgstr "تعذر التحقق من ضوابط إصدارات المهارات. �
 
 #: src/conversation/ToolsSheet.tsx:231
 #: src/pages/Knowledge.tsx:44
-#: src/shell/agent/AgentPage.tsx:295
-#: src/shell/pages.tsx:124
-#: src/shell/settings/IntegrationsPage.tsx:665
+#: src/shell/agent/AgentPage.tsx:288
+#: src/shell/pages.tsx:129
+#: src/shell/settings/IntegrationsPage.tsx:647
 msgid "Skills"
 msgstr "المهارات"
 
@@ -6970,7 +6966,7 @@ msgstr "درجة لون {tone}"
 msgid "Skip"
 msgstr "تخطي"
 
-#: src/shell/agent/AvatarSheet.tsx:25
+#: src/components/ai/AvatarStudio.tsx:27
 msgid "Sleepy"
 msgstr "نعسان"
 
@@ -6986,7 +6982,7 @@ msgstr "صغير"
 msgid "Smart agents working for you, all in one conversation."
 msgstr "وكلاء أذكياء يعملون من أجلك، كلهم في محادثة واحدة."
 
-#: src/shell/agent/AvatarSheet.tsx:21
+#: src/components/ai/AvatarStudio.tsx:23
 msgid "Smile"
 msgstr "مبتسم"
 
@@ -7031,8 +7027,8 @@ msgid "Speech synthesis"
 msgstr "تحويل النص إلى كلام"
 
 #: src/pages/VoiceSettingsOverlay.tsx:17
-#~ msgid "Spoken tasks are saved in the current conversation. GPT-Live can keep listening and speaking while the same agent performs delegated work."
-#~ msgstr "تُحفظ المهام الصوتية في المحادثة الحالية. يستطيع GPT-Live مواصلة الاستماع والتحدث أثناء تنفيذ الوكيل نفسه للمهام المفوضة."
+msgid "Spoken tasks are saved in the current conversation. GPT-Live can keep listening and speaking while the same agent performs delegated work."
+msgstr "تُحفظ المهام الصوتية في المحادثة الحالية. يستطيع GPT-Live مواصلة الاستماع والتحدث أثناء تنفيذ الوكيل نفسه للمهام المفوضة."
 
 #: src/components/market/MarketQuote.tsx:24
 msgid "Spread"
@@ -7084,7 +7080,7 @@ msgid "Status"
 msgstr "الحالة"
 
 #: src/conversation/sheets/AgentSheet.tsx:670
-#: src/shell/ChatMenu.tsx:169
+#: src/shell/ChatMenu.tsx:187
 msgid "Status and safety"
 msgstr "الحالة والأمان"
 
@@ -7129,7 +7125,7 @@ msgstr "أمر إيقاف"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/agent/AgentPage.tsx:449
+#: src/shell/agent/AgentPage.tsx:445
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
@@ -7137,7 +7133,7 @@ msgstr "إيقاف الوكيل"
 msgid "Stop the reply"
 msgstr "إيقاف الرد"
 
-#: src/shell/settings/IntegrationsPage.tsx:183
+#: src/shell/settings/IntegrationsPage.tsx:180
 msgid "Stop the server"
 msgstr "إيقاف الخادم"
 
@@ -7167,8 +7163,8 @@ msgstr "متوقف · لا تُرسَل أوامر جديدة"
 msgid "Stopped at its work limit"
 msgstr "توقف عند حد العمل"
 
-#: src/shell/pages.tsx:166
-#: src/shell/settings/SettingsRoot.tsx:362
+#: src/shell/pages.tsx:171
+#: src/shell/settings/SettingsRoot.tsx:366
 msgid "Storage and data"
 msgstr "التخزين والبيانات"
 
@@ -7235,25 +7231,25 @@ msgstr "الإشراف على وكلاء آخرين"
 #~ msgstr "بإشرافك"
 
 #. placeholder {0}: isolate(supervisor.name ?? "")
-#: src/shell/agent/AgentPage.tsx:260
+#: src/shell/agent/AgentPage.tsx:253
 msgid "Supervised by {0}"
 msgstr "تحت إشراف {0}"
 
-#: src/shell/agent/AgentPage.tsx:476
-#: src/shell/agent/AgentPage.tsx:518
+#: src/shell/agent/AgentPage.tsx:472
+#: src/shell/agent/AgentPage.tsx:514
 msgid "Supervises"
 msgstr "يشرف على"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:502
+#: src/shell/agent/AgentPage.tsx:498
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:54
+#: src/shell/domain/UpdatesPages.tsx:53
 msgid "Supervision ended"
 msgstr "أُلغي الإشراف"
 
-#: src/shell/domain/UpdatesPages.tsx:52
+#: src/shell/domain/UpdatesPages.tsx:51
 msgid "Supervision started"
 msgstr "بدأ الإشراف"
 
@@ -7261,7 +7257,7 @@ msgstr "بدأ الإشراف"
 msgid "Supply account, instruments, quotes and candles explicitly. Simulation data is labelled in the workspace."
 msgstr "أدخل بيانات الحساب والأدوات والأسعار والشموع. تظهر بيانات المحاكاة بوسم واضح في مساحة العمل."
 
-#: src/shell/agent/AvatarSheet.tsx:26
+#: src/components/ai/AvatarStudio.tsx:28
 msgid "Surprised"
 msgstr "متفاجئ"
 
@@ -7339,24 +7335,24 @@ msgid "Task boards"
 msgstr "لوحات المهام"
 
 #: src/conversation/sheets/AgentSheet.tsx:429
-#: src/shell/domain/UpdatesPages.tsx:46
+#: src/shell/domain/UpdatesPages.tsx:45
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
 #: src/components/ai/AttentionInbox.tsx:29
 #: src/shell/domain/TasksPages.tsx:259
-#: src/shell/domain/UpdatesPages.tsx:44
+#: src/shell/domain/UpdatesPages.tsx:43
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
 #: src/conversation/Conversation.tsx:408
-#: src/shell/domain/UpdatesPages.tsx:42
+#: src/shell/domain/UpdatesPages.tsx:41
 msgid "Task created"
 msgstr "أُنشئت مهمة"
 
 #: src/pages/Board.tsx:343
 #: src/shell/domain/TasksPages.tsx:214
-#: src/shell/pages.tsx:120
+#: src/shell/pages.tsx:125
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
@@ -7400,7 +7396,7 @@ msgstr "المهام"
 msgid "Technical details"
 msgstr "التفاصيل التقنية"
 
-#: src/shell/settings/IntegrationsPage.tsx:405
+#: src/shell/settings/IntegrationsPage.tsx:402
 msgid "Telegram is unlinked"
 msgstr "فُصل Telegram"
 
@@ -7459,7 +7455,7 @@ msgstr "حدود الحساب الحالية تبقى سارية."
 msgid "The account's limit stays"
 msgstr "يبقى حدّ الحساب كما هو"
 
-#: src/shell/settings/IntegrationsPage.tsx:465
+#: src/shell/settings/IntegrationsPage.tsx:462
 msgid "The accounts and sources your agents can reach. Any source outside this list needs your approval first."
 msgstr "الحسابات والمصادر التي يصل إليها وكلاؤك. أي مصدر خارج هذه القائمة يتطلّب موافقتك أولًا."
 
@@ -7598,7 +7594,7 @@ msgctxt "summary command"
 msgid "the conversation"
 msgstr "المحادثة"
 
-#: src/shell/agent/GroupPage.tsx:381
+#: src/shell/agent/GroupPage.tsx:264
 msgid "The coordinator must be one of the group's members."
 msgstr "يجب أن يكون المنسق من أعضاء المجموعة."
 
@@ -7622,7 +7618,7 @@ msgstr "لم يؤكّد الجهاز. حاول مرة أخرى."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "يبقى السوق الثابت الحالي دون تغيير حتى تختار نطاقًا جديدًا."
 
-#: src/shell/settings/OwnerPage.tsx:169
+#: src/shell/settings/OwnerPage.tsx:168
 msgid "The fact is removed"
 msgstr "حُذفت المعلومة"
 
@@ -7741,7 +7737,7 @@ msgstr "حجب نظام الأمان لدى مزود النموذج هذه ال�
 msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 msgstr "انقطعت إجابة النموذج عند حد المخرجات. حاول مجددًا أو اطلب إجابة أقصر."
 
-#: src/shell/settings/IntegrationsPage.tsx:84
+#: src/shell/settings/IntegrationsPage.tsx:81
 msgid "The new schema is approved"
 msgstr "اعتُمد المخطط الجديد"
 
@@ -7770,7 +7766,7 @@ msgstr "الأيام السبعة السابقة"
 msgid "the previous thirty days"
 msgstr "الثلاثين يومًا السابقة"
 
-#: src/shell/settings/OwnerPage.tsx:153
+#: src/shell/settings/OwnerPage.tsx:152
 msgid "The previous value is restored"
 msgstr "استُعيدت القيمة السابقة"
 
@@ -7842,15 +7838,15 @@ msgstr "النموذج المحدد غير متاح لدى هذا المزود. 
 msgid "The server is added"
 msgstr "أُضيف الخادم"
 
-#: src/shell/settings/IntegrationsPage.tsx:84
+#: src/shell/settings/IntegrationsPage.tsx:81
 msgid "The server is approved"
 msgstr "اعتُمد الخادم"
 
-#: src/shell/settings/IntegrationsPage.tsx:180
+#: src/shell/settings/IntegrationsPage.tsx:177
 msgid "The server is stopped"
 msgstr "أُوقف الخادم"
 
-#: src/shell/settings/IntegrationsPage.tsx:100
+#: src/shell/settings/IntegrationsPage.tsx:97
 msgid "The server's schema changed. Review the tools before approving them."
 msgstr "تغيّر مخطط الخادم. راجع الأدوات قبل اعتمادها."
 
@@ -7866,7 +7862,7 @@ msgstr "يُلغى التفويض الموقَّع، ويتطلّب الرجوع
 msgid "The skill no longer exists."
 msgstr "لم تعد المهارة موجودة."
 
-#: src/shell/settings/IntegrationsPage.tsx:699
+#: src/shell/settings/IntegrationsPage.tsx:681
 msgid "The skill version is undone"
 msgstr "أُلغي إصدار المهارة"
 
@@ -7891,11 +7887,11 @@ msgstr "لم يصل رد على الاختبار في الوقت المحدد. �
 msgid "The trade on <0>{0}</0> is closed at the market price. This is your own order, sent through the executor."
 msgstr "تُغلق الصفقة على <0>{0}</0> بسعر السوق. هذا أمرك أنت، يُرسَل عبر المنفّذ."
 
-#: src/shell/settings/IntegrationsPage.tsx:442
+#: src/shell/settings/IntegrationsPage.tsx:439
 msgid "The value is sent encrypted and is not shown after saving."
 msgstr "تُرسَل القيمة مشفّرة ولا تُعرض بعد الحفظ."
 
-#: src/shell/settings/IntegrationsPage.tsx:367
+#: src/shell/settings/IntegrationsPage.tsx:364
 msgid "The value is too short"
 msgstr "القيمة قصيرة جدًا"
 
@@ -7991,11 +7987,11 @@ msgstr "انتهت هذه المكالمة."
 msgid "This chart is no longer available."
 msgstr "لم يعد هذا الشارت متاحًا."
 
-#: src/shell/ChatMenu.tsx:103
+#: src/shell/ChatMenu.tsx:121
 msgid "This chat's messages are hidden for you. The agent and its record stay."
 msgstr "تُخفى رسائل هذه المحادثة عندك، ويبقى الوكيل وسجله."
 
-#: src/shell/ChatMenu.tsx:99
+#: src/shell/ChatMenu.tsx:117
 msgid "This chat's messages are hidden for you. The group stays with its members."
 msgstr "تُخفى رسائل هذه المحادثة عندك، وتبقى المجموعة بأعضائها."
 
@@ -8149,7 +8145,7 @@ msgstr "تنتظر المهمة التحقق من عملية خارجية غير
 msgid "This week"
 msgstr "هذا الأسبوع"
 
-#: src/shell/agent/AvatarSheet.tsx:22
+#: src/components/ai/AvatarStudio.tsx:24
 msgid "Thoughtful"
 msgstr "متأمل"
 
@@ -8167,7 +8163,7 @@ msgstr "التشديد يُحفَظ مباشرةً."
 msgid "Time"
 msgstr "الوقت"
 
-#: src/shell/settings/OwnerPage.tsx:216
+#: src/shell/settings/OwnerPage.tsx:215
 msgid "Time zone"
 msgstr "المنطقة الزمنية"
 
@@ -8183,7 +8179,7 @@ msgstr "الفترة الزمنية"
 #: src/components/skills/CreateSkill.tsx:92
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
-#: src/pages/shell/bot-settings.tsx:101
+#: src/pages/shell/bot-settings.tsx:108
 #: src/shell/domain/GoalsKnowledgePages.tsx:206
 msgid "Title"
 msgstr "العنوان"
@@ -8244,12 +8240,12 @@ msgstr "الأداة"
 msgid "Tool activity"
 msgstr "نشاط الأدوات"
 
-#: src/shell/settings/IntegrationsPage.tsx:105
+#: src/shell/settings/IntegrationsPage.tsx:102
 msgid "Tools and their levels"
 msgstr "الأدوات ومستوياتها"
 
 #. placeholder {0}: preview.blocked.join("، ")
-#: src/shell/settings/IntegrationsPage.tsx:134
+#: src/shell/settings/IntegrationsPage.tsx:131
 msgid "Tools that could move money are refused: {0}"
 msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 
@@ -8261,7 +8257,7 @@ msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/conversation/Conversation.tsx:881
+#: src/conversation/Conversation.tsx:882
 msgid "Trade order"
 msgstr "أمر تداول"
 
@@ -8270,12 +8266,12 @@ msgstr "أمر تداول"
 msgid "Trade risk limit"
 msgstr "حد مخاطرة الصفقة"
 
-#: src/shell/agent/AgentPage.tsx:308
-#: src/shell/pages.tsx:104
+#: src/shell/agent/AgentPage.tsx:301
+#: src/shell/pages.tsx:109
 msgid "Trades"
 msgstr "الصفقات"
 
-#: src/shell/pages.tsx:92
+#: src/shell/pages.tsx:97
 msgctxt "agent page"
 msgid "Trades"
 msgstr "الصفقات"
@@ -8289,21 +8285,23 @@ msgstr "يتداول بنفسه"
 #: src/conversation/sheets/AgentSheet.tsx:449
 #: src/conversation/sheets/AgentSheet.tsx:456
 #: src/conversation/sheets/AgentSheet.tsx:471
+#: src/pages/settings-sidebar.tsx:16
 #: src/pages/Trading.tsx:25
+#: src/shell/settings/SettingsRoot.tsx:362
 msgid "Trading"
 msgstr "التداول"
 
-#: src/shell/agent/AgentPage.tsx:329
+#: src/shell/agent/AgentPage.tsx:322
 msgid "Trading · New trades · Restrictions · Account limits"
 msgstr "التداول · الصفقات الجديدة · القيود · حدود الحساب"
 
-#: src/shell/agent/AgentPage.tsx:336
-#: src/shell/agent/IdentityPage.tsx:233
-#: src/shell/pages.tsx:160
+#: src/shell/agent/AgentPage.tsx:330
+#: src/shell/agent/IdentityPage.tsx:217
+#: src/shell/pages.tsx:165
 msgid "Trading account"
 msgstr "حساب التداول"
 
-#: src/shell/settings/IntegrationsPage.tsx:471
+#: src/shell/settings/IntegrationsPage.tsx:468
 msgid "Trading accounts"
 msgstr "حسابات التداول"
 
@@ -8316,7 +8314,7 @@ msgstr "وكيل تداول"
 #~ msgstr "التداول وسجل العمليات"
 
 #: src/conversation/sheets/AgentSheet.tsx:671
-#: src/shell/agent/AgentPage.tsx:316
+#: src/shell/agent/AgentPage.tsx:309
 msgid "Trading and safety"
 msgstr "التداول والأمان"
 
@@ -8348,7 +8346,7 @@ msgstr "التداول متوقف"
 #~ msgid "Trading ON"
 #~ msgstr "التداول مفعّل"
 
-#: src/pages/shell/bot-settings.tsx:76
+#: src/pages/shell/bot-settings.tsx:83
 msgid "Trading pair"
 msgstr "زوج التداول"
 
@@ -8380,8 +8378,8 @@ msgstr "سفر وأماكن"
 msgid "Trend line"
 msgstr "خط اتجاه"
 
-#: src/shell/settings/IntegrationsPage.tsx:550
-#: src/shell/settings/IntegrationsPage.tsx:580
+#: src/shell/settings/IntegrationsPage.tsx:532
+#: src/shell/settings/IntegrationsPage.tsx:562
 msgid "Trusted"
 msgstr "موثوق"
 
@@ -8396,7 +8394,7 @@ msgstr "إعادة المحاولة"
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
-#: src/shell/agent/AgentPage.tsx:449
+#: src/shell/agent/AgentPage.tsx:445
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
 
@@ -8459,15 +8457,15 @@ msgstr "عملية غير مؤكَّدة · لم يؤكدها الوسيط"
 msgid "Under the agent's name: analysing, searching, watching, waiting for the broker, waiting for your decision, paused, unconfirmed operation — and its picture changes with it. When off, only «Active» shows"
 msgstr "تحت اسم الوكيل: يحلّل، يبحث، يراقب، بانتظار تأكيد الوسيط، بانتظار قرارك، متوقف مؤقتًا، عملية غير مؤكَّدة — وتتغيّر صورته معها. عند الإيقاف يظهر «نشط» فقط"
 
-#: src/shell/agent/AgentPage.tsx:205
+#: src/shell/agent/AgentPage.tsx:198
 #: src/shell/domain/SkillsPages.tsx:202
 #: src/shell/lists/ListSheets.tsx:369
 #: src/shell/lists/Selection.tsx:142
-#: src/shell/settings/IntegrationsPage.tsx:241
+#: src/shell/settings/IntegrationsPage.tsx:238
 msgid "Undo"
 msgstr "تراجع"
 
-#: src/shell/settings/IntegrationsPage.tsx:704
+#: src/shell/settings/IntegrationsPage.tsx:686
 msgid "Undo this version"
 msgstr "التراجع عن هذا الإصدار"
 
@@ -8479,7 +8477,7 @@ msgstr "النموذج الموحد"
 msgid "Unknown account"
 msgstr "حساب غير معروف"
 
-#: src/shell/settings/IntegrationsPage.tsx:408
+#: src/shell/settings/IntegrationsPage.tsx:405
 msgid "Unlink"
 msgstr "فصل"
 
@@ -8519,7 +8517,7 @@ msgstr "إلغاء الكتم"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:280
+#: src/shell/domain/UpdatesPages.tsx:264
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -8546,7 +8544,7 @@ msgid "Until"
 msgstr "حتى"
 
 #. placeholder {0}: clockTime(until)
-#: src/shell/agent/AgentPage.tsx:389
+#: src/shell/agent/AgentPage.tsx:385
 msgid "Until <0>{0}</0>"
 msgstr "حتى <0>{0}</0>"
 
@@ -8554,7 +8552,7 @@ msgstr "حتى <0>{0}</0>"
 msgid "Until cancelled"
 msgstr "حتى الإلغاء"
 
-#: src/shell/agent/AgentPage.tsx:393
+#: src/shell/agent/AgentPage.tsx:389
 msgid "Until you stop it"
 msgstr "حتى توقفها"
 
@@ -8575,7 +8573,7 @@ msgstr "ارتفاع {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
-#: src/shell/domain/UpdatesPages.tsx:291
+#: src/shell/domain/UpdatesPages.tsx:275
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 
@@ -8627,7 +8625,7 @@ msgstr "جارٍ رفع {name}"
 msgid "Uploading…"
 msgstr "جارٍ الرفع…"
 
-#: src/shell/settings/NotifyPages.tsx:393
+#: src/shell/settings/NotifyPages.tsx:392
 msgid "Urgent alerts always arrive and do not count."
 msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتسب."
 
@@ -8635,7 +8633,7 @@ msgstr "التنبيهات العاجلة تصل دائمًا ولا تُحتس�
 msgid "Urgent always arrives"
 msgstr "العاجل يصل دائمًا"
 
-#: src/shell/settings/SettingsRoot.tsx:361
+#: src/shell/settings/SettingsRoot.tsx:365
 msgid "Usage"
 msgstr "الاستهلاك"
 
@@ -8643,7 +8641,7 @@ msgstr "الاستهلاك"
 msgid "Usage breakdown"
 msgstr "توزيع الاستهلاك"
 
-#: src/shell/pages.tsx:164
+#: src/shell/pages.tsx:169
 msgid "Usage details"
 msgstr "تفاصيل الاستهلاك"
 
@@ -8695,7 +8693,7 @@ msgid "Version"
 msgstr "الإصدار"
 
 #. placeholder {0}: skill.version
-#: src/shell/settings/IntegrationsPage.tsx:681
+#: src/shell/settings/IntegrationsPage.tsx:663
 msgid "version {0}"
 msgstr "الإصدار {0}"
 
@@ -8746,10 +8744,10 @@ msgstr "عرض الاستخدام"
 msgid "Vision"
 msgstr "الرؤية"
 
-#: src/pages/settings-sidebar.tsx:14
-#: src/shell/settings/SettingsRoot.tsx:331
-#~ msgid "Voice"
-#~ msgstr "الصوت"
+#: src/pages/settings-sidebar.tsx:15
+#: src/shell/settings/SettingsRoot.tsx:361
+msgid "Voice"
+msgstr "الصوت"
 
 #: src/shell/ChatHeader.tsx:163
 #: src/shell/ChatHeader.tsx:164
@@ -8763,8 +8761,8 @@ msgid "Voice call"
 msgstr "مكالمة صوتية"
 
 #: src/shell/settings/IntegrationsPage.tsx:523
-msgid "Voice calls"
-msgstr "المكالمات الصوتية"
+#~ msgid "Voice calls"
+#~ msgstr "المكالمات الصوتية"
 
 #: src/shell/settings/ConnectionPages.tsx:576
 #~ msgid "Voice calls stop too."
@@ -8868,7 +8866,7 @@ msgstr "بانتظار الإرسال"
 msgid "Watch"
 msgstr "مراقبة"
 
-#: src/shell/agent/AgentPage.tsx:202
+#: src/shell/agent/AgentPage.tsx:195
 msgid "Watch cancelled"
 msgstr "أُلغيت المراقبة"
 
@@ -8880,11 +8878,11 @@ msgstr "تغيّر شرط المراقبة"
 msgid "Watch confirmed — review current evidence"
 msgstr "تأكدت المراقبة — راجع الأدلة الحالية"
 
-#: src/shell/agent/AgentPage.tsx:216
+#: src/shell/agent/AgentPage.tsx:209
 msgid "Watch paused"
 msgstr "أُوقفت المراقبة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:216
+#: src/shell/agent/AgentPage.tsx:209
 msgid "Watch resumed"
 msgstr "استُؤنفت المراقبة"
 
@@ -8893,8 +8891,8 @@ msgid "Watch source"
 msgstr "مصدر المراقبة"
 
 #: src/conversation/sheets/AgentSheet.tsx:364
-#: src/shell/agent/AgentPage.tsx:365
-#: src/shell/ChatMenu.tsx:176
+#: src/shell/agent/AgentPage.tsx:361
+#: src/shell/ChatMenu.tsx:194
 msgid "Watches"
 msgstr "المراقبات"
 
@@ -8959,7 +8957,7 @@ msgstr "ما الذي حدث لدى الوسيط"
 msgid "What is needed"
 msgstr "المطلوب"
 
-#: src/conversation/Conversation.tsx:1213
+#: src/conversation/Conversation.tsx:1214
 msgid "What shall we do today with {name}?"
 msgstr "ماذا سنفعل اليوم مع {name}؟"
 
@@ -8967,8 +8965,7 @@ msgstr "ماذا سنفعل اليوم مع {name}؟"
 msgid "What shall we do today with your agents?"
 msgstr "ماذا سنفعل اليوم مع وكلائك؟"
 
-#: src/pages/shell/bot-settings.tsx:123
-#: src/shell/agent/IdentityPage.tsx:205
+#: src/pages/shell/bot-settings.tsx:130
 msgid "What should this agent know about its work?"
 msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟"
 
@@ -8976,7 +8973,7 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgid "What this agent is for"
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/shell/settings/OwnerPage.tsx:249
+#: src/shell/settings/OwnerPage.tsx:248
 msgid "What your agents know about you"
 msgstr "ما يعرفه وكلاؤك عنك"
 
@@ -8994,7 +8991,7 @@ msgstr "عند تحقق شرط"
 msgid "Why this interface?"
 msgstr "لماذا هذه الواجهة؟"
 
-#: src/shell/agent/AvatarSheet.tsx:24
+#: src/components/ai/AvatarStudio.tsx:26
 msgid "Wink"
 msgstr "غمزة"
 
@@ -9033,7 +9030,7 @@ msgstr "ملفات مساحة العمل"
 #~ msgid "Workspace settings"
 #~ msgstr "إعدادات مساحة العمل"
 
-#: src/shell/agent/AvatarSheet.tsx:33
+#: src/components/ai/AvatarStudio.tsx:35
 msgid "Worried"
 msgstr "قلق"
 
@@ -9045,7 +9042,7 @@ msgstr "اكتب شرط التنبيه."
 msgid "Write the task title after {slash}"
 msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 
-#: src/conversation/Conversation.tsx:1211
+#: src/conversation/Conversation.tsx:1212
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
@@ -9065,7 +9062,7 @@ msgstr "الكتابة"
 
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
-#: src/shell/settings/OwnerPage.tsx:263
+#: src/shell/settings/OwnerPage.tsx:262
 msgid "Written by {0} · {1}"
 msgstr "كتبها {0} · {1}"
 
@@ -9093,7 +9090,7 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/domain/UpdatesPages.tsx:38
+#: src/shell/domain/UpdatesPages.tsx:37
 msgid "You approved a request"
 msgstr "وافقتَ على طلب"
 
@@ -9126,7 +9123,7 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #~ msgid "You reached the usage limit"
 #~ msgstr "وصلت إلى حد الاستهلاك"
 
-#: src/shell/domain/UpdatesPages.tsx:40
+#: src/shell/domain/UpdatesPages.tsx:39
 msgid "You rejected a request"
 msgstr "رفضتَ طلبًا"
 
