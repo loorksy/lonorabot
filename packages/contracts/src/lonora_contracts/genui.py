@@ -441,8 +441,10 @@ def _head(raw: Any, diagnostics: Diagnostics) -> dict[str, Any]:
     head["icon"] = canonical_icon(raw.get("icon")) or "sparkle"
     if raw.get("icon") is not None and canonical_icon(raw.get("icon")) is None:
         diagnostics.add("icon_unknown", None, "head")
-    if raw.get("mode") in {"observed", "example", "estimate"}:
-        head["mode"] = raw["mode"]
+    mode = raw.get("mode")
+    # Only a string is looked up: a list or object never reaches a hash (it is dropped).
+    if isinstance(mode, str) and mode in {"observed", "example", "estimate"}:
+        head["mode"] = mode
     elif "mode" in raw:
         diagnostics.add("prop_dropped", None, "head", "mode")
     currency = raw.get("currency")

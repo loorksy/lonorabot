@@ -14,6 +14,9 @@ export type CardHostValue = {
   agents: readonly Agent[];
   /** Posts a card submission to the thread and merges what the server accepted. */
   submit: (body: CardSubmit) => Promise<void>;
+  /** Reads one message again by its place in the thread (after «تعديل»: its card state),
+   * wherever it sits in the history, and merges it. */
+  reread: (message: Message) => Promise<void>;
 };
 
 const Host = createContext<CardHostValue | null>(null);

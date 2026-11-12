@@ -269,6 +269,8 @@ export function NativeUiCard({
   async function unlock() {
     try {
       await api.post(`/threads/${threadId}/messages/${messageId}/ui-state/${index}/unlock`, {});
+      // The card's own new state (its unlock mark), even when it is not in the newest page.
+      if (host && message) await host.reread(message);
       setSentHere(null);
       setNotice(t("uiEditThenSend"));
     } catch (error) {

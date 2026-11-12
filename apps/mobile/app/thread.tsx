@@ -479,6 +479,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     messages,
     runs,
     agents,
+    reread: async (message) => {
+      const rows = await api.get<Message[]>(
+        `/threads/${encodeURIComponent(id)}/messages?around=${message.seq}&limit=1`,
+      );
+      const fresh = rows.filter((row) => row.id === message.id);
+      if (!fresh.length || selected.current.id !== id || selected.current.scope !== scope) return;
+      setMessages((old) => mergeMessages(old, fresh));
+    },
     submit: async (body) => {
       const accepted = await api.post<{ message: Message; runs?: Run[] }>(
         `/threads/${encodeURIComponent(id)}/messages`,
