@@ -2,9 +2,16 @@ import os
 
 from dotenv import dotenv_values
 from lonora_adapter_kit.secrets import SecretStore
+from lonora_adapters.models.compatible_endpoint import compatible_endpoint
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.model_credentials import credential_id
+
+from .registry import OWNER_ENDPOINT
+
+
+def _deployment(name: str) -> str | None:
+    return os.environ.get(name) or dotenv_values(".env").get(name) or None
 
 
 class ProviderCredentials:
@@ -12,15 +19,24 @@ class ProviderCredentials:
         self.db, self.store = db, store
 
     async def resolve(self, provider: str) -> str:
+        if provider in OWNER_ENDPOINT and await self.endpoint(provider) is None:
+            # A key without the URL it belongs to connects nothing.
+            raise LonoraError("model_not_configured", 409)
         async with self.db.sessions() as session:
             secret_id = await credential_id(session, provider)
         if secret_id:
             return await self.store.read(secret_id)
-        name = "LONORA_" + provider.upper() + "_API_KEY"
-        value = os.environ.get(name) or dotenv_values(".env").get(name)
+        value = _deployment("LONORA_" + provider.upper() + "_API_KEY")
         if value:
             return value
         raise LonoraError("model_not_configured", 409)
+
+    async def endpoint(self, provider: str) -> str | None:
+        """The owner's base URL for a provider that has one, else ``None``."""
+        if provider not in OWNER_ENDPOINT:
+            return None
+        value = _deployment("LONORA_" + provider.upper() + "_BASE_URL")
+        return compatible_endpoint(value) if value else None
 
     async def configured(self, provider: str) -> bool:
         try:
