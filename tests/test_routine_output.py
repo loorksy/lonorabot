@@ -175,7 +175,7 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
             session.add(
                 MessageRow(thread_id=spoken.id, seq=1, role="user", content="Owner wrote here")
             )
-            routines = {}
+            routines: dict[str, str] = {}
             for name, thread in {"first": first, "quiet": quiet, "spoken": spoken}.items():
                 row = RoutineRow(
                     owner_id=fixture.owner,
