@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import run_scope
 
-
 # The door's own bound on the parent-run walk (``require_goal_lineage``, execution.py).
 MAXIMUM_ANCESTRY = 16
 
