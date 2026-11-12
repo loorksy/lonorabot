@@ -180,7 +180,8 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const traded = worker({ thread: goldThread.id, account: data.account, symbol: data.symbol });
     expect(traded.status).toBe("completed");
     await page.reload();
-    await expect(page.locator('[data-trade-result="confirmed"]').last()).toBeVisible();
+    // The confirmed order is shown once, as its Execution Receipt (10.3).
+    await expect(page.locator("[data-execution-receipt]").last()).toBeVisible();
     await context.request.put("/api/trading/controls", {
       headers,
       data: { enabled: false, emergency_stop: false },

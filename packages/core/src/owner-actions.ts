@@ -19,6 +19,7 @@ import type {
   OwnerActionDecision,
   OwnerActionGrantTerms,
   OwnerActionLimitField,
+  TradingMode,
 } from "@lonora/contracts";
 import { accountAuthorityLabels } from "./account-authority-labels";
 import { modelCard } from "./agent-model";
@@ -40,6 +41,18 @@ function language(locale: string): Language {
 
 export const ownerActionLabels = {
   en: {
+    mandateTitle: "Trading mode",
+    mandateNow: "Now",
+    modeFull: "Full",
+    modeAsk: "Ask",
+    modeFullLine: "Trades on its own and reports afterwards.",
+    modeAskLine:
+      "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
+    mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
+    mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandateGone: "This agent no longer exists.",
     resumeTitle: "Resume trading",
     resumeStopped: "New trading is stopped",
     resumeHint:
@@ -71,13 +84,11 @@ export const ownerActionLabels = {
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
-      "It will not be sent again. New risk on this market is held until you answer; any answer, Unknown included, releases this trade's hold. Exits still work.",
+      "It will not be sent again. New risk on this market is held until the outcome is known: Executed or Not executed releases it; Unknown keeps it while the broker is still checked. Exits still work.",
     resolveRecord: "Your answer is recorded as your statement, not as broker confirmation.",
     executed: "It executed",
     notExecuted: "It did not execute",
-    unknown: "Unknown: release the hold",
-    note: "Note (optional)",
-    brokerReference: "Broker ticket (optional)",
+    unknown: "Unknown",
     byYou: "your order",
     by: "by",
     at: "at",
@@ -99,7 +110,7 @@ export const ownerActionLabels = {
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
-      "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on this market.",
+      "Recorded: the outcome stays unknown. It will not be resent; the broker is still checked, and new risk on this market stays held until the outcome is known.",
     limitsSaved: "Money limits updated.",
     cancelled: "Dismissed. Nothing changed.",
     expired: "This card expired. Nothing changed.",
@@ -292,10 +303,6 @@ export const ownerActionLabels = {
     alreadyConnected: "This is already connected. Nothing changed.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
-    optional: "optional",
-    noteShort: "Note",
-    brokerRefShort: "Broker reference",
-    addNote: "Add a note or the broker reference",
     deviceOnce: "A one-time step; after it, authorisations are signed with this device's passkey.",
     expiresIn: "The request expires in",
     statusPending: "Waiting for your decision",
@@ -318,6 +325,16 @@ export const ownerActionLabels = {
     stopTightenedLine: "Stop loss tightened. No undo: loosening it again would be a new order.",
   },
   ar: {
+    mandateTitle: "التفويض",
+    mandateNow: "الآن",
+    modeFull: "وكّله",
+    modeAsk: "يستأذن",
+    modeFullLine: "يتداول بنفسه ويخبرك بعد التنفيذ.",
+    modeAskLine: "كل صفقة تزيد المخاطرة تنتظر موافقتك، أما الإغلاق وتشديد الوقف فلا ينتظران.",
+    mandateToFull: "«وكّله» يتيح له التداول بنفسه، ويمكنك إعادته من هنا في أي وقت.",
+    mandateToAsk: "«يستأذن» يجعل كل صفقة تزيد المخاطرة تنتظر موافقتك.",
+    mandateGrantStays: "صلاحيته الموقّعة تبقى سارية ضمن شروطها حتى تلغيها.",
+    mandateGone: "لم يعد هذا الوكيل موجودًا.",
     resumeTitle: "استئناف التداول",
     resumeStopped: "التداول الجديد متوقف",
     resumeHint: "الاستئناف لا يوسّع أي صلاحية: يبقى كل وكيل ضمن مستواه وتفويضه وحدودك.",
@@ -348,13 +365,11 @@ export const ownerActionLabels = {
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     resolveHint:
-      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تجيب، وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة؛ يبقى الخروج متاحًا.",
+      "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة: «نُفذت» أو «لم تُنفذ» ترفع التعليق، و«غير معروفة» تبقيه بينما يُراجَع الوسيط؛ يبقى الخروج متاحًا.",
     resolveRecord: "تُسجَّل إجابتك كتصريح منك، لا كتأكيد من الوسيط.",
     executed: "نُفذت",
     notExecuted: "لم تُنفذ",
-    unknown: "غير معروفة — ارفع التعليق",
-    note: "ملاحظة (اختيارية)",
-    brokerReference: "رقم التذكرة لدى الوسيط (اختياري)",
+    unknown: "غير معروفة",
     byYou: "أمرك",
     by: "من",
     at: "في",
@@ -376,7 +391,7 @@ export const ownerActionLabels = {
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     recordedUnknown:
-      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها، ولم تعد تعلّق المخاطرة الجديدة على هذا السوق.",
+      "سُجّل: تبقى النتيجة غير معروفة. لن يُعاد إرسالها؛ يُراجَع الوسيط، وتبقى المخاطرة الجديدة على هذا السوق معلّقة حتى تُعرف النتيجة.",
     limitsSaved: "حُدّثت الحدود المالية.",
     cancelled: "تم التجاهل. لم يتغير شيء.",
     expired: "انتهت صلاحية هذه البطاقة. لم يتغير شيء.",
@@ -565,10 +580,6 @@ export const ownerActionLabels = {
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
-    optional: "اختياري",
-    noteShort: "ملاحظة",
-    brokerRefShort: "مرجع الوسيط",
-    addNote: "إضافة ملاحظة أو مرجع الوسيط",
     deviceOnce: "خطوة لمرة واحدة؛ بعدها تُوقَّع التفويضات بمفتاح المرور على هذا الجهاز.",
     expiresIn: "ينتهي الطلب خلال",
     statusPending: "بانتظار قرارك",
@@ -599,10 +610,12 @@ export function ownerActionText(locale: string): OwnerActionText {
 /** What a button sends: confirm (with an outcome for a resolve card, or the tier an MCP
  * server is trusted for) or cancel. */
 export type OwnerActionButton = {
-  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome;
+  key: "confirm" | "cancel" | "trust_write" | AttestedOutcome | TradingMode;
   label: string;
   decision: "confirm" | "cancel";
   outcome?: AttestedOutcome;
+  /** The Mandate card: the mode this button shows; the tap applies exactly this mode. */
+  trading_mode?: TradingMode;
   tier?: EffectTier;
   primary: boolean;
 };
@@ -643,8 +656,6 @@ export type OwnerActionSpec = {
   options: OwnerActionOption[];
   /** Shown while pending; empty once the card is settled. */
   buttons: OwnerActionButton[];
-  /** A resolve card offers an optional note and broker ticket. */
-  notes: boolean;
   /** A credential card's secure form while it waits (submitted by the client itself). */
   credential: CredentialForm | null;
   passkey: boolean;
@@ -678,6 +689,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
+      case "trading_mode":
+        // Still the agent's switch: its lines show the mode now.
+        return null;
       case "grant_authority": {
         const stopped = card.result.stopped_agents ?? [];
         // The card shows what was signed; while Stop new trading holds, it waits for Resume.
@@ -719,7 +733,7 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.watchUndone;
       case "stop_tightened":
         return text.stopTightenedLine;
-      case "resolve_operation":
+      case "settle_operation":
         return card.result.outcome === "executed"
           ? text.recordedExecuted
           : card.result.outcome === "not_executed"
@@ -1349,7 +1363,6 @@ export function ownerActionCard(
       hint: model.hint,
       options: [],
       buttons: model.buttons.map((item) => ({ ...item, decision: item.key })),
-      notes: false,
       credential: null,
       passkey: false,
       outcome: model.outcome,
@@ -1370,6 +1383,31 @@ export function ownerActionCard(
     { key: "cancel", label: cancel, decision: "cancel", primary: false },
   ];
   switch (card.kind) {
+    case "trading_mode": {
+      title = text.mandateTitle;
+      const mode = facts.trading_mode;
+      if (!facts.agent?.exists || !mode) {
+        lines.push(text.mandateGone);
+        break;
+      }
+      const name = facts.agent.name ? `${isolate(facts.agent.name)} · ` : "";
+      lines.push(`${name}${text.mandateNow}: ${mode === "full" ? text.modeFull : text.modeAsk}`);
+      lines.push(mode === "full" ? text.modeFullLine : text.modeAskLine);
+      if (facts.active_grant) lines.push(text.mandateGrantStays);
+      // One button for the other mode; the tap applies the mode this button shows.
+      const other: TradingMode = mode === "full" ? "ask" : "full";
+      hint = other === "full" ? text.mandateToFull : text.mandateToAsk;
+      buttons = [
+        {
+          key: other,
+          label: other === "full" ? text.modeFull : text.modeAsk,
+          decision: "confirm",
+          trading_mode: other,
+          primary: true,
+        },
+      ];
+      break;
+    }
     case "grant_authority": {
       const grant = grantCard(card, locale, lang, now);
       title = grant.title;
@@ -1435,7 +1473,7 @@ export function ownerActionCard(
       buttons = pair(text.lift, text.keep);
       break;
     }
-    case "resolve_operation": {
+    case "settle_operation": {
       title = text.resolveTitle;
       const operation = facts.operation;
       if (operation) {
@@ -1669,18 +1707,26 @@ export function ownerActionCard(
       break;
     }
   }
-  const pending = card.status === "pending";
+  const pending = ownerActionLive(card);
   return {
     title,
     lines,
     hint: pending ? hint : null,
     options: pending ? options : [],
     buttons: pending ? buttons : [],
-    notes: pending && card.kind === "resolve_operation",
     credential: pending ? form : null,
     passkey: pending && card.requires_passkey,
     outcome: settledLine(card, text, lang),
   };
+}
+
+/** Whether the card still offers its buttons: a pending card, or a Mandate card the owner
+ * already tapped, which stays the agent's switch while the agent exists. */
+export function ownerActionLive(card: OwnerAction): boolean {
+  return (
+    card.status === "pending" ||
+    (card.kind === "trading_mode" && card.status === "confirmed" && !!card.facts.trading_mode)
+  );
 }
 
 /** A refusal that means the card changed on another screen (a grant card's choice): the
@@ -1804,6 +1850,14 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",
     ar: "انتهت مدة هذا الطلب. اطلب طلبًا جديدًا.",
+  },
+  trade_approval_quote_unavailable: {
+    en: "The current price could not be read, so this request was not approved. Try again.",
+    ar: "تعذّرت قراءة السعر الحالي، فلم تتم الموافقة على هذا الطلب. حاول مرة أخرى.",
+  },
+  trade_approval_drifted: {
+    en: "The price moved outside this request's range, so it can no longer be approved.",
+    ar: "خرج السعر عن نطاق هذا الطلب، فلم يعد قابلًا للموافقة.",
   },
   trade_approval_not_renewable: {
     en: "This request is still waiting or was already answered.",

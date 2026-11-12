@@ -3,12 +3,18 @@ import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { AgentModelMode, ModelLabel } from "./models";
-import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type {
+  GlobalTrading,
+  MoneyLimitName,
+  MoneyLimits,
+  RestrictionActionClass,
+  TradingMode,
+} from "./trading";
 
 export type OwnerActionKind =
   | "resume_trading"
   | "lift_restriction"
-  | "resolve_operation"
+  | "settle_operation"
   | "set_account_limits"
   | "grant_authority"
   | "agent_model"
@@ -24,7 +30,9 @@ export type OwnerActionKind =
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
   /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
-  | "stop_tightened";
+  | "stop_tightened"
+  /** The Mandate card: the agent's mode read live and one button for the other mode. */
+  | "trading_mode";
 /**
  * A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
  * own positions the card shows) or Full delegation (every pair on the account, every
@@ -47,6 +55,7 @@ export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
 export type OwnerActionAgent = {
   exists: boolean;
+  id?: string;
   name: string | null;
   template?: AgentTemplate | null;
   symbol?: string | null;
@@ -106,6 +115,10 @@ export type OwnerAction = {
   facts: {
     several_accounts: boolean;
     global_trading?: GlobalTrading;
+    /** The Mandate card: the agent's mode now, read live. */
+    trading_mode?: TradingMode;
+    /** The Mandate card: a signed grant of this agent is still in force. */
+    active_grant?: boolean;
     account?: OwnerActionAccount;
     restriction?: {
       action_class: RestrictionActionClass;
@@ -285,7 +298,7 @@ export type OwnerAction = {
     integration_id?: string;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
-    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
+    /** settle_operation answered unknown with pause_new_today: the owner pause it set. */
     restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
     expires_at?: string | null;
@@ -299,11 +312,11 @@ export type OwnerAction = {
 export type OwnerActionDecision = {
   /** "choose" switches a pending grant card's choice in its stored draft; it signs nothing. */
   decision: "confirm" | "cancel" | "choose";
+  /** The Mandate card: the mode its button showed at the moment of the tap. */
+  trading_mode?: TradingMode;
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;
-  note?: string;
-  broker_reference?: string;
   proof?: DeviceProof;
   /** Grant card: "none" leaves the account's daily loss limit as it is. */
   money_limit?: "apply" | "none";

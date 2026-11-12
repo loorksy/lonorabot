@@ -214,7 +214,12 @@ async def main() -> None:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": on, **arguments},
+                arguments={
+                    "account_id": on,
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
+                    **arguments,
+                },
             )
             try:
                 proposal = await registry.execute(call, context)
@@ -248,7 +253,12 @@ async def main() -> None:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, **arguments},
+                arguments={
+                    "account_id": account,
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
+                    **arguments,
+                },
             )
             try:
                 await registry.execute(call, context)
@@ -574,6 +584,8 @@ async def main() -> None:
                 # Distinct from the earlier euro entry: same arguments are the same operation.
                 "volume": "0.2",
                 "stop_loss": "99",
+                "tolerance": "5",
+                "reason": "Fixture entry",
             },
         )
         proposal = await registry.execute(call, context)

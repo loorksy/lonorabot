@@ -39,11 +39,7 @@ from lonora_db.schema import (
     TradingRestrictionRow,
 )
 from lonora_db.trade_approvals import (
-    APPROVAL_LIFETIME,
-    MAXIMUM_APPROVAL_LIFETIME,
-    MINIMUM_APPROVAL_LIFETIME,
     approval_data,
-    approval_expiry,
     decide,
     expire_if_due,
 )
@@ -97,7 +93,7 @@ async def resolve_card(
         thread=thread,
         run_id=None,
         source="system",
-        kind="resolve_operation",
+        kind="settle_operation",
         subject="operation:" + identifier,
         payload={"operation_id": identifier},
     )
@@ -173,7 +169,7 @@ async def test_renew_raises_a_fresh_card_only_while_the_subject_still_needs_a_de
         cards = await session.scalar(
             select(func.count())
             .select_from(OwnerActionRow)
-            .where(OwnerActionRow.kind == "resolve_operation")
+            .where(OwnerActionRow.kind == "settle_operation")
         )
         assert cards == 2
 
@@ -326,14 +322,6 @@ async def test_the_pause_switch_is_refused_on_any_other_card(task_db: Fixture) -
     assert await restrictions(db, owner) == []
 
 
-def test_an_approval_lives_between_thirty_and_sixty_minutes() -> None:
-    assert MINIMUM_APPROVAL_LIFETIME == timedelta(minutes=30)
-    assert MAXIMUM_APPROVAL_LIFETIME == timedelta(minutes=60)
-    assert APPROVAL_LIFETIME == timedelta(minutes=45)
-    now = utcnow()
-    assert approval_expiry(now) == now + APPROVAL_LIFETIME
-
-
 async def waiting_approval(
     session: AsyncSession, owner: str, agent: str, thread: str, identifier: str
 ) -> tuple[TradeApprovalRow, RunRow]:
@@ -357,7 +345,8 @@ async def waiting_approval(
         status="pending",
         results=[],
         created_at=created,
-        expires_at=approval_expiry(created),
+        # A card stored before the fixed lifetime was removed keeps its stored expiry.
+        expires_at=created + timedelta(minutes=45),
     )
     session.add(row)
     await session.flush()

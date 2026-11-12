@@ -64,7 +64,7 @@ DECISION_CARD_KINDS = frozenset(
     {
         "grant_authority",
         "resume_trading",
-        "resolve_operation",
+        "settle_operation",
         "set_account_limits",
         "create_agent",
         "supervise",

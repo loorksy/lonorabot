@@ -578,12 +578,34 @@ test("financial approval buttons persist decisions and display broker receipts a
     await expect(card.getByText("EURUSD.demo", { exact: true })).toBeVisible();
     await expect(card.locator("[data-trade-result]")).toHaveCount(0);
     await card.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(card.locator("[data-trade-result='confirmed']")).toBeVisible();
-    await expect(card.getByText("native-ticket-42", { exact: true })).toBeVisible();
-    await expect(card.getByText("99.02", { exact: true })).toBeVisible();
     await expect(card.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+    // The confirmed fill is shown once, as its Execution Receipt (10.3), not in the card.
+    await expect(card.locator("[data-trade-result='confirmed']")).toHaveCount(0);
+    await page.route("**/api/trading/receipts?*", (route) =>
+      route.fulfill({
+        json: [
+          {
+            operation_id: "fixed-operation",
+            thread_id: thread.id,
+            timeline_seq: null,
+            agent_id: agent.id,
+            created_at: new Date().toISOString(),
+            kind: "order",
+            action: "buy_limit",
+            symbol: "EURUSD.demo",
+            ticket: "native-ticket-42",
+            volume: "0.1",
+            price: "99",
+            reason: null,
+            verification: "verified",
+          },
+        ],
+      }),
+    );
     await page.reload();
-    await expect(card.getByText("native-ticket-42", { exact: true })).toBeVisible();
+    const receipt = page.locator("[data-execution-receipt='fixed-operation']");
+    await expect(receipt.getByText("native-ticket-42", { exact: true })).toBeVisible();
+    await expect(receipt.getByText("99", { exact: true })).toBeVisible();
     expect(decisions).toBe(1);
     // A rejection is never rendered as broker success, including after reconnection.
     approval.results = [

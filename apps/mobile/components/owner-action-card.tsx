@@ -38,8 +38,6 @@ export function OwnerActionCard({
   const spec = ownerActionCard(row, locale);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [note, setNote] = useState("");
-  const [reference, setReference] = useState("");
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
@@ -100,10 +98,9 @@ export function OwnerActionCard({
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
     if (button.tier) body.tier = button.tier;
+    if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
-      if (note.trim()) body.note = note.trim();
-      if (reference.trim()) body.broker_reference = reference.trim();
     }
     if (button.decision === "confirm" && spec.passkey) {
       const challenge = await api.post<DeviceChallenge>(
@@ -254,17 +251,6 @@ export function OwnerActionCard({
           />
         ),
       )}
-      {spec.notes ? (
-        <>
-          <Field label={text.note} value={note} maxLength={2000} onChangeText={setNote} />
-          <Field
-            label={text.brokerReference}
-            value={reference}
-            maxLength={200}
-            onChangeText={setReference}
-          />
-        </>
-      ) : null}
       {spec.credential ? (
         <View testID={`owner-action-form-${spec.credential.target}`} style={{ gap: 8 }}>
           {spec.credential.fields.map((field) => (

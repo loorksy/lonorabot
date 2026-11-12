@@ -63,7 +63,7 @@ from .transactions import SettingsRepository, execution_policy_key, owned_thread
 LIFETIME = {
     "resume_trading": timedelta(hours=24),
     "lift_restriction": timedelta(days=31),
-    "resolve_operation": timedelta(days=7),
+    "settle_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
     "agent_model": timedelta(hours=24),
@@ -85,6 +85,8 @@ LIFETIME = {
     # notice of a tightened stop (recorded settled, nothing to tap).
     "watch_changed": timedelta(days=7),
     "stop_tightened": timedelta(days=7),
+    # The Mandate card has no time limit (10.3): it stays the agent's switch.
+    "trading_mode": timedelta(days=3650),
 }
 GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
 ALL_ACTIONS: tuple[AuthorityAction, ...] = ALL_AUTHORITY_ACTIONS
@@ -227,6 +229,11 @@ async def stale_reason(
         from .model_cards import model_stale_reason
 
         return await model_stale_reason(session, owner_id, kind, payload)
+    if kind == "trading_mode":
+        agent = await session.get(AgentRow, payload["agent_id"])
+        if agent is not None and agent.owner_id != owner_id:
+            raise LonoraError("agent_not_found", 404)
+        return "agent_already_removed" if agent is None else None
     if kind == "resume_trading":
         return (
             "trading_already_running"
@@ -242,7 +249,7 @@ async def stale_reason(
             if restriction_state(restriction) in {"revoked", "expired"}
             else None
         )
-    if kind == "resolve_operation":
+    if kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None or operation.owner_id != owner_id:
             raise LonoraError("operation_not_found", 404)
@@ -606,10 +613,13 @@ def proposal_payload(
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
     if proposal.kind == "resume_trading":
         return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
+    if proposal.kind == "trading_mode":
+        assert proposal.agent_id is not None
+        return "trading_mode:" + proposal.agent_id, {"agent_id": proposal.agent_id}
     if proposal.kind == "lift_restriction":
         assert proposal.restriction_id is not None
         return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
-    if proposal.kind == "resolve_operation":
+    if proposal.kind == "settle_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
     if proposal.kind in {"trust_source", "connect_credential"}:
@@ -676,6 +686,27 @@ async def card_facts(
     if row.kind == "resume_trading":
         facts["global_trading"] = await global_trading(session)
         return facts, False
+    if row.kind == "trading_mode":
+        agent = await session.get(AgentRow, payload["agent_id"], populate_existing=True)
+        if agent is None:
+            facts["agent"] = {"exists": False, "name": None}
+            return facts, False
+        # Read live: the card always shows the mode the agent is in now.
+        facts["agent"] = {"exists": True, "id": agent.id, "name": agent.name}
+        facts["trading_mode"] = "full" if agent.trading_mode == "full" else "ask"
+        # A signed grant still decides within its own terms until it is revoked.
+        facts["active_grant"] = bool(
+            await session.scalar(
+                select(func.count())
+                .select_from(AccountAuthorityRow)
+                .where(
+                    AccountAuthorityRow.owner_id == row.owner_id,
+                    AccountAuthorityRow.agent_id == agent.id,
+                    AccountAuthorityRow.status == "active",
+                )
+            )
+        )
+        return facts, False
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
         if restriction is None:
@@ -702,7 +733,7 @@ async def card_facts(
             "set_by_agent_name": names.get(restriction.created_by_agent_id or ""),
         }
         return facts, False
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None:
             return facts, False
@@ -1773,7 +1804,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction", "resume_trading"})
+RENEWABLE_KINDS = frozenset({"settle_operation", "lift_restriction", "resume_trading"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1842,7 +1873,7 @@ async def thread_cards(
 
 
 def confirmation_code(row: OwnerActionRow) -> str:
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
     if row.kind == "agent_created":
         return "owner_action_undo_" + str(row.result.get("undo", "paused"))
@@ -1908,7 +1939,7 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
     or another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
-    if row.kind not in {"lift_restriction", "resolve_operation"}:
+    if row.kind not in {"lift_restriction", "settle_operation"}:
         return []
     agent: str | None = None
     lifted_id = answered_id = ""
@@ -2128,7 +2159,7 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
         select(OwnerActionRow.id)
         .where(
             OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.kind == "resolve_operation",
+            OwnerActionRow.kind == "settle_operation",
             OwnerActionRow.subject == "operation:" + operation_id,
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > utcnow(),
@@ -2158,7 +2189,7 @@ async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
         return restriction.account_id if restriction else None
-    if row.kind == "resolve_operation":
+    if row.kind == "settle_operation":
         operation = await session.get(TradingJournalRow, row.payload["operation_id"])
         return operation.account_id if operation else None
     return None
@@ -2190,6 +2221,8 @@ async def settle_for_delete(
                 OwnerActionRow.agent_id == agent_id,
                 OwnerActionRow.subject.startswith("grant:" + agent_id + ":"),
                 OwnerActionRow.subject == "agent-model:" + agent_id,
+                # Lonora's Mandate card for this agent.
+                OwnerActionRow.subject == "trading_mode:" + agent_id,
             )
         )
     if thread_id is not None:

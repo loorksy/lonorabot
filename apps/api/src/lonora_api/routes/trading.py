@@ -14,9 +14,10 @@ from lonora_contracts.trading import (
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
+from lonora_db.execution_receipts import thread_receipts
 from lonora_db.obligations import prepare_delete
 from lonora_db.trading_journal import journal_entries
-from lonora_db.transactions import resource_data
+from lonora_db.transactions import owned_thread, resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
 from lonora_trading.controls import read_controls, save_controls
@@ -134,6 +135,16 @@ async def journal(
         ]
 
 
+@router.get("/receipts")
+async def receipts(
+    request: Request, thread_id: str, owner: OwnerIdentity = Depends(require_owner)
+) -> list[dict[str, Any]]:
+    """The Execution Receipts posted in one conversation (mandate 10.3, 11.2)."""
+    async with runtime(request).db.sessions() as session:
+        await owned_thread(session, owner.id, thread_id)
+        return await thread_receipts(session, owner.id, thread_id)
+
+
 @router.post("/journal/{operation_id}/resolve")
 async def resolve(
     request: Request,
@@ -240,6 +251,11 @@ async def approval_decision(
         expired = await settle_if_expired(session, owner.id, approval_id)
     if expired:
         raise LonoraError("trade_approval_expired", 409)
+    if body.decision == "approve":
+        from lonora_trading.approval_drift import check_band_at_approve
+
+        brokers = runtime(request).services(owner.id).brokers
+        await check_band_at_approve(db, brokers, owner.id, approval_id)
     async with db.sessions() as session, session.begin():
         return await decide(session, owner.id, approval_id, body.decision)
 

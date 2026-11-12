@@ -90,14 +90,14 @@ async def follow_event(session: AsyncSession, event: EventRow) -> None:
             await raise_system_card(
                 session,
                 owner_id,
-                OwnerActionProposal(kind="resolve_operation", operation_id=operation.operation_id),
+                OwnerActionProposal(kind="settle_operation", operation_id=operation.operation_id),
                 agent_id=agent_id,
                 thread_id=event.thread_id if agent_id == event.agent_id else None,
                 run_id=event.run_id,
             )
         elif operation.status not in UNRESOLVED_STATUSES:
             await supersede_subject(
-                session, owner_id, "resolve_operation", subject, "operation_already_settled"
+                session, owner_id, "settle_operation", subject, "operation_already_settled"
             )
         return
     if (await global_trading(session))["state"] == "running":

@@ -153,10 +153,12 @@ receipt is never changed.
 `{"outcome": "executed" | "not_executed" | "unknown", "statement": "...", "broker_reference": "..."}`
 records an attestation for an `ambiguous` live operation. The statement and reference
 are optional; without a statement the record reads "Owner attested; not broker
-confirmation." The conversation's resolve card (`docs/owner-actions.md`) runs the same
+confirmation." The conversation's Settle Uncertain Operation card (`docs/owner-actions.md`) runs the same
 attestation. It requires the
 authenticated owner session (cookie with CSRF, or bearer token); the passkey device
-proof is not required because the action authorizes no broker mutation. The row
+proof is not required because the action authorizes no broker mutation. For
+`unknown` the answer is recorded in `details.owner_answers` and the row stays
+`ambiguous`, held and reconciled. Otherwise the row
 becomes `resolved` with `details.resolution` (source `owner`, outcome, statement,
 reference, actor, time, `broker_confirmed: false`) and `details.prior_receipt`; the
 request, execution record and evidence stay. A durable `trading.operation_resolved`
@@ -242,5 +244,5 @@ grant signed in a deleted conversation is revoked visibly and its waiting owner 
 cards superseded, so no record keeps reading active while it can no longer run. A live
 operation still uncertain after fifteen minutes raises one `operation_unresolved`
 attention item from the watchdog, in the conversation of the agent that placed it,
-unless its resolve card already asks the owner; it is never resent. See
+unless its Settle card already asks the owner; it is never resent. See
 `docs/gateway-reliability.md`.

@@ -46,19 +46,27 @@ export function TradeApprovalCard({
       {row.requests.map((request, index) => (
         <View key={String(request.operation_id ?? index)}>
           <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-            {[
-              request.action,
-              request.symbol,
-              request.volume,
-              request.price,
-              request.stop_loss,
-              request.take_profit,
-              request.position_id,
-              request.order_id,
-            ]
+            {[request.action, request.symbol, request.volume]
               .filter((value) => value != null)
               .join(" · ")}
           </Text>
+          {(
+            [
+              ["approvalPrice", request.price],
+              ["stopLoss", request.stop_loss],
+              ["takeProfit", request.take_profit],
+              ["approvalTicket", request.position_id ?? request.order_id],
+            ] as const
+          )
+            .filter(([, value]) => value != null)
+            .map(([label, value]) => (
+              <Text
+                key={label}
+                style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}
+              >
+                {t(label)}: <Text style={{ writingDirection: "ltr" }}>{String(value)}</Text>
+              </Text>
+            ))}
           {request.clear_stop_loss === true && (
             <Text style={{ color: colors.foreground }}>{t("clearStopLoss")}</Text>
           )}
@@ -67,6 +75,18 @@ export function TradeApprovalCard({
           )}
         </View>
       ))}
+      {row.tolerance ? (
+        <Text style={{ color: colors.secondary }}>
+          {t("validWithin")}{" "}
+          {row.reference_price ? `${row.reference_price} ± ${row.tolerance}` : `± ${row.tolerance}`}
+        </Text>
+      ) : null}
+      {row.reason ? (
+        <View testID="trade-approval-reason">
+          <Text style={{ color: colors.secondary }}>{t("agentWords")}</Text>
+          <Text style={{ color: colors.foreground, writingDirection: "auto" }}>{row.reason}</Text>
+        </View>
+      ) : null}
       {row.status === "pending" ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8 }}>
           <Button label={t("approve")} disabled={busy} onPress={() => void decide("approve")} />
@@ -80,37 +100,42 @@ export function TradeApprovalCard({
       ) : (
         <Text style={{ color: colors.secondary }}>{approvalStatusText(row.status, locale)}</Text>
       )}
-      {row.results.map((result) => {
-        // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
-        // the broker) and why, in the owner's language instead of a raw code. An
-        // uncertain result always says it will not be sent again.
-        const reason = financialResultReason(result.status, result.code, locale);
-        return (
-          <View key={result.operation_id}>
-            <Text style={{ color: colors.foreground }}>
-              {operationStatusText(result.status, result.details, locale)}
-            </Text>
-            {reason && (
-              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-                {reason}
+      {/* A confirmed result is shown once: as its Execution Receipt (10.3). */}
+      {row.results
+        .filter((result) => result.status !== "confirmed")
+        .map((result) => {
+          // Shared with Web: the evidence-backed stage ("Not sent" when it never reached
+          // the broker) and why, in the owner's language instead of a raw code. An
+          // uncertain result always says it will not be sent again.
+          const reason = financialResultReason(result.status, result.code, locale);
+          return (
+            <View key={result.operation_id}>
+              <Text style={{ color: colors.foreground }}>
+                {operationStatusText(result.status, result.details, locale)}
               </Text>
-            )}
-            {result.broker_id != null && (
-              <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-                {brokerTicketLabel(locale)}:{" "}
-                <Text style={{ writingDirection: "ltr" }}>{result.broker_id}</Text>
-              </Text>
-            )}
-            {[result.details.price, result.details.description].some((value) => value != null) && (
-              <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
-                {[result.details.price, result.details.description]
-                  .filter((value) => value != null)
-                  .join(" · ")}
-              </Text>
-            )}
-          </View>
-        );
-      })}
+              {reason && (
+                <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                  {reason}
+                </Text>
+              )}
+              {result.broker_id != null && (
+                <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
+                  {brokerTicketLabel(locale)}:{" "}
+                  <Text style={{ writingDirection: "ltr" }}>{result.broker_id}</Text>
+                </Text>
+              )}
+              {[result.details.price, result.details.description].some(
+                (value) => value != null,
+              ) && (
+                <Text style={{ color: colors.foreground, writingDirection: "ltr" }}>
+                  {[result.details.price, result.details.description]
+                    .filter((value) => value != null)
+                    .join(" · ")}
+                </Text>
+              )}
+            </View>
+          );
+        })}
       <ErrorNotice text={error} />
     </View>
   );

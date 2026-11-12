@@ -448,7 +448,7 @@ async def main() -> None:
         resolve = next(
             row
             for row in await cards_in(personal["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         operation_facts = resolve["facts"]["operation"]
         assert operation_facts["symbol"] == GOLD and operation_facts["by_owner"] is True
@@ -482,6 +482,9 @@ async def main() -> None:
             raise AssertionError("an uncertain operation holds new risk on its market")
         status, missing = await decide(resolve["id"], {"decision": "confirm"})
         assert status == 422 and missing["code"] == "owner_action_outcome_required"
+        # Settle Uncertain Operation has exactly three answers (10.3): no dismissal.
+        status, dismissed = await decide(resolve["id"], {"decision": "cancel"})
+        assert status == 422 and dismissed["code"] == "owner_action_outcome_required"
         status, answered = await decide(
             resolve["id"], {"decision": "confirm", "outcome": "executed"}
         )
@@ -563,7 +566,7 @@ async def main() -> None:
         mine = next(
             row
             for row in await cards_in(thread["id"])
-            if row["kind"] == "resolve_operation" and row["status"] == "pending"
+            if row["kind"] == "settle_operation" and row["status"] == "pending"
         )
         assert mine["facts"]["operation"]["by_agent_name"] == agent["name"]
         status, unknown = await decide(mine["id"], {"decision": "confirm", "outcome": "unknown"})

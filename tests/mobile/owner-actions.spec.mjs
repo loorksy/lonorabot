@@ -28,7 +28,9 @@ async def main():
     try:
         async with f.runtime.db.sessions() as session, session.begin():
             fields={'kind':data['kind']}
-            if data['kind']=='resolve_operation':
+            if data['kind']=='trading_mode':
+                fields['agent_id']=data['agent']
+            if data['kind']=='settle_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
                 await session.flush()
@@ -42,7 +44,7 @@ async def main():
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
-            elif data['kind']=='resume_trading':
+            elif data['kind'] in ('resume_trading','trading_mode'):
                 # As an agent proposes it when the owner asks to resume.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
@@ -66,7 +68,7 @@ const copy = {
     resumed: "استؤنف التداول.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     executed: "نُفذت",
-    unknown: "غير معروفة — ارفع التعليق",
+    unknown: "غير معروفة",
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
     noPauses: "لا توجد إيقافات",
@@ -80,7 +82,7 @@ const copy = {
     resumed: "Trading resumed.",
     resolveTitle: "The broker did not confirm this trade",
     executed: "It executed",
-    unknown: "Unknown: release the hold",
+    unknown: "Unknown",
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
     lift: "Lift pause",
     noPauses: "No pauses",
@@ -134,7 +136,7 @@ for (const locale of ["ar", "en"])
         });
       const resume = seedCard({ kind: "resume_trading", agent: agent.id, thread: thread.id });
       const uncertain = seedCard({
-        kind: "resolve_operation",
+        kind: "settle_operation",
         account: data.account,
         symbol: data.symbol,
         agent: agent.id,
@@ -213,6 +215,72 @@ for (const locale of ["ar", "en"])
           data: { reason: "" },
         });
       await context.request.put("/api/trading/controls", { headers, data: original });
+      simulation({ ...data, action: "cleanup" });
+    }
+  });
+
+const mandate = {
+  ar: { full: "وكّله", ask: "يستأذن", askNow: "الآن: يستأذن", fullNow: "الآن: وكّله" },
+  en: { full: "Full", ask: "Ask", askNow: "Now: Ask", fullNow: "Now: Full" },
+};
+
+for (const locale of ["ar", "en"])
+  test(`Expo ${locale}: the Mandate card switches the mode its button shows`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(90000);
+    const text = mandate[locale];
+    const data = simulation({ action: "init", empty: true });
+    await context.addCookies(
+      data.cookies.map((cookie) => ({
+        ...cookie,
+        url: test.info().project.use.baseURL,
+        httpOnly: cookie.name === "lonora_session",
+        sameSite: "Strict",
+      })),
+    );
+    await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
+    const headers = {
+      "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
+    };
+    const created = await context.request.post("/api/agents", {
+      headers,
+      data: {
+        name: `Native mandate ${randomUUID().slice(0, 6)}`,
+        trading_account_id: data.account,
+        trading_symbol: data.symbol,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const agent = await created.json();
+    const thread = await (
+      await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
+    ).json();
+    try {
+      const seeded = seedCard({ kind: "trading_mode", agent: agent.id, thread: thread.id });
+      const decisions = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
+          decisions.push(request.postDataJSON());
+      });
+      await page.goto(`/thread?id=${thread.id}`);
+      const card = page.getByTestId(`owner-action-${seeded.id}`);
+      await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
+      if (locale === "ar")
+        await card.screenshot({
+          path: test.info().outputPath("owner-action-mandate-native-ar.png"),
+        });
+      await card.getByRole("button", { name: text.full, exact: true }).click();
+      await expect(card.getByText(text.fullNow, { exact: false })).toBeVisible();
+      await card.getByRole("button", { name: text.ask, exact: true }).click();
+      await expect(card.getByText(text.askNow, { exact: false })).toBeVisible();
+      expect(decisions).toEqual([
+        { decision: "confirm", trading_mode: "full" },
+        { decision: "confirm", trading_mode: "ask" },
+      ]);
+    } finally {
+      await context.request.delete(`/api/agents/${agent.id}`, { headers });
       simulation({ ...data, action: "cleanup" });
     }
   });

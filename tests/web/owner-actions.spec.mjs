@@ -28,7 +28,9 @@ async def main():
     try:
         async with f.runtime.db.sessions() as session, session.begin():
             fields={'kind':data['kind']}
-            if data['kind']=='resolve_operation':
+            if data['kind']=='trading_mode':
+                fields['agent_id']=data['agent']
+            if data['kind']=='settle_operation':
                 operation=str(uuid4())
                 session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
                 await session.flush()
@@ -45,7 +47,7 @@ async def main():
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
-            elif data['kind']=='resume_trading':
+            elif data['kind'] in ('resume_trading','trading_mode'):
                 # As an agent proposes it when the owner asks to resume.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
@@ -152,7 +154,7 @@ const copy = {
     resumed: "Trading resumed.",
     resolveTitle: "The broker did not confirm this trade",
     notExecuted: "It did not execute",
-    unknown: "Unknown: release the hold",
+    unknown: "Unknown",
     recorded: "Recorded: it did not execute (your statement, not broker confirmation).",
     lift: "Lift pause",
     grantTitle: "trade on its own",
@@ -173,7 +175,7 @@ const copy = {
     resumed: "استؤنف التداول.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     notExecuted: "لم تُنفذ",
-    unknown: "غير معروفة — ارفع التعليق",
+    unknown: "غير معروفة",
     recorded: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     lift: "رفع الإيقاف",
     grantTitle: "يتداول بنفسه",
@@ -638,6 +640,69 @@ for (const locale of ["en", "ar"])
     }
   });
 
+const mandateCopy = {
+  en: {
+    title: "Trading mode",
+    full: "Full",
+    ask: "Ask",
+    askNow: "Now: Ask",
+    fullNow: "Now: Full",
+  },
+  ar: {
+    title: "التفويض",
+    full: "وكّله",
+    ask: "يستأذن",
+    askNow: "الآن: يستأذن",
+    fullNow: "الآن: وكّله",
+  },
+};
+
+for (const locale of ["en", "ar"])
+  test(`${locale}: the Mandate card shows the mode now and one button for the other mode`, async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(60000);
+    const text = mandateCopy[locale];
+    const state = await setup(context, locale);
+    try {
+      const seeded = seedCard({
+        kind: "trading_mode",
+        agent: state.agent.id,
+        thread: state.thread.id,
+      });
+      const decisions = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().includes("/api/owner-actions/"))
+          decisions.push(request.postDataJSON());
+      });
+      await page.goto(`/app/${state.agent.id}`);
+      const card = page.locator(`[data-owner-action="${seeded.id}"]`);
+      await expect(card).toHaveAttribute("data-owner-action-status", "pending");
+      await expect(card.locator(".oa-kind")).toHaveText(text.title);
+      await expect(card).toContainText(text.askNow);
+      // One button, for the other mode.
+      await expect(card.locator("[data-owner-action-button]")).toHaveCount(1);
+      if (locale === "ar") {
+        await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+        await card.screenshot({ path: test.info().outputPath("owner-action-mandate-ar.png") });
+      }
+      await card.getByRole("button", { name: text.full, exact: true }).click();
+      await expect(card).toHaveAttribute("data-owner-action-status", "confirmed");
+      await expect(card).toContainText(text.fullNow);
+      // Still the agent's switch: the button now shows Ask, and applies exactly Ask.
+      await card.getByRole("button", { name: text.ask, exact: true }).click();
+      await expect(card).toContainText(text.askNow);
+      await expect(card.getByRole("button", { name: text.full, exact: true })).toBeVisible();
+      expect(decisions).toEqual([
+        { decision: "confirm", trading_mode: "full" },
+        { decision: "confirm", trading_mode: "ask" },
+      ]);
+    } finally {
+      await state.cleanup();
+    }
+  });
+
 for (const locale of ["en", "ar"])
   test(`${locale}: an uncertain trade card settles with one answer and never resends`, async ({
     page,
@@ -648,7 +713,7 @@ for (const locale of ["en", "ar"])
     const state = await setup(context, locale);
     try {
       const seeded = seedCard({
-        kind: "resolve_operation",
+        kind: "settle_operation",
         account: state.account,
         symbol: state.data.symbol,
         agent: state.agent.id,

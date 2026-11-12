@@ -2,6 +2,7 @@ import type {
   Agent,
   Artifact,
   Event,
+  ExecutionReceipt,
   Group,
   InputAnswer,
   Message,
@@ -47,6 +48,7 @@ import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
+import { ExecutionReceiptCard } from "../components/execution-receipt";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
@@ -117,6 +119,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [collaborationSessionId, setCollaborationSessionId] = useState<string>();
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
+  const [receipts, setReceipts] = useState<ExecutionReceipt[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
@@ -208,51 +211,61 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           ),
           api.get<Agent[]>("/agents"),
           api.get<OwnerAction[]>(`/owner-actions?thread_id=${encodeURIComponent(id)}`),
-        ]).then(([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards]) => {
-          if (
-            !stillLive() ||
-            !conversationCache.current(scope) ||
-            selected.current.id !== id ||
-            selected.current.scope !== scope
-          )
-            return;
-          setAgents(refreshedAgents);
-          setCollaborationSessionId(collaboration?.id);
-          setCollaborationActive(
-            Boolean(
-              collaboration &&
-                !["completed", "cancelled", "expired", "failed"].includes(
-                  collaboration.state.status,
-                ),
-            ),
-          );
-          setFiles(nextFiles);
-          setOwnerActions((old) =>
-            nextCards.map((row) => {
-              const previous = old.find((item) => item.id === row.id);
-              return previous ? mergeOwnerAction(previous, row) : row;
-            }),
-          );
-          setApprovals((old) =>
-            nextApprovals.map((row) => {
-              const previous = old.find((item) => item.id === row.id);
-              const rank = {
-                pending: 0,
-                approved: 1,
-                rejected: 1,
-                expired: 1,
-                completed: 2,
-                cancelled: 2,
-              };
-              return previous &&
-                (rank[previous.status] > rank[row.status] ||
-                  (previous.status === row.status && previous.results.length > row.results.length))
-                ? previous
-                : row;
-            }),
-          );
-          setError(null);
-        });
+          // Side data of its own: a failed read never stops the cards above from refreshing.
+          api
+            .get<ExecutionReceipt[]>(`/trading/receipts?thread_id=${encodeURIComponent(id)}`)
+            .catch(() => [] as ExecutionReceipt[]),
+        ]).then(
+          ([nextFiles, nextApprovals, collaboration, refreshedAgents, nextCards, nextReceipts]) => {
+            if (
+              !stillLive() ||
+              !conversationCache.current(scope) ||
+              selected.current.id !== id ||
+              selected.current.scope !== scope
+            )
+              return;
+            setAgents(refreshedAgents);
+            setCollaborationSessionId(collaboration?.id);
+            setCollaborationActive(
+              Boolean(
+                collaboration &&
+                  !["completed", "cancelled", "expired", "failed"].includes(
+                    collaboration.state.status,
+                  ),
+              ),
+            );
+            setFiles(nextFiles);
+            setOwnerActions((old) =>
+              nextCards.map((row) => {
+                const previous = old.find((item) => item.id === row.id);
+                return previous ? mergeOwnerAction(previous, row) : row;
+              }),
+            );
+            setApprovals((old) =>
+              nextApprovals.map((row) => {
+                const previous = old.find((item) => item.id === row.id);
+                const rank = {
+                  pending: 0,
+                  approved: 1,
+                  rejected: 1,
+                  expired: 1,
+                  withdrawn: 1,
+                  drifted: 1,
+                  completed: 2,
+                  cancelled: 2,
+                };
+                return previous &&
+                  (rank[previous.status] > rank[row.status] ||
+                    (previous.status === row.status &&
+                      previous.results.length > row.results.length))
+                  ? previous
+                  : row;
+              }),
+            );
+            setReceipts(nextReceipts);
+            setError(null);
+          },
+        );
         await Promise.all([primary, auxiliary]);
       } catch (reason) {
         if (
@@ -279,6 +292,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setRuns(cached?.runs ?? []);
     setApprovals(cached?.approvals ?? []);
     setOwnerActions([]);
+    setReceipts([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
     setCollaborationSessionId(cached?.collaborationSessionId);
     const savedDraft = composerDraft(outboxKey);
@@ -568,6 +582,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       visibleMessages,
       approvals.filter((row) => row.thread_id === id),
       ownerActions.filter((row) => row.thread_id === id),
+      receipts.filter((row) => row.thread_id === id),
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -577,7 +592,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, receipts, id]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -892,6 +907,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 visibleMessages,
                 approvals.filter((row) => row.thread_id === id),
                 ownerActions.filter((row) => row.thread_id === id),
+                receipts.filter((row) => row.thread_id === id),
               ).reverse()}
               keyExtractor={(item) => item.id}
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -934,6 +950,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 </Text>
               }
               renderItem={({ item }) => {
+                if (item.kind === "receipt") return <ExecutionReceiptCard row={item.receipt} />;
                 if (item.kind === "owner_action")
                   return (
                     <OwnerActionCard
