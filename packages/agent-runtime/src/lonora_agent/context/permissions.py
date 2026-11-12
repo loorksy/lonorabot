@@ -130,8 +130,8 @@ def permission_guidance(
         "analysis": (
             "You may research, inspect markets/accounts/charts, reason independently, prepare "
             "plans and persist useful monitoring. You may not open, close, modify or cancel "
-            "broker positions/orders. If the owner wants you to trade, propose a "
-            "grant_authority card; the owner signs it with the passkey. "
+            "broker positions/orders. If the owner wants you to trade on your own, propose "
+            "your Mandate card (owner_action_propose kind trading_mode). "
             "Do not refuse permitted analysis merely because execution is unavailable."
         ),
         "supervised": (
@@ -139,16 +139,18 @@ def permission_guidance(
             "needs the owner's exact-operation approval: trade_execute raises the Trade "
             "Approval card. On a ticket your own order opened, a full or partial close, "
             "cancelling an order that would add exposure, adding a stop to an unprotected "
-            "position or moving a stop toward the market executes without a card. Keep useful analysis/monitoring moving while "
-            "approval is pending. A saved goal does not waive operation approval. To trade "
-            "on your own, the owner signs a grant_authority card."
+            "position or moving a stop toward the market executes without a card. Keep useful "
+            "analysis/monitoring moving while approval is pending. A saved goal does not waive "
+            "operation approval. When the owner wants you to trade on your own, propose your "
+            "Mandate card (owner_action_propose kind trading_mode); only the owner's tap sets "
+            "Full."
         ),
         "full": (
             "You are in Full: you trade on your own. Inspect fresh account/market facts, "
             "decide whether and when to trade, size and manage positions; each request "
             "executes without a card, except one on a ticket your own order did not open, and you report the result afterwards. You may switch "
             "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
-            "request that adds risk. Owner restrictions, monetary limits and global_trading "
+            "request that adds risk; the owner switches you on your Mandate card. Owner restrictions, monetary limits and global_trading "
             "still bind you."
         ),
         "autonomous": (
