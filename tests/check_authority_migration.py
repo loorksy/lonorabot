@@ -61,6 +61,7 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
+from lonora_db.supervision import owner_resumes
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_session.idempotency import request_hash, stable_id
 from lonora_trading.account_authority import ticket_agent
@@ -557,9 +558,25 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
                 row.id, thread.id, task_id, status=status, control_requested=control, run_id=run.id
             )
             managers[name] = (row.id, grant.id, task_id, run.id, thread.id)
-        running_agent, _, running_task, _, running_thread = managers["Running"]
+        running_agent, _, running_task, running_run, running_thread = managers["Running"]
+        # The management Task's own watches stay the agent's own when it ends (4.5.3):
+        # one live, one a supervisor paused, one the owner paused.
+        linked = {"task_id": running_task, "task_run_id": running_run}
+        live_task_watch = await seed.watch(
+            running_agent, running_thread, enabled=True, state={**linked, "lifecycle": "pending"}
+        )
         task_watch = await seed.watch(
-            running_agent, running_thread, enabled=True, state={"task_id": running_task}
+            running_agent, running_thread, enabled=False, state={**linked, "code": "watch_paused"}
+        )
+        owner_task_watch = await seed.watch(
+            running_agent,
+            running_thread,
+            enabled=False,
+            state={**linked, "code": "watch_paused"},
+            symbol="EURUSDm",
+        )
+        owner_task_watch_hold = await seed.hold(
+            running_agent, "watch", owner_task_watch.id, "owner", None
         )
         own_watch = await seed.watch(running_agent, running_thread, enabled=True)
         # A card the management Run waits on ends with that Run.
@@ -887,6 +904,9 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
             "ended_task_hold": ended_task_hold.id,
             "approval": approval.id,
             "task_watch": task_watch.id,
+            "live_task_watch": live_task_watch.id,
+            "owner_task_watch": owner_task_watch.id,
+            "owner_task_watch_hold": owner_task_watch_hold.id,
             "own_watch": own_watch.id,
         }
     async with db.sessions() as session:
@@ -955,9 +975,14 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         approval = await session.get(TradeApprovalRow, refs["stranded"], populate_existing=True)
         assert approval is not None
         assert approval.status == "cancelled", "a card of a cancelled Run is not left pending"
-        watch = await session.get(MarketWatchRow, refs["task_watch"], populate_existing=True)
-        assert watch is not None and watch.payload["enabled"] is False
-        assert watch.state["code"] == "task_terminal", watch.state
+        # Ending the Task never cancels its watches: each stays, without the Task (4.5.3).
+        for name in ("live_task_watch", "task_watch", "owner_task_watch"):
+            watch = await session.get(MarketWatchRow, refs[name], populate_existing=True)
+            assert watch is not None and watch.version > 1, name
+            assert not {"task_id", "task_run_id"} & set(watch.state), (name, watch.state)
+        watch = await session.get(MarketWatchRow, refs["live_task_watch"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is True
+        assert watch.state == {"lifecycle": "pending"}, watch.state
         watch = await session.get(MarketWatchRow, refs["own_watch"], populate_existing=True)
         assert watch is not None and (watch.payload, watch.state) == own_watch_state
         review_run = await session.get(RunRow, refs["review"], populate_existing=True)
@@ -1091,9 +1116,17 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
         assert routine_row is not None and routine_row.enabled is True
         watch = await session.get(MarketWatchRow, refs["lapsed_watch"], populate_existing=True)
         assert watch is not None and watch.payload["enabled"] is False, "past its expiry"
+        # The supervisor's pause of a Task watch ends, and the watch, now the agent's
+        # own, resumes.
         watch = await session.get(MarketWatchRow, refs["task_watch"], populate_existing=True)
-        assert watch is not None and watch.payload["enabled"] is False, "its Task ended"
-        assert watch.state["code"] == "task_terminal"
+        assert watch is not None and watch.payload["enabled"] is True, "resumed"
+        assert "code" not in watch.state, watch.state
+        # The owner's pause of a Task watch stays, and the owner can lift it afterwards.
+        owner_hold = await hold("owner_task_watch_hold")
+        assert owner_hold.released_at is None and owner_hold.source == "owner"
+        watch = await session.get(MarketWatchRow, refs["owner_task_watch"], populate_existing=True)
+        assert watch is not None and watch.payload["enabled"] is False
+        assert watch.state["code"] == "watch_paused", watch.state
         asked = await hold("asked_hold")
         assert asked.released_at is None and asked.source == "owner"
         routine_row = await session.get(RoutineRow, refs["routine"], populate_existing=True)
@@ -1144,10 +1177,21 @@ async def general_cases(db: Database, ids: dict[str, str]) -> None:
     # Each revoked supervision grant is recorded for both of its agents.
     assert len(await events_since(db, cursor, "supervision.revoked")) == 4
     assert len(await events_since(db, cursor, "memory.updated")) == 2
+    kept = {
+        event.payload["id"] for event in await events_since(db, cursor, "market_watches.updated")
+    }
+    assert {refs["live_task_watch"], refs["owner_task_watch"]} <= kept, kept
+    # The owner's Resume on the kept pause works: the watch no longer names an ended Task.
+    async with db.sessions() as session, session.begin():
+        assert await owner_resumes(session, owner_id, refs["owner_task_watch_hold"])
+    async with db.sessions() as session:
+        watch = await session.get(MarketWatchRow, refs["owner_task_watch"])
+        assert watch is not None and watch.payload["enabled"] is True, "the owner resumed it"
     print(
         "PASS the general cases: every agent in Ask at 'Ask me'; active, expired, pending and"
         " orphaned grants revoked, their Tasks stopped (failed→cancelled, complete→completed),"
-        " the Task's watch settled and its Run and activation review cancelled; cards only for"
+        " the Task's watches kept as the agent's own (the owner's pause on one stays and"
+        " lifts), its Run and activation review cancelled; cards only for"
         " active unexpired grants; delegated, child and supervisor agents flattened with the"
         " binding in OPERATING.md; restrictions ended; a supervisor's own pauses ended with the"
         " work resumed, the owner's and Lonora's kept; stored approval expiry and journal"
