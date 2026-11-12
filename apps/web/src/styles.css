@@ -3,21 +3,19 @@
 @import "@lonora/ui-web/styles.css";
 @import "@lonora/ui-tokens/tokens.css";
 @import "@lonora/ui-tokens/reference.css";
-@import "@fontsource-variable/geist/wght.css";
 @import "./pages/shell/shell.css";
 @import "./theme.overrides.css";
 @source "../../../packages/ui-web/src";
+/* `outline` is the reference's button modifier (.btn.outline), not Tailwind's utility. */
+@source not inline("outline");
 :root {
-  font-family: "Geist Variable", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
   --lonora-surface: var(--background);
   --lonora-panel: var(--card);
   --lonora-raised: var(--secondary);
   --lonora-line: var(--border);
   --lonora-text: var(--foreground);
   --lonora-muted: var(--muted-foreground);
-  --lonora-accent: var(--primary);
   --lonora-danger: var(--destructive);
-  --lonora-glow: var(--accent);
 }
 * {
   box-sizing: border-box;
@@ -54,7 +52,7 @@ body input[type="checkbox"][data-lonora-switch]::before {
   transition: transform 160ms ease;
 }
 body input[type="checkbox"][data-lonora-switch]:checked {
-  background: #8d7bff;
+  background: var(--accent);
 }
 body input[type="checkbox"][data-lonora-switch]:checked::before {
   transform: translateX(18px);
@@ -79,10 +77,9 @@ body,
   margin: 0;
 }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-size: 14px;
-  line-height: 1.65;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 var(--fs-md) / 1.6 var(--font);
 }
 /* The legacy element and component styles reach screens outside the reference shell and the
    legacy screens it still mounts (.legacy-surface); the shell's chrome keeps its own defaults. */
@@ -104,7 +101,7 @@ body {
   transition: background 150ms;
 }
 :where(button:hover, .button:hover):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(button:focus-visible, a:focus-visible):where(:not(.app-shell *), .legacy-surface *) {
   outline: 2px solid var(--ring);
@@ -115,7 +112,7 @@ body {
   cursor: default;
 }
 :where(button.primary):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--primary);
+  background: var(--legacy-primary);
   color: var(--primary-foreground);
   border-color: transparent;
   font-weight: 550;
@@ -124,7 +121,7 @@ body {
   color: var(--destructive);
 }
 :where(button.selected):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(button svg):where(:not(.app-shell *), .legacy-surface *) {
   width: 17px;
@@ -151,7 +148,7 @@ body {
 :where(input[type="checkbox"]):where(:not(.app-shell *), .legacy-surface *) {
   width: 16px;
   height: 16px;
-  accent-color: var(--primary);
+  accent-color: var(--legacy-primary);
 }
 :where(input[type="color"]):where(:not(.app-shell *), .legacy-surface *) {
   height: 42px;
@@ -292,7 +289,7 @@ body {
   align-items: center;
   border-radius: 5px;
   padding: 2px 7px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--muted-foreground);
   font-size: 11px;
 }
@@ -468,7 +465,7 @@ body {
   background: transparent;
 }
 :where(.settings-nav button.selected):where(:not(.app-shell *), .legacy-surface *) {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 :where(.tabs):where(:not(.app-shell *), .legacy-surface *) {
   display: flex;
@@ -493,7 +490,7 @@ body {
 :where(.notice):where(:not(.app-shell *), .legacy-surface *) {
   border-radius: 8px;
   padding: 10px 15px;
-  background: var(--accent);
+  background: var(--legacy-accent);
   font-size: 12px;
 }
 :where(.quote-card):where(:not(.app-shell *), .legacy-surface *) {
@@ -602,21 +599,6 @@ body {
   .modal-backdrop {
     padding: 12px;
   }
-}
-
-.workspace-loading {
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 1rem;
-  color: var(--muted);
-}
-.workspace-loading-mark {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text);
 }
 
 /* One renderer is shared by the product, native hosts, and scoped observation hosts. */

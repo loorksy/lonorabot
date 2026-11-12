@@ -7,11 +7,12 @@ read-only at review, the non-financial write tier runs them all) and subscribe t
 feeds (``feed_domain``) without asking; the owner sees each one in Capabilities with
 Undo. An ``operator`` entry (copied from ``LONORA_MCP_DECLARATIONS``) shows the
 operator's declaration and authorizes nothing by itself; the owner's review of it makes
-it the owner's own trust. Outside it an agent raises one ``trust_source`` card and the owner's tap adds the
-source, remembered. Only the owner's session adds, removes or restores a source; no
-tool does. Every owner starts with ``github.com`` (every public repository, trusted as
-Skill imports always were, now visible and removable). No source carries money
-authority: a tool that can trade or move money is never pinned.
+it the owner's own trust. Outside it an agent adds a source only when the owner's typed
+message the run answers names it (``owner_message``, no card; ``lonora_tools.source_trust``);
+rows added from the owner's former trust card stay ``owner_card``. Only the owner's
+session removes or restores a source. Every owner starts with ``github.com`` (every
+public repository, trusted as Skill imports always were, now visible and removable). No
+source carries money authority: a tool that can trade or move money is never pinned.
 """
 
 from collections.abc import Iterable
@@ -27,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .events import emit
 from .schema import AgentRow, McpConnectionRow, TrustedSourceRow
 
-AddedVia = Literal["default", "operator", "owner_ui", "owner_card"]
+AddedVia = Literal["default", "operator", "owner_ui", "owner_card", "owner_message"]
 RemovedVia = Literal["owner_ui", "owner_card"]
 DEFAULT_GITHUB = "github.com"
 
@@ -126,7 +127,8 @@ async def trust_source(
     """Add a source, or (an MCP server reviewed again) replace its pinned review.
 
     Returns the active entry and whether this call changed the list. Callers are the
-    owner's routes and the owner's card decision; agents never reach this. The owner's
+    owner's routes and the tools that act on the owner's own words in chat (checked there
+    first, ``owner_message``); nothing else reaches this. The owner's
     review of an operator entry makes it the owner's own, even when nothing else changed.
     """
     try:

@@ -90,8 +90,6 @@ export function OwnerActionCard({
   const [note, setNote] = useState("");
   const [reference, setReference] = useState("");
   const [more, setMore] = useState(false);
-  // Q11: «غير معروف» can also stop new trades for the rest of the day (an owner restriction).
-  const [pauseToday, setPauseToday] = useState(false);
   const [enroll, setEnroll] = useState(false);
   const [password, setPassword] = useState("");
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
@@ -138,12 +136,10 @@ export function OwnerActionCard({
       decision: button.decision,
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
-    if (button.tier) body.tier = button.tier;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
       if (reference.trim()) body.broker_reference = reference.trim();
-      if (button.outcome === "unknown" && pauseToday) body.pause_new_today = true;
     }
     if (button.decision === "confirm" && spec.passkey) {
       const challenge = await api.post<DeviceChallenge>(
@@ -355,26 +351,6 @@ export function OwnerActionCard({
             })}
         </div>
       )}
-      {resolve && !settled && (
-        <div className="oa-fields">
-          <div className="oa-f">
-            <span className="oa-l">
-              {text.pauseNewToday}
-              <small>{text.pauseNewTodayHint}</small>
-            </span>
-            <button
-              type="button"
-              className="switch"
-              role="switch"
-              aria-checked={pauseToday}
-              aria-label={text.pauseNewToday}
-              data-owner-action-option="pause_new_today"
-              disabled={busy}
-              onClick={() => setPauseToday((on) => !on)}
-            />
-          </div>
-        </div>
-      )}
       {spec.notes &&
         (more ? (
           <div className="oa-fields">
@@ -501,7 +477,6 @@ const NOTICE_KINDS = new Set<string>([
 const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   set_account_limits: "scale",
-  lift_restriction: "lock",
   resolve_operation: "alert",
   create_agent: "userPlus",
   agent_created: "userPlus",
@@ -509,7 +484,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_created: "eye",
   supervision_stopped: "eye",
   supervision_paused: "pause",
-  trust_source: "shield",
   connect_credential: "key",
   secret: "key",
   watch_changed: "radar",
