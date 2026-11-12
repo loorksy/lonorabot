@@ -16,8 +16,8 @@ from .base import Tool
 from .context import ToolContext
 from .market_watch import created_to_run
 from .memory import Empty
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 class RoutineToggle(Contract):

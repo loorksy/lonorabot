@@ -432,7 +432,7 @@ async def test_never_run_submission_stays_out_of_every_run_and_unlocks_the_card(
 async def test_card_words_never_stand_for_the_owner() -> None:
     from lonora_db.owner_words import owner_typed_message
     from lonora_db.schema import MessageRow, RunRow, ThreadRow
-    from lonora_tools.restrictions import owner_message_id
+    from lonora_tools.provenance import owner_message_id
 
     fixture = await open_fixture()
     try:

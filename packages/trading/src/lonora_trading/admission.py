@@ -58,6 +58,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import direction
 
+
+class AdmissionBlocked(LonoraError):
+    """A boundary decision with evidence the executor records on the journal row."""
+
+    def __init__(self, code: str, evidence: dict[str, Any], status: int = 409):
+        super().__init__(code, status)
+        self.evidence = evidence
+
+
 # Actions that can be risk-reducing for some broker target; anything else never is.
 REDUCING_ACTIONS = frozenset({"close_position", "cancel_order", "modify_position"})
 # Recovery observations that do not by themselves prevent new risk. "degraded" lists

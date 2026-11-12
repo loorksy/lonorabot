@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 from .symbols import canonical_broker_symbol
 
 # The daily loss limit a grant card suggests when the owner named none (owner decision D1).

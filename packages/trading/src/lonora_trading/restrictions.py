@@ -25,10 +25,8 @@ already sent is never reversed.
 """
 
 from datetime import datetime
-from typing import Any
 
 from lonora_contracts.trading import TradeRequest
-from lonora_core.user_error import LonoraError
 from lonora_db.schema import TradingRestrictionRow
 from lonora_db.trading_restrictions import (
     database_now,
@@ -37,17 +35,10 @@ from lonora_db.trading_restrictions import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .admission import AdmissionBlocked
 from .exposure import ENTRY_ACTIONS
 
 ENTRY_CLASS = frozenset(ENTRY_ACTIONS | {"modify_order"})
-
-
-class AdmissionBlocked(LonoraError):
-    """A boundary decision with evidence the executor records on the journal row."""
-
-    def __init__(self, code: str, evidence: dict[str, Any], status: int = 409):
-        super().__init__(code, status)
-        self.evidence = evidence
 
 
 def prohibits(

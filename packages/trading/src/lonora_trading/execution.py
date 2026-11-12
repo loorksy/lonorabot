@@ -30,7 +30,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
-from .admission import may_reduce_risk, require_operation_scope, risk_reducing
+from .admission import AdmissionBlocked, may_reduce_risk, require_operation_scope, risk_reducing
 from .agent_permission import require_operation_permission
 from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
@@ -40,7 +40,7 @@ from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
 from .reconciliation import send_lock_key
-from .restrictions import AdmissionBlocked, require_unrestricted
+from .restrictions import require_unrestricted
 from .risk_limits import assess_risk, risk_operations
 from .verification import verify_effect
 
