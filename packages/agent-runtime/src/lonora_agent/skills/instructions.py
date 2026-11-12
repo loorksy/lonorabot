@@ -46,7 +46,7 @@ async def history_rows(
     session: AsyncSession, context: ToolContext, skill_id: str
 ) -> list[SkillVersionRow]:
     """Every saved version of this agent's Skill named ``skill_id``, newest first, the
-    versions of a deleted Skill and of an earlier Skill of the same name included."""
+    versions of a deleted Skill included."""
     return list(
         await session.scalars(
             select(SkillVersionRow)
@@ -147,6 +147,12 @@ async def save_skill(
         expected = arguments["expected_version"]
         if (row.version if row else 0) != expected:
             raise LonoraError("version_conflict", 409)
+        if row is None:
+            # A deleted instruction Skill of this name comes back under its own id, so its
+            # earlier versions stay in its history (5.5.5).
+            deleted = deleted_versions(await history_rows(session, context, skill_id))
+            if deleted and not deleted[0].package:
+                row = await revived(session, context, skill_id, expected)
         if row is not None:
             editable(row)
         payload = instruction_payload(
@@ -268,6 +274,10 @@ async def revived(
     if expected != 0:
         raise LonoraError("version_conflict", 409)
     last = deleted[0]
+    if last.package:
+        # A removed package comes back only through its own lifecycle, with its
+        # source hashes and validation (skill_package_import or skill_package_create).
+        raise LonoraError("skill_package_lifecycle_required", 409)
     row = SkillRow(
         id=last.skill_id,
         owner_id=context.owner_id,
