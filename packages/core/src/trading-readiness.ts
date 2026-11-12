@@ -66,7 +66,6 @@ export const tradingSafetyLabels = {
       "It will not be sent again. New risk on this market is held until it settles; exits stay allowed.",
     exitsFrozen: "A freeze is active: exits are blocked too.",
     close: "Close",
-    loading: "Loading…",
   },
   ar: {
     title: "أمان التداول",
@@ -102,7 +101,6 @@ export const tradingSafetyLabels = {
       "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا.",
     exitsFrozen: "يوجد تجميد نشط: الخروج محظور أيضًا.",
     close: "إغلاق",
-    loading: "جارٍ التحميل…",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type TradingSafetyText = (typeof tradingSafetyLabels)[Language];

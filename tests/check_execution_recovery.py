@@ -1,8 +1,8 @@
 """Financial execution integrity and recovery on disposable PostgreSQL with the simulation broker.
 
 Exercises crash-before-send recovery, interruption after submission (Owner addendum §6
-step 7), scoped blocking against reduce-only admission under Emergency Stop, Trading OFF
-and degraded/disconnected recovery, owner attestation through the authenticated API,
+step 7), scoped blocking against reduce-only admission on an uncertain market, degraded/
+disconnected recovery, owner attestation through the authenticated API,
 target-state reconciliation of modify/cancel operations, verification rechecks and an
 approved close-all whose exits never wait on one another. No live broker, MetaApi key or
 real order is involved.
@@ -694,6 +694,10 @@ async def main() -> None:
             result = await run(trade("buy", volume=volume, stop_loss="95"))
             assert result.status == "confirmed" and result.broker_id, result
             later.append(result.broker_id)
+        # A protective order: a sell stop that would offset the net long GOLD book. It is
+        # placed while GOLD is still settled; section 8 tries to cancel it once uncertain.
+        guard = await run(trade("sell_stop", volume="0.2", price="96"))
+        assert guard.status == "confirmed" and guard.broker_id, guard
         await decide(call)
         lossy.lose_next_close = True
         sent_before = len(lossy.sent)
@@ -756,6 +760,14 @@ async def main() -> None:
         assert tightened["status"] == "confirmed", tightened
         assert tightened["details"]["execution"]["risk_reducing"] is True
         assert tightened["details"]["execution"]["run_id"] == context.lease.run_id
+        # Cancelling a protective order removes protection: new risk, never sent while the
+        # market is uncertain, and the order stays at the broker.
+        unguarded = await approved(
+            {"action": "cancel_order", "symbol": GOLD, "order_id": guard.broker_id}
+        )
+        assert unguarded["status"] == "failed", unguarded
+        assert unguarded["code"] == "broker_reconciliation_required", unguarded
+        assert any(o.id == guard.broker_id for o in await broker.orders())
         widened = await approved(
             {
                 "action": "modify_position",
@@ -782,7 +794,7 @@ async def main() -> None:
         assert entry["status"] == "failed", entry
         assert entry["code"] == "broker_reconciliation_required", entry
         print(
-            "PASS approved agent cards close, cancel and tighten on an uncertain market, while entries and wider stops there stay blocked"
+            "PASS approved agent cards close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked"
         )
     finally:
         async with db.sessions() as session, session.begin():

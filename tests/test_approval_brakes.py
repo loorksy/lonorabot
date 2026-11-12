@@ -1,7 +1,7 @@
-"""Brakes come before approval cards (W15-ACC).
+"""Pauses come before approval cards (W15-ACC).
 
 An agent at Ask me (or a trade outside an On its own grant) asks the owner with an
-approval card. While Stop new trading or a pause holds new risk, a card for a new entry
+approval card. While a pause holds new risk, a card for a new entry
 could only fail after the owner's tap, so the trade tool returns the boundary's own code
 instead and no card is raised. Exits are still asked: the executor decides them against
 the fresh broker target. Runs on the real migrated PostgreSQL schema and the simulation

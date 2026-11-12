@@ -393,9 +393,9 @@ async def message_instead_of_calling(fixture: Fixture, lonora: dict[str, Any]) -
             ToolCall(
                 id="call-1",
                 name="owner_call_request",
-                arguments={"attention_id": first, "reason": "Trading is stopped; your decision"},
+                arguments={"attention_id": first, "reason": "An operation is uncertain; your decision"},
             ),
-            "اتصلت بك لأن التداول متوقف ويحتاج قرارك.",
+            "اتصلت بك لأن عملية غير مؤكدة وتحتاج قرارك.",
         ],
     )
     assert await incoming(fixture, first) == 1

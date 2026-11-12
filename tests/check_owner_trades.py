@@ -1,7 +1,7 @@
 """The trades page's buttons on the server (trades.page, Q30): the owner's own modify and
-close go through POST /api/trading/execute, the single executor, under the global brake.
+close go through POST /api/trading/execute, the single executor, under the owner's pauses.
 
-With Trading OFF a close is still admitted (an exit), a stop moved toward the market is
+Under an exits-only pause covering the owner's orders a close is still admitted (an exit), a stop moved toward the market is
 admitted (it only bounds the loss), and a stop moved away from the market is refused by
 the server: the page never relies on hiding a button. Run on a disposable *_test database.
 """

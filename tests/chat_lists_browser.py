@@ -4,8 +4,7 @@
 straight into their history: unread agent answers, an owner message the server accepted
 (one grey tick) and one whose run started (two accent ticks). ``message`` adds an agent
 answer and publishes ``message.created`` (the heads-up); ``attention`` raises a fresh
-critical item (new trading stopped) and ``restore`` puts the trading controls back as the
-spec found them. Agents are kept: the browser uses them after this process exits.
+critical item (work stopped after repeated interruptions). Agents are kept: the browser uses them after this process exits.
 """
 
 import asyncio

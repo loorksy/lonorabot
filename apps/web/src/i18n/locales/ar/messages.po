@@ -7874,10 +7874,6 @@ msgstr "وكيل تداول"
 msgid "Trading and safety"
 msgstr "التداول والأمان"
 
-#: src/components/trading/TradingStatus.tsx:32
-#~ msgid "Trading control"
-#~ msgstr "التحكم بالتداول"
-
 #: src/components/ai/AttentionInbox.tsx:22
 msgid "Trading goal updated"
 msgstr "تم تحديث هدف التداول"
@@ -7885,18 +7881,6 @@ msgstr "تم تحديث هدف التداول"
 #: src/components/goals/TradingGoals.tsx:169
 msgid "Trading goals"
 msgstr "أهداف التداول"
-
-#: src/lib/user_error.ts:110
-#~ msgid "Trading is off."
-#~ msgstr "التداول متوقف."
-
-#: src/components/trading/TradingStatus.tsx:40
-#~ msgid "Trading OFF"
-#~ msgstr "التداول متوقف"
-
-#: src/components/trading/TradingStatus.tsx:38
-#~ msgid "Trading ON"
-#~ msgstr "التداول مفعّل"
 
 #: src/pages/shell/bot-settings.tsx:83
 msgid "Trading pair"
@@ -7936,14 +7920,6 @@ msgstr "تحويل إلى مهمة"
 #: src/shell/agent/AgentPage.tsx:443
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading OFF"
-#~ msgstr "إيقاف التداول"
-
-#: src/components/trading/TradingStatus.tsx:51
-#~ msgid "Turn trading ON"
-#~ msgstr "تفعيل التداول"
 
 #: src/conversation/Cards.tsx:528
 msgid "Two steps"

@@ -193,7 +193,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "runtime_status",
-            "Read runtime and global financial controls; this tool cannot enable trading.",
+            "Read this run's runtime state and your live agent state; this tool cannot enable trading.",
             Empty,
             status,
             True,

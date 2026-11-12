@@ -34,7 +34,7 @@ Use this procedure for existing Goal plans within current Agent permission.
    model-selected immediate or conditional decision, authorized goal_step_execute, independent result
    verification, state update and the next persisted wait.
 7. Respect pause/cancel and manual owner intervention. Do not turn a review into
-   entry or infer authority from an avatar or global Trading ON.
+   entry or infer authority from an avatar.
 
 ## Output
 
