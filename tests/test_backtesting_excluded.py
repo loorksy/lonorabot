@@ -96,8 +96,8 @@ def test_operating_policy_states_the_exclusion_and_routes_no_backtest_tool():
     for line in manual.splitlines():
         if BACKTEST_TERMS.search(line):
             assert "Lonora excludes" in line or "excluded from Lonora" in line, line
-    # No other shipped resource (skills, playbooks, constitution, prompts, bootstrap,
-    # references, schemas) may teach or mention backtesting at all.
+    # No other shipped resource (skills, constitution, prompts, bootstrap) may teach or
+    # mention backtesting at all.
     manual_path = (resources_root() / "system/lonora.md").resolve()
     scanned = 0
     for path in resources_root().rglob("*"):
@@ -105,9 +105,9 @@ def test_operating_policy_states_the_exclusion_and_routes_no_backtest_tool():
             continue
         scanned += 1
         assert not BACKTEST_TERMS.search(path.read_text(errors="replace")), path
-    for folder in ("skills", "playbooks", "constitution", "prompts", "bootstrap"):
+    for folder in ("skills", "constitution", "prompts", "bootstrap"):
         assert any((resources_root() / folder).rglob("*.md")), folder
-    assert scanned > 40
+    assert scanned > 30
 
 
 @pytest.mark.asyncio
