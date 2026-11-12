@@ -284,6 +284,7 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "broker_provisioning": self.broker_provisioning,
             "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
