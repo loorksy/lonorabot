@@ -1,4 +1,4 @@
-/** The single mount point of lonora-ui v2 cards in the message renderer (GENUI_PLAN §2.4).
+/** The single mount point of lonora-ui v2 cards in the message renderer (docs/genui.md).
  *
  * The renderer calls `renderUiPart(part, index, host)` for every rich part; it returns the
  * lazily loaded `<UiCard/>` for a v2 card and null for anything else (text and stored v1

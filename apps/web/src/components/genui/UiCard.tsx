@@ -1,4 +1,4 @@
-/** A lonora-ui v2 card in the reference's look (Desktop-37 aa_genui, `.ux*`; GENUI_PLAN §4,
+/** A lonora-ui v2 card in the reference's look (Desktop-37 aa_genui, `.ux*`; docs/genui.md,
  * §5.1). The server compiled and checked it; this renders it, keeps its values, and sends
  * through `MessageCreate.ui_submit` only: the server writes the owner's bubble and data.
  * While the card builds, and until its message is committed, every control is disabled. */

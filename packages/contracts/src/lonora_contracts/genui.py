@@ -1,4 +1,4 @@
-"""lonora-ui v2 documents (GENUI_PLAN §2.2, §7.1, §9.1).
+"""lonora-ui v2 documents (docs/genui.md).
 
 The model writes one card per reply inside the ``lonora-ui`` fence, one JSON object per
 line: a head line (``{"v":2,…}``), an optional data line (facts, state, calc), one line per

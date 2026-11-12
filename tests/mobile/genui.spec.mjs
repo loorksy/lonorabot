@@ -1,4 +1,4 @@
-// M-a (GENUI_PLAN §9.7, §10.2 item 9): on mobile, Stop cancels a queued card submission sent
+// M-a (docs/genui.md item 9): on mobile, Stop cancels a queued card submission sent
 // from web, like web does, and the submission's bubble shows «لم يُنفَّذ» from the same core
 // helper. Cards render natively on mobile (mandate 10.1.5): every node the server accepts.
 import { execFileSync } from "node:child_process";

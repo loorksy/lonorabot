@@ -1,4 +1,4 @@
-/** Fail-closed validation of compiled v2 cards on the client (GENUI_PLAN §2.3, §9.1).
+/** Fail-closed validation of compiled v2 cards on the client (docs/genui.md).
  * The server compiles and checks every card; this guards the render path against anything
  * malformed: own properties only, no getters, no prototype keys, bounded sizes, and only
  * the node types and actions of the catalog (`@lonora/contracts` genui-catalog). */

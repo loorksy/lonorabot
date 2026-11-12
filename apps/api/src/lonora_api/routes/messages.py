@@ -59,7 +59,7 @@ async def unlock(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     """«تعديل»: unlock a sent card; a submission whose Run has not started is cancelled in
-    the same transaction and marked superseded (GENUI_PLAN §8.2 rule N, Q21)."""
+    the same transaction and marked superseded (docs/genui.md rule N, Q21)."""
     async with runtime(request).db.sessions() as session, session.begin():
         thread = await owned_thread(session, owner.id, thread_id, lock=True)
         return await unlock_card(session, owner.id, thread, message_id, part)

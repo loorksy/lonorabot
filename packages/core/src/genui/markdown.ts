@@ -1,4 +1,4 @@
-/** Card text as web and mobile draw it (GENUI_PLAN §5.1): `**bold**` inline, and for a
+/** Card text as web and mobile draw it (docs/genui.md): `**bold**` inline, and for a
  * Markdown node also paragraphs and `-`/`*`/`1.` lists. Never HTML, never a live link: a
  * `[label](url)` shows its label and a bare URL stays text, so a card cannot open anything
  * except through an `open` action the server checked. One parser, so both renderers agree. */

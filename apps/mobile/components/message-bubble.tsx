@@ -30,7 +30,7 @@ export function MessageBubble({
   onReply,
   mark = null,
 }: {
-  /** Rule N on a card's send that never ran (GENUI_PLAN §8.2), from core `submitMark`. */
+  /** Rule N on a card's send that never ran (docs/genui.md), from core `submitMark`. */
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;

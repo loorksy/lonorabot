@@ -43,7 +43,7 @@ async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
     """A provisional handoff and its descendants cannot spend standing authority, and
     neither can a tainted Run: one a generated card's send started, anything that descends
     from it or that it started, or the wake of a durable row it created or changed
-    (GENUI_PLAN §8.5, ``lonora_db.genui_taint``): their trades become approval cards."""
+    (docs/genui.md, ``lonora_db.genui_taint``): their trades become approval cards."""
     from lonora_db.genui_taint import is_tainted
 
     seen: set[str] = set()

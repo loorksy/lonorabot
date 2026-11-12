@@ -193,7 +193,7 @@ class VisualProjection:
             return None
 
 
-# A building card before its head line is complete (GENUI_PLAN §9.1).
+# A building card before its head line is complete (docs/genui.md).
 SKELETON: dict[str, Any] = {
     "v": 2,
     "kind": "form",

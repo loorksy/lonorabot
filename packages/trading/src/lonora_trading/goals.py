@@ -603,7 +603,7 @@ async def wait_for_goal_target(
         from lonora_db.genui_taint import taint_row_from
         from lonora_db.trading_goals import goal_data
 
-        # Tainted work that waits on a goal taints it and its routine (GENUI_PLAN §8.5).
+        # Tainted work that waits on a goal taints it and its routine (docs/genui.md).
         await taint_row_from(session, run, "goal", goal.id)
         await taint_row_from(session, run, "routine", routine.id)
 

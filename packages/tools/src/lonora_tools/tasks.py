@@ -106,7 +106,7 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
-        # Tainted work that resumes or revises a Task taints it (GENUI_PLAN §8.5).
+        # Tainted work that resumes or revises a Task taints it (docs/genui.md).
         await taint_row_from(session, run, "ticket", row.id)
         return await snapshot(session, row)
 

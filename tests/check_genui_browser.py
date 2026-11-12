@@ -1,4 +1,4 @@
-"""Browser acceptance fixture for the canonical alert card (GENUI_PLAN §10.5): real Runs,
+"""Browser acceptance fixture for the canonical alert card (docs/genui.md): real Runs,
 a scripted model, the simulation broker quoting the screenshot's prices.
 
 ``setup``   an agent, its conversation and a simulation account (XAUUSD 2368.40, XAGUSD
