@@ -34,7 +34,6 @@ from .schema import (
 )
 from .transactions import owned_agent
 
-MAXIMUM_ACTIVE_AGENTS = 20
 MAXIMUM_CREATIONS_PER_RUN = 3
 MAXIMUM_DESCRIPTION_CHARS = 280
 
@@ -73,20 +72,6 @@ async def lock_creation(session: AsyncSession, owner_id: str) -> None:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
             {"key": "agent-create:" + owner_id},
         )
-
-
-async def active_agents(session: AsyncSession, owner_id: str) -> int:
-    """Persistent agents that are not paused; temporary helpers do not count."""
-    count = await session.scalar(
-        select(func.count())
-        .select_from(AgentRow)
-        .where(
-            AgentRow.owner_id == owner_id,
-            AgentRow.role != "delegated",
-            AgentRow.paused.is_(False),
-        )
-    )
-    return int(count or 0)
 
 
 async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> int:

@@ -196,7 +196,6 @@ export const ownerActionLabels = {
     paused: "Paused",
     kept: "Kept.",
     agentRemoved: "This agent was already removed.",
-    agentLimit: "You already have the most active agents allowed. Nothing changed.",
     connectionChanged: "The broker account changed. Nothing changed.",
     supervises: "Supervises",
     superviseTitle: "Let it supervise?",
@@ -460,7 +459,6 @@ export const ownerActionLabels = {
     paused: "متوقف",
     kept: "أُبقي الوكيل.",
     agentRemoved: "أُزيل هذا الوكيل مسبقًا.",
-    agentLimit: "لديك أكبر عدد مسموح من الوكلاء النشطين. لم يتغير شيء.",
     connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
     supervises: "يشرف على",
     superviseTitle: "السماح له بالإشراف؟",
@@ -727,8 +725,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.alreadySigned;
     case "agent_already_removed":
       return text.agentRemoved;
-    case "agent_limit_reached":
-      return text.agentLimit;
     case "broker_connection_changed":
       return text.connectionChanged;
     case "supervision_ended":
