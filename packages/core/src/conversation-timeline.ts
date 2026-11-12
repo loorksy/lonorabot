@@ -1,5 +1,4 @@
-import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
-import type { UiSlotCard } from "@lonora/contracts";
+import type { Message, OwnerAction, TradeApproval, UiSlotCard } from "@lonora/contracts";
 import { isUiPart } from "./genui/spec";
 
 /** The owner-action kind each owner-action fixed card a slot names is stored as. */
@@ -14,6 +13,7 @@ function ownerActionSlot(action: OwnerAction): string | null {
   )?.[0];
   return card ? `${card}:${action.id}` : null;
 }
+
 import { validateRichContent } from "./visual-response";
 
 /** The records the drawn cards of these messages embed as trusted slots, keyed
