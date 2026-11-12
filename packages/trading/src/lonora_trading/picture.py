@@ -99,8 +99,6 @@ async def account_books(
 
 
 def net_volume(positions: list[Position]) -> Decimal:
-    """Buy volume minus sell volume, in lots."""
-    return sum(
-        (item.volume if direction(item.side) == "buy" else -item.volume for item in positions),
-        Decimal(0),
-    )
+    """Buy volume minus sell volume, in lots; a side that is neither counts in neither."""
+    sign = {"buy": 1, "sell": -1}
+    return sum((item.volume * sign.get(direction(item.side), 0) for item in positions), Decimal(0))
