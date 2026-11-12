@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from lonora_agent.context import builder
 from lonora_agent.context.run_evidence import RunEvidence
-from lonora_agent.skills.loader import load_constitution
+from lonora_agent.skills.loader import load_constitution, resources_root
 from lonora_agent.skills.registry import (
     SkillDefinition,
     SkillRegistry,
@@ -62,9 +62,16 @@ def definition(identity: str, **kwargs: Any) -> SkillDefinition:
 
 
 def test_resources_validate_and_policies_independent() -> None:
-    playbooks = validate_resources(TOOLS)
-    assert len(playbooks) == 5
-    assert "ambiguous-execution-recovery" in playbooks
+    validate_resources(TOOLS)
+    # Every shipped resource has a reader (VISION.md 13.1): playbooks, schemas,
+    # references, unloaded prompts and bootstrap templates no model read are gone.
+    for gone in ("playbooks", "schemas", "references"):
+        assert not (resources_root() / gone).exists(), gone
+    assert sorted(path.name for path in (resources_root() / "bootstrap").iterdir()) == [
+        "AGENTS.md",
+        "LICENSE.nanobot",
+        "SOUL.md",
+    ]
     assert len(load_constitution()) == 7
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
     assert "Emergency Stop" not in "\n".join(load_constitution())

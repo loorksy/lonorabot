@@ -189,9 +189,7 @@ async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> di
     async with api.runtime.db.sessions() as session, session.begin():
         if state.get("model_routing") == "unset":
             # A fresh install: a provider credential is saved and no model was chosen.
-            await session.execute(
-                delete(SettingRow).where(SettingRow.key.in_(["model_routing", "model_allowed"]))
-            )
+            await session.execute(delete(SettingRow).where(SettingRow.key == "model_routing"))
         # The account-management Task the signed mandate started (production: «إدارة حساب
         # التداول»), with its own conversation.
         task = await session.scalar(

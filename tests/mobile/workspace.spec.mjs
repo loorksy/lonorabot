@@ -112,8 +112,10 @@ test("Expo profile, routines, groups and authenticated artifacts use the persist
     await expect(page.getByText("لا يوجد تنفيذ بعد", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "رجوع", exact: true }).click();
     await expect(page).toHaveURL(threadUrl);
-    const chooser = page.waitForEvent("filechooser");
+    // «+» offers Files and Photos (as on Web); Files opens the system picker.
     await page.getByRole("button", { name: "إرفاق ملف", exact: true }).click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "ملفات", exact: true }).click();
     const filename = `report-${agent.id}.txt`;
     const uploaded = page.waitForResponse((response) =>
       response.url().endsWith("/api/artifacts/upload"),

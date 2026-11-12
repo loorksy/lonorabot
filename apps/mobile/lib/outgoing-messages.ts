@@ -1,14 +1,21 @@
 /** Recoverable owner-scoped send intents, never an alternate conversation store. */
-import type { Message } from "@lonora/contracts";
+import type { Artifact, Message } from "@lonora/contracts";
 import { isPlainOutgoing, pendingVoiceRich } from "@lonora/core";
 import { Platform } from "react-native";
 import { ApiError } from "./api-error";
+import type { ComposerUpload, PickedFile } from "./composer-uploads";
 import { registerSessionTeardown } from "./session-lifecycle";
 
 export type OutgoingMessage = Message & {
   /** queued: the API never answered it; it goes out by itself when the network returns (Q6). */
   delivery: "sending" | "queued" | "failed";
   retry_nonce: string;
+  /**
+   * Files still uploading: the message is posted once they are all up. On a failed message
+   * they are files that never arrived (an upload failed, or the app restarted and their
+   * bytes are gone), so the message can only be deleted.
+   */
+  uploading?: PickedFile[];
 };
 /**
  * Whether the API itself answered a send (Q6, as on Web). No response at all, or a proxy's
@@ -158,12 +165,20 @@ export function hydrateOutgoing(key: string): Promise<void> {
   hydration.set(key, operation);
   return operation;
 }
+// The running uploads of a sent message, by its nonce. Never saved: a picked file cannot be.
+const handles = new Map<string, ComposerUpload[]>();
+// The files that message already had when it was sent: given back with it if an upload fails.
+const attachedFiles = new Map<string, Artifact[]>();
+export const outgoingUploads = (nonce: string): readonly ComposerUpload[] =>
+  handles.get(nonce) ?? [];
 export async function enqueueOutgoing(
   key: string,
   thread: string,
   fingerprint: string,
   body: Record<string, unknown>,
   afterSeq: number,
+  uploads: ComposerUpload[] = [],
+  attached: Artifact[] = [],
 ): Promise<OutgoingIntent> {
   const epoch = generation;
   await hydrateOutgoing(key);
@@ -207,13 +222,22 @@ export async function enqueueOutgoing(
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,
       attachment_ids: Array.isArray(body.attachment_ids) ? [...body.attachment_ids] : [],
       created_at: new Date().toISOString(),
+      ...(uploads.length
+        ? { uploading: uploads.map(({ name, size, media_type }) => ({ name, size, media_type })) }
+        : {}),
     },
   };
+  if (uploads.length) {
+    handles.set(nonce, uploads);
+    attachedFiles.set(nonce, attached);
+  }
   notify(key, [...outgoingMessages(key), intent]);
   try {
     await persist(key);
     if (epoch !== generation) throw new Error("session_request_cancelled");
   } catch (error) {
+    handles.delete(nonce);
+    attachedFiles.delete(nonce);
     notify(
       key,
       outgoingMessages(key).filter((row) => row.nonce !== nonce),
@@ -221,6 +245,73 @@ export async function enqueueOutgoing(
     throw error;
   }
   return intent;
+}
+/** A sent message whose upload failed: it leaves the outbox and goes back to the composer. */
+export class OutgoingUploadFailed extends Error {
+  constructor(
+    public cause: unknown,
+    /** The message as it was sent (its text and reply). */
+    public intent: OutgoingIntent,
+    /** Its files that are up: those it was sent with and those that arrived since. */
+    public finished: Artifact[],
+  ) {
+    super("upload_failed");
+    this.name = "OutgoingUploadFailed";
+  }
+}
+/**
+ * Waits for a sent message's uploads, then puts their files on it. Null when the message
+ * has gone meanwhile (its uploads were cancelled). When an upload fails, the message never
+ * posted leaves the outbox and OutgoingUploadFailed carries it and its arrived files back, so
+ * the owner's text is not lost.
+ */
+export async function settleOutgoingUploads(
+  key: string,
+  nonce: string,
+): Promise<OutgoingIntent | null> {
+  const find = () => outgoingMessages(key).find((row) => row.nonce === nonce) ?? null;
+  const held = handles.get(nonce);
+  if (!held) return find();
+  let files: { id: string }[];
+  try {
+    files = await Promise.all(held.map((upload) => upload.done));
+  } catch (cause) {
+    const before = attachedFiles.get(nonce) ?? [];
+    handles.delete(nonce);
+    attachedFiles.delete(nonce);
+    for (const upload of held) upload.cancel();
+    const row = find();
+    if (!row) return null;
+    dropOutgoing(key, nonce);
+    throw new OutgoingUploadFailed(cause, row, [
+      ...before,
+      ...held.flatMap((upload) => (upload.result ? [upload.result] : [])),
+    ]);
+  }
+  handles.delete(nonce);
+  attachedFiles.delete(nonce);
+  const row = find();
+  if (!row) return null;
+  const attachment_ids = [...row.message.attachment_ids, ...files.map((file) => file.id)];
+  const { uploading: _uploading, ...message } = row.message;
+  const next: OutgoingIntent = {
+    ...row,
+    body: { ...row.body, attachment_ids },
+    message: { ...message, attachment_ids },
+  };
+  notify(
+    key,
+    outgoingMessages(key).map((item) => (item.nonce === nonce ? next : item)),
+  );
+  void persist(key).catch(() => undefined);
+  return next;
+}
+/** ✕ on a message's ring: its uploads stop and the message, never posted, is removed. */
+export function cancelOutgoingUploads(key: string, nonce: string) {
+  for (const upload of handles.get(nonce) ?? []) upload.cancel();
+  handles.delete(nonce);
+  attachedFiles.delete(nonce);
+  dropOutgoing(key, nonce);
 }
 export function failOutgoing(
   key: string,
@@ -307,6 +398,9 @@ export function isOutgoingMessage(message: Message): message is OutgoingMessage 
 }
 registerSessionTeardown(async () => {
   generation += 1;
+  for (const held of handles.values()) for (const upload of held) upload.cancel();
+  handles.clear();
+  attachedFiles.clear();
   entries.clear();
   hydration.clear();
   for (const listener of listeners) listener();

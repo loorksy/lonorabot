@@ -278,7 +278,7 @@ test("watches: pause, resume and cancel with undo, each through the watch's cont
   await expect(main.locator(".wt-row")).toHaveCount(1);
 });
 
-test("«وكيل جديد»: the supervision switch sends the agents it supervises; the model stays automatic", async ({
+test("«وكيل جديد»: the supervision switch sends the agents it supervises; no model is sent, so it starts on Lonora's", async ({
   page,
 }) => {
   await page.goto("/app/new-agent");
