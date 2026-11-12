@@ -1,5 +1,5 @@
 import type { Agent, Artifact, Message } from "@lonora/contracts";
-import { callPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
+import { callPart, commandPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { isOutgoingMessage, outgoingUploads } from "../lib/outgoing-messages";
@@ -17,6 +17,13 @@ import {
 } from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
 import { UploadRing } from "./upload-ring";
+
+const COMMAND_LABELS = {
+  task: "cmdTask",
+  search: "cmdSearch",
+  summary: "cmdSummary",
+} as const;
+
 export function MessageBubble({
   message,
   body,
@@ -72,6 +79,7 @@ export function MessageBubble({
   // A voice note or a call log has no text: it is named, never drawn as a blank bubble.
   const voice = voicePart(message);
   const call = callPart(message);
+  const command = commandPart(message);
   const clock = (seconds: number) => {
     const s = Math.max(0, Math.round(seconds || 0));
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -122,6 +130,29 @@ export function MessageBubble({
               hour: "2-digit",
               minute: "2-digit",
             })}
+          </Text>
+        </View>
+      ) : null}
+      {command ? (
+        // The / command this owner message is (server-written), as Web's chip.
+        <View
+          testID="command-chip"
+          style={{
+            flexDirection: rtl ? "row-reverse" : "row",
+            alignSelf: rtl ? "flex-end" : "flex-start",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 12,
+            backgroundColor: shell.muted,
+          }}
+        >
+          <Text style={{ color: shell.secondary, fontSize: 12, fontWeight: "600" }}>
+            /
+            {command.name === "skill"
+              ? command.skill_name || t("cmdSkill")
+              : t(COMMAND_LABELS[command.name])}
           </Text>
         </View>
       ) : null}
