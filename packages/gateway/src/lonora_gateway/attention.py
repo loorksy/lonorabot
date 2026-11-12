@@ -144,20 +144,29 @@ async def projected(db: Database, event: EventRow) -> EventRow:
         elif metadata.get("watch_id"):
             query = query.where(
                 EventRow.kind == "watch.confirmed",
-                EventRow.payload["watch_id"].as_string() == str(metadata["watch_id"]),
+                EventRow.payload["woken_run_id"].as_string() == run.id,
             )
         else:
             return event
-        source = await session.scalar(query.order_by(EventRow.cursor.desc()).limit(1))
-    if source is None or source.payload.get("wakes_agent") is not True:
+        found = [
+            row
+            for row in await session.scalars(query.order_by(EventRow.cursor.desc()))
+            if row.payload.get("wakes_agent") is True
+        ]
+    if not found:
         return event
+    source = found[0]
+    payload = {**source.payload, "wakes_agent": False}
+    if len({row.payload.get("symbol") for row in found}) > 1:
+        # One item for every change this wake stood for: the account's, not one symbol's.
+        payload["symbol"] = None
     return EventRow(
         owner_id=source.owner_id,
         kind=source.kind,
         agent_id=source.agent_id,
         thread_id=source.thread_id,
         run_id=source.run_id,
-        payload={**source.payload, "wakes_agent": False},
+        payload=payload,
     )
 
 

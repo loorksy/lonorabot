@@ -102,9 +102,11 @@ conversation, the attention list or a channel.
 - **Attention items.** A wake's source raises no item beside the woken run: a watch
   confirmation that woke its agent, broker activity that woke an agent (`wakes_agent`), a
   server-detected opportunity change whose wake reports in the agent's own conversation,
-  and a collaboration synthesis or a Task that completed with an empty result. Such a
-  source withdraws no other item. If the woken run fails, its `run.failed` is decided as
-  that source, so the owner still learns of the change. A confirmation that woke nobody
+  and a collaboration synthesis or a Task that completed with an empty result. A woken
+  broker or opportunity change withdraws no other item; a woken watch confirmation still
+  supersedes the stale state of the same watch, as any confirmation does. If the woken
+  run fails, its `run.failed` is decided as the source it stood for (the confirmation that
+  woke it, or the account's broker activity), so the owner still learns of the change. A confirmation that woke nobody
   (its wake already spent), broker activity while Lonora is paused, an opportunity whose
   wake cannot report in the agent's conversation, watch invalidation and expiry, and the
   11.4 items stay items.

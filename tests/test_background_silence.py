@@ -925,6 +925,11 @@ async def test_an_empty_normal_stop_is_a_reply_only_where_silence_is_allowed(
     with pytest.raises(ModelProviderError) as truncated:
         await adapter_complete(provider, stream, cut, allow_empty=True)
     assert truncated.value.reason is FailureReason.TRUNCATED
+    # Nor is a turn that ended for calls it does not carry, or a gateway's error finish.
+    for odd in ("tool_use", "tool_calls", "error"):
+        with pytest.raises(ModelProviderError) as malformed:
+            await adapter_complete(provider, stream, odd, allow_empty=True)
+        assert malformed.value.reason is FailureReason.INVALID_RESPONSE
 
 
 UNVERIFIED_EN = (
@@ -1271,5 +1276,97 @@ async def test_a_rich_only_limit_report_is_not_taken_for_silence():
         row = await reload(fixture, run.id)
         # The model answered with something; only an empty answer is its silence.
         assert row.result == limit_fallback(False), row.result
+    finally:
+        await fixture.close()
+
+
+async def failed_wake(fixture: Any, run: Any) -> Any:
+    """The run.failed event of ``run``, as fail_run emits it."""
+    from lonora_db.events import emit
+    from lonora_db.schema import EventRow, RunRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run.id, with_for_update=True)
+        assert row is not None
+        row.status = "failed"
+        emit(
+            session,
+            fixture.owner,
+            "run.failed",
+            thread_id=row.thread_id,
+            agent_id=row.agent_id,
+            run_id=row.id,
+            payload={"code": "runtime_error"},
+        )
+    async with fixture.runtime.db.sessions() as session:
+        event = await session.scalar(
+            select(EventRow).where(EventRow.kind == "run.failed", EventRow.run_id == run.id)
+        )
+        assert event is not None
+        return event
+
+
+@pytest.mark.asyncio
+async def test_a_failed_wake_returns_exactly_the_sources_it_stood_for():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.events import emit
+    from lonora_gateway.attention import projected
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Watching desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        first = await make_run(fixture, agent, conversation, "watch", metadata={"watch_id": "w1"})
+        second = await make_run(fixture, agent, conversation, "watch", metadata={"watch_id": "w1"})
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for run, transition in ((first, "t1"), (second, "t2")):
+                emit(
+                    session,
+                    fixture.owner,
+                    "watch.confirmed",
+                    agent_id=agent["id"],
+                    thread_id=conversation,
+                    payload={
+                        "watch_id": "w1",
+                        "state": "confirmed",
+                        "transition_id": transition,
+                        "wakes_agent": True,
+                        "woken_run_id": run.id,
+                    },
+                )
+        # The first wake fails after the second confirmation: its own confirmation returns.
+        source = await projected(fixture.runtime.db, await failed_wake(fixture, first))
+        assert source.kind == "watch.confirmed" and source.payload["transition_id"] == "t1"
+        assert source.payload["wakes_agent"] is False
+        # A broker wake that stood for changes on two symbols returns one account item.
+        work = await work_thread(fixture, agent)
+        changes = [str(uuid4()), str(uuid4())]
+        broker = await make_run(
+            fixture,
+            agent,
+            work,
+            "broker_event",
+            metadata={"broker_event_ids": changes, "account_id": "acc"},
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for change, symbol in zip(changes, ("XAUUSD", "EURUSD"), strict=True):
+                emit(
+                    session,
+                    fixture.owner,
+                    "broker.external_activity",
+                    agent_id=agent["id"],
+                    thread_id=conversation,
+                    payload={
+                        "id": change,
+                        "account_id": "acc",
+                        "symbol": symbol,
+                        "wakes_agent": True,
+                    },
+                )
+        source = await projected(fixture.runtime.db, await failed_wake(fixture, broker))
+        assert source.kind == "broker.external_activity"
+        assert source.payload["account_id"] == "acc" and source.payload["symbol"] is None
     finally:
         await fixture.close()

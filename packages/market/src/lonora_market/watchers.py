@@ -602,9 +602,10 @@ async def check_watch(
             else None
         )
 
-        def announce(woke: bool) -> None:
+        def announce(woken: str | None) -> None:
             # Emitted once the wake is decided: a confirmation that woke its agent is the
-            # agent's to report (11.5); one inside the cooldown stays the owner's item.
+            # agent's to report (11.5) and names the run it woke; one whose wake is spent
+            # stays the owner's item.
             if transition is not None:
                 emit(
                     session,
@@ -612,10 +613,13 @@ async def check_watch(
                     "watch." + state["lifecycle"],
                     agent_id=row.agent_id,
                     thread_id=row.thread_id,
-                    payload={**transition, **({"wakes_agent": True} if woke else {})},
+                    payload={
+                        **transition,
+                        **({"wakes_agent": True, "woken_run_id": woken} if woken else {}),
+                    },
                 )
 
-        woke = False
+        woken: str | None = None
         matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
         if matched and watch_can_trigger(
             config.enabled, last_triggered, config.cooldown_seconds, now
@@ -632,7 +636,7 @@ async def check_watch(
                     row.state = state
                     stop_watch(row, "task_terminal")
                     row.version += 1
-                    announce(False)
+                    announce(None)
                     return triggered
                 if task_run is not None:
                     # A tainted watch resumes its Task tainted (docs/genui.md); a new
@@ -681,7 +685,7 @@ async def check_watch(
                         },
                     )
                 )
-                woke = True
+                woken = task_run_id or (run.id if run else None)
                 state["last_triggered"] = now.isoformat()
                 if config.kind == "calendar":
                     state["seen_events"] = (
@@ -689,7 +693,7 @@ async def check_watch(
                         + cast(list[str], metadata.get("event_ids", []))
                     )[-1000:]
                 triggered += 1
-        announce(woke)
+        announce(woken)
         row.state = state
     return triggered
 
