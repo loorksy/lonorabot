@@ -33,8 +33,11 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             session,
             context.owner_id,
             context.agent_id,
-            # A wake's Task reports where the wake reports: its Agent's conversation.
-            await report_thread(session, run),
+            # A wake's Task reports where the wake reports: its Agent's conversation. A
+            # Task's own sub-Task stays with the Task's work.
+            context.thread_id
+            if run.model_metadata.get("task_id")
+            else await report_thread(session, run),
             TaskCreate.model_validate(args),
             context.resource_id,
             starter=run,

@@ -103,6 +103,19 @@ async def background_origin(
     return {"origin_thread_id": (await conversation_thread(session, owner_id, agent_id)).id}
 
 
+# Wakes whose owner-facing output goes to the origin conversation of their work thread.
+REPORTING_WAKES = frozenset({"routine", "watch", "broker_event"})
+
+
+def wake_origin(run: RunRow) -> dict[str, str]:
+    """A wake's continuation (its follow-up, its collaboration's synthesis) reports where
+    the wake reports; any other Run's continuation keeps its own thread."""
+    origin = run.model_metadata.get("origin_thread_id")
+    if run.trigger in REPORTING_WAKES and isinstance(origin, str) and origin:
+        return {"origin_thread_id": origin}
+    return {}
+
+
 async def list_threads(
     session: AsyncSession, owner_id: str, agent_id: str | None = None
 ) -> list[ThreadRow]:

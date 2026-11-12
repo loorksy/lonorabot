@@ -5,9 +5,11 @@ thread becomes its hidden work thread (its memory), and its results go to its Ag
 own conversation. A thread the owner wrote in, or that other work used, stays a
 conversation, as does a thread that holds a record the owner reads there (an approval,
 a card, a journal row, a Goal, an opportunity, an artifact, a peer message, a
-collaboration, a Task, or a place in a chat list); a routine on such a thread moves to a
-new work thread of its own. An Agent's earliest conversation is never converted: it is
-the Agent's own conversation.
+collaboration, a Task, a place in a chat list, a pin or a favourite) or a question
+waiting for the owner's answer; a routine on such a thread moves to a new work thread of
+its own. An Agent's earliest conversation is never converted: it is the Agent's own
+conversation. A routine or watch run still in flight in a converted thread reports to the
+Agent's conversation, like the runs the new code queues.
 """
 
 from alembic import op
@@ -38,6 +40,11 @@ AND NOT EXISTS (SELECT 1 FROM ln_peer_messages a WHERE a.thread_id = t.id)
 AND NOT EXISTS (SELECT 1 FROM ln_collaboration_sessions a WHERE a.thread_id = t.id)
 AND NOT EXISTS (SELECT 1 FROM ln_chat_list_members a WHERE a.thread_id = t.id)
 AND NOT EXISTS (
+    SELECT 1 FROM ln_thread_prefs a
+    WHERE a.thread_id = t.id AND (a.pinned_order IS NOT NULL OR a.favourite)
+)
+AND NOT EXISTS (SELECT 1 FROM ln_runs a WHERE a.thread_id = t.id AND a.status = 'waiting_input')
+AND NOT EXISTS (
     SELECT 1 FROM ln_tickets k
     WHERE k.thread_id = t.id OR (k.state::jsonb -> 'task' ->> 'origin_thread_id') = t.id
 )
@@ -50,6 +57,36 @@ AND t.id <> (
     WHERE c.owner_id = t.owner_id AND c.agent_id = t.agent_id
     AND c.group_id IS NULL AND c.purpose = 'conversation'
     ORDER BY c.created_at, c.id LIMIT 1
+)
+"""
+
+# A routine or watch run still in flight in a converted thread reports to its Agent's
+# conversation, as the runs the new code queues do.
+STAMP = """
+UPDATE ln_runs r SET model_metadata = (
+    r.model_metadata::jsonb || jsonb_build_object('origin_thread_id', (
+        SELECT c.id FROM ln_threads c
+        WHERE c.owner_id = t.owner_id AND c.agent_id = t.agent_id
+        AND c.group_id IS NULL AND c.purpose = 'conversation'
+        ORDER BY c.created_at, c.id LIMIT 1
+    ))
+)::json
+FROM ln_threads t
+WHERE r.thread_id = t.id AND t.purpose = 'work'
+AND r.trigger IN ('routine', 'watch', 'follow_up')
+AND r.status NOT IN ('completed', 'failed', 'cancelled')
+AND (r.model_metadata::jsonb ->> 'origin_thread_id') IS NULL
+AND (
+    EXISTS (SELECT 1 FROM ln_routines x WHERE x.thread_id = t.id AND x.goal_id IS NULL)
+    OR EXISTS (
+        SELECT 1 FROM ln_market_watches w
+        WHERE w.thread_id = t.id AND (w.payload::jsonb ->> 'goal_id') IS NULL
+    )
+)
+AND EXISTS (
+    SELECT 1 FROM ln_threads c
+    WHERE c.owner_id = t.owner_id AND c.agent_id = t.agent_id
+    AND c.group_id IS NULL AND c.purpose = 'conversation'
 )
 """
 
@@ -73,6 +110,7 @@ FROM moved WHERE r.id = moved.routine_id
 
 def upgrade() -> None:
     op.execute(CONVERT)
+    op.execute(STAMP)
     op.execute(MOVE)
 
 

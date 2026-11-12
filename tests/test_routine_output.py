@@ -103,6 +103,19 @@ async def test_a_routine_reports_in_its_agents_own_conversation():
             ticket = await session.get(TicketRow, task["id"])
             assert ticket is not None
             assert ticket.state["task"]["origin_thread_id"] == conversation["id"]
+            task_run = await session.scalar(
+                select(RunRow).where(RunRow.model_metadata["task_id"].as_string() == task["id"])
+            )
+            assert task_run is not None
+        # A Task's own sub-Task stays with the Task's work, not the conversation.
+        task_context = await fixture.lease(
+            {"id": task_run.id, "agent_id": agent["id"], "thread_id": task_run.thread_id}
+        )
+        sub_task = await call(task_context, "task_start", title="Collect the CPI print")
+        async with fixture.runtime.db.sessions() as session:
+            sub_ticket = await session.get(TicketRow, sub_task["id"])
+            assert sub_ticket is not None
+            assert sub_ticket.state["task"]["origin_thread_id"] == task_run.thread_id
         await finish(fixture, run.id, "Gold 2,412: no setup yet, next check at 10:00.")
         assert await messages(fixture, conversation["id"]) == [
             "Gold 2,412: no setup yet, next check at 10:00."
@@ -174,6 +187,174 @@ async def test_a_routines_follow_up_reports_in_its_agents_own_conversation():
             assert follow_up.model_metadata["origin_thread_id"] == conversation["id"]
         await finish(fixture, follow_up.id, "Holding gold through CPI at 13:30.")
         assert await messages(fixture, conversation["id"]) == ["Holding gold through CPI at 13:30."]
+        # The follow-up is the routine's continuation: it starts no further follow-up.
+        async with fixture.runtime.db.sessions() as session:
+            follow_ups = list(
+                await session.scalars(
+                    select(RunRow.id).where(
+                        RunRow.parent_run_id == parent_id, RunRow.trigger == "follow_up"
+                    )
+                )
+            )
+            assert follow_ups == [follow_up.id]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_only_a_reporting_wakes_continuation_inherits_its_origin():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.domain import ThreadCreate
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.runs import create_run
+    from lonora_db.schema import RunRow
+    from lonora_db.threads import create_thread, wake_origin
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Quiet review")
+        peer = await fixture.agent("Quiet helper")
+        conversation = await fixture.conversation(agent)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            work = await create_thread(
+                session, fixture.owner, ThreadCreate(agent_id=agent["id"]), purpose="work"
+            )
+            # An activation review is told its result is not shown: its follow-up must not
+            # gain a path to the conversation.
+            parent = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=work.id,
+                    agent_id=agent["id"],
+                    trigger="activation",
+                    prompt="Review",
+                    metadata={"origin_thread_id": conversation["id"]},
+                ),
+            )
+            helper = await create_thread(
+                session, fixture.owner, ThreadCreate(agent_id=peer["id"]), purpose="work"
+            )
+            child = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=helper.id,
+                    agent_id=peer["id"],
+                    trigger="peer",
+                    prompt="Check",
+                    parent_run_id=parent.id,
+                ),
+            )
+            parent_id, child_id = parent.id, child.id
+            assert wake_origin(parent) == {}
+        await finish(fixture, parent_id, "")
+        await finish(fixture, child_id, "Checked.")
+        async with fixture.runtime.db.sessions() as session:
+            follow_up = await session.scalar(
+                select(RunRow).where(
+                    RunRow.parent_run_id == parent_id, RunRow.trigger == "follow_up"
+                )
+            )
+            assert follow_up is not None
+            assert "origin_thread_id" not in follow_up.model_metadata
+        await finish(fixture, follow_up.id, "Readiness looks fine.")
+        assert await messages(fixture, conversation["id"]) == []
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_routines_collaboration_synthesis_reports_in_its_agents_own_conversation():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.collaboration import CollaborationRound, CollaborationState
+    from lonora_contracts.domain import ThreadCreate
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.collaboration import schedule_synthesis
+    from lonora_db.runs import create_run
+    from lonora_db.schema import CollaborationSessionRow, MessageRow, RunRow, ThreadRow
+    from lonora_db.threads import create_thread
+    from lonora_session.idempotency import stable_id
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Morning host")
+        peer = await fixture.agent("Morning participant")
+        conversation = await fixture.conversation(agent)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            work = await create_thread(
+                session, fixture.owner, ThreadCreate(agent_id=agent["id"]), purpose="work"
+            )
+            host = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=work.id,
+                    agent_id=agent["id"],
+                    trigger="routine",
+                    prompt="Ask the team",
+                    metadata={"origin_thread_id": conversation["id"]},
+                ),
+            )
+            helper = await create_thread(
+                session, fixture.owner, ThreadCreate(agent_id=peer["id"]), purpose="work"
+            )
+            participant = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=helper.id,
+                    agent_id=peer["id"],
+                    trigger="peer",
+                    prompt="Your view",
+                    parent_run_id=host.id,
+                ),
+            )
+            delivered = MessageRow(
+                thread_id=work.id, agent_id=peer["id"], seq=1, role="assistant", content="ok"
+            )
+            session.add(delivered)
+            await session.flush()
+            collaboration = CollaborationSessionRow(
+                owner_id=fixture.owner,
+                agent_id=agent["id"],
+                thread_id=work.id,
+                payload={"subject": "Gold today"},
+                state=CollaborationState(
+                    rounds=[
+                        CollaborationRound(
+                            id="round-1",
+                            request_id=host.id,
+                            host_run_id=host.id,
+                            subject="Gold today",
+                            participant_run_ids=[participant.id],
+                        )
+                    ]
+                ).model_dump(mode="json"),
+            )
+            session.add(collaboration)
+            await session.flush()
+            host.status = "completed"
+            participant.status = "completed"
+            participant.model_metadata = {
+                **participant.model_metadata,
+                "collaboration_session_id": collaboration.id,
+                "collaboration_return_message_id": delivered.id,
+            }
+            await session.flush()
+            thread = await session.get(ThreadRow, work.id)
+            assert thread is not None
+            await schedule_synthesis(session, participant, host, thread)
+            synthesis_id = stable_id(collaboration.id, "synthesis:round-1")
+        async with fixture.runtime.db.sessions() as session:
+            synthesis = await session.get(RunRow, synthesis_id)
+            assert synthesis is not None and synthesis.thread_id == work.id
+            assert synthesis.model_metadata["origin_thread_id"] == conversation["id"]
+        await finish(fixture, synthesis_id, "Team view: hold gold through CPI.")
+        assert await messages(fixture, conversation["id"]) == ["Team view: hold gold through CPI."]
     finally:
         await fixture.close()
 
@@ -240,7 +421,14 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
     from check_streaming import Fixture
     from lonora_automation.delivery import routine_history
     from lonora_contracts.domain import utcnow
-    from lonora_db.schema import MessageRow, RoutineRow, RunRow, ThreadRow, TicketRow
+    from lonora_db.schema import (
+        MessageRow,
+        RoutineRow,
+        RunRow,
+        ThreadPrefsRow,
+        ThreadRow,
+        TicketRow,
+    )
     from sqlalchemy import text
 
     module = migration()
@@ -309,9 +497,55 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
             session.add(earlier)
             await session.flush()
             earlier_id = earlier.id
-            ids = {"first": first.id, "quiet": quiet.id, "spoken": spoken.id, "tasked": tasked.id}
+            # The owner pinned one routine chat; a question waits in another.
+            pinned = ThreadRow(owner_id=fixture.owner, agent_id=agent["id"], title="pinned")
+            asking = ThreadRow(owner_id=fixture.owner, agent_id=agent["id"], title="asking")
+            session.add_all([pinned, asking])
+            await session.flush()
+            session.add(ThreadPrefsRow(owner_id=fixture.owner, thread_id=pinned.id, pinned_order=1))
+            session.add(
+                RunRow(
+                    thread_id=asking.id,
+                    agent_id=agent["id"],
+                    trigger="routine",
+                    prompt="asking",
+                    status="waiting_input",
+                )
+            )
+            for name, thread in {"pinned": pinned, "asking": asking}.items():
+                row = RoutineRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread.id,
+                    prompt=name,
+                    interval_seconds=3600,
+                    next_run_at=utcnow(),
+                )
+                session.add(row)
+                await session.flush()
+                routines[name] = row.id
+            # A routine run queued by the old code, still in flight in the quiet chat.
+            in_flight = RunRow(
+                thread_id=quiet.id,
+                agent_id=agent["id"],
+                trigger="routine",
+                prompt="quiet",
+                model_metadata={"routine_id": routines["quiet"]},
+            )
+            session.add(in_flight)
+            await session.flush()
+            in_flight_id = in_flight.id
+            ids = {
+                "first": first.id,
+                "quiet": quiet.id,
+                "spoken": spoken.id,
+                "tasked": tasked.id,
+                "pinned": pinned.id,
+                "asking": asking.id,
+            }
         async with fixture.runtime.db.sessions() as session, session.begin():
             await session.execute(text(module.CONVERT))
+            await session.execute(text(module.STAMP))
             await session.execute(text(module.MOVE))
         async with fixture.runtime.db.sessions() as session:
             purposes = {
@@ -324,8 +558,10 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
                 "quiet": "work",
                 "spoken": "conversation",
                 "tasked": "conversation",
+                "pinned": "conversation",
+                "asking": "conversation",
             }
-            for name in ("first", "spoken", "tasked"):
+            for name in ("first", "spoken", "tasked", "pinned", "asking"):
                 routine = await session.get(RoutineRow, routines[name])
                 assert routine is not None and routine.thread_id != ids[name]
                 moved = await session.get(ThreadRow, routine.thread_id)
@@ -333,6 +569,11 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
                 assert moved.agent_id == agent["id"] and moved.title == name
             kept = await session.get(RoutineRow, routines["quiet"])
             assert kept is not None and kept.thread_id == ids["quiet"]
+            # The in-flight run now reports to the Agent's own (earliest) conversation.
+            stamped = await session.get(RunRow, in_flight_id)
+            assert stamped is not None
+            assert stamped.model_metadata["origin_thread_id"] == ids["first"]
+            assert stamped.model_metadata["routine_id"] == routines["quiet"]
         # The moved routine's history keeps the runs from its earlier chat.
         history = await routine_history(fixture.runtime.db, routines["spoken"], fixture.owner)
         assert [run["id"] for run in history] == [earlier_id]
