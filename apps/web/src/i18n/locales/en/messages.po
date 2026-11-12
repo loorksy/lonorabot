@@ -63,8 +63,8 @@ msgstr "{0} h ago"
 
 #. placeholder {0}: agent.name
 #: src/conversation/PermissionMenu.tsx:102
-msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
-msgstr "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
+#~ msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
+#~ msgstr "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
 
 #. placeholder {0}: agent.name
 #: src/conversation/Message.tsx:287
@@ -92,7 +92,7 @@ msgid "{0} of {1}"
 msgstr "{0} of {1}"
 
 #. placeholder {0}: summary.usage.requests
-#: src/conversation/PermissionMenu.tsx:481
+#: src/conversation/PermissionMenu.tsx:433
 msgid "{0} requests · no cap for this agent"
 msgstr "{0} requests · no cap for this agent"
 
@@ -818,7 +818,7 @@ msgstr "An unexpected error occurred"
 msgid "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 msgstr "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 
-#: src/conversation/PermissionMenu.tsx:35
+#: src/conversation/PermissionMenu.tsx:34
 msgid "Analyses and follows the market without sending any order."
 msgstr "Analyses and follows the market without sending any order."
 
@@ -1007,8 +1007,8 @@ msgstr "Authentication"
 msgid "Auto-lock"
 msgstr "Auto-lock"
 
-#: src/conversation/PermissionMenu.tsx:240
-#: src/conversation/PermissionMenu.tsx:442
+#: src/conversation/PermissionMenu.tsx:192
+#: src/conversation/PermissionMenu.tsx:394
 msgid "Automatic"
 msgstr "Automatic"
 
@@ -1072,7 +1072,7 @@ msgctxt "task status"
 msgid "Awaiting review"
 msgstr "Awaiting review"
 
-#: src/conversation/PermissionMenu.tsx:311
+#: src/conversation/PermissionMenu.tsx:263
 #: src/shell/ChatHeader.tsx:128
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
@@ -1093,7 +1093,7 @@ msgstr "Back to chats"
 #~ msgid "Back to conversations"
 #~ msgstr "Back to conversations"
 
-#: src/conversation/PermissionMenu.tsx:424
+#: src/conversation/PermissionMenu.tsx:376
 msgid "Back to the permissions"
 msgstr "Back to the permissions"
 
@@ -1476,7 +1476,7 @@ msgstr "Change the code"
 msgid "Change the model"
 msgstr "Change the model"
 
-#: src/conversation/PermissionMenu.tsx:317
+#: src/conversation/PermissionMenu.tsx:269
 msgid "Change the permission level"
 msgstr "Change the permission level"
 
@@ -1737,8 +1737,8 @@ msgid "Choose the task's date."
 msgstr "Choose the task's date."
 
 #: src/conversation/PermissionMenu.tsx:115
-msgid "Choose the trading account"
-msgstr "Choose the trading account"
+#~ msgid "Choose the trading account"
+#~ msgstr "Choose the trading account"
 
 #: src/components/trading/BrokerPairPicker.tsx:100
 #: src/components/trading/BrokerPairPicker.tsx:108
@@ -1836,7 +1836,7 @@ msgstr "closing allowed"
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 
-#: src/conversation/PermissionMenu.tsx:297
+#: src/conversation/PermissionMenu.tsx:249
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "Closing and tightening the stop loss are always allowed."
 
@@ -1969,7 +1969,7 @@ msgid "Confirm the installation."
 msgstr "Confirm the installation."
 
 #. placeholder {0}: levelName(page.level)
-#: src/conversation/PermissionMenu.tsx:345
+#: src/conversation/PermissionMenu.tsx:297
 msgid "Confirm: {0}"
 msgstr "Confirm: {0}"
 
@@ -1981,7 +1981,7 @@ msgstr "Confirm: {0}"
 msgid "Connect a broker account before creating a trading agent."
 msgstr "Connect a broker account before creating a trading agent."
 
-#: src/conversation/PermissionMenu.tsx:497
+#: src/conversation/PermissionMenu.tsx:449
 msgid "Connect a model provider"
 msgstr "Connect a model provider"
 
@@ -2351,7 +2351,7 @@ msgstr "Default"
 msgid "Default market"
 msgstr "Default market"
 
-#: src/conversation/PermissionMenu.tsx:30
+#: src/conversation/PermissionMenu.tsx:29
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Delegated execution"
 msgstr "Delegated execution"
@@ -2884,11 +2884,11 @@ msgstr "Every linked trading account answers normally. Nothing is held."
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "Every list you create becomes a filter above the chat list."
 
-#: src/conversation/PermissionMenu.tsx:350
+#: src/conversation/PermissionMenu.tsx:302
 msgid "Every order is shown to you for approval before it is sent"
 msgstr "Every order is shown to you for approval before it is sent"
 
-#: src/conversation/PermissionMenu.tsx:36
+#: src/conversation/PermissionMenu.tsx:35
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "Every order is shown to you for approval before it is sent."
 
@@ -2905,11 +2905,11 @@ msgstr "Excited"
 msgid "Execute"
 msgstr "Execute"
 
-#: src/conversation/PermissionMenu.tsx:29
+#: src/conversation/PermissionMenu.tsx:28
 msgid "Execute with approval"
 msgstr "Execute with approval"
 
-#: src/conversation/PermissionMenu.tsx:37
+#: src/conversation/PermissionMenu.tsx:36
 msgid "Executes within a mandate signed with your passkey and within the account's limits."
 msgstr "Executes within a mandate signed with your passkey and within the account's limits."
 
@@ -3559,7 +3559,7 @@ msgstr "It opens in its own window like any app."
 #~ msgid "It starts at «No trading». The level is changed from its chat."
 #~ msgstr "It starts at «No trading». The level is changed from its chat."
 
-#: src/conversation/PermissionMenu.tsx:349
+#: src/conversation/PermissionMenu.tsx:301
 msgid "It stops executing and only analyses and follows"
 msgstr "It stops executing and only analyses and follows"
 
@@ -3580,7 +3580,7 @@ msgstr "It was not executed"
 #~ msgstr "Jump to latest"
 
 #. placeholder {0}: levelName("autonomous")
-#: src/conversation/PermissionMenu.tsx:362
+#: src/conversation/PermissionMenu.tsx:314
 msgid "Keep «{0}»"
 msgstr "Keep «{0}»"
 
@@ -3928,7 +3928,7 @@ msgstr "Manage agents"
 msgid "Manage manual trades"
 msgstr "Manage manual trades"
 
-#: src/conversation/PermissionMenu.tsx:291
+#: src/conversation/PermissionMenu.tsx:243
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Mandate details"
 msgstr "Mandate details"
@@ -4035,7 +4035,7 @@ msgstr "MCP server · {0}"
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 
-#: src/conversation/PermissionMenu.tsx:71
+#: src/conversation/PermissionMenu.tsx:69
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:85
 #: src/shell/agent/GroupPage.tsx:318
@@ -4167,8 +4167,8 @@ msgstr "Missed voice call"
 msgid "Mode"
 msgstr "Mode"
 
-#: src/conversation/PermissionMenu.tsx:275
-#: src/conversation/PermissionMenu.tsx:430
+#: src/conversation/PermissionMenu.tsx:227
+#: src/conversation/PermissionMenu.tsx:382
 #: src/shell/agent/IdentityPage.tsx:195
 msgid "Model"
 msgstr "Model"
@@ -4410,7 +4410,7 @@ msgstr "No candles available for this instrument and timeframe."
 msgid "No candles for this timeframe yet."
 msgstr "No candles for this timeframe yet."
 
-#: src/conversation/PermissionMenu.tsx:365
+#: src/conversation/PermissionMenu.tsx:317
 #: src/shell/settings/UsagePage.tsx:68
 msgid "No change"
 msgstr "No change"
@@ -4432,14 +4432,13 @@ msgstr "No chats."
 msgid "No enabled schedules."
 msgstr "No enabled schedules."
 
-#: src/conversation/PermissionMenu.tsx:28
-#: src/conversation/PermissionMenu.tsx:95
+#: src/conversation/PermissionMenu.tsx:27
 msgid "No execution"
 msgstr "No execution"
 
 #: src/conversation/PermissionMenu.tsx:91
-msgid "No execution: no trading account is chosen"
-msgstr "No execution: no trading account is chosen"
+#~ msgid "No execution: no trading account is chosen"
+#~ msgstr "No execution: no trading account is chosen"
 
 #: src/pages/RoutineRunHistory.tsx:47
 #~ msgid "No executions yet"
@@ -4629,7 +4628,7 @@ msgstr "No tools"
 msgid "No tools."
 msgstr "No tools."
 
-#: src/conversation/PermissionMenu.tsx:82
+#: src/conversation/PermissionMenu.tsx:80
 msgid "No trading"
 msgstr "No trading"
 
@@ -5219,22 +5218,22 @@ msgstr "Period"
 msgid "Permission"
 msgstr "Permission"
 
-#: src/conversation/PermissionMenu.tsx:165
+#: src/conversation/PermissionMenu.tsx:117
 msgid "Permission level"
 msgstr "Permission level"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:246
+#: src/conversation/PermissionMenu.tsx:198
 msgid "Permission level · {0}"
 msgstr "Permission level · {0}"
 
-#: src/conversation/PermissionMenu.tsx:142
+#: src/conversation/PermissionMenu.tsx:94
 #: src/conversation/ToolsSheet.tsx:147
 msgid "Permission unknown"
 msgstr "Permission unknown"
 
 #. placeholder {0}: levelName(next)
-#: src/conversation/PermissionMenu.tsx:222
+#: src/conversation/PermissionMenu.tsx:174
 msgid "Permission: {0}"
 msgstr "Permission: {0}"
 
@@ -5247,7 +5246,7 @@ msgid "Permissions are independent for each agent"
 msgstr "Permissions are independent for each agent"
 
 #. placeholder {0}: levelName(level)
-#: src/conversation/PermissionMenu.tsx:152
+#: src/conversation/PermissionMenu.tsx:104
 msgid "Permissions: {0}"
 msgstr "Permissions: {0}"
 
@@ -6027,7 +6026,7 @@ msgid "Running"
 msgstr "Running"
 
 #. placeholder {0}: current.name
-#: src/conversation/PermissionMenu.tsx:446
+#: src/conversation/PermissionMenu.tsx:398
 msgid "Running on «{0}» now · the routing picks the best fit for each task"
 msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 
@@ -7445,7 +7444,7 @@ msgstr "The restriction was lifted"
 msgid "The result is no longer available."
 msgstr "The result is no longer available."
 
-#: src/conversation/PermissionMenu.tsx:447
+#: src/conversation/PermissionMenu.tsx:399
 msgid "The routing picks the best fit for each task"
 msgstr "The routing picks the best fit for each task"
 
@@ -7485,7 +7484,7 @@ msgstr "The server's schema changed. Review the tools before approving them."
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
-#: src/conversation/PermissionMenu.tsx:325
+#: src/conversation/PermissionMenu.tsx:277
 msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "The signed mandate is revoked; going back to it needs a new signature."
 
@@ -7548,8 +7547,8 @@ msgstr "The watch was cancelled"
 #~ msgstr "Theme"
 
 #: src/conversation/PermissionMenu.tsx:118
-msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
-msgstr "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
+#~ msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
+#~ msgstr "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
 
 #: src/shell/call/CallPages.tsx:181
 msgid "There is no call in progress."
@@ -8221,7 +8220,7 @@ msgstr "Usage details"
 
 #. placeholder {0}: agent.name
 #. placeholder {1}: summary.usage.days
-#: src/conversation/PermissionMenu.tsx:476
+#: src/conversation/PermissionMenu.tsx:428
 msgid "Usage of {0} · last {1} days"
 msgstr "Usage of {0} · last {1} days"
 

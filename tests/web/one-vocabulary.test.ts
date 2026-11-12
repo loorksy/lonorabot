@@ -193,6 +193,9 @@ test("the trading control appears only for an agent that can trade", () => {
   assert.equal(showsTradingControl({ ...research, level: "supervised" }), true);
   assert.equal(showsTradingControl({ ...research, grants: 1 }), true);
   assert.equal(showsTradingControl({ ...research, pendingTrade: true }), true);
+  // A flat team agent with no account trades unless its level is No trading (3.2.1).
+  assert.equal(showsTradingControl({ role: "general", trading_account_id: null }), true);
+  assert.equal(showsTradingControl({ role: "delegated", trading_account_id: null }), false);
 });
 
 test("a colleague's result is shown without its machine wrapper", () => {

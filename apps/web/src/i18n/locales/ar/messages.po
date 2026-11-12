@@ -63,8 +63,8 @@ msgstr "قبل {0} ساعة"
 
 #. placeholder {0}: agent.name
 #: src/conversation/PermissionMenu.tsx:102
-msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
-msgstr "لا يرتبط {0} بحساب تداول، لذلك يعمل دون تنفيذ: يحلّل ويتابع فقط."
+#~ msgid "{0} is not linked to a trading account, so it works without execution: it analyses and follows only."
+#~ msgstr "لا يرتبط {0} بحساب تداول، لذلك يعمل دون تنفيذ: يحلّل ويتابع فقط."
 
 #. placeholder {0}: agent.name
 #: src/conversation/Message.tsx:287
@@ -92,7 +92,7 @@ msgid "{0} of {1}"
 msgstr "{0} من {1}"
 
 #. placeholder {0}: summary.usage.requests
-#: src/conversation/PermissionMenu.tsx:481
+#: src/conversation/PermissionMenu.tsx:433
 msgid "{0} requests · no cap for this agent"
 msgstr "{0} طلبًا · دون سقف لهذا الوكيل"
 
@@ -818,7 +818,7 @@ msgstr "حدث خطأ غير متوقع"
 msgid "An unexpected error occurred while displaying it. Your data is saved and nothing was lost."
 msgstr "حدث خطأ غير متوقع أثناء العرض. بياناتك محفوظة ولم يُفقد شيء."
 
-#: src/conversation/PermissionMenu.tsx:35
+#: src/conversation/PermissionMenu.tsx:34
 msgid "Analyses and follows the market without sending any order."
 msgstr "يحلّل السوق ويتابعه دون إرسال أي أمر."
 
@@ -1007,8 +1007,8 @@ msgstr "المصادقة"
 msgid "Auto-lock"
 msgstr "القفل التلقائي"
 
-#: src/conversation/PermissionMenu.tsx:240
-#: src/conversation/PermissionMenu.tsx:442
+#: src/conversation/PermissionMenu.tsx:192
+#: src/conversation/PermissionMenu.tsx:394
 msgid "Automatic"
 msgstr "تلقائي"
 
@@ -1072,7 +1072,7 @@ msgctxt "task status"
 msgid "Awaiting review"
 msgstr "بانتظار المراجعة"
 
-#: src/conversation/PermissionMenu.tsx:311
+#: src/conversation/PermissionMenu.tsx:263
 #: src/shell/ChatHeader.tsx:128
 #: src/shell/sheets/SheetHost.tsx:580
 #: src/shell/StatePage.tsx:47
@@ -1093,7 +1093,7 @@ msgstr "العودة إلى المحادثات"
 #~ msgid "Back to conversations"
 #~ msgstr "العودة إلى المحادثات"
 
-#: src/conversation/PermissionMenu.tsx:424
+#: src/conversation/PermissionMenu.tsx:376
 msgid "Back to the permissions"
 msgstr "رجوع إلى الصلاحيات"
 
@@ -1476,7 +1476,7 @@ msgstr "تغيير الرمز"
 msgid "Change the model"
 msgstr "تغيير النموذج"
 
-#: src/conversation/PermissionMenu.tsx:317
+#: src/conversation/PermissionMenu.tsx:269
 msgid "Change the permission level"
 msgstr "تغيير مستوى الصلاحية"
 
@@ -1737,8 +1737,8 @@ msgid "Choose the task's date."
 msgstr "اختر تاريخ المهمة."
 
 #: src/conversation/PermissionMenu.tsx:115
-msgid "Choose the trading account"
-msgstr "اختيار حساب التداول"
+#~ msgid "Choose the trading account"
+#~ msgstr "اختيار حساب التداول"
 
 #: src/components/trading/BrokerPairPicker.tsx:100
 #: src/components/trading/BrokerPairPicker.tsx:108
@@ -1836,7 +1836,7 @@ msgstr "الإغلاق مسموح"
 msgid "Closing and tightening the stop loss are always allowed, even when trading is stopped."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا، حتى عند إيقاف التداول."
 
-#: src/conversation/PermissionMenu.tsx:297
+#: src/conversation/PermissionMenu.tsx:249
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا."
 
@@ -1969,7 +1969,7 @@ msgid "Confirm the installation."
 msgstr "أكّد التثبيت."
 
 #. placeholder {0}: levelName(page.level)
-#: src/conversation/PermissionMenu.tsx:345
+#: src/conversation/PermissionMenu.tsx:297
 msgid "Confirm: {0}"
 msgstr "تأكيد: {0}"
 
@@ -1981,7 +1981,7 @@ msgstr "تأكيد: {0}"
 msgid "Connect a broker account before creating a trading agent."
 msgstr "اربط حساب الوسيط قبل إنشاء بوت التداول."
 
-#: src/conversation/PermissionMenu.tsx:497
+#: src/conversation/PermissionMenu.tsx:449
 msgid "Connect a model provider"
 msgstr "ربط مزوّد نماذج"
 
@@ -2351,7 +2351,7 @@ msgstr "الافتراضي"
 msgid "Default market"
 msgstr "سوق افتراضي"
 
-#: src/conversation/PermissionMenu.tsx:30
+#: src/conversation/PermissionMenu.tsx:29
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Delegated execution"
 msgstr "تنفيذ مفوَّض"
@@ -2884,11 +2884,11 @@ msgstr "كل حسابات التداول المرتبطة تستجيب طبيع�
 msgid "Every list you create becomes a filter above the chat list."
 msgstr "أي قائمة تنشئها تصير فلترًا أعلى قائمة المحادثات."
 
-#: src/conversation/PermissionMenu.tsx:350
+#: src/conversation/PermissionMenu.tsx:302
 msgid "Every order is shown to you for approval before it is sent"
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله"
 
-#: src/conversation/PermissionMenu.tsx:36
+#: src/conversation/PermissionMenu.tsx:35
 msgid "Every order is shown to you for approval before it is sent."
 msgstr "يُعرض عليك كل أمر للموافقة قبل إرساله."
 
@@ -2905,11 +2905,11 @@ msgstr "متحمس"
 msgid "Execute"
 msgstr "تنفيذ"
 
-#: src/conversation/PermissionMenu.tsx:29
+#: src/conversation/PermissionMenu.tsx:28
 msgid "Execute with approval"
 msgstr "تنفيذ بموافقة"
 
-#: src/conversation/PermissionMenu.tsx:37
+#: src/conversation/PermissionMenu.tsx:36
 msgid "Executes within a mandate signed with your passkey and within the account's limits."
 msgstr "ينفّذ ضمن تفويض موقَّع بمفتاح المرور وضمن حدود الحساب."
 
@@ -3553,7 +3553,7 @@ msgstr "سيفتح في نافذة مستقلة مثل أي تطبيق."
 #~ msgid "It starts at «No trading». The level is changed from its chat."
 #~ msgstr "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته."
 
-#: src/conversation/PermissionMenu.tsx:349
+#: src/conversation/PermissionMenu.tsx:301
 msgid "It stops executing and only analyses and follows"
 msgstr "يتوقف عن التنفيذ ويكتفي بالتحليل والمتابعة"
 
@@ -3574,7 +3574,7 @@ msgstr "لم تُنفّذ"
 #~ msgstr "الانتقال إلى الأحدث"
 
 #. placeholder {0}: levelName("autonomous")
-#: src/conversation/PermissionMenu.tsx:362
+#: src/conversation/PermissionMenu.tsx:314
 msgid "Keep «{0}»"
 msgstr "الإبقاء على «{0}»"
 
@@ -3922,7 +3922,7 @@ msgstr "إدارة الوكلاء"
 msgid "Manage manual trades"
 msgstr "إدارة الصفقات اليدوية"
 
-#: src/conversation/PermissionMenu.tsx:291
+#: src/conversation/PermissionMenu.tsx:243
 #: src/conversation/sheets/MandateSheet.tsx:406
 msgid "Mandate details"
 msgstr "تفاصيل التفويض"
@@ -4029,7 +4029,7 @@ msgstr "خادم MCP · {0}"
 msgid "MCP servers are never given a financial tool; write tools are non-financial (notes and alerts)."
 msgstr "لا تُمنح خوادم MCP أي أداة مالية؛ أدوات الكتابة غير مالية (ملاحظات وتنبيهات)."
 
-#: src/conversation/PermissionMenu.tsx:71
+#: src/conversation/PermissionMenu.tsx:69
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:85
 #: src/shell/agent/GroupPage.tsx:318
@@ -4161,8 +4161,8 @@ msgstr "مكالمة صوتية فائتة"
 msgid "Mode"
 msgstr "الوضع"
 
-#: src/conversation/PermissionMenu.tsx:275
-#: src/conversation/PermissionMenu.tsx:430
+#: src/conversation/PermissionMenu.tsx:227
+#: src/conversation/PermissionMenu.tsx:382
 #: src/shell/agent/IdentityPage.tsx:195
 msgid "Model"
 msgstr "النموذج"
@@ -4404,7 +4404,7 @@ msgstr "لا تتوفر شموع لهذه الأداة والفترة الزمن
 msgid "No candles for this timeframe yet."
 msgstr "لا توجد شموع لهذا الإطار الزمني بعد."
 
-#: src/conversation/PermissionMenu.tsx:365
+#: src/conversation/PermissionMenu.tsx:317
 #: src/shell/settings/UsagePage.tsx:68
 msgid "No change"
 msgstr "دون تغيير"
@@ -4426,14 +4426,13 @@ msgstr "لا توجد محادثات."
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
-#: src/conversation/PermissionMenu.tsx:28
-#: src/conversation/PermissionMenu.tsx:95
+#: src/conversation/PermissionMenu.tsx:27
 msgid "No execution"
 msgstr "دون تنفيذ"
 
 #: src/conversation/PermissionMenu.tsx:91
-msgid "No execution: no trading account is chosen"
-msgstr "دون تنفيذ: لم يُختر حساب تداول"
+#~ msgid "No execution: no trading account is chosen"
+#~ msgstr "دون تنفيذ: لم يُختر حساب تداول"
 
 #: src/pages/RoutineRunHistory.tsx:47
 #~ msgid "No executions yet"
@@ -4623,7 +4622,7 @@ msgstr "دون أدوات"
 msgid "No tools."
 msgstr "لا أدوات."
 
-#: src/conversation/PermissionMenu.tsx:82
+#: src/conversation/PermissionMenu.tsx:80
 msgid "No trading"
 msgstr "لا يتداول"
 
@@ -5213,22 +5212,22 @@ msgstr "الفترة"
 msgid "Permission"
 msgstr "الصلاحية"
 
-#: src/conversation/PermissionMenu.tsx:165
+#: src/conversation/PermissionMenu.tsx:117
 msgid "Permission level"
 msgstr "مستوى الصلاحية"
 
 #. placeholder {0}: agent.name
-#: src/conversation/PermissionMenu.tsx:246
+#: src/conversation/PermissionMenu.tsx:198
 msgid "Permission level · {0}"
 msgstr "مستوى الصلاحية · {0}"
 
-#: src/conversation/PermissionMenu.tsx:142
+#: src/conversation/PermissionMenu.tsx:94
 #: src/conversation/ToolsSheet.tsx:147
 msgid "Permission unknown"
 msgstr "الصلاحية غير معروفة"
 
 #. placeholder {0}: levelName(next)
-#: src/conversation/PermissionMenu.tsx:222
+#: src/conversation/PermissionMenu.tsx:174
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
@@ -5241,7 +5240,7 @@ msgid "Permissions are independent for each agent"
 msgstr "الصلاحيات مستقلة لكل وكيل"
 
 #. placeholder {0}: levelName(level)
-#: src/conversation/PermissionMenu.tsx:152
+#: src/conversation/PermissionMenu.tsx:104
 msgid "Permissions: {0}"
 msgstr "الصلاحيات: {0}"
 
@@ -6021,7 +6020,7 @@ msgid "Running"
 msgstr "جارٍ التنفيذ"
 
 #. placeholder {0}: current.name
-#: src/conversation/PermissionMenu.tsx:446
+#: src/conversation/PermissionMenu.tsx:398
 msgid "Running on «{0}» now · the routing picks the best fit for each task"
 msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنسب لكل مهمة"
 
@@ -7439,7 +7438,7 @@ msgstr "رُفع القيد"
 msgid "The result is no longer available."
 msgstr "لم تعد النتيجة متاحة."
 
-#: src/conversation/PermissionMenu.tsx:447
+#: src/conversation/PermissionMenu.tsx:399
 msgid "The routing picks the best fit for each task"
 msgstr "يختار التوجيه الأنسب لكل مهمة"
 
@@ -7479,7 +7478,7 @@ msgstr "تغيّر مخطط الخادم. راجع الأدوات قبل اعت�
 msgid "The setup code is incorrect."
 msgstr "رمز الإعداد غير صحيح."
 
-#: src/conversation/PermissionMenu.tsx:325
+#: src/conversation/PermissionMenu.tsx:277
 msgid "The signed mandate is revoked; going back to it needs a new signature."
 msgstr "يُلغى التفويض الموقَّع، ويتطلّب الرجوع إليه توقيعًا جديدًا."
 
@@ -7542,8 +7541,8 @@ msgstr "أُلغيت المراقبة"
 #~ msgstr "المظهر"
 
 #: src/conversation/PermissionMenu.tsx:118
-msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
-msgstr "بعدها تظهر مستويات الصلاحية بجانب حقل الكتابة: دون تنفيذ · تنفيذ بموافقة · تنفيذ مفوَّض."
+#~ msgid "Then the permission levels appear beside the text field: no execution · execute with approval · delegated execution."
+#~ msgstr "بعدها تظهر مستويات الصلاحية بجانب حقل الكتابة: دون تنفيذ · تنفيذ بموافقة · تنفيذ مفوَّض."
 
 #: src/shell/call/CallPages.tsx:181
 msgid "There is no call in progress."
@@ -8215,7 +8214,7 @@ msgstr "تفاصيل الاستهلاك"
 
 #. placeholder {0}: agent.name
 #. placeholder {1}: summary.usage.days
-#: src/conversation/PermissionMenu.tsx:476
+#: src/conversation/PermissionMenu.tsx:428
 msgid "Usage of {0} · last {1} days"
 msgstr "استهلاك {0} · آخر {1} يومًا"
 
