@@ -218,21 +218,29 @@ async def main() -> None:
         assert (
             state["status"] == "acted_on" and state["state"]["entry_position_id"] == positions[0].id
         )
+        # Opportunities are the agent's memory, never a gate (mandate 14.2.5): a second
+        # entry on the same thesis is the agent's own decision and becomes its entry.
         second_args = {**args, "volume": "0.2"}
-        second = await call("trade_execute", second_args, "second-entry-blocked")
+        second = await call("trade_execute", second_args, "second-entry")
         await f.request(
             "POST",
             "/trading/approvals/" + second["approval_id"] + "/decision",
             {"decision": "approve"},
         )
-        blocked = await call("trade_execute", second_args, "second-entry-blocked")
-        assert blocked["results"][0]["status"] == "failed"
-        assert len(await broker.positions()) == 1
+        added = await call("trade_execute", second_args, "second-entry")
+        assert added["results"][0]["status"] == "confirmed", added
+        first_position = positions[0].id
+        positions = await broker.positions()
+        assert len(positions) == 2
+        state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
+        target = state["state"]["entry_position_id"]
+        assert state["status"] == "acted_on" and target not in {None, first_position}, state
+        assert state["state"]["entry_operation_id"] == added["results"][0]["operation_id"]
         partial_args = {
             "account_id": account,
             "symbol": symbols[0],
             "action": "close_position",
-            "position_id": positions[0].id,
+            "position_id": target,
             "volume": "0.04",
             "thesis_id": thesis["id"],
         }
@@ -248,13 +256,13 @@ async def main() -> None:
         partial_state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert (
             partial_state["status"] == "acted_on"
-            and str((await broker.positions())[0].volume) == "0.06"
+            and {p.id: str(p.volume) for p in await broker.positions()}[target] == "0.16"
         )
         close_args = {
             "account_id": account,
             "symbol": symbols[0],
             "action": "close_position",
-            "position_id": positions[0].id,
+            "position_id": target,
             "thesis_id": thesis["id"],
         }
         close_card = await call("trade_execute", close_args, "close-real-ticket")
@@ -265,11 +273,11 @@ async def main() -> None:
         )
         close_result = await call("trade_execute", close_args, "close-real-ticket")
         assert close_result["results"][0]["status"] == "confirmed", close_result
-        assert not await broker.positions()
+        assert [p.id for p in await broker.positions()] == [first_position]
         finished = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert finished["status"] == "completed"
         print(
-            "PASS same approval/journal/adapter path verifies entry and full exit, repeats return one receipt, and thesis cannot duplicate a financial entry"
+            "PASS same approval/journal/adapter path verifies entry and full exit, repeats return one receipt, and a second entry on a thesis is the agent's own decision"
         )
 
         async def refresh_market() -> None:
@@ -364,9 +372,9 @@ async def main() -> None:
         unsent = await fresh_thesis("fixture-lost-entry-not-executed")
         lost = await entry(unsent, "lost-entry-not-executed", lose_before_effect)
         assert lost["status"] == "ambiguous", lost
-        assert (await thesis_state(unsent))["state"]["pending_entry_operation_id"] == (
+        assert (await thesis_state(unsent))["state"]["pending_operation_ids"] == [
             lost["operation_id"]
-        )
+        ]
         await f.request(
             "POST",
             f"/trading/journal/{lost['operation_id']}/resolve",
@@ -374,7 +382,7 @@ async def main() -> None:
         )
         released = await thesis_state(unsent)
         assert released["status"] == "confirmed", released
-        assert released["state"]["pending_entry_operation_id"] is None
+        assert released["state"]["pending_operation_ids"] == []
         assert not released["state"].get("entry_operation_id")
         # Identical parameters in this Run replay the same resolved operation; a fresh
         # entry is a different request.
@@ -393,12 +401,14 @@ async def main() -> None:
         attested = await thesis_state(executed)
         assert attested["status"] == "acted_on", attested
         assert attested["state"]["entry_operation_id"] == lost["operation_id"]
-        assert attested["state"]["pending_entry_operation_id"] is None
+        assert attested["state"]["pending_operation_ids"] == []
         assert attested["state"]["reason_code"] == "thesis_entry_attested"
         again = await entry(executed, "lost-entry-second", volume="0.3")
-        # An acted-on thesis no longer admits entries (status check precedes the link).
-        assert again["status"] == "failed" and again["details"]["send_state"] == "not_sent", again
-        assert again["code"] in {"thesis_not_confirmed", "thesis_already_acted_on"}, again
+        # An acted-on thesis is memory, never a gate: the next entry is sent and linked.
+        assert again["status"] == "confirmed", again
+        assert (await thesis_state(executed))["state"]["entry_operation_id"] == again[
+            "operation_id"
+        ]
         assert await maintenance_opportunities(f.runtime.db, f.owner) >= 0
         # A broker-state resolution never says who closed the position, but the thesis
         # position is observed closed: the thesis completes.
@@ -432,7 +442,126 @@ async def main() -> None:
         assert completed["status"] == "completed", completed
         assert completed["state"]["reason_code"] == "thesis_position_no_longer_open"
         print(
-            "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and blocks a duplicate; an observed-closed position completes its thesis"
+            "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and a later entry is linked; an observed-closed position completes its thesis"
+        )
+
+        def journal_row(
+            thesis_id: str, status: str, *, action: str = "buy", symbol: str = symbols[0]
+        ) -> TradingJournalRow:
+            identifier = "thesis-memory-" + uuid4().hex
+            return TradingJournalRow(
+                operation_id=identifier,
+                owner_id=f.owner,
+                account_id=account,
+                request_hash="explicit-fixture",
+                request={
+                    "account_id": account,
+                    "operation_id": identifier,
+                    "action": action,
+                    "symbol": symbol,
+                    "volume": "0.1",
+                    "thesis_id": thesis_id,
+                },
+                status=status,
+                result={"operation_id": identifier, "status": status, "details": {}},
+            )
+
+        async def sync(row: TradingJournalRow) -> dict[str, Any]:
+            async with f.runtime.db.sessions() as session, session.begin():
+                await sync_opportunity_execution(session, row)
+            return await thesis_state({"id": row.request["thesis_id"]})
+
+        memory = await fresh_thesis("fixture-memory-links")
+        # Several open operations on one thesis are all kept, and each settles on its own.
+        first, second = (journal_row(memory["id"], "ambiguous") for _ in range(2))
+        await sync(first)
+        held = await sync(second)
+        assert held["state"]["pending_operation_ids"] == [
+            first.operation_id,
+            second.operation_id,
+        ], held
+        second.status = "failed"
+        assert (await sync(second))["state"]["pending_operation_ids"] == [first.operation_id]
+        # Another market's operation is never this thesis's memory.
+        foreign = journal_row(memory["id"], "confirmed", symbol=symbols[1])
+        unchanged = await sync(foreign)
+        assert unchanged["status"] == "confirmed", unchanged
+        assert unchanged["state"].get("last_operation_id") != foreign.operation_id
+        # An ended thesis records an operation that names it and is never revived.
+        ended = await f.request("GET", "/trading/opportunities/" + created[1]["id"])
+        assert ended["status"] == "invalidated", ended
+        late = journal_row(ended["id"], "confirmed", symbol=ended["symbol"])
+        after = await sync(late)
+        assert after["status"] == "invalidated", after
+        assert after["state"]["last_operation_id"] == late.operation_id
+        print(
+            "PASS a thesis keeps every open operation, ignores another market's and is never revived once ended"
+        )
+
+        async def expired_with_position(setup: str, position_id: str) -> dict[str, Any]:
+            """A thesis acted on, whose expiry then passes before its position closes."""
+            thesis = await fresh_thesis(setup)
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await owned_opportunity(session, f.owner, thesis["id"], lock=True)
+                row.status = "acted_on"
+                row.state = {**row.state, "entry_position_id": position_id}
+                await refresh_opportunity(session, row, now=utcnow() + timedelta(hours=2))
+                assert row.status == "expired", row.status
+            return thesis
+
+        def close_row(thesis_id: str, position_id: str, status: str) -> TradingJournalRow:
+            row = journal_row(thesis_id, status, action="close_position")
+            row.request = {**row.request, "position_id": position_id, "volume": None}
+            if status == "resolved":
+                row.result = {
+                    **row.result,
+                    "code": "target_closed",
+                    "details": {"resolution": {"source": "broker_state", "basis": "target_closed"}},
+                }
+            return row
+
+        # An expired thesis still completes when its position fully closes.
+        closed = await expired_with_position("fixture-expired-close", "pos-expired-close")
+        done = await sync(close_row(closed["id"], "pos-expired-close", "confirmed"))
+        assert done["status"] == "completed", done
+        assert done["state"]["reason_code"] == "thesis_position_closed", done
+        observed = await expired_with_position("fixture-expired-observed", "pos-expired-seen")
+        seen = await sync(close_row(observed["id"], "pos-expired-seen", "resolved"))
+        assert seen["status"] == "completed", seen
+        assert seen["state"]["reason_code"] == "thesis_position_no_longer_open", seen
+        # An expired thesis is still never revived by an entry.
+        revived = await sync(journal_row(observed["id"], "confirmed"))
+        assert revived["status"] == "completed", revived
+        print(
+            "PASS an expired thesis completes when its position closes or is observed closed, and is never revived by an entry"
+        )
+
+        # The thesis's own entry settles after the thesis expired: it is still recorded as
+        # the thesis entry (never reviving it), so closing its position completes it.
+        late = await fresh_thesis("fixture-late-entry")
+        pending_entry = journal_row(late["id"], "ambiguous")
+        linked = await sync(pending_entry)
+        assert linked["state"]["pending_operation_ids"] == [pending_entry.operation_id], linked
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await owned_opportunity(session, f.owner, late["id"], lock=True)
+            await refresh_opportunity(session, row, now=utcnow() + timedelta(hours=2))
+            assert row.status == "expired", row.status
+        pending_entry.status = "confirmed"
+        pending_entry.result = {
+            **pending_entry.result,
+            "status": "confirmed",
+            "details": {"position_id": "pos-late-entry"},
+        }
+        settled = await sync(pending_entry)
+        assert settled["status"] == "expired", settled
+        assert settled["state"]["entry_operation_id"] == pending_entry.operation_id, settled
+        assert settled["state"]["entry_position_id"] == "pos-late-entry", settled
+        assert settled["state"]["pending_operation_ids"] == [], settled
+        late_done = await sync(close_row(late["id"], "pos-late-entry", "confirmed"))
+        assert late_done["status"] == "completed", late_done
+        assert late_done["state"]["reason_code"] == "thesis_position_closed", late_done
+        print(
+            "PASS an entry that settles after its thesis expired is still its entry, and closing its position completes the thesis"
         )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})

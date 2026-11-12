@@ -194,25 +194,6 @@ async def grant_covers(
     return True
 
 
-async def covering_authority(
-    session: AsyncSession,
-    owner_id: str,
-    run: RunRow,
-    request: TradeRequest,
-    snapshot: ExecutionSnapshot,
-) -> str | None:
-    """``available_authority`` whose every term admits the request (``grant_covers``).
-
-    None never refuses the trade: the owner approves it with an approval card instead.
-    """
-    identifier = await available_authority(session, owner_id, run, request)
-    if identifier is None:
-        return None
-    if await grant_covers(session, owner_id, run, request, identifier, snapshot):
-        return identifier
-    return None
-
-
 def management_target(
     snapshot: ExecutionSnapshot, request: TradeRequest
 ) -> Position | Order | None:

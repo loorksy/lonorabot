@@ -232,7 +232,7 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             raise LonoraError("artifact_integrity_failed", 409)
         # A text file may hold workspace bytes saved before a secret existed: the whole
         # text is scanned like workspace output before a page is cut (VISION.md 7.2.6).
-        scan = SecretScan(await context.secrets.workspace_values())
+        scan = SecretScan(await context.secrets.scanned_values())
         text = await asyncio.to_thread(scan.text, content.decode("utf-8", errors="replace"))
         offset, limit = args.get("offset", 0), args.get("limit", 24000)
         result["content"] = text[offset : offset + limit]

@@ -151,7 +151,7 @@ export function UpdatesPage() {
   const routines = useLoad(() => domainApi.routines(), "routines:*");
   const feed = useLoad(() => domainApi.activity(), "activity");
   const details = useScheduleDetails(routines.reload);
-  const upcoming = (routines.data ?? []).filter((row) => row.enabled && !row.goal_id);
+  const upcoming = (routines.data ?? []).filter((row) => row.enabled);
   const ring = (agentId: string) =>
     data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
     upcoming.some((row) => row.agent_id === agentId);

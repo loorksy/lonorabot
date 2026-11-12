@@ -42,7 +42,6 @@ MODULES = {
     "trade": "trading",
     "restrictions": "trading",
     "owner_actions": "trading",
-    "trading_goal": "goals",
     "runtime_control": "tasks",
     "tasks": "tasks",
     "collaboration": "collaboration",

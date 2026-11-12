@@ -20,7 +20,6 @@ AttentionCode = Literal[
     "external_broker_activity",
     "setup_confirmed",
     "thesis_invalidated",
-    "goal_changed",
     "collaboration_completed",
     "task_review",
     "task_degraded",

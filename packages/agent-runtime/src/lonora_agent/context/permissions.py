@@ -133,14 +133,14 @@ def permission_guidance(
             "Reason and prepare independently; every broker mutation requires the owner's "
             "existing exact-operation approval. Use the ordinary approval flow when an "
             "action is ready. Keep useful analysis/monitoring moving while approval is "
-            "pending. A saved goal does not waive operation approval. To trade on your own, "
+            "pending. To trade on your own, "
             "the owner signs a grant_authority card."
         ),
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "
             "size and manage positions, and persist useful monitoring within the exact active "
             "signed scopes below. Matching actions need no repeated per-operation approval. "
-            "Any other action, a goal step included, becomes the owner's approval card "
+            "Any other action becomes the owner's approval card "
             "(trade_execute does it); never enlarge scope yourself. Optional "
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "

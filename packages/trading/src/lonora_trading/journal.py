@@ -3,7 +3,6 @@ from typing import Any, cast
 
 from lonora_contracts.execution_quality import ExecutionPolicy, ExecutionSnapshot
 from lonora_contracts.trading import TradeRequest
-from lonora_contracts.trading_goal import GoalExecution
 from lonora_db.schema import TradingJournalRow
 
 from .operation_events import lifecycle, send_state
@@ -38,7 +37,6 @@ def execution_evidence(
     request: TradeRequest,
     *,
     phase: str,
-    goal: GoalExecution | None = None,
     policy: ExecutionPolicy | None = None,
 ) -> dict[str, Any]:
     """Persist only typed facts read at this boundary, never model reasoning or secrets."""
@@ -58,7 +56,6 @@ def execution_evidence(
         "account_source": "broker_adapter",
         "target_source": "broker_adapter",
         "policy": policy.model_dump(mode="json") if policy else None,
-        "goal": goal.model_dump(mode="json") if goal else None,
         "thesis_id": request.thesis_id,
         "hidden_reasoning": None,
     }
