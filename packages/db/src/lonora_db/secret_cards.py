@@ -12,9 +12,10 @@ from typing import Any
 from lonora_contracts.domain import utcnow
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import OwnerActionRow
+from .schema import OwnerActionRow, SecretRow
 from .secrets import BROKER, METAAPI_TOKEN, WORKSPACE, metaapi_password_name
 
 # Writes one value to the encrypted store in the caller's transaction; returns its id.
@@ -80,7 +81,18 @@ async def save_values(
         # The broker layer's own writer; the account is provisioned by the gateway, which
         # wakes the agent with the result (``lonora_trading.broker_provisioning``).
         names = {PASSWORD_FIELD: metaapi_password_name(row.id), TOKEN_FIELD: METAAPI_TOKEN}
+        token_saved = await session.scalar(
+            select(SecretRow.id).where(
+                SecretRow.owner_id == row.owner_id,
+                SecretRow.scope == BROKER,
+                SecretRow.name == METAAPI_TOKEN,
+            )
+        )
         for key in keys:
+            if key == TOKEN_FIELD and token_saved is not None:
+                # A card raised before the token was saved never replaces it: live
+                # connections use it. Replacing the token is its own action (9.3).
+                continue
             await write(session, names[key], values[key], BROKER)
         return {
             "saved": keys,
@@ -108,12 +120,12 @@ def saved_prompt(row: OwnerActionRow) -> str:
 
 def broker_prompt(row: OwnerActionRow) -> str:
     """Fixed text and broker-observed facts only, after provisioning finished."""
-    account = row.payload["account"]
-    named = f"account {account['login']} on {account['server']}"
     result = row.result
     if result.get("provisioning") != "connected":
+        # The login was checked as digits; the failure code is the server's own word.
         return (
-            f"Connecting the owner's {named} failed: {result.get('code')}. You never see "
+            f"Connecting the owner's account {row.payload['account']['login']} failed: "
+            f"{result.get('code')}. You never see "
             "the password or token. Tell the owner in one line what went wrong and what you "
             "need; to try again, call broker_connect, which shows a new card."
         )
@@ -127,6 +139,8 @@ def broker_prompt(row: OwnerActionRow) -> str:
             else "trading is NOT allowed (an investor password or a read-only account)"
         )
         state = f"Balance {facts['balance']} {facts.get('currency')}; {trading}."
+    observed: dict[str, Any] = result.get("observed") or {}
+    named = f"account {observed.get('login')} on {observed.get('server')}"
     return (
         f"The owner's {named} is connected and deployed at MetaApi as connection "
         f"{result.get('connection_id')}. {state} Report this to the owner in one line."

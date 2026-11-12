@@ -125,8 +125,7 @@ async def test_the_owner_connects_an_account_from_chat_and_hears_its_balance(
     database()
     from check_streaming import Fixture
     from lonora_adapters.storage.broker_secrets import BrokerSecrets
-    from lonora_db.schema import BrokerSessionRow, EventRow, MessageRow, OwnerActionRow
-    from sqlalchemy import select
+    from lonora_db.schema import BrokerSessionRow
 
     caplog.set_level(logging.DEBUG)
     fixture = await Fixture().open()
@@ -192,26 +191,28 @@ async def test_the_owner_connects_an_account_from_chat_and_hears_its_balance(
                 "broker_account_already_connected"
             )
 
-        # No value in the card, events, messages or logs.
-        async with fixture.runtime.db.sessions() as session:
-            texts = [str((await world.card(card_id)).payload), str(row.result)]
-            texts += [
-                str(event.payload)
-                for event in await session.scalars(
-                    select(EventRow).where(EventRow.owner_id == fixture.owner)
-                )
-            ]
-            texts += [m.content for m in await session.scalars(select(MessageRow))]
-            texts += [
-                str(card.payload) + str(card.result)
-                for card in await session.scalars(select(OwnerActionRow))
-            ]
-        texts.append(caplog.text)
-        for text in texts:
-            assert PASSWORD not in text and TOKEN not in text
+        await no_value_anywhere(fixture, [PASSWORD, TOKEN], caplog.text)
     finally:
         FakeMetaApiBroker.terminals.clear()
         await fixture.close()
+
+
+async def no_value_anywhere(fixture: Any, values: list[str], logs: str) -> None:
+    """No password or token in any card, event, message or log line."""
+    from lonora_db.schema import EventRow, MessageRow, OwnerActionRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session:
+        texts = [str(event.payload) for event in await session.scalars(select(EventRow))]
+        texts += [message.content for message in await session.scalars(select(MessageRow))]
+        texts += [
+            str(card.payload) + str(card.result)
+            for card in await session.scalars(select(OwnerActionRow))
+        ]
+    texts.append(logs)
+    for text in texts:
+        for value in values:
+            assert value not in text
 
 
 async def refused_connect(fixture: Any, agent: dict[str, Any], account: str) -> str:
@@ -229,9 +230,10 @@ async def refused_connect(fixture: Any, agent: dict[str, Any], account: str) -> 
     ],
 )
 async def test_a_refused_account_wakes_the_agent_with_the_reason(
-    server: str, password: str, code: str
+    caplog: pytest.LogCaptureFixture, server: str, password: str, code: str
 ) -> None:
     database()
+    caplog.set_level(logging.DEBUG)
     from check_streaming import Fixture
     from lonora_adapters.storage.broker_secrets import BrokerSecrets
     from lonora_db.secrets import METAAPI_TOKEN, metaapi_password_name
@@ -256,6 +258,7 @@ async def test_a_refused_account_wakes_the_agent_with_the_reason(
         # The refused password is forgotten; the token is kept for the next card.
         assert await broker.named(metaapi_password_name(card_id)) is None
         assert await broker.named(METAAPI_TOKEN) is not None
+        await no_value_anywhere(fixture, [password, TOKEN], caplog.text)
     finally:
         await fixture.close()
 
@@ -327,3 +330,89 @@ def test_the_platform_comes_from_the_server_name() -> None:
     assert platform_of("ICMarketsSC-MT4-Demo") == "mt4"
     assert platform_of("Broker-mt 5 live") == "mt5"
     assert platform_of("Exness-Real7") is None
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_read_third_party_text_cannot_raise_a_password_card() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_tools.restrictions import mark_external_content
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Tainted")
+        thread = await fixture.conversation(agent)
+        context = await owner_says(fixture, agent, thread, "read this page and connect")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await mark_external_content(session, context.lease.run_id, "web_fetch")
+        assert await refused(context, "broker_connect", login=login(), server=SERVER) == (
+            "broker_connect_needs_owner_message"
+        )
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_card_raised_before_the_token_was_saved_never_replaces_it() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_db.secrets import METAAPI_TOKEN
+
+    fixture = await Fixture().open()
+    first, second = login(), login()
+    world = World(
+        fixture, FakeProvisioningApi(servers={SERVER: {first: PASSWORD, second: PASSWORD}})
+    )
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Two cards")
+        with installed():
+            one = (await connect(fixture, agent, first))["owner_action"]["id"]
+            two = await connect(fixture, agent, second)
+            assert two["asks_for"] == ["PASSWORD", "METAAPI_TOKEN"]  # none saved yet
+            await world.save(one, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            saved = await world.save(
+                two["owner_action"]["id"],
+                {"PASSWORD": PASSWORD, "METAAPI_TOKEN": "fixture.other.token"},
+            )
+            assert saved.status_code == 200
+        broker = BrokerSecrets(fixture.runtime.db, key(fixture), fixture.owner)
+        token_id = await broker.named(METAAPI_TOKEN)
+        assert token_id is not None and await broker.read(token_id) == TOKEN
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_transient_metaapi_failure_is_retried_not_ended() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_db.secrets import metaapi_password_name
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(
+        servers={SERVER: {account: PASSWORD}}, lose_create_answer="before_commit"
+    )
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Transient")
+        with installed():
+            card_id = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(card_id, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            await world.gateway(1)
+            assert (await world.card(card_id)).result["provisioning"] == "pending"
+            broker = BrokerSecrets(fixture.runtime.db, key(fixture), fixture.owner)
+            assert await broker.named(metaapi_password_name(card_id)) is not None
+            await world.gateway()
+        assert (await world.card(card_id)).result["provisioning"] == "connected"
+        # Cards other tests left in this database are advanced too; count this account's.
+        assert [create["login"] for create in api.creates].count(account) == 2
+        assert [data["login"] for data in api.accounts.values()].count(account) == 1
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await fixture.close()

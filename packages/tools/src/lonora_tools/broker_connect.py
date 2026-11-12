@@ -11,7 +11,7 @@ from lonora_db.schema import SecretRow
 from lonora_db.secret_cards import broker_card_payload
 from lonora_db.secrets import BROKER, METAAPI_TOKEN
 from lonora_session.idempotency import stable_id
-from lonora_trading.broker_provisioning import platform_of
+from lonora_trading.broker_provisioning import other_card_active, platform_of
 from pydantic import Field
 from sqlalchemy import select
 
@@ -30,7 +30,8 @@ class BrokerConnectInput(Contract):
 async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = BrokerConnectInput.model_validate(args)
     login, server = params.login.strip(), params.server.strip()
-    platform = params.platform or platform_of(server)
+    # The server's own name wins when it says MT4 or MT5.
+    platform = platform_of(server) or params.platform
     if platform is None:
         raise ToolRefusal(
             "broker_platform_required",
@@ -49,12 +50,6 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             )
         repository = BrokerSessionRepository()
         await repository.lock_owner(session, context.owner_id)
-        await repository.assert_unique(
-            session,
-            context.owner_id,
-            {"provider": "metaapi", "account_id": "provisioning:" + run.id},
-            identity={"login": login, "server": server, "platform": platform},
-        )
         token_saved = await session.scalar(
             select(SecretRow.id).where(
                 SecretRow.owner_id == context.owner_id,
@@ -64,6 +59,18 @@ async def connect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         )
         subject, payload = broker_card_payload(
             login=login, server=server, platform=platform, token_needed=token_saved is None
+        )
+        if await other_card_active(session, context.owner_id, subject, ""):
+            raise ToolRefusal(
+                "broker_connect_in_progress",
+                409,
+                details={"hint": "That account is being connected; you are woken when done."},
+            )
+        await repository.assert_unique(
+            session,
+            context.owner_id,
+            {"provider": "metaapi", "account_id": "provisioning:" + run.id},
+            identity={"login": login, "server": server, "platform": platform},
         )
         row, created = await propose_effect(
             session,

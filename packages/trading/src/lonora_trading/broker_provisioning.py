@@ -38,6 +38,18 @@ from .connections import verified_identity
 
 log = logging.getLogger("lonora.broker.provisioning")
 ACTIVE = ("pending", "deploying", "reading")
+# Failures worth another pass before the deadline; any other code ends the card.
+TRANSIENT = frozenset(
+    {
+        "broker_provisioning_timeout",
+        "broker_provisioning_unavailable",
+        "broker_provisioning_conflict",
+        "broker_rate_limited",
+        "broker_connection_timeout",
+        "broker_connection_unavailable",
+        "broker_identity_unavailable",
+    }
+)
 # How long a saved card may take to reach a connected terminal, then a first account read.
 DEPLOY_DEADLINE = timedelta(minutes=15)
 READ_DEADLINE = timedelta(minutes=5)
@@ -61,20 +73,24 @@ async def maintain_broker_provisioning(
         cards = [
             row.id
             for row in await session.scalars(
-                select(OwnerActionRow).where(
+                select(OwnerActionRow)
+                .where(
                     OwnerActionRow.owner_id == owner_id,
                     OwnerActionRow.kind == "secret",
                     OwnerActionRow.status == "confirmed",
                 )
+                .order_by(OwnerActionRow.created_at, OwnerActionRow.id)
             )
             if row.payload.get("destination") == BROKER and row.result.get("provisioning") in ACTIVE
         ]
     for card_id in cards:
         try:
             await advance(db, brokers, secrets, owner_id, card_id)
-        except Exception:
+        except Exception as error:
             # One account's trouble never stops the others; the next pass retries.
-            log.warning("broker_provisioning_pass_failed card=%s", card_id, exc_info=False)
+            log.warning(
+                "broker_provisioning_pass_failed card=%s type=%s", card_id, type(error).__name__
+            )
 
 
 async def _card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -90,47 +106,100 @@ async def _record(session: AsyncSession, row: OwnerActionRow, **changes: Any) ->
         await continue_after_card(session, row)
 
 
+def _late(since: str, limit: timedelta = DEPLOY_DEADLINE) -> bool:
+    return utcnow() - datetime.fromisoformat(since) > limit
+
+
 async def advance(
     db: Database, brokers: Any, secrets: BrokerSecrets, owner_id: str, card_id: str
 ) -> None:
     async with db.sessions() as session:
-        row = await _card(session, owner_id, card_id)
-        phase, result, account = row.result.get("provisioning"), dict(row.result), row.payload
-    started = str(result.get("started_at") or row.updated_at.isoformat())
+        row = await session.get(OwnerActionRow, card_id)
+        assert row is not None and row.owner_id == owner_id
+        phase, result, payload = row.result.get("provisioning"), dict(row.result), row.payload
+        started = str(result.get("started_at") or row.updated_at.isoformat())
+        subject = row.subject
     password_id = await secrets.named(metaapi_password_name(card_id))
     token_id = await secrets.named(METAAPI_TOKEN)
+    failing = Failing(db, secrets, owner_id, card_id, str(phase), result)
     if phase in {"pending", "deploying"} and (password_id is None or token_id is None):
-        await _fail(db, secrets, owner_id, card_id, "broker_secret_required")
+        await failing("broker_secret_required")
         return
     if phase == "pending":
         assert password_id is not None and token_id is not None
-        await _provision(db, secrets, owner_id, card_id, account["account"], password_id, token_id)
+        await _provision(
+            db, secrets, failing, payload["account"], subject, password_id, token_id, started
+        )
     elif phase == "deploying":
         assert password_id is not None and token_id is not None
-        await _deploy(db, secrets, owner_id, card_id, result, password_id, token_id, started)
+        await _deploy(db, failing, result, password_id, token_id, started, secrets)
     elif phase == "reading":
         await _read(db, brokers, owner_id, card_id, result)
+
+
+class Failing:
+    """Ends one card as failed, only from the phase this pass started in, and cleans up:
+    the refused password is forgotten, and an account Lonora itself created at MetaApi
+    is removed (no connection and no journal row ever referred to it)."""
+
+    def __init__(
+        self,
+        db: Database,
+        secrets: BrokerSecrets,
+        owner_id: str,
+        card_id: str,
+        phase: str,
+        result: dict[str, Any],
+    ):
+        self.db, self.secrets, self.owner_id, self.card_id = db, secrets, owner_id, card_id
+        self.phase, self.result = phase, result
+
+    async def __call__(self, code: str, provisioning: MetaApiProvisioning | None = None) -> None:
+        async with self.db.sessions() as session, session.begin():
+            row = await _card(session, self.owner_id, self.card_id)
+            if row.result.get("provisioning") != self.phase:
+                return  # Another pass moved this card on.
+            await _record(session, row, provisioning="failed", code=code)
+            created = row.result.get("created") is True
+            account_id = row.result.get("metaapi_account_id")
+        if created and account_id and provisioning is not None:
+            try:
+                await provisioning.remove(str(account_id))
+            except LonoraError:
+                log.warning("broker_provisioning_cleanup_failed card=%s", self.card_id)
+        await _forget(
+            self.secrets,
+            code,
+            await self.secrets.named(metaapi_password_name(self.card_id)),
+            await self.secrets.named(METAAPI_TOKEN),
+        )
 
 
 async def _provision(
     db: Database,
     secrets: BrokerSecrets,
-    owner_id: str,
-    card_id: str,
+    failing: Failing,
     account: dict[str, str],
+    subject: str,
     password_id: str,
     token_id: str,
+    started: str,
 ) -> None:
     repository = BrokerSessionRepository()
+    owner_id, card_id = failing.owner_id, failing.card_id
     provisioning = provisioning_client(await secrets.read(token_id))
+    failed: str | None = None
     try:
+        # Serialized with every other connection write of this owner (Q4); the lock is held
+        # across MetaApi's create, which is what keeps a second account from being made.
         async with db.sessions() as session, session.begin():
-            # Serialized with every other connection write of this owner (Q4).
             await repository.lock_owner(session, owner_id)
             row = await _card(session, owner_id, card_id)
             if row.result.get("provisioning") != "pending":
                 return
             try:
+                if await other_card_active(session, owner_id, subject, card_id):
+                    raise LonoraError("broker_connect_in_progress", 409)
                 await repository.assert_unique(
                     session,
                     owner_id,
@@ -145,10 +214,10 @@ async def _provision(
                     password=await secrets.read(password_id),
                 )
             except LonoraError as failure:
-                await _record(session, row, provisioning="failed", code=failure.code)
+                if failure.code in TRANSIENT and not _late(started):
+                    return  # The next pass tries again; a lost create is found by then.
                 failed = failure.code
             else:
-                failed = None
                 # The MetaApi id is kept before any deploy: a retry finds this account.
                 await _record(
                     session,
@@ -159,20 +228,37 @@ async def _provision(
                     created=created,
                 )
         if failed:
-            await _forget(secrets, failed, password_id, token_id)
+            await failing(failed)
     finally:
         await provisioning.close()
 
 
+async def other_card_active(
+    session: AsyncSession, owner_id: str, subject: str, card_id: str
+) -> bool:
+    """Another saved connect card for the same account is still being provisioned."""
+    for row in await session.scalars(
+        select(OwnerActionRow).where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "secret",
+            OwnerActionRow.status == "confirmed",
+            OwnerActionRow.subject == subject,
+            OwnerActionRow.id != card_id,
+        )
+    ):
+        if row.result.get("provisioning") in ACTIVE:
+            return True
+    return False
+
+
 async def _deploy(
     db: Database,
-    secrets: BrokerSecrets,
-    owner_id: str,
-    card_id: str,
+    failing: Failing,
     result: dict[str, Any],
     password_id: str,
     token_id: str,
     started: str,
+    secrets: BrokerSecrets,
 ) -> None:
     token = await secrets.read(token_id)
     account_id = str(result["metaapi_account_id"])
@@ -191,37 +277,41 @@ async def _deploy(
                         else provisioning.deploy(account_id)
                     )
                 async with db.sessions() as session, session.begin():
-                    await _record(
-                        session, await _card(session, owner_id, card_id), password_set=True
-                    )
+                    row = await _card(session, failing.owner_id, failing.card_id)
+                    if row.result.get("provisioning") != "deploying":
+                        return
+                    await _record(session, row, password_set=True)
             elif state.state not in {"DEPLOYED", "DEPLOYING"}:
                 state = await provisioning.deploy(account_id)
         except LonoraError as failure:
-            await _fail(db, secrets, owner_id, card_id, failure.code)
+            if failure.code not in TRANSIENT or _late(started):
+                await failing(failure.code, provisioning)
             return
+        if not (state.deployed and state.connected):
+            if _late(started):
+                code = (
+                    "broker_login_rejected"
+                    if state.connection_status == "DISCONNECTED_FROM_BROKER"
+                    else "broker_connect_timeout"
+                )
+                await failing(code, provisioning)
+            return
+        code = await _connect(db, failing, state, token, token_id, password_id)
+        if code is not None and (code not in TRANSIENT or _late(started)):
+            await failing(code, provisioning)
     finally:
         await provisioning.close()
-    if not (state.deployed and state.connected):
-        if utcnow() - datetime.fromisoformat(started) > DEPLOY_DEADLINE:
-            code = (
-                "broker_login_rejected"
-                if state.connection_status == "DISCONNECTED_FROM_BROKER"
-                else "broker_connect_timeout"
-            )
-            await _fail(db, secrets, owner_id, card_id, code)
-        return
-    await _connect(db, owner_id, card_id, state, token, token_id, password_id)
 
 
 async def _connect(
     db: Database,
-    owner_id: str,
-    card_id: str,
+    failing: Failing,
     state: ProvisionedAccount,
     token: str,
     token_id: str,
     password_id: str,
-) -> None:
+) -> str | None:
+    """Create the connection; the failure code when it cannot be, else None."""
     config = BrokerConnection(
         provider="metaapi",
         account_id=state.account_id,
@@ -232,25 +322,23 @@ async def _connect(
     try:
         # Broker-observed identity from MetaApi's account entity, not the typed words.
         identity = await verified_identity(config, token)
-    except LonoraError:
-        return  # The next pass reads it again.
+    except LonoraError as failure:
+        return failure.code
     repository = BrokerSessionRepository()
     async with db.sessions() as session, session.begin():
-        await repository.lock_owner(session, owner_id)
-        row = await _card(session, owner_id, card_id)
+        await repository.lock_owner(session, failing.owner_id)
+        row = await _card(session, failing.owner_id, failing.card_id)
         if row.result.get("provisioning") != "deploying":
-            return
+            return None
         typed = row.payload["account"]
         if (broker_identity_key(identity) or ())[:2] != (broker_identity_key(typed) or ())[:2]:
-            await _record(session, row, provisioning="failed", code="broker_identity_mismatch")
-            return
+            return "broker_identity_mismatch"
         try:
             connection = await repository.create(
-                session, owner_id, config.model_dump(mode="json"), broker_identity=identity
+                session, failing.owner_id, config.model_dump(mode="json"), broker_identity=identity
             )
         except LonoraError as failure:
-            await _record(session, row, provisioning="failed", code=failure.code)
-            return
+            return failure.code
         # The password this connection was provisioned with; rotation replaces it.
         connection.state = {**connection.state, "password_secret_id": password_id}
         await _record(
@@ -259,7 +347,10 @@ async def _connect(
             provisioning="reading",
             connection_id=connection.id,
             connected_at=utcnow().isoformat(),
+            # What the wake names: MetaApi's observation, not the agent's typed words.
+            observed={key: identity.get(key) for key in ("login", "server", "broker")},
         )
+    return None
 
 
 async def _read(
@@ -275,28 +366,12 @@ async def _read(
             "investor_mode": state.investor_mode,
         }
     except LonoraError:
-        if utcnow() - datetime.fromisoformat(result["connected_at"]) <= READ_DEADLINE:
+        if not _late(result["connected_at"], READ_DEADLINE):
             return  # First synchronization of a new terminal can take a while.
     async with db.sessions() as session, session.begin():
         row = await _card(session, owner_id, card_id)
         if row.result.get("provisioning") == "reading":
             await _record(session, row, provisioning="connected", account=facts or {})
-
-
-async def _fail(
-    db: Database, secrets: BrokerSecrets, owner_id: str, card_id: str, code: str
-) -> None:
-    async with db.sessions() as session, session.begin():
-        row = await _card(session, owner_id, card_id)
-        if row.result.get("provisioning") not in ACTIVE:
-            return
-        await _record(session, row, provisioning="failed", code=code)
-    await _forget(
-        secrets,
-        code,
-        await secrets.named(metaapi_password_name(card_id)),
-        await secrets.named(METAAPI_TOKEN),
-    )
 
 
 async def _forget(
