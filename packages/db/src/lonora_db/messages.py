@@ -3,7 +3,7 @@ from typing import Any, cast
 from lonora_contracts.domain import MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
-from lonora_core.run_state import TERMINAL, is_conversational
+from lonora_core.run_state import TERMINAL, is_background, is_conversational
 from lonora_core.user_error import LonoraError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -224,11 +224,14 @@ async def answerable_run(session: AsyncSession, run_id: str, thread_id: str) -> 
 
 def takes_message(run: RunRow) -> bool:
     """Whether an active run of a thread takes the owner's next message there: a
-    conversational run is steered, and a run waiting on its own question is answered."""
+    conversational run is steered, and a run waiting on its own question is answered.
+    Background work that may end silent (11.5) never absorbs the owner's words: they get
+    a run of their own that answers them."""
     pending = any(
         item.get("status") == "pending" for item in run.execution_state.get("input_requests", [])
     )
-    return is_conversational(run.trigger) or (run.status == "waiting_input" and pending)
+    steered = is_conversational(run.trigger) and not is_background(run.trigger, run.model_metadata)
+    return steered or (run.status == "waiting_input" and pending)
 
 
 async def asking_run(

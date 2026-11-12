@@ -533,6 +533,8 @@ async def test_the_owner_writing_to_a_background_run_ends_its_silence():
         assert len(requests) == 2 and said(requests[1:], NO_ANSWER)
         row = await reload(fixture, run["id"])
         assert row.status == "completed" and row.execution_state["owner_spoke"] is True
+        # The owner is waiting on this answer, so it streams like an owner turn.
+        assert await run_events(fixture, run["id"], "run.delta")
         assert await contents(fixture, conversation["id"]) == [
             QUESTION,
             "أبقِها",
@@ -1026,5 +1028,87 @@ async def test_at_the_limit_only_the_model_chooses_silence(final: str):
         # The model never chose silence: the run says it stopped, as before.
         assert row.result, row.result
         assert row.result == limit_fallback(False) or row.result == UNVERIFIED_EN
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_owners_message_gets_its_own_run_beside_background_work():
+    database()
+    from check_streaming import Fixture
+    from test_background_questions import send
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Busy desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        # A watch set in the chat ended; its helper's result queued a background follow-up.
+        watch = await make_run(fixture, agent, conversation, "watch")
+        await ended(fixture, watch)
+        await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
+        [follow_up] = await follow_ups(fixture, watch.id)
+        status, body = await send(fixture, conversation, "And silver?")
+        assert status < 300, body
+        # The owner's words are not folded into background work that may end silent.
+        assert follow_up.id not in body["run_ids"] and len(body["run_ids"]) == 1
+        assert (await reload(fixture, follow_up.id)).input_seq == follow_up.input_seq
+        owner_run = await reload(fixture, body["run_ids"][0])
+        assert owner_run.trigger == "user"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_empty_background_turn_is_never_sent_back_to_the_model():
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ModelReply
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_db.schema import MessageRow, SteeringRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Steered desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        work = await work_thread(fixture, agent)
+        run = await make_run(
+            fixture, agent, work, "routine", metadata={"origin_thread_id": conversation}
+        )
+        sent: list[list[Any]] = []
+
+        async def complete(_capability: Any, messages: list[Any], *_: Any, **__: Any) -> Any:
+            sent.append(list(messages))
+            selection = ModelSelection(provider="openai", model="background-silence-fixture")
+            if len(sent) > 1:
+                return ModelReply(text="Gold held 2,400."), selection
+            # A helper's outcome arrives while this turn runs.
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                thread = await session.get(ThreadRow, work, with_for_update=True)
+                assert thread is not None
+                outcome = MessageRow(
+                    thread_id=work,
+                    agent_id=agent["id"],
+                    role="assistant",
+                    seq=thread.next_seq,
+                    content="<peer_outcome run_id='helper' status='completed'>\n"
+                    "Gold held 2,400.\n</peer_outcome>",
+                )
+                thread.next_seq += 1
+                session.add(outcome)
+                await session.flush()
+                session.add(SteeringRow(run_id=run.id, message_id=outcome.id))
+            return ModelReply(text=""), selection
+
+        await execute(fixture, run, complete)
+        assert len(sent) == 2
+        blank = [
+            message
+            for message in sent[1]
+            if message.role == "assistant"
+            and not message.content.strip()
+            and not message.tool_calls
+        ]
+        assert blank == []
+        assert (await reload(fixture, run.id)).result == "Gold held 2,400."
     finally:
         await fixture.close()

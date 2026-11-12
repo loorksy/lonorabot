@@ -597,14 +597,17 @@ async def execute_tool_loop(
             append_notice(messages, "no_answer", NO_ANSWER)
             await save()
             continue
-        messages.append(
-            ModelMessage(
-                role="assistant",
-                content=reply.text,
-                tool_calls=reply.tool_calls,
-                rich_content=reply.rich_content,
+        if not empty:
+            # A silent background turn leaves nothing in the transcript: an empty
+            # assistant turn is never sent back to a provider.
+            messages.append(
+                ModelMessage(
+                    role="assistant",
+                    content=reply.text,
+                    tool_calls=reply.tool_calls,
+                    rich_content=reply.rich_content,
+                )
             )
-        )
         pending = list(reply.tool_calls)
         await save()
         if pending:
