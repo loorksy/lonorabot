@@ -298,3 +298,62 @@ async def test_the_agent_withdraws_its_own_card() -> None:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
+
+
+def test_the_operation_id_is_todays_derivation_unless_a_key_names_it():
+    """6.3 and the lead's operation identity: without a key the id is byte-identical to
+    today's derivation; a key makes the id the calling agent's and the key's, so the same
+    key is the same operation in any run and two keys are two operations."""
+    from lonora_session.idempotency import request_hash, stable_id
+    from lonora_trading.idempotency import operation_id
+
+    args = {"account_id": "a", "symbol": "XAUUSD", "action": "buy", "volume": "0.1"}
+    assert operation_id("run", "agent", args, None) == stable_id(
+        "run", "trade:" + request_hash(args)
+    )
+    keyed = operation_id("run", "agent", args, "scale-in-2")
+    assert keyed == operation_id("another-run", "agent", args, "scale-in-2")
+    assert keyed != operation_id("run", "agent", args, "scale-in-3")
+    assert keyed != operation_id("run", "another-agent", args, "scale-in-2")
+
+
+@pytest.mark.asyncio
+async def test_a_key_lets_an_intentional_second_identical_order_through() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import TradingJournalRow
+    from lonora_db.trading_mode import set_trading_mode
+    from lonora_trading.controls import read_controls, save_controls
+    from sqlalchemy import func, select
+
+    fixture = await Fixture().open()
+    original = await read_controls(fixture.runtime.db)
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
+        agent = await fixture.agent("Scales in", supervised=True)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        order = {**ENTRY, "account_id": connection}
+        first = await same_call(context, "first", **order)
+        # The same request in another call of this run is the same operation: no resend.
+        again = await same_call(context, "again", **order)
+        assert again["operation_id"] == first["operation_id"], (first, again)
+        # A key names an intentional second identical order; repeating the key does not.
+        second = await same_call(context, "second", **order, key="add-1")
+        repeat = await same_call(context, "repeat", **order, key="add-1")
+        assert second["operation_id"] not in {first["operation_id"]}
+        assert repeat["operation_id"] == second["operation_id"]
+        async with fixture.runtime.db.sessions() as session:
+            sent = await session.scalar(
+                select(func.count())
+                .select_from(TradingJournalRow)
+                .where(TradingJournalRow.account_id == connection)
+            )
+        assert sent == 2, sent
+    finally:
+        await save_controls(fixture.runtime.db, original)
+        await retire(fixture, connection)
+        await fixture.close()

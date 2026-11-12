@@ -40,7 +40,7 @@ from lonora_db.trade_approvals import (
 )
 from lonora_db.trading_mode import set_trading_mode, trading_mode
 from lonora_db.transactions import owned_thread
-from lonora_session.idempotency import request_hash, stable_id
+from lonora_session.idempotency import stable_id
 from lonora_trading.account_authority import (
     authority_snapshot,
     available_authority,
@@ -51,7 +51,7 @@ from lonora_trading.account_authority import (
 from lonora_trading.admission import may_reduce_risk, risk_reducing
 from lonora_trading.agent_permission import acting_agent
 from lonora_trading.exposure import direction
-from lonora_trading.idempotency import trade_fingerprint
+from lonora_trading.idempotency import operation_id, trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
 from lonora_trading.restrictions import require_unrestricted
@@ -957,6 +957,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         reason=str(args.pop("reason", "") or ""),
         tolerance=args.pop("tolerance", None),
     )
+    key = args.pop("key", None)
     if args.get("thesis_id") is None:
         args.pop("thesis_id", None)
     for field in ("clear_stop_loss", "clear_take_profit"):
@@ -977,7 +978,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         )
         if not managing and args.get("volume") is not None:
             sized = broker
-    args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
+    args["operation_id"] = operation_id(context.lease.run_id, context.agent_id, args, key)
     if sized is not None and await never_recorded(context, args["operation_id"]):
         await require_order_size(sized, args["symbol"], args["volume"])
     return await approved_execution(
@@ -1185,12 +1186,11 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Buy, sell, pending orders; close, modify or cancel positions/orders. In Full, or "
-            "for a risk-reducing request, it executes at once, except on a ticket you did not "
-            "open. In Ask, a request that adds risk (outside an active signed grant) waits for a "
-            "Trade Approval card; chat agreement is not approval. Reconcile an ambiguous result "
-            "before retrying. With a bound market, omit account_id and symbol. A card needs "
-            "tolerance.",
+            "Open (buy, sell, pending orders), close, modify or cancel trades. Full or a "
+            "risk-reducing request executes at once; in Ask new risk (outside a signed grant) "
+            "waits for a Trade Approval card, which needs tolerance. Another's ticket: "
+            "ticket_not_owned. Reconcile an ambiguous result before retrying. Bound market: "
+            "omit account_id and symbol.",
             AnnotatedTradeRequest,
             execute,
             financial=True,

@@ -118,6 +118,9 @@ class AnnotatedTradeRequest(TradeRequest):
         gt=0,
         description="Price band a card holds within.",
     )
+    key: str | None = Field(
+        default=None, min_length=1, max_length=64, description="New key: new order."
+    )
 
 
 # Durable operation lifecycle, distinct from any one broker's vocabulary:
