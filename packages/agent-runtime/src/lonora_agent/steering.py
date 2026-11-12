@@ -5,8 +5,9 @@ from lonora_core.message_preview import model_content, voice_part
 from lonora_db.runs import checkpoint, require_lease
 from lonora_db.steering import consume_steering, user_interrupt_pending
 from lonora_tools.context import ToolContext
+from lonora_tools.restrictions import mark_external_content
 
-from .context.attachments import attachment_context
+from .context.attachments import attachment_context, third_party_attachment
 from .offers import merge_answer
 from .stop_gates import reset_stop_gate
 from .tool_guardrails import reset_guardrails
@@ -25,12 +26,18 @@ async def merge_steering(
         fresh = await consume_steering(session, context.lease)
         for row in fresh:
             notes, images = (
+                # The message's own thread: an answer may come from the conversation a
+                # background run reports to.
                 await attachment_context(
-                    session, context.owner_id, context.thread_id, row.seq, context.artifact_root
+                    session, context.owner_id, row.thread_id, row.seq, context.artifact_root
                 )
                 if row.attachment_ids
                 else ("", [])
             )
+            if notes and await third_party_attachment(
+                session, context.owner_id, context.thread_id, row.seq
+            ):
+                await mark_external_content(session, context.lease.run_id, "owner_attachment")
             messages.append(
                 ModelMessage(
                     role="user",

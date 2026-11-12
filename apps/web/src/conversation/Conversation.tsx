@@ -8,7 +8,9 @@ import {
   nearConversationBottom,
   retriedRunIds,
   stopTargets,
+  threadQuestions,
   turnActivity,
+  type UiSlotRef,
 } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import {
@@ -266,9 +268,7 @@ export function Conversation({
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const runsById = useMemo(() => new Map(runs.map((run) => [run.id, run])), [runs]);
   const previews = new Map(streamingRows.map((row) => [`preview:${row.run.id}`, row]));
-  const questions = new Map(
-    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
-  );
+  const questions = threadQuestions([...thread.asking, ...runs], threadId);
   const artifactMap = useMemo(() => new Map(artifacts.map((row) => [row.id, row])), [artifacts]);
   const previousVisualIds = useMemo(
     () =>
@@ -301,8 +301,21 @@ export function Conversation({
   }, [runs]);
 
   /* ---- the rows: messages, approvals, owner cards and order lines in server order */
+  // Messages drawn as a peer's or a question's card instead of their rich content (Message
+  // `card`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set([
+        ...peerCards.keys(),
+        ...runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ]),
+    [peerCards, runs],
+  );
   const rows: Row[] = useMemo(() => {
-    const items = conversationTimeline(messages, approvals.rows, ownerActions.rows);
+    const items = conversationTimeline(messages, approvals.rows, ownerActions.rows, undrawn);
     const out: Row[] = items.map((item) =>
       item.kind === "message"
         ? { kind: "message", id: item.id, message: item.message as ConversationMessage }
@@ -326,7 +339,7 @@ export function Conversation({
       else out.splice(index, 0, line);
     }
     return out;
-  }, [messages, approvals.rows, ownerActions.rows, journal]);
+  }, [messages, approvals.rows, ownerActions.rows, journal, undrawn]);
 
   /* ---- actions */
   const send: ComposerSend = useCallback(
@@ -676,7 +689,7 @@ export function Conversation({
     if (!jump || !el) return;
     const id = jump.split("#")[0];
     const target = el.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(id)}"],[data-owner-action="${CSS.escape(id)}"]`,
+      `[data-message-id="${CSS.escape(id)}"],[data-owner-action="${CSS.escape(id)}"],[data-trade-approval="${CSS.escape(id)}"]`,
     );
     if (!target) return;
     setJump(null);
@@ -774,6 +787,43 @@ export function Conversation({
     lastMine?.content.trim() !== lastAgent.suggested_reply
       ? lastAgent.suggested_reply
       : "";
+  /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
+     one live record, one set of server actions. */
+  const approvalCard = (approval: TradeApproval) => (
+    <TradeApprovalCard
+      row={approval}
+      busy={approvals.busy != null}
+      decide={approvals.decide}
+      onRenew={(row) =>
+        void api
+          .post(`/trading/approvals/${row.id}/renew`, {})
+          .catch((error) => toast(userError(error), { type: "error" }))
+      }
+    />
+  );
+  const ownerActionCard = (action: OwnerAction) => (
+    <OwnerActionCard
+      row={action}
+      onChanged={ownerActions.update}
+      onRenew={(row) =>
+        void api
+          .post<OwnerAction>(`/owner-actions/${row.id}/renew`, {})
+          .then(ownerActions.update)
+          .catch((error) => toast(userError(error), { type: "error" }))
+      }
+      onLatest={(id) => setJump(`${id}#${Date.now()}`)}
+    />
+  );
+  const slot = ({ card, record }: UiSlotRef): ReactNode | null => {
+    if (card === "trade_approval") {
+      const approval = approvals.rows.find((row) => row.id === record);
+      return approval ? approvalCard(approval) : null;
+    }
+    const action = ownerActions.rows.find(
+      (row) => row.id === record && row.kind === "resolve_operation",
+    );
+    return action ? ownerActionCard(action) : null;
+  };
   let day = "";
   const body: ReactNode[] = [];
   rows.forEach((row, index) => {
@@ -798,18 +848,7 @@ export function Conversation({
           message={cardMessage(row.id, row.approval.agent_id, row.at, threadId)}
           previous={prev}
           cardKind={row.approval.status === "pending" ? "card" : "line"}
-          card={
-            <TradeApprovalCard
-              row={row.approval}
-              busy={approvals.busy != null}
-              decide={approvals.decide}
-              onRenew={(approval) =>
-                void api
-                  .post(`/trading/approvals/${approval.id}/renew`, {})
-                  .catch((error) => toast(userError(error), { type: "error" }))
-              }
-            />
-          }
+          card={approvalCard(row.approval)}
         />,
       );
       return;
@@ -822,19 +861,7 @@ export function Conversation({
           message={cardMessage(row.action.id, row.action.agent_id, row.at, threadId)}
           previous={prev}
           cardKind={pending ? "oa" : "line"}
-          card={
-            <OwnerActionCard
-              row={row.action}
-              onChanged={ownerActions.update}
-              onRenew={(action) =>
-                void api
-                  .post<OwnerAction>(`/owner-actions/${action.id}/renew`, {})
-                  .then(ownerActions.update)
-                  .catch((error) => toast(userError(error), { type: "error" }))
-              }
-              onLatest={(id) => setJump(`${id}#${Date.now()}`)}
-            />
-          }
+          card={ownerActionCard(row.action)}
         />,
       );
       return;
@@ -1045,7 +1072,7 @@ export function Conversation({
           syncFloat();
         }}
       >
-        <GenuiHost value={{ threadId, messages: thread.messages, runs, agents }}>
+        <GenuiHost value={{ threadId, messages: thread.messages, runs, agents, slot }}>
           {empty ? (
             <ChatEmpty
               agent={agent}

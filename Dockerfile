@@ -15,7 +15,11 @@ RUN pnpm --filter @lonora/web... build
 FROM python:3.12-slim-bookworm AS server
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 LONORA_WEB_ROOT=/app/apps/web/dist TIKTOKEN_CACHE_DIR=/opt/lonora-tokenizers
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core chromium && rm -rf /var/lib/apt/lists/*
+# Chromium renders charts and is the workspace's headless browser; the rest is the workspace's
+# command line (7.1.2): git, SSH, curl, compilers for pip, Node, and nftables for its guard.
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core chromium \
+    build-essential curl git jq less nftables nodejs npm openssh-client procps unzip xz-utils \
+    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml LICENSE THIRD_PARTY_NOTICES.md ./
 COPY packages ./packages
 COPY apps/api ./apps/api
@@ -39,7 +43,7 @@ ARG LONORA_VERSION=""
 ARG LONORA_GIT_SHA=unknown
 ARG LONORA_BUILT_AT=unknown
 RUN python scripts/release_manifest.py --version "$LONORA_VERSION" --git-sha "$LONORA_GIT_SHA" --built-at "$LONORA_BUILT_AT" >/app/release.json && cp /app/release.json /app/deploy/release.json
-RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts /app/.runtime/cli && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh /app/deploy/infra/compose/*.sh /app/deploy/infra/compose/lonora
+RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts /app/.runtime/cli && ln -s /app/packages/cli/lonora /usr/local/bin/lonora && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh /app/deploy/infra/compose/*.sh /app/deploy/infra/compose/lonora
 USER lonora
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
