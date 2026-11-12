@@ -1762,21 +1762,17 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
     en: "Each value needs at least 3 characters. Nothing was saved.",
     ar: "تحتاج كل قيمة إلى 3 أحرف على الأقل. لم يُحفظ شيء.",
   },
-  owner_action_not_needed_secret_name_in_use: {
-    en: "A connection uses one of these names, so nothing was saved.",
-    ar: "يستخدم اتصالٌ أحد هذه الأسماء، فلم يُحفظ شيء.",
-  },
-  owner_action_not_needed_credential_already_configured: {
-    en: "Web search already has a key. Nothing changed.",
-    ar: "للبحث على الويب مفتاح بالفعل. لم يتغير شيء.",
+  owner_action_secret_value_unsendable: {
+    en: "A key or token has a character it cannot be sent with, such as a space or a hidden character from a paste. Type it again.",
+    ar: "في مفتاح أو رمز حرفٌ لا يمكن إرساله، مثل مسافة أو حرف مخفي من النسخ. اكتبه من جديد.",
   },
   mcp_url_invalid: {
     en: "Enter the server's https:// address, without a user name or password in it.",
     ar: "أدخل عنوان الخادم الذي يبدأ بـ https://، دون اسم مستخدم أو كلمة مرور فيه.",
   },
   integration_source_invalid: {
-    en: "Enter a web address that starts with https:// or http://.",
-    ar: "أدخل عنوان ويب يبدأ بـ https:// أو http://.",
+    en: "Enter the calendar's https:// address, without a user name or password in it.",
+    ar: "أدخل عنوان التقويم الذي يبدأ بـ https://، دون اسم مستخدم أو كلمة مرور فيه.",
   },
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",

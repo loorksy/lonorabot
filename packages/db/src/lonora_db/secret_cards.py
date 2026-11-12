@@ -130,11 +130,13 @@ async def secret_stale_reason(
 
 
 async def secret_facts(
-    session: AsyncSession, owner_id: str, payload: dict[str, Any], agent_name: str | None
+    session: AsyncSession, row: OwnerActionRow, agent_name: str | None
 ) -> dict[str, Any]:
     """What the card shows: its label or what it connects, its fields, where the values
     go and who asked; the workspace names its values are saved under, and for the
-    agent's own card which of them would replace a saved secret (read now)."""
+    agent's own card which of them would replace a saved secret. A waiting card reads
+    them now; a settled one shows the names it saved and replaces nothing."""
+    owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {
         "label": payload.get("label"),
         "connect": payload.get("connect"),
@@ -146,6 +148,9 @@ async def secret_facts(
         "saves_as": [],
         "replaces": [],
     }
+    if row.status != "pending":
+        facts["saves_as"] = [str(name) for name in row.result.get("saved", [])]
+        return facts
     if payload.get("connect") is None:
         keys = [str(field["key"]) for field in payload["fields"]]
         saved = set(
@@ -162,19 +167,37 @@ async def secret_facts(
         facts["saves_as"] = keys
         facts["replaces"] = [key for key in keys if key in saved]
     elif payload["destination"] == WORKSPACE:
-        names = await free_names(session, owner_id, payload["connect"], payload["details"]["name"])
+        target = payload["connect"]
+        # A card converted from the credential card (0071) has no details.
+        name = payload.get("details", {}).get("name") or DEFAULT_NAME.get(target) or target
+        names = await free_names(session, owner_id, target, name)
         facts["saves_as"] = [names[str(field["key"])] for field in payload["fields"]]
     return facts
 
 
+# A connecting card's key or token is sent in an HTTP header: visible ASCII only.
+HEADER_ROLES = {"token", "api_key", "metaapi_token"}
+
+
 def card_values(row: OwnerActionRow, values: dict[str, str]) -> dict[str, str]:
-    """The owner's values for exactly the card's fields: every required one, no other."""
-    fields = {field["key"]: field.get("required", True) for field in row.payload["fields"]}
-    if not set(values) <= set(fields) or any(
-        required and not values.get(key) for key, required in fields.items()
+    """The owner's values for exactly the card's fields: every required one, no other.
+    A connecting card's address, key or token is trimmed (a paste often adds a space or
+    a line break); a key or token with a character no header can carry is refused."""
+    fields = {field["key"]: field for field in row.payload["fields"]}
+    cleaned = {
+        key: value.strip() if fields.get(key, {}).get("role") else value
+        for key, value in values.items()
+    }
+    if not set(cleaned) <= set(fields) or any(
+        field.get("required", True) and not cleaned.get(key) for key, field in fields.items()
     ):
         raise LonoraError("owner_action_secret_values_invalid", 422)
-    return {key: value for key, value in values.items() if value}
+    for key, value in cleaned.items():
+        if fields[key].get("role") in HEADER_ROLES and not all(
+            "!" <= char <= "~" for char in value
+        ):
+            raise LonoraError("owner_action_secret_value_unsendable", 422)
+    return {key: value for key, value in cleaned.items() if value}
 
 
 async def save_values(

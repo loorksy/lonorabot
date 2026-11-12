@@ -9,6 +9,7 @@ event, a message or a run.
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -114,6 +115,52 @@ async def test_saved_names_are_free_and_numbered_per_card() -> None:
     taken = ["BRAVE_API_KEY", "BRAVE_API_KEY_2"]
     assert await names("brave_search", "Brave Search", taken) == {"API_KEY": "BRAVE_API_KEY_3"}
     assert await names("news_feed", "رويترز", []) == {"URL": "FEED_SOURCE_URL"}
+
+
+def test_an_address_is_checked_before_anything_is_read() -> None:
+    from lonora_api.routes.secret_cards import https_address
+
+    assert https_address("https://mcp.example.test/rpc?k=1", "mcp_url_invalid")
+    for bad in (
+        "http://mcp.example.test/rpc",
+        "https://user:pw@mcp.example.test/rpc",
+        "https://a..b/x",
+        "https://" + "a" * 64 + ".example/x",
+        "https://mcp.example.test:8443/rpc",
+        "https://mcp.example.test/rpc#part",
+        "https://[abc/rpc",
+    ):
+        with pytest.raises(LonoraError) as refused:
+            https_address(bad, "mcp_url_invalid")
+        assert refused.value.code == "mcp_url_invalid", bad
+
+
+def test_a_connecting_cards_key_is_trimmed_and_must_be_sendable() -> None:
+    """A paste often adds a space or a line break: a connecting card's address, key or
+    token is trimmed; a key or token no HTTP header can carry is refused. An agent's own
+    card keeps its values as typed."""
+    from lonora_db.secret_cards import card_values
+
+    def row(fields: list[dict[str, Any]]) -> Any:
+        return cast(Any, type("Row", (), {"payload": {"fields": fields}})())
+
+    server = row(
+        [
+            {"key": "URL", "role": "server_url", "required": True},
+            {"key": "TOKEN", "role": "token", "required": False},
+        ]
+    )
+    typed = {"URL": " https://x.example/rpc\n", "TOKEN": "abc\n"}
+    assert card_values(server, typed) == {"URL": "https://x.example/rpc", "TOKEN": "abc"}
+    assert card_values(server, {"URL": "https://x.example/rpc", "TOKEN": "  "}) == {
+        "URL": "https://x.example/rpc"
+    }
+    for bad in ("a b", "abc\u200b", "\u043a\u043b\u044e\u0447"):
+        with pytest.raises(LonoraError) as refused:
+            card_values(server, {"URL": "https://x.example/rpc", "TOKEN": bad})
+        assert refused.value.code == "owner_action_secret_value_unsendable", bad
+    own = row([{"key": "PASS", "role": None, "required": True}])
+    assert card_values(own, {"PASS": " pass phrase "}) == {"PASS": " pass phrase "}
 
 
 @pytest.mark.asyncio
@@ -417,6 +464,9 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
             # settled in the transaction that saved the server.
             assert result["review"] in {"unread", "disabled"}
             assert result["saved"] == facts["saves_as"]
+            # A saved card shows the names it saved, not the next free ones.
+            assert done.json()["facts"]["secret"]["saves_as"] == result["saved"]
+            assert done.json()["facts"]["secret"]["replaces"] == []
             servers.append(result["connection_id"])
             names.append(result["saved"])
         assert names[0] == ["MCP_DESK_FEED_URL", "MCP_DESK_FEED_TOKEN"]
@@ -449,8 +499,8 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
             f"/api/owner-actions/{early['owner_action']['id']}/secret",
             json={"values": {"MCP_DESK_FEED_2_URL": "https://elsewhere.example.test/rpc"}},
         )
-        assert replaced.status_code == 409
-        assert replaced.json()["code"] == "owner_action_not_needed_secret_name_in_use"
+        assert replaced.status_code == 200 and replaced.json()["status"] == "expired"
+        assert replaced.json()["status_reason"] == "secret_name_in_use"
         services = fixture.runtime.services(fixture.owner)
         async with fixture.runtime.db.sessions() as session:
             server = await session.get(McpConnectionRow, servers[1])
@@ -467,11 +517,42 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
             )
         assert in_use.value.code == "owner_action_not_needed_secret_name_in_use"
 
-        # Removing a server removes the values its card saved for it.
+        # A card the 0071 migration converted has no details; its conversation still
+        # lists every card.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            converted = OwnerActionRow(
+                owner_id=fixture.owner,
+                agent_id=agent["id"],
+                thread_id=context.thread_id,
+                source="agent",
+                kind="secret",
+                subject="secret:mcp_server:converted-" + uuid4().hex[:8],
+                payload={
+                    "label": None,
+                    "connect": "mcp_server",
+                    "service": "x",
+                    "details": {},
+                    "fields": [
+                        {"key": "URL", "label": None, "secret": False},
+                        {"key": "TOKEN", "label": None, "secret": True},
+                    ],
+                    "destination": "workspace",
+                },
+                payload_hash="converted-" + uuid4().hex[:20],
+                status="confirmed",
+                result={},
+                expires_at=datetime.now(UTC),
+            )
+            session.add(converted)
+        listed = await thread_cards(fixture, context.thread_id)
+        shown = next(item for item in listed if item["id"] == converted.id)
+        assert shown["facts"]["secret"]["saves_as"] == []
+
+        # Removing a server keeps the owner's secrets: only DELETE /secrets/{id} deletes
+        # a stored secret (VISION.md 14.3.11).
         removed = await fixture.client.delete("/api/mcp/" + servers.pop(0))
         assert removed.status_code in {200, 204}
-        assert not set(names[0]) & set(await workspace(fixture))
-        assert set(names[1]) <= set(await workspace(fixture))
+        assert set(names[0]) <= set(await workspace(fixture))
     finally:
         for server_id in servers:
             await fixture.client.delete("/api/mcp/" + server_id)

@@ -47,11 +47,16 @@ def plain(text: str | None, limit: int) -> str:
 
 
 def safe_link(value: str | None, base: str) -> str | None:
-    if not value:
+    if not value or not value.strip():
         return None
     link = urljoin(base, value.strip())
     parsed = urlsplit(link)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or len(link) > 2048:
+        return None
+    feed = urlsplit(base)
+    if (parsed.scheme, parsed.hostname, parsed.path) == (feed.scheme, feed.hostname, feed.path):
+        # A link to the feed itself (only a fragment or a query) names no item, and it
+        # would repeat the feed's address, which may carry a key.
         return None
     return parsed._replace(fragment="").geturl()
 

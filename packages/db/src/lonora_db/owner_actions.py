@@ -749,9 +749,7 @@ async def card_facts(
         from .secret_cards import secret_facts
 
         names = await agent_names(session, owner_id, {row.agent_id})
-        facts["secret"] = await secret_facts(
-            session, owner_id, payload, names.get(row.agent_id or "")
-        )
+        facts["secret"] = await secret_facts(session, row, names.get(row.agent_id or ""))
         return facts, False
     if row.kind == "trust_source":
         from .capability_cards import card_facts as capability_facts

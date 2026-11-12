@@ -15,7 +15,6 @@ from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.agent_secrets import SecretCreate
 from lonora_db.integrations import IntegrationRepository, feed_site
 from lonora_db.schema import IntegrationRow, ResourceRow
-from lonora_db.secrets import release_secrets
 from lonora_db.trusted_sources import feed_trusted, revoke_feed_sites, trust_source
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,10 +50,8 @@ class OwnerIntegrationRepository(IntegrationRepository):
 
     async def delete(self, session: AsyncSession, owner_id: str, resource_id: str) -> None:
         row = await self.get(session, owner_id, resource_id, lock=True)
-        payload = dict(row.payload)
-        host = feed_site(payload) if payload.get("type") == "news_feed" else None
+        host = feed_site(row.payload) if row.payload.get("type") == "news_feed" else None
         await super().delete(session, owner_id, resource_id)
-        await release_secrets(session, owner_id, payload)
         if host is None:
             return
         others = await session.scalars(

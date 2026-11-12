@@ -4,12 +4,10 @@
 provisioning read it. ``provider`` holds model API keys and ``integration`` the tokens of
 news feeds, web search, the calendar and MCP servers. ``workspace`` holds the owner's
 secrets for agents to use by name in the workspace; its names are environment variable
-names. A secret a connection uses is not deleted while the connection refers to it; the
-workspace secrets a Secret card saved for a connection go when the connection goes.
+names. A secret a connection uses is not deleted while the connection refers to it.
 """
 
 import re
-from typing import Any
 
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
@@ -63,19 +61,3 @@ async def secret_in_use(session: AsyncSession, owner_id: str, secret_id: str) ->
             if used is not None:
                 return True
     return False
-
-
-async def release_secrets(session: AsyncSession, owner_id: str, payload: dict[str, Any]) -> None:
-    """After a connection is deleted: the workspace secrets it named and nothing else
-    uses (a Secret card saved them for it) go too, so a removed feed's address or a
-    removed server's token is not left for agents to use by name."""
-    await session.flush()
-    for key in ("secret_id", "url_secret_id"):
-        secret_id = payload.get(key)
-        if not secret_id:
-            continue
-        row = await session.get(SecretRow, secret_id, with_for_update=True)
-        if row is None or row.owner_id != owner_id or row.scope != WORKSPACE:
-            continue
-        if not await secret_in_use(session, owner_id, secret_id):
-            await session.delete(row)

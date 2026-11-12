@@ -197,9 +197,9 @@ The value never enters the card, the transcript, an event, model context or agen
 agents see "configured". After an MCP server is connected, the trust card for its tools
 follows; after anything else, and after any trust card, the agent that asked is woken
 once (`owner_card` run, a fixed server prompt) to continue the work that needed it.
-Deleting a connection deletes the workspace secrets it named that nothing else uses (a
-removed feed's address, a removed server's address and token); deleting a saved MCP
-server removes its trust row too (kept as the record).
+Removing a connection keeps its secrets: they are the owner's (VISION.md 7.2.4), and
+`DELETE /secrets/{secret_id}` is the only route that deletes a stored secret (14.3.11).
+Deleting a saved MCP server removes its trust row too (kept as the record).
 
 ## Capabilities
 
@@ -240,8 +240,8 @@ preview, and **Set up integrations on the web** opens the web settings.
   the server.
 - `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards (a
   broker's token in the broker scope with its connection; each MCP server's address and
-  token under names of their own, gone with the server; a name a connection uses never
-  replaced; a stored address read only on its saved host).
+  token under names of their own, kept when the server is removed; a name a connection
+  uses never replaced; a stored address read only on its saved host).
 - `tests/web/capabilities.test.ts`, `tests/web/secret-card.test.ts`; Playwright
   `capabilities` and `secret-card` on Web and Mobile, in Arabic and English (Skill Undo
   on both; on Mobile, review and trust of a server).

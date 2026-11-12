@@ -101,15 +101,14 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
         )
         assert crossed.status_code == 403
         assert crossed.json()["code"] == "secret_scope_forbidden"
-        key_id = await services.secrets.write(name + "_KEY", uuid4().hex, "workspace")
         allowed = await fixture.client.post(
             "/api/integrations",
-            json={"payload": {"type": "brave_search", "name": "s", "secret_id": key_id}},
+            json={"payload": {"type": "brave_search", "name": "s", "secret_id": workspace_id}},
         )
         assert allowed.status_code == 201
-        # The connection's workspace secret goes with it when nothing else uses it.
+        # Removing the connection keeps the owner's secret: only DELETE /secrets/{id}
+        # deletes a stored secret (VISION.md 14.3.11).
         await fixture.client.delete("/api/integrations/" + allowed.json()["id"])
-        assert (await fixture.client.delete("/api/secrets/" + key_id)).status_code == 404
         assert await services.secrets.read(workspace_id) == "s3cr3t"
         assert (await fixture.client.delete("/api/secrets/" + broker_id)).status_code == 200
 

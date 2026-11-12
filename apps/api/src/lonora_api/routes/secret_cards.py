@@ -89,9 +89,11 @@ async def save_secret(
             return await owner_action_data(session, await owned_card(session, owner.id, card_id))
         reason = await secret_stale_reason(session, owner.id, row.payload)
         if reason is not None:
-            # Since the card was raised: web search got its key, or a connection now uses
-            # one of the card's names. Nothing is saved.
-            raise LonoraError("owner_action_not_needed_" + reason, 409)
+            # Since the card was raised, web search got its key or a connection now uses
+            # one of its names: like a stale decision, it settles with the reason and
+            # saves nothing.
+            await settle(session, row, "expired", reason)
+            return await owner_action_data(session, row)
         if target is None:
             result = await save_values(session, row, body.values, store.write_in_session)
         else:
@@ -153,19 +155,26 @@ async def settle_saved(
     await confirm_in_thread(session, row)
 
 
-async def offered_tools(rt: ApiRuntime, values: dict[str, str]) -> Offered:
-    """The tools of the MCP server at the address the owner typed (network, no lock)."""
-    address = values["URL"].strip()
+def https_address(address: str, code: str) -> str:
+    """An https address with a host whose labels can be looked up, on port 443, without
+    a user name, a password or a fragment; ``code`` refuses anything else."""
     try:
         endpoint_sha256(address)
-    except LonoraError:
-        # Remote servers only, over https, without a user name or password in the address.
-        raise LonoraError("mcp_url_invalid", 422) from None
+        host = urlsplit(address).hostname or ""
+        host.encode("idna")
+    except (LonoraError, UnicodeError, ValueError):
+        raise LonoraError(code, 422) from None
+    return address
+
+
+async def offered_tools(rt: ApiRuntime, values: dict[str, str]) -> Offered:
+    """The tools of the MCP server at the address the owner typed (network, no lock)."""
+    address = https_address(values["URL"], "mcp_url_invalid")
     if not rt.settings.mcp_owner_trust:
         return Offered("disabled", address)
     try:
         return Offered("read", address, await tools_at(address, values.get("TOKEN")))
-    except LonoraError:
+    except (LonoraError, UnicodeError):
         return Offered("unread", address)
 
 
@@ -196,7 +205,7 @@ async def connect(
     target, details = row.payload["connect"], row.payload["details"]
     names = await free_names(session, owner.id, target, details["name"])
     if target == "mcp_server":
-        address = values["URL"].strip()
+        address = https_address(values["URL"], "mcp_url_invalid")
         saved = [names["URL"]]
         address_id = await store.write_in_session(session, names["URL"], address, WORKSPACE)
         token_id = None
@@ -222,15 +231,14 @@ async def connect(
     if target == "brave_search":
         key = values["API_KEY"]
     else:
-        # A feed's or calendar's address: checked here, kept in the store, its host here.
-        key = values["URL"].strip()
+        # A feed's or calendar's address: checked as its reader checks it, kept in the
+        # store, its host on the row.
+        key = values["URL"]
         if target == "news_feed":
             feed_host(key)
-        try:
-            parts = urlsplit(key)
-            host = parts.hostname if parts.scheme in {"https", "http"} else None
-        except ValueError:
-            host = None
+        else:
+            https_address(key, "integration_source_invalid")
+        host = urlsplit(key).hostname
         if not host:
             raise LonoraError("integration_source_invalid", 422)
         existing = await same_source(session, store, owner, target, key)
@@ -256,10 +264,10 @@ async def same_source(
     target: str,
     address: str,
 ) -> IntegrationRow | None:
-    """A feed or calendar of this kind already reading this address."""
+    """An enabled feed or calendar of this kind already reading this address."""
     rows = await session.scalars(select(IntegrationRow).where(IntegrationRow.owner_id == owner.id))
     for row in rows:
-        if row.payload.get("type") != target:
+        if row.payload.get("type") != target or not row.payload.get("enabled"):
             continue
         try:
             if await source_url(row.payload, store.read) == address:

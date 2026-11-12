@@ -261,6 +261,18 @@ def test_cards_have_lifetimes_and_fixed_confirmations() -> None:
             assert catalogs()[locale][code], (locale, code)
 
 
+def test_a_feed_item_never_links_back_to_the_feed_address() -> None:
+    """A link that is only a fragment, blank or only a query resolves to the feed itself:
+    it is dropped, since the feed's address may carry a key (VISION.md 7.2.6)."""
+    from lonora_adapters.market.news_feed import safe_link
+
+    feed = "https://feeds.example.com/private.rss?key=k1"
+    for value in ("#top", "   ", "?page=2", feed):
+        assert safe_link(value, feed) is None, value
+    assert safe_link("/a/1", feed) == "https://feeds.example.com/a/1"
+    assert safe_link("https://news.example/x#y", feed) == "https://news.example/x"
+
+
 def test_feeds_parse_bounded_untrusted_text_and_refuse_entities() -> None:
     title, items = news_feed.parse_feed(RSS, "https://news.example.test/feed")
     assert title == "Gold desk" and items[0].title == "Fed holds rates"
@@ -1243,8 +1255,8 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         saved.extend(done.json()["result"]["saved"])
         # Web search needs one key: a card raised before that one was saved writes nothing.
         late = await save(fixture, second["owner_action"]["id"], {"API_KEY": "late-key"})
-        assert late.status_code == 409
-        assert late.json()["code"] == "owner_action_not_needed_credential_already_configured"
+        assert late.status_code == 200 and late.json()["status"] == "expired"
+        assert late.json()["status_reason"] == "credential_already_configured"
         rows = cast(list[dict[str, Any]], await fixture.request("GET", "/integrations"))
         assert len([row for row in rows if row["payload"]["type"] == "brave_search"]) == 1
         # A feed whose address carries a key: the address is the secret; agents read the
@@ -1276,18 +1288,21 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         proposed = await call(
             context, "owner_action_propose", kind="secret", target="economic_calendar", name="Cal"
         )
-        broken = await save(fixture, proposed["owner_action"]["id"], {"URL": "https://[abc/feed"})
-        assert broken.status_code == 422 and broken.json()["code"] == "integration_source_invalid"
+        for address in ("https://[abc/feed", "http://cal.example.test/feed"):
+            broken = await save(fixture, proposed["owner_action"]["id"], {"URL": address})
+            assert broken.status_code == 422, address
+            assert broken.json()["code"] == "integration_source_invalid"
         report = await fixture.request("GET", "/capabilities")
         search = next(item for item in report["built_in"] if item["capability"] == "web_search")
         assert search["state"] == "ready" and search["via"] in {"brave", "searxng"}
         listed = await call(context, "capabilities_list")
         assert "id" not in listed["trusted_sources"][0]
-        # Removing the feed removes the address its card saved for it.
+        # Removing the feed keeps the owner's secret: only DELETE /secrets/{id} deletes a
+        # stored secret (VISION.md 14.3.11).
         await fixture.request("DELETE", "/integrations/" + cleanup.pop())
         secrets = cast(list[dict[str, Any]], await fixture.request("GET", "/secrets"))
         names = {item["name"] for item in secrets}
-        assert not names & set(done.json()["result"]["saved"])
+        assert set(done.json()["result"]["saved"]) <= names
         # The value never reaches a message, an event, a card or a Run.
         async with fixture.runtime.db.sessions() as session:
             for model in (MessageRow, EventRow, OwnerActionRow, RunRow):
