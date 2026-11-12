@@ -21,10 +21,10 @@ import pytest
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, walk
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from export_genui_catalog import TARGET, generated  # noqa: E402
+from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 from test_genui_projector import messages, project, reply  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/genui"
@@ -64,6 +64,16 @@ def test_the_vocabulary_teaches_every_node_prop_and_action() -> None:
         assert server not in vocabulary  # written by the compiler, never by the model
 
 
+def test_the_icon_catalog_is_the_icons_the_clients_draw() -> None:
+    import re
+
+    from lonora_contracts.genui_icons import ICON_NAMES
+
+    source = (Path(__file__).parents[1] / "packages/ui-tokens/src/icons.ts").read_text()
+    drawn = set(re.findall(r"^  ([A-Za-z]+):", source, re.M))
+    assert drawn == set(ICON_NAMES)
+
+
 @pytest.mark.asyncio
 async def test_the_parity_cards_compile_cleanly_and_cover_the_whole_set() -> None:
     documents = await compiled_documents()
@@ -77,6 +87,18 @@ async def test_the_parity_cards_compile_cleanly_and_cover_the_whole_set() -> Non
     }
     # A Button without an action sends its label (intent ask): the send is covered by A01.
     assert actions == set(ACTIONS)
+    # Every prop of every node is exercised, so the journeys draw each one.
+    used = {
+        (node["type"], prop)
+        for document in documents
+        for _p, node in walk(document["blocks"])
+        for prop in node
+        if prop != "type"
+    }
+    expected = {(name, prop) for name, spec in NODES.items() for prop in spec}
+    assert expected - used == set()
+    # `when` (COMMON) is one generic rule in both renderers; it is exercised too.
+    assert {prop for _type, prop in used} >= set(COMMON)
     assert json.loads(COMPILED.read_text()) == {"documents": documents}, (
         "run .venv/bin/python tests/test_genui_parity.py"
     )

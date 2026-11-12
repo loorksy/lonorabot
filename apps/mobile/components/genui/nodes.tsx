@@ -3,7 +3,7 @@
  * `UiCard` in the reference's look (Desktop-37 `.ux*`). `NODES` is typed against the catalog
  * generated from the server contract: a node the server accepts and this renderer does not
  * draw fails `pnpm check`. Agents compose; colours, type and spacing are the renderer's. */
-import type { UiBlock, UiOption, UiRenderedNodeType } from "@lonora/contracts";
+import type { UiBlock, UiNodeProps, UiOption, UiRenderedNodeType } from "@lonora/contracts";
 import {
   type CardInline,
   cardInline,
@@ -15,7 +15,7 @@ import {
 } from "@lonora/core";
 import { ICON_PATHS, type IconName } from "@lonora/ui-tokens";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Label } from "../../lib/i18n";
 import type { CardPalette } from "./theme";
@@ -39,6 +39,8 @@ export type CardCtx = {
   /** The card's primary send, for Enter in a Number field. */
   submitPrimary: () => void;
   register: (key: string, input: TextInput | null) => void;
+  /** A rendered primary Button (or null when it unmounts), by path. */
+  primaryAt: (path: string, block: UiBlock | null) => void;
 };
 type NodeProps = { block: UiBlock; path: string; ctx: CardCtx };
 
@@ -110,10 +112,13 @@ export function visible(block: UiBlock, ctx: CardCtx): boolean {
 export function Node({ block, path, ctx }: NodeProps): ReactNode {
   const testID = `ux-node-${block.type}-${path}`;
   if (!visible(block, ctx)) return <View testID={`${testID}-off`} style={{ display: "none" }} />;
-  const Render = NODES[block.type as UiRenderedNodeType];
+  const Render = Object.hasOwn(NODES, block.type)
+    ? NODES[block.type as UiRenderedNodeType]
+    : undefined;
   if (!Render) return null;
   return (
-    <View testID={testID} style={{ minWidth: 0 }}>
+    // A Button grows inside a Row, as web's `.ux-row > .btn` does.
+    <View testID={testID} style={{ minWidth: 0, flexGrow: block.type === "Button" ? 1 : 0 }}>
       <Render block={block} path={path} ctx={ctx} />
     </View>
   );
@@ -349,7 +354,9 @@ function NumberField({ block, ctx }: NodeProps) {
           aria-required={block.required ? true : undefined}
           aria-invalid={invalid || undefined}
           inputMode="decimal"
-          keyboardType="decimal-pad"
+          // iOS's decimal pad has no return key: Enter must reach the card's send.
+          keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "decimal-pad"}
+          returnKeyType="send"
           autoComplete="off"
           autoCorrect={false}
           editable={!(ctx.frozen || ctx.locked)}
@@ -670,16 +677,29 @@ function Stat({ block, ctx }: NodeProps) {
   );
 }
 
-function Button({ block, path, ctx }: NodeProps) {
+/** Whether a Button is off now: the rule both a tap and Enter in a Number field follow. */
+export function buttonOff(block: UiBlock, ctx: CardCtx): boolean {
   const action = block.action as { do?: string } | undefined;
   const safe = action && ["go", "open", "copy"].includes(String(action.do));
   const sends = !action || action.do === "send";
   // Every control waits while the card builds; only a sent card keeps go/open/copy.
-  const off =
+  return (
     ctx.frozen ||
     (!safe && (ctx.locked || (sends && ctx.sendOff))) ||
     // A `disabled` that fails to evaluate disables, as the server refuses it (fail closed).
-    (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, true)));
+    (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, true)))
+  );
+}
+
+function Button({ block, path, ctx }: NodeProps) {
+  const off = buttonOff(block, ctx);
+  const { primaryAt } = ctx;
+  // The rendered primary buttons, as web finds `.btn.primary` in the card's DOM.
+  useEffect(() => {
+    if (block.style !== "primary") return;
+    primaryAt(path, block);
+    return () => primaryAt(path, null);
+  }, [block, path, primaryAt]);
   const primary = block.style === "primary";
   const color = primary ? ctx.p.onPrimary : ctx.p.text;
   return (
@@ -730,19 +750,21 @@ function Col(props: NodeProps) {
 
 function Grid({ block, path, ctx }: NodeProps) {
   const cols = block.cols === 1 || block.cols === 3 ? block.cols : 2;
-  const children = (block.children as UiBlock[]) ?? [];
-  const rows: UiBlock[][] = [];
+  // A hidden cell leaves the grid, as `display: none` does on web; paths keep their index.
+  const children = ((block.children as UiBlock[]) ?? [])
+    .map((child, at) => ({ child, at }))
+    .filter(({ child }) => visible(child, ctx));
+  const rows: (typeof children)[] = [];
   for (let at = 0; at < children.length; at += cols) rows.push(children.slice(at, at + cols));
   return (
     <View style={{ gap: 8 }}>
       {rows.map((cells, index) => (
         <View key={index} style={{ flexDirection: row(ctx.rtl), gap: 8 }}>
           {Array.from({ length: cols }, (_, column) => {
-            const child = cells[column];
-            const at = index * cols + column;
+            const cell = cells[column];
             return (
               <View key={column} style={{ flex: 1, minWidth: 0 }}>
-                {child ? <Node block={child} path={`${path}.${at}`} ctx={ctx} /> : null}
+                {cell ? <Node block={cell.child} path={`${path}.${cell.at}`} ctx={ctx} /> : null}
               </View>
             );
           })}
@@ -871,4 +893,43 @@ export const NODES: Record<UiRenderedNodeType, (props: NodeProps) => ReactNode> 
   Card,
   More,
   Delivery,
+};
+
+/** Every prop of every catalog node, each drawn by this renderer (typed against the catalog:
+ * a prop the server contract gains, or loses, fails `pnpm check` until it is drawn here). */
+export const DRAWN_PROPS: UiNodeProps = {
+  Segmented: { bind: true, label: true, options: true, when: true },
+  Select: { bind: true, label: true, options: true, when: true },
+  Number: {
+    bind: true,
+    label: true,
+    hint: true,
+    prefix: true,
+    suffix: true,
+    required: true,
+    when: true,
+  },
+  Slider: { bind: true, label: true, min: true, max: true, step: true, show: true, when: true },
+  Text: { text: true, tone: true, size: true, when: true },
+  Title: { text: true, when: true },
+  Markdown: { text: true, when: true },
+  Note: { text: true, tone: true, icon: true, when: true },
+  Badge: { text: true, tone: true, icon: true, when: true },
+  KeyValue: { rows: true, when: true },
+  Stat: { label: true, value: true, sub: true, trend: true, tone: true, icon: true, when: true },
+  Button: {
+    label: true,
+    action: true,
+    style: true,
+    icon: true,
+    full: true,
+    disabled: true,
+    when: true,
+  },
+  Divider: { when: true },
+  Row: { children: true, when: true },
+  Col: { children: true, when: true },
+  Grid: { children: true, cols: true, when: true },
+  Card: { children: true, title: true, icon: true, when: true },
+  More: { children: true, label: true, when: true },
 };

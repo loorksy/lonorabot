@@ -260,39 +260,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-## Open Intelligent UI answer-shape teaching
-
-Source: https://github.com/thesysdev/open-intelligent-ui
-Revision: 9df2e64
-License: MIT. Copyright (c) 2026 Thesys Inc.
-
-Adapted portions: the prompt rules and the idea of the worked examples in
-`src/lib/prompt-options.ts`, rewritten as the generative-UI prompt variant O
-(`packages/agent-runtime/resources/prompts/genui_v2_teaching_o.md`) for Lonora's
-lonora-ui v2 nodes and functions. Modifications: OIU's image, map, drawing and HTML
-rules are dropped; its "the entire response is UI" default is replaced by Lonora's
-three-way answer shape; Lonora's safety rules (no interface for trades, grants, limits
-or credentials) are added; the examples are Lonora cards. No Open Intelligent UI code is
-imported.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
 ## Pair icons (nvstly/icons)
 
 Source: https://github.com/nvstly/icons ("Ticker Logos (Stocks, Cryptocurrencies, & Forex)"),

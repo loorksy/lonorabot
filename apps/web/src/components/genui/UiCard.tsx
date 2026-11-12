@@ -5,8 +5,10 @@
 import { t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import type {
+  UiActionKind,
   UiBlock,
   UiDocument,
+  UiNodeProps,
   UiOption,
   UiPart,
   UiRenderedNodeType,
@@ -544,6 +546,45 @@ const NODES: Record<UiRenderedNodeType, (props: NodeProps) => ReactNode> = {
   Delivery,
 };
 
+/** Every prop of every catalog node, each drawn by this renderer (typed against the catalog:
+ * a prop the server contract gains, or loses, fails `pnpm check` until it is drawn here). */
+export const DRAWN_PROPS: UiNodeProps = {
+  Segmented: { bind: true, label: true, options: true, when: true },
+  Select: { bind: true, label: true, options: true, when: true },
+  Number: {
+    bind: true,
+    label: true,
+    hint: true,
+    prefix: true,
+    suffix: true,
+    required: true,
+    when: true,
+  },
+  Slider: { bind: true, label: true, min: true, max: true, step: true, show: true, when: true },
+  Text: { text: true, tone: true, size: true, when: true },
+  Title: { text: true, when: true },
+  Markdown: { text: true, when: true },
+  Note: { text: true, tone: true, icon: true, when: true },
+  Badge: { text: true, tone: true, icon: true, when: true },
+  KeyValue: { rows: true, when: true },
+  Stat: { label: true, value: true, sub: true, trend: true, tone: true, icon: true, when: true },
+  Button: {
+    label: true,
+    action: true,
+    style: true,
+    icon: true,
+    full: true,
+    disabled: true,
+    when: true,
+  },
+  Divider: { when: true },
+  Row: { children: true, when: true },
+  Col: { children: true, when: true },
+  Grid: { children: true, cols: true, when: true },
+  Card: { children: true, title: true, icon: true, when: true },
+  More: { children: true, label: true, when: true },
+};
+
 function NumberField({
   block,
   id,
@@ -775,30 +816,45 @@ export default function UiCard({
     checkRequired: () => checkRequired(),
     act(block, path) {
       const action = block.action as Record<string, unknown> | undefined;
-      if (!action || action.do === "send") {
-        void send(block, path);
-      } else if (action.do === "go") {
-        const name = String(action.route);
-        if (Object.hasOwn(ROUTES, name)) nav.go(ROUTES[name as UiRoute]);
-      } else if (action.do === "open") {
-        // A literal https URL the server matched to the owner's message or a tool result.
-        const url = String(action.url);
-        if (url.startsWith("https://")) window.open(url, "_blank", "noopener,noreferrer");
-      } else if (action.do === "copy") {
-        const copied = renderTemplate(String(action.text ?? ""), env);
-        void navigator.clipboard?.writeText(copied).then(
-          () => {
-            navigator.vibrate?.(8);
-            setNotice(t`Copied`);
-          },
-          () => setNotice(copied),
-        );
-      } else if (action.do === "set") {
-        setValues((old) => ({ ...old, [String(action.key)]: evaluate(action.value, env) }));
-      } else if (action.do === "toggle") {
-        setValues((old) => ({ ...old, [String(action.key)]: !old[String(action.key)] }));
-      } else if (action.do === "reset") {
-        setValues({ ...doc.state });
+      // Every action of the catalog (exhaustive: an action the contract gains fails tsc).
+      const kind = (action?.do ?? "send") as UiActionKind;
+      switch (kind) {
+        case "send":
+          void send(block, path);
+          break;
+        case "go": {
+          const name = String(action?.route);
+          if (Object.hasOwn(ROUTES, name)) nav.go(ROUTES[name as UiRoute]);
+          break;
+        }
+        case "open": {
+          // A literal https URL the server matched to the owner's message or a tool result.
+          const url = String(action?.url);
+          if (url.startsWith("https://")) window.open(url, "_blank", "noopener,noreferrer");
+          break;
+        }
+        case "copy": {
+          const copied = renderTemplate(String(action?.text ?? ""), env);
+          void navigator.clipboard?.writeText(copied).then(
+            () => {
+              navigator.vibrate?.(8);
+              setNotice(t`Copied`);
+            },
+            () => setNotice(copied),
+          );
+          break;
+        }
+        case "set":
+          setValues((old) => ({ ...old, [String(action?.key)]: evaluate(action?.value, env) }));
+          break;
+        case "toggle":
+          setValues((old) => ({ ...old, [String(action?.key)]: !old[String(action?.key)] }));
+          break;
+        case "reset":
+          setValues({ ...doc.state });
+          break;
+        default:
+          kind satisfies never;
       }
     },
   };
@@ -899,11 +955,11 @@ export default function UiCard({
       {showFoot && why && whyOpen && (
         <p className="ux-why">
           {why}
-          {sources.length > 0 && (
+          {/* When the card's facts were read; never the tools' internal names (mandate 17). */}
+          {sources.length > 0 && Number.isFinite(oldest) && (
             <span className="ux-sources">
-              {t`Sources`}: {[...new Set(sources.map((fact) => fact.source))].join("، ")}
-              {Number.isFinite(oldest) &&
-                ` · ${new Date(oldest).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`}
+              {t`Last updated`}{" "}
+              {new Date(oldest).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
         </p>

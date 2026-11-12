@@ -94,9 +94,8 @@ manual and manifest under `share/lonora/system`.
 `check_policy_distribution.py` builds the production wheel offline and exercises
 the real installed-layout fallback; this is also part of `scripts/build.sh`.
 No new runtime, permission engine, memory system or procedure registry exists.
-The optional `lonora-design` procedure uses that existing registry; its compact
-response vocabulary is a separate bounded instruction block. See
-[native visual responses](native-visual-responses.md).
+The generated-interface vocabulary is a separate bounded instruction block. See
+[generated interfaces](native-visual-responses.md).
 
 ## Verification limits
 

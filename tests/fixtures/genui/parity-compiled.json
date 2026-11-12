@@ -77,7 +77,8 @@
           "type": "Number",
           "bind": "balance",
           "label": "الرصيد",
-          "suffix": "$",
+          "hint": "رصيد الحساب",
+          "prefix": "$",
           "required": true
         },
         {
@@ -133,6 +134,7 @@
             {
               "type": "Note",
               "tone": "warn",
+              "icon": "alert",
               "when": "$risk>=2",
               "text": "مخاطرة مرتفعة"
             },

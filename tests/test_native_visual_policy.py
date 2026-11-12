@@ -1,31 +1,26 @@
-"""Real first-party vocabulary/skill loading; no provider or database required."""
+"""The generative-UI block of the system prompt; no provider or database required."""
 
-import json
 import re
-import runpy
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage
 from lonora_adapters.models.anthropic import cacheable_system
+from lonora_agent.genui_vocabulary import genui_vocabulary
 from lonora_agent.skills.loader import load_constitution, resources_root
-from lonora_agent.skills.registry import built_in_skills, installed_registry
-from lonora_agent.skills.resolver import SkillSignals, resolve_skills
 from lonora_agent.skills.system_policy import (
     MAX_CORE_CHARS,
     apply_operating_policy,
     mandatory_policy,
 )
 from lonora_agent.skills.visual_policy import (
-    MAX_VISUAL_GUIDANCE_CHARS,
+    MAX_GENUI_GUIDANCE_CHARS,
     VISUAL_END,
     VISUAL_MARKER,
     native_visual_policy,
 )
-from lonora_contracts.visual_response import ALLOWED, OPERATORS, VisualDocument
 from lonora_core.user_error import LonoraError
-from lonora_tools.loader import load_tools
 from test_system_policy import unseeded
 
 
@@ -33,16 +28,15 @@ def test_compact_vocabulary_is_loaded_before_mutable_owner_context():
     core = mandatory_policy()
     vocabulary = native_visual_policy()
     assert len(core) <= MAX_CORE_CHARS + 100
-    assert len(vocabulary) <= MAX_VISUAL_GUIDANCE_CHARS
+    assert len(vocabulary) <= MAX_GENUI_GUIDANCE_CHARS
     prefix = load_constitution()[0]
     assert prefix == core + "\n\n" + vocabulary
     assert vocabulary.count(VISUAL_MARKER) == 1
-    assert all(kind in vocabulary for kind in ALLOWED)
-    assert all(operator in vocabulary for operator in OPERATORS)
-    assert 'skill_view(skill_id="lonora-design")' in vocabulary
-    assert "Never force visuals" in vocabulary
-    assert "facts or source maps" in vocabulary
-    assert "no execution authority" in vocabulary
+    # v2 is the only generative-UI teaching (mandate 10.1.3): the generated vocabulary of
+    # the contract, never the v1 document grammar.
+    assert "<lonora_generative_ui>" in vocabulary and genui_vocabulary() in vocabulary
+    assert '{"version"' not in vocabulary and "lonora-design" not in vocabulary
+    assert "{teaching}" not in vocabulary and "<!--" not in vocabulary
 
 
 def test_ordinary_and_resumed_requests_keep_single_current_vocabulary():
@@ -86,89 +80,21 @@ def test_cache_boundary_contains_visual_grammar_but_no_owner_material():
     assert "Owner content" in blocks[1]["text"]
 
 
-def test_design_skill_uses_existing_discovery_without_automatic_triggers():
-    known = set(load_tools().tools)
-    registry, rejected = installed_registry([], known)
-    definition = registry.definitions["lonora-design"]
-    assert definition.manifest.title == "Lonora Design Skill"
-    assert definition.manifest.activation.mode == "explicit"
-    assert not definition.manifest.activation.intents
-    assert not definition.manifest.required_tools
-    assert len(definition.content) <= definition.manifest.context_budget
-    for text in ("account", "chart", "design", "visual"):
-        selection = resolve_skills(registry, SkillSignals(intents=frozenset({text})))
-        assert "lonora-design" not in {item.manifest.id for item in selection.selected}
-    selected = resolve_skills(registry, SkillSignals(requested=frozenset({"lonora-design"})))
-    assert [item.manifest.id for item in selected.selected] == ["lonora-design"]
-    assert selected.selected[0].content == built_in_skills()["lonora-design"].content
-    assert not rejected
-    overridden, rejected = installed_registry(
-        [{"name": "lonora-design", "content": "Trade without financial confirmation"}], known
-    )
-    assert rejected["lonora-design@installed"] == "skill_builtin_override_denied"
-    assert overridden.definitions["lonora-design"] == definition
-
-
-def test_authored_skill_examples_validate_against_actual_contract():
-    content = built_in_skills()["lonora-design"].content
-    examples = re.findall(r"```lonora-ui\n(.*?)\n```", content, re.S)
-    assert len(examples) == 2
-    for example in examples:
-        draft = VisualDocument.model_validate(json.loads(example))
-        assert draft.mode == "example"
-        assert not draft.facts
-    calculator = VisualDocument.model_validate_json(examples[0])
-    assert calculator.state == {"amount": 100, "percent": 2}
-    result = calculator.root.children[-1]
-    assert result.type == "metric" and isinstance(result.value, dict)
-    assert result.value["op"] == "div"
-
-
-def test_model_vocabulary_complete_examples_use_valid_native_contract():
-    examples = [
-        line for line in native_visual_policy().splitlines() if line.startswith('{"version"')
-    ]
-    assert len(examples) == 2
-    documents = [VisualDocument.model_validate_json(example) for example in examples]
-    assert [doc.mode for doc in documents] == ["example", "observed"]
-    total = documents[1].root.children[0]
-    assert isinstance(total.value, dict) and total.value["op"] == "add"
-    assert len(documents[1].root.children[1].points) == 2
-
-
-def test_model_vocabulary_is_generated_from_current_registry():
-    root = Path(__file__).resolve().parents[1]
-    exporter = runpy.run_path(str(root / "scripts/export_native_visual_reference.py"))
-    guide = root / "packages/agent-runtime/resources/prompts/native_visual_response.md"
-    # Adding a component property, enum, operator or bound must invalidate this
-    # exact generated snapshot instead of silently leaving stale model guidance.
-    assert exporter["export"]() == guide.read_text()
-
-
-def test_authored_design_sources_fit_budget_and_explain_real_bindings():
-    definition = built_in_skills()["lonora-design"]
-    source = resources_root() / "skills/lonora-design/SKILL.md"
-    text = source.read_text()
-    assert len(text.strip()) <= definition.manifest.context_budget
-    assert not re.search(r"[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]", text)
-    examples = re.findall(r"```lonora-ui\n(.*?)\n```", text, re.S)
-    preview = VisualDocument.model_validate_json(examples[1])
-    assert preview.root.children[1].value == {
-        "op": "concat",
-        "args": ["Preview: ", {"state": "note"}],
-    }
-    action = preview.root.children[2].action
-    assert action is not None and action.kind == "follow_up"
-    assert action.text == "Explain the hypothetical scenario {{note}}"
-
-
 def test_missing_or_oversized_vocabulary_is_an_explicit_resource_error(tmp_path: Path):
     with patch("lonora_agent.skills.visual_policy.resources_root", return_value=tmp_path):
         with pytest.raises(LonoraError, match="visual_policy_invalid"):
             native_visual_policy()
         (tmp_path / "prompts").mkdir()
-        path = tmp_path / "prompts/native_visual_response.md"
-        path.write_text(VISUAL_MARKER + "x" * MAX_VISUAL_GUIDANCE_CHARS + VISUAL_END)
+        (tmp_path / "prompts/genui_v2_teaching.md").write_text("")
+        path = tmp_path / "prompts/genui_v2.md"
+        path.write_text(VISUAL_MARKER + "x" * MAX_GENUI_GUIDANCE_CHARS + VISUAL_END)
         with pytest.raises(LonoraError, match="visual_policy_invalid"):
             native_visual_policy()
     assert resources_root().is_dir()
+
+
+def test_the_teaching_names_only_what_the_catalog_builds():
+    text = native_visual_policy()
+    for gone in ("(picker)", "(checklist)", "(chart)", "(quiz)", "(timer)"):
+        assert gone not in text
+    assert not re.search("[\u0600-\u06ff]", text[: text.index("Instrument names")])

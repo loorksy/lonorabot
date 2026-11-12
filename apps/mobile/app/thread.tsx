@@ -484,12 +484,23 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         `/threads/${encodeURIComponent(id)}/messages`,
         body,
       );
+      const cached = conversationCache.get<ConversationSnapshot>(scope, `thread:${id}`);
+      if (cached)
+        conversationCache.set(scope, `thread:${id}`, {
+          ...cached,
+          messages: mergeMessages(cached.messages, [accepted.message]),
+        });
       if (selected.current.id !== id || selected.current.scope !== scope) return;
       setMessages((old) => mergeMessages(old, [accepted.message]));
       if (accepted.runs?.length)
         setRuns((old) => {
           const projected = new Map(old.map((run) => [run.id, run]));
-          for (const run of accepted.runs ?? []) projected.set(run.id, run);
+          for (const run of accepted.runs ?? []) {
+            // A Run event that arrived before this response is newer: keep it.
+            const prior = projected.get(run.id);
+            if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
+              projected.set(run.id, run);
+          }
           return [...projected.values()];
         });
       void snapshotRef.current();

@@ -114,10 +114,18 @@ for (const theme of ["dark", "light"]) {
       // «2%» (a set action) shows the Note its `when` hides at 1%.
       await ux.getByRole("button", { name: "2%", exact: true }).click();
       await expect(ux.getByText("مخاطرة مرتفعة")).toBeVisible();
+      // A node counts as drawn only when its renderer produced something with a size.
       const drawn = await page
         .locator('[data-testid^="ux-node-"]:not([data-testid$="-off"])')
         .evaluateAll((nodes) => [
-          ...new Set(nodes.map((node) => node.dataset.testid.split("-")[2])),
+          ...new Set(
+            nodes
+              .filter((node) => {
+                const box = node.getBoundingClientRect();
+                return box.width > 0 && box.height > 0;
+              })
+              .map((node) => node.dataset.testid.split("-")[2]),
+          ),
         ]);
       expect(drawn.sort()).toEqual(
         [...catalog("UI_NODE_TYPES"), ...catalog("UI_SERVER_NODE_TYPES")].sort(),
@@ -137,6 +145,21 @@ for (const theme of ["dark", "light"]) {
       await expect(ux.getByText("تفاصيل إضافية")).toBeHidden();
       await ux.getByRole("button", { name: "نسخ" }).click();
       await expect(ux.getByText("تم النسخ")).toBeVisible();
+      // The Slider follows the reading direction: in Arabic its start is on the right.
+      const slider = ux.getByRole("slider", { name: "المخاطرة %" });
+      const box = await slider.boundingBox();
+      await page.mouse.click(box.x + box.width * 0.05, box.y + box.height / 2);
+      await expect(ux.getByText("4.5%")).toBeVisible();
+      // open: the server-checked literal URL.
+      await context.route("https://example.com/**", (route) =>
+        route.fulfill({ status: 200, contentType: "text/html", body: "<p>ok</p>" }),
+      );
+      const [popup] = await Promise.all([
+        page.waitForEvent("popup"),
+        ux.getByRole("button", { name: "المصدر" }).click(),
+      ]);
+      await popup.waitForURL("https://example.com/position-size");
+      await popup.close();
       // The send goes through ui_submit and the server writes the owner's bubble. It is the
       // `ask` intent (a Button with no action), which never locks its card.
       await ux.getByRole("button", { name: "اشرح الحساب" }).click();
@@ -148,6 +171,9 @@ for (const theme of ["dark", "light"]) {
       expect(
         messages.filter((row) => row.origin === "ui_submit").map((row) => row.content),
       ).toEqual(["اشرح الحساب"]);
+      // go: the server's route on mobile's own screen.
+      await ux.getByRole("button", { name: "السوق" }).click();
+      await expect(page).toHaveURL(/\/charts/);
     } finally {
       await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
       await context.request.delete(`/api/trading/connections/${fixture.connection}`, { headers });

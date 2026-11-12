@@ -3,7 +3,7 @@
  * values, and sends through `MessageCreate.ui_submit` only: the server writes the owner's
  * bubble and data. While the card builds, and until its message is committed, every control
  * is disabled. While it is locked only go, open and copy stay enabled. */
-import type { UiBlock, UiPart, UiRoute } from "@lonora/contracts";
+import type { UiActionKind, UiBlock, UiPart, UiRoute } from "@lonora/contracts";
 import { cardLock, environment, evaluate, renderTemplate, sendBlocked } from "@lonora/core";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +21,7 @@ import { api } from "../../lib/api";
 import { fill } from "../../lib/i18n";
 import { useSession } from "../../lib/session";
 import { useCardHost } from "./host";
-import { type CardCtx, CardIcon, Node, visible } from "./nodes";
+import { buttonOff, type CardCtx, CardIcon, Node, visible } from "./nodes";
 import { useCardPalette } from "./theme";
 
 /** The server's routes on mobile's screens. Mobile has no chat-preferences page: that route
@@ -179,17 +179,23 @@ export function NativeUiCard({
     toast.current = setTimeout(() => setNotice((now) => (now === text ? null : now)), 1600);
   }
 
-  const primary = (blocks: UiBlock[], prefix = ""): [UiBlock, string] | null => {
-    for (const [position, block] of blocks.entries()) {
-      const path = `${prefix}${position}`;
-      if (!visible(block, ctx)) continue;
-      if (block.type === "Button" && block.style === "primary") return [block, path];
-      if (Array.isArray(block.children) && block.type !== "More") {
-        const found = primary(block.children as UiBlock[], `${path}.`);
-        if (found) return found;
-      }
-    }
-    return null;
+  const primaries = useRef(new Map<string, UiBlock>());
+  const primaryAt = useCallback((path: string, block: UiBlock | null) => {
+    if (block) primaries.current.set(path, block);
+    else primaries.current.delete(path);
+  }, []);
+  /** The first rendered primary Button in reading order, as web's DOM query finds it. */
+  const primary = (): [UiBlock, string] | null => {
+    const order = (path: string) => path.split(".").map(Number);
+    const paths = [...primaries.current.keys()].sort((a, b) => {
+      const [x, y] = [order(a), order(b)];
+      for (let at = 0; at < Math.max(x.length, y.length); at += 1)
+        if ((x[at] ?? -1) !== (y[at] ?? -1)) return (x[at] ?? -1) - (y[at] ?? -1);
+      return 0;
+    });
+    const path = paths[0];
+    const block = path === undefined ? undefined : primaries.current.get(path);
+    return block && path !== undefined ? [block, path] : null;
   };
 
   const ctx: CardCtx = {
@@ -218,32 +224,47 @@ export function NativeUiCard({
       if (input) inputs.current.set(key, input);
       else inputs.current.delete(key);
     },
+    primaryAt,
     submitPrimary() {
-      const found = primary(doc.blocks);
-      if (found && !ctx.frozen && !locked && !ctx.sendOff) ctx.act(found[0], found[1]);
+      const found = primary();
+      if (found && !buttonOff(found[0], ctx)) ctx.act(found[0], found[1]);
       else checkRequired();
     },
     act(block, path) {
       const action = block.action as Record<string, unknown> | undefined;
-      if (!action || action.do === "send") {
-        void send(block, path);
-      } else if (action.do === "go") {
-        const name = String(action.route);
-        if (Object.hasOwn(ROUTES, name)) router.push(ROUTES[name as UiRoute] as never);
-      } else if (action.do === "open") {
-        // A literal https URL the server matched to the owner's message or a tool result.
-        const url = String(action.url);
-        if (url.startsWith("https://")) void Linking.openURL(url).catch(() => undefined);
-      } else if (action.do === "copy") {
-        Clipboard.setString(renderTemplate(String(action.text ?? ""), env));
-        tick(8);
-        flash(t("uiCopied"));
-      } else if (action.do === "set") {
-        setValues((old) => ({ ...old, [String(action.key)]: evaluate(action.value, env) }));
-      } else if (action.do === "toggle") {
-        setValues((old) => ({ ...old, [String(action.key)]: !old[String(action.key)] }));
-      } else if (action.do === "reset") {
-        setValues({ ...doc.state });
+      // Every action of the catalog (exhaustive: an action the contract gains fails tsc).
+      const kind = (action?.do ?? "send") as UiActionKind;
+      switch (kind) {
+        case "send":
+          void send(block, path);
+          break;
+        case "go": {
+          const name = String(action?.route);
+          if (Object.hasOwn(ROUTES, name)) router.push(ROUTES[name as UiRoute] as never);
+          break;
+        }
+        case "open": {
+          // A literal https URL the server matched to the owner's message or a tool result.
+          const url = String(action?.url);
+          if (url.startsWith("https://")) void Linking.openURL(url).catch(() => undefined);
+          break;
+        }
+        case "copy":
+          Clipboard.setString(renderTemplate(String(action?.text ?? ""), env));
+          tick(8);
+          flash(t("uiCopied"));
+          break;
+        case "set":
+          setValues((old) => ({ ...old, [String(action?.key)]: evaluate(action?.value, env) }));
+          break;
+        case "toggle":
+          setValues((old) => ({ ...old, [String(action?.key)]: !old[String(action?.key)] }));
+          break;
+        case "reset":
+          setValues({ ...doc.state });
+          break;
+        default:
+          kind satisfies never;
       }
     },
   };
@@ -421,10 +442,10 @@ export function NativeUiCard({
       {showFoot && doc.why && whyOpen ? (
         <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 4 }}>
           <Text style={{ color: p.muted, fontSize: 13, lineHeight: 21 }}>{doc.why}</Text>
-          {sources.length > 0 ? (
+          {/* When the card's facts were read; never the tools' internal names (mandate 17). */}
+          {sources.length > 0 && Number.isFinite(oldest) ? (
             <Text style={{ color: p.faint, fontSize: 12 }}>
-              {t("uiSources")}: {[...new Set(sources.map((fact) => fact.source))].join("، ")}
-              {Number.isFinite(oldest) ? ` · ${clock(oldest)}` : ""}
+              {t("uiLastUpdated")} {clock(oldest)}
             </Text>
           ) : null}
         </View>

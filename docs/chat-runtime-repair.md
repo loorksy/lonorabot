@@ -154,49 +154,11 @@ controls neither refresh evidence nor contact the Agent without an explicit
 follow-up. Existing financial approvals, emergency stop and broker verification
 remain outside generated presentation.
 
-## Model guidance and Skill
+## Model guidance
 
-`scripts/export_native_visual_reference.py` generates the marked registry block in
-`resources/prompts/native_visual_response.md` from actual contract definitions.
-It validates the examples, English source and 6,500-character maximum. The build
-command is:
-
-```bash
-.venv/bin/python scripts/export_native_visual_reference.py --check
-```
-
-A contract/property/enum/operator/limit change requires regenerating this block;
-a manual parallel vocabulary is not treated as authoritative. The current
-vocabulary is 6,449 characters excluding terminal whitespace. It remains part of
-the stable first-party prefix and the existing explicit Anthropic cache boundary;
-mutable owner memory, instructions and account observations remain outside it.
-
-Source inspection found a concrete reason for the drift check: the reference's
-`components/text.tsx` describes `md` as the card title size, while its committed
-`generated/system-prompt.txt` still says `lg`. Lonora generates its allowed
-vocabulary from the actual registry rather than copying this stale example.
-
-`lonora-design` version 1.0.2 remains optional and description-first, using the
-existing registry and `skill_view`. Its English source is below its 8,000-character
-budget. Applicable official coding-Skill knowledge is adapted into compact
-hierarchy, responsive density, local useful interaction, honest missing data,
-progressive disclosure and evidence-backed trading displays. Developer setup,
-OpenUI Cloud keys, telemetry installation and Gateway migration instructions are
-not trading-agent capabilities and are not installed in its runtime Skill.
-
-A literal display string is not a template language. New dynamic previews use
-`value: {op: "concat", args: [...]}`; mustaches are limited to declared scalar
-keys in an explicit follow-up action. The compiler preserves legitimate requested
-code/examples, and never guesses actual prices, symbols or account values to
-populate a missing binding.
-
-Independent review also exercised composed-value boundaries: joining separately
-safe fragments must not reconstruct a credential or an unbound placeholder.
-Server compilation now rejects such compositions, including initially hidden
-nodes, and shared client display evaluation protects later local state changes.
-Malformed or unfinished prose bindings become unavailable at final settlement;
-literal code remains literal. These checks supplement validation of individual
-string fields rather than assuming that individually safe fragments compose safely.
+The v1 model guidance, its generator and the `lonora-design` skill are removed: lonora-ui v2 is
+the only generated interface (mandate 10.1.3). The v2 guidance is generated from the contract;
+see [generated interfaces](native-visual-responses.md).
 
 ## Performance evidence
 
@@ -557,8 +519,6 @@ Selected file sizes in the shipped source:
 | `packages/agent-runtime/src/lonora_agent/stream_publication.py` | 64 |
 | `packages/agent-runtime/src/lonora_agent/display_bindings.py` | 59 |
 | `packages/agent-runtime/src/lonora_agent/visual_response.py` | 714 |
-| `packages/agent-runtime/resources/prompts/native_visual_response.md` | 38 |
-| `packages/agent-runtime/resources/skills/lonora-design/SKILL.md` | 111 |
 | `packages/core/src/reply-stream.ts` | 196 |
 | `packages/core/src/turn-activity.ts` | 168 |
 | `apps/mobile/lib/outgoing-messages.ts` | 221 |

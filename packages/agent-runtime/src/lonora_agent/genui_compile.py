@@ -41,6 +41,7 @@ PRIVATE_KEY = re.compile(
 )
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
 DECIMAL = re.compile(r"^-?\d+(?:\.\d+)?$")
+UNBOUND = re.compile(r"\{\{\s*[A-Za-z_][\w.]*\s*\}\}")
 MAX_COLUMN = 100
 MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
@@ -457,6 +458,9 @@ def compile_card(
             value, observed = None, None
         if isinstance(value, str):
             value = redact_private_reply(value, public_ids=public_ids)
+        if observed is not None:
+            # Source metadata is shown too (the why panel's time): filtered like values.
+            observed = redact_private_reply(observed, public_ids=public_ids)
         facts[key] = {
             "value": value,
             "source": item.name[:80],
@@ -736,6 +740,9 @@ def compile_card(
     for text in strings:
         if public_reply_violation(text, public_ids=public_ids):
             raise CardError("card_fallback_private")
+        if UNBOUND.search(text):
+            # A placeholder the card computes but never fills is never shown (review).
+            raise CardError("card_fallback_binding")
     if not final:
         from .public_stream import EFFECT_CLAIM
 

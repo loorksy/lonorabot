@@ -1,150 +1,60 @@
-# Native visual responses
+# Generated interfaces (lonora-ui v2)
 
-Current repair and acceptance status: [chat runtime repair](chat-runtime-repair.md).
-Historical release evidence: [previous verification report](native-visual-acceptance.md).
+Lonora has one generated-interface format, lonora-ui v2 (mandate 10.1.3). The agent decides
+each turn whether its answer is text, text and one card, or a card alone; there is no
+presentation classifier and no second model call. Agents compose from the component catalog
+and never write CSS, colours or fonts: the clients draw every node with the design-system
+tokens (mandate 10.1.1).
 
-Lonora's existing Agent chooses whether an ordinary answer contains text,
-interactive native components, or both. There is no presentation classifier,
-second model, secondary conversation store or alternative financial executor.
-The attached mandate is preserved at `lonora-specs/prompt 2.md`.
+## One component set
 
-## Reused architecture and reference
+The server contract `lonora_contracts.genui` (`NODES`, `SERVER_NODES`, `ACTIONS`) is the single
+source of the component set (mandate 10.1.5):
 
-The existing model runtime supplies tool results and composes the final reply.
-The same leased Run/Task path publishes an assistant Message and its stream
-settlement. PostgreSQL message history, Gateway events and existing client outbox
-remain the source of conversation identity. Existing authenticated artifact and
-chart services open real files/charts; financial confirmation and independently
-verified broker execution retain their current services.
+- **Nodes:** Segmented, Select, Number, Slider, Title, Text, Markdown, Note, Badge, KeyValue,
+  Stat, Button, Row, Col, Grid, Card, More, Divider, plus the read-only delivery row
+  (`Delivery`) that only the compiler writes.
+- **Actions:** send (an intent from the per-request capabilities), go (a client route), set,
+  toggle, reset, copy, open (a literal https URL from the owner's message or a tool result).
 
-OpenUI was inspected at revision
-`9d73d17d2bbac565672a85e78f6eb7740cb0d9ca`, including its real AgentInterface
-Thread, Composer, column styling and scroll-follow implementation. Its narrow
-reading column, quiet assistant messages, floating composer and manual-scroll
-behavior are adapted into Lonora's shell. Its headless conversation engine and
-custom executable rendering runtime are not dependencies. The MIT notice is in
-`../THIRD_PARTY_NOTICES.md`.
+`scripts/export_genui_catalog.py` generates `packages/contracts/src/genui-catalog.ts` from it
+(`--check` in `scripts/build.sh`). Four parts accept exactly that set, and each has a check:
 
-## Ordinary model output
+| Part | Where | Check |
+|---|---|---|
+| Server contract and compiler | `lonora_contracts/genui.py`, `lonora_agent/genui_compile.py` | `tests/test_genui_parity.py` compiles parity cards that use every node and action |
+| Vocabulary taught to the model | `lonora_agent/genui_vocabulary.py` in `resources/prompts/genui_v2.md` | `tests/test_genui_parity.py` |
+| Web renderer | `apps/web/src/components/genui/UiCard.tsx` | node, prop and action maps typed against the catalog (`pnpm check`); `tests/web/genui.spec.mjs` "Parity" draws every node |
+| Mobile renderer (native) | `apps/mobile/components/genui/` | the same typed maps; `tests/mobile/genui.spec.mjs` draws every node in dark and light |
 
-`resources/prompts/native_visual_response.md` exposes a compact stable vocabulary
-immediately after the mandatory operating policy. The model may insert complete
-`lonora-ui` fenced JSON documents between ordinary prose paragraphs. Prose-only
-answers remain unchanged. The vocabulary is first-party instruction, not a tool
-invocation or a forced response format. Old checkpoints receive the current
-vocabulary in their request projection, without rewriting their saved history.
-The mandatory operating-policy size bound remains separate and unchanged. The
-marked native vocabulary is generated from the live component/property/enum and
-operator registry by `scripts/export_native_visual_reference.py`; `--check`
-rejects schema/documentation drift during the build.
-The Agent can choose interactive elements without the owner asking for a visual
-or an "Artifact". Existing downloadable files remain available for work that needs
-a file destination. No keyword or fixed template selects ordinary reply layout.
+The client validator (`packages/core/src/genui/spec.ts`) accepts the same catalog and is
+checked by `tests/web/genui-parity.test.ts`.
 
-Native Anthropic prompt caching includes only the adjacent operating-policy and
-native-vocabulary prefix. Owner instructions, memory, account observations and
-history remain outside that explicit cache block. Other provider request paths
-retain their existing caching behavior. No additional provider call is added.
+## The prompt
 
-`visual_response.py` compiles optional documents in the same model generation.
-The compiler removes unsupported/malformed documents from public text, preserving
-useful prose and a text fallback. Partial JSON is withheld from the public stream. Independently complete validated
-frames and their surrounding prose may stream before the remainder finishes.
-A finished frame may recover missing or transposed terminal container closers;
-interior syntax, keys, values and strings are never rewritten. All recovered data
-passes the same contract, grounding and authorization checks. Validated mixed
-content is published atomically with its canonical message.
-`content` remains the backward-compatible text representation and `rich_content`
-is an ordered version-1 list of text/UI parts. Migration 0032 adds the nullable
-message column. Waiting, resumed and peer-return paths use the same payload.
+`native_visual_policy()` (`lonora_agent/skills/visual_policy.py`) builds the block that follows
+the mandatory operating policy: `genui_v2.md` with the answer-shape teaching
+(`genui_v2_teaching.md`) and the generated vocabulary. It is part of the cached prompt prefix;
+old checkpoints receive the current block in their request copy. Each request also carries a
+`<lonora_ui_capabilities>` block with the intents, delivery channels and routes that exist, and
+`<lonora_visual_observations>` with the current request's tool call ids a card fact may name.
 
-## Contract and grounding
+## Compiling a reply
 
-Python's `lonora_contracts.visual_response` and TypeScript's
-`@lonora/contracts/visual-response` define 26 bounded primitives: columns, rows,
-grids, cards, containers, dividers, text, headings, badges, icons, metrics, tables,
-lists, progress, timelines, diagrams, charts, images, disclosures, tabs, buttons,
-selects, checkboxes, sliders, inputs and forms. Property allowlists reject
-arbitrary styles, executable code, URLs and invented component/action names.
-Documents are limited to 64KB, 120 nodes and depth 10; whole mixed replies are
-bounded separately. Every node has a unique stable identity.
+`lonora_agent/visual_response.py` finds `lonora-ui` fences outside Markdown code and compiles
+each as a v2 card (`genui_compile.compile_card`): facts resolve to this request's tool results,
+options and sends are checked against real evidence and capabilities, private values and
+unfilled `{{…}}` placeholders never reach a card, and the card is folded to six visible blocks
+and 560 px at rest (`RESTING_LIMIT`). A card that cannot be built shows its model-written
+fallback text. One card per reply; a second is dropped and its fallback kept as text. A
+building card streams line by line; partial lines are never shown.
 
-The draft's `mode` is explicit: `observed`, `example` or `estimate`. Observed
-metric/table/chart values resolve exact current-request tool call IDs and JSON
-Pointer paths, with `/length` for the number of items in an actually returned
-array. Missing call/path references become unavailable cells only when the same
-document retains an independently resolved non-null fact. Failed, private and
-non-scalar references still reject the document. The compiler materializes bounded
-provenance and available observation times only for resolved references.
-Draft-supplied trusted source/facts maps are rejected. Arithmetic may derive
-values from evidence. Null means unavailable. The renderer labels example and
-estimate documents; these labels do not turn hypothetical values into evidence.
-This is structural grounding, not a guarantee that arbitrary model-authored prose
-or interpretations are correct. Ordinary financial-result verification remains
-required before claiming execution.
+`content` keeps the text representation (lead, blank line, fallback) for search, previews and
+notifications; `rich_content` holds the ordered text and card parts.
 
-Owned image, file and live-chart references use actual resource IDs and existing
-owner/conversation/agent checks. The renderer's open action uses the same existing
-authenticated resource endpoint. Native graphs are supplied-data visualizations;
-they are distinct from the existing live TradingView chart.
+## Stored v1 messages
 
-## Local interaction and identity
-
-`@lonora/core/visual-response` evaluates bounded expressions without `eval`,
-networking or model calls. Supported operators cover scalar arithmetic,
-comparisons, booleans and conditional values, with finite typed floor/ceil, square
-root/power, clamp, percentage/change and bounded scalar text concatenation.
-Missing values and invalid arithmetic remain unavailable. Literal display text
-does not interpolate mustaches; dynamic previews use state/value expressions. Inputs update declared scalar state;
-selectors, tabs, disclosures, filters and derived displays remain local. Persisted
-local state is scoped to the owner, thread, message and document identity; it
-cannot silently migrate into an unrelated response. Native and Web rendering use
-the same shared contract/evaluation logic.
-
-The only generated actions are `follow_up`, `open_chart` and `open_artifact`.
-Follow-ups send normal text through the existing conversation flow. They are not
-financial approvals. Generated controls cannot create grants, change trading
-limits or call arbitrary endpoints. Forms group local controls and do not gain
-submission privileges merely by existing.
-
-`@lonora/ui-tokens` supplies the existing semantic dark/light appearance and shared
-`visual` geometry/spacing/type/touch tokens. Renderers choose the actual native
-styles. The model selects semantic tone and composition, not CSS or colors.
-Arabic RTL, English LTR, visible labels and native accessibility are renderer
-responsibilities. No WebView is required for ordinary native compositions.
-
-## Lonora Design Skill
-
-The built-in `lonora-design` procedure is named **Lonora Design Skill**. It uses
-existing `skills_list`/`skill_view` discovery, immutable snapshots and the ordinary
-skill registry. Its description is available without loading its full body.
-Activation is explicit through model discovery/loading; there are no keyword
-triggers and the procedure is not mandatory for ordinary visual replies.
-
-The skill covers hierarchy, density, semantic tone, charts, diagrams, accessible
-mobile layouts, Arabic/numeric content and bounded local interaction. It references
-the central tokens instead of duplicating them. It also requires real instrument
-specifications and stated assumptions before calling position-sizing arithmetic
-applicable to a real account. Neither imported design guidance nor the bundled
-procedure grants tools or financial authority.
-
-Built-in skill instructions, manifests and examples are authored in English. Their
-source language does not select the conversation language: replies and visible
-labels follow the current conversation or the owner's explicit language preference.
-English-only source updates use new patch versions; immutable historical snapshots
-are retained for provenance rather than rewritten in place.
-
-## Verification and compatibility
-
-Deterministic checks cover vocabulary loading and checkpoint refresh, draft
-examples against the real contract, existing skill discovery/override boundaries,
-installed wheel resources and prompt-cache separation. Runtime, persistence,
-shared evaluator and actual renderer tests live alongside these checks. A rendered
-fixture alone is not evidence of configured-model integration; real conversation
-acceptance is recorded separately in the verification report for the release.
-
-Older clients receive meaningful `content` text while newer clients use ordered
-`rich_content`. Unsupported future versions must fall back to text. A document
-cannot execute arbitrary HTML/JavaScript; richer downloadable analyses continue
-through the existing file/workspace facilities. Native source and Expo Web checks
-do not by themselves prove an installed Android APK was rebuilt or distributed.
+Messages written before v2 became the only format may hold v1 documents (`version: 1`). They
+are only rendered: `lonora_contracts.visual_response` still validates them, and the web
+(`components/visual/RichResponse.tsx`) and mobile (`components/native-rich-response.tsx`)
+renderers draw them. No reply is compiled into a v1 document.
