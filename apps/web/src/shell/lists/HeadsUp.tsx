@@ -1,5 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+import { isBrokerHealth } from "@lonora/contracts";
 import {
   attentionAlwaysShows,
   type ChatRow,
@@ -8,7 +9,6 @@ import {
   type QuietHours,
   rowKey,
 } from "@lonora/core";
-import { isBrokerHealth } from "@lonora/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
 import { api, isRequestCancelled } from "../../lib/api";

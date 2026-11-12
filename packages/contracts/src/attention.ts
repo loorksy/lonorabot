@@ -36,7 +36,11 @@ export type AttentionCode =
  * when its card ends or its problem clears, and each sends one push when it becomes
  * ready. Mirrors ATTENTION_EVENTS in lonora_contracts.attention.
  */
-export type AttentionEvent = "trade_approval" | "settle_operation" | "secret_request" | "broker_health";
+export type AttentionEvent =
+  | "trade_approval"
+  | "settle_operation"
+  | "secret_request"
+  | "broker_health";
 export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = {
   approval_required: "trade_approval",
   operation_uncertain: "settle_operation",

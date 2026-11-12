@@ -1,5 +1,10 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type Agent, type AttentionCode, type AttentionPolicy, isBrokerHealth } from "@lonora/contracts";
+import {
+  type Agent,
+  type AttentionCode,
+  type AttentionPolicy,
+  isBrokerHealth,
+} from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";

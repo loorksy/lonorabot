@@ -96,7 +96,7 @@ async def secret_card(fixture: Fixture) -> None:
 
     card_id = await propose()
     await tick(fixture)
-    first, second = await items(fixture, "secret_requested")
+    _, second = await items(fixture, "secret_requested")
     assert second.status == "ready" and second.parameters["owner_action_id"] == card_id
     # The owner looked at it; the card's lifetime then runs out with no event at all.
     await fixture.request("POST", "/attention/seen", {"notification_id": second.id})
