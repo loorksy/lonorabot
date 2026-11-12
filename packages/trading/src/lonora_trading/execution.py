@@ -148,6 +148,7 @@ async def require_task_authority(
     if (
         reducing
         and state.control_requested in {None, "pause"}
+        and state.status not in {"cancelled", "completed", "failed"}
         and (state.status == "paused" or state.control_requested == "pause")
     ):
         return  # Paused work still reduces its risk (4.7, 6.9).
