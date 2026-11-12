@@ -339,7 +339,7 @@ def conversation_stop_gate(
 ) -> StopGateVerdict:
     """Whether the reply ends this request; ``permitted`` names the tools of this Run."""
     if state.get("owner_started") is not True:
-        return ACCEPT
+        return _wake_gate(state, messages)
     record = _record(state)
     request = _request(messages)
     blocks = _blocks(request) if request else []
@@ -373,6 +373,43 @@ def conversation_stop_gate(
         ),
         None,
     )
+    return _nudge(state, record, finding)
+
+
+def _wake_gate(state: dict[str, Any], messages: list[ModelMessage]) -> StopGateVerdict:
+    """A run the owner did not start (a wake): only a lead action left unreported holds
+    it, read from the calls since the last conversation input or finished reply (an
+    earlier turn's action was reported, or not, in that turn)."""
+    last = next(
+        (
+            i
+            for i in range(len(messages) - 2, -1, -1)
+            if is_owner_message(messages[i])
+            or (
+                messages[i].role == "assistant"
+                and not messages[i].tool_calls
+                and bool(messages[i].content.strip())
+            )
+        ),
+        -1,
+    )
+    tail = messages[last + 1 :]
+    exchanges = [exchange for block in _blocks(tail) for exchange in block]
+    finding = _lead_action_unreported(exchanges, tail)
+    if finding is None:
+        return ACCEPT
+    record = _record(state)
+    fired = {
+        (cast(dict[str, Any], entry).get("condition"), cast(dict[str, Any], entry).get("call_id"))
+        for entry in cast(list[Any], record["fired"])
+        if isinstance(entry, dict)
+    }
+    return ACCEPT if (finding[0], finding[2]) in fired else _nudge(state, record, finding)
+
+
+def _nudge(
+    state: dict[str, Any], record: dict[str, Any], finding: Finding | None
+) -> StopGateVerdict:
     if finding is None:
         return ACCEPT
     if record["attempts"] >= MAXIMUM_STOP_NUDGES:

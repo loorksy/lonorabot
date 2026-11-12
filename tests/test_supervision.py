@@ -40,11 +40,14 @@ def test_supervision_tools_carry_no_money_authority() -> None:
         # An observe-only wake may steer and propose; a helper may not.
         assert tool.permitted("observe_only") and not tool.permitted("helper"), tool.name
     assert {tool.toolset for tool in (inspect, control, change)} == {"collaboration"}
-    # Control is pause, resume or message: no trade, grant, limit, lift or memory edit.
+    # Control is pause, resume, message, and Lonora's cancel_run and set_ask (3.1.2): no
+    # trade, grant, limit, lift or memory edit.
     assert set(AgentControlInput.model_fields["action"].annotation.__args__) == {  # type: ignore[union-attr]
         "pause",
         "resume",
         "message",
+        "cancel_run",
+        "set_ask",
     }
     # The tool module reaches no trading, authority, restriction-lift or memory writer.
     forbidden = (
@@ -68,7 +71,11 @@ def test_control_and_change_inputs_take_exactly_their_shapes() -> None:
         {"agent_id": "a", "action": "resume", "target": "routine", "target_id": "r"}
     )
     AgentControlInput.model_validate({"agent_id": "a", "action": "message", "message": "Hi"})
+    AgentControlInput.model_validate({"agent_id": "a", "action": "cancel_run"})
+    AgentControlInput.model_validate({"agent_id": "a", "action": "set_ask"})
     for payload in (
+        {"agent_id": "a", "action": "cancel_run", "target": "task", "target_id": "t"},
+        {"agent_id": "a", "action": "set_ask", "message": "x"},
         {"agent_id": "a", "action": "message"},
         {"agent_id": "a", "action": "pause", "message": "x"},
         {"agent_id": "a", "action": "pause", "target": "routine"},

@@ -310,3 +310,22 @@ def test_a_lead_action_with_an_empty_reply_continues_until_the_owner_hears_one_l
     assert not gate(started(), OWNER, *calls, line).continue_turn
     unchanged = exchange("agent_control", {"changed": False}, agent_id="gold", action="pause")
     assert not gate(started(), OWNER, *unchanged, empty).continue_turn
+
+
+def test_a_lead_action_on_a_wake_with_an_empty_reply_continues_once():
+    # Mandate 3.1.2 and line 705: Lonora acts "without asking, and explains why in one line",
+    # also when a wake, not the owner, started the run. Nothing else is checked there.
+    wake = ModelMessage(role="user", content='<runtime_wake>{"kind":"team"}</runtime_wake>')
+    paused = {"changed": True, "paused": True, "owner_line": "required"}
+    calls = exchange("agent_control", paused, agent_id="gold", action="pause")
+    empty = ModelMessage(role="assistant", content="")
+    state: dict[str, Any] = {"owner_started": False}
+    verdict = gate(state, wake, *calls, empty)
+    assert verdict.continue_turn and "in one line" in verdict.nudge
+    assert not gate(state, wake, *calls, empty).continue_turn  # raised once
+    line = ModelMessage(role="assistant", content="أوقفت وكيل الذهب مؤقتًا لأن السبريد اتسع.")
+    assert not gate({}, wake, *calls, line).continue_turn
+    lookup = exchange("market_quote", NOT_FOUND, symbol="gold")
+    assert not gate({}, wake, *lookup, empty).continue_turn
+    # An earlier turn's action, already answered, is not this run's.
+    assert not gate({}, wake, *calls, line, *lookup, empty).continue_turn

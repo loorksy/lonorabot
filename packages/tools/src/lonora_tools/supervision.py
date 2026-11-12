@@ -30,7 +30,7 @@ from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_creation import agent_origin
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.agent_state import agent_live_state, watch_summary
-from lonora_db.lead import personal_agent_id, reached_ids
+from lonora_db.lead import is_lead, personal_agent_id, reached_ids
 from lonora_db.memory import memory_view
 from lonora_db.owner_actions import (
     live_status,
@@ -475,6 +475,7 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             if run.trigger in OWNER_TRIGGERS
             else None,
         )
+        lead = await is_lead(session, context.owner_id, context.agent_id)
         # Fenced after the conversation lock: the thread-before-run order of admission.
         await require_lease(session, context.lease, lock=True)
     return {
@@ -482,7 +483,7 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "money_authority": "none",
         "lifts_owner_brakes": False,
         # A change Lonora made to the team is reported to the owner in one line (3.1.2).
-        **({"owner_line": "required"} if result.get("changed") else {}),
+        **({"owner_line": "required"} if result.get("changed") and lead else {}),
     }
 
 
@@ -490,9 +491,9 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
     """Lonora's own powers over a team agent (mandate 3.1.2, 4.2.2): cancel its current
     run, or switch it to Ask. Neither needs a grant, a card or the owner's message; a team
     agent is refused, whatever its grants."""
-    from lonora_core.run_state import TERMINAL
+    from lonora_core.run_state import ACTIVE
+    from lonora_db.authority_lock import authority_lock
     from lonora_db.cancellation import cancel_run
-    from lonora_db.lead import is_lead
     from lonora_db.trading_mode import set_trading_mode, trading_mode
 
     async with context.db.sessions() as session, session.begin():
@@ -504,11 +505,14 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             raise LonoraError("supervision_self_target", 409)
         result: dict[str, Any] = {"agent_id": agent.id, "action": action}
         if action == "set_ask":
+            # Read under the authority lock, so an owner's tap in between is not missed.
+            await authority_lock(session, agent.id)
             before = await trading_mode(session, context.owner_id, agent.id)
             await set_trading_mode(session, context.owner_id, agent.id, "ask", by="lonora")
             result.update(changed=before != "ask", trading_mode="ask")
         else:
-            # Its current runs, never this run or the runs that started it.
+            # Its current run (started, not merely queued: a queued owner message stays),
+            # never this run or the runs that started it.
             ancestors: set[str] = set()
             current: RunRow | None = run
             while current is not None:
@@ -520,7 +524,7 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
                     select(RunRow.id)
                     .where(
                         RunRow.agent_id == agent.id,
-                        RunRow.status.not_in(sorted(TERMINAL)),
+                        RunRow.status.in_(sorted(ACTIVE - {"queued"})),
                     )
                     .order_by(RunRow.created_at, RunRow.id)
                 )
@@ -529,12 +533,14 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             for run_id in cancelled:
                 await cancel_run(session, context.owner_id, run_id)
             result.update(changed=bool(cancelled), cancelled_runs=len(cancelled))
-        # Fenced after the conversation lock: the thread-before-run order of admission.
+        # Fenced last: the target's thread and run locks come before this run's own.
         await require_lease(session, context.lease, lock=True)
+    if not result["changed"]:
+        return {**result, "money_authority": "none"}
     return {
         **result,
         "money_authority": "none",
-        **({"owner_line": "required"} if result["changed"] else {}),
+        "owner_line": "required",
         "next": "Tell the owner in one line what you did and why.",
     }
 
