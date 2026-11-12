@@ -11,16 +11,16 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import get_args
+from typing import Any, cast, get_args
 from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
-from lonora_contracts.attention import AttentionCode
+from lonora_contracts.attention import ATTENTION_EVENTS, AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
-from lonora_db.attention import raise_system_attention, withdraw_ended
+from lonora_db.attention import mandatory_current, raise_system_attention, withdraw_ended
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
@@ -28,6 +28,7 @@ from lonora_db.schema import (
     BrokerSessionRow,
     EventRow,
     OwnerActionRow,
+    RunRow,
     TradingJournalRow,
 )
 from lonora_db.threads import conversation_thread
@@ -493,6 +494,72 @@ async def fallbacks(fixture: Fixture) -> None:
     print("PASS the sweep rotates, so current items never starve an ended one")
 
 
+async def view(fixture: Fixture) -> None:
+    """The attention view (11.7): the open owner events of every agent and the runs that
+    wait on the owner's answer; nothing that ended, and reading it changes nothing."""
+    agent = await fixture.agent("Asks a question")
+    thread = await fixture.conversation(agent)
+    run = await fixture.run(agent, thread)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run["id"], with_for_update=True)
+        assert row is not None
+        row.status = "waiting_input"
+        row.execution_state = {
+            **row.execution_state,
+            "input_requests": [{"id": "q1", "status": "pending"}],
+        }
+    before = await fixture.request("GET", "/attention/history")
+    rows = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    by_id = {entry["id"]: entry for entry in rows}
+    question = by_id[run["id"]]
+    assert (question["kind"], question["agent_id"], question["thread_id"]) == (
+        "owner_question",
+        agent["id"],
+        thread["id"],
+    )
+    async with fixture.runtime.db.sessions() as session:
+        open_items = [
+            item
+            for item in await session.scalars(
+                select(AttentionRow).where(
+                    AttentionRow.owner_id == fixture.owner,
+                    AttentionRow.status.in_(["pending", "ready", "seen"]),
+                )
+            )
+            if await mandatory_current(session, item)
+            and (item.code in ATTENTION_EVENTS or item.code == "task_review")
+        ]
+        ended = list(
+            await session.scalars(
+                select(AttentionRow.id).where(
+                    AttentionRow.owner_id == fixture.owner,
+                    AttentionRow.status == "suppressed",
+                )
+            )
+        )
+    assert open_items, "the earlier steps leave open items"
+    for item in open_items:
+        entry = by_id[item.id]
+        assert entry["code"] == item.code and entry["thread_id"] == item.thread_id
+        assert entry["kind"] == ATTENTION_EVENTS.get(item.code, "task_review")  # type: ignore[arg-type]
+    assert not set(ended) & set(by_id)
+    # Several agents' items in one view.
+    assert len({entry["agent_id"] for entry in rows}) > 1
+    assert await fixture.request("GET", "/attention/history") == before
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run["id"], with_for_update=True)
+        assert row is not None
+        row.execution_state = {
+            **row.execution_state,
+            "input_requests": [{"id": "q1", "status": "answered"}],
+        }
+    after = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    assert run["id"] not in {entry["id"] for entry in after}
+    print(
+        "PASS the attention view lists every agent's open owner events and waiting questions, and nothing ended"
+    )
+
+
 async def migration(fixture: Fixture) -> None:
     environment = {**os.environ}
 
@@ -580,6 +647,7 @@ async def main() -> None:
         await broker_health(fixture)
         await settle_card(fixture)
         await fallbacks(fixture)
+        await view(fixture)
         await migration(fixture)
     finally:
         await fixture.close()

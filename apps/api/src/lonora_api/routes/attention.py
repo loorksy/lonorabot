@@ -8,6 +8,7 @@ from lonora_db.attention import (
     acknowledge,
     acknowledge_all,
     attention_data,
+    attention_view,
     policy,
     still_current,
 )
@@ -70,6 +71,13 @@ async def shown(session: AsyncSession, owner_id: str, statuses: list[str]) -> li
         if len(page) < 50:
             return rows
         offset += 50
+
+
+@router.get("/view")
+async def view(request: Request, owner: OwnerIdentity = Depends(require_owner)):
+    """«يحتاج انتباهك»: what needs the owner across all agents (mandate 11.7)."""
+    async with runtime(request).db.sessions() as session:
+        return await attention_view(session, owner.id)
 
 
 @router.get("/history")

@@ -61,6 +61,38 @@ BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
 )
 
 
+# What the "needs your attention" view (11.7) lists: the owner's events, the questions
+# a run waits on the owner to answer, and the Tasks that need the owner's review.
+AttentionViewKind = Literal[
+    "trade_approval",
+    "settle_operation",
+    "secret_request",
+    "mandate_card",
+    "broker_health",
+    "owner_question",
+    "task_review",
+]
+
+
+class AttentionViewRow(Contract):
+    """One row of the attention view; a server projection, never model text.
+
+    The row opens its conversation (``thread_id``, or the group's), where the fixed card
+    or the question stands; opening it decides nothing.
+    """
+
+    kind: AttentionViewKind
+    id: str
+    agent_id: str
+    thread_id: str
+    group_id: str | None = None
+    # The attention item's code (None for a question a run waits on).
+    code: AttentionCode | None = None
+    run_id: str | None = None
+    symbol: str | None = None
+    created_at: datetime
+
+
 class AttentionNotification(Contract):
     """One attention item as the clients and the channels read it.
 

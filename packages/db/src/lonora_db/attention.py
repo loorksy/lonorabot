@@ -1,14 +1,16 @@
 """Durable notification decisions reuse event publication and effect receipts."""
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from lonora_contracts.attention import (
     ATTENTION_EVENTS,
     BROKER_HEALTH_CODES,
     AttentionClassification,
+    AttentionCode,
     AttentionNotification,
     AttentionPolicy,
+    AttentionViewRow,
     OwnerNotifyRequest,
 )
 from lonora_contracts.domain import utcnow
@@ -787,6 +789,75 @@ async def lock_attention(session: AsyncSession, owner_id: str) -> None:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": "attention:" + owner_id},
         )
+
+
+VIEW_LIMIT = 100
+
+
+async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]:
+    """The "needs your attention" view (11.7) across all agents, newest first.
+
+    It lists the open, still-current items of the owner's events and of Tasks that need
+    review, and every run in a conversation that waits on the owner's answer to its
+    question. No model writes any of it.
+    """
+    from .schema import RunRow, ThreadRow
+
+    rows: list[AttentionViewRow] = []
+    items = await session.scalars(
+        select(AttentionRow)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code.in_([*sorted(ATTENTION_EVENTS), "task_review"]),
+            AttentionRow.status.in_(["pending", "ready", "seen"]),
+        )
+        .order_by(AttentionRow.created_at.desc())
+        .limit(VIEW_LIMIT)
+    )
+    for item in items:
+        if not await mandatory_current(session, item):
+            continue
+        code = cast(AttentionCode, item.code)
+        rows.append(
+            AttentionViewRow(
+                kind=ATTENTION_EVENTS.get(code, "task_review"),
+                id=item.id,
+                agent_id=item.agent_id,
+                thread_id=item.thread_id,
+                group_id=item.parameters.get("group_id"),
+                code=code,
+                symbol=item.parameters.get("symbol"),
+                created_at=item.created_at,
+            )
+        )
+    waiting = await session.execute(
+        select(RunRow, ThreadRow)
+        .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
+        .where(
+            ThreadRow.owner_id == owner_id,
+            ThreadRow.purpose == "conversation",
+            RunRow.status == "waiting_input",
+        )
+        .order_by(RunRow.updated_at.desc())
+        .limit(VIEW_LIMIT)
+    )
+    for run, thread in waiting:
+        questions: list[dict[str, Any]] = run.execution_state.get("input_requests", [])
+        if not any(question.get("status") == "pending" for question in questions):
+            continue
+        rows.append(
+            AttentionViewRow(
+                kind="owner_question",
+                id=run.id,
+                agent_id=run.agent_id,
+                thread_id=thread.id,
+                group_id=thread.group_id,
+                run_id=run.id,
+                created_at=run.updated_at,
+            )
+        )
+    rows.sort(key=lambda row: row.created_at, reverse=True)
+    return [row.model_dump(mode="json") for row in rows[:VIEW_LIMIT]]
 
 
 async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:
