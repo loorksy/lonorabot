@@ -80,7 +80,12 @@ def test_changes_to_an_existing_ticket_name_that_ticket() -> None:
         "take_profit_removed": True,
     }
     cancel = receipt_facts(journal({"action": "cancel_order", "order_id": "88"}, {}))
-    assert cancel == {"kind": "cancel", "action": "cancel_order", "symbol": "XAUUSD", "ticket": "88"}
+    assert cancel == {
+        "kind": "cancel",
+        "action": "cancel_order",
+        "symbol": "XAUUSD",
+        "ticket": "88",
+    }
 
 
 def test_a_placed_order_shows_the_order_the_broker_accepted() -> None:
