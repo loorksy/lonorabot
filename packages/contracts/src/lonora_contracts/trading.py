@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -103,6 +104,11 @@ class TradeRequest(Contract):
 LABEL_PATTERN = r"^[a-z0-9_]{0,40}$"
 
 
+def judgment_label(text: str) -> str:
+    """The slug of an agent's label: lowercase, every other run of characters one "_"."""
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")[:40].rstrip("_")
+
+
 class TradeAnnotation(Contract):
     """The agent's own words about a request, stored beside it (mandate 14.3.9): never part
     of the request, its fingerprint or its operation id. Two sends that differ only in
@@ -126,7 +132,9 @@ class AnnotatedTradeRequest(TradeRequest):
     key: str | None = Field(
         default=None, min_length=1, max_length=64, description="New key: new order."
     )
-    label: str = Field(default="", pattern=LABEL_PATTERN, description="e.g. scale_in")
+    # Any text: the tool turns it into a slug (``judgment_label``), so a label never
+    # refuses an order.
+    label: str = Field(default="", max_length=200, description="e.g. scale_in")
 
 
 # Durable operation lifecycle, distinct from any one broker's vocabulary:

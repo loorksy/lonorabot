@@ -298,13 +298,6 @@ async def observe(
             request_hash(payload),
             {"account": payload, "health": health.model_dump(mode="json")},
         )
-    if config.goal_id:
-        from lonora_db.goal_scope import require_goal_agent
-        from lonora_db.trading_goals import owned_goal
-
-        async with db.sessions() as session:
-            goal = await owned_goal(session, row.owner_id, config.goal_id)
-            await require_goal_agent(session, goal)
     positions = await broker.positions()
     position = next((item for item in positions if item.id == config.position_id), None)
     if position and bound_symbol and position.symbol != bound_symbol:
@@ -482,24 +475,6 @@ async def check_watch(
                     payload={"watch_id": expired.id, "reason_code": "watch_expired"},
                 )
         return triggered
-    if config.goal_id:
-        from lonora_db.trading_goals import owned_goal
-
-        async with db.sessions() as session:
-            goal = await owned_goal(session, original.owner_id, config.goal_id)
-        if (
-            goal.state.get("status") in {"cancelled", "completed"}
-            or config.goal_plan_version is not None
-            and config.goal_plan_version != goal.state.get("plan_version", 1)
-        ):
-            async with db.sessions() as session, session.begin():
-                obsolete = await session.get(MarketWatchRow, original.id, with_for_update=True)
-                if obsolete is not None:
-                    obsolete.payload = {**obsolete.payload, "enabled": False}
-                    obsolete.version += 1
-            return triggered
-        if goal.state.get("status") == "paused":
-            return triggered
     if (
         price_update is None
         and candle_update is None
@@ -635,22 +610,6 @@ async def check_watch(
         ):
             receipt_id = stable_id(row.id, observation + ":" + config.condition)
             if await session.get(MarketWakeReceiptRow, receipt_id) is None:
-                if config.goal_id:
-                    from lonora_db.trading_goals import owned_goal
-                    from lonora_db.transactions import owned_thread
-
-                    await owned_thread(session, row.owner_id, row.thread_id or "", lock=True)
-                    goal = await owned_goal(session, row.owner_id, config.goal_id, True)
-                    if (
-                        config.goal_plan_version is not None
-                        and config.goal_plan_version != goal.state.get("plan_version", 1)
-                        or goal.state.get("status") not in {"active", "waiting"}
-                        or goal.state.get("current_step") != config.step_id
-                        or goal.state["steps"].get(config.step_id, {}).get("status")
-                        in {"completed", "blocked", "executing"}
-                    ):
-                        row.state = state
-                        return triggered
                 # A Task-owned watch resumes that logical work through the
                 # resident scheduler. Do not create a competing watch Run.
                 task_run_id = row.state.get("task_run_id")
@@ -678,11 +637,6 @@ async def check_watch(
                                 "wake_receipt_id": receipt_id,
                                 "previous_value": str(previous) if previous is not None else None,
                                 "current_value": str(current),
-                                **(
-                                    {"goal_id": config.goal_id, "step_id": config.step_id}
-                                    if config.goal_id
-                                    else {}
-                                ),
                                 "symbol": config.symbol,
                                 "observation": observation,
                                 **metadata,

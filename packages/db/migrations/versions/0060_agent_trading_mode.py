@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0060_agent_trading_mode"
-down_revision = "0050_genui_state_and_origin"
+down_revision = "0085_opportunity_pending_operations"
 branch_labels = None
 depends_on = None
 

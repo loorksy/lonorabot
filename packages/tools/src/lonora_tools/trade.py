@@ -9,6 +9,7 @@ from lonora_contracts.trading import (
     TradeRequest,
     TradeResult,
     TradingControl,
+    judgment_label,
 )
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError, ToolRefusal
@@ -972,7 +973,7 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     annotation = TradeAnnotation(
         reason=str(args.pop("reason", "") or ""),
         tolerance=args.pop("tolerance", None),
-        label=str(args.pop("label", "") or ""),
+        label=judgment_label(str(args.pop("label", "") or "")),
     )
     key = args.pop("key", None)
     if args.get("thesis_id") is None:
@@ -1205,7 +1206,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_record_read",
-            "Read one owned historical trade request, exact outcome, Goal lineage and original planned/final preflight evidence. Missing legacy evidence stays unavailable. Never resubmit a trade from this record.",
+            "Read one owned historical trade request, exact outcome and original planned/final preflight evidence. Missing legacy evidence stays unavailable. Never resubmit a trade from this record.",
             TradeRecordReference,
             read_record,
             True,

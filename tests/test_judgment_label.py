@@ -12,7 +12,12 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from lonora_contracts.trading import AnnotatedTradeRequest, TradeAnnotation, TradingControl
+from lonora_contracts.trading import (
+    AnnotatedTradeRequest,
+    TradeAnnotation,
+    TradingControl,
+    judgment_label,
+)
 from pydantic import ValidationError
 from test_closed_trades import ledger, quote, record
 from test_proactive_wakes import call, database, retire, simulation
@@ -27,8 +32,15 @@ def test_a_label_is_an_agent_chosen_slug() -> None:
     for bad in ("Scale In", "scale-in", "x" * 41, "تعزيز"):
         with pytest.raises(ValidationError):
             TradeAnnotation(label=bad)
-        with pytest.raises(ValidationError):
-            AnnotatedTradeRequest.model_validate({**ENTRY, "account_id": "acc", "label": bad})
+    # The tool never refuses an order over its label: it keeps the slug of what was sent.
+    assert judgment_label("Take Profit") == "take_profit"
+    assert judgment_label(" scale-in #2 ") == "scale_in_2"
+    assert judgment_label("تعزيز") == ""
+    assert len(judgment_label("x" * 200)) == 40
+    request = AnnotatedTradeRequest.model_validate(
+        {**ENTRY, "account_id": "acc", "label": "Take Profit"}
+    )
+    assert request.label == "Take Profit"
 
 
 @pytest.mark.asyncio
@@ -72,9 +84,13 @@ async def test_two_sends_that_differ_only_in_label_are_one_operation() -> None:
             position_id=first["broker_id"],
             account_id=connection,
             reason="Target",
-            label="partial_profit",
+            label="Partial Profit",
         )
         assert closed["status"] == "confirmed", closed
+        async with fixture.runtime.db.sessions() as session:
+            close_row = await session.get(TradingJournalRow, closed["operation_id"])
+            assert close_row is not None and close_row.annotation is not None
+            assert close_row.annotation["label"] == "partial_profit"
         assert await record(fixture, connection) == 1
         (trade,) = await ledger(fixture, connection)
         assert trade.label == "scale_in" and trade.opening_operation_id == first["operation_id"]

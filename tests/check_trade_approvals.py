@@ -375,63 +375,6 @@ async def main():
             "PASS lost broker response -> ambiguous receipt -> no resend -> reconciled exact ticket"
         )
 
-        foreground = await fixture.lease(await fixture.run(agent, thread))
-        goal = await fixture.request(
-            "POST",
-            "/trading/goals",
-            {
-                "agent_id": agent["id"],
-                "thread_id": thread["id"],
-                "title": "Owner approved foreground goal",
-                "objective": "Explicit simulation command",
-                "account_id": connection_id,
-                "symbol": symbol,
-                "steps": [
-                    {
-                        "id": "entry",
-                        "title": "One approved entry",
-                        "kind": "trade",
-                        "trade": {
-                            "account_id": connection_id,
-                            "symbol": symbol,
-                            "action": "buy",
-                            "volume": "0.1",
-                        },
-                    }
-                ],
-            },
-        )
-        goal_call = ToolCall(
-            id="goal-approval",
-            name="goal_step_execute",
-            arguments={
-                "goal_id": goal["id"],
-                "step_id": "entry",
-                "note": "Explicit current broker fixture",
-            },
-        )
-        before = len(await broker.positions())
-        proposal = await registry.execute(goal_call, foreground)
-        assert proposal["_runtime_retry"] and len(await broker.positions()) == before
-        await fixture.request(
-            "POST",
-            f"/trading/approvals/{proposal['approval_id']}/decision",
-            {"decision": "approve"},
-        )
-        result = await registry.execute(goal_call, foreground)
-        assert (
-            result["result"]["status"] == "confirmed"
-            and len(await broker.positions()) == before + 1
-        )
-        current_goal = await fixture.request("GET", "/trading/goals/" + goal["id"])
-        assert (
-            current_goal["state"]["status"] == "completed"
-            and "autonomous" not in current_goal["state"]
-        )
-        print(
-            "PASS foreground goal uses same immutable approval; a goal carries no autonomy of its own"
-        )
-
         # A later user message must prevent an approved but not-yet-sent command.
         steering_context = await fixture.lease(await fixture.run(agent, thread))
         steering_call = ToolCall(
