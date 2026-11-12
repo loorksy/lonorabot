@@ -1,0 +1,65 @@
+"""Routine and thread-less watch threads become hidden work threads (VISION 11.6).
+
+A routine, or a watch set up outside any chat, used to post into a chat of its own. Its
+thread becomes its hidden work thread (its memory), and its results go to its Agent's
+own conversation. A thread the owner wrote in, or that other work used, stays a
+conversation; a routine on such a thread moves to a new work thread of its own. An
+Agent's earliest conversation is never converted: it is the Agent's own conversation.
+"""
+
+from alembic import op
+
+revision = "0090_routine_work_threads"
+down_revision = "0050_genui_state_and_origin"
+branch_labels = None
+depends_on = None
+
+CONVERT = """
+UPDATE ln_threads t SET purpose = 'work'
+WHERE t.purpose = 'conversation' AND t.group_id IS NULL AND t.agent_id IS NOT NULL
+AND (
+    EXISTS (SELECT 1 FROM ln_routines r WHERE r.thread_id = t.id AND r.goal_id IS NULL)
+    OR EXISTS (
+        SELECT 1 FROM ln_market_watches w
+        WHERE w.thread_id = t.id AND (w.payload::jsonb ->> 'goal_id') IS NULL
+    )
+)
+AND NOT EXISTS (SELECT 1 FROM ln_messages m WHERE m.thread_id = t.id AND m.role = 'user')
+AND NOT EXISTS (
+    SELECT 1 FROM ln_runs x
+    WHERE x.thread_id = t.id AND x.trigger NOT IN ('routine', 'watch', 'follow_up')
+)
+AND t.id <> (
+    SELECT c.id FROM ln_threads c
+    WHERE c.owner_id = t.owner_id AND c.agent_id = t.agent_id
+    AND c.group_id IS NULL AND c.purpose = 'conversation'
+    ORDER BY c.created_at, c.id LIMIT 1
+)
+"""
+
+MOVE = """
+WITH moved AS (
+    SELECT r.id AS routine_id, gen_random_uuid()::text AS thread_id,
+           r.owner_id, r.agent_id, left(r.prompt, 80) AS title
+    FROM ln_routines r JOIN ln_threads t ON t.id = r.thread_id
+    WHERE r.goal_id IS NULL AND t.purpose = 'conversation'
+), created AS (
+    INSERT INTO ln_threads
+        (id, owner_id, agent_id, group_id, title, next_seq, purpose, options,
+         context_summary, summary_seq, created_at)
+    SELECT thread_id, owner_id, agent_id, NULL, title, 1, 'work', '{}', '', 0, now()
+    FROM moved
+)
+UPDATE ln_routines r SET thread_id = moved.thread_id
+FROM moved WHERE r.id = moved.routine_id
+"""
+
+
+def upgrade() -> None:
+    op.execute(CONVERT)
+    op.execute(MOVE)
+
+
+def downgrade() -> None:
+    # Work threads cannot tell which of them were routine chats before; they stay work.
+    pass

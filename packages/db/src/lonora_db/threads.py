@@ -92,6 +92,17 @@ async def conversation_thread(session: AsyncSession, owner_id: str, agent_id: st
     )
 
 
+async def background_origin(
+    session: AsyncSession, owner_id: str, agent_id: str, thread_id: str
+) -> dict[str, str]:
+    """A routine or watch that works in its own hidden work thread reports to its Agent's
+    own conversation (VISION 11.6): its Run carries that conversation as its origin."""
+    thread = await session.get(ThreadRow, thread_id)
+    if thread is None or thread.purpose != "work":
+        return {}
+    return {"origin_thread_id": (await conversation_thread(session, owner_id, agent_id)).id}
+
+
 async def list_threads(
     session: AsyncSession, owner_id: str, agent_id: str | None = None
 ) -> list[ThreadRow]:

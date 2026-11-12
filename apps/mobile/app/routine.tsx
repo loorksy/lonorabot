@@ -102,7 +102,13 @@ export default function RoutineScreen() {
               <Button label={t("edit")} secondary onPress={() => setSelected(row)} />
               <RoutineHistory
                 id={row.id}
-                onThread={(id) => router.push({ pathname: "/thread", params: { id } })}
+                onConversation={() =>
+                  void agentApi
+                    .conversation(row.agent_id)
+                    .then((thread) =>
+                      router.push({ pathname: "/thread", params: { id: thread.id } }),
+                    )
+                }
               />
             </View>
           ))}
@@ -274,7 +280,7 @@ function RoutineForm({
     </ScrollView>
   );
 }
-function RoutineHistory({ id, onThread }: { id: string; onThread: (id: string) => void }) {
+function RoutineHistory({ id, onConversation }: { id: string; onConversation: () => void }) {
   const { t, errorText } = useSession();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -310,7 +316,7 @@ function RoutineHistory({ id, onThread }: { id: string; onThread: (id: string) =
             <Button
               label={t("openConversation")}
               secondary
-              onPress={() => onThread(run.thread_id)}
+              onPress={onConversation}
             />
           </View>
         ))

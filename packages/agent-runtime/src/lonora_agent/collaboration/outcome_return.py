@@ -164,10 +164,9 @@ async def return_outcome(db: Database, run_id: str) -> None:
         )
         quiet_activation = activation_ack is not None and child.status != "failed"
         if (
-            (
-                child.trigger in {"broker_event", "activation"}
-                or (child.trigger == "watch" and child.model_metadata.get("opportunity_id"))
-            )
+            # A wake that works in a hidden work thread reports to its origin conversation;
+            # a routine's or watch's origin is its Agent's own conversation (VISION 11.6).
+            child.trigger in {"broker_event", "activation", "routine", "watch"}
             and child.model_metadata.get("origin_thread_id")
             and not quiet_activation
         ):
@@ -343,6 +342,7 @@ async def return_pending_outcomes(db: Database, limit: int = 20) -> int:
                         RunRow.parent_run_id.is_not(None),
                         RunRow.trigger.in_(["tickets", "broker_event", "activation"]),
                         RunRow.model_metadata["opportunity_id"].as_string().is_not(None),
+                        RunRow.model_metadata["origin_thread_id"].as_string().is_not(None),
                     ),
                     ~exists(select(EffectReceiptRow.key).where(EffectReceiptRow.key == receipt)),
                     ~blocked("outcome", RunRow.id),
