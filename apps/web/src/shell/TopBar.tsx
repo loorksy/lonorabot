@@ -35,7 +35,6 @@ export function TopBar({
   onBack: () => void;
   onNewChat: () => void;
   onNewTask: () => void;
-  /** «إنشاء وكيل» on the agents page. */
   /** The conversation header, when the route is a conversation. */
   header?: ReactNode;
   /** The selection toolbar replaces the header on the chat list and the archived page. */

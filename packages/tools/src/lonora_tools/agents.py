@@ -5,9 +5,9 @@ first: flat, with no template, hierarchy, card or cap. A team agent's call is re
 with the way to ask Lonora. An assigned market is looked up in the broker catalog (the
 only connected account is used without asking; when two accounts or two symbols match,
 the result lists them so Lonora asks the owner one focused question) and written into
-the new agent's method. The mode follows 4.3.2 and 4.3.3: an agent the owner asked for
-starts in Ask, and a request for full authority shows its Mandate card; an agent Lonora
-creates on its own copies Lonora's mode unless Lonora creates it in Ask.
+the new agent's method. The mode follows 4.3.2 and 4.3.3: an agent created in a turn the
+owner typed starts in Ask, and a request for full authority shows its Mandate card; one
+created on a wake or routine copies Lonora's mode unless Lonora creates it in Ask.
 """
 
 from hashlib import sha256
@@ -329,8 +329,8 @@ def tools() -> list[Tool]:
             "an instrument and account to assign, written into its method; if two match, "
             "ask the owner once and call again with account_id. mode: the mode the owner "
             "named (full shows the owner its Mandate card), or ask to create it in Ask; "
-            "omitted, an agent the owner asked for starts in Ask and one you create on "
-            "your own copies your mode. It uses your current model. A taken name gets a "
+            "omitted, an agent created in a turn the owner typed starts in Ask, and one "
+            "created on a wake or routine copies your mode. It uses your current model. A taken name gets a "
             "number.",
             AgentCreateInput,
             create,

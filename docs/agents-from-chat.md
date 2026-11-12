@@ -47,13 +47,14 @@ The execution door never binds the agent to it (3.1.2).
 
 ### The mode (4.3)
 
-- **The owner asked for it** (the run answers the owner's typed message,
-  `restrictions.owner_message_id`): it starts in Ask. When the owner asked for full
+- **In a turn the owner typed** (the run answers the owner's typed message,
+  `owner_words.owner_typed_message`, read whatever else the run read): it starts in Ask,
+  also when Lonora creates it on its own judgment in that turn (a conservative reading
+  of 4.3.3: text the run read can only ever make it Ask). When the owner asked for full
   authority (`mode: full`), its Mandate card is shown in the conversation; only the
   owner's tap sets Full.
-- **On Lonora's own judgment** (a wake, a routine, or a run that read third-party
-  content): it copies Lonora's mode at that moment, unless Lonora creates it in Ask
-  (`mode: ask`). An agent created in Full starts its continuous account-management task
+- **On a wake or a routine** (no owner turn): it copies Lonora's mode at that moment,
+  unless Lonora creates it in Ask (`mode: ask`). An agent created in Full starts its continuous account-management task
   at once (`lonora_db.management_task.ensure_management_task`, 4.5.1). Later changes to
   Lonora's mode never change the new agent's.
 - **The responsibility Lonora writes stays its writing.** While the new agent's

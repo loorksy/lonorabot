@@ -10,9 +10,7 @@ that prompt as the user-role turn, where it is a request, never policy.
 from lonora_db.schema import RunRow
 
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
-SERVER_AUTHORED_TRIGGERS = frozenset(
-    {"broker_event", "follow_up", "activation", "owner_card"}
-)
+SERVER_AUTHORED_TRIGGERS = frozenset({"broker_event", "follow_up", "activation", "owner_card"})
 
 # A peer run's wake is fixed server text; the peer's own words stay in the transcript.
 PEER_WAKE = (

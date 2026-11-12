@@ -1,4 +1,4 @@
-"""Persistent agents created from the conversation (agent_create) and the owner's form.
+"""Persistent agents created from the conversation (agent_create).
 
 Lonora creates agents on its own judgment (mandate 3.1.2): flat, with no template, no
 hierarchy and no cap. An instrument or account it assigns is an instruction in the new
@@ -28,7 +28,7 @@ def strip_bidi_controls(text: str) -> str:
 
 
 class AgentCreateInput(Contract):
-    """The agent_create tool input and the owner's form. The server resolves the market
+    """The agent_create tool input. The server resolves the market
     and the account and writes them into the new agent's method."""
 
     name: str = Field(min_length=1, max_length=80)

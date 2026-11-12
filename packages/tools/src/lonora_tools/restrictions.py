@@ -100,7 +100,7 @@ async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
     It stands for the owner's intent only while the Run has read nothing someone else
     wrote: once a web page, feed, MCP result, peer's memory or another agent's message
     reached it, injected text could steer the call, so it is None and the sensitive
-    tools (supervision, agent creation and control, the owner profile and reach-me,
+    tools (supervision, agent control, the owner profile and reach-me,
     model switches, narrowing other agents, lifting a hold) fall back to the owner's
     card or refusal.
     """
