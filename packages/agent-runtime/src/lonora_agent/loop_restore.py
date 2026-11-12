@@ -7,10 +7,12 @@ wake rebuilds the context head (system blocks and labelled context data) from th
 current server state and keeps the Run's own transcript after it."""
 
 import json
+import logging
 from typing import Any, cast
 
 from lonora_adapter_kit.context_sections import is_context_message
 from lonora_adapter_kit.types import ModelMessage, ToolCall
+from lonora_core.user_error import LonoraError
 from lonora_db.schema import RunRow
 from lonora_db.tasks import ATTENTION_RESUMED
 from lonora_tools.base import ToolScope
@@ -18,7 +20,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 
 from .context.builder import build_context
-from .context.skills import selected_skill_ids
+from .context.skills import refresh_skill_context, selected_skill_ids
 from .context_engine import DELEGATED_KEY, DELEGATED_TRIGGERS
 from .continuation import slice_limit
 from .environment import environment_state
@@ -32,6 +34,8 @@ from .tool_exposure import ensure_exposure
 from .tool_guardrails import reset_guardrails
 from .tool_intent import start_budget_epoch
 from .uncertain_outcome import record_request_start
+
+log = logging.getLogger(__name__)
 
 
 async def restore_checkpoint(
@@ -81,16 +85,35 @@ async def refresh_context_head(
 
     The head is every system message (only ``build_context`` writes them into a
     checkpoint) and the labelled context data that leads the transcript. Compaction
-    records index the transcript without either, so they stay valid.
+    records index the transcript without either, so they stay valid. Skills the Run
+    viewed stay in its procedures and its authority checks, as after owner steering.
+
+    A head that cannot be built now (a resource, the skill catalog or the window
+    changed) leaves the frozen one in place: the wake is delivered, never failed for
+    it. A lost lease still ends the pass.
     """
-    fresh = await build_context(context, registry)
-    body = [message for message in messages if message.role != "system"]
-    while body and is_context_message(body[0]):
-        body.pop(0)
-    head = [message for message in fresh if message.role == "system"]
-    data = [message for message in fresh if message.role != "system"]
-    messages[:] = head + [message for message in data[:1] if is_context_message(message)] + body
-    state["instruction_skill_ids"] = await selected_skill_ids(context)
+    viewed = list(state.get("viewed_skill_ids", []))
+    try:
+        fresh = await build_context(context, registry)
+        body = [message for message in messages if message.role != "system"]
+        while body and is_context_message(body[0]):
+            body.pop(0)
+        data = [message for message in fresh if message.role != "system"]
+        rebuilt = (
+            [message for message in fresh if message.role == "system"]
+            + [message for message in data[:1] if is_context_message(message)]
+            + body
+        )
+        selected = await refresh_skill_context(context, registry, rebuilt, retained_ids=viewed)
+        if selected is None:
+            selected = await selected_skill_ids(context)
+    except LonoraError as error:
+        if error.code == "stale_lease":
+            raise
+        log.warning("context_head_refresh_failed code=%s", error.code)
+        return
+    messages[:] = rebuilt
+    state["instruction_skill_ids"] = sorted(set(selected) | set(viewed))
 
 
 def resume_after_attention(
