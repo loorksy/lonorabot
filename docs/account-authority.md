@@ -169,9 +169,15 @@ the grant (see `financial-execution-recovery.md`); nothing produces a blind rese
 Management requires a fresh material target snapshot and rejects owner changes
 between observation and submission. Manual-origin positions need explicit signed
 permission. Bounded-mode autonomous management cannot remove or widen an existing stop; explicit full-management mode permits discretionary stop decisions.
-Provisional voice input and its descendants cannot spend standing authority;
-exact immutable approve/reject confirmation remains available through the existing
-financial approval path. Read-only voice work is unaffected.
+Only the run answering a provisional voice handoff, or a generated card's send,
+cannot spend standing authority, and so does a retry or a «طلب جديد» renewal that
+re-asks the same request and therefore carries its `voice_handoff`
+(`carry_voice_handoff`). Runs it starts (peers, follow-ups, subagents) and the
+agent's later watches, routines and wakes are ordinary runs (mandate 6.10). In Ask
+such a run's risk-increasing trades, even where a grant would cover them, and its
+goal steps under a grant until goals are deleted, take the exact immutable
+approve/reject confirmation; in Full its trade_execute and trade_close_positions
+send. Read-only voice work is unaffected.
 
 ## Grant limits and accounting
 
