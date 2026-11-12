@@ -9,7 +9,7 @@ export type { CallPart, VoicePart } from "@lonora/contracts";
 export type { MessageReaction };
 /** Message fields phase 3 adds on the server (WP-D, WP-E), read defensively. */
 export type ConversationMessage = Message & {
-  /** The generative-UI submit origin (T1, GENUI_PLAN §8.4). */
+  /** The generative-UI submit origin (docs/genui.md §7: `origin = 'ui_submit'`). */
   origin?: string | null;
 };
 
@@ -17,7 +17,7 @@ export function partsOf(message: Message): Array<{ type: string } & Record<strin
   const parts = (message.rich_content as { parts?: unknown } | null | undefined)?.parts;
   return Array.isArray(parts) ? (parts as Array<{ type: string } & Record<string, unknown>>) : [];
 }
-export { callPart, voicePart } from "@lonora/core";
+export { callPart, commandPart, voicePart } from "@lonora/core";
 
 /** HH:mm in Latin digits, as the reference's meta row. */
 export const clock = (iso: string | Date) =>
@@ -52,6 +52,8 @@ export type ConversationApi = {
   onReact: (message: Message, emoji: string | null) => void;
   onRetry: (nonce: string) => void;
   onDrop: (nonce: string) => void;
+  /** ✕ on the ring of a file still uploading in a sent bubble: the message is withdrawn. */
+  onCancelUpload: (nonce: string) => void;
   onJump: (messageId: string) => void;
   onOpenImage: (artifact: Resource) => void;
   onOpenFile: (artifact: Resource) => void;

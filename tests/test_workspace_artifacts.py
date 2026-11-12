@@ -3,8 +3,8 @@
 from io import BytesIO
 
 import pytest
-from lonora_agent.workspace_artifacts import export_media
 from lonora_core.user_error import LonoraError
+from lonora_tools.workspace_export import export_media
 from PIL import Image
 
 

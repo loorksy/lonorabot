@@ -20,8 +20,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, ClassVar, Literal
 from unittest.mock import patch
+from uuid import uuid4
 
 from lonora_adapters.brokers.metaapi import MetaApiBroker
+from lonora_adapters.brokers.metaapi_provisioning import MetaApiProvisioning
 from lonora_contracts.market import Candle, Quote
 from lonora_core.user_error import LonoraError
 
@@ -71,6 +73,8 @@ class FakeTerminal:
     calls: list[str] = field(default_factory=list[str])
     faults: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     tickets: int = 2217873129
+    login: str = "50000001"
+    server: str = "Exness-MT5Trial16"
 
     def __post_init__(self) -> None:
         self.names = {broker_symbol(base, self.variant): base for base in MARKETS}
@@ -193,8 +197,8 @@ class FakeTerminal:
         return SimpleNamespace(
             id=self.account_id,
             state="DEPLOYED",
-            login="50000001",
-            server="Exness-MT5Trial16",
+            login=self.login,
+            server=self.server,
             broker="Exness Technologies Ltd",
             name="Standard",
             version=5,
@@ -289,8 +293,8 @@ class FakeTerminal:
         return {
             "broker": "Exness Technologies Ltd",
             "currency": "USD",
-            "server": "Exness-MT5Trial16",
-            "login": "50000001",
+            "server": self.server,
+            "login": self.login,
             "name": "Standard",
             "platform": "mt5",
             "balance": float(self.balance),
@@ -578,3 +582,267 @@ def installed(*terminals: FakeTerminal) -> Generator[None]:
     finally:
         FakeMetaApiBroker.terminals.clear()
         FakeMetaApiBroker.terminals.update(previous)
+
+
+# MetaApi provisioning (account entities, REST).
+
+UPDATE_FIELDS = (
+    "name",
+    "server",
+    "magic",
+    "manualTrades",
+    "slippage",
+    "quoteStreamingIntervalInSeconds",
+    "tags",
+    "metadata",
+    "resourceSlots",
+    "copyFactoryResourceSlots",
+)
+PROVISIONING_URL = (
+    "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts"
+)
+
+
+class FakeAccountEntity:
+    """One MetaApi account entity: state and connection status, no terminal connection."""
+
+    def __init__(self, api: "FakeProvisioningApi", data: dict[str, Any]):
+        self.api, self._data = api, data
+
+    def __getattr__(self, name: str) -> Any:
+        keys = {"id": "_id", "connection_status": "connectionStatus"}
+        data = self.__dict__["_data"]
+        key = keys.get(name, name)
+        if key not in data:
+            raise AttributeError(name)
+        return data[key]
+
+    def get_rpc_connection(self) -> Any:
+        raise AssertionError("provisioning must never open an RPC connection")
+
+    def get_streaming_connection(self, *_: Any) -> Any:
+        raise AssertionError("provisioning must never open a streaming connection")
+
+    async def reload(self) -> None:
+        self.api.called("reload")
+        self._data = self.api.stored(self._data["_id"])
+
+    async def deploy(self) -> None:
+        self.api.called("deploy")
+        self.api.start(self._data["_id"])
+        await self.reload()
+
+    async def undeploy(self) -> None:
+        self.api.called("undeploy")
+        self.api.stored(self._data["_id"])["state"] = "UNDEPLOYING"
+        await self.reload()
+
+    async def redeploy(self) -> None:
+        self.api.called("redeploy")
+        self.api.start(self._data["_id"])
+        await self.reload()
+
+    async def update(self, account: dict[str, Any]) -> None:
+        # A PUT: an update field left out is reset. A new password is used by the
+        # terminal only after the next deploy or redeploy.
+        self.api.called("update")
+        self.api.updates.append({key: value for key, value in account.items() if key != "password"})
+        data = self.api.stored(self._data["_id"])
+        for key in UPDATE_FIELDS:
+            data.pop(key, None)
+        data.update(account)
+        await self.reload()
+
+    async def remove(self) -> None:
+        self.api.called("remove")
+        if self.api.remove_fails > 0:
+            self.api.remove_fails -= 1
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
+        self.api.stored(self._data["_id"])
+        del self.api.accounts[self._data["_id"]]
+
+
+@dataclass
+class FakeProvisioningApi:
+    """MetaApi's ``metatrader_account_api`` for one token, in the SDK's shapes and exceptions.
+
+    ``servers`` maps a broker server to the logins it knows and their master passwords.
+    A created account is deploying; the next read finds it deployed, and connected to the
+    broker only while its stored password is the server's. No network, no real account.
+    """
+
+    servers: dict[str, dict[str, str]] = field(
+        default_factory=lambda: {"Exness-MT5Trial16": {"50000001": "fixture-master-password"}}
+    )
+    accounts: dict[str, dict[str, Any]] = field(default_factory=dict[str, dict[str, Any]])
+    token_valid: bool = True
+    calls: list[str] = field(default_factory=list[str])
+    creates: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    updates: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    # "after_commit": MetaApi creates the account and the answer is lost on the way back;
+    # "before_commit": the request is lost before MetaApi saw it.
+    lose_create_answer: Literal["after_commit", "before_commit"] | None = None
+    # The create succeeds, then the SDK's read of the new account fails once (429).
+    lose_read_after_create: bool = False
+    unreadable: set[str] = field(default_factory=set[str])
+    # The next removals fail (429), as when MetaApi is busy.
+    remove_fails: int = 0
+    transactions: list[str] = field(default_factory=list[str])
+    by_transaction: dict[str, str] = field(default_factory=dict[str, str])
+    sequence: int = 0
+    # Account ids are unique per fake, so tests sharing a database never collide.
+    prefix: str = field(default_factory=lambda: "fixture-metaapi-" + uuid4().hex[:8])
+
+    def called(self, method: str) -> None:
+        self.calls.append(method)
+        if not self.token_valid:
+            raise sdk_error(
+                "UnauthorizedException", "Authorization token invalid", PROVISIONING_URL
+            )
+
+    def link(
+        self, login: str, server: str, *, region: str = "london", deployed: bool = True
+    ) -> str:
+        """An account the owner created at metaapi.cloud before Lonora provisioned anything."""
+        self.sequence += 1
+        account_id = f"{self.prefix}-{self.sequence:04d}"
+        self.accounts[account_id] = {
+            "_id": account_id,
+            "login": login,
+            "server": server,
+            "version": 5,
+            "region": region,
+            "name": "owner linked",
+            "magic": 123456,
+            "slippage": 2.5,
+            "tags": ["owner"],
+            "password": self.servers.get(server, {}).get(login, ""),
+            "terminal_password": self.servers.get(server, {}).get(login, ""),
+            "state": "DEPLOYED" if deployed else "UNDEPLOYED",
+            "connectionStatus": "CONNECTED" if deployed else "DISCONNECTED",
+        }
+        return account_id
+
+    def stored(self, account_id: str) -> dict[str, Any]:
+        data = self.accounts.get(account_id)
+        if data is None:
+            raise sdk_error(
+                "NotFoundException",
+                "Trading account not found",
+                PROVISIONING_URL + "/" + account_id,
+            )
+        settle = {"DEPLOYING": "DEPLOYED", "UNDEPLOYING": "UNDEPLOYED"}
+        data["state"] = settle.get(data["state"], data["state"])
+        expected = self.servers.get(data["server"], {}).get(data["login"])
+        right = expected == data["terminal_password"]
+        data["connectionStatus"] = (
+            ("CONNECTED" if right else "DISCONNECTED_FROM_BROKER")
+            if data["state"] == "DEPLOYED"
+            else "DISCONNECTED"
+        )
+        return data
+
+    def start(self, account_id: str) -> None:
+        data = self.stored(account_id)
+        data["state"], data["terminal_password"] = "DEPLOYING", data["password"]
+
+    def entity(self, account_id: str) -> FakeAccountEntity:
+        return FakeAccountEntity(self, dict(self.stored(account_id)))
+
+    async def get_account(self, account_id: str) -> FakeAccountEntity:
+        self.called("get_account")
+        if account_id in self.unreadable:
+            self.unreadable.discard(account_id)
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
+        return self.entity(account_id)
+
+    async def get_accounts_with_infinite_scroll_pagination(
+        self, accounts_filter: dict[str, Any] | None = None
+    ) -> list[FakeAccountEntity]:
+        self.called("list")
+        options = accounts_filter or {}
+        query = str(options.get("query") or "")
+        offset, limit = int(options.get("offset", 0)), int(options.get("limit", 1000))
+        rows = [
+            account_id
+            for account_id, data in sorted(self.accounts.items())
+            if not query
+            or any(query in str(data[key]) for key in ("_id", "name", "server", "login"))
+        ]
+        return [self.entity(account_id) for account_id in rows[offset : offset + limit]]
+
+    @property
+    def _metatrader_account_client(self) -> Any:
+        """The SDK account client's surface the provisioning client posts a create with."""
+        api = self
+
+        class HttpClient:
+            async def request(self, options: dict[str, Any], kind: str) -> dict[str, Any]:
+                assert kind == "create_account" and options["method"] == "POST"
+                transaction = options["headers"]["transaction-id"]
+                api.transactions.append(transaction)
+                if transaction in api.by_transaction:
+                    # MetaApi answers a repeated transaction id with the same account.
+                    return {"id": api.by_transaction[transaction], "state": "DEPLOYING"}
+                created = await api.create_account(options["body"], transaction)
+                if api.lose_read_after_create:
+                    api.lose_read_after_create = False
+                    api.unreadable.add(created.id)
+                return {"id": created.id, "state": "DEPLOYING"}
+
+        return SimpleNamespace(
+            _is_not_jwt_token=lambda: False,
+            _host="https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
+            _token="fixture",
+            _http_client=HttpClient(),
+        )
+
+    async def create_account(
+        self, account: dict[str, Any], transaction: str | None = None
+    ) -> FakeAccountEntity:
+        self.called("create_account")
+        self.creates.append({key: value for key, value in account.items() if key != "password"})
+        server = self.servers.get(account["server"])
+        if server is None:
+            raise sdk_error(
+                "ValidationException",
+                "We were unable to retrieve the server file for this broker",
+                {"code": "E_SRV_NOT_FOUND"},
+                PROVISIONING_URL,
+            )
+        if server.get(account["login"]) != account["password"]:
+            raise sdk_error(
+                "ValidationException",
+                "We failed to authenticate to your broker using credentials provided",
+                {"code": "E_AUTH"},
+                PROVISIONING_URL,
+            )
+        lost = sdk_error("ApiException", None, None, PROVISIONING_URL)  # an httpx read timeout
+        if self.lose_create_answer == "before_commit":
+            self.lose_create_answer = None
+            raise lost
+        self.sequence += 1
+        account_id = f"{self.prefix}-{self.sequence:04d}"
+        self.accounts[account_id] = {
+            "_id": account_id,
+            "terminal_password": account["password"],
+            "version": 5 if account["platform"] == "mt5" else 4,
+            "region": account.get("region", "new-york"),
+            "state": "DEPLOYING",
+            "connectionStatus": "DISCONNECTED",
+            **{key: account[key] for key in ("login", "server", "name", "password", "magic")},
+        }
+        if transaction:
+            self.by_transaction[transaction] = account_id
+        if self.lose_create_answer == "after_commit":
+            self.lose_create_answer = None
+            raise lost
+        return FakeAccountEntity(self, dict(self.accounts[account_id]))
+
+
+class FakeMetaApiProvisioning(MetaApiProvisioning):
+    """Lonora's provisioning client with only the SDK's account API replaced."""
+
+    def __init__(self, api: FakeProvisioningApi, token: str = "fixture.metaapi.token"):
+        self.api = SimpleNamespace(metatrader_account_api=api, close=lambda: None)
+        self._redactions = (token,)

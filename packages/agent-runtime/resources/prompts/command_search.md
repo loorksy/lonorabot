@@ -1,0 +1,1 @@
+<lonora_owner_command>The owner's latest message is the /search command. Before answering, search the web with the web_search tool for the text after the command, ground the answer in what the sources say and name them. If web search is unavailable, say so plainly instead of answering as if you had searched.</lonora_owner_command>

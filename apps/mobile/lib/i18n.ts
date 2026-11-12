@@ -84,6 +84,26 @@ export const labels = {
   visualUnavailable: ["غير متاح", "Unavailable"],
   uiSubmitEdited: ["مُعدّلة", "Edited"],
   uiSubmitNotRun: ["لم يُنفَّذ", "Not carried out"],
+  uiCard: ["واجهة تفاعلية", "Interactive interface"],
+  uiDelivery: ["طريقة الإشعار", "Notification method"],
+  uiDeliveryApp: ["داخل التطبيق", "In the app"],
+  uiDeliveryPush: ["إشعار الهاتف", "Phone notification"],
+  uiDeliveryCall: ["مكالمة الوكيل", "Agent call"],
+  uiSlotMark: ["بطاقة ثابتة من Lonora", "Fixed card from Lonora"],
+  uiSlotGone: ["هذه البطاقة غير متاحة هنا.", "This card is not available here."],
+  uiInvalidValue: ["القيمة غير صحيحة.", "Invalid value."],
+  uiShowMore: ["عرض المزيد", "Show more"],
+  uiCompleteFirst: ["أكمل «{0}» أولًا", "Complete «{0}» first"],
+  uiSentTo: ["أُرسل إلى {0}", "Sent to {0}"],
+  uiEdit: ["تعديل", "Edit"],
+  uiEditThenSend: ["عدّل ثم أرسل من جديد", "Edit, then send again"],
+  uiCut: [
+    "أوقفتَ الرد قبل اكتمال الواجهة",
+    "You stopped the reply before the interface was complete",
+  ],
+  uiWhy: ["لماذا هذه الواجهة؟", "Why this interface?"],
+  uiLastUpdated: ["آخر تحديث", "Last updated"],
+  uiCopied: ["تم النسخ", "Copied"],
   visualObservedAt: ["وقت الملاحظة", "Observed at"],
   visualSources: ["بيانات الاستجابة", "Response evidence"],
   visualActionUnavailable: [
@@ -231,9 +251,9 @@ export const labels = {
     "The execution mode does not match this operation's authority.",
   ],
   input_answer_invalid: ["اختر إجابة متاحة", "Choose an available answer"],
-  collaboration_guest_limit: [
-    "يمكن دعوة وكيلين آخرين على الأكثر في رسالة واحدة",
-    "At most two other agents can join one message",
+  collaboration_round_limit: [
+    "اكتملت جولات هذا التعاون. اذكر الوكلاء في رسالة جديدة لبدء تعاون جديد.",
+    "This collaboration has used all its rounds. Mention the agents in a new message to start a new one.",
   ],
   input_answer_expired: [
     "لم يعد هذا السؤال ينتظر إجابة",
@@ -303,11 +323,15 @@ export const labels = {
     "نبّهني بالفرص المؤكدة",
     "Notify me about confirmed opportunities",
   ],
-  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
-  attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
-  attentionBrokerRecovered: ["استُعيد اتصال الوسيط", "Broker connection recovered"],
+  attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
+  attentionBrokerUndeployed: [
+    "الحساب غير مُشغَّل على MetaApi",
+    "The account is not deployed on MetaApi",
+  ],
+  attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
+  attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [
     "تأكد شرط المراقبة — راجع الأدلة الحالية",
@@ -414,7 +438,25 @@ export const labels = {
   validWithin: ["صالحة ما دام السعر ضمن", "Valid while the price stays within"],
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
+  newMessage: ["رسالة جديدة", "New message"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
+  // The message menu (Web's conversation menu, its Arabic wording).
+  messageOptions: ["خيارات الرسالة", "Message options"],
+  messageNotSent: ["لم تُرسل الرسالة", "The message was not sent"],
+  quickReaction: ["تفاعل سريع", "Quick reaction"],
+  reactWith: ["تفاعل {0}", "React {0}"],
+  reactionsTitle: ["التفاعلات", "Reactions"],
+  reactionYou: ["أنت", "You"],
+  tapToRemove: ["اضغط للإزالة", "Tap to remove"],
+  copyText: ["نسخ النص", "Copy text"],
+  copied: ["تم النسخ", "Copied"],
+  copyFailed: ["تعذّر النسخ", "Could not copy"],
+  editAndResend: ["تعديل وإعادة الإرسال", "Edit and resend"],
+  editTheMessage: ["تعديل الرسالة", "Edit the message"],
+  cancelEdit: ["إلغاء التعديل", "Cancel the edit"],
+  turnIntoTask: ["تحويل إلى مهمة", "Turn into a task"],
+  taskCreated: ["أُنشئت مهمة", "Task created"],
+  deleteMessage: ["حذف", "Delete"],
   activity: ["النشاط", "Activity"],
   actions: ["إجراءات الوكيل", "Agent actions"],
   charts: ["الرسوم البيانية", "Charts"],
@@ -481,6 +523,20 @@ export const labels = {
   integrations: ["التكاملات", "Integrations"],
   capabilities: ["القدرات", "Capabilities"],
   voice: ["الصوت", "Voice"],
+  whatIKnow: ["ما أعرفه عنك", "What I know about you"],
+  whatIKnowHint: [
+    "كل ما تعلّمته عنك، ومصدره: ما قلته أو ما لاحظته. صحّح أي سطر أو احذفه؛ يُسجَّل تصحيحك بكلمتك.",
+    "Everything learned about you, and where it came from: what you said or what was observed. Correct or delete any line; your correction is recorded as your word.",
+  ],
+  youSaid: ["قلتَه", "You said"],
+  observed: ["ملاحظة", "Observed"],
+  observedBy: ["لاحظه {name}", "Observed by {name}"],
+  earlier: ["من قبل", "Earlier"],
+  correctFact: ["صحّح المعلومة", "Correct the fact"],
+  deleteFact: ["احذف المعلومة", "Delete the fact"],
+  nothingKnown: ["لا شيء بعد.", "Nothing yet."],
+  saveCorrection: ["حفظ", "Save"],
+  cancelCorrection: ["إلغاء", "Cancel"],
   voiceNote: ["رسالة صوتية", "Voice message"],
   voiceCall: ["اتصال صوتي", "Voice call"],
   missedVoiceCall: ["مكالمة صوتية فائتة", "Missed voice call"],
@@ -534,6 +590,14 @@ export const labels = {
   send: ["إرسال", "Send"],
   attach: ["إرفاق ملف", "Attach file"],
   removeAttachment: ["إزالة المرفق", "Remove attachment"],
+  // Uploads (Web's composer wording).
+  addToConversation: ["إضافة إلى المحادثة", "Add to the conversation"],
+  pickFiles: ["ملفات", "Files"],
+  pickPhotos: ["صور", "Photos"],
+  uploadingFile: ["جارٍ رفع {0}", "Uploading {0}"],
+  uploadingNow: ["جارٍ الرفع…", "Uploading…"],
+  cancelUpload: ["إلغاء الرفع", "Cancel the upload"],
+  attachLimit: ["حتى 10 صور وملفات، 20 ميغابايت لكلٍّ منها", "Up to 10 photos and files, 20 MB each"],
   cancel: ["إيقاف", "Stop"],
   resume: ["استئناف", "Resume"],
   older: ["رسائل أقدم", "Older messages"],
@@ -716,6 +780,28 @@ export const labels = {
     "Broker verification pending. Market data remains available; new orders on the affected market are blocked until verification finishes, and closing remains available.",
   ],
   live_paused: ["متوقف مؤقتًا", "Paused"],
+  running_title: ["ما يعمل الآن", "What is running"],
+  running_subtitle: ["عمليات وكلائك في مساحة العمل", "Your agents' processes in the workspace"],
+  running_stopAll: ["إيقاف الكل", "Stop all"],
+  running_stoppingAll: ["يجري إيقاف الكل…", "Stopping all…"],
+  running_stop: ["إيقاف", "Stop"],
+  running_stopOne: ["إيقاف {0}", "Stop {0}"],
+  running_stale: [
+    "آخر ردّ من مساحة العمل {0}؛ قد تكون هذه القائمة قديمة.",
+    "The workspace last answered at {0}; this list may be out of date.",
+  ],
+  running_stopping: ["يجري الإيقاف…", "Stopping…"],
+  running_empty: ["لا شيء يعمل في مساحة العمل.", "Nothing is running in the workspace."],
+  running_unknown: [
+    "لم تُجب مساحة العمل بعد، فلا يُعرف ما يعمل الآن.",
+    "The workspace has not answered yet, so what is running is not known.",
+  ],
+  running_noCommand: ["(بلا سطر أمر)", "(no command line)"],
+  running_started: ["بدأت {0}", "Started {0}"],
+  running_note: [
+    "كل عملية يشغّلها وكلاؤك في مساحة العمل، مع الوكيل الذي بدأها.",
+    "Every process your agents run in the workspace, with the agent that started it.",
+  ],
   ...shellLabels,
   ...shellExtraLabels,
 } as const;
@@ -742,6 +828,18 @@ export function chatsWord(locale: Locale, count: number): string {
   if (count === 1) return "محادثة واحدة";
   if (count === 2) return "محادثتان";
   return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
+}
+/** The toast after the offline queue went out by itself (Q6), with Web's Arabic plural forms. */
+export function waitingSentText(locale: Locale, count: number): string {
+  if (locale === "en")
+    return count === 1
+      ? "One waiting message was sent"
+      : count === 2
+        ? "Two waiting messages were sent"
+        : `${count} waiting messages were sent`;
+  if (count === 1) return "أُرسلت رسالة واحدة كانت تنتظر";
+  if (count === 2) return "أُرسلت رسالتان كانت تنتظر";
+  return count <= 10 ? `أُرسلت ${count} رسائل كانت تنتظر` : `أُرسلت ${count} رسالة كانت تنتظر`;
 }
 export function agentsWord(locale: Locale, count: number): string {
   if (locale === "en")

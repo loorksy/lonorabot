@@ -36,7 +36,7 @@ function statusName(status: string | undefined) {
 }
 
 /* «التعطل والاستعادة» (route recovery): the broker session's own recovery state
-   (lonora_trading.broker_recovery, the broker_degraded attention code), not a toast. While a
+   (lonora_trading.broker_recovery, the broker health attention codes), not a toast. While a
    session is down the executor holds the affected trading until reconnect and reconciliation. */
 export function RecoveryPage() {
   const [params] = useSearchParams();

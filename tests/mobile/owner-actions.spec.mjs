@@ -44,8 +44,8 @@ async def main():
                     # Preselected because the owner's own message asked for full delegation.
                     draft=draft.with_delegation('full')
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
-            elif data['kind'] in ('resume_trading','trading_mode'):
-                # As an agent proposes it when the owner asks to resume.
+            elif data['kind']=='trading_mode':
+                # As an agent proposes it.
                 row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None)
             else:
                 row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
@@ -64,28 +64,20 @@ asyncio.run(main())
 
 const copy = {
   ar: {
-    resume: "استئناف التداول",
-    resumed: "استؤنف التداول.",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     executed: "نُفذت",
     unknown: "غير معروفة — ارفع التعليق",
     recorded: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
-    lift: "رفع الإيقاف",
-    noPauses: "لا توجد إيقافات",
     grantTitle: "يتداول بنفسه",
     authorize: "التفويض بمفتاح المرور",
     notNow: "ليس الآن",
     dismissed: "تم التجاهل. لم يتغير شيء.",
   },
   en: {
-    resume: "Resume trading",
-    resumed: "Trading resumed.",
     resolveTitle: "The broker did not confirm this trade",
     executed: "It executed",
     unknown: "Unknown: release the hold",
     recorded: "Recorded: it executed (your statement, not broker confirmation).",
-    lift: "Lift pause",
-    noPauses: "No pauses",
     grantTitle: "trade on its own",
     authorize: "Authorize with passkey",
     notNow: "Not now",
@@ -113,7 +105,6 @@ for (const locale of ["ar", "en"])
     const headers = {
       "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value,
     };
-    const original = await (await context.request.get("/api/trading/controls")).json();
     const created = await context.request.post("/api/agents", {
       headers,
       data: {
@@ -127,14 +118,7 @@ for (const locale of ["ar", "en"])
     const thread = await (
       await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
     ).json();
-    let pause;
     try {
-      for (const enabled of [true, false])
-        await context.request.put("/api/trading/controls", {
-          headers,
-          data: { enabled, emergency_stop: false },
-        });
-      const resume = seedCard({ kind: "resume_trading", agent: agent.id, thread: thread.id });
       const uncertain = seedCard({
         kind: "resolve_operation",
         account: data.account,
@@ -143,8 +127,6 @@ for (const locale of ["ar", "en"])
         thread: thread.id,
       });
       await page.goto(`/thread?id=${thread.id}`);
-      const resumeCard = page.getByTestId(`owner-action-${resume.id}`);
-      await expect(resumeCard.getByText(text.resume).first()).toBeVisible();
       const resolveCard = page.getByTestId(`owner-action-${uncertain.id}`);
       await expect(resolveCard.getByText(text.resolveTitle, { exact: true })).toBeVisible();
       await expect(resolveCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
@@ -168,8 +150,10 @@ for (const locale of ["ar", "en"])
       const grantCard = page.getByTestId(`owner-action-${grant.id}`);
       await expect(grantCard.getByText(text.grantTitle, { exact: false }).first()).toBeVisible();
       await expect(grantCard.getByText(data.symbol, { exact: false }).first()).toBeVisible();
-      for (const option of ["manual", "no_money_limit", "resume"])
+      for (const option of ["manual", "no_money_limit"])
         await expect(grantCard.getByTestId(`owner-action-option-${option}`)).toBeVisible();
+      // Amendment 1: no grant card offers to resume trading.
+      await expect(grantCard.getByTestId("owner-action-option-resume")).toHaveCount(0);
       await expect(
         grantCard.getByRole("button", { name: text.authorize, exact: true }),
       ).toBeVisible();
@@ -181,12 +165,6 @@ for (const locale of ["ar", "en"])
       await expect(grantCard.getByText(text.dismissed, { exact: true })).toBeVisible();
       const level = await (await context.request.get(`/api/agents/${agent.id}/permissions`)).json();
       expect(level.effective_level).toBe("supervised");
-      await resumeCard.getByRole("button", { name: text.resume, exact: true }).click();
-      await expect(resumeCard.getByText(text.resumed, { exact: true })).toBeVisible();
-      expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({
-        enabled: true,
-        emergency_stop: false,
-      });
       await resolveCard.getByRole("button", { name: text.executed, exact: true }).click();
       await expect(resolveCard.getByText(text.recorded, { exact: true })).toBeVisible();
       const journal = await (
@@ -195,26 +173,7 @@ for (const locale of ["ar", "en"])
       const row = journal.find((item) => item.operation_id === uncertain.operation_id);
       expect(row.status).toBe("resolved");
       expect(row.result.details.resolution.outcome).toBe("executed");
-      // The header sheet lifts a pause with one tap too.
-      const made = await context.request.post("/api/trading/restrictions", {
-        headers,
-        data: { account_id: data.account, action_class: "no_new_entries" },
-      });
-      expect(made.status()).toBe(201);
-      pause = (await made.json()).id;
-      await page.reload();
-      await page.getByTestId("safety-pill").click();
-      const sheet = page.getByTestId("safety-sheet");
-      await sheet.getByRole("button", { name: text.lift, exact: true }).click();
-      await expect(sheet.getByText(text.noPauses, { exact: true })).toBeVisible();
-      pause = undefined;
     } finally {
-      if (pause)
-        await context.request.post(`/api/trading/restrictions/${pause}/revoke`, {
-          headers,
-          data: { reason: "" },
-        });
-      await context.request.put("/api/trading/controls", { headers, data: original });
       simulation({ ...data, action: "cleanup" });
     }
   });
