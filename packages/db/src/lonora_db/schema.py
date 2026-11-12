@@ -899,7 +899,9 @@ class ClosedTradeRow(Base):
     closing_deal_id: Mapped[str] = mapped_column(String(120))
     symbol: Mapped[str] = mapped_column(String(80))
     side: Mapped[str] = mapped_column(String(8))
-    volume: Mapped[Any] = mapped_column(Numeric(38, 10))
+    # What the trade opened; None when unknown (a reversal closed a trade the ledger
+    # never saw open).
+    volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
     agent_id: Mapped[str | None] = mapped_column(String(36))
     # The journaled order that opened the position, when Lonora's door sent it, and the
     # judgment label that order carried (5.5.3).

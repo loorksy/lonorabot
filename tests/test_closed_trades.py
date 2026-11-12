@@ -18,7 +18,7 @@ import pytest
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
-from lonora_trading.closed_trades import realized, trade_deal, trades
+from lonora_trading.closed_trades import position_deal, realized, trades
 from test_proactive_wakes import call, database, journal, retire, set_positions, simulation
 
 
@@ -62,9 +62,14 @@ def test_realized_pnl_is_profit_commission_and_swap_of_the_deals() -> None:
     # An exit without a broker-reported profit: the P&L is unknown, never computed.
     assert realized([deal("P", "IN", "BUY"), deal("P", "OUT", "SELL", profit=None)]) is None
     # Only buy and sell deals of a position make up a trade.
-    assert trade_deal(deal("P", "OUT", "SELL"))
-    assert not trade_deal({**deal("P", "IN", "BUY"), "type": "DEAL_TYPE_BALANCE"})
-    assert not trade_deal({**deal("P", "IN", "BUY"), "positionId": None})
+    assert position_deal(deal("P", "OUT", "SELL"))
+    assert not position_deal({**deal("P", "IN", "BUY"), "type": "DEAL_TYPE_BALANCE"})
+    assert not position_deal({**deal("P", "IN", "BUY"), "positionId": None})
+    # A charge booked on the position is the position's; it only lowers the P&L.
+    charge = {**deal("P", "IN", "BUY"), "type": "DEAL_TYPE_COMMISSION", "entryType": None}
+    assert position_deal(charge)
+    assert realized([*deals, {**charge, "profit": "-2"}]) == Decimal("11.75")
+    assert realized([*deals, {**charge, "profit": "2"}]) == Decimal("13.75")
     # A broker time without a zone is UTC, so mixed times still sort.
     naive = {**deal("P", "OUT", "SELL"), "time": "2099-01-01T00:00:00"}
     closed, running = trades("P", [deal("P", "IN", "BUY"), naive])
@@ -407,9 +412,15 @@ async def test_reversals_partial_reads_and_positions_older_than_the_ledger() -> 
             deal("half-1", "OUT", "SELL", minutes=23, profit="1"),
             # Opened before the ledger's first read: only its exit is in history.
             deal("old-1", "OUT", "SELL", minutes=22, profit="9"),
+            # Also older than the ledger, and reversed: 0.1 long taken to 0.2 short.
+            deal("anc-1", "INOUT", "SELL", volume="0.3", minutes=21, profit="4"),
         )
-        await set_positions(fixture, connection, [held("net-1", side="sell", volume="0.2")])
-        assert await record(fixture, connection) == 2
+        await set_positions(
+            fixture,
+            connection,
+            [held("net-1", side="sell", volume="0.2"), held("anc-1", side="sell", volume="0.2")],
+        )
+        assert await record(fixture, connection) == 3
         rows = {
             (row.position_id, row.closing_deal_id): row for row in await ledger(fixture, connection)
         }
@@ -424,15 +435,21 @@ async def test_reversals_partial_reads_and_positions_older_than_the_ledger() -> 
         older = next(row for (ticket, _), row in rows.items() if ticket == "old-1")
         assert older.agent_id == gold["id"] and older.opening_operation_id == old
         assert older.realized_pnl is None
+        # The reversal closed a trade the ledger never saw open: recorded, the owner's
+        # by the position's ticket, with its volume and P&L unknown.
+        unseen = next(row for (ticket, _), row in rows.items() if ticket == "anc-1")
+        assert unseen.agent_id is None and unseen.side == "buy"
+        assert unseen.volume is None and unseen.realized_pnl is None
         # The reversed trade closes; the rest of the half-closed one closes too.
         await add_history(
             fixture,
             connection,
             deal("net-1", "OUT", "BUY", volume="0.2", minutes=5, profit="-3", commission="-1"),
             deal("half-1", "OUT", "SELL", minutes=4, profit="2"),
+            deal("anc-1", "OUT", "BUY", volume="0.2", minutes=3, profit="-1"),
         )
         await set_positions(fixture, connection, [])
-        assert await record(fixture, connection) == 2
+        assert await record(fixture, connection) == 3
         rows = {
             (row.position_id, row.closing_deal_id): row for row in await ledger(fixture, connection)
         }
@@ -465,7 +482,11 @@ async def test_reversals_partial_reads_and_positions_older_than_the_ledger() -> 
                 .select_from(BrokerDealRow)
                 .where(BrokerDealRow.account_id == connection)
             )
-        assert kept == 0 and len(await ledger(fixture, connection)) == 4
+        reversed_ = [row for row in await ledger(fixture, connection) if row.position_id == "anc-1"]
+        assert len(reversed_) == 2
+        after = next(row for row in reversed_ if row.volume is not None)
+        assert after.side == "sell" and Decimal(after.realized_pnl) == -1
+        assert kept == 0 and len(await ledger(fixture, connection)) == 6
     finally:
         await retire(fixture, connection)
         await fixture.close()
