@@ -246,6 +246,8 @@ export type OwnerAction = {
       agent_name: string | null;
       /** A broker card (raised only by the connect tool): the account the password is for. */
       account?: { login: string; server: string; platform: "mt4" | "mt5" };
+      /** A broker card: connect the account, store its new password, or a new token. */
+      purpose?: "connect" | "rotate_password" | "replace_token";
     };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
     watch?: {

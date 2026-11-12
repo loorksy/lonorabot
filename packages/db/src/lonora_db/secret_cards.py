@@ -83,6 +83,7 @@ def secret_facts(payload: dict[str, Any], agent_name: str | None) -> dict[str, A
     }
     if payload["destination"] == BROKER:
         facts["account"] = payload["account"]
+        facts["purpose"] = payload.get("purpose", CONNECT)
     return facts
 
 

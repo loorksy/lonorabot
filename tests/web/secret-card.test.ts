@@ -142,3 +142,32 @@ test("a broker connect card shows the account as server facts and only our own w
     assert.equal(saved.outcome, text.brokerSaved);
   }
 });
+
+test("a broker card for a new password or token is titled for what it changes", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    for (const [purpose, title] of [
+      ["rotate_password", text.brokerRotateTitle],
+      ["replace_token", text.brokerTokenTitle],
+    ] as const) {
+      const spec = ownerActionCard(
+        {
+          ...card,
+          facts: {
+            several_accounts: false,
+            secret: {
+              label: "70000001 @ Exness-MT5Trial16",
+              fields: [{ key: "PASSWORD", label: "Trading password", secret: true }],
+              destination: "broker",
+              agent_name: "Lonora",
+              account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+              purpose,
+            },
+          },
+        },
+        locale,
+      );
+      assert.equal(spec.title, title);
+    }
+  }
+});
