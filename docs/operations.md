@@ -559,7 +559,9 @@ once per record, with an effect receipt before each call and no second send of a
 one; alerts from before the pairing are not sent. Agents' replies are not sent to Telegram;
 read them in the app. What you write to the bot reaches the chosen agent's conversation as
 your message: a "yes" there is a message to the agent and never approves or settles a card,
-which only the card in the app does. A `/start` message is never passed to an agent.
+which only the card in the app does. A `/start` message is never passed to an agent, and
+neither is a forwarded message or one sent through another bot: those are someone else's
+words, not yours.
 
 ## Release manifest and client versions
 

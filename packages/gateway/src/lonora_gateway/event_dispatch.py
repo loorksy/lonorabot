@@ -29,6 +29,18 @@ from sqlalchemy import func, select
 from .push import PUSH_CODES, push_record
 from .runtime import OwnerServices
 
+# Telegram message fields that mark text as not the owner's own words.
+FORWARDED = frozenset(
+    {
+        "forward_origin",
+        "forward_from",
+        "forward_from_chat",
+        "forward_sender_name",
+        "forward_date",
+        "is_automatic_forward",
+        "via_bot",
+    }
+)
 # A channel request never holds the delivery loop longer than this.
 CHANNEL_TIMEOUT_SECONDS = 30
 
@@ -84,7 +96,11 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                     message: dict[str, Any] = update.get("message") or {}
                     chat: dict[str, Any] = message.get("chat") or {}
                     text = message.get("text")
-                    if isinstance(text, str) and text.strip().startswith("/start"):
+                    if FORWARDED.intersection(message):
+                        # Forwarded or sent through another bot: someone else's words. They
+                        # never reach an agent as the owner's own message (6.10).
+                        pass
+                    elif isinstance(text, str) and text.strip().startswith("/start"):
                         # A pairing message binds the chat, or does nothing; it never reaches
                         # an agent. Delivery starts at the end of the stream: a newly paired
                         # chat gets new alerts, never the backlog.

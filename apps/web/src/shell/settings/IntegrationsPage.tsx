@@ -615,9 +615,9 @@ export function IntegrationsPage() {
             <small>
               {telegram
                 ? telegramAgent
-                  ? t`Linked · messages to the bot reach ${telegramAgent}`
-                  : t`Linked · messages to the bot reach an agent`
-                : t`Not linked · messages to a bot can reach an agent`}
+                  ? t`Linked · alerts reach your chat, your messages reach ${telegramAgent}`
+                  : t`Linked · alerts reach your chat, your messages reach an agent`
+                : t`Not linked · alerts can reach you in Telegram`}
             </small>
           </span>
           {telegram ? (

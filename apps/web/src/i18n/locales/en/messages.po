@@ -3776,12 +3776,20 @@ msgid "Linked"
 msgstr "Linked"
 
 #: src/shell/settings/IntegrationsPage.tsx:618
-msgid "Linked · messages to the bot reach {telegramAgent}"
-msgstr "Linked · messages to the bot reach {telegramAgent}"
+msgid "Linked · alerts reach your chat, your messages reach {telegramAgent}"
+msgstr "Linked · alerts reach your chat, your messages reach {telegramAgent}"
 
 #: src/shell/settings/IntegrationsPage.tsx:619
-msgid "Linked · messages to the bot reach an agent"
-msgstr "Linked · messages to the bot reach an agent"
+msgid "Linked · alerts reach your chat, your messages reach an agent"
+msgstr "Linked · alerts reach your chat, your messages reach an agent"
+
+#: src/shell/settings/IntegrationsPage.tsx:618
+#~ msgid "Linked · messages to the bot reach {telegramAgent}"
+#~ msgstr "Linked · messages to the bot reach {telegramAgent}"
+
+#: src/shell/settings/IntegrationsPage.tsx:619
+#~ msgid "Linked · messages to the bot reach an agent"
+#~ msgstr "Linked · messages to the bot reach an agent"
 
 #: src/shell/agent/IdentityPage.tsx:326
 msgid "Linked symbol"
@@ -4713,8 +4721,12 @@ msgid "Not linked"
 msgstr "Not linked"
 
 #: src/shell/settings/IntegrationsPage.tsx:620
-msgid "Not linked · messages to a bot can reach an agent"
-msgstr "Not linked · messages to a bot can reach an agent"
+msgid "Not linked · alerts can reach you in Telegram"
+msgstr "Not linked · alerts can reach you in Telegram"
+
+#: src/shell/settings/IntegrationsPage.tsx:620
+#~ msgid "Not linked · messages to a bot can reach an agent"
+#~ msgstr "Not linked · messages to a bot can reach an agent"
 
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Not sent"

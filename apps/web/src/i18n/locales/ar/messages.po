@@ -3770,12 +3770,20 @@ msgid "Linked"
 msgstr "مرتبط"
 
 #: src/shell/settings/IntegrationsPage.tsx:618
-msgid "Linked · messages to the bot reach {telegramAgent}"
-msgstr "مرتبط · تصل رسائل البوت إلى {telegramAgent}"
+msgid "Linked · alerts reach your chat, your messages reach {telegramAgent}"
+msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسائلك تصل إلى {telegramAgent}"
 
 #: src/shell/settings/IntegrationsPage.tsx:619
-msgid "Linked · messages to the bot reach an agent"
-msgstr "مرتبط · تصل رسائل البوت إلى وكيل"
+msgid "Linked · alerts reach your chat, your messages reach an agent"
+msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسائلك تصل إلى وكيل"
+
+#: src/shell/settings/IntegrationsPage.tsx:618
+#~ msgid "Linked · messages to the bot reach {telegramAgent}"
+#~ msgstr "مرتبط · تصل رسائل البوت إلى {telegramAgent}"
+
+#: src/shell/settings/IntegrationsPage.tsx:619
+#~ msgid "Linked · messages to the bot reach an agent"
+#~ msgstr "مرتبط · تصل رسائل البوت إلى وكيل"
 
 #: src/shell/agent/IdentityPage.tsx:326
 msgid "Linked symbol"
@@ -4707,8 +4715,12 @@ msgid "Not linked"
 msgstr "غير مرتبط"
 
 #: src/shell/settings/IntegrationsPage.tsx:620
-msgid "Not linked · messages to a bot can reach an agent"
-msgstr "غير مرتبط · يمكن أن تصل رسائل بوت إلى وكيل"
+msgid "Not linked · alerts can reach you in Telegram"
+msgstr "غير مرتبط · يمكن أن تصلك التنبيهات في Telegram"
+
+#: src/shell/settings/IntegrationsPage.tsx:620
+#~ msgid "Not linked · messages to a bot can reach an agent"
+#~ msgstr "غير مرتبط · يمكن أن تصل رسائل بوت إلى وكيل"
 
 #: src/shell/lists/ThreadRow.tsx:89
 msgid "Not sent"
