@@ -416,10 +416,18 @@ FRAME_ICON = "shield"
 LITERAL = re.compile(r"'([^']*)'")
 
 
+# The Mandate card's state line, «الآن: وكّله» / "Now: Full" (the clients' mandateNow and
+# mode words): only that card says an agent's mode is now one or the other.
+MODE_NOW = ("Now", "الآن")
+MODE_WORDS = ("Full", "Ask", "وكّله", "يستأذن")
+
+
 def shows_frame_mark(text: str) -> bool:
-    """Text that says what only the trust frame says."""
+    """Text that says what only the trust frame, or a fixed card's state line, says."""
     plain = f" {_plain(text)} "
-    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN) or any(
+        f" {_plain(now)} {_plain(mode)} " in plain for now in MODE_NOW for mode in MODE_WORDS
+    )
 
 
 # What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).

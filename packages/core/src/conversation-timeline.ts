@@ -1,5 +1,6 @@
 import type { Message, OwnerAction, TradeApproval, UiSlotCard } from "@lonora/contracts";
 import { isUiPart } from "./genui/spec";
+import { validateRichContent } from "./visual-response";
 
 /** The owner-action kind each owner-action fixed card a slot names is stored as. */
 export const SLOT_OWNER_ACTION_KINDS: Readonly<
@@ -13,8 +14,6 @@ function ownerActionSlot(action: OwnerAction): string | null {
   )?.[0];
   return card ? `${card}:${action.id}` : null;
 }
-
-import { validateRichContent } from "./visual-response";
 
 /** The records the drawn cards of these messages embed as trusted slots, keyed
  * `card:record`. A message counts only as the renderers draw it: an assistant message whose
