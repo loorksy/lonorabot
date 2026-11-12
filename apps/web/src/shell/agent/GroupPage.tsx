@@ -158,7 +158,6 @@ function AddMembers({
   const data = useShellData();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const room = 12 - memberIds(group).length;
   const save = async () => {
     if (!picked.size || busy) return;
     setBusy(true);
@@ -187,7 +186,7 @@ function AddMembers({
               className={`row reach-opt${on ? " on" : ""}`}
               role="checkbox"
               aria-checked={on}
-              disabled={!on && picked.size >= room}
+              disabled={busy}
               onClick={() =>
                 setPicked((old) => {
                   const next = new Set(old);

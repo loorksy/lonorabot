@@ -6,10 +6,10 @@ from pydantic import Field
 
 from .domain import Contract
 
-# Runaway guards inside one collaboration session, never caps on agents (mandate P1,
-# 3.3.2): a session takes at most this many rounds, and one participant this many runs.
+# A runaway guard inside one collaboration session, never a cap on agents (mandate P1,
+# 3.3.2): a session takes at most this many rounds, so each participant at most this many
+# runs. The owner's next mention opens a new session when one is full.
 MAXIMUM_ROUNDS = 8
-MAXIMUM_PARTICIPANT_RUNS = 64
 
 
 class CollaborationCreate(Contract):
@@ -20,7 +20,7 @@ class CollaborationCreate(Contract):
 
 class CollaborationParticipant(Contract):
     agent_id: str
-    run_ids: list[str] = Field(default_factory=list, max_length=MAXIMUM_PARTICIPANT_RUNS)
+    run_ids: list[str] = Field(default_factory=list)
     status: Literal["invited", "working", "completed", "failed", "cancelled"] = "invited"
     result: str = Field(default="", max_length=30000)
     error_code: str | None = None
