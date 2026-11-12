@@ -390,7 +390,7 @@ async def write_brief(db: Database) -> None:
 
 
 @pytest.mark.asyncio
-async def test_only_a_mandate_card_an_agent_proposed_waits_for_the_owner(
+async def test_a_mandate_card_never_waits_for_the_owner(
     task_db: Fixture,
 ) -> None:
     db, owner, agent, thread = task_db
@@ -405,14 +405,14 @@ async def test_only_a_mandate_card_an_agent_proposed_waits_for_the_owner(
                 OwnerActionRow.status == "pending",
             )
         )
-    # Lonora's own Mandate card from onboarding (4.3.1) is the owner's switch, offered
-    # once: it never waits, so nothing else needs the owner.
+    # A Mandate card is the owner's standing switch (10.3, 4.2), with no answer that ends
+    # it: Lonora's from onboarding (4.3.1) never waits, so nothing else needs the owner.
     assert offered == 1
     at = DAY + timedelta(hours=4, minutes=1)
     first = await facts_now(db, owner, at)
     assert first["pending_owner_cards"] == 0 and first["nothing_else_needs_you"] is True
     await write_brief(db)
-    # A Mandate card an agent's run proposed waits for the owner's tap (11.4).
+    # Nor does one an agent's run proposed: the owner may keep Ask and never tap it.
     async with db.sessions() as session, session.begin():
         run = RunRow(
             thread_id=thread, agent_id=agent, trigger="user", prompt="x", status="completed"
@@ -434,7 +434,7 @@ async def test_only_a_mandate_card_an_agent_proposed_waits_for_the_owner(
             )
         )
     second = await facts_now(db, owner, at + timedelta(days=1))
-    assert second["pending_owner_cards"] == 1 and second["nothing_else_needs_you"] is False
+    assert second["pending_owner_cards"] == 0 and second["nothing_else_needs_you"] is True
 
 
 @pytest.mark.asyncio
