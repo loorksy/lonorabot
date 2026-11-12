@@ -36,8 +36,8 @@ from pydantic import Field, model_validator
 
 from .base import Tool, eager_for
 from .context import ToolContext
-from .profile_taint import run_read_others, woken_by_marked_row
-from .restrictions import OWNER_TRIGGERS, owner_message_id
+from .profile_taint import profile_tainted
+from .restrictions import owner_message_id
 
 
 class Empty(Contract):
@@ -106,9 +106,6 @@ OWNER_MESSAGE_REQUIRED = {
     "Only the owner's words or Lonora's own observations enter the profile.",
 }
 
-# Runs Lonora starts itself or the owner starts: what it observes there is its own (8.2).
-# A peer, subagent, follow-up, task, webhook or other wake carries someone else's words.
-OBSERVATION_TRIGGERS = OWNER_TRIGGERS | {"routine", "watch", "broker_event", "owner_card"}
 
 OWNER_PROFILE_TAINTED = {
     "ok": False,
@@ -137,13 +134,8 @@ async def _owner_message(context: ToolContext) -> tuple[str | None, bool, bool]:
         lead = bool(agent and agent.role == "personal")
         tainted = False
         if lead and message_id is None:
-            # A routine, watch or opportunity a run that read others' content made wakes
-            # without observations too; that mark is read here only (profile_taint.py).
-            tainted = (
-                run.trigger not in OBSERVATION_TRIGGERS
-                or await run_read_others(session, run)
-                or await woken_by_marked_row(session, run)
-            )
+            # The mark on a routine, watch or opportunity is read here only (profile_taint.py).
+            tainted = await profile_tainted(session, run)
         return message_id, lead, tainted
 
 

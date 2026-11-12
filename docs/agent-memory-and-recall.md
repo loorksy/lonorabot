@@ -109,10 +109,12 @@ Without the owner's message it writes only in a Run it or the owner started
 (`OBSERVATION_TRIGGERS`: owner, group, routine, watch, broker event, owner card)
 that has read nothing someone else wrote (`external_content_seen`); a peer,
 subagent, follow-up, task or webhook Run, or one that read a web page or another
-agent's words, gets `owner_profile_tainted_run` and nothing is saved (6.10). A
-routine, watch or opportunity that such a Run created, enabled or changed keeps a
-`profile-taint:<kind>:<id>` receipt (`lonora_tools/profile_taint.py`), so its later
-wakes get the same refusal for an observation. Only this owner-profile observation
+agent's words, or one a marked routine, watch or opportunity woke, gets
+`owner_profile_tainted_run` and nothing is saved (6.10; one predicate,
+`profile_tainted` in `lonora_tools/profile_taint.py`). A routine, watch or
+opportunity that such a Run created, enabled or changed keeps a
+`profile-taint:<kind>:<id>` receipt, so its later wakes get the same refusal for an
+observation, down any chain. Only this owner-profile observation
 check reads that receipt: the woken Run is untainted for trading, tool exposure,
 other wakes and everything else, so 6.10's rule that taint does not spread to later
 watches, routines or wakes holds on every other path. Each

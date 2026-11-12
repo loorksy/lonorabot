@@ -290,6 +290,27 @@ async def test_a_routine_or_watch_a_tainted_run_made_wakes_without_observations(
             registry, woken, "memory_write", version=1, observed=True, operations=[line]
         )
         assert written.get("owner_profile", written).get("changed") is True, written
+
+        # A run someone other than Lonora or the owner started marks what it schedules,
+        # and so does a run a marked routine woke (the chain).
+        async def marked(routine_id: str) -> bool:
+            from lonora_db.schema import EffectReceiptRow
+
+            async with fixture.runtime.db.sessions() as session:
+                key = "profile-taint:routine:" + routine_id
+                return await session.get(EffectReceiptRow, key) is not None
+
+        assert await marked(steered["id"]) and not await marked(trusted["id"])
+        chained = await routine_run(fixture, lead["id"], metadata={"routine_id": steered["id"]})
+        for starter in ("peer", "follow_up", "tickets", "webhook", "chain"):
+            run = chained if starter == "chain" else await routine_run(fixture, lead["id"], starter)
+            made = await call(registry, run, "routine_create", **schedule)
+            assert await marked(made["id"]), starter
+            woken = await routine_run(fixture, lead["id"], metadata={"routine_id": made["id"]})
+            refused = await call(
+                registry, woken, "memory_write", version=1, observed=True, operations=[line]
+            )
+            assert refused["code"] == "owner_profile_tainted_run", (starter, refused)
         # A watch carries the same mark; only the observation check reads it.
         watched, unmarked = "watch-" + uuid4().hex, "watch-" + uuid4().hex
         async with fixture.runtime.db.sessions() as session, session.begin():
