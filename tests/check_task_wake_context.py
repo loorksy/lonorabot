@@ -17,6 +17,7 @@ from lonora_agent.skills.loader import resources_root
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.tasks import TaskCreate
+from lonora_core.user_error import LonoraError
 from lonora_db.runs import claim_next
 from lonora_db.schema import AgentRow, RunRow
 from lonora_db.task_wait import resume_ready_waits
@@ -68,8 +69,10 @@ async def wake(f: Fixture, mode: str) -> None:
             # The Task began under an earlier release's constitution.
             assert policy in stored[0]["content"]
             stored[0]["content"] = stored[0]["content"].replace(policy, OBSOLETE)
+            # The Run viewed a skill before it slept; its procedure must stay in force.
+            state["viewed_skill_ids"] = ["position-management"]
             env = dict(state["environment"])
-            if mode == "external_wake":
+            if mode != "owner_resume":
                 env["wait"] = {
                     **env["wait"],
                     "due_at": (utcnow() - timedelta(seconds=1)).isoformat(),
@@ -89,7 +92,7 @@ async def wake(f: Fixture, mode: str) -> None:
             row = await session.get(AgentRow, agent["id"], with_for_update=True)
             assert row
             row.instructions = BRIEF
-        if mode == "external_wake":
+        if mode != "owner_resume":
             assert await resume_ready_waits(f.runtime.db) == 1
         else:
             async with f.runtime.db.sessions() as session, session.begin():
@@ -98,33 +101,48 @@ async def wake(f: Fixture, mode: str) -> None:
         async with f.runtime.db.sessions() as session, session.begin():
             claimed = await claim_next(session, "wake-worker", 120, "work")
             assert claimed and claimed.id == ctx.lease.run_id
-        await execute_run(await f.lease(data), load_tools(), 120, 8)
+        if mode == "rebuild_fails":
+
+            async def unavailable(*_: object) -> list[ModelMessage]:
+                raise LonoraError("policy_resource_missing", 500)
+
+            with patch("lonora_agent.loop_restore.build_context", unavailable):
+                await execute_run(await f.lease(data), load_tools(), 120, 8)
+        else:
+            await execute_run(await f.lease(data), load_tools(), 120, 8)
     assert len(seen) == 2, len(seen)
     woken = seen[-1]
     system = "\n".join(message.content for message in woken if message.role == "system")
-    assert OBSOLETE not in system, "the wake read the frozen constitution"
-    assert policy in system and BRIEF in system, "the wake missed the current head"
+    if mode == "rebuild_fails":
+        # The wake is delivered on the frozen head rather than failing the Task.
+        assert OBSOLETE in system and BRIEF not in system
+    else:
+        assert OBSOLETE not in system, "the wake read the frozen constitution"
+        assert policy in system and BRIEF in system, "the wake missed the current head"
     assert sum(message.content.count("<lonora_context_data>") for message in woken) <= 1
     # The Run's own transcript survives: its wait call and its result.
-    assert any(call.id == "durable-wait" for message in woken for call in message.tool_calls), (
-        "the transcript was lost"
-    )
-    assert any(message.tool_call_id == "durable-wait" for message in woken)
-    if mode == "external_wake":
+    calls = [call.id for message in woken for call in message.tool_calls]
+    assert calls.count("durable-wait") == 1, "the transcript was lost or duplicated"
+    assert [message.tool_call_id for message in woken].count("durable-wait") == 1
+    if mode != "owner_resume":
         assert any("<runtime_wake>" in message.content for message in woken)
     async with f.runtime.db.sessions() as session:
         current = await session.get(RunRow, ctx.lease.run_id)
         assert current and current.status == "completed", current and current.status
         persisted = current.execution_state["messages"]
+        if mode == "rebuild_fails":
+            print("PASS a head that cannot be rebuilt keeps the frozen one; the wake still runs")
+            return
         assert OBSOLETE not in persisted[0]["content"] and BRIEF in persisted[0]["content"]
+        assert "position-management" in current.execution_state["instruction_skill_ids"]
     print("PASS", mode, "reads the current constitution and instructions")
-    print("PASS", mode, "keeps the Task's own transcript and one context data block")
+    print("PASS", mode, "keeps the Task's own transcript, its viewed skill and one context block")
 
 
 async def main() -> None:
     f = await Fixture().open()
     try:
-        for mode in ("external_wake", "owner_resume"):
+        for mode in ("external_wake", "owner_resume", "rebuild_fails"):
             await wake(f, mode)
     finally:
         await f.close()
