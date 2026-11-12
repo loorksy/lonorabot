@@ -2,7 +2,6 @@ import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
-import type { AgentModelMode, ModelLabel } from "./models";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =
@@ -11,8 +10,6 @@ export type OwnerActionKind =
   | "resolve_operation"
   | "set_account_limits"
   | "grant_authority"
-  | "agent_model"
-  | "agent_model_changed"
   | "create_agent"
   | "agent_created"
   | "supervise"
@@ -32,8 +29,6 @@ export type OwnerActionKind =
  * action and the owner's own positions, until stopped, no daily loss limit from the card).
  */
 export type GrantDelegation = "custom" | "full";
-/** A model card's side of a choice: the mode and its model (null: the owner's default). */
-export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
 /** trust_source: what the owner adds to the trusted list. */
 export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /** What a connecting Secret card connects; the server sets its field and destination. */
@@ -194,18 +189,6 @@ export type OwnerAction = {
     replaces?: OwnerActionGrantTerms | null;
     /** The owner's first grant: the card shows the one rule. */
     first_grant?: boolean;
-    /** A model card (W15-10): which agent, the choice now and the one asked for or made. */
-    model?: {
-      agent_name: string | null;
-      default_model: ModelLabel;
-      current?: OwnerActionModelState;
-      requested?: OwnerActionModelState;
-      previous?: OwnerActionModelState;
-      /** Confirming adds the requested model to the models agents may choose. */
-      allow?: boolean;
-      /** Lonora asked on the owner's behalf for another agent. */
-      asked_by_agent_name?: string;
-    };
     /** create_agent / agent_created: the agent the card creates or created. */
     agent?: OwnerActionAgent;
     /** agent_created: what Undo does now (remove an untouched agent, else pause it). */

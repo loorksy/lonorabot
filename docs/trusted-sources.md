@@ -267,6 +267,15 @@ preview, and **Set up integrations on the web** opens the web settings.
 - If an MCP server's tools cannot be read when its card is saved, the server stays
   saved and its agent is woken to check it; the trust card comes only once its tools
   can be read.
+- An MCP server's token and address saved from a Secret card are workspace secrets:
+  VISION.md 7.2.3 names exactly two destinations, workspace and broker. Any agent may use
+  a workspace secret by name (7.2.4), so a workspace command given that secret can call
+  the server directly, outside Lonora's tool pinning and its block on tools that move
+  money. Lonora's broker accounts stay behind the execution door: their passwords and
+  the MetaApi token are broker secrets, which never enter the workspace.
+- No key rotation is built (nothing in 7.2 asks for it). To change a key, a token or an
+  address, remove the connection, connect it again from a new Secret card, and trust its
+  tools again.
 - An operator declaration (`LONORA_MCP_DECLARATIONS`, `credential_scope: integration`)
   also covers a server whose token is a workspace secret from a Secret card: both are
   scopes an MCP connection may name; a broker or provider value never is.

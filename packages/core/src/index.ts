@@ -5,9 +5,6 @@ export {
   agentModelLabels,
   agentModelLines,
   agentModelText,
-  type ModelCardSpec,
-  modelCard,
-  modelChoiceLine,
   modelName,
   offersDefaultModel,
   tokenCount,
@@ -180,6 +177,8 @@ export {
   canResume,
   isWorking,
   retriedRunIds,
+  retryableFailure,
+  runFailure,
   stopTargets,
 } from "./run-state";
 export {

@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_contracts.agent_secrets import WORKSPACE_SECRET_NAME
 from lonora_core.user_error import LonoraError
 from lonora_db.secrets import require_scope
@@ -94,7 +95,11 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
 
         # A broker value is read only by the door and provisioning (7.2.3): no integration
         # may name it. A workspace secret (saved from a Secret card) may.
-        broker_id = await services.secrets.write("9" + uuid4().hex[:8], "x", "broker")
+        brokers = BrokerSecrets(
+            fixture.runtime.db, os.environ["LONORA_ENCRYPTION_KEY"], fixture.owner
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            broker_id = await brokers.write_in_session(session, "9" + uuid4().hex[:8], "pw-1")
         crossed = await fixture.client.post(
             "/api/integrations",
             json={"payload": {"type": "brave_search", "name": "search", "secret_id": broker_id}},

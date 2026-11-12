@@ -32,6 +32,7 @@ from lonora_db.schema import (
     MarketWatchRow,
     RunRow,
 )
+from lonora_db.threads import background_origin
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -646,6 +647,9 @@ async def check_watch(
                             prompt=config.prompt,
                             metadata={
                                 "watch_id": row.id,
+                                **await background_origin(
+                                    session, row.owner_id, row.agent_id or "", row.thread_id or ""
+                                ),
                                 "wake_receipt_id": receipt_id,
                                 "previous_value": str(previous) if previous is not None else None,
                                 "current_value": str(current),

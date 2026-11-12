@@ -18,6 +18,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
@@ -79,7 +80,7 @@ async def save_secret(
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
     if target == "broker":
-        return await save_broker(rt, store, owner, card_id, body.values)
+        return await save_broker(rt, owner, card_id, body.values)
     offered = None
     if target == "mcp_server" and live_status(peek) == "pending":
         offered = await offered_tools(rt, card_values(peek, body.values))
@@ -278,15 +279,12 @@ async def same_source(
 
 
 async def save_broker(
-    rt: ApiRuntime,
-    store: EncryptedSecretStore,
-    owner: OwnerIdentity,
-    card_id: str,
-    values: dict[str, str],
+    rt: ApiRuntime, owner: OwnerIdentity, card_id: str, values: dict[str, str]
 ) -> dict[str, Any]:
     """A broker card: the token is checked with MetaApi first (no lock held), then the
-    card settles in the transaction that stores the token (broker scope) and creates the
-    connection; a card decided meanwhile creates nothing."""
+    card settles in the transaction that stores the token and creates the connection; a
+    card decided meanwhile creates nothing. Only the broker layer's store writes the
+    token (``BrokerSecrets``, scope broker, 7.2.3)."""
     async with rt.db.sessions() as session:
         row = await owned_card(session, owner.id, card_id)
         if live_status(row) != "pending":
@@ -307,6 +305,7 @@ async def save_broker(
         await settle_saved(session, owner, current, result)
         await continue_after_card(session, current)
 
-    await connect_account(rt.db, store, owner.id, config, token, within=settle_card)
+    secrets = BrokerSecrets(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id)
+    await connect_account(rt.db, secrets, owner.id, config, token, within=settle_card)
     async with rt.db.sessions() as session:
         return await owner_action_data(session, await owned_card(session, owner.id, card_id))
