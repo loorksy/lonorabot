@@ -165,6 +165,7 @@ async def main() -> None:
         print("PASS indexed delivery retains late-commit publication order without losing events")
         async with db.sessions() as session:
             count = await session.scalar(select(func.count()).select_from(EventRow))
+            kept = {(row.cursor, row.kind) for row in await session.scalars(select(EventRow))}
         await db.close()
         await migrate("0030_full_account_management", "downgrade")
         async with db.engine.connect() as connection:
@@ -220,7 +221,9 @@ async def main() -> None:
                 ).all(),
             )
             assert {name for name, valid in actual if valid} == INDEXES
-            assert await connection.scalar(select(func.count()).select_from(EventRow)) == count
+            # Every row survives the round trip; a data migration may add events of its own.
+            rows = await connection.execute(select(EventRow.cursor, EventRow.kind))
+            assert kept <= {(cursor, kind) for cursor, kind in rows.all()}
         print("PASS concurrent migration roundtrip and invalid-index retry preserve all event rows")
     finally:
         await fixture.close()
