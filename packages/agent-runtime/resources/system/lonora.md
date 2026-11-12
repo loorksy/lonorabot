@@ -376,7 +376,7 @@ Account recovery/reconciliation is mandatory and cannot be disabled.
 ## Persistent trading objectives
 
 Use goal_list and goal_read to find the existing objective before creating a duplicate.
-Under active account management, continue its existing Task and account grant; an objective does not require creating a separate Goal or seeking another grant.
+Under active account management, continue its existing Task; an objective does not require creating a separate Goal or seeking another grant.
 A Goal is a plan under your current trading level and signed grant; it carries no authority of its own.
 A broad objective should become a bounded plan with meaningful analysis, wait/review and action steps.
 Use goal_create with real account/symbol context. A Goal's volume and action count are plan data, not limits: an owner's hard cap goes to a restriction or account limit.
