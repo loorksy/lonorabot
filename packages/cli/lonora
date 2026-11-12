@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""The `lonora` command (mandate 7.3): connects workspace scripts to Lonora.
+
+Standard library only, so it runs in the workspace with nothing installed. It reads the
+calling agent's token from ``LONORA_AGENT_TOKEN`` and talks to the CLI endpoint on its
+Unix socket (``LONORA_CLI_SOCKET``). Every command writes one JSON object to stdout and
+exits with the endpoint's code:
+
+  0  done (for an order: executed and confirmed by the broker)
+  20 refused, nothing sent; the reason code is in "error"
+  77 identity refused: no valid token, nothing sent
+"""
+
+import argparse
+import http.client
+import json
+import os
+import socket
+import sys
+from typing import Any, NoReturn
+
+SOCKET = os.environ.get("LONORA_CLI_SOCKET", "/run/lonora/cli.sock")
+TIMEOUT_SECONDS = 120
+EXIT_CODES = {0, 10, 20, 30, 77}
+
+
+def emit(code: int, output: dict[str, Any]) -> NoReturn:
+    sys.stdout.write(json.dumps(output, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+    sys.exit(code)
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        emit(20, {"error": "invalid_arguments", "detail": message})
+
+
+class UnixConnection(http.client.HTTPConnection):
+    def __init__(self, path: str):
+        super().__init__("localhost", timeout=TIMEOUT_SECONDS)
+        self.socket_path = path
+
+    def connect(self) -> None:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
+        sock.connect(self.socket_path)
+        self.sock = sock
+
+
+def parser() -> Parser:
+    root = Parser(prog="lonora", description="Lonora from the workspace.")
+    commands = root.add_subparsers(dest="command", required=True, parser_class=Parser)
+
+    def command(name: str, help_text: str) -> Parser:
+        sub = commands.add_parser(name, help=help_text)
+        sub.add_argument("--account", help="connection id; required with several accounts")
+        return sub
+
+    command("price", "the current quote").add_argument("symbol")
+    candles = command("candles", "recent candles")
+    candles.add_argument("symbol")
+    candles.add_argument("timeframe", help="for example 15m, 1h, 1d")
+    candles.add_argument("count", type=int)
+    command("account", "balance, equity and margin")
+    command("positions", "open positions (volume in lots)")
+    command("orders", "pending orders (volume in lots)")
+    return root
+
+
+def body(args: argparse.Namespace) -> dict[str, Any]:
+    return {k: v for k, v in vars(args).items() if k != "command" and v is not None}
+
+
+def main(argv: list[str] | None = None) -> NoReturn:
+    args = parser().parse_args(argv)
+    token = os.environ.get("LONORA_AGENT_TOKEN", "").strip()
+    if not token:
+        emit(77, {"error": "identity_refused"})
+    connection = UnixConnection(SOCKET)
+    try:
+        connection.request(
+            "POST",
+            "/v1/" + args.command,
+            body=json.dumps(body(args)),
+            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        answer = json.loads(response.read())
+    except (OSError, http.client.HTTPException, ValueError):
+        emit(20, {"error": "endpoint_unreachable"})
+    finally:
+        connection.close()
+    if not isinstance(answer, dict):
+        emit(20, {"error": "endpoint_invalid_answer"})
+    code, output = answer.get("exit"), answer.get("output")
+    if code not in EXIT_CODES or not isinstance(output, dict):
+        emit(20, {"error": "endpoint_invalid_answer"})
+    emit(code, output)
+
+
+if __name__ == "__main__":
+    main()

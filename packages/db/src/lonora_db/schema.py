@@ -592,6 +592,23 @@ class SecretRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AgentCliTokenRow(Base):
+    """The agent's own `lonora` CLI token (7.3.3): one per agent, gone with the agent.
+
+    ``token_hash`` (SHA-256) is what the endpoint looks a call up by; ``ciphertext`` lets
+    the workspace inject the same token into every command the agent starts.
+    """
+
+    __tablename__ = "ln_agent_cli_tokens"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class GatewayRow(Base):
     __tablename__ = "ln_gateways"
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
