@@ -88,6 +88,7 @@ CHECKS = (
     "check_full_delegation.py",
     "check_lossless_downgrades.py",
     "check_agent_model_choice.py",
+    "check_agent_model_migration.py",
     "check_simple_lonora.py",
     "check_gold_journey.py",
 )
@@ -120,6 +121,7 @@ def main() -> None:
         "test_owner_identity.py",
         "test_owner_profile.py",
         "test_usage_dashboard.py",
+        "test_usage_tool.py",
     ):
         commands.append([sys.executable, "-m", "pytest", "tests/" + name, "-q"])
     for command in commands:

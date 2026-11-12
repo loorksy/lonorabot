@@ -184,28 +184,11 @@ def installed_registry(
     return SkillRegistry(list(definitions.values()), known_tools), rejected
 
 
-def validate_resources(known_tools: set[str]) -> dict[str, Any]:
+def validate_resources(known_tools: set[str]) -> None:
     """Fail early in builds/startup when shipped instructions cannot be resolved."""
-    from lonora_contracts.skills import PlaybookManifest
-
     from .loader import load_constitution
-
-    registry = SkillRegistry(list(built_in_skills().values()), known_tools)
     from .system_policy import validate_system_policy
 
+    SkillRegistry(list(built_in_skills().values()), known_tools)
     load_constitution()
     validate_system_policy(known_tools)
-    playbooks: dict[str, Any] = {}
-    for path in sorted((resources_root() / "playbooks").glob("*/playbook.json")):
-        manifest = PlaybookManifest.model_validate_json(path.read_text())
-        if manifest.id != path.parent.name:
-            raise LonoraError("playbook_identity_invalid", 500)
-        if set(manifest.required_skills) - registry.definitions.keys():
-            raise LonoraError("playbook_skill_unknown", 500)
-        if set(manifest.required_tools) - known_tools:
-            raise LonoraError("playbook_tool_unknown", 500)
-        instruction = path.with_name("PLAYBOOK.md")
-        if not instruction.is_file() or not instruction.read_text().strip():
-            raise LonoraError("playbook_content_empty", 500)
-        playbooks[manifest.id] = manifest.model_dump()
-    return playbooks

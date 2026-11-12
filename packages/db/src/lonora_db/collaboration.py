@@ -20,7 +20,7 @@ from .events import emit
 from .peer_messages import PeerMessageRepository
 from .runs import create_run, inherited_authority, outcome_status
 from .schema import CollaborationSessionRow, MessageRow, RunRow, ThreadRow
-from .threads import conversation_thread
+from .threads import conversation_thread, wake_origin
 from .transactions import ResourceRepository, owned_agent, owned_thread, resource_data
 
 
@@ -350,6 +350,7 @@ async def schedule_synthesis(
                         "collaboration_synthesis": True,
                         "depth": host.model_metadata.get("depth", 0),
                         **inherited_authority(host),
+                        **wake_origin(host),
                         # Synthesis over a tainted participant's evidence is tainted.
                         **(await participants_taint(session, participants)),
                     },

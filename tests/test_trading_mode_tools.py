@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock
 import pytest
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.account import Position
-from lonora_contracts.trading import TradingControl
 from lonora_tools.loader import load_tools
 from test_proactive_wakes import call, database, retire, simulation
 
@@ -32,15 +31,12 @@ async def test_full_closes_its_own_positions_without_a_card_and_never_extends_a_
     from check_streaming import Fixture
     from lonora_db.schema import TradeApprovalRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Full", supervised=True)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
@@ -75,7 +71,6 @@ async def test_full_closes_its_own_positions_without_a_card_and_never_extends_a_
             )
         assert cards == 0
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
@@ -92,11 +87,9 @@ async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds
     from lonora_core.user_error import LonoraError
     from lonora_db.schema import AgentRow
     from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         manual = Position(
@@ -108,7 +101,6 @@ async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds
             stop_loss=Decimal(90),
         )
         connection = await simulation(fixture, [manual])
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Owner ticket " + mode, supervised=True)
         if mode == "full":
             async with fixture.runtime.db.sessions() as session, session.begin():
@@ -170,6 +162,5 @@ async def test_the_owners_own_ticket_is_not_the_agents_unless_an_exception_holds
         )
         assert closed.get("status") == "confirmed", closed
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
