@@ -75,6 +75,8 @@ class FakeTerminal:
     tickets: int = 2217873129
     login: str = "50000001"
     server: str = "Exness-MT5Trial16"
+    # The MetaApi region the account's metadata reports.
+    region: str = "london"
 
     def __post_init__(self) -> None:
         self.names = {broker_symbol(base, self.variant): base for base in MARKETS}
@@ -202,6 +204,7 @@ class FakeTerminal:
             broker="Exness Technologies Ltd",
             name="Standard",
             version=5,
+            region=self.region,
             get_historical_candles=self.get_historical_candles,
         )
 

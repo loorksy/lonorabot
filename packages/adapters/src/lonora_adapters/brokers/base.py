@@ -83,8 +83,12 @@ class BrokerManager:
         async with self.db.sessions() as session:
             saved = await BrokerSessionRepository().get(session, owner_id, connection_id)
             version = saved.version
-        account = await (await self.get(owner_id, connection_id)).account()
+        broker = await self.get(owner_id, connection_id)
+        account = await broker.account()
         account.id = connection_id
+        # A connection linked without its region (an older link) records the region MetaApi
+        # reports, so its next adapter asks the account's own region, not the SDK default.
+        region = getattr(broker, "region", None)
         identity = {
             "broker": account.broker,
             "login": account.login,
@@ -103,6 +107,13 @@ class BrokerManager:
             semantic = {key: value for key, value in identity.items() if key != "observed_at"}
             changed = any(previous_identity.get(key) != value for key, value in semantic.items())
             saved.state = {**saved.state, "broker_identity": identity}
+            if (
+                isinstance(region, str)
+                and saved.payload.get("provider") == "metaapi"
+                and not saved.payload.get("region")
+            ):
+                # Not a credential or identity change: the version and the adapter stay.
+                saved.payload = {**saved.payload, "region": region}
             if changed:
                 emit(
                     session,

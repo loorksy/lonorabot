@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-from lonora_adapters.brokers.metaapi import MetaApiBroker
+from lonora_adapters.brokers.metaapi import KEPT_FAILURES, MetaApiBroker
 from lonora_adapters.brokers.metaapi_lifecycle import history_storage
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
@@ -223,19 +223,35 @@ async def main() -> None:
             isinstance(value, LonoraError) and value.code == "broker_connection_timeout"
             for value in failures
         )
-        assert len(h.created["rpc"]) == 1 and h.broker.rpc is None
+        # The connection is kept: MetaApi is not asked for a new subscription per retry.
+        first = h.created["rpc"][0]
+        kept = getattr(h.broker.rpc, "_meta_api_connection", None)
+        assert len(h.created["rpc"]) == 1 and kept is first and first.waits == 1, (
+            len(h.created["rpc"]),
+            kept is first,
+            first.waits,
+        )
         for _ in range(20):
             try:
                 await h.broker.prepare()
             except LonoraError:
                 pass
-        assert len(h.created["rpc"]) == 1
+        assert len(h.created["rpc"]) == 1 and first.waits == 1
+        # Each allowed retry waits on the same connection, until it is renewed.
+        for attempt in range(2, KEPT_FAILURES + 1):
+            h.broker._slot("rpc").retry_at = 0
+            try:
+                await h.broker.prepare()
+            except LonoraError as failure:
+                assert failure.code == "broker_connection_timeout"
+            assert len(h.created["rpc"]) == 1 and first.waits == attempt
+        assert h.broker.rpc is None and first._closed
         h.broker._slot("rpc").retry_at = 0
         recovered = await h.broker.prepare()
         assert recovered and len(h.created["rpc"]) == 2
         assert h.broker._slot("rpc").failures == 0
         print(
-            "PASS synchronization timeout has singleflight bounded wait, cooldown blocks repeated failing traffic, and next allowed attempt recovers"
+            "PASS synchronization timeout has singleflight bounded wait, cooldown blocks repeated failing traffic, the connection is kept (no new subscription) until it is renewed, and the next allowed attempt recovers"
         )
 
         gate = asyncio.Event()

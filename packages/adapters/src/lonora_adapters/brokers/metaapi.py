@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import logging
 import os
+import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -28,13 +29,20 @@ from .metaapi_lifecycle import (
     closed_error,
     history_storage,
     is_closed,
+    subscribe_locked_until,
     synchronized,
+    throttled_until,
 )
 
 log = logging.getLogger("lonora.metaapi")
 EVIDENCE_SECONDS = 15
 MARKET_DATA_BILLING_COOLDOWN_SECONDS = 300
 ACCOUNT_METADATA_SECONDS = 30
+# A terminal connection that keeps failing to synchronize is kept, so MetaApi is not asked
+# for a new subscription at every retry: the SDK keeps subscribing it, at MetaApi's own
+# recommended times. After this many failures in a row it is renewed.
+KEPT_FAILURES = 4
+WAITING = frozenset({"broker_connection_timeout", "broker_login_rejected"})
 
 
 def provider_error(error: Exception, stage: str) -> LonoraError:
@@ -291,10 +299,23 @@ class MetaApiBroker:
                         self._account_metadata_retry_at = 0.0
                 except Exception as error:
                     failure = self.diagnose(error, "account")
+                    wait: float = ACCOUNT_METADATA_SECONDS
+                    until = throttled_until(error)
+                    if until is not None:
+                        wait = max(wait, until - time.time())
                     self._account_metadata_failure = failure
-                    self._account_metadata_retry_at = monotonic() + ACCOUNT_METADATA_SECONDS
+                    self._account_metadata_retry_at = monotonic() + wait
                     raise failure from error
             return self.account_instance
+
+    @property
+    def region(self) -> str | None:
+        """The account's MetaApi region, from the metadata already read (no request)."""
+        try:
+            value = getattr(self.account_instance, "region", None)
+        except (KeyError, AttributeError):
+            return None
+        return value if isinstance(value, str) and value else None
 
     async def metadata_identity(self) -> dict[str, Any]:
         """Read provisioning identity without opening RPC or placing an order."""
@@ -399,7 +420,7 @@ class MetaApiBroker:
                     )
             except Exception as error:
                 failure = self.diagnose(error, kind)
-                slot.failed(failure)
+                slot.failed(failure, throttled_until(error))
                 raise failure from error
             lock = self.lock if kind == "rpc" else self.stream_lock
             async with lock:
@@ -425,17 +446,47 @@ class MetaApiBroker:
                     slot.ready()
                     return connection
                 except Exception as error:
-                    if connection is not None:
-                        await self._discard_locked(kind, connection)
-                    failure = self.diagnose(error, kind)
-                    if failure.code == "broker_connection_timeout" and await refused_by_broker(
-                        account
+                    failure, until = self.throttled(error, self.diagnose(error, kind))
+                    if until is None and (
+                        failure.code == "broker_connection_timeout"
+                        and await refused_by_broker(account)
                     ):
                         failure = LonoraError("broker_login_rejected", 409)
-                    slot.failed(failure)
+                    if connection is not None and not self.keep(connection, failure, slot):
+                        await self._discard_locked(kind, connection)
+                    slot.failed(failure, until)
                     raise failure from error
 
         return await slot.get(create)
+
+    def throttled(
+        self, error: BaseException, failure: LonoraError
+    ) -> tuple[LonoraError, float | None]:
+        """MetaApi throttling, told apart from a lost link: a TooManyRequests answer, or a
+        subscribe lock the SDK holds after one, gives ``broker_rate_limited`` and the time
+        MetaApi recommends retrying at (epoch seconds)."""
+        websocket = getattr(getattr(self, "api", None), "_metaapi_websocket_client", None)
+        times = [t for t in (throttled_until(error), subscribe_locked_until(websocket)) if t]
+        if not times or failure.code not in {
+            "broker_connection_timeout",
+            "broker_connection_unavailable",
+            "broker_rate_limited",
+        }:
+            return failure, None
+        limited = LonoraError("broker_rate_limited", 429)
+        limited.diagnostic_type = failure.diagnostic_type
+        limited.diagnostic_message = failure.diagnostic_message
+        return limited, max(times)
+
+    @staticmethod
+    def keep(connection: Any, failure: LonoraError, slot: ConnectionSlot) -> bool:
+        """Whether a terminal connection that failed is kept (the SDK keeps subscribing
+        it) rather than replaced by a new subscription."""
+        if is_closed(connection):
+            return False
+        if failure.code == "broker_rate_limited":
+            return True
+        return failure.code in WAITING and slot.failures + 1 < KEPT_FAILURES
 
     async def prepare(self) -> Any:
         return await self._prepare_connection("rpc")
@@ -609,13 +660,17 @@ class MetaApiBroker:
             raise
         except Exception as error:
             failure = self.diagnose(error, "streaming")
-            if (
-                closed_error(error)
-                or is_closed(stream)
-                or (not synchronized(stream, "streaming") and failure.status == 504)
-            ):
+            failure, until = self.throttled(error, failure)
+            slot = self._slot("streaming")
+            if closed_error(error) or is_closed(stream):
                 await self.invalidate("streaming", stream)
-                self._slot("streaming").failed(failure)
+                slot.failed(failure, until)
+            elif until is not None or (
+                not synchronized(stream, "streaming") and failure.status == 504
+            ):
+                if not self.keep(stream, failure, slot):
+                    await self.invalidate("streaming", stream)
+                slot.failed(failure, until)
             raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)
@@ -683,13 +738,17 @@ class MetaApiBroker:
             raise
         except Exception as error:
             failure = self.diagnose(error, "candles")
-            if (
-                closed_error(error)
-                or is_closed(stream)
-                or (not synchronized(stream, "streaming") and failure.status == 504)
-            ):
+            failure, until = self.throttled(error, failure)
+            slot = self._slot("streaming")
+            if closed_error(error) or is_closed(stream):
                 await self.invalidate("streaming", stream)
-                self._slot("streaming").failed(failure)
+                slot.failed(failure, until)
+            elif until is not None or (
+                not synchronized(stream, "streaming") and failure.status == 504
+            ):
+                if not self.keep(stream, failure, slot):
+                    await self.invalidate("streaming", stream)
+                slot.failed(failure, until)
             raise failure from error
         finally:
             stream.remove_synchronization_listener(listener)

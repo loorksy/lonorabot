@@ -2,8 +2,10 @@
 
 import asyncio
 import importlib
+import time
 from collections.abc import Callable, Coroutine
-from typing import Any
+from datetime import datetime
+from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
 
@@ -13,6 +15,54 @@ def is_closed(connection: Any) -> bool:
         getattr(connection, "_closed", False) is True
         or getattr(getattr(connection, "_meta_api_connection", None), "_closed", False) is True
     )
+
+
+def retry_time(value: Any) -> float | None:
+    """MetaApi's ``recommendedRetryTime`` (an ISO time) as epoch seconds, if readable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def throttled_until(error: BaseException) -> float | None:
+    """When MetaApi's TooManyRequests says to retry (epoch seconds), else None."""
+    metadata = getattr(error, "metadata", None)
+    if type(error).__name__ != "TooManyRequestsException" or not isinstance(metadata, dict):
+        return None
+    return retry_time(cast(dict[str, Any], metadata).get("recommendedRetryTime"))
+
+
+def entries(value: Any) -> list[Any]:
+    """The values of a dict, the items of a list, else nothing (SDK state is untyped)."""
+    if isinstance(value, dict):
+        return list(cast(dict[Any, Any], value).values())
+    if isinstance(value, list):
+        return list(cast(list[Any], value))
+    return []
+
+
+def subscribe_locked_until(websocket: Any) -> float | None:
+    """The latest future retry time of the SDK's own subscribe locks: MetaApi refused a
+    subscription with TooManyRequests and the SDK waits until then before subscribing
+    again. Read only; each Lonora adapter owns its SDK client, so the locks are its own."""
+    if websocket is None:
+        return None
+    locks: list[Any] = [getattr(websocket, "_subscribe_lock", None)]
+    for numbers in entries(getattr(websocket, "socket_instances", None)):
+        for instances in entries(numbers):
+            for instance in entries(instances):
+                if isinstance(instance, dict):
+                    locks.append(cast(dict[str, Any], instance).get("subscribeLock"))
+    times: list[float] = []
+    for lock in locks:
+        if isinstance(lock, dict):
+            moment = retry_time(cast(dict[str, Any], lock).get("recommendedRetryTime"))
+            if moment is not None and moment > time.time():
+                times.append(moment)
+    return max(times, default=None)
 
 
 def closed_error(error: Exception) -> bool:
@@ -74,10 +124,15 @@ class ConnectionSlot:
         # A cancelled stream consumer must not cancel shared account initialization.
         return await asyncio.shield(task)
 
-    def failed(self, failure: LonoraError) -> None:
+    def failed(self, failure: LonoraError, until: float | None = None) -> None:
+        """``until``: MetaApi's recommended retry time (epoch seconds), never retried
+        earlier than that."""
         self.failures += 1
         self.failure = failure
-        self.retry_at = asyncio.get_running_loop().time() + min(30, 2 ** min(self.failures, 5))
+        wait: float = min(30, 2 ** min(self.failures, 5))
+        if until is not None:
+            wait = max(wait, until - time.time())
+        self.retry_at = asyncio.get_running_loop().time() + wait
 
     def ready(self) -> None:
         self.failure = None
