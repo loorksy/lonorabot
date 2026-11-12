@@ -26,13 +26,17 @@ from lonora_db.push_devices import register_device
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
+    BrokerSessionRow,
     EffectReceiptRow,
     OwnerRow,
     PushDeviceRow,
     SessionRow,
+    ThreadRow,
     TradeApprovalRow,
+    TradingJournalRow,
 )
-from lonora_gateway.push import dispatch_push
+from lonora_db.transactions import SettingsRepository
+from lonora_gateway.push import PUSHES_PER_TICK, cursor_key, dispatch_push
 from lonora_security.secrets import SecretCipher
 from pydantic import SecretStr
 from sqlalchemy import select
@@ -50,15 +54,18 @@ Fixture = tuple[Database, str, str, str]
 class FakeExpo:
     """Records every message; answers with tickets, a failure or a hang."""
 
-    def __init__(self, db: Database, answer: Any = None) -> None:
+    def __init__(self, db: Database, answer: Any = None, before: Any = None) -> None:
         self.db, self.answer, self.sent = db, answer, list[dict[str, Any]]()
-        self.receipts_before_send: list[str] = []
+        self.before = before
+        self.receipts_before_send: list[list[str]] = []
 
     async def send(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         async with self.db.sessions() as session:
             stored = await session.scalars(select(EffectReceiptRow))
-            self.receipts_before_send = [row.result["status"] for row in stored]
+            self.receipts_before_send.append(sorted(row.result["status"] for row in stored))
         self.sent.extend(messages)
+        if self.before is not None:
+            await self.before()
         if isinstance(self.answer, BaseException):
             raise self.answer
         if self.answer == "hang":
@@ -85,17 +92,40 @@ async def phone(db: Database, owner_id: str, device: str, token: str) -> str:
     return bearer
 
 
-async def card(db: Database, owner_id: str, agent_id: str, thread_id: str, code: str) -> str:
-    """A pending Trade Approval, or another attention item, made ready the way the attention
-    loop does it."""
+async def card(
+    db: Database,
+    owner_id: str,
+    agent_id: str,
+    thread_id: str,
+    code: str,
+    record_thread: str | None = None,
+) -> str:
+    """A pending Trade Approval, an uncertain operation, or another attention item, made
+    ready the way the attention loop does it."""
     approval_id = str(uuid4())
     async with db.sessions() as session, session.begin():
+        if code == "operation_uncertain":
+            account = BrokerSessionRow(owner_id=owner_id, payload={"provider": "simulation"})
+            session.add(account)
+            await session.flush()
+            session.add(
+                TradingJournalRow(
+                    operation_id=approval_id,
+                    owner_id=owner_id,
+                    account_id=account.id,
+                    request_hash="h",
+                    request={"symbol": "XAUUSD", "action": "buy", "volume": "0.1"},
+                    status="ambiguous",
+                    thread_id=record_thread or thread_id,
+                    timeline_seq=9,
+                )
+            )
         if code == "approval_required":
             session.add(
                 TradeApprovalRow(
                     id=approval_id,
                     owner_id=owner_id,
-                    thread_id=thread_id,
+                    thread_id=record_thread or thread_id,
                     agent_id=agent_id,
                     call_id="call-" + approval_id,
                     requests=[{"symbol": "XAUUSD", "action": "buy", "volume": "0.1"}],
@@ -111,7 +141,7 @@ async def card(db: Database, owner_id: str, agent_id: str, thread_id: str, code:
             coalesce_key=uuid4().hex,
             importance="action_required",
             code=code,
-            parameters={"approval_id": approval_id},
+            parameters={"approval_id": approval_id, "operation_id": approval_id},
             due_at=utcnow(),
         )
         session.add(item)
@@ -157,8 +187,8 @@ async def test_a_pending_approval_pushes_once_per_phone_with_catalog_text(
         assert message["data"] == {"thread_id": thread_id, "around": 7}
         assert "XAUUSD" not in str(message) and "0.1" not in str(message)
         assert approval not in str(message) and "categoryId" not in message
-    # The receipts were written before the network call, and confirmed after it.
-    assert expo.receipts_before_send == ["submitted", "submitted"]
+    # Every receipt was written before the first network call, and confirmed after its own.
+    assert expo.receipts_before_send[0] == ["submitted", "submitted"]
     stored = await receipts(db)
     assert [row["status"] for row in stored] == ["confirmed", "confirmed"]
     assert all("ExponentPushToken" not in str(row) for row in stored)
@@ -314,3 +344,130 @@ async def test_the_expo_adapter_request_and_its_failures() -> None:
         with pytest.raises(LonoraError) as failed:
             await ExpoPushTransport(None, answer(status, body)).send([message])
         assert failed.value.code == code
+
+
+@pytest.mark.asyncio
+async def test_an_uncertain_operation_pushes_once(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "operation_uncertain")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert expo.sent[0]["body"] == attention_text("operation_uncertain", "ar")
+    assert expo.sent[0]["data"] == {"thread_id": thread_id, "around": 9}
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
+
+
+@pytest.mark.asyncio
+async def test_the_receipt_alone_stops_a_second_send(task_db: Fixture) -> None:
+    # Even with the cursor moved back (a restored setting, a stale read), a record that has
+    # a receipt for a phone is never sent to it again.
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db, httpx.ReadTimeout("lost"))
+    await started(db, owner_id, expo)
+    async with db.sessions() as session:
+        start = dict(await SettingsRepository().get(session, cursor_key(owner_id)))
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    async with db.sessions() as session, session.begin():
+        await SettingsRepository().put(session, cursor_key(owner_id), start)
+    again = FakeExpo(db)
+    assert await dispatch_push(db, owner_id, CIPHER, again) == 0 and again.sent == []
+
+
+@pytest.mark.asyncio
+async def test_a_refused_phone_does_not_cost_the_other_its_push(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    await phone(db, owner_id, TABLET, "ExponentPushToken[tablet00000000002]")
+
+    def answer(message: dict[str, Any]) -> dict[str, Any]:
+        if "tablet" in message["to"]:
+            raise LonoraError("push_request_refused", 502)
+        return {"status": "ok", "id": "ticket"}
+
+    expo = FakeExpo(db, answer)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert sorted(row["status"] for row in await receipts(db)) == ["confirmed", "rejected"]
+
+
+@pytest.mark.asyncio
+async def test_a_tick_starts_at_most_a_few_sends_and_the_rest_follow(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    for _ in range(PUSHES_PER_TICK + 2):
+        await card(db, owner_id, agent_id, thread_id, "approval_required")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == PUSHES_PER_TICK
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 2
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_phone_or_a_failing_item_stops_nothing_else(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import lonora_gateway.push as push
+
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    await phone(db, owner_id, TABLET, "ExponentPushToken[tablet00000000002]")
+    async with db.sessions() as session, session.begin():
+        for row in await session.scalars(select(PushDeviceRow)):
+            if row.device_id == TABLET:
+                row.token_ciphertext = "written-with-another-key"
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    broken = await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    current = push.mandatory_current
+
+    async def failing(session: Any, item: AttentionRow) -> bool:
+        if item.parameters.get("approval_id") == broken:
+            raise RuntimeError("item broken")
+        return await current(session, item)
+
+    monkeypatch.setattr(push, "mandatory_current", failing)
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert [message["to"] for message in expo.sent] == ["ExponentPushToken[phone000000000001]"]
+
+
+@pytest.mark.asyncio
+async def test_around_is_sent_only_for_the_conversation_the_push_opens(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    async with db.sessions() as session, session.begin():
+        work = ThreadRow(owner_id=owner_id, agent_id=agent_id)
+        session.add(work)
+        await session.flush()
+        work_id = work.id
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required", record_thread=work_id)
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert expo.sent[0]["data"] == {"thread_id": thread_id}
+
+
+@pytest.mark.asyncio
+async def test_a_phone_that_registered_a_new_token_is_kept(task_db: Fixture) -> None:
+    # DeviceNotRegistered names the old token; the phone registered a new one meanwhile.
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+
+    async def rotate() -> None:
+        await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000099]")
+
+    def gone(_: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "error", "details": {"error": "DeviceNotRegistered"}}
+
+    expo = FakeExpo(db, gone, rotate)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    async with db.sessions() as session:
+        assert [row.device_id for row in await session.scalars(select(PushDeviceRow))] == [PHONE]

@@ -1,8 +1,7 @@
 """Push to the owner's phones (VISION 11.4).
 
 One push per record, at its creation, to every phone whose sign-in session is live:
-- a pending Trade Approval card (``approval_required``; a card re-raised after drift is a new
-  record and pushes again);
+- a pending Trade Approval card (``approval_required``);
 - a Settle Uncertain Operation card (``operation_uncertain``).
 
 The text is the fixed catalog text of the event in the owner's language, under the agent's
@@ -27,7 +26,12 @@ from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current, policy
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, publish_committed
-from lonora_db.push_devices import live_devices, prune_signed_out
+from lonora_db.push_devices import (
+    PushDevice,
+    live_devices,
+    prune_signed_out,
+    push_token_hash,
+)
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
@@ -47,8 +51,8 @@ log = logging.getLogger("lonora.push")
 # Attention code -> the parameter that names the record a push belongs to.
 PUSH_RECORDS = {"approval_required": "approval_id", "operation_uncertain": "operation_id"}
 EVENTS_PER_TICK = 100
-BATCH = 100
-# The whole Expo call, so a slow service never holds the step past its iteration timeout.
+# Sends started per tick, each bounded by SEND_TIMEOUT_SECONDS, below the step's 120 s limit.
+PUSHES_PER_TICK = 4
 SEND_TIMEOUT_SECONDS = 20
 
 
@@ -60,6 +64,7 @@ class PushTransport(Protocol):
 class Delivery:
     receipt: str
     device_row: str
+    token_hash: str
     message: dict[str, Any]
 
 
@@ -81,10 +86,71 @@ async def push_lock(session: AsyncSession, owner_id: str) -> None:
         )
 
 
-async def card_anchor(session: AsyncSession, code: str, record: str) -> int | None:
+async def card_anchor(session: AsyncSession, code: str, record: str, thread_id: str) -> int | None:
+    """The card's position, only when the card lives in the conversation the push opens."""
     model = TradeApprovalRow if code == "approval_required" else TradingJournalRow
     row = await session.get(model, record)
-    return row.timeline_seq if row is not None else None
+    if row is None or row.thread_id != thread_id:
+        return None
+    return row.timeline_seq
+
+
+async def item_deliveries(
+    session: AsyncSession,
+    owner_id: str,
+    event: EventRow,
+    devices: list[PushDevice],
+    locale: str,
+) -> list[Delivery]:
+    """The receipts and messages of one attention.ready event; none when it does not push."""
+    code = str(event.payload.get("code", ""))
+    if code not in PUSH_RECORDS:
+        return []
+    item = await session.get(AttentionRow, str(event.payload.get("id", "")))
+    if item is None or item.owner_id != owner_id or not await mandatory_current(session, item):
+        return []
+    record = str(item.parameters.get(PUSH_RECORDS[code], ""))
+    if not record:
+        return []
+    agent = await session.get(AgentRow, item.agent_id)
+    data: dict[str, Any] = {"thread_id": item.thread_id}
+    anchor = await card_anchor(session, code, record, item.thread_id)
+    if anchor:
+        data["around"] = anchor
+    deliveries: list[Delivery] = []
+    for device in devices:
+        key = receipt_key(code, record, device.device_id)
+        if await session.get(EffectReceiptRow, key):
+            continue
+        session.add(
+            EffectReceiptRow(
+                key=key,
+                result={
+                    "owner_id": owner_id,
+                    "status": "submitted",
+                    "code": code,
+                    "record_id": record,
+                    "device_id": device.device_id,
+                },
+            )
+        )
+        deliveries.append(
+            Delivery(
+                key,
+                device.id,
+                push_token_hash(device.token),
+                {
+                    "to": device.token,
+                    "title": agent.name if agent else "Lonora",
+                    "body": attention_text(code, locale),
+                    "data": data,
+                    "sound": "default",
+                    "priority": "high",
+                    "channelId": "attention",
+                },
+            )
+        )
+    return deliveries
 
 
 async def dispatch_push(
@@ -128,87 +194,55 @@ async def dispatch_push(
         devices = await live_devices(session, owner_id, cipher)
         locale = (await policy(session, owner_id)).locale
         for event in events:
+            # Each send may take up to its timeout: the rest waits for the next tick, so the
+            # step never outlives its iteration with receipts it has not tried.
+            if len(deliveries) >= PUSHES_PER_TICK:
+                break
             cursor = int(event.payload[PUBLIC_CURSOR])
-            code = str(event.payload.get("code", ""))
-            if code not in PUSH_RECORDS or not devices:
+            if not devices:
                 continue
-            item = await session.get(AttentionRow, str(event.payload.get("id", "")))
-            if (
-                item is None
-                or item.owner_id != owner_id
-                or not await mandatory_current(session, item)
-            ):
-                continue
-            record = str(item.parameters.get(PUSH_RECORDS[code], ""))
-            if not record:
-                continue
-            agent = await session.get(AgentRow, item.agent_id)
-            data: dict[str, Any] = {"thread_id": item.thread_id}
-            anchor = await card_anchor(session, code, record)
-            if anchor:
-                data["around"] = anchor
-            for device in devices:
-                key = receipt_key(code, record, device.device_id)
-                if await session.get(EffectReceiptRow, key):
-                    continue
-                session.add(
-                    EffectReceiptRow(
-                        key=key,
-                        result={
-                            "owner_id": owner_id,
-                            "status": "submitted",
-                            "code": code,
-                            "record_id": record,
-                            "device_id": device.device_id,
-                        },
+            try:
+                # One event that fails is skipped alone; the others keep flowing.
+                async with session.begin_nested():
+                    deliveries.extend(
+                        await item_deliveries(session, owner_id, event, devices, locale)
                     )
-                )
-                deliveries.append(
-                    Delivery(
-                        key,
-                        device.id,
-                        {
-                            "to": device.token,
-                            "title": agent.name if agent else "Lonora",
-                            "body": attention_text(code, locale),
-                            "data": data,
-                            "sound": "default",
-                            "priority": "high",
-                            "channelId": "attention",
-                        },
-                    )
-                )
+            except Exception as error:
+                log.error("push_item_failed code=%s", getattr(error, "code", type(error).__name__))
         await settings.put(session, cursor_key(owner_id), {"last": cursor})
-    for start in range(0, len(deliveries), BATCH):
-        await send_batch(db, transport, deliveries[start : start + BATCH])
+    for delivery in deliveries:
+        await send_one(db, transport, delivery)
     return len(deliveries)
 
 
-async def send_batch(db: Database, transport: PushTransport, batch: list[Delivery]) -> None:
-    outcomes: list[dict[str, Any]]
+async def send_one(db: Database, transport: PushTransport, delivery: Delivery) -> None:
+    """One request per phone: a token Expo refuses never takes another phone's push with it."""
+    outcome: dict[str, Any]
     try:
         async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
-            tickets = await transport.send([delivery.message for delivery in batch])
-        outcomes = [ticket_outcome(ticket) for ticket in tickets]
+            tickets = await transport.send([delivery.message])
+        outcome = ticket_outcome(tickets[0])
     except LonoraError as error:
+        # Refused (4xx): Expo accepted nothing. Anything else: the outcome is unknown.
         status = "rejected" if error.code == "push_request_refused" else "ambiguous"
-        outcomes = [{"status": status, "code": error.code}] * len(batch)
+        outcome = {"status": status, "code": error.code}
     except Exception:
-        outcomes = [{"status": "ambiguous", "code": "push_delivery_unconfirmed"}] * len(batch)
-    gone: list[str] = []
+        outcome = {"status": "ambiguous", "code": "push_delivery_unconfirmed"}
     async with db.sessions() as session, session.begin():
-        for delivery, outcome in zip(batch, outcomes, strict=True):
-            row = await session.get(EffectReceiptRow, delivery.receipt, with_for_update=True)
-            if row is not None:
-                row.result = {**row.result, **outcome}
-            if outcome.get("code") == "DeviceNotRegistered":
-                gone.append(delivery.device_row)
-        if gone:
-            # Expo says the app is gone from that phone: stop pushing to it.
-            await session.execute(delete(PushDeviceRow).where(PushDeviceRow.id.in_(gone)))
-    failed = sum(1 for outcome in outcomes if outcome["status"] != "confirmed")
-    if failed:
-        log.warning("push_unconfirmed count=%s", failed)
+        row = await session.get(EffectReceiptRow, delivery.receipt, with_for_update=True)
+        if row is not None:
+            row.result = {**row.result, **outcome}
+        if outcome.get("code") == "DeviceNotRegistered":
+            # Expo says the app is gone from that phone. Only that token: a phone that has
+            # registered a new token since keeps it.
+            await session.execute(
+                delete(PushDeviceRow).where(
+                    PushDeviceRow.id == delivery.device_row,
+                    PushDeviceRow.token_hash == delivery.token_hash,
+                )
+            )
+    if outcome["status"] != "confirmed":
+        log.warning("push_unconfirmed status=%s", outcome["status"])
 
 
 def ticket_outcome(ticket: dict[str, Any]) -> dict[str, Any]:

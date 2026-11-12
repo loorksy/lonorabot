@@ -81,17 +81,15 @@ function target(response: Notifications.NotificationResponse | null): PushTarget
 }
 
 export function onPushOpened(open: (target: PushTarget) => void): () => void {
-  const seen = new Set<string>();
   const handle = (response: Notifications.NotificationResponse | null) => {
+    // Cleared once handled: a later sign-in or reload never replays an old tap.
+    Notifications.clearLastNotificationResponse();
     const value = target(response);
-    const id = response?.notification.request.identifier;
-    if (!value || !id || seen.has(id)) return;
-    seen.add(id);
-    open(value);
+    if (value) open(value);
   };
-  void Notifications.getLastNotificationResponseAsync()
-    .then(handle)
-    .catch(() => undefined);
+  // The tap that launched the app, then every later tap.
+  const launched = Notifications.getLastNotificationResponse();
+  if (launched) handle(launched);
   const subscription = Notifications.addNotificationResponseReceivedListener(handle);
   return () => subscription.remove();
 }
