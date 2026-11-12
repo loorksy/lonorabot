@@ -1,5 +1,10 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { Agent, AttentionCode, AttentionPolicy } from "@lonora/contracts";
+import {
+  type Agent,
+  type AttentionCode,
+  type AttentionPolicy,
+  isBrokerHealth,
+} from "@lonora/contracts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
@@ -14,8 +19,9 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     watch_condition_met: t`Watch condition changed`,
     approval_required: t`Waiting for approval`,
     approval_resolved: t`Request updated`,
-    broker_degraded: t`Broker connection needs review`,
-    broker_recovered: t`Broker connection recovered`,
+    broker_token_rejected: t`MetaApi rejected the access token`,
+    broker_account_undeployed: t`The account is not deployed on MetaApi`,
+    broker_connection_lost: t`The account connection has been lost`,
     external_broker_activity: t`Broker account changed`,
     setup_confirmed: t`Watch confirmed — review current evidence`,
     thesis_invalidated: t`Setup validity changed`,
@@ -33,6 +39,7 @@ export function useAttentionLabels(): Record<AttentionCode, string> {
     operation_uncertain: t`The broker did not confirm a trade — tell Lonora whether it executed`,
     gateway_degraded: t`Background service is running late`,
     agent_notification: t`Your agent alerted you`,
+    secret_requested: t`Your agent needs a secret from you`,
   };
 }
 export function AttentionInbox({
@@ -120,7 +127,7 @@ export function AttentionInbox({
           </div>
           <Link
             to={
-              item.code === "broker_degraded"
+              isBrokerHealth(item.code)
                 ? recoveryPath(item.parameters.account_id)
                 : item.parameters.group_id
                   ? `/app/g/${item.parameters.group_id}`
@@ -130,7 +137,7 @@ export function AttentionInbox({
               void seen(item.id).catch(setError);
             }}
           >
-            {item.code === "broker_degraded" ? (
+            {isBrokerHealth(item.code) ? (
               <Trans>Outage and recovery</Trans>
             ) : (
               <Trans>Open conversation</Trans>

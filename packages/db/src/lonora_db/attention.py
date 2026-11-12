@@ -4,12 +4,16 @@ from datetime import timedelta
 from typing import Any
 
 from lonora_contracts.attention import (
+    ATTENTION_EVENTS,
+    BROKER_HEALTH_CODES,
     AttentionClassification,
+    AttentionNotification,
     AttentionPolicy,
     OwnerNotifyRequest,
 )
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
+from lonora_core.broker_health import broker_problem, outage
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import func, select, text
@@ -23,6 +27,7 @@ from .schema import (
     BrokerSessionRow,
     EffectReceiptRow,
     EventRow,
+    OwnerActionRow,
     SettingRow,
     TicketRow,
     TradeApprovalRow,
@@ -36,11 +41,22 @@ SYSTEM_ATTENTION = {
     "run_quarantined": "action_required",
     "operation_unresolved": "action_required",
     "gateway_degraded": "important_change",
+    # Broker health (9.4), raised from the account's stored recovery state.
+    "broker_token_rejected": "action_required",
+    "broker_account_undeployed": "action_required",
+    "broker_connection_lost": "action_required",
 }
 
 
+def current_outage(recovery: dict[str, Any]) -> tuple[str, str] | None:
+    """The outage an item names, read with no grace: once raised, a lost connection is
+    withdrawn only when it ends or changes, whatever the clock of the gateway asking."""
+    found = outage(recovery)
+    return (found[0], found[1].isoformat()) if found else None
+
+
 def attention_data(row: AttentionRow) -> dict[str, Any]:
-    return {
+    data: dict[str, Any] = {
         "id": row.id,
         "agent_id": row.agent_id,
         "thread_id": row.thread_id,
@@ -54,6 +70,8 @@ def attention_data(row: AttentionRow) -> dict[str, Any]:
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
+    AttentionNotification.model_validate(data)
+    return data
 
 
 async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
@@ -65,10 +83,20 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
 async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     if row.code == "operation_uncertain":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
-        return (
-            journal is not None
-            and journal.owner_id == row.owner_id
-            and journal.status == "ambiguous"
+        if journal is None or journal.owner_id != row.owner_id or journal.status != "ambiguous":
+            return False
+        # The item stands for its Settle card: once that card ended, so does the item.
+        cards = list(
+            await session.scalars(
+                select(OwnerActionRow).where(
+                    OwnerActionRow.owner_id == row.owner_id,
+                    OwnerActionRow.kind == "resolve_operation",
+                    OwnerActionRow.subject == "operation:" + journal.operation_id,
+                )
+            )
+        )
+        return not cards or any(
+            card.status == "pending" and card.expires_at > utcnow() for card in cards
         )
     if row.code == "operation_unresolved":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
@@ -86,13 +114,26 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
             and approval.owner_id == row.owner_id
             and approval.status == "pending"
         )
-    if row.code == "broker_degraded":
+    if row.code in BROKER_HEALTH_CODES:
         broker = await session.get(BrokerSessionRow, row.parameters.get("account_id", ""))
+        if broker is None or broker.owner_id != row.owner_id or not broker.payload.get("enabled"):
+            return False
+        found = current_outage(broker.state.get("broker_recovery", {}))
+        if found is None or found[1] != row.parameters.get("since"):
+            return False
+        # Within one outage the adapter's reason flaps between polls (a 401, then a
+        # timeout): a rejected token or an undeployed account stays the outage's problem
+        # while later polls show only a generic lost connection.
+        return found[0] == row.code or (
+            row.code != "broker_connection_lost" and found[0] == "broker_connection_lost"
+        )
+    if row.code == "secret_requested":
+        card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
         return (
-            broker is not None
-            and broker.owner_id == row.owner_id
-            and broker.state.get("broker_recovery", {}).get("status")
-            in {"degraded", "disconnected", "recovering", "reconciling"}
+            card is not None
+            and card.owner_id == row.owner_id
+            and card.status == "pending"
+            and card.expires_at > utcnow()
         )
     if row.code == "task_review":
         task = await session.get(TicketRow, row.parameters.get("task_id", ""))
@@ -693,6 +734,11 @@ def withdraw_attention(session: AsyncSession, row: AttentionRow) -> bool:
     """Suppress an unread item whose state is no longer true."""
     if row.status not in {"pending", "ready"}:
         return False
+    suppress_superseded(session, row)
+    return True
+
+
+def suppress_superseded(session: AsyncSession, row: AttentionRow) -> None:
     row.status, row.version, row.updated_at = "suppressed", row.version + 1, utcnow()
     row.parameters = {**row.parameters, "suppression_code": "attention_superseded_state"}
     emit(
@@ -703,4 +749,131 @@ def withdraw_attention(session: AsyncSession, row: AttentionRow) -> bool:
         thread_id=row.thread_id,
         payload=attention_data(row),
     )
-    return True
+
+
+async def lock_attention(session: AsyncSession, owner_id: str) -> None:
+    """Serialize an owner's attention decisions across gateways."""
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
+            {"key": "attention:" + owner_id},
+        )
+
+
+async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
+    """Raise one item per account and broker health problem (9.4) while it lasts.
+
+    The problem is read from the account's stored recovery state, so a lost connection
+    becomes an item only once it has lasted the grace period. An item names its outage
+    (the time the account became disconnected), and an outage has at most one open
+    item: while it stands, a flapping reason raises nothing. A rejected token or an
+    undeployed account replaces a lost-connection item once ``withdraw_ended`` has
+    withdrawn it; after the connection is disabled and enabled again, the outage's
+    problem is raised again. An outage with open positions or unresolved operations is
+    critical. Returns how many items were raised; ``withdraw_ended`` withdraws them.
+    """
+    await lock_attention(session, owner_id)
+    now = utcnow()
+    recovery = BrokerSessionRow.state["broker_recovery"]
+    accounts = await session.execute(
+        select(
+            BrokerSessionRow.id,
+            recovery["status"].as_string(),
+            recovery["reason_code"].as_string(),
+            recovery["since"].as_string(),
+        ).where(
+            BrokerSessionRow.owner_id == owner_id,
+            BrokerSessionRow.payload["enabled"].as_boolean().is_(True),
+            recovery["status"].as_string() == "disconnected",
+        )
+    )
+    count = 0
+    for account_id, status, reason, since_text in accounts:
+        problem = broker_problem(
+            {"status": status, "reason_code": reason, "since": since_text}, now
+        )
+        if problem is None:
+            continue
+        code, since = problem
+        raised = list(
+            await session.scalars(
+                select(AttentionRow).where(
+                    AttentionRow.owner_id == owner_id,
+                    AttentionRow.code.in_(BROKER_HEALTH_CODES),
+                    AttentionRow.parameters["account_id"].as_string() == account_id,
+                    AttentionRow.parameters["since"].as_string() == since,
+                )
+            )
+        )
+        # One open item per outage: while it stands, a flapping reason raises nothing.
+        if any(row.status != "suppressed" for row in raised):
+            continue
+        raised = [row for row in raised if row.code == code]
+        broker = await session.get(BrokerSessionRow, account_id)
+        assert broker is not None
+        state = broker.state["broker_recovery"]
+        exposed = bool(state.get("positions") or state.get("unresolved_operations"))
+        item = await raise_system_attention(
+            session,
+            owner_id,
+            code,
+            account_id + ":" + since + ":" + str(len(raised)),
+            {"account_id": account_id, "since": since, "reason_code": reason},
+            importance="critical" if exposed else None,
+        )
+        count += item is not None
+    return count
+
+
+SWEEP_BATCH = 200
+
+
+async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
+    """Withdraw every open item of the 11.4 owner events whose card ended or whose
+    problem cleared, including one the owner has already seen (which keeps its
+    ``updated_at``, so the history does not reorder).
+
+    A card can end without an event (a Secret card's lifetime runs out), and a broker
+    problem clears with a recovery that raises no item of its own, so the current
+    state is checked rather than waited for.
+    """
+    await lock_attention(session, owner_id)
+    # The sweep rotates through the open items in id order, SWEEP_BATCH at a time, so
+    # items that stay current never keep later ones from being checked.
+    key = "attention-sweep:" + owner_id
+    position = await session.get(SettingRow, key, with_for_update=True)
+    after = str(position.payload.get("after", "")) if position else ""
+    rows = list(
+        await session.scalars(
+            select(AttentionRow)
+            .where(
+                AttentionRow.owner_id == owner_id,
+                AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
+                AttentionRow.status.in_(["pending", "ready", "seen"]),
+                AttentionRow.id > after,
+            )
+            .order_by(AttentionRow.id)
+            .limit(SWEEP_BATCH)
+            .with_for_update()
+        )
+    )
+    # A short batch reached the end: the next sweep starts from the first item again.
+    following = rows[-1].id if len(rows) == SWEEP_BATCH else ""
+    if position is None:
+        session.add(SettingRow(key=key, payload={"after": following}))
+    else:
+        position.payload = {"after": following}
+    count = 0
+    for row in rows:
+        # An urgent event whose projection kept failing is delivered without its record
+        # (quarantine_event); nothing can tell when it ends, so it stays for the owner.
+        if row.parameters.get("reason_code") == "attention_projection_failed":
+            continue
+        if await mandatory_current(session, row):
+            continue
+        updated_at = row.updated_at if row.status == "seen" else None
+        suppress_superseded(session, row)
+        if updated_at is not None:
+            row.updated_at = updated_at
+        count += 1
+    return count

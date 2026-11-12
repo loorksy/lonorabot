@@ -14,14 +14,17 @@ from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import (
     decide_attention,
+    follow_broker_health,
     policy,
     publish_ready,
     raise_system_attention,
     set_cursor,
+    withdraw_ended,
 )
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked, due_retries
+from lonora_db.owner_actions import live_status
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
     AgentRow,
@@ -31,6 +34,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     MarketWatchRow,
+    OwnerActionRow,
     RunRow,
     SettingRow,
     ThreadRow,
@@ -134,27 +138,8 @@ async def candidate(
             if source is None or source.owner_id != event.owner_id:
                 raise LonoraError("attention_source_unavailable", 404)
             parameters["account_id"] = account_id
-            scope = "account:" + account_id
-            if event.kind != "broker.external_activity":
-                current = source.state.get("broker_recovery", {})
-                if current.get("status") != event.payload.get("status"):
-                    raise LonoraError("attention_superseded_state", 409)
-                if (
-                    event.payload.get("transition_id")
-                    and current.get("since")
-                    and event.payload["transition_id"]
-                    != str(current.get("status"))
-                    + ":"
-                    + datetime.fromisoformat(current["since"]).isoformat()
-                ):
-                    raise LonoraError("attention_superseded_state", 409)
-                if classification.code == "broker_degraded" and (
-                    current.get("positions") or current.get("unresolved_operations")
-                ):
-                    classification.importance = "critical"
-            else:
-                parameters["symbol"] = event.payload.get("symbol")
-                scope += ":activity:" + str(event.payload.get("symbol", ""))
+            parameters["symbol"] = event.payload.get("symbol")
+            scope = "account:" + account_id + ":activity:" + str(event.payload.get("symbol", ""))
         elif event.kind == "trading.approval.updated":
             resource = await session.get(TradeApprovalRow, identifier)
             if resource and resource.owner_id == event.owner_id:
@@ -181,6 +166,15 @@ async def candidate(
                     symbol=resource.request.get("symbol"),
                 )
                 scope = "operation:" + resource.operation_id
+        elif event.kind == "owner_action.updated":
+            resource = await session.get(OwnerActionRow, identifier)
+            if resource and resource.owner_id == event.owner_id:
+                # An older transition never withdraws or repeats a newer one.
+                if live_status(resource) != event.payload.get("status"):
+                    raise LonoraError("attention_superseded_state", 409)
+                agent_id, thread_id = resource.agent_id, resource.thread_id
+                parameters["owner_action_id"] = resource.id
+                scope = "owner_action:" + resource.id
         elif event.kind.startswith("trading.restriction_"):
             resource = await session.get(TradingRestrictionRow, identifier)
         elif event.kind.startswith("watch."):
@@ -432,6 +426,22 @@ async def suppress_item(session: AsyncSession, item_id: str) -> bool:
 
 
 async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) -> int:
+    # Broker health first (9.4): it reads stored state only, never broker IO. Each step
+    # is isolated like an event, so a failure there never holds back the projection.
+    health = ItemGuard(db, "attention_health", quarantine_after=None)
+    # Withdraw first, so a problem that changed is replaced in the same tick.
+    steps = {
+        "withdraw:" + owner_id: withdraw_ended,
+        "broker_health:" + owner_id: follow_broker_health,
+    }
+    await health.prepare(steps)
+    for item_id, step in steps.items():
+
+        async def follow(step: Any = step) -> None:
+            async with db.sessions() as session, session.begin():
+                await step(session, owner_id)
+
+        await health.run(item_id, owner_id, follow)
     async with db.sessions() as session:
         await publish_committed(session)
         counter = await session.get(SettingRow, "attention-cursor:" + owner_id)

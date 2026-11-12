@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0150_remove_stop"
-down_revision = "0085_opportunity_pending_operations"
+down_revision = "0176_weekly_reports"
 branch_labels = None
 depends_on = None
 

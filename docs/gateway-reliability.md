@@ -27,6 +27,7 @@ broken routine can no longer stop broker reconciliation.
 | `reconcile`, `verifications`, `account_recovery` | 10 s | 300 s | yes |
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
+| `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
@@ -41,7 +42,7 @@ watchdog report it while the supervisor restarts it. A step is stalled when its 
 iteration has run longer than `max(120 s, 12 × interval, timeout + interval)`, or when
 it has not succeeded for that long. The threshold is never shorter than one legitimate
 iteration, so a slow broker inside reconciliation's own timeout is a broker problem
-(`broker_degraded`), not a stalled service.
+(a broker health item, `docs/attention.md`), not a stalled service.
 Steps that serve several owners run each owner separately, so one owner's failure never
 skips another.
 

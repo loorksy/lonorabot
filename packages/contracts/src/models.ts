@@ -1,6 +1,12 @@
 import type { UsageDay } from "./usage";
 
-export type Provider = "openai" | "anthropic" | "deepseek" | "zai" | "openrouter";
+export type Provider =
+  | "openai"
+  | "anthropic"
+  | "deepseek"
+  | "zai"
+  | "openrouter"
+  | "openai_compatible";
 export type Capability =
   | "conversation"
   | "reasoning"

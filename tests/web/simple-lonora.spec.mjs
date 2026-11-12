@@ -109,9 +109,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       decisions.push(new URL(url).pathname);
   });
   try {
-    // An agent's own creation is capped at 20 active agents per owner: agents earlier
-    // specs left active must not use up the room this one needs (they are paused).
-    python(["tests/browser_agents.py"], { action: "headroom", needed: 1 });
 
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
