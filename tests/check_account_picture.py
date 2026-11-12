@@ -24,7 +24,7 @@ from lonora_contracts.tasks import TaskCreate
 from lonora_contracts.trading import TradeRequest
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.runs import claim_next
-from lonora_db.schema import RunRow, TradingJournalRow
+from lonora_db.schema import ClosedTradeRow, RunRow, TradingJournalRow
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.tasks import create_task
 from lonora_tools.loader import load_tools
@@ -163,6 +163,36 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     assert own["floating_pnl"] == "36" and own["currency"] == "USD"
     assert own["status"] == "connected" and own["stale"] is False and own["as_of"]
     print("PASS own book: only the agent's tickets, largest first, bounded, exposure and P&L")
+
+    # Realized P&L from the closed-trade ledger (W-LEDGER's statistics), per label.
+    async with f.runtime.db.sessions() as session, session.begin():
+        for index, (label, pnl, agent) in enumerate(
+            [("scale_in", "12.5", a), ("scale_in", "-2.5", a), (None, None, a), ("x", "99", b)]
+        ):
+            session.add(
+                ClosedTradeRow(
+                    id=new_id(),
+                    owner_id=f.owner,
+                    account_id=book.account,
+                    position_id=f"closed-{index}",
+                    closing_deal_id=f"deal-{index}",
+                    symbol="EURUSD",
+                    side="buy",
+                    volume=Decimal("0.1"),
+                    agent_id=agent,
+                    label=label,
+                    currency="USD",
+                    realized_pnl=Decimal(pnl) if pnl else None,
+                    closed_at=utcnow(),
+                    deals=[],
+                )
+            )
+    async with f.runtime.db.sessions() as session:
+        results = picture_of(await account_picture(session, f.owner, a))["own_results"]
+    rows = {row["label"]: row for row in results["closed_trades"]}
+    assert rows["scale_in"]["count"] == 2 and rows["scale_in"]["net_realized_pnl"] == "10"
+    assert rows["unlabelled"]["net_realized_pnl"] is None and "x" not in rows, results
+    print("PASS own results: realized P&L per opening label from the closed-trade ledger")
 
     # A failed read keeps the last successful figures: they carry that read's time.
     earlier = utcnow() - timedelta(hours=6)
