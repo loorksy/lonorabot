@@ -288,7 +288,11 @@ async def finish_turn(
             # No tools were offered. A provider that still proposes calls gets
             # none executed; financial prose was already withheld upstream.
             log.info("finish_turn_ignored_tool_calls count=%s", len(reply.tool_calls))
-        text = reply.text.strip() or ("" if quiet else limit_fallback(prefers_arabic(messages)))
+        text = reply.text.strip()
+        if not text and not (quiet and selection is not None and not reply.tool_calls):
+            # Only the model chooses silence: a failed final call or a turn of calls
+            # leaves the owner the fixed report that the work stopped.
+            text = limit_fallback(prefers_arabic(messages))
         if reply.rich_content is None or not reply.text.strip():
             state.pop("rich_content", None)
         else:

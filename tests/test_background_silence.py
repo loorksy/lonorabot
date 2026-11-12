@@ -896,3 +896,135 @@ async def test_an_empty_normal_stop_is_a_reply_only_where_silence_is_allowed(
     with pytest.raises(ModelProviderError) as truncated:
         await adapter_complete(provider, stream, cut, allow_empty=True)
     assert truncated.value.reason is FailureReason.TRUNCATED
+
+
+UNVERIFIED_EN = (
+    "The broker acknowledged the request, but its resulting state is not yet independently "
+    "verified. I will not resend it."
+)
+
+
+def seeded_trade(words: str) -> dict[str, Any]:
+    """A checkpoint whose pending order the broker confirms without verification."""
+    from lonora_adapter_kit.types import ModelMessage, ToolCall
+
+    buy = ToolCall(id="buy", name="trade_execute", arguments={"action": "buy", "symbol": "XAUUSD"})
+    messages = [
+        ModelMessage(role="user", content=words),
+        ModelMessage(role="assistant", content="", tool_calls=[buy]),
+    ]
+    return {
+        "messages": [item.model_dump(mode="json") for item in messages],
+        "pending": [buy.model_dump(mode="json")],
+        "instruction_skill_ids": [],
+        "rounds": 1,
+        "environment": {"version": 1},
+    }
+
+
+def trade_and_silence() -> Any:
+    from lonora_tools.base import Tool
+    from lonora_tools.registry import ToolRegistry
+    from lonora_tools.runtime_control import tools as control_tools
+    from pydantic import BaseModel
+
+    class Anything(BaseModel):
+        model_config = {"extra": "allow"}
+
+    async def unverified(context: Any, _: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "operation_id": "op-" + context.call_id,
+            "status": "confirmed",
+            "details": {"verification": {"status": "pending"}},
+        }
+
+    silence = next(tool for tool in control_tools() if tool.name == "group_silence")
+    return ToolRegistry(
+        [Tool("trade_execute", "Trade", Anything, unverified, financial=True), silence]
+    )
+
+
+async def seeded_run(fixture: Any, trigger: str, state: dict[str, Any]) -> Any:
+    from lonora_db.schema import RunRow
+
+    agent = await fixture.agent("Trading desk")
+    conversation = (await fixture.conversation(agent))["id"]
+    work = await work_thread(fixture, agent)
+    run = await make_run(fixture, agent, work, trigger, metadata={"origin_thread_id": conversation})
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run.id, with_for_update=True)
+        assert row is not None
+        row.execution_state = state
+    return run, conversation
+
+
+@pytest.mark.asyncio
+async def test_a_silent_exit_still_reports_an_unverified_order():
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ModelReply, ToolCall
+    from lonora_agent.executor import execute_run
+    from lonora_contracts.model_routing import ModelSelection
+
+    fixture = await Fixture().open()
+    try:
+        run, conversation = await seeded_run(
+            fixture, "broker_event", seeded_trade("Broker activity on the gold position.")
+        )
+
+        async def complete(*_: Any, **__: Any) -> Any:
+            silent = ToolCall(id="quiet-" + uuid4().hex, name="group_silence", arguments={})
+            return ModelReply(tool_calls=[silent]), ModelSelection(
+                provider="openai", model="background-silence-fixture"
+            )
+
+        context = await fixture.lease(
+            {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        )
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, trade_and_silence(), 120, 6)
+        row = await reload(fixture, run.id)
+        # 5.3.3 and 6.4: an order the broker confirmed but nothing verified is always news.
+        assert row.status == "completed" and row.result == UNVERIFIED_EN, row.result
+        assert await contents(fixture, conversation) == [UNVERIFIED_EN]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("final", ["failed", "calls_only"])
+async def test_at_the_limit_only_the_model_chooses_silence(final: str):
+    database()
+    from check_streaming import Fixture
+    from lonora_adapter_kit.types import ModelReply, ToolCall
+    from lonora_agent.executor import execute_run
+    from lonora_agent.runtime_notices import limit_fallback
+    from lonora_contracts.model_routing import ModelSelection
+    from lonora_core.user_error import LonoraError
+
+    fixture = await Fixture().open()
+    try:
+        run, _ = await seeded_run(
+            fixture, "routine", seeded_trade("Review the gold position at the London open.")
+        )
+
+        async def complete(*_: Any, **__: Any) -> Any:
+            if final == "failed":
+                raise LonoraError("scripted_provider_failure", 502)
+            stray = ToolCall(id="stray-" + uuid4().hex, name="trade_execute", arguments={})
+            return ModelReply(tool_calls=[stray]), ModelSelection(
+                provider="openai", model="background-silence-fixture"
+            )
+
+        context = await fixture.lease(
+            {"id": run.id, "agent_id": run.agent_id, "thread_id": run.thread_id}
+        )
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, trade_and_silence(), 120, 2)
+        row = await reload(fixture, run.id)
+        assert row.model_metadata["exit_reason"] == "tool_round_limit"
+        # The model never chose silence: the run says it stopped, as before.
+        assert row.result, row.result
+        assert row.result == limit_fallback(False) or row.result == UNVERIFIED_EN
+    finally:
+        await fixture.close()

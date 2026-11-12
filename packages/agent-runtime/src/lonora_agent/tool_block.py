@@ -13,6 +13,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 from lonora_tools.tool_results import store_result
 
+from .context.financial_result import unverified_financial_result
 from .context.skills import assert_skill_authority
 from .context_engine import FENCE_CODES, record_observed
 from .environment import (
@@ -397,6 +398,9 @@ async def run_and_record_segment(
                 (message.content for message in reversed(messages) if message.role == "assistant"),
                 "",
             ).strip()
+            # 5.3.3, 6.4: ending silent never hides an order the broker acknowledged and
+            # nothing verified; the run reports it as model_turn's gate would.
+            prose = unverified_financial_result(messages) or prose
             outcome = await final_answer(
                 context,
                 state,
