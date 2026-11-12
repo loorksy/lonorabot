@@ -25,8 +25,10 @@ its own initiative. Each pause raises a card in the paused agent's conversation 
 names the supervisor, with one-tap Resume.
 
 Pausing a whole agent never stops its exits: a paused agent still wakes for its own
-positions and pending orders and sends risk-reducing requests (4.7.1). Only the owner
-pauses the Personal Agent, the owner's entry point.
+positions and pending orders and sends risk-reducing requests (4.7.1). Lonora may pause a
+trading agent on its own; another supervisor pauses a whole agent with money standing
+only from the owner's message and narrows it otherwise. Only the owner pauses the
+Personal Agent, the owner's entry point.
 
 The cycle rule: an agent cannot pause or narrow an agent that holds an active pause over
 it, unless the owner's message asks for it. Every intervention is an event recorded for
@@ -508,8 +510,9 @@ async def control_work(
 
     Pausing and resuming need the grant (Lonora also acts on the owner's message without
     one), and pausing passes the cycle rule. No agent ever pauses the Personal Agent
-    itself. A paused agent with money standing still reduces its risk, which the result
-    says (``still_reduces_risk``). Each pause raises a card in the paused agent's
+    itself. On its own a team supervisor never pauses a whole agent with money standing
+    (supervision is not extended before phase 6 removes it); Lonora may, since a paused
+    agent still reduces its risk (4.7.1). Each pause raises a card in the paused agent's
     conversation naming the supervisor, with Resume.
 
     Resuming on its own initiative lifts only a hold this agent set on its own. With the
@@ -552,6 +555,16 @@ async def control_work(
         if kind == "agent" and agent.role == "personal":
             # The owner's entry point: only the owner pauses it, from its profile.
             raise LonoraError("supervision_personal_agent", 403)
+        if (
+            kind == "agent"
+            and not owner_message
+            and actor_id != await personal_agent_id(session, owner_id)
+            and await money_standing(session, owner_id, agent)
+        ):
+            # Supervision is removed in phase 6 and is not extended (0.4): a team
+            # supervisor still pauses only an agent's routines, watches or Tasks on its own.
+            # Lonora's pause of a trading agent stands (its exits continue, 4.7.1).
+            raise LonoraError("supervision_pause_trading_agent", 403)
         await check_cycle(session, owner_id, actor_id, [agent.id], owner_message=owner_message)
         await _apply(session, owner_id, agent.id, kind, item, "pause")
         hold = SupervisionHoldRow(
@@ -600,7 +613,4 @@ async def control_work(
         },
         run_id=run_id,
     )
-    if action == "pause" and kind == "agent" and await money_standing(session, owner_id, agent):
-        # Paused, it still wakes for its own positions and orders and reduces their risk.
-        result["still_reduces_risk"] = True
     return {**result, "changed": True, "paused": action == "pause"}
