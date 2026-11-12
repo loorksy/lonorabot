@@ -53,7 +53,7 @@ async def row_taint(fixture: Any, kind: Any, identifier: str) -> Any:
 
 
 async def wake(fixture: Any, card: Card, **metadata: Any) -> Any:
-    """A wake Run the way a watcher, routine, ticket or goal starts one."""
+    """A wake Run the way a watcher, routine or ticket starts one."""
     from lonora_contracts.runs import RunRequest
     from lonora_db.runs import create_run
 
@@ -261,58 +261,6 @@ async def test_tainted_work_that_changes_untainted_watches_and_routines_taints_t
             assert await row_taint(fixture, "watch", item["id"]) is not None
             assert await tainted(fixture, await wake(fixture, card, watch_id=item["id"]))
         assert await tainted(fixture, await wake(fixture, card, routine_id=routine["id"]))
-    finally:
-        await retire(fixture, connection)
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_goal_wait_in_a_tainted_run_taints_the_goal_and_its_wake_source() -> None:
-    """M2: ``goal_wait`` writes its watch through the repository; the watch and the goal
-    carry the taint, and the goal's wake and its watch's wake are tainted."""
-    from test_proactive_wakes import call, retire, simulation
-
-    fixture = await open_fixture()
-    connection = ""
-    try:
-        connection = await simulation(fixture, [])
-        card, _, context = await submit_lease(fixture)
-        goal = await fixture.request(
-            "POST",
-            "/trading/goals",
-            {
-                "agent_id": card.agent["id"],
-                "thread_id": card.thread["id"],
-                "title": "Card goal",
-                "objective": "Wait for gold",
-                "account_id": connection,
-                "symbol": "XAUUSD",
-                "maximum_volume": "0.1",
-                "max_trade_actions": 1,
-                "steps": [
-                    {
-                        "id": "wait",
-                        "title": "Wait for gold",
-                        "kind": "watch",
-                        "condition": {
-                            "kind": "price",
-                            "account_id": connection,
-                            "symbol": "XAUUSD",
-                            "condition": "above",
-                            "level": "200",
-                            "prompt": "Recheck gold",
-                        },
-                    }
-                ],
-            },
-        )
-        assert await row_taint(fixture, "goal", goal["id"]) is None
-        waiting = await call(context, "goal_wait", goal_id=goal["id"], step_id="wait")
-        source = waiting["wake_source"]["id"]
-        assert await row_taint(fixture, "goal", goal["id"]) is not None
-        assert await row_taint(fixture, "watch", source) is not None
-        assert await tainted(fixture, await wake(fixture, card, goal_id=goal["id"]))
-        assert await tainted(fixture, await wake(fixture, card, watch_id=source))
     finally:
         await retire(fixture, connection)
         await fixture.close()
@@ -585,91 +533,6 @@ async def test_collaboration_synthesis_over_a_tainted_participant_is_tainted() -
         await fixture.close()
 
 
-def _goal_body(connection: str, steps: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    return {
-        "title": "Card goal",
-        "objective": "Wait for gold",
-        "account_id": connection,
-        "symbol": "XAUUSD",
-        "maximum_volume": "0.1",
-        "max_trade_actions": 1,
-        "steps": steps
-        or [
-            {"id": "look", "title": "Inspect", "kind": "analysis"},
-            {
-                "id": "wait",
-                "title": "Wait for gold",
-                "kind": "watch",
-                "condition": {
-                    "kind": "price",
-                    "account_id": connection,
-                    "symbol": "XAUUSD",
-                    "condition": "above",
-                    "level": "200",
-                    "prompt": "Recheck gold",
-                },
-            },
-        ],
-    }
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["create", "plan", "complete", "toggle"])
-async def test_a_goal_tainted_work_creates_or_changes_wakes_tainted(change: str) -> None:
-    """goal_create, goal_plan, goal_step_complete and goal_toggle from a tainted Run each
-    taint the goal, so its later wakes (wake_goal: goal_id, no parent) are tainted."""
-    from test_proactive_wakes import retire, simulation
-
-    fixture = await open_fixture()
-    connection = ""
-    try:
-        connection = await simulation(fixture, [])
-        card, _, context = await submit_lease(fixture)
-        if change == "create":
-            goal = await tool(context, "goal_create", _goal_body(connection))
-        else:
-            goal = await fixture.request(
-                "POST",
-                "/trading/goals",
-                {
-                    **_goal_body(connection),
-                    "agent_id": card.agent["id"],
-                    "thread_id": card.thread["id"],
-                },
-            )
-            assert await row_taint(fixture, "goal", goal["id"]) is None
-            if change == "plan":
-                steps = _goal_body(connection)["steps"]
-                await tool(
-                    context,
-                    "goal_plan",
-                    {"goal_id": goal["id"], "version": goal["version"], "steps": steps},
-                )
-            elif change == "complete":
-                await tool(
-                    context,
-                    "goal_step_complete",
-                    {"goal_id": goal["id"], "step_id": "look", "note": "Seen"},
-                )
-            else:
-                paused = await tool(
-                    context,
-                    "goal_control",
-                    {"goal_id": goal["id"], "version": goal["version"], "action": "pause"},
-                )
-                # A paused goal never wakes; resumed, its wake shows the taint.
-                await tool(
-                    context,
-                    "goal_control",
-                    {"goal_id": goal["id"], "version": paused["version"], "action": "resume"},
-                )
-        assert await row_taint(fixture, "goal", goal["id"]) is not None
-        assert await tainted(fixture, await wake(fixture, card, goal_id=goal["id"]))
-    finally:
-        await retire(fixture, connection)
-        await fixture.close()
-
-
 @pytest.mark.asyncio
 async def test_task_control_from_tainted_work_taints_the_task_and_its_runs() -> None:
     """tools/tasks.py control: a tainted Run that revises or pauses an owner's Task taints
@@ -691,38 +554,6 @@ async def test_task_control_from_tainted_work_taints_the_task_and_its_runs() -> 
         assert await row_taint(fixture, "ticket", task["id"]) is not None
         assert await tainted(fixture, task_run)
     finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
-async def test_waiting_on_a_goal_target_from_tainted_work_taints_goal_and_routine() -> None:
-    """goals.py wait_for_goal_target: the review routine it writes, and the goal, carry
-    the taint of the Run that waited."""
-    from lonora_trading.goals import wait_for_goal_target
-    from test_proactive_wakes import retire, simulation
-
-    fixture = await open_fixture()
-    connection = ""
-    try:
-        connection = await simulation(fixture, [])
-        card, _, context = await submit_lease(fixture)
-        goal = await fixture.request(
-            "POST",
-            "/trading/goals",
-            {
-                **_goal_body(connection),
-                "agent_id": card.agent["id"],
-                "thread_id": card.thread["id"],
-            },
-        )
-        waited = await wait_for_goal_target(
-            fixture.runtime.db, fixture.owner, goal["id"], "look", context.lease
-        )
-        routine = waited["wake_source"]["id"]
-        assert await row_taint(fixture, "goal", goal["id"]) is not None
-        assert await row_taint(fixture, "routine", routine) is not None
-    finally:
-        await retire(fixture, connection)
         await fixture.close()
 
 

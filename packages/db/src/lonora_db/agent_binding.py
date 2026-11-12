@@ -11,7 +11,7 @@ from .schema import AgentRow
 
 BINDING_POLICY = (
     "account_id and broker_symbol are your focus pair: use these exact values when the owner "
-    "omits the market, and in every chart, watch, goal and decision you record. Never ask which "
+    "omits the market, and in every chart, watch and decision you record. Never ask which "
     "pair, account, or symbol, and never ask the owner to repeat or retype it. Letter case is "
     "not a different symbol; never strip suffixes. "
     "Reading is open: quotes, candles, instruments, accounts, full history, activity and "
@@ -140,7 +140,7 @@ def _identity_context(agent: AgentRow) -> str:
             "<delegated_research_scope>"
             "You are a temporary delegated research agent. Use authorized read-only account and "
             "market tools only for the bounded assigned task. You cannot propose or execute broker "
-            "mutations, enable autonomous trading, or create trading goals. Return evidence to the "
+            "mutations or enable autonomous trading. Return evidence to the "
             "requesting agent. Creating children or collaborating never transfers financial authority."
             "</delegated_research_scope>"
         )
