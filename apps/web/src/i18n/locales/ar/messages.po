@@ -830,7 +830,7 @@ msgstr "كل الأوقات"
 msgid "Allow microphone access to start a voice conversation."
 msgstr "اسمح بالوصول إلى الميكروفون لبدء محادثة صوتية."
 
-#: src/conversation/sheets/AgentSheet.tsx:453
+#: src/conversation/sheets/AgentSheet.tsx:491
 #~ msgid "Allowed"
 #~ msgstr "مسموحة"
 
@@ -867,7 +867,7 @@ msgstr "تنبيه عندما يؤكد وكيل فرصة"
 msgid "An unconfirmed operation on your account"
 msgstr "عملية غير مؤكَّدة على حسابك"
 
-#: src/shell/settings/NotifyPages.tsx:244
+#: src/shell/settings/NotifyPages.tsx:229
 #~ msgid "An unconfirmed operation or a restriction on your account"
 #~ msgstr "عملية غير مؤكَّدة أو قيد على حسابك"
 
@@ -1279,7 +1279,7 @@ msgstr "لم يتم العثور على حساب الوسيط."
 #~ msgid "Broker acknowledged — resulting state unverified"
 #~ msgstr "أقرّ الوسيط بالطلب — لم يُتحقق من الحالة الناتجة"
 
-#: src/lib/user_error.ts:152
+#: src/lib/user_error.ts:154
 msgid "Broker authentication was rejected."
 msgstr "رفض الوسيط بيانات المصادقة."
 
@@ -1287,7 +1287,7 @@ msgstr "رفض الوسيط بيانات المصادقة."
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "شموع الوسيط غير متاحة لهذا الرمز والإطار الزمني."
 
-#: src/lib/user_error.ts:165
+#: src/lib/user_error.ts:167
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "تحتوي شموع الوسيط على بيانات غير صالحة أو غير متطابقة."
 
@@ -1307,7 +1307,7 @@ msgstr "اتصال الوسيط يحتاج إلى مراجعة"
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "بيانات الوسيط لا تطابق الحساب المحدد. لم يُرسل أي أمر."
 
-#: src/lib/user_error.ts:180
+#: src/lib/user_error.ts:182
 msgid "Broker deal history is unavailable for this time range."
 msgstr "سجل صفقات الوسيط غير متاح لهذه الفترة."
 
@@ -1704,7 +1704,7 @@ msgstr "فحص الحقول"
 msgid "Check the highlighted fields."
 msgstr "تحقق من الحقول المحددة."
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:188
 msgid "Check the required fields and try again."
 msgstr "تحقق من الحقول المطلوبة وأعد المحاولة."
 
@@ -1962,7 +1962,7 @@ msgstr "إغلاق الصفقات"
 msgid "Closes"
 msgstr "يُغلق"
 
-#: src/conversation/sheets/AgentSheet.tsx:314
+#: src/conversation/sheets/AgentSheet.tsx:319
 #~ msgid "closing allowed"
 #~ msgstr "الإغلاق مسموح"
 
@@ -1979,7 +1979,7 @@ msgstr "يُغلق"
 msgid "Closing and tightening the stop loss are always allowed."
 msgstr "الإغلاق وتشديد وقف الخسارة مسموحان دائمًا."
 
-#: src/conversation/sheets/AgentSheet.tsx:515
+#: src/conversation/sheets/AgentSheet.tsx:553
 #~ msgid "closing is frozen too"
 #~ msgstr "الإغلاق مجمّد أيضًا"
 
@@ -3558,11 +3558,11 @@ msgstr "إخفاء المفتاح"
 msgid "Higher contrast"
 msgstr "تباين أعلى"
 
-#: src/lib/user_error.ts:154
+#: src/lib/user_error.ts:156
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "انتهت مهلة تحميل شموع الوسيط التاريخية. أعد تحديث الشارت."
 
-#: src/lib/user_error.ts:158
+#: src/lib/user_error.ts:160
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "حُجبت بيانات الشموع بسبب رصيد خدمة البيانات. أضف رصيدًا إلى حساب مزوّد البيانات ثم أعد المحاولة. قد تبقى الأسعار الحية متاحة."
 
@@ -3584,7 +3584,7 @@ msgstr "الساعة"
 msgid "How to reach you"
 msgstr "طريقة التواصل"
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:207
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "توقفت عند حد الخطوات لهذا التشغيل. أرسل رسالة وأكمل من حيث توقفت."
 
@@ -3604,7 +3604,7 @@ msgstr "صورة مرفقة"
 msgid "Immediately"
 msgstr "فورًا"
 
-#: src/lib/user_error.ts:184
+#: src/lib/user_error.ts:186
 msgid "Import a market snapshot before using the demo account."
 msgstr "استورد بيانات السوق قبل استخدام حساب المحاكاة."
 
@@ -3951,7 +3951,7 @@ msgstr "مغادرة التعديلات؟"
 msgid "Legacy instructions"
 msgstr "تعليمات قديمة"
 
-#: src/conversation/sheets/AgentSheet.tsx:528
+#: src/conversation/sheets/AgentSheet.tsx:566
 #~ msgid "Lift"
 #~ msgstr "رفع"
 
@@ -4021,11 +4021,11 @@ msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسا
 msgid "Linked · alerts reach your chat, your messages reach an agent"
 msgstr "مرتبط · تصل التنبيهات إلى محادثتك، ورسائلك تصل إلى وكيل"
 
-#: src/shell/settings/IntegrationsPage.tsx:626
+#: src/shell/settings/IntegrationsPage.tsx:616
 #~ msgid "Linked · messages to the bot reach {telegramAgent}"
 #~ msgstr "مرتبط · تصل رسائل البوت إلى {telegramAgent}"
 
-#: src/shell/settings/IntegrationsPage.tsx:627
+#: src/shell/settings/IntegrationsPage.tsx:617
 #~ msgid "Linked · messages to the bot reach an agent"
 #~ msgstr "مرتبط · تصل رسائل البوت إلى وكيل"
 
@@ -4603,7 +4603,7 @@ msgstr "ملف نصي جديد"
 msgid "New ticket"
 msgstr "مهمة جديدة"
 
-#: src/conversation/sheets/AgentSheet.tsx:451
+#: src/conversation/sheets/AgentSheet.tsx:489
 #~ msgid "New trades"
 #~ msgstr "الصفقات الجديدة"
 
@@ -4615,11 +4615,11 @@ msgstr "مهمة جديدة"
 #~ msgid "New trades are paused until {until}"
 #~ msgstr "الصفقات الجديدة معلّقة حتى {until}"
 
-#: src/conversation/sheets/AgentSheet.tsx:484
+#: src/conversation/sheets/AgentSheet.tsx:522
 #~ msgid "New trades paused until 23:59"
 #~ msgstr "عُلّقت الصفقات الجديدة حتى 23:59"
 
-#: src/conversation/sheets/AgentSheet.tsx:461
+#: src/conversation/sheets/AgentSheet.tsx:499
 #~ msgid "New trades resumed"
 #~ msgstr "استُؤنفت الصفقات الجديدة"
 
@@ -4694,7 +4694,7 @@ msgstr "لم يتم العثور على ملفات."
 msgid "No authentication"
 msgstr "بدون مصادقة"
 
-#: src/lib/user_error.ts:162
+#: src/lib/user_error.ts:164
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "لم يتم العثور على شموع تاريخية لهذا الرمز والفريم."
 
@@ -5028,7 +5028,7 @@ msgstr "غير مرتبطة"
 msgid "Not linked · alerts can reach you in Telegram"
 msgstr "غير مرتبط · يمكن أن تصلك التنبيهات في Telegram"
 
-#: src/shell/settings/IntegrationsPage.tsx:628
+#: src/shell/settings/IntegrationsPage.tsx:618
 #~ msgid "Not linked · messages to a bot can reach an agent"
 #~ msgstr "غير مرتبط · يمكن أن تصل رسائل بوت إلى وكيل"
 
@@ -5440,7 +5440,7 @@ msgstr "الصفحة غير موجودة"
 msgid "Pair"
 msgstr "الزوج"
 
-#: src/lib/user_error.ts:203
+#: src/lib/user_error.ts:205
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "تعذّرت قراءة جزء من سجل هذه المحادثة فتوقف هذا الرد. أرسل رسالتك مرة أخرى؛ المحادثة محفوظة."
 
@@ -5479,7 +5479,7 @@ msgstr "الصق القيمة هنا"
 msgid "Pause"
 msgstr "إيقاف مؤقت"
 
-#: src/conversation/sheets/AgentSheet.tsx:488
+#: src/conversation/sheets/AgentSheet.tsx:526
 #~ msgctxt "new trades pause"
 #~ msgid "Pause"
 #~ msgstr "تعليق"
@@ -6791,12 +6791,12 @@ msgstr "الخوادم والمستودعات"
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
-#: src/conversation/sheets/AgentSheet.tsx:291
-#: src/conversation/sheets/AgentSheet.tsx:291
+#: src/conversation/sheets/AgentSheet.tsx:295
+#: src/conversation/sheets/AgentSheet.tsx:295
 #~ msgid "Set by the agent"
 #~ msgstr "تعليق احترازي من الوكيل"
 
-#: src/conversation/sheets/AgentSheet.tsx:511
+#: src/conversation/sheets/AgentSheet.tsx:549
 #~ msgid "Set by you"
 #~ msgstr "تعليق من المالك"
 
@@ -7528,7 +7528,7 @@ msgstr "حجم النص"
 msgid "Text size · {0}"
 msgstr "حجم النص · {0}"
 
-#: src/lib/user_error.ts:167
+#: src/lib/user_error.ts:169
 msgid "That chart timeframe is not supported by this broker."
 msgstr "هذا الفريم غير مدعوم لدى الوسيط."
 
@@ -7597,10 +7597,18 @@ msgid "The broker account could not be verified. Check its connection details an
 msgstr "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا."
 
 #: src/lib/user_error.ts:150
-msgid "The broker account is not ready at the connection provider. Check its status, then retry."
-msgstr "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة."
+msgid "The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat."
+msgstr "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة."
 
-#: src/lib/user_error.ts:176
+#: src/lib/user_error.ts:155
+#~ msgid "The broker account is not ready at the connection provider. Check its status, then retry."
+#~ msgstr "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة."
+
+#: src/lib/user_error.ts:148
+msgid "The broker account is not running at MetaApi. Ask Lonora in chat to start it."
+msgstr "حساب الوسيط غير مشغَّل لدى MetaApi. اطلب من لونورا في المحادثة تشغيله."
+
+#: src/lib/user_error.ts:178
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المتابعة."
 
@@ -7608,11 +7616,11 @@ msgstr "تغيّر اتصال الوسيط. أعد تحميله قبل المت�
 msgid "The broker connection dropped"
 msgstr "انقطع اتصال الوسيط"
 
-#: src/lib/user_error.ts:148
-msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
-msgstr "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة."
+#: src/lib/user_error.ts:153
+#~ msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
+#~ msgstr "اتصال حساب الوسيط متوقف لدى مزوّد الربط. شغّله هناك ثم أعد المحاولة."
 
-#: src/lib/user_error.ts:182
+#: src/lib/user_error.ts:184
 msgid "The broker connection is unavailable."
 msgstr "الاتصال بالوسيط غير متاح."
 
@@ -7628,15 +7636,19 @@ msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُ�
 msgid "The broker is connected"
 msgstr "الاتصال بالوسيط سليم"
 
-#: src/lib/user_error.ts:160
+#: src/lib/user_error.ts:152
+msgid "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
+msgstr "يرفض الوسيط تسجيل الدخول للتداول: قد يكون خادمه متوقفًا، أو تغيّرت كلمة المرور. إن استمر ذلك فاطلب من لونورا في المحادثة."
+
+#: src/lib/user_error.ts:162
 msgid "The broker market-data service is rate limited."
 msgstr "تم بلوغ حد طلبات خدمة بيانات السوق لدى الوسيط."
 
-#: src/lib/user_error.ts:178
+#: src/lib/user_error.ts:180
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبقى التنفيذ محظورًا حتى التحقق من نتيجتها."
 
-#: src/lib/user_error.ts:169
+#: src/lib/user_error.ts:171
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 
@@ -7644,11 +7656,11 @@ msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
 msgid "The broker rejected the order"
 msgstr "رفض الوسيط الأمر"
 
-#: src/lib/user_error.ts:156
+#: src/lib/user_error.ts:158
 msgid "The broker rejected this timeframe or candle request."
 msgstr "رفض الوسيط هذا الفريم أو طلب الشموع."
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:173
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "مواصفات الوسيط غير متاحة لهذا الرمز المحدد."
 
@@ -7810,7 +7822,7 @@ msgstr "تُحذف رسائل {0} من عندك فقط، وتبقى المحاد
 msgid "The microphone is not available on this page."
 msgstr "الميكروفون غير متاح في هذه الصفحة."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:203
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "تعذّر على النموذج تلخيص هذه المحادثة. أعد المحاولة أو اختر نموذجًا عالميًا آخر."
 
@@ -7907,7 +7919,7 @@ msgstr "لم يصل الرد في الوقت المحدد، وقد يكون ال
 msgid "The reply timed out"
 msgstr "انتهت مهلة الرد"
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:209
 msgid "The request could not be completed. Try again."
 msgstr "تعذر إكمال الطلب. أعد المحاولة."
 
@@ -7923,7 +7935,7 @@ msgstr "خدمة الصوت المقيمة غير متاحة. تحقق من جا
 msgid "The resident worker is preparing this chart."
 msgstr "العامل المقيم يجهّز هذا الشارت."
 
-#: src/conversation/sheets/AgentSheet.tsx:525
+#: src/conversation/sheets/AgentSheet.tsx:563
 #~ msgid "The restriction was lifted"
 #~ msgstr "رُفع القيد"
 
@@ -8092,7 +8104,7 @@ msgstr "لا يسمح حساب الوسيط هذا بالتداول. تحقق م
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "حساب الوسيط مرتبط بالفعل. استخدم الاتصال الموجود."
 
-#: src/lib/user_error.ts:173
+#: src/lib/user_error.ts:175
 msgid "This broker connection is disabled."
 msgstr "اتصال الوسيط هذا معطّل."
 
@@ -8181,7 +8193,7 @@ msgstr "تغيّر هذا العنصر. أعد تحميله قبل الحفظ."
 #~ msgid "This key is set on the server and cannot be deleted here."
 #~ msgstr "هذا المفتاح مضبوط على الخادم ولا يمكن حذفه من هنا."
 
-#: src/lib/user_error.ts:199
+#: src/lib/user_error.ts:201
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "هذه الرسالة أكبر من أن تُعالج حتى بعد تلخيص السجل الأقدم. اختصرها أو أرسل مرفقات أقل؛ المحادثة محفوظة."
 
@@ -8193,7 +8205,7 @@ msgstr "هذا الشهر"
 msgid "This needs a new grant you sign with your passkey."
 msgstr "يلزم تفويض جديد توقّعه بمفتاح المرور."
 
-#: src/conversation/sheets/AgentSheet.tsx:516
+#: src/conversation/sheets/AgentSheet.tsx:554
 #~ msgid "this one does not block closing"
 #~ msgstr "هذا لا يمنع الإغلاق"
 
@@ -8263,15 +8275,15 @@ msgstr "لم يعد هذا السؤال ينتظر إجابة."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "لم تعد هذه المهارة موجودة في المكتبة الحالية. أعد تحميل القائمة."
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:192
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "انقطعت هذه الخطوة ثم استُؤنفت. لم يتكرر أي شيء."
 
-#: src/lib/user_error.ts:195
+#: src/lib/user_error.ts:197
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "لا يمكن استئناف المهمة بحالتها الحالية. راجع الخطة وحد المحاولات."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:194
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "تنتظر المهمة التحقق من عملية خارجية غير محسومة."
 
@@ -8354,7 +8366,7 @@ msgstr "اليوم حتى الآن"
 msgid "Tokens"
 msgstr "التوكن"
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:190
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "محاولات كثيرة. انتظر دقيقة وأعد المحاولة."
 
@@ -9119,7 +9131,7 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgid "What this agent is for"
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
-#: src/shell/settings/OwnerPage.tsx:248
+#: src/shell/settings/OwnerPage.tsx:243
 #~ msgid "What your agents know about you"
 #~ msgstr "ما يعرفه وكلاؤك عنك"
 
@@ -9208,7 +9220,7 @@ msgstr "الكتابة"
 
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
-#: src/shell/settings/OwnerPage.tsx:262
+#: src/shell/settings/OwnerPage.tsx:257
 #~ msgid "Written by {0} · {1}"
 #~ msgstr "كتبها {0} · {1}"
 
