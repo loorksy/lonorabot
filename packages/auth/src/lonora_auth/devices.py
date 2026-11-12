@@ -142,7 +142,7 @@ async def verified_device_assertion(
     origin: str,
     native_origins: list[str] | None = None,
 ) -> tuple[DeviceCredentialRow, int]:
-    """One standard assertion verifier shared by Goal and account delegation."""
+    """One standard assertion verifier for account delegation."""
     credential_size(body)
     device = await session.scalar(
         select(DeviceCredentialRow)
