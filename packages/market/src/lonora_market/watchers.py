@@ -586,25 +586,36 @@ async def check_watch(
             detector_state = metadata["observation"].get("state")
             if detector_state == "forming" and state["lifecycle"] == "pending":
                 state["lifecycle"] = "forming"
-        if previous_lifecycle != state["lifecycle"]:
-            emit(
-                session,
-                row.owner_id,
-                "watch." + state["lifecycle"],
-                agent_id=row.agent_id,
-                thread_id=row.thread_id,
-                payload={
-                    "watch_id": row.id,
-                    "state": state["lifecycle"],
-                    "transition_id": stable_id(
-                        row.id,
-                        previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
-                    ),
-                    "account_id": config.account_id,
-                    "symbol": config.symbol,
-                    "observation": metadata.get("observation"),
-                },
-            )
+        transition: dict[str, Any] | None = (
+            {
+                "watch_id": row.id,
+                "state": state["lifecycle"],
+                "transition_id": stable_id(
+                    row.id,
+                    previous_lifecycle + ":" + state["lifecycle"] + ":" + observation,
+                ),
+                "account_id": config.account_id,
+                "symbol": config.symbol,
+                "observation": metadata.get("observation"),
+            }
+            if previous_lifecycle != state["lifecycle"]
+            else None
+        )
+
+        def announce(woke: bool) -> None:
+            # Emitted once the wake is decided: a confirmation that woke its agent is the
+            # agent's to report (11.5); one inside the cooldown stays the owner's item.
+            if transition is not None:
+                emit(
+                    session,
+                    row.owner_id,
+                    "watch." + state["lifecycle"],
+                    agent_id=row.agent_id,
+                    thread_id=row.thread_id,
+                    payload={**transition, **({"wakes_agent": True} if woke else {})},
+                )
+
+        woke = False
         matched = confirmed and (config.kind != "dynamic" or previous_lifecycle != "confirmed")
         if matched and watch_can_trigger(
             config.enabled, last_triggered, config.cooldown_seconds, now
@@ -621,6 +632,7 @@ async def check_watch(
                     row.state = state
                     stop_watch(row, "task_terminal")
                     row.version += 1
+                    announce(False)
                     return triggered
                 if task_run is not None:
                     # A tainted watch resumes its Task tainted (docs/genui.md); a new
@@ -669,6 +681,7 @@ async def check_watch(
                         },
                     )
                 )
+                woke = True
                 state["last_triggered"] = now.isoformat()
                 if config.kind == "calendar":
                     state["seen_events"] = (
@@ -676,6 +689,7 @@ async def check_watch(
                         + cast(list[str], metadata.get("event_ids", []))
                     )[-1000:]
                 triggered += 1
+        announce(woke)
         row.state = state
     return triggered
 

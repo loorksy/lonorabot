@@ -27,6 +27,8 @@ ATTENTION_KINDS = frozenset(
         "task.degraded",
         "task.retry_scheduled",
         "task.updated",
+        # A background wake that failed: the item its source stood down for (11.5) returns.
+        "run.failed",
         # Cards that wait for the owner (the Secret card) and their end.
         "owner_action.updated",
     }
@@ -76,9 +78,12 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     elif kind == "broker.external_activity":
         transition = str(payload.get("id") or transition)
         # VISION 11.5: the agent this change woke reports it or stays silent; no item
-        # stands in beside its reply. A met watch always wakes its agent, so it is silent.
+        # stands in beside its reply.
         if payload.get("wakes_agent") is not True:
             result.importance, result.code = "important_change", "external_broker_activity"
+    elif kind == "watch.confirmed" and payload.get("wakes_agent") is not True:
+        # A confirmation that woke nobody (its cooldown) stays the owner's item.
+        result.importance, result.code = "opportunity", "setup_confirmed"
     elif kind in {"watch.invalidated", "watch.expired"}:
         result.importance, result.code = "important_change", "thesis_invalidated"
     elif kind == "opportunity.transition" and payload.get("wakes_agent") is not True:

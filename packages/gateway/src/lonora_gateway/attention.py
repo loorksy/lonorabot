@@ -2,12 +2,16 @@
 
 import asyncio
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.attention import AttentionClassification
 from lonora_contracts.domain import utcnow
+from lonora_contracts.market_watch import Watch
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
+from lonora_core.market_watch import condition_met
+from lonora_core.run_state import is_background
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import (
     decide_attention,
@@ -44,11 +48,114 @@ from lonora_db.schema import (
 from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
 from lonora_db.transactions import owned_agent
+from lonora_market.watchers import observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .owner_cards import CARD_EVENTS, follow_event
+
+
+async def validate_watch(db: Database, brokers: BrokerManager, row: MarketWatchRow) -> datetime:
+    config = Watch.model_validate(row.payload)
+    now = utcnow()
+    expiry = row.state.get("confirmation_valid_until")
+    if (
+        not config.enabled
+        or row.state.get("lifecycle") != "confirmed"
+        or row.state.get("evaluation_status") == "suspended_health"
+        or row.state.get("health", {}).get("state", "healthy") != "healthy"
+        or (config.expires_at and config.expires_at <= now)
+        or (expiry and datetime.fromisoformat(expiry) <= now)
+    ):
+        raise LonoraError("attention_setup_not_current", 409)
+    async with asyncio.timeout(5):
+        current, _, metadata = await observe(db, brokers, row, config)
+    if config.kind == "dynamic":
+        valid = current == 1
+    elif config.condition in {"changed", "closed", "opened", "due"}:
+        valid = current == Decimal(str(row.state.get("last_value", "NaN")))
+    else:
+        valid = condition_met(
+            {"cross_above": "above", "cross_below": "below"}.get(
+                config.condition, config.condition
+            ),
+            config.level,
+            current,
+            None,
+        )
+    if not valid:
+        raise LonoraError("attention_setup_not_current", 409)
+    from lonora_market.health import assess_quote, require_healthy
+
+    broker = await brokers.get(row.owner_id, config.account_id)
+    async with asyncio.timeout(5):
+        quote = await broker.quote(config.symbol)
+    require_healthy(
+        assess_quote(
+            quote,
+            account_id=config.account_id,
+            symbol=config.symbol,
+            now=utcnow(),
+            maximum_age_seconds=30,
+        )
+    )
+    deadlines = [quote.observed_at + timedelta(seconds=30)]
+    observation_expiry = metadata.get("observation", {}).get("valid_until")
+    if observation_expiry:
+        deadlines.append(datetime.fromisoformat(observation_expiry))
+    if expiry:
+        deadlines.append(datetime.fromisoformat(expiry))
+    if config.expires_at:
+        deadlines.append(config.expires_at)
+    return min(deadlines)
+
+
+async def projected(db: Database, event: EventRow) -> EventRow:
+    """The event an item is decided on. A background wake that failed stands for the source
+    that woke it: a source whose agent was to report it raised no item (VISION 11.5), so
+    when that run fails the source is decided again as if no agent had been woken."""
+    if event.kind != "run.failed" or not event.run_id:
+        return event
+    async with db.sessions() as session:
+        run = await session.get(RunRow, event.run_id)
+        if run is None or not is_background(run.trigger, run.model_metadata):
+            return event
+        metadata = run.model_metadata
+        query = select(EventRow).where(
+            EventRow.owner_id == event.owner_id, EventRow.cursor < event.cursor
+        )
+        sources = metadata.get("broker_event_ids")
+        if run.trigger == "broker_event" and isinstance(sources, list) and sources:
+            query = query.where(
+                EventRow.kind == "broker.external_activity",
+                EventRow.payload["id"].as_string().in_([str(item) for item in sources]),
+            )
+        elif metadata.get("opportunity_id"):
+            query = query.where(
+                EventRow.kind == "opportunity.transition",
+                EventRow.payload["id"].as_string() == str(metadata["opportunity_id"]),
+                EventRow.payload["version"].as_integer()
+                == int(metadata.get("opportunity_version") or 0),
+            )
+        elif metadata.get("watch_id"):
+            query = query.where(
+                EventRow.kind == "watch.confirmed",
+                EventRow.payload["watch_id"].as_string() == str(metadata["watch_id"]),
+            )
+        else:
+            return event
+        source = await session.scalar(query.order_by(EventRow.cursor.desc()).limit(1))
+    if source is None or source.payload.get("wakes_agent") is not True:
+        return event
+    return EventRow(
+        owner_id=source.owner_id,
+        kind=source.kind,
+        agent_id=source.agent_id,
+        thread_id=source.thread_id,
+        run_id=source.run_id,
+        payload={**source.payload, "wakes_agent": False},
+    )
 
 
 async def candidate(
@@ -243,6 +350,8 @@ async def candidate(
         thread_id = thread.id
         if thread.group_id:
             parameters["group_id"] = thread.group_id
+    if isinstance(resource, MarketWatchRow) and classification.importance == "opportunity":
+        parameters["valid_until"] = (await validate_watch(db, brokers, resource)).isoformat()
     if isinstance(resource, TradingOpportunityRow) and classification.importance == "opportunity":
         broker = await brokers.get(event.owner_id, resource.account_id)
         from lonora_market.health import assess_quote, require_healthy
@@ -282,7 +391,9 @@ async def project_event(
             await follow_event(session, event)
     suppression: str | None = None
     try:
-        classification, agent_id, thread_id, parameters, scope = await candidate(db, brokers, event)
+        classification, agent_id, thread_id, parameters, scope = await candidate(
+            db, brokers, await projected(db, event)
+        )
     except (LonoraError, TimeoutError) as error:
         suppression = (
             error.code if isinstance(error, LonoraError) else "attention_revalidation_timeout"
@@ -297,6 +408,15 @@ async def project_event(
                 {},
                 "suppressed:" + classification.resource_id,
             )
+    if (
+        suppression is None
+        and classification.importance == "silent"
+        and event.payload.get("wakes_agent") is True
+        and event.kind in {"broker.external_activity", "opportunity.transition"}
+    ):
+        # The agent this change woke reports it (11.5); it stands for no other item, so it
+        # withdraws none (another change on the symbol, the watch behind a thesis).
+        suppression = "woken_agent_reports"
     async with db.sessions() as session, session.begin():
         await decide_attention(
             session,
@@ -511,7 +631,7 @@ async def ready_one(
             source = await session.get(EventRow, original.source_events[-1])
         if source:
             try:
-                await candidate(db, brokers, source)
+                await candidate(db, brokers, await projected(db, source))
             except (LonoraError, TimeoutError) as error:
                 suppression = (
                     error.code

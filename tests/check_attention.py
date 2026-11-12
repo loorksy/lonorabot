@@ -23,7 +23,10 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     IntegrationRow,
+    MarketSnapshotRow,
+    MarketWatchRow,
     RunRow,
+    TradingAccountRow,
     TradingJournalRow,
 )
 from lonora_gateway.attention import attention_tick, ready_attention
@@ -215,6 +218,98 @@ async def main():
             "PASS a met watch wakes its agent once and, across concurrent Gateway ticks and a duplicate transition, raises no attention item beside the agent's own reply (11.5)"
         )
 
+        async def reconfirm(identifier: str) -> None:
+            """The watch confirms again on the same evidence: its wake is spent, no run."""
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await session.get(MarketWatchRow, identifier, with_for_update=True)
+                assert row
+                row.state = {
+                    **row.state,
+                    "lifecycle": "pending",
+                    "next_check": (utcnow() - timedelta(seconds=1)).isoformat(),
+                    "quote_observed_at": (utcnow() - timedelta(hours=2)).isoformat(),
+                }
+            assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 0
+
+        await reconfirm(watch_id)
+        await asyncio.gather(
+            attention_tick(f.runtime.db, context.brokers, f.owner),
+            attention_tick(f.runtime.db, context.brokers, f.owner),
+        )
+        notices = [row for row in await inbox() if row["code"] == "setup_confirmed"]
+        assert len(notices) == 1 and notices[0]["agent_id"] == agent["id"]
+        assert (
+            notices[0]["parameters"]["symbol"] == symbol
+            and notices[0]["parameters"]["execution_authorized"] is False
+        )
+        original = notices[0]
+        async with f.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AttentionRow, original["id"])
+            assert row
+            row.due_at = utcnow() - timedelta(seconds=1)
+        assert await ready_attention(f.runtime.db, context.brokers, f.owner) == 1
+        assert await ready_attention(f.runtime.db, context.brokers, f.owner) == 0
+        seen = await f.request("POST", "/attention/seen", {"notification_id": original["id"]})
+        assert seen["status"] == "seen"
+        assert (await f.request("POST", "/attention/seen", {"notification_id": original["id"]}))[
+            "version"
+        ] == seen["version"]
+        print(
+            "PASS a confirmation that wakes nobody (its wake already spent) stays one revalidated specialist-owned notification across concurrent ticks and restart delivery; seen is durable/idempotent and grants no execution"
+        )
+
+        # A confirmation is revalidated at delivery, not merely when queued.
+        late = await tool(
+            "watch_create",
+            {
+                "kind": "price",
+                "condition": "above",
+                "level": "99",
+                "prompt": "Inspect another setup",
+                "confirmation_ttl_seconds": 120,
+            },
+        )
+        late_id = late.get("id") or late.get("watch", {}).get("id")
+        assert late_id
+        assert await check_watches(f.runtime.db, context.brokers, owner_id=f.owner) == 1
+        await reconfirm(late_id)
+        await attention_tick(f.runtime.db, context.brokers, f.owner)
+        pending = [row for row in await inbox() if row["code"] == "setup_confirmed"]
+        assert len(pending) == 1
+        async with f.runtime.db.sessions() as session, session.begin():
+            account_row = await session.get(TradingAccountRow, account)
+            assert account_row
+            quotes = dict(account_row.payload["quotes"])
+            quotes[symbol] = {
+                **quotes[symbol],
+                "observed_at": (utcnow() - timedelta(hours=1)).isoformat(),
+            }
+            account_row.payload = {**account_row.payload, "quotes": quotes}
+            snapshots = await session.scalars(
+                select(MarketSnapshotRow).where(
+                    MarketSnapshotRow.connection_id == account, MarketSnapshotRow.timeframe == ""
+                )
+            )
+            for snapshot in snapshots:
+                snapshot.payload = {
+                    **snapshot.payload,
+                    "observed_at": (utcnow() - timedelta(hours=1)).isoformat(),
+                }
+            notification = await session.get(AttentionRow, pending[0]["id"])
+            assert notification
+            notification.due_at = utcnow() - timedelta(seconds=1)
+        assert await ready_attention(f.runtime.db, context.brokers, f.owner) == 0
+        async with f.runtime.db.sessions() as session:
+            suppressed = await session.get(AttentionRow, pending[0]["id"])
+            assert (
+                suppressed
+                and suppressed.status == "suppressed"
+                and suppressed.parameters["suppression_code"]
+            )
+        print(
+            "PASS stale current broker evidence suppresses a queued opportunity before delivery; no stale BUY notification"
+        )
+
         await f.request(
             "PUT",
             "/attention/policy",
@@ -397,20 +492,8 @@ async def main():
         summaries = [row for row in await inbox() if row["code"] == "collaboration_completed"]
         assert len(summaries) == 1 and summaries[0]["agent_id"] == host["id"]
         assert summaries[0]["thread_id"] == discussion["id"]
-        assert summaries[0]["parameters"]["execution_authorized"] is False
-        async with f.runtime.db.sessions() as session, session.begin():
-            row = await session.get(AttentionRow, summaries[0]["id"])
-            assert row
-            row.due_at = utcnow() - timedelta(seconds=1)
-        assert await ready_attention(f.runtime.db, context.brokers, f.owner) == 1
-        assert await ready_attention(f.runtime.db, context.brokers, f.owner) == 0
-        seen = await f.request("POST", "/attention/seen", {"notification_id": summaries[0]["id"]})
-        assert seen["status"] == "seen"
-        assert (
-            await f.request("POST", "/attention/seen", {"notification_id": summaries[0]["id"]})
-        )["version"] == seen["version"]
         print(
-            "PASS real peer outcome stays silent until the single final synthesis, owned by the host conversation, with replay-safe notification; restart delivery is once, seen is durable/idempotent and grants no execution"
+            "PASS real peer outcome stays silent until the single final synthesis, owned by the host conversation, with replay-safe notification"
         )
     finally:
         await f.close()

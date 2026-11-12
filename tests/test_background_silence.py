@@ -695,7 +695,7 @@ async def test_wake_sources_raise_an_item_only_when_no_run_speaks():
     from lonora_contracts.broker_activity import BrokerActivity
     from lonora_contracts.domain import ThreadCreate, utcnow
     from lonora_db.personal_agent import ensure_personal_agent
-    from lonora_db.schema import AgentRow, AttentionRow, TradingOpportunityRow
+    from lonora_db.schema import AgentRow, AttentionRow, EventRow, RunRow, TradingOpportunityRow
     from lonora_db.threads import create_thread
     from lonora_gateway.attention import attention_tick
     from lonora_trading.broker_recovery import wake_for_activity
@@ -751,7 +751,34 @@ async def test_wake_sources_raise_an_item_only_when_no_run_speaks():
             personal.paused = True
             await wake_for_activity(session, fixture.owner, connection, 2, [activity()])
             personal.paused = False
-        assert len(await items("external_broker_activity")) == 1
+        [unseen] = await items("external_broker_activity")
+        # A later change that wakes Lonora withdraws no item about another change.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await wake_for_activity(session, fixture.owner, connection, 3, [activity()])
+        assert [item.id for item in await items("external_broker_activity")] == [unseen.id]
+        # If that woken run fails, the change it stood for returns as the owner's item.
+        async with fixture.runtime.db.sessions() as session:
+            woken = await session.scalar(
+                select(RunRow)
+                .where(
+                    RunRow.trigger == "broker_event",
+                    RunRow.model_metadata["broker_revision"].as_integer() == 3,
+                )
+                .order_by(RunRow.created_at.desc())
+            )
+            assert woken is not None
+        complete, _ = router(fail=True)
+        await execute(fixture, woken, complete)
+        assert (await reload(fixture, woken.id)).status == "failed"
+        async with fixture.runtime.db.sessions() as session:
+            failure = await session.scalar(
+                select(EventRow).where(EventRow.kind == "run.failed", EventRow.run_id == woken.id)
+            )
+            assert failure is not None
+        returned = await items("external_broker_activity")
+        assert any(failure.cursor in item.source_events for item in returned), [
+            item.source_events for item in returned
+        ]
         # An opportunity's wake reports only in its agent's own conversation.
         agent = await fixture.agent("Opportunity desk")
         conversation = (await fixture.conversation(agent))["id"]

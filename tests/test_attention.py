@@ -19,8 +19,11 @@ from pydantic import ValidationError
     ("kind", "payload", "importance", "code"),
     [
         ("trading.approval.updated", {"status": "pending"}, "action_required", "approval_required"),
-        # VISION 11.5: a met watch always wakes its agent, whose reply is the news.
-        ("watch.confirmed", {"state": "confirmed"}, "silent", "internal_update"),
+        ("watch.confirmed", {"state": "confirmed"}, "opportunity", "setup_confirmed"),
+        # VISION 11.5: a confirmation that woke its agent is the agent's to report.
+        ("watch.confirmed", {"state": "confirmed", "wakes_agent": True}, "silent", "internal_update"),
+        # A failed run is projected through the source it woke for, never by itself.
+        ("run.failed", {"code": "model_unavailable"}, "silent", "internal_update"),
         ("watch.invalidated", {"state": "invalidated"}, "important_change", "thesis_invalidated"),
         ("watch.forming", {}, "silent", "internal_update"),
         ("collaboration.updated", {"status": "completed"}, "silent", "internal_update"),
