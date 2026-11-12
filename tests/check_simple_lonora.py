@@ -40,9 +40,11 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
+from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_db.events import emit
+from lonora_db.owner_actions import raise_system_card
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
 from lonora_db.schema import (
@@ -60,7 +62,6 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from lonora_db.trading_mode import set_trading_mode
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
 from lonora_gateway.service import Gateway
@@ -731,15 +732,30 @@ class Acceptance:
             for row in await self.runs(gold.id)
             if row.model_metadata.get("account_management_id") == active[0].id
         ]
+        # The agent shows its Mandate card (owner_action_propose kind=trading_mode, here
+        # raised directly); the owner taps Full on it.
         async with self.db.sessions() as session, session.begin():
-            await set_trading_mode(session, self.owner, gold.id, "full", by="owner_tap")
+            mandate = await raise_system_card(
+                session,
+                self.owner,
+                OwnerActionProposal(kind="trading_mode", agent_id=gold.id),
+                agent_id=gold.id,
+                thread_id=None,
+                run_id=None,
+            )
+            assert mandate is not None
+            mandate_id = mandate.id
+        tapped = await self.decide(
+            name, mandate_id, {"decision": "confirm", "trading_mode": "full"}
+        )
+        assert tapped["status"] == "confirmed", tapped
         management = [
             row
             for row in await self.runs(gold.id)
             if row.model_metadata.get("account_management_id") == gold.id
         ]
         assert len(management) == 1 and management[0].status == "queued", management
-        self.journey(name, 1)
+        self.journey(name, 2, "the signed grant and the Mandate card's Full tap")
 
         # The management Task: the agent buys gold on its own (no tap); the worker dies
         # after the broker took the order and before it heard back.

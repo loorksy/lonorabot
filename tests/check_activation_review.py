@@ -6,7 +6,8 @@ Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
    concurrent scheduler ticks. The review reads the account through the normal
    AgentRuntime, cannot trade (not even through a direct executor call), and stays
    quiet in the conversation: the owner already has the one confirmation line.
-2. A grant with full management starts its management Task instead and gets no review.
+2. A grant with full management starts no task (the continuous task comes with Full mode,
+   4.5.1) and gets no review.
 3. A review the model cannot run is never retried and never puts the agent at "action
    required": it is observe-only and gates nothing. Its one review-scoped line stays only
    until a later Run of the agent completes.

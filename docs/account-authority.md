@@ -106,12 +106,10 @@ monotonic:
   stores an explicit level for every agent that existed before: No trading, and
   Ask me for the Personal Agent. Delegated helpers can still never trade.
 
-Activation atomically creates one existing durable Task and its work Run. Signed
-proof replay cannot create another kickoff. It inspects actual state and may
-create/reuse watches, choose trades and manage positions without per-order
-approval. The task is bound to this exact grant; replacement or revocation cannot
-silently let stale kickoff work spend a newer grant. Revocation, replacement and
-device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
+Activation starts no Task (4.5.1): the agent's one continuous account-management
+Task comes with Full mode and is bound to no grant (docs/owner-actions.md). A Run
+that still carries a replaced grant's id (`account_management_id`, from before 4.5.1)
+never spends a newer grant. An activation is not an
 entry signal or proof a broker is ready. Stop new trading and the owner's pauses
 remain authoritative and are never silently switched by activation.
 
@@ -395,8 +393,8 @@ cannot guarantee a maximum loss, and the new order's own margin is not modeled.
 `test_full_account_management.py` verifies explicit mode/version, absent versus
 null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
-WebAuthn, durable kickoff Task/Run, repeat signatures, grant replacement, stale
-work, four symbol classes, market/pending orders, manual position management,
+WebAuthn, the Full-mode Task started by the owner's tap, repeat signatures, grant
+replacement, a Run held to a replaced grant, four symbol classes, market/pending orders, manual position management,
 partial close, discretionary stops, broker constraints, Stop new trading and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise

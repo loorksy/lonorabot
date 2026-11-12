@@ -240,8 +240,8 @@ E voice and language, F leaks and display, G availability.
 | X_owner | extra | C | احذف كل المتابعات | The watches belong to another agent of the owner: the Personal Agent still lists and cancels every one of them. |
 | X_task | extra | C | ألغِ مهمة إدارة حساب التداول بالكامل | Cancelling the account Task also stops the watch it created. |
 **State before each scenario**, as the production trace shows it. Every scenario starts with
-the signed full mandate (except X_permission, where it is revoked), the account Task that
-signing started, and every earlier turn of the conversation as history.
+the signed full mandate and Full mode (except X_permission, where the mandate is revoked and
+the agent is in Ask), the account Task that Full mode started, and every earlier turn of the conversation as history.
 
 - From [11] on, the Task's own watch exists: EURUSDm below 1.11305, in the Task's
   conversation. The Task waits for the owner until it is cancelled before [72].

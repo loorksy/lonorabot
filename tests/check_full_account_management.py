@@ -10,6 +10,7 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradingControl
+from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.management_task import live_management_task
 from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingAccountRow
@@ -138,7 +139,16 @@ async def main():
             return ToolCall(
                 id=uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, "symbol": symbol, "action": action, **params},
+                arguments={
+                    "account_id": account,
+                    "symbol": symbol,
+                    "action": action,
+                    # A request that may raise a Trade Approval card carries a reason and a
+                    # tolerance (10.3.1); a request sent on its own ignores them.
+                    "reason": "Fixture order",
+                    "tolerance": "5",
+                    **params,
+                },
             )
 
         async def trade(action: str = "buy", symbol: str = symbols[0], **params: Any):
@@ -191,7 +201,7 @@ async def main():
             }
         context = await f.lease(kickoff_data)
         print(
-            "PASS signed full management atomically starts one durable same-Agent task, bound to this exact grant"
+            "PASS a signed grant starts no task; the owner's Full tap starts the agent's one continuous task"
         )
 
         initial_approvals = 0
@@ -246,9 +256,27 @@ async def main():
             "PASS signed full scope manages external positions, stop discretion, partial/full closure and every supported pending type"
         )
 
-        # Optional explicit limits still apply; full mode never nulls them silently.
+        # Optional explicit limits still apply; full mode never nulls them silently. The
+        # grant decides within its own terms; outside them the agent's mode decides, so
+        # the agent is in Ask from here (4.2.2).
+        async with f.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, f.owner, agent["id"], "ask", by="agent")
         context = await f.lease(await f.run(agent, thread))
         limited = await sign(await propose(maximum_order_volume="0.2"))
+        # A Run held to a replaced grant (a grant's management Run from before 4.5.1)
+        # never spends the replacement's authority.
+        legacy = await f.run(agent, thread)
+        async with f.runtime.db.sessions() as session, session.begin():
+            held = await session.get(RunRow, legacy["id"])
+            assert held is not None
+            held.model_metadata = {**held.model_metadata, "account_management_id": grant["id"]}
+        legacy_context = await f.lease(legacy)
+        try:
+            await registry.execute(call(volume="0.1"), legacy_context)
+        except LonoraError as error:
+            assert error.code == "account_authority_unavailable"
+        else:
+            raise AssertionError("a Run held to a replaced grant spent replacement authority")
         # Over the signed cap the agent asks the owner (correction 6); nothing is sent.
         before = await broker.snapshot()
         over = await trade(volume="0.3")
