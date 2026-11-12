@@ -71,7 +71,7 @@ returns the names of the checks that failed.
 | `claims_inability` | "I cannot" or "I have no tool" while a tool that serves the request is registered. |
 | `unbacked_claim` | "Done", or a promise to watch, notify or act ("سأحذف", "أتابعه", "I am watching it"), with no successful effect in the same turn. A read, a failed, refused or unsettled call, a pending approval, a note to memory and a card that only asks are not effects. What follows an offer ("إذا تريد، …") is not a promise; a question, a quotation, a negation and "تم التحقق" claim nothing. |
 | `mismatched_claim` | An effect ran, but not the one the reply states: "cancelled", "deleted" or "closed" while nothing that cancels, stops or closes succeeded ([63]: «تم الإلغاء» after three `watch_create`). |
-| `promise_without_trigger` | A promise to watch or notify while nothing was left standing: no watch, routine or goal created, no Task started, no order at the broker. |
+| `promise_without_trigger` | A promise to watch or notify while nothing was left standing: no watch or routine created, no Task started, no order at the broker. |
 | `trial_side_effect` | Something created switched off "to try the tool" ([77]). |
 | `language` | Fewer than half of the reply's letters are in the owner's script. Symbols, codes and units are not counted. |
 
@@ -79,7 +79,7 @@ returns the names of the checks that failed.
 error codes from every literal `LonoraError(...)` in `packages/` and `apps/`; internal states
 from every `…Status` and `…State` literal of `lonora_contracts` and the Task wait reasons;
 resource names from what the registry both creates and lists (`watch_create` and
-`watch_list` give `watch` and `watches`; likewise routines, goals and boards). Names spelled
+`watch_list` give `watch` and `watches`; likewise routines and boards). Names spelled
 with `_` fail in any language and any letter case, also written as `WatchCancel`, and so does
 an unregistered snake_case name built from the same words (`pending_approval`). One-word
 states and resource names fail when they appear in Latin letters in an Arabic reply.

@@ -246,10 +246,6 @@ export const labels = {
     "Your Personal Agent cannot be deleted.",
   ],
   cancelAction: ["إلغاء", "Cancel"],
-  execution_mode_changed: [
-    "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة.",
-    "Execution mode changed. Review the saved plan before continuing.",
-  ],
   shadow_execution_forbidden: [
     "وضع التنفيذ لا يطابق صلاحيات هذه العملية.",
     "The execution mode does not match this operation's authority.",
@@ -339,7 +335,6 @@ export const labels = {
   ],
   attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
   attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
-  attentionGoalChanged: ["تم تحديث هدف التداول", "Trading goal updated"],
   attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
   attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
   attentionTaskDegraded: [

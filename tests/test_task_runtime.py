@@ -359,6 +359,108 @@ async def test_step_completion_requires_real_checkpoint_evidence(
 
 
 @pytest.mark.asyncio
+async def test_unconfirmed_operation_is_not_step_evidence(
+    task_db: tuple[Database, str, str, str],
+) -> None:
+    """A financial result counts only once confirmed, by its tool or by its content.
+
+    Runs stored before a tool was removed keep its results: a former goal step result
+    is financial by its name even without an operation (an expired approval, a wait for
+    one), and any result naming an operation at any depth is financial by its content.
+    """
+    import json
+
+    from lonora_contracts.tasks import TaskStepUpdate
+    from lonora_db.tasks import update_task_step
+
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        await create_task(
+            session,
+            owner,
+            agent,
+            thread,
+            TaskCreate(title="Enter gold", steps=[TaskStep(id="enter", title="Enter")]),
+        )
+        run = await claim_next(session, "proof-worker", 60, "work")
+        assert run
+        run.status = "running"
+        lease = Lease(run_id=run.id, owner="proof-worker", fence=run.lease_fence)
+        run.execution_state = {
+            "messages": [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {"id": "old-step", "name": "goal_step_execute"},
+                        {"id": "expired-step", "name": "goal_step_execute"},
+                        {"id": "waiting-step", "name": "goal_step_execute"},
+                        {"id": "done-step", "name": "goal_step_execute"},
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "expired-step",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "status": "expired",
+                            "code": "trade_approval_expired",
+                            "approval_id": "approval-1",
+                        }
+                    ),
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "waiting-step",
+                    "content": json.dumps(
+                        {"ok": True, "_runtime_wait": True, "approval_id": "approval-2"}
+                    ),
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "old-step",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "status": "completed",
+                            "execution": {"operation_id": "op-1", "status": "ambiguous"},
+                        }
+                    ),
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "done-step",
+                    "content": json.dumps(
+                        {"ok": True, "status": "confirmed", "operation_id": "op-2"}
+                    ),
+                },
+            ]
+        }
+        for refused in ("old-step", "expired-step", "waiting-step"):
+            with pytest.raises(LonoraError, match="task_step_evidence_invalid"):
+                await update_task_step(
+                    session,
+                    lease,
+                    TaskStepUpdate(
+                        step_id="enter",
+                        plan_revision=1,
+                        state="completed",
+                        evidence_call_ids=[refused],
+                    ),
+                )
+        await update_task_step(
+            session,
+            lease,
+            TaskStepUpdate(
+                step_id="enter",
+                plan_revision=1,
+                state="completed",
+                evidence_call_ids=["done-step"],
+            ),
+        )
+
+
+@pytest.mark.asyncio
 async def test_bounded_retry_preserves_checkpoint_steps_and_fencing(
     task_db: tuple[Database, str, str, str],
 ):

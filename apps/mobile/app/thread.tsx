@@ -242,6 +242,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 approved: 1,
                 rejected: 1,
                 expired: 1,
+                withdrawn: 1,
                 completed: 2,
                 cancelled: 2,
               };

@@ -336,17 +336,15 @@ async def main() -> None:
             "PASS repeated signed account trades across exact forex/metal/index/crypto symbols; pending and management use one verified executor"
         )
 
-        # The grant excludes the owner's own position: closing it asks the owner with an
-        # approval card (the ladder is monotonic) and sends nothing before the tap.
+        # The grant excludes the owner's own position, and the ticket is not this agent's
+        # (3.3.4): refused, nothing sent, no card.
         before = await broker.snapshot()
-        asked_manual = await operation("close_position", position_id="manual-ticket")
-        assert asked_manual["_runtime_wait"], asked_manual
+        try:
+            await operation("close_position", position_id="manual-ticket")
+            raise AssertionError("An agent closed the owner's own position")
+        except LonoraError as error:
+            assert error.code == "ticket_not_owned", error.code
         assert await broker.snapshot() == before
-        await f.request(
-            "POST",
-            f"/trading/approvals/{asked_manual['approval_id']}/decision",
-            {"decision": "reject"},
-        )
         # A request outside the grant's own terms asks the owner too (correction 6) and
         # sends nothing; the executor itself still refuses it under the grant.
         await outside_grant(
