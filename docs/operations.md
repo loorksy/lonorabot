@@ -547,6 +547,18 @@ project id and the Firebase file, so publish OTA updates for a push build with t
 variables set (`scripts/ota-publish.sh` refuses one without the other); an update exported
 without them has another runtime and never reaches that phone.
 
+### Telegram
+
+The owner may also receive these alerts in Telegram (VISION 11.4). Link a bot in the web app
+(Settings, Integrations, Telegram: the bot token from @BotFather and the agent that receives
+your messages), then tap «ربط محادثة» and send the `/start <code>` it shows to your bot from
+your own private chat within ten minutes. The code works once; the chat that sent it becomes
+the bot's only destination, and pairing again replaces it. The bot then sends the same events
+as the push (the agent's name and the same fixed text), once per record, with an effect
+receipt before each call and no second send of an unconfirmed one. What you write to the bot
+reaches the chosen agent's conversation as your message: a "yes" there is a message to the
+agent and never approves or settles a card, which only the card in the app does.
+
 ## Release manifest and client versions
 
 Every image carries `/app/release.json`, e.g.:

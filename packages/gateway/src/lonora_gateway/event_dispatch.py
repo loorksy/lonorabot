@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from typing import Any
 
 from lonora_adapters.channels.telegram import TelegramAdapter
@@ -6,6 +7,7 @@ from lonora_adapters.channels.webhook import WebhookAdapter
 from lonora_bus.attention import attention_text
 from lonora_bus.runtime_events import RuntimeEvents
 from lonora_channels.telegram.runtime import decode_update
+from lonora_contracts.attention import BROKER_HEALTH_CODES
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.events import EventEnvelope
 from lonora_core.user_error import LonoraError
@@ -15,13 +17,16 @@ from lonora_db.events import PUBLIC_CURSOR, publish_committed
 from lonora_db.item_failures import ItemGuard, blocked
 from lonora_db.messages import send_message
 from lonora_db.schema import (
+    AgentRow,
     AttentionRow,
     EffectReceiptRow,
     EventRow,
     IntegrationRow,
 )
+from lonora_db.telegram_pairing import paired_chat
 from sqlalchemy import select
 
+from .push import PUSH_CODES, push_record
 from .runtime import OwnerServices
 
 # A channel request never holds the delivery loop longer than this.
@@ -76,7 +81,14 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                 if locked is None:
                     return
                 for update in updates:
-                    if config.get("thread_id"):
+                    message: dict[str, Any] = update.get("message") or {}
+                    chat: dict[str, Any] = message.get("chat") or {}
+                    if isinstance(message.get("text"), str) and paired_chat(
+                        locked, message["text"], str(chat.get("id", "")), str(chat.get("type", ""))
+                    ):
+                        # The pairing message binds the chat; it is not a message to an agent.
+                        config = locked.payload
+                    elif config.get("thread_id"):
                         incoming = decode_update(update, config["thread_id"])
                         if incoming and incoming.destination in config.get(
                             "allowed_destinations", []
@@ -128,6 +140,8 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                         or notification.owner_id != services.owner_id
                         or notification.status != "ready"
                         or notification.importance not in {"critical", "action_required"}
+                        # Telegram carries the events that push (11.4), nothing else.
+                        or (config["type"] == "telegram" and notification.code not in PUSH_CODES)
                     ):
                         continue
                     if not await mandatory_current(session, notification):
@@ -149,6 +163,25 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                     settings = await policy(session, services.owner_id)
                     outbound = {"content": attention_text(notification.code, settings.locale)}
                     identity = "attention:" + notification.id
+                    if config["type"] == "telegram":
+                        found = await push_record(session, notification)
+                        if found is None:
+                            continue
+                        # One message per record, as one push: the same broker outage or
+                        # card raised again under another item is not sent twice.
+                        kind = (
+                            "broker_health"
+                            if notification.code in BROKER_HEALTH_CODES
+                            else notification.code
+                        )
+                        identity = (
+                            "record:"
+                            + hashlib.sha256(f"{kind}\x00{found[0]}".encode()).hexdigest()[:40]
+                        )
+                        agent = await session.get(AgentRow, notification.agent_id)
+                        outbound = {
+                            "content": (agent.name + ": " if agent else "") + outbound["content"]
+                        }
                 elif event.payload.get("role") != "assistant":
                     continue
                 destinations = (
