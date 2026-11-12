@@ -1313,6 +1313,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "owner_call_request",
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
+        "secret_delete", "secrets_list",
         "skill_package_control", "skill_package_create", "skill_package_import",
         "skill_package_validate", "subagent_spawn", "supervision_change",
         "task_control", "task_inspect", "task_start", "task_step_update",

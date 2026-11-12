@@ -206,6 +206,12 @@ follows; after anything else, and after any trust card, the agent that asked is 
 once (`owner_card` run, a fixed server prompt) to continue the work that needed it.
 Removing a connection keeps its secrets: they are the owner's (VISION.md 7.2.4), and
 `DELETE /secrets/{secret_id}` is the only route that deletes a stored secret (14.3.11).
+In chat (P5) the owner asks an agent what is saved: `secrets_list` names his `workspace`
+secrets, when each was saved and the connections that use each, never a value or an id.
+He removes one in his own words: `secret_delete` deletes it through the route's own
+deletion, only for the owner's typed message the Run answers (`owner_message_id`, as
+trusting a source; otherwise `secret_delete_requires_owner_message`), and never one a
+connection still uses (`secret_in_use`). A replayed call answers as it did.
 Deleting a saved MCP server removes its trust row too (kept as the record).
 
 ## Capabilities
@@ -249,6 +255,10 @@ preview, and **Set up integrations on the web** opens the web settings.
   broker's token in the broker scope with its connection; each MCP server's address and
   token under names of their own, kept when the server is removed; a name a connection
   uses never replaced; a stored address read only on its saved host).
+- `tests/test_secret_chat.py`: the chat list names only workspace secrets, with the
+  connections that use each and no value; one is deleted only in the owner's own words
+  (not on a routine wake or after a web page was read), never while a connection uses it,
+  and a replay answers as it did.
 - `tests/web/capabilities.test.ts`, `tests/web/secret-card.test.ts`; Playwright
   `capabilities` and `secret-card` on Web and Mobile, in Arabic and English (Skill Undo
   on both; on Mobile, review and trust of a server).
@@ -275,7 +285,7 @@ preview, and **Set up integrations on the web** opens the web settings.
   the MetaApi token are broker secrets, which never enter the workspace.
 - No key rotation is built (nothing in 7.2 asks for it). To change a key, a token or an
   address, remove the connection, connect it again from a new Secret card, and trust its
-  tools again.
+  tools again. The old values stay saved until the owner removes them in chat.
 - An operator declaration (`LONORA_MCP_DECLARATIONS`, `credential_scope: integration`)
   also covers a server whose token is a workspace secret from a Secret card: both are
   scopes an MCP connection may name; a broker or provider value never is.

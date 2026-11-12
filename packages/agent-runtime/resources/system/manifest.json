@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "05ff7ce1b6eccef1e37a1f0fc0702df634fc1231db9317eaa05e8166bbde0a6f",
+  "manual_sha256": "b33201511ada22fdda562f43fb9438de34fb1967af5c028b1cbc93bfa94f635c",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -43,6 +43,8 @@
     "news_feed_read": "research",
     "news_feed_subscribe": "research",
     "capabilities_list": "research",
+    "secrets_list": "research",
+    "secret_delete": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",
     "child_agent_create": "collaboration",

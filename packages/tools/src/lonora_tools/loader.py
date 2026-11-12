@@ -22,6 +22,7 @@ MODULES = {
     "mcp": "research",
     "feeds": "research",
     "capabilities": "research",
+    "secrets": "research",
     "subagent": "collaboration",
     "market": "market",
     "market_analysis": "market",
