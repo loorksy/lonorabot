@@ -7,9 +7,11 @@ one agent; deleting the agent deletes its row (``ON DELETE CASCADE``), which rev
 import hashlib
 import secrets
 
+from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_security.secrets import SecretCipher
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import AgentCliTokenRow, AgentRow
@@ -33,20 +35,28 @@ async def cli_token(session: AsyncSession, key: str, owner_id: str, agent_id: st
     if agent is None or agent.owner_id != owner_id:
         raise LonoraError("agent_not_found", 404)
     token = TOKEN_PREFIX + secrets.token_urlsafe(32)
-    session.add(
-        AgentCliTokenRow(
+    # Two commands starting at once for a new agent: one insert wins, both read it back.
+    await session.execute(
+        insert(AgentCliTokenRow)
+        .values(
             agent_id=agent_id,
             owner_id=owner_id,
             token_hash=token_hash(token),
             ciphertext=cipher.encrypt(token),
+            created_at=utcnow(),
         )
+        .on_conflict_do_nothing(index_elements=["agent_id"])
     )
-    await session.flush()
-    return token
+    row = await session.get(AgentCliTokenRow, agent_id, populate_existing=True)
+    if row is None or row.owner_id != owner_id:
+        raise LonoraError("agent_not_found", 404)
+    return cipher.decrypt(row.ciphertext)
 
 
 async def revoke_cli_token(session: AsyncSession, agent_id: str) -> None:
-    """Revoke the agent's token now. Deleting the agent row does the same by cascade."""
+    """Revoke the agent's token now, for the agent-delete path (W-TEAM) to call before it
+    transfers the agent's tickets (3.1.2). Deleting the agent row also revokes it, by the
+    foreign key's cascade."""
     await session.execute(delete(AgentCliTokenRow).where(AgentCliTokenRow.agent_id == agent_id))
 
 

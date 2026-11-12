@@ -151,7 +151,7 @@ async def test_one_token_per_agent_stable_and_revoked_with_the_agent() -> None:
         async with runtime.db.sessions() as session:
             assert (await agent_for_cli_token(session, token)).id == setup.agent  # type: ignore[union-attr]
             assert (await agent_for_cli_token(session, other_token)).id == other  # type: ignore[union-attr]
-        # W-TEAM's delete calls the revoke function; the cascade covers a direct delete.
+        # revoke_cli_token is for W-TEAM's delete path; today's delete revokes by cascade.
         async with runtime.db.sessions() as session, session.begin():
             await revoke_cli_token(session, other)
         assert (await setup.call("account", other_token))[0] == 77
@@ -313,5 +313,65 @@ async def test_only_full_scope_runs_receive_the_token() -> None:
             assert await token_for_command(session, key, uuid4().hex) is None
         assert tokens[0] == await setup.token()
         assert tokens[1:] == [None, None, None]
+    finally:
+        await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_a_broken_ancestry_gets_no_token_as_the_door_refuses_it() -> None:
+    database()
+    from lonora_db.schema import RunRow
+    from lonora_tools.cli_token import MAXIMUM_ANCESTRY, token_for_command
+
+    setup = await Setup().open()
+    try:
+        runtime = setup.fixture.runtime
+        key = runtime.settings.encryption_key.get_secret_value()
+        thread = (await setup.fixture.request("POST", "/threads", {"agent_id": setup.agent}))["id"]
+        async with runtime.db.sessions() as session, session.begin():
+            dangling = RunRow(thread_id=thread, agent_id=setup.agent, parent_run_id=uuid4().hex)
+            first = RunRow(id=str(uuid4()), thread_id=thread, agent_id=setup.agent)
+            second = RunRow(id=str(uuid4()), thread_id=thread, agent_id=setup.agent)
+            first.parent_run_id, second.parent_run_id = second.id, first.id
+            chain = [RunRow(id=str(uuid4()), thread_id=thread, agent_id=setup.agent)]
+            for _ in range(MAXIMUM_ANCESTRY + 1):
+                chain.append(
+                    RunRow(
+                        id=str(uuid4()),
+                        thread_id=thread,
+                        agent_id=setup.agent,
+                        parent_run_id=chain[-1].id,
+                    )
+                )
+            session.add_all([dangling, first, second, *chain])
+            await session.flush()
+            ids = dangling.id, first.id, chain[-1].id, chain[-2].id
+        async with runtime.db.sessions() as session, session.begin():
+            tokens = [await token_for_command(session, key, run_id) for run_id in ids]
+        assert tokens[:3] == [None, None, None]
+        assert tokens[3] == await setup.token(), "the door's bound itself is still accepted"
+    finally:
+        await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_commands_share_one_token() -> None:
+    database()
+    setup = await Setup().open()
+    try:
+        tokens = await asyncio.gather(*(setup.token() for _ in range(6)))
+        assert len(set(tokens)) == 1
+    finally:
+        await setup.close()
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_body_is_refused_unread() -> None:
+    database()
+    setup = await Setup().open()
+    try:
+        token = await setup.token()
+        code, output = await setup.call("price", token, symbol="X" * 70_000)
+        assert (code, output) == (20, {"error": "request_too_large"})
     finally:
         await setup.close()

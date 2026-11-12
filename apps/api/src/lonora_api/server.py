@@ -48,7 +48,8 @@ class _Server(uvicorn.Server):
 
 def cli_socket_path(path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # A socket left by an earlier process would keep its old mode; start from none.
+    # A socket left by an earlier process would keep its old mode. Removed, uvicorn creates
+    # it 0666 on purpose: every agent's Unix user connects, and the token authenticates.
     path.unlink(missing_ok=True)
     return str(path)
 
@@ -72,12 +73,18 @@ async def serve(host: str, port: int) -> None:
         loop.add_signal_handler(sig, stop.set)
     api_task, cli_task = asyncio.create_task(api.serve()), asyncio.create_task(cli.serve())
     stopping = asyncio.create_task(stop.wait())
-    await asyncio.wait({api_task, cli_task, stopping}, return_when=asyncio.FIRST_COMPLETED)
-    stopping.cancel()
-    cli.should_exit = True
-    await cli_task
-    api.should_exit = True
-    await api_task
+    try:
+        # Either server ending (a bind failure included) stops both.
+        await asyncio.wait({api_task, cli_task, stopping}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        stopping.cancel()
+        cli.should_exit = True
+        try:
+            await cli_task
+        finally:
+            # The API stops last whatever the CLI did: its lifespan closes the runtime.
+            api.should_exit = True
+            await api_task
 
 
 def main() -> None:
