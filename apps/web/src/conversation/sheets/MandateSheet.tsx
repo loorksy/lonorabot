@@ -19,12 +19,11 @@ import { userError } from "../../lib/user_error";
 import { useSheets } from "../../shell/sheets/SheetHost";
 
 /* «التفويض» (reference OA_R.grant_authority, Desktop-37 7774-7799): مخصّص / كامل, the
-   markets, the allowed actions, the duration, the daily loss (D1: 3% suggested), own
-   positions. «التوقيع بمفتاح المرور» drafts the grant on the server
-   (POST /agents/{id}/account-authorities/draft, Q17/Q18); the drafted grant card then opens in
-   the same sheet, where the passkey signs exactly what the server stored. Nothing is active
-   before that signature; the money-limit choice («التشغيل دون حد مالي») and a conflicting
-   agent's stop are the card's own switches. */
+   markets, the allowed actions, the duration, own positions. «التوقيع بمفتاح المرور» drafts
+   the grant on the server (POST /agents/{id}/account-authorities/draft, Q17/Q18); the drafted
+   grant card then opens in the same sheet, where the passkey signs exactly what the server
+   stored. Nothing is active before that signature; a conflicting agent's stop is the card's
+   own switch. */
 
 type Kind = "open" | "modify" | "close";
 const ACTIONS: Record<Kind, AuthorityAction[]> = {
@@ -50,31 +49,8 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
   const [mode, setMode] = useState<"custom" | "full">("custom");
   const [allPairs, setAllPairs] = useState(false);
   const [kinds, setKinds] = useState<Kind[]>(["open", "modify", "close"]);
-  // D1 (Q18): until the owner stops it; the daily loss is the account's own limit, else a
-  // suggested 3% of equity that is sent only when the owner sets it here.
+  // D1 (Q18): until the owner stops it.
   const [duration, setDuration] = useState<AuthorityDuration>("until_stopped");
-  const [loss, setLoss] = useState(3);
-  const [lossSet, setLossSet] = useState(false);
-  const [accountLoss, setAccountLoss] = useState<{ amount: string; currency: string } | null>(null);
-  useEffect(() => {
-    if (!agent.trading_account_id) return;
-    let live = true;
-    void api
-      .get<{ risk: { max_daily_loss?: string | null; currency?: string | null } }>(
-        `/trading/accounts/${encodeURIComponent(agent.trading_account_id)}/execution-policy`,
-      )
-      .then((row) => {
-        if (live && row.risk.max_daily_loss != null)
-          setAccountLoss({
-            amount: String(+Number(row.risk.max_daily_loss).toFixed(2)),
-            currency: row.risk.currency ?? "",
-          });
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [agent.trading_account_id]);
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -105,7 +81,6 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
           actions: kinds.flatMap((kind) => ACTIONS[kind]),
           duration,
           allow_manual_positions: manual,
-          ...(lossSet && !accountLoss ? { daily_loss_percent: String(loss) } : {}),
         };
     try {
       const result = await api.post<AccountAuthorityDraftResult>(
@@ -137,10 +112,10 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
               <strong>{value === "custom" ? t`Custom mandate` : t`Full mandate`}</strong>
               <small>
                 {value === "custom"
-                  ? t`You set the markets, actions, duration and money limit`
+                  ? t`You set the markets, actions and duration`
                   : fixed && symbol
-                    ? t`${symbol} only: all actions and your own positions until cancelled; the account's limits still apply`
-                    : t`All pairs and all actions until cancelled; the account's limits still apply`}
+                    ? t`${symbol} only: all actions and your own positions until cancelled`
+                    : t`All pairs and all actions until cancelled`}
               </small>
             </span>
             {mode === value && <Icon name="check" />}
@@ -231,56 +206,6 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
               ))}
             </div>
           </div>
-          {accountLoss ? (
-            // The account's own daily loss limit stays as it is: the card never raises it.
-            <div className="oa-f" data-daily-loss="account">
-              <span className="oa-l">
-                <Trans>Daily loss limit</Trans>
-                <small>
-                  <Trans>The account's limit stays</Trans>
-                </small>
-              </span>
-              <span className="ltr">
-                {accountLoss.amount}
-                {accountLoss.currency ? ` ${accountLoss.currency}` : ""}
-              </span>
-            </div>
-          ) : (
-            <div className="oa-f" data-daily-loss={lossSet ? "requested" : "suggested"}>
-              <span className="oa-l">
-                <Trans>Daily loss limit</Trans>
-                {!lossSet && (
-                  <small>
-                    <Trans>Suggested value 3%</Trans>
-                  </small>
-                )}
-              </span>
-              {/* biome-ignore lint/a11y/useSemanticElements: the reference's stepper */}
-              <div className="oa-num" role="group" aria-label={t`Daily loss limit`}>
-                <button
-                  type="button"
-                  aria-label={t`Decrease`}
-                  onClick={() => {
-                    setLossSet(true);
-                    setLoss((v) => Math.max(0.5, +(v - 0.5).toFixed(2)));
-                  }}
-                >
-                  <Icon name="minus" />
-                </button>
-                <output className="ltr">{loss}%</output>
-                <button
-                  type="button"
-                  aria-label={t`Increase`}
-                  onClick={() => {
-                    setLossSet(true);
-                    setLoss((v) => Math.min(20, +(v + 0.5).toFixed(2)));
-                  }}
-                >
-                  <Icon name="plus" />
-                </button>
-              </div>
-            </div>
-          )}
           <div className="oa-f">
             <span className="oa-l">
               <Trans>Manage manual trades</Trans>
@@ -295,14 +220,6 @@ function MandateBody({ agent, threadId }: { agent: Agent; threadId?: string }) {
             />
           </div>
         </div>
-      )}
-      {full && (
-        <p className="oa-keep">
-          <Icon name="shield" />
-          <span>
-            <Trans>The account's current limits stay in force.</Trans>
-          </span>
-        </p>
       )}
       {error != null && (
         <p className="oa-warn" role="alert">

@@ -205,12 +205,9 @@ execution lifecycle of `lonora_contracts.trading` — unresolved ones
 their symbol or ticket), and for 24 hours the settled-but-not-plain ones
 (`confirmed` with state verification pending, and `resolved` with its
 resolution source and outcome and `broker_confirmed: false`) — pending approvals with their requested symbol/side/volume, and enabled
-watches. Grants, waits and tasks were already in `live_agent_state`. Monetary
-limits are not repeated: the permission frame in the
-same routing frame re-reads them every turn. Live risk usage (daily loss, open
-risk) needs a broker snapshot and is checked at the execution boundary, not
-projected per turn. These records supersede any summary, recalled evidence or
-earlier message; no summary is trusted for them.
+watches. Grants, waits and tasks were already in `live_agent_state`. These records
+supersede any summary, recalled evidence or earlier message; no summary is trusted for
+them.
 
 ## Cross-turn tool evidence
 

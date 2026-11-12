@@ -34,7 +34,7 @@ export function levelHint(level: AgentPermissionLevel) {
   return {
     analysis: t`Analyses and follows the market without sending any order.`,
     supervised: t`Every order is shown to you for approval before it is sent.`,
-    autonomous: t`Executes within a mandate signed with your passkey and within the account's limits.`,
+    autonomous: t`Executes within a mandate signed with your passkey.`,
   }[level];
 }
 

@@ -7,7 +7,7 @@ from lonora_contracts.account_authority import ALL_AUTHORITY_ACTIONS, AccountAut
 from lonora_contracts.devices import DeviceProof
 from lonora_contracts.owner_actions import AccountAuthorityDraft, GrantDraft
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import authority_summary, propose, revoke
+from lonora_db.account_authority import authority_data, propose, revoke
 from lonora_db.activation_acknowledgment import acknowledge_grant
 from lonora_db.agent_binding import require_financial_agent
 from lonora_db.owner_actions import draft_grant_card, full_delegation_available, owner_action_data
@@ -35,7 +35,7 @@ async def state(request: Request, agent_id: str, owner: OwnerIdentity = Depends(
             .order_by(AccountAuthorityRow.created_at.desc())
             .limit(20)
         )
-        return [await authority_summary(session, row) for row in rows]
+        return [authority_data(row) for row in rows]
 
 
 @router.post("/agents/{agent_id}/account-authorities", status_code=201)
@@ -55,8 +55,7 @@ async def proposal(
         if any(symbol not in symbols for symbol in body.symbols):
             raise LonoraError("symbol_not_found", 404)
     async with rt.db.sessions() as session, session.begin():
-        return await authority_summary(
-            session,
+        return authority_data(
             await propose(
                 session,
                 owner.id,
@@ -78,12 +77,12 @@ async def draft(
     grant card with the exact payload and its hash. Nothing is active until the owner
     signs it with the passkey: ``POST /owner-actions/{id}/challenge`` then
     ``POST /owner-actions/{id}/decision`` with the proof (and the card's own choices:
-    ``money_limit``, ``stop_authorities``)."""
+    ``stop_authorities``)."""
     rt = runtime(request)
     async with rt.db.sessions() as session:
         agent = await require_financial_agent(session, owner.id, agent_id)
         full_available = full_delegation_available(agent)
-    # Broker IO (symbols, equity for a percentage) before the transaction.
+    # Broker IO (symbols) before the transaction.
     resolved = await resolve_grant(
         rt.db, rt.services(owner.id).brokers, owner.id, agent_id, body.proposal(agent_id)
     )
@@ -92,14 +91,13 @@ async def draft(
             resolved.with_delegation("full")
             if full_available
             # A fixed-pair agent's «كامل» (Q17): its own pair only, every action, until
-            # stopped, the owner's own positions included, no daily loss from the card.
+            # stopped, the owner's own positions included.
             else GrantDraft.model_validate(
                 {
                     **resolved.model_dump(),
                     "actions": list(ALL_AUTHORITY_ACTIONS),
                     "duration": "until_stopped",
                     "allow_manual_positions": True,
-                    "daily_loss": None,
                 }
             )
         )
@@ -137,10 +135,10 @@ async def verify(
         # Signed from the trading-level controls: one line in the conversation says so.
         # A grant signed from its chat card is confirmed by the card instead.
         await acknowledge_grant(session, row)
-        return await authority_summary(session, row)
+        return authority_data(row)
 
 
 @router.post("/account-authorities/{identifier}/revoke")
 async def stop(request: Request, identifier: str, owner: OwnerIdentity = Depends(require_owner)):
     async with runtime(request).db.sessions() as session, session.begin():
-        return await authority_summary(session, await revoke(session, owner.id, identifier))
+        return authority_data(await revoke(session, owner.id, identifier))

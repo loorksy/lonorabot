@@ -43,7 +43,7 @@ def eager_for(*profiles: ExposureProfile) -> frozenset[ExposureProfile]:
 # from its helpers and peer runs (lineage) and from the Tasks and tickets it
 # starts (they inherit the narrowing). Watches and routines it sets up
 # are the Agent's own later work and fire with the Agent's normal authority,
-# still under its signed grant and limits. A "helper" is a temporary subagent:
+# still under its signed grant. A "helper" is a temporary subagent:
 # reads and reports, never workspace commands, memory writes, new agents,
 # peer messages or financial tools.
 ToolScope = Literal["full", "observe_only", "helper"]

@@ -27,7 +27,7 @@ from .schema import (
     TradingJournalRow,
 )
 from .tasks import OWNER_ATTENTION, snapshot
-from .trading_readiness import account_money_limits, trading_readiness
+from .trading_readiness import trading_readiness
 from .transactions import owned_agent
 
 MAXIMUM_WATCH_SUMMARIES = 6
@@ -64,7 +64,6 @@ DECISION_CARD_KINDS = frozenset(
     {
         "grant_authority",
         "resolve_operation",
-        "set_account_limits",
         "create_agent",
         "supervise",
         "connect_credential",
@@ -490,17 +489,6 @@ async def agent_live_state(
                 "minimum_equity": envelope.get("minimum_equity"),
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
                 "review_status": review_status,
-                # The owner's view adds the account's money limits; the agent reads
-                # them in its permission frame instead of twice per turn.
-                **(
-                    {
-                        "money_limits": await account_money_limits(
-                            session, owner_id, account_grant.account_id
-                        )
-                    }
-                    if readiness
-                    else {}
-                ),
             }
         )
         if len(account_authorities) == 3:

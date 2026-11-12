@@ -47,12 +47,10 @@ for (const locale of ["ar", "en"])
       locale === "ar"
         ? {
             asks: "يسألك قبل كل صفقة",
-            noLimit: "لا حد مالي محدد",
             stop: /إيقاف الصفقات الجديدة|استئناف التداول|بدء التداول/,
           }
         : {
             asks: "Asks you before each trade",
-            noLimit: "No money limit set",
             stop: /Stop new trading|Resume trading|Start trading/,
           };
     try {
@@ -69,7 +67,6 @@ for (const locale of ["ar", "en"])
       await expect(pill).toContainText(text.asks);
       await pill.click();
       const sheet = page.getByTestId("safety-sheet");
-      await expect(sheet.getByText(text.noLimit, { exact: true })).toBeVisible();
       // Amendment 1: Lonora has no Stop control; the sheet offers no Stop, Resume or Start.
       await expect(sheet.getByRole("button", { name: text.stop })).toHaveCount(0);
       await expect(sheet.getByTestId("safety-trading-state")).toHaveCount(0);

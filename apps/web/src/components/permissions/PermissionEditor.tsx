@@ -3,14 +3,12 @@ import {
   type Agent,
   type AuthorityDuration,
   authorityActions,
-  type MoneyLimits,
   type PermissionCustomization,
   type Resource,
 } from "@lonora/contracts";
 import {
   type accountAuthorityLabels,
   hasFixedMarket,
-  moneyLimitsLine,
   numericalAuthorityLimits,
 } from "@lonora/core";
 import { useState } from "react";
@@ -31,7 +29,6 @@ export function PermissionSummary({
   text,
   labels,
   locale,
-  moneyLimits,
   exact = false,
 }: {
   agentName: string;
@@ -41,7 +38,6 @@ export function PermissionSummary({
   text: PermissionText;
   labels: Labels;
   locale: string;
-  moneyLimits?: MoneyLimits;
   exact?: boolean;
 }) {
   const draft = "limits" in value ? value : null;
@@ -102,12 +98,6 @@ export function PermissionSummary({
           <dt>{labels.manual}</dt>
           <dd>{value.allow_manual_positions ? text.included : text.excluded}</dd>
         </div>
-        {moneyLimits && (
-          <div data-testid="permission-money-limits" data-configured={moneyLimits.configured}>
-            <dt>{text.moneyLimits}</dt>
-            <dd dir="auto">{moneyLimitsLine(moneyLimits, locale)}</dd>
-          </div>
-        )}
       </dl>
       {exact && <p className="permission-explanation">{text.noApproval}</p>}
       <p className="permission-explanation">{text.risk}</p>

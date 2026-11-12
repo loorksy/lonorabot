@@ -34,7 +34,7 @@ user-facing replies and labels. English examples do not require an English reply
 5. The same server path rechecks current authority, controls and broker targets.
    Preserve manual intervention. A changed proposal needs fresh approval only
    when its action is not already covered by the current signed scope. Respect
-   pauses, revocation and any chosen limits without workarounds.
+   pauses and revocation without workarounds.
 6. Inspect the broker receipt and its independent verification. Distinguish not
    sent, rejected, accepted, placed, filled, partially closed and unverified.
    Never claim completion from approval or an acknowledgment alone.

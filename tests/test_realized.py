@@ -13,7 +13,7 @@ def test_non_trading_credits_never_count_as_a_gain() -> None:
     for kind in ("DEAL_TYPE_BALANCE", "DEAL_TYPE_CREDIT", "DEAL_TYPE_BONUS"):
         assert deal_pnl({"type": kind, "profit": "500"}) == 0
         assert deal_pnl({"type": kind, "profit": "-500"}) == 0
-    # Every other adjustment counts only against the limit.
+    # Every other adjustment counts only as a loss.
     for kind in (
         "DEAL_TYPE_CORRECTION",
         "DEAL_TYPE_INTEREST",

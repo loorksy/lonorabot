@@ -1,5 +1,5 @@
 import type { AccountAuthorityProposal } from "./account-authority";
-import type { MoneyLimits, TradingReadiness } from "./trading";
+import type { TradingReadiness } from "./trading";
 
 export type AgentWatchSummary = {
   id: string;
@@ -59,7 +59,6 @@ export type AgentLiveState = {
     Omit<AccountAuthorityProposal, "thread_id"> & {
       id: string;
       status: "pending" | "active";
-      money_limits?: MoneyLimits;
       /** The readiness review after a bounded grant is signed (full grants start a Task). */
       review_status?: string | null;
     }

@@ -18,7 +18,6 @@ import {
   emptyManagementCustomization,
   hasFixedMarket,
   listSeparator,
-  moneyLimitsLine,
   numericalAuthorityLimits,
   showsTradingControl,
 } from "@lonora/core";
@@ -168,17 +167,13 @@ function PermissionControl({
       )
         setSelected(next.requested_level);
       loaded.current = true;
-      setReview((existing) => {
-        const row = existing
+      setReview((existing) =>
+        existing
           ? ([next.pending_authority, ...next.active_authorities].find(
               (candidate) => candidate?.id === existing.id,
             ) ?? null)
-          : null;
-        // The permission state omits the account's money limits; keep the reviewed ones.
-        return row && existing
-          ? { ...row, money_limits: row.money_limits ?? existing.money_limits }
-          : row;
-      });
+          : null,
+      );
     },
     [agent, open],
   );
@@ -667,11 +662,6 @@ function PermissionControl({
             ? copy.manualYes
             : copy.manualNo}
         </Text>
-        {exact?.money_limits && (
-          <Text style={textStyle} testID="permission-money-limits-native">
-            {copy.moneyLimits}: {moneyLimitsLine(exact.money_limits, rtl ? "ar" : "en")}
-          </Text>
-        )}
         <Text style={textStyle}>{copy.noApproval}</Text>
         <Text style={{ ...textStyle, color: colors.warning, fontSize: 13 }}>{copy.risk}</Text>
       </View>

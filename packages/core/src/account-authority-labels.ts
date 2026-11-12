@@ -4,7 +4,7 @@ export const accountAuthorityLabels = {
     title: "Automatic account management",
     enableManagement: "Enable automatic management",
     managementSummary:
-      "The agent chooses trades, lot sizes, stops and targets, and manages permitted positions without asking before each order. No product-set volume, trade-count or loss limit applies unless you set one. Losses can use the available account funds.",
+      "The agent chooses trades, lot sizes, stops and targets, and manages permitted positions without asking before each order. No product-set volume or trade-count limit applies unless you set one. Losses can use the available account funds.",
     allMarkets: "All markets on this account",
     untilStopped: "Until you stop management",
     advanced: "Advanced: set specific limits",
@@ -16,9 +16,7 @@ export const accountAuthorityLabels = {
     pending: "Waiting for your signature",
     revoked: "Revoked",
     expired: "Expired",
-    hint: "Authorize this agent once within exact limits. Your pauses and the account's money limits still apply to every order.",
-    limitsUnavailable:
-      "These limits control volume, equity and activity. Money limits (daily loss, risk per trade at the stop, total open risk, free-margin floor) are set on the account and checked before every order.",
+    hint: "Authorize this agent once within exact limits. Your pauses still apply to every order.",
     create: "Review new permission",
     review: "Review and sign",
     revoke: "Stop management",
@@ -63,7 +61,7 @@ export const accountAuthorityLabels = {
     title: "إدارة الحساب تلقائيًا",
     enableManagement: "تفعيل الإدارة التلقائية",
     managementSummary:
-      "يختار الوكيل الصفقات واللوت والوقف والأهداف، ويدير الصفقات المسموح بها دون طلب موافقتك على كل أمر. لا يفرض النظام حدًا للحجم أو عدد الصفقات أو الخسارة ما لم تحدده أنت. قد تستنفد الخسائر الأموال المتاحة في الحساب.",
+      "يختار الوكيل الصفقات واللوت والوقف والأهداف، ويدير الصفقات المسموح بها دون طلب موافقتك على كل أمر. لا يفرض النظام حدًا للحجم أو عدد الصفقات ما لم تحدده أنت. قد تستنفد الخسائر الأموال المتاحة في الحساب.",
     allMarkets: "جميع أسواق هذا الحساب",
     untilStopped: "حتى توقف الإدارة",
     advanced: "إعدادات متقدمة: تحديد حدود خاصة",
@@ -74,9 +72,7 @@ export const accountAuthorityLabels = {
     pending: "بانتظار توقيعك",
     revoked: "ملغى",
     expired: "منتهي",
-    hint: "فوّض هذا الوكيل مرة واحدة ضمن حدود واضحة. تبقى إيقافاتك والحدود المالية للحساب نافذة على كل أمر.",
-    limitsUnavailable:
-      "تضبط هذه الحدود الحجم وحقوق الملكية والنشاط. الحدود المالية (الخسارة اليومية، والمخاطرة لكل صفقة عند الوقف، وإجمالي المخاطرة المفتوحة، والحد الأدنى للهامش الحر) تُحدد على الحساب وتُفحص قبل كل أمر.",
+    hint: "فوّض هذا الوكيل مرة واحدة ضمن حدود واضحة. تبقى إيقافاتك نافذة على كل أمر.",
     create: "مراجعة تفويض جديد",
     review: "مراجعة وتوقيع",
     revoke: "إيقاف الإدارة",

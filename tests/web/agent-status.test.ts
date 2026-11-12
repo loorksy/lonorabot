@@ -261,11 +261,16 @@ test("M1: the order line reads the executor's real fields, not top-level guesses
   );
   assert.equal(reconciled.ticket, "71455");
   assert.equal(reconciled.state, "filled");
-  // A pre-send block (risk limit) never reached the broker: not a broker rejection.
+  // A pre-send block never reached the broker: not a broker rejection.
   const blocked = orderLineState(
     journal("failed", {
       send_state: "not_sent",
-      result: { operation_id: "op", status: "failed", code: "risk_daily_loss_limit", details: {} },
+      result: {
+        operation_id: "op",
+        status: "failed",
+        code: "broker_reconciliation_required",
+        details: {},
+      },
     }),
   );
   assert.equal(blocked.state, "blocked");

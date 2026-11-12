@@ -12,9 +12,8 @@ Financial operations follow the journal lifecycle (``lonora_contracts.trading``)
 Two settled-but-not-plain states stay visible for a day: ``confirmed`` with
 state verification still pending (the broker acknowledged it; its resulting
 state is unverified), and ``resolved`` (settled by an owner attestation or a
-vanished target, never broker confirmation). Monetary limits are not repeated here: the permission frame of the same routing frame
-re-reads them every turn. Live risk usage needs a broker snapshot and is not
-projected per turn.
+vanished target, never broker confirmation). Live risk usage needs a broker snapshot
+and is not projected per turn.
 """
 
 from datetime import timedelta
