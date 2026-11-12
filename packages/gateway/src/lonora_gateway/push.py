@@ -20,14 +20,14 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from lonora_bus.attention import attention_text
 from lonora_core.user_error import LonoraError
 from lonora_db.attention import mandatory_current, policy
 from lonora_db.client import Database
 from lonora_db.events import PUBLIC_CURSOR, publish_committed
-from lonora_db.push_devices import live_devices
+from lonora_db.push_devices import live_devices, prune_signed_out
 from lonora_db.schema import (
     AgentRow,
     AttentionRow,
@@ -39,7 +39,7 @@ from lonora_db.schema import (
 )
 from lonora_db.transactions import SettingsRepository
 from lonora_security.secrets import SecretCipher
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 log = logging.getLogger("lonora.push")
@@ -98,7 +98,19 @@ async def dispatch_push(
     async with db.sessions() as session, session.begin():
         await push_lock(session, owner_id)
         settings = SettingsRepository()
-        cursor = int((await settings.get(session, cursor_key(owner_id), fresh=True)).get("last", 0))
+        stored = await settings.get(session, cursor_key(owner_id), fresh=True)
+        if "last" not in stored:
+            # The first run starts at the end of the stream: a push is sent when a record is
+            # created, never for cards that were already waiting when push was installed.
+            latest = await session.scalar(
+                select(func.max(EventRow.payload[PUBLIC_CURSOR].as_integer())).where(
+                    EventRow.owner_id == owner_id
+                )
+            )
+            await settings.put(session, cursor_key(owner_id), {"last": int(latest or 0)})
+            return 0
+        cursor = int(stored["last"])
+        await prune_signed_out(session, owner_id)
         events = (
             await session.scalars(
                 select(EventRow)
@@ -121,8 +133,10 @@ async def dispatch_push(
             if code not in PUSH_RECORDS or not devices:
                 continue
             item = await session.get(AttentionRow, str(event.payload.get("id", "")))
-            if item is None or item.owner_id != owner_id or not await mandatory_current(
-                session, item
+            if (
+                item is None
+                or item.owner_id != owner_id
+                or not await mandatory_current(session, item)
             ):
                 continue
             record = str(item.parameters.get(PUSH_RECORDS[code], ""))
@@ -201,5 +215,7 @@ def ticket_outcome(ticket: dict[str, Any]) -> dict[str, Any]:
     if ticket.get("status") == "ok":
         return {"status": "confirmed", "ticket_id": str(ticket.get("id", ""))[:80]}
     details = ticket.get("details")
-    code = details.get("error") if isinstance(details, dict) else None
-    return {"status": "rejected", "code": str(code or "push_ticket_error")[:80]}
+    code = (
+        cast(dict[str, Any], details).get("error") if isinstance(details, dict) else None
+    ) or "push_ticket_error"
+    return {"status": "rejected", "code": str(code)[:80]}

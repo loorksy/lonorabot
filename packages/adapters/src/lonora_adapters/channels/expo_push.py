@@ -16,8 +16,11 @@ EXPO_TIMEOUT_SECONDS = 15
 
 
 class ExpoPushTransport:
-    def __init__(self, access_token: str | None = None):
-        self.access_token = access_token
+    def __init__(
+        self, access_token: str | None = None, http: httpx.AsyncBaseTransport | None = None
+    ):
+        # ``http`` replaces the network in tests; production always uses the default.
+        self.access_token, self.http = access_token, http
 
     async def send(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not 0 < len(messages) <= EXPO_BATCH:
@@ -26,7 +29,7 @@ class ExpoPushTransport:
         if self.access_token:
             headers["Authorization"] = "Bearer " + self.access_token
         async with httpx.AsyncClient(
-            timeout=EXPO_TIMEOUT_SECONDS, follow_redirects=False
+            timeout=EXPO_TIMEOUT_SECONDS, follow_redirects=False, transport=self.http
         ) as client:
             response = await client.post(EXPO_PUSH_URL, json=messages, headers=headers)
         # A 4xx is Expo refusing the request: nothing in it was accepted. A 5xx may have

@@ -112,3 +112,30 @@ async def live_devices(
         PushDevice(row.id, row.device_id, row.platform, cipher.decrypt(row.token_ciphertext))
         for row in rows
     ]
+
+
+async def prune_signed_out(session: AsyncSession, owner_id: str) -> None:
+    """Delete the phones whose sign-in session was revoked or has expired: a session that
+    ended without an explicit sign-out (an expired mobile session, a logout lost offline)
+    leaves no token behind."""
+    dead = (
+        select(SessionRow.token_hash)
+        .where(SessionRow.owner_id == owner_id)
+        .where(SessionRow.revoked.is_(True) | (SessionRow.expires_at <= utcnow()))
+    )
+    await session.execute(
+        delete(PushDeviceRow).where(
+            PushDeviceRow.owner_id == owner_id, PushDeviceRow.session_hash.in_(dead)
+        )
+    )
+
+
+async def push_configured(session: AsyncSession) -> bool:
+    """Readiness: push is configured once a phone with a live session is registered."""
+    row = await session.scalar(
+        select(PushDeviceRow.id)
+        .join(SessionRow, SessionRow.token_hash == PushDeviceRow.session_hash)
+        .where(SessionRow.revoked.is_(False), SessionRow.expires_at > utcnow())
+        .limit(1)
+    )
+    return row is not None
