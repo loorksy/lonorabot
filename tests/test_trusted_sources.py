@@ -271,6 +271,16 @@ def test_a_feed_item_never_links_back_to_the_feed_address() -> None:
         assert safe_link(value, feed) is None, value
     assert safe_link("/a/1", feed) == "https://feeds.example.com/a/1"
     assert safe_link("https://news.example/x#y", feed) == "https://news.example/x"
+    # An item link that repeats the feed's key (a query value, or a token in its path)
+    # would carry it into the agent's context: it is dropped too.
+    keyed = "https://feeds.example.com/u/a1b2c3d4e5f6a7b8c9d0/rss?apikey=Zx9%2BkQ7pLm"
+    for value in (
+        "/item/5?apikey=Zx9%2BkQ7pLm",
+        "https://news.example/item/5?ref=Zx9+kQ7pLm",
+        "/u/a1b2c3d4e5f6a7b8c9d0/item/5",
+    ):
+        assert safe_link(value, keyed) is None, value
+    assert safe_link("/item/5?page=2", keyed) == "https://feeds.example.com/item/5?page=2"
 
 
 def test_feeds_parse_bounded_untrusted_text_and_refuse_entities() -> None:

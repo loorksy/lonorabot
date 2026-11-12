@@ -40,6 +40,11 @@ SKIPPED_TOOLS = frozenset(
         "runtime_status",
         "memory_read",
         "memory_write",
+        "method_history",
+        "method_restore",
+        "skill_save",
+        "skill_history",
+        "skill_restore",
         "owner_preferences_update",
         "scratchpad_write",
         # A quick reaction is a gesture in the conversation, not an observation.

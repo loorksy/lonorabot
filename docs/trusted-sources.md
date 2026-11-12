@@ -172,7 +172,9 @@ the owner types it into the card with the secret:
 | `mcp_server` (`service="x"`: "Connect X") | `name` (none for X) | the server's address, and an access token (optional) | `MCP_<NAME>_URL`, `MCP_<NAME>_TOKEN` (workspace) |
 | `brave_search` | `name` (optional) | the API key | `BRAVE_API_KEY` (workspace) |
 | `news_feed`, `economic_calendar` | `name` | the address, which may carry a key | `FEED_<NAME>_URL`, `CALENDAR_<NAME>_URL` (workspace) |
-| `broker` | `metaapi_account_id` | the MetaApi token | the broker scope, never the workspace |
+
+A trading account is not one of these: `broker_connect` raises its own Secret card with
+the `broker` destination (`docs/owner-actions.md`).
 
 The card shows the names its values are saved under. Saving it
 (`POST /owner-actions/{id}/secret`) stores the values encrypted and creates the
@@ -197,8 +199,6 @@ connection in the same transaction:
   its fingerprint on the row (`endpoint_sha256`), which the trust checks compare.
 - Web search takes one key: a second Brave card saved later settles `expired`
   (`credential_already_configured`) and writes nothing.
-- A broker's token is checked with MetaApi first, and the card settles inside the
-  transaction that stores it and creates the connection.
 
 The value never enters the card, the transcript, an event, model context or agent code:
 agents see "configured". After an MCP server is connected, the trust card for its tools
@@ -245,10 +245,10 @@ preview, and **Set up integrations on the web** opens the web settings.
 - `tests/check_trusted_sources.py` (fresh database): the migration seed, idempotence and
   round trip; adding an MCP server in two taps with its address and token never leaving
   the server.
-- `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards (a
-  broker's token in the broker scope with its connection; each MCP server's address and
-  token under names of their own, kept when the server is removed; a name a connection
-  uses never replaced; a stored address read only on its saved host).
+- `tests/test_secret_card.py`: the Secret card's own fields and its connecting cards
+  (each MCP server's address and token under names of their own, kept when the server is
+  removed; a name a connection uses never replaced; a stored address read only on its
+  saved host; no connecting card for a trading account).
 - `tests/web/capabilities.test.ts`, `tests/web/secret-card.test.ts`; Playwright
   `capabilities` and `secret-card` on Web and Mobile, in Arabic and English (Skill Undo
   on both; on Mobile, review and trust of a server).
@@ -268,11 +268,11 @@ preview, and **Set up integrations on the web** opens the web settings.
   saved and its agent is woken to check it; the trust card comes only once its tools
   can be read.
 - An MCP server's token and address saved from a Secret card are workspace secrets:
-  VISION.md 7.2.3 names exactly two destinations, workspace and broker. Any agent may use
-  a workspace secret by name (7.2.4), so a workspace command given that secret can call
-  the server directly, outside Lonora's tool pinning and its block on tools that move
-  money. Lonora's broker accounts stay behind the execution door: their passwords and
-  the MetaApi token are broker secrets, which never enter the workspace.
+  VISION.md 7.2.3 names exactly two destinations, workspace and broker. Tool pinning and
+  the block on tools that move money govern Lonora's MCP tools; they do not govern a
+  workspace command that holds such a secret. Lonora's broker accounts stay behind the
+  execution door: their passwords and the MetaApi token are broker secrets, which never
+  enter the workspace.
 - No key rotation is built (nothing in 7.2 asks for it). To change a key, a token or an
   address, remove the connection, connect it again from a new Secret card, and trust its
   tools again.

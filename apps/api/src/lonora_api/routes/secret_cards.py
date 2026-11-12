@@ -8,9 +8,9 @@ key, a news feed or an economic calendar (its address, which may carry a key, is
 secret), or an MCP server (its address and optional token). An MCP server's tools are
 read first, with the address and token the owner typed and no lock held; the same
 transaction then saves the server, settles the card and raises the trust card that
-follows (or wakes the agent), so a saved server never lacks its follow-up. A broker's
-MetaApi token is verified with MetaApi first; the card settles inside the transaction
-that stores the token and creates the connection.
+follows (or wakes the agent), so a saved server never lacks its follow-up. A broker
+card's values go only to the broker layer's store (7.2.3); the gateway then provisions
+the account and wakes the agent with the result.
 """
 
 from dataclasses import dataclass, field
@@ -21,7 +21,6 @@ from fastapi import APIRouter, Depends, Request
 from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.mcp import McpConnection
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
@@ -40,10 +39,9 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.schema import IntegrationRow, OwnerActionRow
 from lonora_db.secret_cards import card_values, free_names, save_values, secret_stale_reason
-from lonora_db.secrets import WORKSPACE
+from lonora_db.secrets import BROKER, WORKSPACE
 from lonora_security.network import endpoint_sha256
 from lonora_tools.mcp import review_payload, tools_at
-from lonora_trading.connections import connect_account
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,12 +73,19 @@ async def save_secret(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
-    store = EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id)
+    key = rt.settings.encryption_key.get_secret_value()
+    store = EncryptedSecretStore(rt.db, key, owner.id)
+    broker = BrokerSecrets(rt.db, key, owner.id)
+
+    async def write(session: AsyncSession, name: str, value: str, scope: str) -> str:
+        # A broker card's values go only to the broker layer (7.2.3).
+        if scope == BROKER:
+            return await broker.write_in_session(session, name, value)
+        return await store.write_in_session(session, name, value, scope)
+
     async with rt.db.sessions() as session:
         peek = await owned_card(session, owner.id, card_id)
     target = peek.payload.get("connect") if peek.kind == "secret" else None
-    if target == "broker":
-        return await save_broker(rt, owner, card_id, body.values)
     offered = None
     if target == "mcp_server" and live_status(peek) == "pending":
         offered = await offered_tools(rt, card_values(peek, body.values))
@@ -96,7 +101,7 @@ async def save_secret(
             await settle(session, row, "expired", reason)
             return await owner_action_data(session, row)
         if target is None:
-            result = await save_values(session, row, body.values, store.write_in_session)
+            result = await save_values(session, row, body.values, write)
         else:
             result = await connect(session, store, owner, row, card_values(row, body.values))
         if offered is not None:
@@ -118,8 +123,10 @@ async def save_secret(
                 await continue_after_card(session, row)
         else:
             await settle_saved(session, owner, row, result)
-            # The agent that asked continues the work that needed the secret.
-            await continue_after_card(session, row)
+            # The agent that asked continues the work that needed the secret. A broker
+            # card's agent continues once the gateway has provisioned the account.
+            if row.payload["destination"] != BROKER:
+                await continue_after_card(session, row)
         return await owner_action_data(session, row)
 
 
@@ -276,36 +283,3 @@ async def same_source(
         except LonoraError:
             continue
     return None
-
-
-async def save_broker(
-    rt: ApiRuntime, owner: OwnerIdentity, card_id: str, values: dict[str, str]
-) -> dict[str, Any]:
-    """A broker card: the token is checked with MetaApi first (no lock held), then the
-    card settles in the transaction that stores the token and creates the connection; a
-    card decided meanwhile creates nothing. Only the broker layer's store writes the
-    token (``BrokerSecrets``, scope broker, 7.2.3)."""
-    async with rt.db.sessions() as session:
-        row = await owned_card(session, owner.id, card_id)
-        if live_status(row) != "pending":
-            return await owner_action_data(session, row)
-        token = card_values(row, values)["METAAPI_TOKEN"]
-        config = BrokerConnection(
-            provider="metaapi",
-            account_id=row.payload["details"]["metaapi_account_id"],
-            region=None,
-            enabled=True,
-        )
-
-    async def settle_card(session: AsyncSession) -> None:
-        current = await pending_card(session, owner, card_id)
-        if current is None:
-            raise LonoraError("owner_action_expired_or_decided", 409)
-        result: dict[str, Any] = {"target": "broker", "configured": True, "saved": []}
-        await settle_saved(session, owner, current, result)
-        await continue_after_card(session, current)
-
-    secrets = BrokerSecrets(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id)
-    await connect_account(rt.db, secrets, owner.id, config, token, within=settle_card)
-    async with rt.db.sessions() as session:
-        return await owner_action_data(session, await owned_card(session, owner.id, card_id))
