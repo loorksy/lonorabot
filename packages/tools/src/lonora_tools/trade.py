@@ -265,6 +265,19 @@ async def new_risk_requests(
     return result
 
 
+async def unjournaled(context: ToolContext, requests: list[TradeRequest]) -> list[TradeRequest]:
+    async with context.db.sessions() as session:
+        recorded = set(
+            await session.scalars(
+                select(TradingJournalRow.operation_id).where(
+                    TradingJournalRow.owner_id == context.owner_id,
+                    TradingJournalRow.operation_id.in_([r.operation_id for r in requests]),
+                )
+            )
+        )
+    return [request for request in requests if request.operation_id not in recorded]
+
+
 async def foreign_tickets(context: ToolContext, requests: list[TradeRequest]) -> list[TradeRequest]:
     """The requests on a ticket the agent's own journaled order did not open: the owner's
     own position or another agent's. A ticket the broker no longer shows is left to the
@@ -440,8 +453,11 @@ async def approved_execution(
     if previous is None and not gate_only:
         # Full executes on its own; Ask asks only for requests that add risk (4.1). A
         # ticket the agent's own order did not open is always the owner's exact approval.
-        adding = await new_risk_requests(context, requests)
-        if (mode == "full" or not adding) and not await foreign_tickets(context, requests):
+        # A request already journaled is answered from its record (the door's idempotency),
+        # never classified again against a ticket it may itself have changed.
+        unrecorded = await unjournaled(context, requests)
+        adding = await new_risk_requests(context, unrecorded)
+        if (mode == "full" or not adding) and not await foreign_tickets(context, unrecorded):
             if adding and await never_started(context):
                 return await start_trading_card(context)
             return await direct_execution(context, requests)
