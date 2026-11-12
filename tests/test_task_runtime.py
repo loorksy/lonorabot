@@ -374,7 +374,7 @@ async def test_unconfirmed_operation_is_not_step_evidence(
 
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():
-        task = await create_task(
+        await create_task(
             session,
             owner,
             agent,
