@@ -75,9 +75,7 @@ class ExecutionQuality(Contract):
 
 
 class PerformanceRead(Contract):
-    """Live decision/outcome quality over the agent's persisted journal."""
+    """Narrow your results to one account or symbol."""
 
     account_id: str | None = None
     symbol: str | None = None
-    strategy_version: str | None = None
-    minimum_sample: int = Field(default=20, ge=5, le=1000)
