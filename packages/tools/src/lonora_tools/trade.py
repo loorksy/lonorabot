@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .resolve import Option, resolve
 from .symbols import canonical_broker_symbol, order_symbol
 
 # Results whose operation reached, or may have reached, the broker: never asked twice.
@@ -103,6 +104,45 @@ async def management_snapshot(context: ToolContext, requests: list[TradeRequest]
         key: material_state(target) if target else None
         for key, target in (await management_targets(context, requests)).items()
     }
+
+
+async def require_ticket(context: ToolContext, request: TradeRequest) -> None:
+    """Refuse a first request for a ticket the call named and the account does not hold.
+
+    The executor refuses it in any case; said here, before any card, with the tickets
+    the account does hold, the next call names a real one. Nothing is put in the place
+    of the ticket named. A call that already has a record is answered from it, never by
+    this check, and an account that cannot be read leaves the request to the executor.
+    """
+    named = request.position_id or request.order_id
+    if not named or not await never_recorded(context, request.operation_id):
+        return
+    try:
+        broker = await context.brokers.get(context.owner_id, request.account_id)
+        held = await (broker.positions() if request.position_id else broker.orders())
+    except Exception:
+        return
+    if any(item.id == named for item in held):
+        return
+    kind = "position" if request.position_id else "order"
+    resolve(
+        request.symbol,
+        [
+            Option(
+                item.id,
+                (item.symbol,),
+                item.model_dump(
+                    mode="json",
+                    include={"symbol", "side", "volume", "open_price", "price", "profit"},
+                ),
+            )
+            for item in held
+        ],
+        missing=kind + "_not_found",
+        argument=kind + "_id",
+        use="refuse",
+        listing="account_read",
+    )
 
 
 async def reviewed_contracts(
@@ -316,8 +356,14 @@ def halted_receipts(remaining: list[TradeRequest], after: TradeResult) -> list[d
 
 
 async def approved_execution(
-    context: ToolContext, requests: list[TradeRequest], *, gate_only: bool = False
+    context: ToolContext,
+    requests: list[TradeRequest],
+    *,
+    gate_only: bool = False,
+    named_ticket: bool = False,
 ) -> dict[str, Any]:
+    """``named_ticket``: the call itself named the ticket it manages (``trade_execute``).
+    A batch built from the account's own list never is: its exits are never held back."""
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     level = "analysis"
     provisional = False
@@ -354,6 +400,8 @@ async def approved_execution(
         # speech never spends standing authority: the owner's exact approval is the only
         # authority its operations are sent under.
         grants = []
+    if named_ticket and previous is None:
+        await require_ticket(context, requests[0])
     if grants:
         return await account_authorized_execution(context, authority_requests, grants)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
@@ -703,12 +751,12 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await agent_binding(session, context.owner_id, context.agent_id)
         await require_lease(session, context.lease)
     sized = None
+    managing = args.get("position_id") or args.get("order_id")
     if args.get("symbol") and args.get("account_id"):
         broker = await context.brokers.get(context.owner_id, str(args["account_id"]))
         # A new order names the catalogue's exact symbol. An exit or a change to an
         # existing ticket is never held back by the catalogue: preflight requires the
         # ticket's own symbol.
-        managing = args.get("position_id") or args.get("order_id")
         args["symbol"] = await (canonical_broker_symbol if managing else order_symbol)(
             broker, str(args["symbol"])
         )
@@ -717,7 +765,9 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args["operation_id"] = stable_id(context.lease.run_id, "trade:" + request_hash(args))
     if sized is not None and await never_recorded(context, args["operation_id"]):
         await require_order_size(sized, args["symbol"], args["volume"])
-    return await approved_execution(context, [TradeRequest.model_validate(args)])
+    return await approved_execution(
+        context, [TradeRequest.model_validate(args)], named_ticket=bool(managing)
+    )
 
 
 async def close_positions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

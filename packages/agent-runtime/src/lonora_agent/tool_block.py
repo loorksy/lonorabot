@@ -372,6 +372,7 @@ async def run_and_record_segment(
                 "id": call.id,
                 "question": str(result["question"]),
                 "choices": result.get("choices", []),
+                **({"effects": result["effects"]} if result.get("effects") else {}),
             }
         await save()
         await progress(

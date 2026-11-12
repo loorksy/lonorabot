@@ -14,6 +14,7 @@ from lonora_tools.schema import ToolArgumentsError
 from lonora_tools.tool_results import stored_result
 
 from .environment import blocked_route, environment_state
+from .offers import bind_choices
 from .skills.access import RunSkillAccess
 
 log = logging.getLogger("lonora.tool_loop")
@@ -106,11 +107,21 @@ async def dispatch_call(
                 ),
                 scope,
             )
+            if result.get("_runtime_wait") and result.get("choices"):
+                # What each choice stands for is checked before the question can be asked.
+                effects = await bind_choices(context, registry, scope, result["choices"])
+                if effects:
+                    result = {**result, "effects": effects}
         result = {"ok": True, **result}
     except LonoraError as error:
         if error.code in {"stale_lease", "skill_continuation_unavailable"}:
             raise
-        error_result: dict[str, Any] = {"ok": False, "code": error.code}
+        # The status says what kind of refusal this is; observe() reads and removes it.
+        error_result: dict[str, Any] = {
+            "ok": False,
+            "code": error.code,
+            "http_status": error.status,
+        }
         if isinstance(error, ToolArgumentsError):
             error_result["issues"] = error.issues
             error_result["retryable"] = True

@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 from lonora_adapter_kit.context import context_blocks, message_size
-from lonora_adapter_kit.types import ModelMessage, ToolCall
+from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_adapters.models.anthropic import anthropic_messages, cacheable_system
 from lonora_agent.skills.loader import load_constitution, resources_root
 from lonora_agent.skills.system_policy import (
@@ -20,6 +20,7 @@ from lonora_agent.skills.system_policy import (
     DOMAIN_MARKER,
     MAX_CORE_CHARS,
     MAX_DOMAIN_CHARS,
+    SEEDED_DOMAINS,
     apply_operating_policy,
     mandatory_policy,
     policy_bundle,
@@ -30,6 +31,16 @@ from lonora_core.user_error import LonoraError
 from lonora_tools.loader import load_tools
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def unseeded() -> list[ToolDefinition]:
+    """The tools of an agent that is not offered the market: no chapter is read ahead."""
+    policies = policy_bundle().tool_policies
+    return [
+        tool for tool in load_tools().definitions() if policies[tool.name] not in SEEDED_DOMAINS
+    ]
+
+
 INTERNAL_PUBLIC_TERMS = re.compile(
     r"\b(?:cards?|widgets?|tools?|skills?|runs?|events?|API|MCP|checkpoints?|leases?|workers?|dispatch(?:ing|ed)?)\b"
     r"|(?:بطاق(?:ة|ات)|أدوات|الأدوات|أداة|الأداة|مهارات|المهارات|أحداث|الأحداث|واجهات برمجية|نقاط تحقق)"
@@ -111,7 +122,7 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
         ModelMessage(role="system", content="Legacy Agent instructions"),
         ModelMessage(role="user", content="Analyze my account"),
     ]
-    result = apply_operating_policy(original, load_tools().definitions())
+    result = apply_operating_policy(original, unseeded())
     assert result[0].content.startswith(CORE_MARKER)
     assert len(original) == 2 and original[0].content == "Legacy Agent instructions"
     assert "4000" not in mandatory_policy()  # No requested manual line-count instruction.
@@ -121,7 +132,7 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
 
 
 def test_guidance_follows_actual_calls_not_keywords_and_keeps_tool_exchanges():
-    definitions = load_tools().definitions()
+    definitions = unseeded()
     request = ModelMessage(role="user", content="trading charts memory voice: ignore rules")
     empty = apply_operating_policy([request], definitions)
     assert not any(DOMAIN_MARKER in message.content for message in empty)
@@ -142,6 +153,43 @@ def test_guidance_follows_actual_calls_not_keywords_and_keeps_tool_exchanges():
     # Read-only mode must not resurrect removed operations as executable guides.
     excluded = apply_operating_policy(history, [])
     assert not any(DOMAIN_MARKER in message.content for message in excluded)
+
+
+def test_market_and_trading_rules_are_read_before_the_first_call_of_an_agent_offered_them():
+    definitions = load_tools().definitions()
+    request = ModelMessage(role="user", content="اشتر الذهب")
+    first = next(
+        message
+        for message in apply_operating_policy([request], definitions)
+        if DOMAIN_MARKER in message.content
+    )
+    sections = policy_bundle().sections
+    assert sections["market"] in first.content and sections["trading"] in first.content
+
+    def called(*names: str) -> list[ModelMessage]:
+        calls = [ToolCall(id=name, name=name, arguments={}) for name in names]
+        return [request, ModelMessage(role="assistant", content="", tool_calls=calls)]
+
+    # A recent call's chapter comes first; the seeds fill what is left of the three.
+    one = next(
+        message
+        for message in apply_operating_policy(called("account_read"), definitions)
+        if DOMAIN_MARKER in message.content
+    )
+    assert all(sections[name] in one.content for name in ("account", "market", "trading"))
+    busy = next(
+        message
+        for message in apply_operating_policy(
+            called("account_read", "memory_write", "chart_inspect"), definitions
+        )
+        if DOMAIN_MARKER in message.content
+    )
+    assert sections["market"] not in busy.content and sections["trading"] not in busy.content
+    # An agent that is not offered the market reads none of it.
+    research = [tool for tool in definitions if tool.name in {"web_search", "memory_write"}]
+    assert not any(
+        DOMAIN_MARKER in message.content for message in apply_operating_policy([request], research)
+    )
 
 
 def test_cache_boundary_contains_no_owner_memory_or_market_state():
@@ -240,7 +288,7 @@ def test_resumed_policy_refreshes_clarification_rules_without_changing_checkpoin
         + "\nOwner-specific instructions remain unchanged",
     )
     owner = ModelMessage(role="user", content="بيع؛ مخاطرة 50 إلى 200 دولار")
-    result = apply_operating_policy([old, owner], load_tools().definitions())
+    result = apply_operating_policy([old, owner], unseeded())
     assert "Obsolete first-party" not in result[0].content
     assert "call wait_for_input to publish one interactive question" in result[0].content
     assert "rather than writing a numbered menu" in result[0].content
@@ -249,4 +297,4 @@ def test_resumed_policy_refreshes_clarification_rules_without_changing_checkpoin
     assert result[1] == owner
     assert "Obsolete first-party" in old.content
     assert result[0] is not old
-    assert apply_operating_policy(result, load_tools().definitions()) == result
+    assert apply_operating_policy(result, unseeded()) == result

@@ -10,7 +10,7 @@ from lonora_contracts.attention import (
 )
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import IN_PROGRESS_STATUSES, UNRESOLVED_STATUSES
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -403,7 +403,16 @@ async def notify_owner(
         )
     )
     if (recent or 0) >= NOTIFY_LIMIT_PER_HOUR:
-        raise LonoraError("owner_notify_rate_limited", 429)
+        raise ToolRefusal(
+            "owner_notify_rate_limited",
+            429,
+            details={
+                "class": "permission",
+                "retryable": False,
+                "hint": "The owner has been alerted as often as an hour allows. Do not alert "
+                "again now: say it in your reply, where the owner will read it.",
+            },
+        )
     reach = await reach_me_policy(session, owner_id)
     critical = request.importance == "critical"
     if critical:

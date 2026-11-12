@@ -35,7 +35,7 @@ from lonora_contracts.owner_actions import (
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
 from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
-from lonora_core.user_error import LonoraError
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
 from sqlalchemy import ColumnElement, func, or_, select, text
@@ -90,6 +90,13 @@ GRANT_HOURS = {"until_stopped": None, "12h": 12, "24h": 24, "7d": 168}
 ALL_ACTIONS: tuple[AuthorityAction, ...] = ALL_AUTHORITY_ACTIONS
 # Pending cards one agent may have proposed at once; runtime cards do not count.
 MAXIMUM_PENDING_PER_AGENT = 5
+# What an agent reads when it has that many cards waiting already.
+CARDS_WAITING: dict[str, Any] = {
+    "class": "permission",
+    "retryable": False,
+    "hint": "Enough cards are already waiting for the owner. Raise no more now: point the "
+    "owner to the ones waiting, or come back to it once one is decided.",
+}
 UPPER_LIMITS = (
     "max_trade_risk",
     "max_trade_risk_equity_percent",
@@ -1313,7 +1320,7 @@ async def propose_effect(
         )
     )
     if (pending or 0) >= MAXIMUM_PENDING_PER_AGENT:
-        raise LonoraError("owner_action_limit", 429)
+        raise ToolRefusal("owner_action_limit", 429, details=CARDS_WAITING)
     thread = await card_thread(session, owner_id, agent_id, thread_id)
     row = await create_card(
         session,

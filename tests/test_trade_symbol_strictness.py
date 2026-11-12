@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -47,7 +47,7 @@ async def sent(tool: Any, context: Context, args: dict[str, Any]) -> list[TradeR
     """The requests a tool call would put on an approval card or send under a grant."""
     captured: list[TradeRequest] = []
 
-    async def approved(_: Any, requests: list[TradeRequest]) -> dict[str, Any]:
+    async def approved(_: Any, requests: list[TradeRequest], **_flags: Any) -> dict[str, Any]:
         captured.extend(requests)
         return {}
 
@@ -157,3 +157,86 @@ async def test_a_call_that_already_has_a_record_is_never_checked_again() -> None
     order = {"account_id": "account", "symbol": "XAUUSDm", "action": "buy", "volume": "0.01"}
     assert [r.volume for r in await sent(trade.execute, context, order)] == [Decimal("0.01")]
     broker.instrument.assert_not_awaited()
+
+
+def managing(position_id: str, symbol: str = "XAUUSDm", **extra: Any) -> TradeRequest:
+    return TradeRequest(
+        operation_id="op-" + position_id,
+        account_id="account",
+        symbol=symbol,
+        action="close_position",
+        position_id=position_id,
+        **extra,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_ticket_the_account_does_not_hold_is_refused_with_those_it_does() -> None:
+    from lonora_tools.resolve import NotResolved
+
+    context = Context([position("7", "XAUUSDm"), position("8", "EURUSDm")])
+    with pytest.raises(NotResolved) as one:
+        await trade.require_ticket(cast(Any, context), managing("wrong"))
+    assert one.value.code == "position_not_found" and one.value.details["retryable"] is True
+    assert one.value.details["candidates"] == [
+        {
+            "id": "7",
+            "label": "XAUUSDm",
+            "symbol": "XAUUSDm",
+            "side": "buy",
+            "volume": "0.01",
+            "open_price": "4100",
+            "profit": "0",
+        }
+    ]
+    # The next call names the real ticket; nothing was put in the place of the one named.
+    assert one.value.details["next_actions"] == [{"repeat_with": {"position_id": "7"}}]
+    two = Context([position("7", "XAUUSDm"), position("9", "XAUUSDm")])
+    with pytest.raises(NotResolved) as several:
+        await trade.require_ticket(cast(Any, two), managing("wrong"))
+    assert several.value.code == "position_ambiguous"
+    assert [item["id"] for item in several.value.details["candidates"]] == ["7", "9"]
+    with pytest.raises(NotResolved) as none:
+        await trade.require_ticket(cast(Any, context), managing("wrong", "GBPUSDm"))
+    assert none.value.details["candidates"] == []
+    assert [item["id"] for item in none.value.details["existing"]] == ["7", "8"]
+
+
+@pytest.mark.asyncio
+async def test_a_held_ticket_a_recorded_call_and_an_unreadable_account_are_never_refused() -> None:
+    # The ticket is there: the request goes on untouched, whatever else the account holds.
+    held = Context([position("7", "XAUUSDm"), position("9", "XAUUSDm")])
+    await trade.require_ticket(cast(Any, held), managing("7"))
+    # After approval, a restart or an unknown outcome the record answers: the position
+    # may be gone because the first attempt closed it.
+    recorded = Context([], recorded=SimpleNamespace(status="completed"))
+    await trade.require_ticket(cast(Any, recorded), managing("closed-already"))
+    (await recorded.brokers.get("owner", "account")).positions.assert_not_awaited()
+    unreadable = Context([])
+    (await unreadable.brokers.get("owner", "account")).positions = AsyncMock(
+        side_effect=ConnectionError()
+    )
+    await trade.require_ticket(cast(Any, unreadable), managing("gone"))
+
+
+@pytest.mark.asyncio
+async def test_only_a_ticket_the_call_itself_named_is_checked() -> None:
+    """A close of everything is built from the account's own list: one position that
+    closed meanwhile never holds back the others."""
+    context = Context([position("7", "XAUUSDm")])
+    checked: list[bool] = []
+
+    async def approved(_: Any, requests: list[TradeRequest], **flags: Any) -> dict[str, Any]:
+        checked.append(bool(flags.get("named_ticket")))
+        return {}
+
+    with (
+        patch.object(trade, "agent_binding", AsyncMock()),
+        patch.object(trade, "require_lease", AsyncMock()),
+        patch.object(trade, "approved_execution", approved),
+    ):
+        closing = {"account_id": "account", "symbol": "XAUUSDm", "action": "close_position"}
+        await trade.execute(cast(Any, context), {**closing, "position_id": "7"})
+        await trade.execute(cast(Any, context), {**closing, "action": "buy", "volume": "0.01"})
+        await trade.close_positions(cast(Any, context), {"account_id": "account"})
+    assert checked == [True, False, False]

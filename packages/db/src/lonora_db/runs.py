@@ -47,6 +47,28 @@ def failure_data(row: RunRow) -> dict[str, Any] | None:
     return RunFailure(family=failure_family(row.error_code)).model_dump()
 
 
+# The key, in a Run's execution state, of the picked choice the Run answers for: the
+# calls the choice was bound to when it was offered (``lonora_agent.offers``).
+OFFER_OBLIGATION = "offer_obligation"
+
+
+def question_choices(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """A question's choices as clients get them: what a pick does, never the bound calls."""
+    raw = item.get("effects")
+    effects = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+    shown: list[dict[str, Any]] = []
+    for stored in cast(list[Any], item.get("choices", [])):
+        if not isinstance(stored, dict):
+            continue
+        choice = {
+            key: value for key, value in cast(dict[str, Any], stored).items() if key != "actions"
+        }
+        if choice.get("id") in effects:
+            choice["effects"] = effects[choice["id"]]
+        shown.append(choice)
+    return shown
+
+
 def run_data(row: RunRow) -> dict[str, Any]:
     questions: list[dict[str, Any]] = []
     for raw in cast(list[Any], row.execution_state.get("input_requests", []))[-20:]:
@@ -61,7 +83,7 @@ def run_data(row: RunRow) -> dict[str, Any]:
                 "run_id": row.id,
                 "message_id": item["message_id"],
                 "question": item["question"],
-                "choices": item.get("choices", []),
+                "choices": question_choices(item),
                 "status": "cancelled"
                 if item.get("status") == "pending"
                 and row.status in {"cancelled", "failed", "completed"}

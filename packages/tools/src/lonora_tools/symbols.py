@@ -10,6 +10,7 @@ broker's symbol name.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from time import monotonic
 from typing import Any, cast
@@ -17,8 +18,11 @@ from weakref import WeakKeyDictionary
 
 from lonora_contracts.market import Instrument
 from lonora_core.user_error import LonoraError, ToolRefusal
+from lonora_db.broker_sessions import learn_symbol
+from lonora_db.client import Database
 from lonora_market.instruments import catalogue_matches, confirms, contradicts, instrument_codes
 
+log = logging.getLogger(__name__)
 MAXIMUM_CANDIDATES = 8
 MAXIMUM_TEXT = 240
 CATALOGUE_SECONDS = 300
@@ -265,6 +269,9 @@ async def _resolved(broker: Any, requested: str) -> tuple[str, dict[str, Any]]:
     if verified[0][1] is not None and verified[0][1].description:
         # The broker's own words for it, so a wrong match is visible at once.
         resolution["description"] = verified[0][1].description[:MAXIMUM_TEXT]
+    if confirms(instrument_codes(requested)[0], verified[0][1]):
+        # The broker's own currencies name this pair: worth remembering for the account.
+        resolution["confirmed"] = True
     if len(verified) > 1:
         resolution["other_matches"] = [_facts(name, item) for name, item in verified[1:]]
         resolution["note"] = SEVERAL_FOR_A_READ
@@ -292,3 +299,36 @@ async def read_symbol(
         if require_exists:
             raise
         return requested, {}
+
+
+async def remember_resolution(
+    db: Database, owner_id: str, arguments: dict[str, Any], result: dict[str, Any]
+) -> None:
+    """Keep for the account what a read just learned about one of its symbols.
+
+    Only a single match the broker's own currencies confirm is kept. A read that finds
+    several contracts for the word makes the account forget it, so a later order is asked
+    which, and so does a read that resolves it to another symbol than the one kept. Never
+    part of the call: a failure here changes no result.
+    """
+    resolution = result.get("symbol_resolution")
+    account_id = arguments.get("account_id")
+    if not isinstance(resolution, dict) or not isinstance(account_id, str):
+        return
+    stated = cast(dict[str, Any], resolution)
+    symbol = str(stated.get("symbol") or "")
+    keep = bool(stated.get("confirmed")) and not stated.get("other_matches")
+    try:
+        async with db.sessions() as session, session.begin():
+            await learn_symbol(
+                session,
+                owner_id,
+                account_id,
+                str(stated.get("requested") or ""),
+                symbol if keep else None,
+                str(stated.get("description") or ""),
+                # An unconfirmed read of the same symbol proves nothing against it.
+                unless=None if keep or stated.get("other_matches") else symbol,
+            )
+    except Exception as error:
+        log.warning("symbol_map_write_failed type=%s", type(error).__name__)

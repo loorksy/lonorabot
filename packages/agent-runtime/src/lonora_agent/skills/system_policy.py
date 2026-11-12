@@ -21,6 +21,9 @@ from .loader import resources_root
 MAX_CORE_CHARS = 16000
 MAX_DOMAIN_CHARS = 14000
 MAX_DOMAINS = 3
+# Chapters whose rules decide the first call of their domain (which symbol, which size, what
+# needs the owner). They are read before that call whenever a tool of the domain is offered.
+SEEDED_DOMAINS = ("market", "trading")
 CORE_MARKER = "<lonora_operating_policy>"
 DOMAIN_MARKER = "<lonora_domain_guidance>"
 
@@ -123,10 +126,11 @@ def apply_operating_policy(
 ) -> list[ModelMessage]:
     """Fresh request projection only; canonical history/checkpoints stay unchanged.
 
-    Actual tool-call names select chapters. No owner-text matching, hidden intent
-    classifier or extra paid model call. Complete exchanges remain indivisible.
-    ``available`` names every tool still permitted in this Run, including those
-    reached through the tool_call bridge; without it the native ``tools`` decide.
+    Actual tool-call names select chapters, then the seeded chapters of the native
+    ``tools``. No owner-text matching, hidden intent classifier or extra paid model call.
+    Complete exchanges remain indivisible. ``available`` names every tool still permitted
+    in this Run, including those reached through the tool_call bridge; without it the
+    native ``tools`` decide.
     """
     bundle = policy_bundle()
     allowed = set(available) if available is not None else {tool.name for tool in tools}
@@ -138,6 +142,8 @@ def apply_operating_policy(
             name = bundle.tool_policies.get(call.name) if call.name in allowed else None
             if name and name != "core" and name not in domains:
                 domains.append(name)
+    offered = {bundle.tool_policies.get(tool.name) for tool in tools}
+    domains += [name for name in SEEDED_DOMAINS if name in offered and name not in domains]
     # Stable ordering for equivalent sets keeps the reusable instruction prefix stable.
     chapters = [bundle.sections[name] for name in sorted(domains[:MAX_DOMAINS])]
     if sum(map(len, chapters)) > MAX_DOMAIN_CHARS:

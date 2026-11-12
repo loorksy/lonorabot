@@ -17,10 +17,12 @@ from lonora_agent.environment import ToolRetryScheduled
 from lonora_agent.executor import execute_run
 from lonora_agent.runtime_notices import NO_ANSWER, is_runtime_notice
 from lonora_agent.tool_loop import execute_tool_loop
+from lonora_agent.uncertain_outcome import CHANGE_EN
 from lonora_contracts.domain import MessageCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_contracts.tasks import TaskCreate, TaskStep
+from lonora_core.user_error import ToolRefusal
 from lonora_db.boards import BoardRepository
 from lonora_db.client import Database
 from lonora_db.messages import history, send_message
@@ -540,6 +542,99 @@ async def test_empty_answer_nudge_is_a_trailing_runtime_notice(
     assert no_mid_run_system(run)
 
 
+@pytest.mark.asyncio
+async def test_a_reply_that_leaves_a_named_read_untaken_continues_once_and_is_recorded(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The conversation gate in the loop: one notice, the step taken, the Run completed."""
+
+    async def quote(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        raise ToolRefusal(
+            "symbol_not_found",
+            404,
+            details={"class": "resolution", "next_actions": [{"tool": "fixture_symbols"}]},
+        )
+
+    async def symbols(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        return {"symbols": ["XAUUSDm"]}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_quote", "Quote", Arguments, quote, True),
+            Tool("fixture_symbols", "Symbols", Arguments, symbols, True),
+        ]
+    )
+    context = await conversation_run(task_db)
+    model = Script(
+        ModelReply(text="", tool_calls=calls(("q1", "fixture_quote", 1))),
+        ModelReply(text="I cannot reach gold."),
+        ModelReply(text="", tool_calls=calls(("s1", "fixture_symbols", 1))),
+        ModelReply(text="Gold is XAUUSDm on this account."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "Gold is XAUUSDm on this account."
+    assert len(model.requests) == 4
+    third, _ = model.requests[2]
+    assert is_runtime_notice(third[-1]) and "call fixture_symbols" in third[-1].content
+    assert "conversation_check" in third[-1].content
+    assert run.execution_state["conversation_gate"] == {
+        "version": 1,
+        "attempts": 1,
+        "fired": [{"condition": "read_step_not_taken", "tool": "fixture_quote", "call_id": "q1"}],
+        "exhausted": False,
+    }
+    assert no_mid_run_system(run)
+
+
+@pytest.mark.asyncio
+async def test_a_reply_that_keeps_its_answer_after_the_check_stands(
+    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def quote(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        raise ToolRefusal(
+            "symbol_not_found",
+            404,
+            details={"class": "resolution", "next_actions": [{"tool": "fixture_symbols"}]},
+        )
+
+    async def symbols(_: ToolContext, __: dict[str, Any]) -> dict[str, Any]:
+        return {"symbols": []}
+
+    registry = ToolRegistry(
+        [
+            Tool("fixture_quote", "Quote", Arguments, quote, True),
+            Tool("fixture_symbols", "Symbols", Arguments, symbols, True),
+        ]
+    )
+    context = await conversation_run(task_db)
+    model = Script(
+        ModelReply(text="", tool_calls=calls(("q1", "fixture_quote", 1))),
+        ModelReply(text="I cannot reach gold."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 8)
+    run = await saved_run(context)
+    # Asked once, the same answer is the answer: three model turns, never a loop.
+    assert run.status == "completed" and run.result == "I cannot reach gold."
+    assert len(model.requests) == 3
+    assert run.execution_state["conversation_gate"]["attempts"] == 1
+
+    # On the last round that can run a call the reply stands: no notice, no limit report.
+    context = await conversation_run(task_db)
+    model = Script(
+        ModelReply(text="", tool_calls=calls(("q1", "fixture_quote", 1))),
+        ModelReply(text="I cannot reach gold."),
+    )
+    monkeypatch.setattr("lonora_agent.tool_loop.model_turn", model)
+    await execute_run(context, registry, 120, 3)
+    run = await saved_run(context)
+    assert run.status == "completed" and run.result == "I cannot reach gold."
+    assert len(model.requests) == 2 and "conversation_gate" not in run.execution_state
+    assert run.execution_state.get("exit_reason") is None
+
+
 async def task_run(fixture: Fixture, request: TaskCreate) -> tuple[ToolContext, str]:
     db, owner, agent, thread = fixture
     async with db.sessions() as session, session.begin():
@@ -1033,7 +1128,11 @@ async def test_owner_steering_never_calls_an_interrupted_mutation_superseded(
     # Never started: superseded by the owner's new request.
     assert observed["w2"]["code"] == "tool_call_superseded"
     assert not any(item["call_id"] == "w2" for item in routes.values())
-    assert run.status == "completed" and run.result == "Checked.", (run.status, run.error_code)
+    # The reply says only "Checked.": the runtime adds what it knows about the first note.
+    assert run.status == "completed" and run.result == "Checked.\n\n" + CHANGE_EN, (
+        run.status,
+        run.error_code,
+    )
 
 
 @pytest.mark.asyncio

@@ -168,6 +168,23 @@ remaining name sets that cannot import the registry (`FINANCIAL_CALLS`,
 `FINANCIAL_REPLAY_TOOLS`, `CHECKPOINT_TOOLS`, skill `CAPABILITY_TOOLS`) are
 checked against registry metadata by `tests/test_capability_exposure.py`.
 
+### What the surface answers when nothing fits
+
+- A name no tool has is a wrong name, not a rule. A direct call, a bridged call and an
+  exact `tool_environment` lookup all answer `tool_call_target_unknown` with class
+  `resolution`, the tool the name was meant to be when only its letter case differs, and
+  `tool_environment` as the next step. A tool that exists but is outside the Run's scope
+  stays `tool_not_allowed`, a permission refusal.
+- A search that matches nothing answers `found: false`, a note that this is not an
+  ability being missing, and `permitted_names`: every tool the Run may use.
+- `watch_create` and `routine_create` refuse `enabled: false`
+  (`create_disabled_refused`): nothing is created to try a tool. A replayed call is still
+  answered from its row, and the owner's routes, goals and the evaluator still store
+  disabled rows. The refusal names no next call.
+- The `market` and `trading` policy chapters are read before the first call of an agent
+  that is offered a tool of those domains, after the chapters its recent calls selected
+  and inside the same three-chapter limit.
+
 ## Concurrent reads, serial effects
 
 Each assistant tool-call block is split into ordered segments (adapted from
@@ -260,6 +277,71 @@ after the code's words. Tool names stay exact. A reply cannot repeat a machine c
 model never read; the gates, the scorer and the logs still read the codes in the record.
 The background summary and the context sections that list earlier failures still read
 the record and are not covered by this view.
+
+**Where the class comes from.** `classify()` names the codes it knows. For a refusal it
+does not name, `tool_dispatch` passes the status the tool raised (`http_status`, read and
+removed by `observe`): forbidden is `permission`, an invalid request is `input`, and four
+families of conflict say what they are (a confirmation or a reconciliation that is
+required, the mandate's own terms or a pause, an order on the wrong side). Any other conflict stays as it
+was: a state conflict says nothing a model can act on, and a count that is full (helpers,
+pins, retries) is not a rule of the owner's. A `broker_` code keeps its class, and a
+named code never changes with its status. A class the tool wrote itself
+(`ToolRefusal.details`) decides the category, the next step and the hint together, and a
+not-found result that carries `candidates` points at them (`follow_hint`).
+
+## Names in place of ids
+
+An id argument also takes what the owner calls the thing. `lonora_tools.resolve.resolve`
+answers one of four ways from the list the calling tool already has, so nothing outside
+the caller's reach is ever offered: the id itself; the one item a name fits; several
+(`<kind>_ambiguous`, never chosen between); none (`<kind>_not_found` with the nearest
+names, or what exists). Names fold as the owner's search does (`lonora_core.search_fold`).
+What a name may do depends on the call:
+
+| Call | One item fits |
+|---|---|
+| A read (`use="any"`) | It is used, and the result says so under `reference_resolution`. |
+| A stop of the caller's own item (`use="exact"`) | Used only when the name is exactly its name. |
+| Anything else (`use="refuse"`) | Refused with the item and `next_actions: [{repeat_with: {<argument>: <id>}}]`. |
+
+| Reference | Where | Named by | Acts on a name |
+|---|---|---|---|
+| Account | `market_binding.named_account`, before validation, for every market tool | account number, account name, broker | reads only; an order, a watch, a goal or a grant is refused with the account |
+| No account named | `prepare_market_arguments`, for an agent with no market of its own and a tool that requires one | | the agent's own, its one signed, or the owner's only account as before; with several and none of those, `broker_sessions_ambiguous` with the accounts |
+| Position or order ticket | `trade.require_ticket`, only for a ticket `trade_execute` itself named | its symbol | never: the refusal lists the tickets; first attempt only; a batch built from the account's own list is never checked |
+| Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
+| Routine | `routine.named_routine` | title, prompt | switching off on an exact title; switching on never |
+| Task | `tasks.named_task` | title | `task_inspect` only |
+| Agent | `supervision.named_agent` | name, among this agent and those it supervises now | `agent_inspect` only; `agent_control` never |
+
+A change is never pointed at something the call did not name, an exit is never held back
+by a resolver (a ticket is only checked for existing, on a first attempt, and a failed
+read leaves the request to the executor), and nothing new wakes an agent: switching a
+watch or a routine back on always needs its id.
+
+## What an account's reads taught
+
+A read that resolves the owner's word to one of the account's symbols states it
+(`symbol_resolution`), and marks it `confirmed` when the broker's own base and quote
+currency are the pair the word names. `symbols.remember_resolution`, called by the
+registry after a market read, keeps a confirmed single match with the account:
+`BrokerSessionRow.state["symbol_map"]`, the folded word, the symbol, the broker's
+description and the time (`lonora_db.broker_sessions.learn_symbol`). It is a note in the
+row's state, merged under the row's lock like every other writer of it: the connection's
+version does not change, so nothing is reconnected and no send is fenced out, and no
+event is emitted, so nothing is woken.
+
+What is kept is forgotten when it stops being true: a later read that finds several
+contracts for the word removes it; the map is stamped with the broker identity (login,
+server, platform) and is empty once the connection points at another account; an entry
+is not shown after `SYMBOL_MAP_DAYS`; fifty entries are kept, the newest.
+
+The next Run is shown it before its first call, in the sheddable context section
+`account_symbols` (`context/account_symbols.py`, trust `historical_observation`): the
+agent's own account for an agent with a market of its own, else the owner's accounts. It
+informs and nothing more. An order still names a symbol the live catalogue lists exactly
+(`order_symbol`), and the section tells the agent to read the word once before an order
+on it, because what an account lists can change.
 
 ## Dispatch deadlines
 
@@ -393,11 +475,111 @@ work without declared steps has nothing that proves completion and goes to
 owner attention. `complete_run` still refuses incomplete steps and unsaved
 continuous work, so unfinished work is never marked completed.
 
+## The end of a conversation turn
+
+A Task has declared steps; a conversation has none, so a reply could end the owner's
+request with one named step left untaken. `conversation_gate.py` checks a text reply of a
+Run the owner started by typing (`owner_started`; a Task Run and every wake are never
+checked) and continues the turn in four cases, read from the request's own calls and
+results:
+
+| Condition | What was seen | What the notice asks |
+|---|---|---|
+| `choice_not_carried_out` | The owner picked a choice of a question, the choice was bound to calls when it was offered, and fewer calls of those tools have succeeded since the pick | Make the remaining calls as they were bound, or say plainly that what was chosen was not carried out |
+| `read_step_not_taken` | The last call failed with class `resolution`, listed nothing that exists, and named exactly one read-only tool to call next, which the request never called | Take that step and answer from it, or say plainly what was not done |
+| `found_tool_unused` | `tool_environment` returned exactly one available tool (an exact lookup, or a search with one match; never one row of a longer listing), and the request never called it and changed nothing | A read: call it. A change: call it only if the owner asked for the action; a question about it is answered |
+| `changes_all_failed` | Every change of the request failed, and one failure names how to repeat it (`repeat_with`) or a read to make first | Take the step, or say that the change was not made |
+
+The gate reads call names, arguments and result fields only. It never reads what the owner
+or the model wrote, never issues a call, and its notices carry tool names but no failure
+code. It holds the reply, whatever else the request contains, when the request made any
+financial call, when any result is a permission refusal, needs the owner's authorization,
+hit a risk or health block, has an unknown outcome, was stopped by a guardrail or spent
+its retries, and when the last owner-side message is a wake. A found tool that is
+financial is never raised.
+
+It is not consulted on the last round that can still run a call: there the reply stands
+instead of becoming a limit report. It continues at most twice per owner message
+(`MAXIMUM_STOP_NUDGES`); a new owner message,
+a wake or an attention resume starts a new budget. One fact is raised once: a reply that
+keeps its answer after the notice stands. When the budget is spent the reply is returned
+as it is; a conversation is never turned into an owner-attention request. Every
+continuation is recorded in the Run's state:
+
+```json
+{"conversation_gate": {"version": 1, "attempts": 1, "exhausted": false,
+  "fired": [{"condition": "read_step_not_taken", "tool": "market_quote", "call_id": "..."}]}}
+```
+
+A malformed record fails the Run with `conversation_gate_state_invalid` instead of being
+rebuilt. A reply with no call is checked against a picked choice only: an offer written as
+prose leaves nothing to read, so nothing is decided from it.
+
+## A question's choice and the calls behind it
+
+An offer is a `wait_for_input` question whose choices name what they stand for. Each
+choice may carry `actions`, up to six `{tool, arguments}` calls (`BoundAction`). They are
+checked when the question is asked (`offers.bind_choices`, called from `tool_dispatch.py`
+before the question can be published), and a refusal is the tool's own failure result:
+
+| Refused | Why |
+|---|---|
+| Any action, in a Run that does not answer the owner's typed message (a wake, a card's send, a Run that a pick resumed), or that has read what others wrote (a page, a feed, a connected tool, another agent) | Text the owner did not write must not put an action behind a label. The model asks the same question without actions |
+| A tool that is not registered or not permitted to this Run | Only what the Run could call itself can be bound, so binding grants nothing |
+| A financial tool | A choice never stands for a trade: an order is asked for with `trade_execute`, whose confirmation is the consent |
+| `wait_for_input`, `task_wait`, `group_silence`, `tool_environment`, `tool_call` | They ask, wait or look up |
+| Arguments the tool's own preparation and validation would refuse (`ToolRegistry.accepts`, which runs nothing), or longer than 4000 characters | The pick must be something that can be carried out as written |
+
+The question is stored with its choices and their actions, and with `effects`: per choice,
+the bound tools with their toolset, `read` or `change`, and how many calls. Clients get the
+choices with `effects` and never the calls themselves (`runs.question_choices`), so the
+card can say what a pick does. A choice that binds nothing is stored and sent as before.
+
+When the owner picks a bound choice (`input_answer`), `messages.py` writes the obligation
+into the Run it resumes:
+
+```json
+{"offer_obligation": {"question_id": "...", "choice_id": "all", "answer_message_id": "...",
+  "actions": [{"tool": "watch_cancel", "arguments": {"watch_id": "..."}}], "status": "open"}}
+```
+
+A typed answer, or a pick of a choice that binds nothing, writes no obligation and clears an
+earlier one. On resume the pick is followed by one notice (`choice_picked`) that states
+which choice was picked and the calls it was bound to; it says the pick covers nothing
+beyond them. The notice is a runtime notice, not owner words. The pick's own message is
+stored as the owner's answer, as every choice answer is; a Run resumed by a pick binds
+nothing more, since a pick is a tap on a label the model wrote.
+
+The end-of-turn check counts, per bound tool, the calls made since the pick that
+succeeded or whose outcome is not known. It reads the transcript from the pick's own
+notice on, so another agent's outcome merged later cannot hide a call that was made. Arguments are not compared: a tool that succeeded
+with other values acted on the choice, and asking again would repeat a change. An unknown
+outcome settles its call for the same reason. What is still missing is raised once
+(`choice_not_carried_out`, recorded under `fired` with the question's id). A reply that
+then still leaves it undone ends the turn with one appended line, in the owner's language:
+"What you chose has not been carried out yet." The reply that ends the turn records the
+`outcome`: `met`, `unmet`, or `held` (a permission refusal, a financial call or an unknown
+financial outcome since the pick: the reply stands and no line is added). The obligation
+itself stays `open`, so a reply drafted again is judged afresh, until the owner writes
+again: then it is `superseded` (the offer was open for one message only) and nothing is
+asked or appended afterwards.
+
+Nothing here issues a call, and nothing new starts a Run: the pick resumes the Run that
+asked. What a bound tool allows is decided by that tool when it is called.
+
+One line may still be appended to the reply (`uncertain_outcome.py`). An uncertain trade
+gets the line that says it is being checked and will not be resent. A change that is not
+a trade and ended `tool_execution_uncertain` in the request's last calls gets its own
+line, which says only that it may or may not have taken effect: nothing reconciles such a
+change, so no check is promised. Once any call followed it the line is not added: a read
+may have shown whether the change took effect, and the reply is the model's to word.
+
 ## Runtime notices
 
 Provider adapters hoist every system message into one prefix, so runtime
 nudges are never appended as mid-run `role=system` text. A notice (completion
-check, empty answer, budget warning, guardrail guidance, final report request)
+check, conversation check, empty answer, budget warning, guardrail guidance, final
+report request)
 is attached to the latest tool result as `runtime_notice`, or appended as a
 trailing `user` message with `context_origin="tool_observation"` and a
 `<runtime_notice>` JSON body. Context governance keeps it bound to the block

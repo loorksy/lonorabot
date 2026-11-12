@@ -102,7 +102,9 @@ The wording checks are regular expressions. They are test oracles only, never pr
 routers, and they were reviewed adversarially (replies written to slip through, and good
 replies written to be rejected); what they still miss is listed under Limits.
 
-The scorer also counts, without failing them, the replies that end with an offer.
+The scorer also counts, without failing them, the replies that end with an offer, the turns that
+asked a question and how many of those bound calls to a choice. A rise in questions without a fall
+in offers means offers were parked on cards instead of being carried out.
 
 ## Two layers
 

@@ -7,10 +7,14 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 from lonora_core.user_error import LonoraError
+from lonora_db.runs import OFFER_OBLIGATION
 from lonora_db.tasks import OWNER_ATTENTION
 from lonora_tools.context import ToolContext
+from lonora_tools.registry import ToolRegistry
 
+from .conversation_gate import choice_left_undone
 from .environment import environment_state
+from .offers import CHOICE_LINE_AR, CHOICE_LINE_EN
 from .runtime_notices import (
     append_notice,
     attention_message,
@@ -18,8 +22,8 @@ from .runtime_notices import (
     is_owner_message,
     prefers_arabic,
 )
-from .stop_gates import task_progress, task_stop_gate
-from .uncertain_outcome import append_uncertain_line
+from .stop_gates import StopGateVerdict, task_progress, task_stop_gate
+from .uncertain_outcome import append_line, append_uncertain_line
 
 
 @dataclass
@@ -152,6 +156,22 @@ async def request_owner_attention(
     return attention_outcome(state, question)
 
 
+def closing_lines(
+    state: dict[str, Any],
+    messages: list[ModelMessage],
+    text: str,
+    registry: ToolRegistry | None,
+) -> str:
+    """The reply with the fixed lines the runtime owes the owner: an outcome that is not
+    known, and a picked choice that was left undone."""
+    text = append_uncertain_line(state, messages, text)
+    if registry is not None and choice_left_undone(state, messages, registry):
+        text = append_line(
+            state, messages, text, CHOICE_LINE_AR if prefers_arabic(messages) else CHOICE_LINE_EN
+        )
+    return text
+
+
 async def final_answer(
     context: ToolContext,
     state: dict[str, Any],
@@ -161,11 +181,16 @@ async def final_answer(
     save: Callable[[], Awaitable[None]],
     *,
     outcome_line: bool = False,
+    conversation_gate: Callable[[], StopGateVerdict] | None = None,
+    registry: ToolRegistry | None = None,
 ) -> LoopOutcome | None:
-    """Apply the bounded task stop gates; ``None`` means the turn continues.
+    """Apply the bounded stop gates; ``None`` means the turn continues.
 
     With ``outcome_line``, a reply that ends an owner-started request with an uncertain
-    financial outcome gets one appended line; its text and card are kept.
+    financial outcome gets one appended line; its text and card are kept. With
+    ``registry``, so does a reply that leaves a picked choice undone.
+    ``conversation_gate`` is the check of a text reply in a conversation: once its two
+    continuations are spent the reply stands, since ending a turn is always allowed.
     """
     verdict = await task_stop_gate(context, state)
     if verdict.continue_turn:
@@ -176,9 +201,19 @@ async def final_answer(
         return await request_owner_attention(
             context, state, messages, verdict.exhausted, text or latest_answer(messages), save
         )
+    if conversation_gate is not None:
+        held = conversation_gate()
+        if held.continue_turn:
+            append_notice(messages, "conversation_check", held.nudge or "")
+            await save()
+            return None
     if outcome_line:
-        updated = append_uncertain_line(state, messages, text)
+        picked = state.get(OFFER_OBLIGATION)
+        updated = closing_lines(state, messages, text, registry)
         if updated != text:
             text, metadata = updated, {**metadata, **rich_metadata(state)}
+            await save()
+        elif state.get(OFFER_OBLIGATION) != picked:
+            # The picked choice was closed without a line: keep how it ended.
             await save()
     return LoopOutcome(text, metadata)

@@ -36,6 +36,7 @@ SOFTWARE.
 import json
 import logging
 from collections.abc import Awaitable, Callable, Collection
+from functools import partial
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
@@ -60,10 +61,12 @@ from .context_engine import (
     resolve_limits,
 )
 from .continuation import MAXIMUM_SLICES, schedule_task_continuation, slice_limit
+from .conversation_gate import conversation_stop_gate
 from .environment import ToolRetryScheduled, environment_state, retry_pending
 from .loop_outcomes import (
     LoopOutcome,
     attention_outcome,
+    closing_lines,
     external_wait_outcome,
     final_answer,
     question_outcome,
@@ -106,7 +109,6 @@ from .tool_block import (
 from .tool_exposure import inventory, native_definitions
 from .tool_guardrails import halt_reason
 from .tool_intent import start_budget_epoch
-from .uncertain_outcome import append_uncertain_line
 
 log = logging.getLogger("lonora.tool_loop")
 
@@ -295,8 +297,8 @@ async def finish_turn(
                 rich_content=state.get("rich_content"),
             )
         )
-        # The round-limit and guardrail report gets the uncertain-outcome line too.
-        text = append_uncertain_line(state, messages, text)
+        # The round-limit and guardrail report gets the runtime's fixed lines too.
+        text = closing_lines(state, messages, text, registry)
         state["limit_exit"] = {"reason": reason, "text": text}
         await save()
     if task_run:
@@ -606,6 +608,14 @@ async def execute_tool_loop(
             },
             save,
             outcome_line=True,
+            # Continuing is offered only while another round can still run a call:
+            # at the limit the reply stands instead of becoming a limit report.
+            conversation_gate=partial(
+                conversation_stop_gate, state, messages, registry, policy_tools
+            )
+            if final_limit - int(state["rounds"]) - 1 > 0
+            else None,
+            registry=registry,
         )
         if outcome is not None:
             return outcome
