@@ -33,7 +33,8 @@ def tools() -> list[Tool]:
             "market_performance_read",
             "Your results from broker-confirmed closes: per judgment label of the opening "
             "order, the count and net realized P&L per account currency; plus a count per "
-            "management label.",
+            "management label. unpriced counts closes whose P&L the broker deals do not give; "
+            "they add nothing to the net, and a null net means none is known.",
             PerformanceRead,
             performance,
             True,

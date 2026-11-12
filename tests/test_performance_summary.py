@@ -163,3 +163,52 @@ async def test_a_close_without_broker_profit_is_counted_and_adds_nothing() -> No
     finally:
         await retire(fixture, connection)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_netting_add_counts_its_label_and_unknown_pnl_is_never_zero() -> None:
+    database()
+    from check_streaming import Fixture
+    from lonora_trading.statistics import statistics_block
+
+    fixture = await Fixture().open()
+    connection = ""
+    try:
+        agent = await fixture.agent("Adds", supervised=True)
+        connection = await simulation(fixture, [])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                entry(fixture, connection, agent["id"], "buy", label="breakout", order="n-1")
+            )
+            # An add to the open netting position: an entry action, not its opening.
+            session.add(
+                entry(fixture, connection, agent["id"], "buy", label="scale_in", order="a-7")
+            )
+            session.add(entry(fixture, connection, agent["id"], "sell", label="fade", order="f-1"))
+        await add_history(
+            fixture,
+            connection,
+            deal("n-1", "IN", "BUY", minutes=9),
+            deal("n-1", "IN", "BUY", minutes=8, order="a-7"),
+            deal("n-1", "OUT", "SELL", volume="0.2", minutes=7, profit="6"),
+            deal("f-1", "IN", "SELL", minutes=6),
+            deal("f-1", "OUT", "BUY", minutes=5, profit=None),
+        )
+        assert await record(fixture, connection) == 2
+        async with fixture.runtime.db.sessions() as session:
+            block = await statistics_block(session, fixture.owner, agent["id"])
+        assert block["closed_trades"] == [
+            {"label": "breakout", "currency": "USD", "count": 1, "net_realized_pnl": "6"},
+            # Every trade of the row has an unknown P&L: no net, never "0".
+            {
+                "label": "fade",
+                "currency": "USD",
+                "count": 1,
+                "net_realized_pnl": None,
+                "unpriced": 1,
+            },
+        ]
+        assert block["management"] == [{"label": "scale_in", "count": 1}]
+    finally:
+        await retire(fixture, connection)
+        await fixture.close()

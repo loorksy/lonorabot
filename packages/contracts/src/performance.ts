@@ -4,8 +4,8 @@ export interface LabelResult {
   /** The account currency; amounts in different currencies are never added. */
   currency: string;
   count: number;
-  /** Decimal string. */
-  net_realized_pnl: string;
+  /** Decimal string; null when no trade of the row has a known P&L (never zero). */
+  net_realized_pnl: string | null;
   /** Closes whose exit carried no broker profit; they add nothing to the net. */
   unpriced?: number;
 }
