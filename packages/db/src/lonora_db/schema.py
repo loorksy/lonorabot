@@ -922,8 +922,10 @@ class ClosedTradeRow(Base):
     side: Mapped[str] = mapped_column(String(8))
     volume: Mapped[Any] = mapped_column(Numeric(38, 10))
     agent_id: Mapped[str | None] = mapped_column(String(36))
-    # The journaled order that opened the position, when Lonora's door sent it.
+    # The journaled order that opened the position, when Lonora's door sent it, and the
+    # judgment label that order carried (5.5.3).
     opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    label: Mapped[str | None] = mapped_column(String(40))
     # Account currency; P&L is never summed across currencies.
     currency: Mapped[str] = mapped_column(String(16))
     # Profit + commission + swap of the position's deals. None when an exit deal carried
@@ -961,6 +963,8 @@ class TradeApprovalRow(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The agent's own words, beside the requests (never inside them).
     reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # The agent's judgment label (5.5.3), beside the requests like the reason.
+    label: Mapped[str | None] = mapped_column(String(40))
     # {"tolerance", "reference": {"account_id", "symbol", "side", "price"}}: the
     # executable side read when the card was made; outside price ± tolerance it drifts.
     validity: Mapped[dict[str, Any]] = mapped_column(

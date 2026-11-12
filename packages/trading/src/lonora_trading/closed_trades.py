@@ -132,6 +132,14 @@ async def opening_entry(
     return None
 
 
+def opening_label(journal: TradingJournalRow | None) -> str | None:
+    """The judgment label the opening order carried beside its request (5.5.3)."""
+    if journal is None or not isinstance(journal.annotation, dict):
+        return None
+    label = journal.annotation.get("label")
+    return label if isinstance(label, str) and label else None
+
+
 async def close_position(
     session: AsyncSession,
     owner_id: str,
@@ -165,6 +173,7 @@ async def close_position(
             volume=sum((Decimal(str(deal.get("volume") or 0)) for deal in exits), Decimal(0)),
             agent_id=journal_agent(journal) if journal is not None else None,
             opening_operation_id=journal.operation_id if journal is not None else None,
+            label=opening_label(journal),
             currency=currency,
             realized_pnl=realized(deals),
             opened_at=_time(opening) if opening is not None else None,

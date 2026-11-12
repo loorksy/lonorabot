@@ -99,19 +99,24 @@ class TradeRequest(Contract):
         return self
 
 
+# The agent's judgment label (5.5.3): a slug it chooses, never a fixed list; "" is none.
+LABEL_PATTERN = r"^[a-z0-9_]{0,40}$"
+
+
 class TradeAnnotation(Contract):
     """The agent's own words about a request, stored beside it (mandate 14.3.9): never part
     of the request, its fingerprint or its operation id. Two sends that differ only in
-    reason are the same operation."""
+    reason or label are the same operation."""
 
     reason: str = Field(default="", max_length=500)
     # A price distance in the symbol's price units: a card drifts outside reference ± it.
     tolerance: Decimal | None = Field(default=None, gt=0)
+    label: str = Field(default="", pattern=LABEL_PATTERN)
 
 
+# trade_execute's input: the request and, beside it, the agent's reason, tolerance, key
+# and label. No docstring: it would be sent to the model with every eager schema.
 class AnnotatedTradeRequest(TradeRequest):
-    """trade_execute's input: the request and, beside it, the agent's reason and tolerance."""
-
     reason: str = Field(default="", max_length=500, description="Your one-line why.")
     tolerance: Decimal | None = Field(
         default=None,
@@ -121,6 +126,7 @@ class AnnotatedTradeRequest(TradeRequest):
     key: str | None = Field(
         default=None, min_length=1, max_length=64, description="New key: new order."
     )
+    label: str = Field(default="", pattern=LABEL_PATTERN, description="e.g. scale_in")
 
 
 # Durable operation lifecycle, distinct from any one broker's vocabulary:
