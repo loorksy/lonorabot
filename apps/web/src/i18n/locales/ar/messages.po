@@ -2076,7 +2076,7 @@ msgid "Conversations"
 msgstr "المحادثات"
 
 #: src/shell/agent/GroupPage.tsx:100
-#: src/shell/agent/GroupPage.tsx:344
+#: src/shell/agent/GroupPage.tsx:343
 msgid "Coordinator"
 msgstr "المنسق"
 
@@ -2210,7 +2210,7 @@ msgstr "إنشاء المهمة"
 msgid "Create the agent"
 msgstr "إنشاء الوكيل"
 
-#: src/shell/agent/GroupPage.tsx:357
+#: src/shell/agent/GroupPage.tsx:356
 msgid "Create the group"
 msgstr "إنشاء المجموعة"
 
