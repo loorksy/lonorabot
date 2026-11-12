@@ -7131,16 +7131,16 @@ msgid "The broker account could not be verified. Check its connection details an
 msgstr "تعذر التحقق من حساب الوسيط. راجع بيانات الاتصال وحاول مجددًا."
 
 #: src/lib/user_error.ts:155
+msgid "The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat."
+msgstr "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة."
+
+#: src/lib/user_error.ts:155
 #~ msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 #~ msgstr "حساب الوسيط غير جاهز لدى مزوّد الربط. تحقق من حالته ثم أعد المحاولة."
 
 #: src/lib/user_error.ts:153
 msgid "The broker account is not running at MetaApi. Ask Lonora in chat to start it."
 msgstr "حساب الوسيط غير مشغَّل لدى MetaApi. اطلب من لونورا في المحادثة تشغيله."
-
-#: src/lib/user_error.ts:155
-msgid "The broker account is still starting at MetaApi. Lonora retries on its own."
-msgstr "حساب الوسيط ما زال يبدأ لدى MetaApi. تعيد لونورا المحاولة بنفسها."
 
 #: src/lib/user_error.ts:183
 msgid "The broker connection changed. Reload it before continuing."

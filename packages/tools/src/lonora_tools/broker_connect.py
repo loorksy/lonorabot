@@ -193,8 +193,9 @@ def manage_tools() -> list[Tool]:
             "account MetaApi reports not running, after the owner agrees), "
             "disable (its positions are then not read or managed), rotate_password or "
             "replace_token (each shows a card for the new value; you never see it). "
-            "account_id is the connection_id from list_accounts. Refused while an operation "
-            "on the account has no confirmed outcome.",
+            "account_id is the connection_id from list_accounts. disable, disconnect and "
+            "rotate_password are refused while an operation on the account has no confirmed "
+            "outcome.",
             BrokerManageInput,
             manage,
             search_terms="disconnect unlink remove disable enable password token broker "

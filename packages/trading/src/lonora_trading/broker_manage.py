@@ -300,9 +300,19 @@ async def deploy(db: Database, brokers: Any, owner_id: str, connection_id: str) 
         payload = BrokerConnection.model_validate(row.payload)
     if payload.provider != "metaapi":
         raise LonoraError("broker_not_metaapi", 409)
+    if not payload.enabled:
+        raise LonoraError("broker_disabled", 409)
     provisioning = await brokers.provisioning(owner_id, connection_id)
     try:
         async with asyncio.timeout(METAAPI_SECONDS):
+            state = await provisioning.state(payload.account_id)
+            if state.deployed:
+                return {
+                    "connection_id": connection_id,
+                    "state": state.state,
+                    "note": "Already running at MetaApi; nothing was changed. If it still "
+                    "fails, the broker refuses its login or MetaApi is unreachable.",
+                }
             state = await provisioning.deploy(payload.account_id)
     except TimeoutError:
         raise LonoraError("broker_provisioning_timeout", 504) from None

@@ -485,8 +485,8 @@ export const labels = {
     "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password.",
   ],
   broker_account_not_ready: [
-    "حساب الوسيط ما زال يبدأ لدى MetaApi. تعيد لونورا المحاولة بنفسها.",
-    "The broker account is still starting at MetaApi. Lonora retries on its own.",
+    "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة.",
+    "The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat.",
   ],
   createChart: ["إنشاء رسم بياني", "Create chart"],
   chooseAccount: ["اختر الحساب", "Choose account"],

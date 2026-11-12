@@ -334,6 +334,14 @@ async def test_deploy_restarts_an_undeployed_account_on_the_owners_word() -> Non
         with installed():
             connection_id = await connected(world, agent, account)
             metaapi_id = (await row(fixture, connection_id)).payload["account_id"]
+            running = await call(
+                await asked(fixture, agent, "start it"),
+                "broker_manage",
+                account_id=connection_id,
+                action="deploy",
+            )
+            assert running["state"] == "DEPLOYED" and "nothing was changed" in running["note"]
+            assert "deploy" not in world.api.calls
             world.api.accounts[metaapi_id]["state"] = "UNDEPLOYED"  # stopped at MetaApi
             routine = await wake(fixture, agent, await fixture.conversation(agent))
             code = await refused(
@@ -343,8 +351,17 @@ async def test_deploy_restarts_an_undeployed_account_on_the_owners_word() -> Non
             assert "deploy" not in world.api.calls
             context = await asked(fixture, agent, "yes, start it again")
             done = await call(context, "broker_manage", account_id=connection_id, action="deploy")
-        assert done["state"] in {"DEPLOYING", "DEPLOYED"} and "recovers by itself" in done["note"]
-        assert world.api.accounts[metaapi_id]["state"] == "DEPLOYED"
+            assert done["state"] in {"DEPLOYING", "DEPLOYED"}
+            assert "recovers by itself" in done["note"]
+            assert world.api.accounts[metaapi_id]["state"] == "DEPLOYED"
+            context = await asked(fixture, agent, "switch it off, then start it")
+            await call(context, "broker_manage", account_id=connection_id, action="disable")
+            world.api.accounts[metaapi_id]["state"] = "UNDEPLOYED"
+            code = await refused(
+                context, "broker_manage", account_id=connection_id, action="deploy"
+            )
+            assert code == "broker_disabled"  # a switched-off connection is not started
+            assert world.api.calls.count("deploy") == 1
     finally:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
