@@ -63,6 +63,8 @@ WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
+# The most recent entry orders read to find who opened each open ticket (3.3.4).
+OPENING_ENTRIES = 5000
 # Attention codes whose fact the brief already counts: approvals, unsettled operations,
 # a pending owner card's own item (the Secret card's), and a broker health problem, which
 # is an account the snapshot shows disconnected.
@@ -330,10 +332,14 @@ async def journaled_openers(
             TradingJournalRow.request["symbol"].as_string().in_(sorted(symbols)),
             TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
         )
-        .order_by(TradingJournalRow.updated_at)
-        .limit(5000)
+        # The newest entries, by when they were sent (updated_at moves on a later receipt),
+        # then read oldest first so the earliest entry naming a ticket wins.
+        .order_by(
+            func.coalesce(TradingJournalRow.submitted_at, TradingJournalRow.updated_at).desc()
+        )
+        .limit(OPENING_ENTRIES)
     )
-    return ticket_openers(list(rows))
+    return ticket_openers(list(rows)[::-1])
 
 
 async def _count(session: AsyncSession, query: Any) -> int:
