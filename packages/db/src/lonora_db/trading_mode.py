@@ -40,6 +40,12 @@ async def set_trading_mode(
     if mode == "full" and by != "owner_tap":
         raise LonoraError("trading_mode_full_owner_only", 403)
     await authority_lock(session, agent_id)
+    from .management_task import end_management_task, ensure_management_task
+
+    if mode == "ask":
+        # Ask ends the Full-mode task (4.5.2) before the agent row is written: the task's
+        # Runs are locked first, as their own work does (the Run, then the agent).
+        await end_management_task(session, owner_id, agent_id)
     agent = await _agent(session, owner_id, agent_id)
     if agent.trading_mode != mode:
         agent.trading_mode = mode
@@ -57,13 +63,9 @@ async def set_trading_mode(
             agent_id=agent_id,
             payload={"agent_id": agent_id, "trading_mode": mode, "by": by},
         )
-    from .management_task import end_management_task, ensure_management_task
-
-    # Full runs one continuous account-management task; Ask ends it (4.5).
     if mode == "full":
+        # Full runs one continuous account-management task (4.5.1).
         await ensure_management_task(session, owner_id, agent_id)
-    else:
-        await end_management_task(session, owner_id, agent_id)
     return cast(TradingMode, agent.trading_mode)
 
 
