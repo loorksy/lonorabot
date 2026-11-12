@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0136_workspace_processes"
-down_revision = "0135_workspace_given"
+down_revision = "0110_closed_trades"
 branch_labels = None
 depends_on = None
 
