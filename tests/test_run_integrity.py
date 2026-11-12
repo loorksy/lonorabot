@@ -214,7 +214,7 @@ class FakeSession:
     """``session.get`` over in-memory rows: enough for the door's run-integrity walk."""
 
     def __init__(self, *rows: Any) -> None:
-        self.rows = {(type(row), row.id): row for row in rows}
+        self.rows: dict[tuple[type, str], Any] = {(type(row), row.id): row for row in rows}
 
     async def get(self, model: Any, identifier: str, **_: Any) -> Any:
         return self.rows.get((model, identifier))
