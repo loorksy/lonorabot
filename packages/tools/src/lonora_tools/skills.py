@@ -73,6 +73,42 @@ class SkillPackageControlInput(Contract):
     workspace_revision: int = Field(ge=0)
 
 
+class SkillSaveInput(Contract):
+    skill_id: SkillId
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(min_length=1, max_length=1000)
+    content: str = Field(min_length=1, max_length=16000)
+    expected_version: int = Field(ge=0)
+
+
+class SkillHistoryInput(Contract):
+    skill_id: SkillId
+
+
+class SkillRestoreInput(Contract):
+    skill_id: SkillId
+    version: int = Field(ge=1)
+    expected_version: int = Field(ge=1)
+
+
+async def save(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+    if context.skill_access is None:
+        raise LonoraError("skill_runtime_unavailable", 409)
+    return await context.skill_access.save_skill(context, arguments)
+
+
+async def history(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+    if context.skill_access is None:
+        raise LonoraError("skill_runtime_unavailable", 409)
+    return await context.skill_access.skill_history(context, arguments["skill_id"])
+
+
+async def restore(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
+    if context.skill_access is None:
+        raise LonoraError("skill_runtime_unavailable", 409)
+    return await context.skill_access.restore_skill(context, arguments)
+
+
 async def catalog(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]:
     if context.skill_access is None:
         raise LonoraError("skill_runtime_unavailable", 409)
@@ -119,6 +155,35 @@ async def control_package(context: ToolContext, arguments: dict[str, Any]) -> di
 
 def tools() -> list[Tool]:
     return [
+        Tool(
+            "skill_save",
+            "Save a procedure as your own instruction Skill in one call: skill_id, title, a "
+            "one-line description of when to use it, and the instructions. expected_version is "
+            "0 for a new Skill, else its current resource_version. Every save is a version; "
+            "read it back with skill_view.",
+            SkillSaveInput,
+            save,
+            replay_safe=True,
+            search_terms="save skill write procedure strategy playbook احفظ مهارة إجراء استراتيجية",
+        ),
+        Tool(
+            "skill_history",
+            "List the saved versions of one of your Skills, newest first.",
+            SkillHistoryInput,
+            history,
+            read_only=True,
+            search_terms="skill versions history إصدارات المهارة سجل",
+        ),
+        Tool(
+            "skill_restore",
+            "Restore one of your instruction Skills to a version from skill_history; it saves "
+            "that version's instructions as the next version. expected_version is its current "
+            "resource_version.",
+            SkillRestoreInput,
+            restore,
+            replay_safe=True,
+            search_terms="revert skill restore version undo استرجاع المهارة الرجوع إلى إصدار",
+        ),
         Tool(
             "skill_package_create",
             "Register a reusable analytical Skill from this Agent's exact current workspace revision. Supply a bounded directory containing SKILL.md and UTF-8 utilities, adapted instructions and explicit assumptions/limitations. Preserve actual workspace origin, create disabled, then validate exact utilities before activation. Updates require a new semantic version and current resource version. No external installation, financial authority or host access is granted.",
