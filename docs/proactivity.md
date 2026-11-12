@@ -92,12 +92,15 @@ or a channel.
   follow-up or a wake that takes messages in a chat, or an answer to its question),
   admission marks the run `owner_spoke`; a message merged into a running one marks its
   state the same way. From then on it answers like an owner turn: it streams, is nudged
-  rather than allowed to end empty, its failure shows like an owner turn's, and its
-  helpers' outcomes and its follow-up reach the owner.
+  rather than allowed to end empty, its failure shows in the mobile run strip
+  (`run.background` is false), and its helpers' outcomes and its follow-up reach the
+  owner.
 - **A failed run posts nothing in the conversation.** It has no result, so nothing is
   copied. A background run streams no preview (`run.delta`) while it may end silent, so no
   partial text remains where it ran, even in a chat. The mobile run strip leaves failed
-  background runs out (`run.background`). Background work that may end silent in a
+  background runs out (`run.background`), except a failure only the owner can fix (its
+  family `model` or `quota`: a rejected key, an unknown model, spent credit), which is
+  news. Web shows a failure only under the owner's own message, as before. Background work that may end silent in a
   conversation (a watch set in a chat, `lonora wake`, a webhook) reads its helpers'
   outcomes out of the owner's sight: each goes to a hidden thread of that work
   (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering. Nothing

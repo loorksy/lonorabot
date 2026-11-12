@@ -58,8 +58,9 @@ export type Run = {
     | "failed"
     | "cancelled";
   trigger: string;
-  /** Background work (VISION 11.5): no one waits on its reply, so its failure is not shown
-   * in the conversation. The server always sends it. */
+  /** Background work (VISION 11.5): no one waits on its reply, so its failure is shown in
+   * the conversation only when the owner must fix it (model access, quota). The server
+   * always sends it. */
   background?: boolean;
   error_code: string | null;
   /** Present on a failed Run. */
