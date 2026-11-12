@@ -25,7 +25,7 @@ import { useAgentLiveState } from "../../lib/agent-live-state";
 import type { Agent, Resource } from "../../lib/api";
 import { api } from "../../lib/api";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
-import { liftRestriction, readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
+import { liftRestriction, readConnections } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useShellData } from "../../shell/data";
@@ -154,10 +154,6 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
     tone = "off";
     icon = "lock";
     text = tradingReadinessLine(readiness, i18n.locale);
-  } else if (readiness.global_trading.state === "stopped") {
-    tone = "off";
-    icon = "power";
-    text = t`Trading is stopped`;
   } else if (restriction) {
     tone = "warn";
     icon = "pause";
@@ -314,7 +310,6 @@ function AgentSheetBody({
   const account = readiness?.money_limits[0];
   const work = state?.current_work;
   const pendingId = state?.pending_card_id;
-  const stopped = readiness?.global_trading.state === "stopped";
   const exits = readiness?.exits_allowed !== false;
   const closing = exits ? ` · ${t`closing allowed`}` : "";
   return (
@@ -449,39 +444,6 @@ function AgentSheetBody({
             <Trans>Trading</Trans>
           </h3>
           <div className="group">
-            <div className="row sf-switch">
-              <Icon name="power" />
-              <span className="body">
-                <strong>
-                  <Trans>Trading</Trans>
-                </strong>
-                <small>
-                  {stopped
-                    ? t`Stopped · no new orders are sent`
-                    : exits
-                      ? t`On · closing is always allowed`
-                      : t`On`}
-                </small>
-              </span>
-              <button
-                type="button"
-                className="switch"
-                role="switch"
-                aria-checked={!stopped}
-                aria-label={t`Trading`}
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    stopped ? resumeTrading : stopNewTrading,
-                    stopped
-                      ? t`Trading resumed`
-                      : exits
-                        ? t`Trading stopped · closing is still allowed`
-                        : t`Trading stopped`,
-                  )
-                }
-              />
-            </div>
             <div className="row">
               <Icon name="pause" />
               <span className="body">
@@ -621,8 +583,8 @@ function AgentSheetBody({
           {exits ? (
             <p className="note">
               <Trans>
-                Closing and tightening the stop loss are always allowed, even when trading is
-                stopped.
+                Closing and tightening the stop loss are always allowed, even while new trades are
+                paused.
               </Trans>
             </p>
           ) : (

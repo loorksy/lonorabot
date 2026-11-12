@@ -187,6 +187,8 @@ async def readiness(f: Fixture) -> None:
         row.heartbeat_at = utcnow()
     response = await f.client.get("/ready")
     assert response.status_code == 200 and response.json()["gateway"]["ready"] is True
+    # No phone is registered: push reports not configured and never fails readiness.
+    assert response.json()["push"] == "not_configured"
     async with f.runtime.db.sessions() as session, session.begin():
         row = await session.get(GatewayRow, "check-gateway")
         assert row

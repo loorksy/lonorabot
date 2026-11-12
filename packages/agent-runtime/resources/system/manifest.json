@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "7df4328932587dabfd9ffa1e8e1f767e17a92e749404679e547bc4e703717da4",
+  "manual_sha256": "d9fc95b2904db47873292cc26cb1f752ac2c3778821730554a02d76ebe06c7e6",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -104,6 +104,8 @@
     "account_history": "account",
     "list_accounts": "account",
     "account_read": "account",
+    "broker_manage": "account",
+    "broker_connect": "account",
     "trade_record_history": "trading",
     "trade_record_read": "trading",
     "trade_execute": "trading",
