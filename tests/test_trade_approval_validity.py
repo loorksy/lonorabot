@@ -128,6 +128,45 @@ async def test_a_card_carries_reason_and_tolerance_and_drifts_once_outside() -> 
 
 
 @pytest.mark.asyncio
+async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> None:
+    """10.3.1.2: a drifted card cannot be approved, even before the watcher's next tick."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow, TradeApprovalRow
+    from lonora_trading.controls import read_controls, save_controls
+
+    fixture = await Fixture().open()
+    original = await read_controls(fixture.runtime.db)
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
+        agent = await fixture.agent("Validity at approve", supervised=True)
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        asked = await same_call(
+            context, "band", **ENTRY, account_id=connection, reason="Retest", tolerance="1"
+        )
+        assert asked.get("approval_id"), asked
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            waiting = await session.get(RunRow, context.lease.run_id, with_for_update=True)
+            assert waiting is not None
+            waiting.status = "waiting_input"
+        await set_quote(fixture, connection, "104", "105")
+        tapped = await fixture.client.post(
+            f"/api/trading/approvals/{asked['approval_id']}/decision",
+            json={"decision": "approve"},
+        )
+        assert tapped.status_code == 409 and "trade_approval_drifted" in tapped.text, tapped.text
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(TradeApprovalRow, asked["approval_id"])
+            assert row is not None and row.status == "drifted"
+    finally:
+        await save_controls(fixture.runtime.db, original)
+        await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it() -> None:
     database()
     from check_streaming import Fixture

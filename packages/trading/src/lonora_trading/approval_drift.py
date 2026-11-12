@@ -24,6 +24,35 @@ def outside(quote: Quote, validity: dict[str, Any]) -> bool:
     return abs(price - Decimal(str(reference["price"]))) > Decimal(str(validity["tolerance"]))
 
 
+async def band_quote(
+    brokers: BrokerManager, owner_id: str, validity: dict[str, Any]
+) -> Quote | None:
+    """The card's quote now; None when the broker cannot give one."""
+    reference = validity["reference"]
+    try:
+        broker = await brokers.get(owner_id, str(reference["account_id"]))
+        return await broker.quote(str(reference["symbol"]))
+    except Exception:
+        return None
+
+
+async def mark_drifted(db: Database, owner_id: str, approval_id: str) -> bool:
+    """End a still-pending card as drifted and wake its agent; False if already ended."""
+    async with db.sessions() as session, session.begin():
+        try:
+            locked, run = await locked_approval(session, owner_id, approval_id)
+        except LonoraError:
+            return False  # Its conversation was deleted: it can no longer be decided.
+        if locked.status != "pending":
+            return False
+        await end_card(session, locked, run, "drifted", drifted_prompt(locked))
+    return True
+
+
+def watched(row: TradeApprovalRow) -> bool:
+    return bool(row.validity.get("reference") and row.validity.get("tolerance"))
+
+
 async def check_drift(db: Database, brokers: BrokerManager, owner_id: str) -> int:
     """Mark every pending card whose quote left its band; returns how many drifted."""
     async with db.sessions() as session:
@@ -34,7 +63,7 @@ async def check_drift(db: Database, brokers: BrokerManager, owner_id: str) -> in
                     TradeApprovalRow.owner_id == owner_id, TradeApprovalRow.status == "pending"
                 )
             )
-            if row.validity.get("reference") and row.validity.get("tolerance")
+            if watched(row)
         ]
     quotes: dict[tuple[str, str], Quote | None] = {}
     drifted = 0
@@ -42,21 +71,26 @@ async def check_drift(db: Database, brokers: BrokerManager, owner_id: str) -> in
         reference = row.validity["reference"]
         key = (str(reference["account_id"]), str(reference["symbol"]))
         if key not in quotes:
-            try:
-                broker = await brokers.get(owner_id, key[0])
-                quotes[key] = await broker.quote(key[1])
-            except Exception:
-                quotes[key] = None  # No quote now: the next tick reads it again.
+            # No quote now: the next tick reads it again.
+            quotes[key] = await band_quote(brokers, owner_id, row.validity)
         quote = quotes[key]
-        if quote is None or not outside(quote, row.validity):
-            continue
-        async with db.sessions() as session, session.begin():
-            try:
-                locked, run = await locked_approval(session, owner_id, row.id)
-            except LonoraError:
-                continue  # Its conversation was deleted: it can no longer be decided.
-            if locked.status != "pending":
-                continue
-            await end_card(session, locked, run, "drifted", drifted_prompt(locked))
-        drifted += 1
+        if quote is not None and outside(quote, row.validity):
+            drifted += await mark_drifted(db, owner_id, row.id)
     return drifted
+
+
+async def drifted_at_approve(
+    db: Database, brokers: BrokerManager, owner_id: str, approval_id: str
+) -> bool:
+    """The quote read when the owner taps Approve: outside the band, the card drifts
+    there and then and cannot be approved."""
+    async with db.sessions() as session:
+        row = await session.get(TradeApprovalRow, approval_id)
+        if row is None or row.owner_id != owner_id or row.status != "pending" or not watched(row):
+            return False
+        validity = dict(row.validity)
+    quote = await band_quote(brokers, owner_id, validity)
+    if quote is None or not outside(quote, validity):
+        return False
+    await mark_drifted(db, owner_id, approval_id)
+    return True

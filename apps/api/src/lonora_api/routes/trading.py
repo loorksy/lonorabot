@@ -240,6 +240,12 @@ async def approval_decision(
         expired = await settle_if_expired(session, owner.id, approval_id)
     if expired:
         raise LonoraError("trade_approval_expired", 409)
+    if body.decision == "approve":
+        from lonora_trading.approval_drift import drifted_at_approve
+
+        brokers = runtime(request).services(owner.id).brokers
+        if await drifted_at_approve(db, brokers, owner.id, approval_id):
+            raise LonoraError("trade_approval_drifted", 409)
     async with db.sessions() as session, session.begin():
         return await decide(session, owner.id, approval_id, body.decision)
 
