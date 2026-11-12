@@ -26,7 +26,7 @@ from lonora_tools.registry import ToolRegistry
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..workspace_access import scoped_run
+from ..run_scope import scoped_run
 from .lifecycle import owned_skill, validate_graph
 from .registry import built_in_skills
 

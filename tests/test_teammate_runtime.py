@@ -50,7 +50,7 @@ def test_actual_private_material_is_detected_and_redacted(text: str):
 @pytest.mark.parametrize(
     "text",
     [
-        "أدواتي تشمل market_quote وworkspace_execute.",
+        "أدواتي تشمل market_quote وworkspace_run.",
         "أرسلت لك بطاقة موافقة",
         "سأستخدم الأدوات",
         "استدعيت market_quote",
@@ -428,9 +428,9 @@ async def test_each_turn_gets_current_scoped_inventory_without_rewriting_checkpo
         context: Any, request: list[ModelMessage]
     ) -> tuple[list[ModelMessage], dict[str, Any]]:
         assert sum(m.content == inventory for m in request) == 1
-        # A helper computes in the sandbox but never edits files or memory directly.
-        assert "workspace_read" in inventory and "workspace_execute" in inventory
-        assert "workspace_update" not in inventory and "memory_write" not in inventory
+        # A helper reads workspace files but never runs commands, edits files or memory.
+        assert "workspace_file_read" in inventory and "workspace_run" not in inventory
+        assert "workspace_file_write" not in inventory and "memory_write" not in inventory
         return request, {}
 
     monkeypatch.setattr(model_runtime, "prepare_image_observations", images)

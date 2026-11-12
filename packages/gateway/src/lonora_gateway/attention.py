@@ -43,7 +43,6 @@ from lonora_db.schema import (
     TradeApprovalRow,
     TradingJournalRow,
     TradingOpportunityRow,
-    TradingRestrictionRow,
 )
 from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
@@ -183,8 +182,6 @@ async def candidate(
                     # One item per agent's mode: the owner already has a Mandate card
                     # for this agent in front of them, and one tap answers both.
                     raise LonoraError("attention_card_already_shown", 409)
-        elif event.kind.startswith("trading.restriction_"):
-            resource = await session.get(TradingRestrictionRow, identifier)
         elif event.kind.startswith("watch."):
             resource = await session.get(MarketWatchRow, identifier)
             if resource and resource.owner_id == event.owner_id:

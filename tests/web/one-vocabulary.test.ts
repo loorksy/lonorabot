@@ -156,13 +156,6 @@ test("activity rows say what the agent does from registry metadata, never a raw 
     ["owner_call_request", "voice", "change", "Preparing a call", "يجهّز اتصالًا"],
     ["owner_attention_list", "voice", "read", "Checking what needs you", "يراجع ما ينتظرك"],
     ["owner_action_propose", "trading", "change", "Preparing a card for you", "يجهّز بطاقة لك"],
-    [
-      "trade_restriction_create",
-      "trading",
-      "change",
-      "Updating trading safeguards",
-      "يحدّث ضوابط التداول",
-    ],
     ["wait_for_input", "tasks", "change", "Waiting for your reply", "ينتظر ردك"],
     ["market_position_size", "trading", "read", "Sizing a position", "يحسب حجم المركز"],
     ["skill_package_create", "memory", "change", "Working on a skill", "يعمل على مهارة"],
