@@ -14,6 +14,7 @@ import { AgentSettings } from "../pages/shell/bot-settings";
 import { useClient } from "../providers/ClientProvider";
 import { useChartSheet } from "./agent/ChartSheet";
 import { useShellData } from "./data";
+import { isTrader } from "./domain/hooks";
 import { useNavigation } from "./navigation";
 import { useSheets } from "./sheets/SheetHost";
 
@@ -148,7 +149,7 @@ export function useChatMenu({
                 label={<Trans>Knowledge</Trans>}
                 onClick={() => openPage("knowledge", "fwd")}
               />
-              {agent && (
+              {agent && !isTrader(agent) && (
                 <MenuRow
                   icon="target"
                   label={<Trans>Goals</Trans>}

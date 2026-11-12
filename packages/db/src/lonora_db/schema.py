@@ -121,7 +121,7 @@ class SuperBotRequestRow(Base):
 
 
 class AccountAuthorityRow(Base):
-    """Immutable signed account scope, independent of any predeclared Goal."""
+    """Immutable signed account scope."""
 
     __tablename__ = "ln_account_authorities"
     __table_args__ = (

@@ -117,7 +117,7 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
 
     A Task or ticket started from an observe-only wake runs observe-only too, so
     neither it nor anything it delegates can send a broker mutation. Watches,
-    routines and Goals are the Agent's own later work and are not narrowed.
+    routines are the Agent's own later work and are not narrowed.
     A Task or ticket a generated card's send started carries that send's taint, so it
     can never spend a signed grant (GENUI_PLAN §8.5).
     """

@@ -319,7 +319,6 @@ export const labels = {
   ],
   attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
   attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
-  attentionGoalChanged: ["تم تحديث هدف التداول", "Trading goal updated"],
   attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
   attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
   attentionTaskDegraded: [

@@ -52,7 +52,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:589
+#: src/shell/agent/AgentPage.tsx:591
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
@@ -238,7 +238,7 @@ msgstr "30 يومًا"
 msgid "7 days"
 msgstr "7 أيام"
 
-#: src/components/ai/AttentionInbox.tsx:32
+#: src/components/ai/AttentionInbox.tsx:31
 msgid "A background item was paused after repeated errors; everything else keeps running"
 msgstr "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل"
 
@@ -306,7 +306,7 @@ msgstr "وكيل محذوف"
 msgid "A short tone when a reply arrives"
 msgstr "نغمة قصيرة عند وصول رد"
 
-#: src/components/ai/AttentionInbox.tsx:34
+#: src/components/ai/AttentionInbox.tsx:33
 msgid "A trade still has no confirmed broker result"
 msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 
@@ -457,13 +457,13 @@ msgstr "سجل الإجراءات"
 msgid "Activity log only"
 msgstr "سجل النشاط فقط"
 
-#: src/components/ai/AttentionInbox.tsx:31
+#: src/components/ai/AttentionInbox.tsx:30
 msgid "Activity updated"
 msgstr "تم تحديث النشاط"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:636
+#: src/shell/agent/AgentPage.tsx:638
 #: src/shell/agent/GroupPage.tsx:222
 #: src/shell/settings/IntegrationsPage.tsx:260
 #: src/shell/settings/IntegrationsPage.tsx:348
@@ -490,7 +490,7 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/agent/AgentPage.tsx:553
+#: src/shell/agent/AgentPage.tsx:555
 msgid "Add agents to supervise"
 msgstr "إضافة وكلاء للإشراف"
 
@@ -648,7 +648,7 @@ msgstr "تعاون الوكلاء"
 msgid "Agent created"
 msgstr "أُنشئ وكيل"
 
-#: src/shell/ChatMenu.tsx:179
+#: src/shell/ChatMenu.tsx:180
 msgid "Agent files"
 msgstr "ملفات الوكيل"
 
@@ -657,8 +657,8 @@ msgid "Agent identity"
 msgstr "هوية الوكيل"
 
 #: src/shell/ChatHeader.tsx:106
-#: src/shell/ChatMenu.tsx:119
-#: src/shell/ChatMenu.tsx:128
+#: src/shell/ChatMenu.tsx:120
+#: src/shell/ChatMenu.tsx:129
 #: src/shell/pages.tsx:91
 msgid "Agent info"
 msgstr "معلومات الوكيل"
@@ -1103,7 +1103,7 @@ msgstr "رجوع إلى الصلاحيات"
 #~ msgid "Back to workspace"
 #~ msgstr "العودة إلى مساحة العمل"
 
-#: src/components/ai/AttentionInbox.tsx:36
+#: src/components/ai/AttentionInbox.tsx:35
 msgid "Background service is running late"
 msgstr "خدمة الخلفية متأخرة"
 
@@ -1386,7 +1386,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/conversation/sheets/LimitsSheet.tsx:288
 #: src/conversation/sheets/WatchesSheet.tsx:91
 #: src/pages/Board.tsx:576
-#: src/shell/agent/AgentPage.tsx:404
+#: src/shell/agent/AgentPage.tsx:406
 #: src/shell/agent/AvatarSheet.tsx:111
 #: src/shell/agent/TradesPage.tsx:339
 #: src/shell/call/CallPages.tsx:422
@@ -1509,7 +1509,7 @@ msgstr "القناة"
 #: src/shell/agent/ChartSheet.tsx:501
 #: src/shell/agent/ChartSheet.tsx:507
 #: src/shell/agent/ChartSheet.tsx:507
-#: src/shell/ChatMenu.tsx:131
+#: src/shell/ChatMenu.tsx:132
 msgid "Chart"
 msgstr "الشارت"
 
@@ -1541,7 +1541,7 @@ msgid "Chat list"
 msgstr "قائمة المحادثات"
 
 #: src/shell/ChatHeader.tsx:184
-#: src/shell/ChatMenu.tsx:115
+#: src/shell/ChatMenu.tsx:116
 msgid "Chat menu"
 msgstr "قائمة المحادثة"
 
@@ -1850,7 +1850,7 @@ msgstr "الإغلاق مجمّد أيضًا"
 msgid "Cloud chart"
 msgstr "الشارت السحابي"
 
-#: src/components/ai/AttentionInbox.tsx:24
+#: src/components/ai/AttentionInbox.tsx:23
 msgid "Collaboration result is ready"
 msgstr "نتيجة التعاون جاهزة"
 
@@ -3026,7 +3026,7 @@ msgstr "ملف"
 msgid "File name"
 msgstr "اسم الملف"
 
-#: src/shell/agent/AgentPage.tsx:295
+#: src/shell/agent/AgentPage.tsx:297
 #: src/shell/lists/UnifiedSearch.tsx:275
 #: src/shell/lists/UnifiedSearch.tsx:310
 #: src/shell/lists/UnifiedSearch.tsx:317
@@ -3248,8 +3248,8 @@ msgstr "أُضيف هدف"
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
-#: src/shell/agent/AgentPage.tsx:289
-#: src/shell/ChatMenu.tsx:154
+#: src/shell/agent/AgentPage.tsx:290
+#: src/shell/ChatMenu.tsx:155
 #: src/shell/pages.tsx:117
 msgid "Goals"
 msgstr "الأهداف"
@@ -3276,8 +3276,8 @@ msgid "Group from the selected"
 msgstr "مجموعة من المحددين"
 
 #: src/shell/ChatHeader.tsx:106
-#: src/shell/ChatMenu.tsx:118
-#: src/shell/ChatMenu.tsx:128
+#: src/shell/ChatMenu.tsx:119
+#: src/shell/ChatMenu.tsx:129
 msgid "Group info"
 msgstr "معلومات المجموعة"
 
@@ -3534,7 +3534,7 @@ msgstr "القيمة غير صحيحة."
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/shell/agent/AgentPage.tsx:548
+#: src/shell/agent/AgentPage.tsx:550
 msgid "It does not supervise any agent now."
 msgstr "لا يشرف على أي وكيل حاليًا."
 
@@ -3616,8 +3616,8 @@ msgstr "نوع التفويض"
 #: src/conversation/ToolsSheet.tsx:196
 #: src/pages/Knowledge.tsx:20
 #: src/shell/agent/AgentPage.tsx:285
-#: src/shell/ChatMenu.tsx:120
-#: src/shell/ChatMenu.tsx:148
+#: src/shell/ChatMenu.tsx:121
+#: src/shell/ChatMenu.tsx:149
 #: src/shell/pages.tsx:111
 msgid "Knowledge"
 msgstr "المعرفة"
@@ -3867,7 +3867,7 @@ msgstr "جارٍ تحميل المعاينة…"
 #: src/pages/Board.tsx:202
 #: src/pages/ScratchpadSection.tsx:94
 #: src/pages/SkillsSection.tsx:101
-#: src/shell/agent/AgentPage.tsx:318
+#: src/shell/agent/AgentPage.tsx:320
 #: src/shell/pages.tsx:78
 msgid "Loading…"
 msgstr "جارٍ التحميل…"
@@ -3955,7 +3955,7 @@ msgstr "تحديد الكل كمقروء"
 msgid "Mark as completed"
 msgstr "تحديد كمكتملة"
 
-#: src/components/ai/AttentionInbox.tsx:147
+#: src/components/ai/AttentionInbox.tsx:146
 msgid "Mark as read"
 msgstr "تحديد كمقروء"
 
@@ -4290,7 +4290,7 @@ msgid "New request"
 msgstr "طلب جديد"
 
 #: src/conversation/ToolsSheet.tsx:113
-#: src/shell/ChatMenu.tsx:174
+#: src/shell/ChatMenu.tsx:175
 #: src/shell/Welcome.tsx:57
 msgid "New task"
 msgstr "مهمة جديدة"
@@ -4506,7 +4506,7 @@ msgstr "لم يُضبط نموذج بعد"
 msgid "No money limit"
 msgstr "دون حد مالي"
 
-#: src/components/ai/AttentionInbox.tsx:108
+#: src/components/ai/AttentionInbox.tsx:107
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
@@ -4635,7 +4635,7 @@ msgstr "دون تنفيذ"
 msgid "No trading · analysis and follow-up"
 msgstr "دون تنفيذ · تحليل ومتابعة"
 
-#: src/shell/agent/AgentPage.tsx:349
+#: src/shell/agent/AgentPage.tsx:351
 msgid "No trading account chosen · choose an account"
 msgstr "لم يُختر حساب تداول · اختر حسابًا"
 
@@ -4643,7 +4643,7 @@ msgstr "لم يُختر حساب تداول · اختر حسابًا"
 msgid "No trading account is linked."
 msgstr "لا يوجد حساب تداول مرتبط."
 
-#: src/shell/agent/AgentPage.tsx:350
+#: src/shell/agent/AgentPage.tsx:352
 msgid "No trading account linked · link an account"
 msgstr "لا يوجد حساب تداول مرتبط · اربط حسابًا"
 
@@ -4664,7 +4664,7 @@ msgid "No voice provider is configured yet. Add an OpenAI key in the model provi
 msgstr "لم يُضبط مزود الصوت بعد. أضف مفتاح OpenAI في مزودي الذكاء الاصطناعي لإجراء المكالمات."
 
 #: src/conversation/sheets/WatchesSheet.tsx:101
-#: src/shell/agent/AgentPage.tsx:414
+#: src/shell/agent/AgentPage.tsx:416
 msgid "No watches."
 msgstr "لا توجد مراقبات."
 
@@ -4741,8 +4741,8 @@ msgstr "إشعار"
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
-#: src/components/ai/AttentionInbox.tsx:70
-#: src/components/ai/AttentionInbox.tsx:72
+#: src/components/ai/AttentionInbox.tsx:69
+#: src/components/ai/AttentionInbox.tsx:71
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4774,7 +4774,7 @@ msgstr "الإشعارات مفعّلة"
 msgid "Notifications restored"
 msgstr "أُعيدت الإشعارات"
 
-#: src/components/ai/AttentionInbox.tsx:103
+#: src/components/ai/AttentionInbox.tsx:102
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "أبلغني بالفرص المؤكدة"
@@ -4891,7 +4891,7 @@ msgstr "فتح المكالمة الحالية"
 msgid "Open chart"
 msgstr "افتح شارت"
 
-#: src/components/ai/AttentionInbox.tsx:138
+#: src/components/ai/AttentionInbox.tsx:137
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5028,7 +5028,7 @@ msgstr "سعر الأمر"
 #~ msgid "Organic"
 #~ msgstr "شكل عضوي"
 
-#: src/components/ai/AttentionInbox.tsx:136
+#: src/components/ai/AttentionInbox.tsx:135
 #: src/shell/lists/HeadsUp.tsx:253
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5128,7 +5128,7 @@ msgstr "إيقاف مؤقت"
 msgid "Pause agent and scheduled work"
 msgstr "إيقاف الوكيل ومهامه المجدولة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:397
+#: src/shell/agent/AgentPage.tsx:399
 msgid "Pause for now"
 msgstr "إيقاف مؤقت"
 
@@ -5163,7 +5163,7 @@ msgctxt "task status"
 msgid "Paused"
 msgstr "متوقفة مؤقتًا"
 
-#: src/shell/agent/AgentPage.tsx:389
+#: src/shell/agent/AgentPage.tsx:391
 msgid "Paused for now"
 msgstr "موقوفة مؤقتًا"
 
@@ -5231,7 +5231,7 @@ msgstr "الصلاحية غير معروفة"
 msgid "Permission: {0}"
 msgstr "الصلاحية: {0}"
 
-#: src/shell/agent/AgentPage.tsx:432
+#: src/shell/agent/AgentPage.tsx:434
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "تُغيَّر الصلاحيات من الشريحة بجانب حقل الكتابة في المحادثة. ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -5693,7 +5693,7 @@ msgstr "إعادة تحميل"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
-#: src/shell/agent/AgentPage.tsx:540
+#: src/shell/agent/AgentPage.tsx:542
 msgid "Remove"
 msgstr "إزالة"
 
@@ -5774,8 +5774,8 @@ msgid "Reply with a message"
 msgstr "الرد برسالة"
 
 #: src/components/ai/AttentionInbox.tsx:17
+#: src/components/ai/AttentionInbox.tsx:27
 #: src/components/ai/AttentionInbox.tsx:28
-#: src/components/ai/AttentionInbox.tsx:29
 msgid "Request updated"
 msgstr "تم تحديث الطلب"
 
@@ -5907,7 +5907,7 @@ msgstr "فُرض قيد"
 #: src/conversation/sheets/WatchesSheet.tsx:71
 #: src/pages/ActivityList.tsx:269
 #: src/pages/Board.tsx:574
-#: src/shell/agent/AgentPage.tsx:397
+#: src/shell/agent/AgentPage.tsx:399
 #: src/shell/domain/TasksPages.tsx:230
 msgid "Resume"
 msgstr "استئناف"
@@ -6165,8 +6165,8 @@ msgctxt "tasks tab"
 msgid "Scheduled"
 msgstr "مجدولة"
 
-#: src/shell/agent/AgentPage.tsx:292
-#: src/shell/ChatMenu.tsx:164
+#: src/shell/agent/AgentPage.tsx:294
+#: src/shell/ChatMenu.tsx:165
 #: src/shell/pages.tsx:109
 msgid "Scheduled tasks"
 msgstr "المهام المجدولة"
@@ -6387,7 +6387,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/agent/AgentPage.tsx:433
+#: src/shell/agent/AgentPage.tsx:435
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -6741,7 +6741,7 @@ msgid "Status"
 msgstr "الحالة"
 
 #: src/conversation/sheets/AgentSheet.tsx:670
-#: src/shell/ChatMenu.tsx:62
+#: src/shell/ChatMenu.tsx:63
 msgid "Status and safety"
 msgstr "الحالة والأمان"
 
@@ -6786,7 +6786,7 @@ msgstr "أمر إيقاف"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/agent/AgentPage.tsx:443
+#: src/shell/agent/AgentPage.tsx:445
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
@@ -6883,13 +6883,13 @@ msgstr "الإشراف على وكلاء آخرين"
 msgid "Supervised by {0}"
 msgstr "تحت إشراف {0}"
 
-#: src/shell/agent/AgentPage.tsx:470
-#: src/shell/agent/AgentPage.tsx:512
+#: src/shell/agent/AgentPage.tsx:472
+#: src/shell/agent/AgentPage.tsx:514
 msgid "Supervises"
 msgstr "يشرف على"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:496
+#: src/shell/agent/AgentPage.tsx:498
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
@@ -6978,7 +6978,7 @@ msgstr "لوحات المهام"
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:30
+#: src/components/ai/AttentionInbox.tsx:29
 #: src/shell/domain/TasksPages.tsx:240
 #: src/shell/domain/UpdatesPages.tsx:43
 msgid "Task completed"
@@ -6995,12 +6995,12 @@ msgstr "أُنشئت مهمة"
 msgid "Task details"
 msgstr "تفاصيل المهمة"
 
-#: src/components/ai/AttentionInbox.tsx:26
+#: src/components/ai/AttentionInbox.tsx:25
 msgid "Task is retrying through a model outage"
 msgstr "المهمة تعيد المحاولة أثناء تعطل النموذج"
 
 #: src/components/ai/AgentLiveStatus.tsx:104
-#: src/components/ai/AttentionInbox.tsx:25
+#: src/components/ai/AttentionInbox.tsx:24
 #: src/conversation/sheets/AgentSheet.tsx:405
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
@@ -7137,7 +7137,7 @@ msgstr "الاتصال بالوسيط غير متاح."
 msgid "The broker could not establish this operation's outcome. Record what you verified at the broker. This settles the block on this market; it is not broker confirmation and nothing is sent again."
 msgstr "تعذّر على الوسيط إثبات نتيجة هذه العملية. سجّل ما تحققت منه لدى الوسيط. يرفع هذا الحظر عن هذا السوق؛ وهو ليس تأكيدًا من الوسيط ولن يُعاد إرسال أي شيء."
 
-#: src/components/ai/AttentionInbox.tsx:35
+#: src/components/ai/AttentionInbox.tsx:34
 msgid "The broker did not confirm a trade — tell Lonora whether it executed"
 msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت"
 
@@ -7854,7 +7854,7 @@ msgstr "أمر تداول"
 msgid "Trade risk limit"
 msgstr "حد مخاطرة الصفقة"
 
-#: src/shell/agent/AgentPage.tsx:299
+#: src/shell/agent/AgentPage.tsx:301
 #: src/shell/pages.tsx:107
 msgid "Trades"
 msgstr "الصفقات"
@@ -7879,11 +7879,11 @@ msgstr "يتداول بنفسه"
 msgid "Trading"
 msgstr "التداول"
 
-#: src/shell/agent/AgentPage.tsx:320
+#: src/shell/agent/AgentPage.tsx:322
 msgid "Trading · New trades · Restrictions · Account limits"
 msgstr "التداول · الصفقات الجديدة · القيود · حدود الحساب"
 
-#: src/shell/agent/AgentPage.tsx:328
+#: src/shell/agent/AgentPage.tsx:330
 #: src/shell/agent/IdentityPage.tsx:217
 #: src/shell/pages.tsx:161
 msgid "Trading account"
@@ -7902,7 +7902,7 @@ msgstr "وكيل تداول"
 #~ msgstr "التداول وسجل العمليات"
 
 #: src/conversation/sheets/AgentSheet.tsx:671
-#: src/shell/agent/AgentPage.tsx:307
+#: src/shell/agent/AgentPage.tsx:309
 msgid "Trading and safety"
 msgstr "التداول والأمان"
 
@@ -7911,8 +7911,8 @@ msgstr "التداول والأمان"
 #~ msgstr "التحكم بالتداول"
 
 #: src/components/ai/AttentionInbox.tsx:23
-msgid "Trading goal updated"
-msgstr "تم تحديث هدف التداول"
+#~ msgid "Trading goal updated"
+#~ msgstr "تم تحديث هدف التداول"
 
 #: src/components/goals/TradingGoals.tsx:169
 #~ msgid "Trading goals"
@@ -7981,7 +7981,7 @@ msgstr "إعادة المحاولة"
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
-#: src/shell/agent/AgentPage.tsx:443
+#: src/shell/agent/AgentPage.tsx:445
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
 
@@ -8127,7 +8127,7 @@ msgid "Until"
 msgstr "حتى"
 
 #. placeholder {0}: clockTime(until)
-#: src/shell/agent/AgentPage.tsx:383
+#: src/shell/agent/AgentPage.tsx:385
 msgid "Until <0>{0}</0>"
 msgstr "حتى <0>{0}</0>"
 
@@ -8135,7 +8135,7 @@ msgstr "حتى <0>{0}</0>"
 msgid "Until cancelled"
 msgstr "حتى الإلغاء"
 
-#: src/shell/agent/AgentPage.tsx:387
+#: src/shell/agent/AgentPage.tsx:389
 msgid "Until you stop it"
 msgstr "حتى توقفها"
 
@@ -8422,8 +8422,8 @@ msgid "Watch source"
 msgstr "مصدر المراقبة"
 
 #: src/conversation/sheets/AgentSheet.tsx:364
-#: src/shell/agent/AgentPage.tsx:359
-#: src/shell/ChatMenu.tsx:142
+#: src/shell/agent/AgentPage.tsx:361
+#: src/shell/ChatMenu.tsx:143
 msgid "Watches"
 msgstr "المراقبات"
 
@@ -8518,7 +8518,7 @@ msgstr "لماذا هذه الواجهة؟"
 msgid "Wink"
 msgstr "غمزة"
 
-#: src/components/ai/AttentionInbox.tsx:33
+#: src/components/ai/AttentionInbox.tsx:32
 msgid "Work stopped after repeated interruptions"
 msgstr "توقف عمل بعد انقطاعات متكررة"
 
@@ -8667,7 +8667,7 @@ msgstr "أنت: {0}"
 msgid "You: {text}"
 msgstr "أنت: {text}"
 
-#: src/components/ai/AttentionInbox.tsx:37
+#: src/components/ai/AttentionInbox.tsx:36
 msgid "Your agent alerted you"
 msgstr "نبّهك وكيلك"
 
