@@ -28,7 +28,7 @@ export const supervisionLabels = {
     byYou: "set by you",
     fromMessage: "from your message",
     fromCard: "from a card",
-    none: "No agent supervises this one, and it supervises none.",
+    none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
     unnamed: "An agent",
   },
   ar: {
@@ -45,7 +45,7 @@ export const supervisionLabels = {
     byYou: "عيّنته أنت",
     fromMessage: "من رسالتك",
     fromCard: "من بطاقة",
-    none: "لا يشرف عليه أي وكيل، ولا يشرف هو على أحد.",
+    none: "تقود لونورا هذا الوكيل بدورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     unnamed: "وكيل",
   },
 } as const satisfies Record<Language, Record<string, string>>;

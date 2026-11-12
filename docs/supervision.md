@@ -87,7 +87,8 @@ supervised agent itself or one of its Tasks, routines or watches (`target`,
 It has no action that trades, grants, raises a limit or edits memory or instructions.
 Lonora steers every team agent's work by its lead role, with or without a grant; any
 other agent only as its supervisor, whatever message its Run answers
-(`supervision_required`). `routine_toggle` on another agent's routine follows the same
+(`supervision_required`). The owner's message counts only while the Run has read
+nothing someone else wrote (see `agents-from-chat.md`). `routine_toggle` on another agent's routine follows the same
 rules.
 
 Holds (`ln_supervision_holds`) record each pause a supervisor sets:

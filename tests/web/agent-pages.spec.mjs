@@ -103,6 +103,12 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
   const main = page.locator("main");
   await expect(main.locator(".hero h2")).toHaveText(lonora.name);
   await expect(main).toContainText("Supervises");
+  // Lonora leads every team agent by its role: one line, no picker, no "supervises none".
+  await expect(main).toContainText(
+    `\u2068${lonora.name}\u2069 reads and steers every team agent by its role.`,
+  );
+  await expect(main).not.toContainText("It does not supervise any agent now.");
+  await expect(main.getByRole("button", { name: "Add agents to supervise" })).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Stop the agent" })).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Turn the agent on" })).toHaveCount(0);
   await page.goto(`/app/agent/${data.research.id}`);
@@ -114,8 +120,14 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
 test("supervision: add from the picker, remove from the row; never money authority", async ({
   page,
 }) => {
-  await page.goto(`/app/agent/${data.research.id}`);
+  // With no grant, the trader's page names Lonora, its lead.
+  const lonora = (await (await page.request.get("/api/agents")).json()).find(
+    (agent) => agent.role === "personal",
+  );
+  await page.goto(`/app/agent/${data.trader.id}`);
   const main = page.locator("main");
+  await expect(main.locator(".sup-line")).toContainText(lonora.name);
+  await page.goto(`/app/agent/${data.research.id}`);
   await expect(main).toContainText("It does not supervise any agent now.");
   await main.getByRole("button", { name: "Add agents to supervise", exact: true }).click();
   const sheet = page.locator("#dialog");

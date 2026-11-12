@@ -63,6 +63,7 @@ const copy = {
   en: {
     section: "Lonora supervises your agents",
     byDefault: "by default",
+    none: "Lonora leads this agent by its role. No other agent supervises it, and it supervises none.",
     stop: "Stop",
     title: "Let it supervise?",
     allow: "Allow",
@@ -74,6 +75,7 @@ const copy = {
   ar: {
     section: "لونورا تشرف على وكلائك",
     byDefault: "افتراضيًا",
+    none: "تقود لونورا هذا الوكيل بدورها. لا يشرف عليه أي وكيل آخر، ولا يشرف هو على أحد.",
     stop: "إيقاف",
     title: "السماح له بالإشراف؟",
     allow: "السماح",
@@ -125,6 +127,11 @@ for (const locale of ["ar", "en"])
         await context.request.get(`/api/supervision?agent_id=${seeded.gold}`)
       ).json();
       expect(view.supervised_by).toEqual([]);
+      // With no grant left, Gold's profile names Lonora as its lead.
+      await page.goto(`/bot-settings?botId=${seeded.gold}`);
+      await expect(
+        page.getByTestId("supervision-settings").getByText(text.none, { exact: true }),
+      ).toBeVisible();
 
       await page.goto(`/thread?id=${seeded.thread}`);
       const card = page.getByTestId(`owner-action-${seeded.card}`);
