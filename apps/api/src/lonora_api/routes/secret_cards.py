@@ -14,6 +14,7 @@ asked is woken to name the models that became available.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -23,10 +24,11 @@ from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.mcp import McpConnection
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import SecretCardSave
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import feed_host
-from lonora_db.model_credentials import ENDPOINT_SETTING, PROVIDER_KEY_NAMES
+from lonora_db.model_credentials import ENDPOINT_SETTING
 from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
@@ -57,6 +59,7 @@ from .mcp import McpRepository
 from .model_router import answer_unconfigured
 
 router = APIRouter(prefix="/owner-actions")
+log = logging.getLogger("lonora.secret_cards")
 
 
 @dataclass(frozen=True)
@@ -285,8 +288,11 @@ async def follow_model(
     try:
         async with asyncio.timeout(CATALOG_SECONDS):
             catalog = len(await discover_models(rt.db, credentials, provider))
-    except (LonoraError, TimeoutError):
-        # A rejected key, an unreachable endpoint or a slow one: the agent says so.
+    except Exception as error:
+        # A rejected key, an unreachable or slow endpoint, or a listing the adapter cannot
+        # read (an owner's endpoint answers what it likes): the card is already saved, so
+        # the agent is still woken, and says so.
+        log.warning("model_catalog_unread provider=%s error=%s", provider, type(error).__name__)
         catalog = None
     await answer_unconfigured(request, owner)
     async with rt.db.sessions() as session, session.begin():

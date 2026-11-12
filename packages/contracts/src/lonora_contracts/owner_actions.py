@@ -16,7 +16,7 @@ from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
-from .model_routing import ProviderId
+from .model_routing import PROVIDER_KEY_NAMES, ProviderId
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
@@ -179,6 +179,9 @@ class OwnerActionProposal(Contract):
             keys = [field.key for field in self.secret_fields]
             if len(set(keys)) != len(keys):
                 raise ValueError("owner_action_secret_fields_duplicate")
+            if set(keys) & set(PROVIDER_KEY_NAMES.values()):
+                # The router reads these: only a model_provider card sets them.
+                raise ValueError("owner_action_secret_name_reserved")
             return self
         # A connecting card: the server sets its fields; the agent gives the details.
         needs: set[str] = {

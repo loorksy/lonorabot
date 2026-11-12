@@ -18,9 +18,10 @@ from uuid import uuid4
 
 import pytest
 from lonora_contracts.model_catalog import ModelDescriptor
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
-from lonora_db.model_credentials import ENDPOINT_SETTING, PROVIDER_KEY_NAMES
+from lonora_db.model_credentials import ENDPOINT_SETTING
 from lonora_db.schema import EventRow, MessageRow, RunRow, SecretRow, SettingRow
 from lonora_providers.credentials import ProviderCredentials
 from pydantic import ValidationError
@@ -51,6 +52,19 @@ def test_a_model_provider_card_takes_a_provider_id_and_a_url_only_for_an_endpoin
         with pytest.raises(ValidationError):
             OwnerActionProposal.model_validate(
                 {"kind": "secret", "target": "model_provider", **bad}
+            )
+
+
+def test_an_agents_own_card_cannot_take_a_providers_key_name() -> None:
+    # Only a model_provider card, which the owner reads as one, sets the router's key.
+    for name in PROVIDER_KEY_NAMES.values():
+        with pytest.raises(ValidationError):
+            OwnerActionProposal.model_validate(
+                {
+                    "kind": "secret",
+                    "label": "embeddings script",
+                    "secret_fields": [{"key": name, "label": "key"}],
+                }
             )
 
 
@@ -172,7 +186,8 @@ async def test_the_owner_connects_a_model_provider_from_chat() -> None:
         listed = await thread_cards(fixture, context.thread_id)
         rotate = next(item for item in listed if item["id"] == again_id)["facts"]["secret"]
         assert rotate["replaces"] == ["OPENAI_COMPATIBLE_API_KEY"]
-        failing = AsyncMock(side_effect=LonoraError("model_credentials_rejected", 409))
+        # An endpoint answering a listing the adapter cannot read (any error) is the same.
+        failing = AsyncMock(side_effect=ValueError("context_length 0"))
         with patch("lonora_api.routes.secret_cards.discover_models", failing):
             done = await fixture.client.post(
                 f"/api/owner-actions/{again_id}/secret", json={"values": {"API_KEY": rotated}}
@@ -185,11 +200,33 @@ async def test_the_owner_connects_a_model_provider_from_chat() -> None:
             ).all()
         second = [run for run in runs if run.model_metadata.get("owner_action_id") == again_id]
         assert len(second) == 1 and "could not be read" in second[0].prompt
+
+        # A key saved before Secret cards (scope provider) and one saved on a card: the
+        # router uses the one the owner saved last, whichever path saved it.
+        store = fixture.runtime.services(fixture.owner).secrets
+        await store.write("openai_compatible", "older-settings-key", "provider")
+        assert await credentials.resolve("openai_compatible") == "older-settings-key"
+        third = await call(
+            context,
+            "owner_action_propose",
+            kind="secret",
+            target="model_provider",
+            name="openai_compatible",
+            url=ENDPOINT,
+        )
+        with patch("lonora_api.routes.secret_cards.discover_models", discovered):
+            await fixture.client.post(
+                f"/api/owner-actions/{third['owner_action']['id']}/secret",
+                json={"values": {"API_KEY": key}},
+            )
+        assert await credentials.resolve("openai_compatible") == key
     finally:
         async with fixture.runtime.db.sessions() as session, session.begin():
             for row in (
                 await session.scalars(
-                    select(SecretRow).where(SecretRow.name == "OPENAI_COMPATIBLE_API_KEY")
+                    select(SecretRow).where(
+                        SecretRow.name.in_(["OPENAI_COMPATIBLE_API_KEY", "openai_compatible"])
+                    )
                 )
             ).all():
                 await session.delete(row)

@@ -23,6 +23,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from lonora_contracts.mcp import McpConnection
+from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
 from lonora_security.network import compatible_endpoint
@@ -30,7 +31,6 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .model_credentials import PROVIDER_KEY_NAMES
 from .schema import IntegrationRow, OwnerActionRow, SecretRow
 from .secrets import WORKSPACE, WORKSPACE_NAME
 
