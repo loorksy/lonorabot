@@ -401,6 +401,10 @@ async def execute_tool_loop(
             await save()
             await report_closed(context, superseded, [], "tool_call_superseded")
         return external_wait_outcome(state)
+    if stale_head and await owner_steering_pending(context):
+        # The owner's message (an answer, or steering a waiting Run) wakes it too.
+        await refresh_context_head(context, registry, state, messages)
+        stale_head = False
     woken = consume_wake(state, messages, pending)
     if woken is not None and stale_head:
         # Every wake reads the current context head (policy, instructions, wake

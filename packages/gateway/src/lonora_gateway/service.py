@@ -50,7 +50,6 @@ STEPS = (
     StepSpec("account_recovery", 10, 300),
     # The currencies of newly held symbols, for the account picture (5.4).
     StepSpec("instrument_currencies", 30, 120, critical=False),
-    StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -201,11 +200,6 @@ class Gateway:
             lambda service: learn_currencies(self.db, service.brokers, service.owner_id)
         )
 
-    async def goals(self) -> None:
-        from lonora_trading.goals import recover_goals
-
-        await recover_goals(self.db)
-
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
 
@@ -288,7 +282,6 @@ class Gateway:
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
             "instrument_currencies": self.instrument_currencies,
-            "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,

@@ -7,7 +7,7 @@ while it slept is in the picture it reads.
 
 import asyncio
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
@@ -84,13 +84,17 @@ class Book:
                 )
             )
 
-    async def reconcile(self) -> None:
+    async def reconcile(self, *, last_success_at: datetime | None = None) -> None:
+        """Store a reconciled snapshot; with ``last_success_at``, a failed read that kept
+        the figures of that earlier successful one (as ``reconcile_broker_account`` does)."""
         now = utcnow()
+        down = last_success_at is not None
         snapshot = BrokerRecoverySnapshot(
-            status="connected",
-            reason_code="broker_reconciled",
+            status="disconnected" if down else "connected",
+            reason_code="broker_connection_timeout" if down else "broker_reconciled",
             since=now,
             observed_at=now,
+            last_success_at=last_success_at if down else now,
             account=AccountState(
                 id="picture-source",
                 currency="USD",
@@ -156,8 +160,26 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     exposure = {item["symbol"]: item for item in own["exposure_by_symbol"]}
     assert exposure["EURUSD"]["net_volume"] == "0.7" and exposure["EURUSD"]["positions"] == 2
     assert exposure["EURUSD"]["floating_pnl"] == "21" and exposure["USDJPY"]["net_volume"] == "0.15"
-    assert own["floating_pnl"] == "36" and own["currency"] == "USD" and own["observed_at"]
+    assert own["floating_pnl"] == "36" and own["currency"] == "USD"
+    assert own["status"] == "connected" and own["stale"] is False and own["as_of"]
     print("PASS own book: only the agent's tickets, largest first, bounded, exposure and P&L")
+
+    # A failed read keeps the last successful figures: they carry that read's time.
+    earlier = utcnow() - timedelta(hours=6)
+    await book.reconcile(last_success_at=earlier)
+    async with f.runtime.db.sessions() as session:
+        (own,) = picture_of(await account_picture(session, f.owner, a))["own"]
+    assert own["status"] == "disconnected" and own["stale"] is True, own
+    assert own["as_of"] == earlier.isoformat() and own["reason_code"] == "broker_connection_timeout"
+    async with f.runtime.db.sessions() as session, session.begin():
+        row = await BrokerSessionRepository().get(session, f.owner, book.account, lock=True)
+        recovery = dict(row.state["broker_recovery"])
+        row.state = {**row.state, "broker_recovery": {**recovery, "last_success_at": None}}
+    async with f.runtime.db.sessions() as session:
+        (own,) = picture_of(await account_picture(session, f.owner, a))["own"]
+    assert own == {"account": book.account, "status": "not_reconciled"}, own
+    await book.reconcile()
+    print("PASS a disconnected snapshot is dated by its last successful read and marked stale")
 
 
 async def task_wake(f: Fixture, book: Book, a: str, origin: str) -> None:

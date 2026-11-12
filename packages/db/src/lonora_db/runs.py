@@ -117,7 +117,7 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
 
     A Task or ticket started from an observe-only wake runs observe-only too, so
     neither it nor anything it delegates can send a broker mutation. Watches,
-    routines and Goals are the Agent's own later work and are not narrowed.
+    routines are the Agent's own later work and are not narrowed.
     """
     if starter is None:
         return {}
@@ -148,9 +148,6 @@ async def create_run(
         await owned_thread(session, owner_id, parent.thread_id)
     if agent.paused:
         raise LonoraError("agent_paused", 409)
-    from .trading_goals import bind_goal_run
-
-    await bind_goal_run(session, owner_id, request)
     row = RunRow(
         thread_id=thread.id,
         agent_id=agent.id,
