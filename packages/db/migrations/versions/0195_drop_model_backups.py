@@ -1,0 +1,41 @@
+"""Drop ln_model_backups: model backups live in the ``model_backups`` setting.
+
+The table and its repository (``ModelBackupRepository``) had no reader or writer:
+the router and ``PUT /settings/models/backups`` use the setting, which replaced them
+(mandate 13.2). The downgrade recreates the empty table as 0007 made it.
+"""
+
+import sqlalchemy as sa
+from alembic import op
+
+revision = "0195_drop_model_backups"
+down_revision = "0131_agent_model_owner_only"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.drop_index(op.f("ix_ln_model_backups_owner_id"), table_name="ln_model_backups")
+    op.drop_table("ln_model_backups")
+
+
+def downgrade() -> None:
+    op.create_table(
+        "ln_model_backups",
+        sa.Column("state", sa.JSON(), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("owner_id", sa.String(length=36), nullable=False),
+        sa.Column("agent_id", sa.String(length=36), nullable=True),
+        sa.Column("thread_id", sa.String(length=36), nullable=True),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["agent_id"], ["ln_agents.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["owner_id"], ["ln_owners.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["thread_id"], ["ln_threads.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_ln_model_backups_owner_id"), "ln_model_backups", ["owner_id"], unique=False
+    )

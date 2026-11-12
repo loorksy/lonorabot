@@ -815,10 +815,6 @@ class TicketRow(ResourceRow):
     __tablename__ = "ln_tickets"
 
 
-class ModelBackupRow(ResourceRow):
-    __tablename__ = "ln_model_backups"
-
-
 class UsageRow(ResourceRow):
     __tablename__ = "ln_usage"
     __table_args__ = (Index("ln_usage_owner_created", "owner_id", "created_at"),)
