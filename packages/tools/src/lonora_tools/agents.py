@@ -31,6 +31,7 @@ from lonora_db.agent_creation import (
 from lonora_db.agent_directory import agent_directory
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
+from lonora_db.lead import personal_agent_id
 from lonora_db.owner_actions import (
     account_facts,
     live_status,
@@ -42,7 +43,7 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
-from lonora_db.supervision import personal_agent_id, supervised_ids
+from lonora_db.supervision import supervised_ids
 from lonora_session.idempotency import stable_id
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
