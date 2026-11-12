@@ -32,15 +32,19 @@ export function runFailure(run: Run): { family: FailureFamily; retryAfter: numbe
 }
 
 /**
- * The failed reply a Retry may re-ask (Q22): the conversation's newest run, when it failed in
- * a provider family (an "other" failure may have touched the executor and is never retried),
- * and no run names it in ``retry_of``. `ready` is false while the provider's Retry-After lasts.
+ * The failed reply a Retry may re-ask (Q22): the conversation's newest reply to the owner (a
+ * `user` or `group` run with no parent: the only runs the server retries; a routine, a peer's
+ * or a subagent's run never is), when it failed in a provider family (an "other" failure may
+ * have touched the executor and is never retried) and no run names it in ``retry_of``. `ready`
+ * is false while the provider's Retry-After lasts.
  */
 export function retryableFailure(
   runs: readonly Run[],
   now: number,
 ): { run: Run; ready: boolean } | null {
-  const newest = [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+  const newest = runs
+    .filter((run) => (run.trigger === "user" || run.trigger === "group") && !run.parent_run_id)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
   if (newest?.status !== "failed" || retriedRunIds(runs).has(newest.id)) return null;
   const { family, retryAfter } = runFailure(newest);
   if (family === "other") return null;

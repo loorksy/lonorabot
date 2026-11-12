@@ -880,7 +880,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     jumped.current = null;
     router.setParams({ around: String(message.seq) });
   };
-  // Q22: only the newest failed reply is offered again, as on Web's error card.
+  // Q22: Retry re-asks only an owner's reply, as the server and Web's error card do; the
+  // banner shows one run, so mobile offers it for the newest such failure only.
   const retry = retryableFailure(
     runs.filter((run) => run.thread_id === id),
     Date.now(),
@@ -1004,7 +1005,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           (run) =>
             run.status === "waiting_input" ||
             run.status === "waiting_takeover" ||
-            (run.status === "failed" && retry?.run.id === run.id),
+            run.status === "failed",
         )
         .slice(0, 1)
         .map((run) => (
