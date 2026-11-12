@@ -798,6 +798,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         body,
         Math.max(0, ...messages.map((message) => message.seq)),
         handed,
+        followUp ? [] : attachments,
       );
       const nextDraft = followUp
         ? composerDraft(targetKey)

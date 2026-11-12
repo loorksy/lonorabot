@@ -191,6 +191,21 @@ test("a sent message whose file fails to upload comes back to the composer; noth
     release = resolve;
   });
   await page.route("**/api/artifacts/upload", async (route) => {
+    // ok.txt arrives at once; broken.txt fails once released.
+    if ((route.request().postData() ?? "").includes('filename="ok.txt"'))
+      return route.fulfill({
+        status: 201,
+        json: {
+          id: randomUUID(),
+          kind: "file",
+          agent_id: null,
+          thread_id: null,
+          payload: { name: "ok.txt", media_type: "text/plain", size: 10 },
+          version: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      });
     await gate;
     await route.fulfill({ status: 500, json: { code: "request_failed" } });
   });
@@ -202,7 +217,9 @@ test("a sent message whose file fails to upload comes back to the composer; noth
   });
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
-    await choose(page, ["broken.txt"]);
+    await choose(page, ["ok.txt", "broken.txt"]);
+    await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
+    await expect(page.getByTestId("composer-upload")).toHaveCount(1);
     const composer = page.getByRole("textbox", { name: "Message…", exact: true });
     await composer.fill("With a broken file");
     await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -212,6 +229,8 @@ test("a sent message whose file fails to upload comes back to the composer; noth
     release();
     // The owner's text is back in the composer; the unsent bubble is gone.
     await expect(composer).toHaveValue("With a broken file");
+    // The file that was already up comes back with it.
+    await expect(page.getByRole("button", { name: "Remove attachment: ok.txt" })).toBeVisible();
     await expect(transcript.getByText("With a broken file", { exact: true })).toHaveCount(0);
     expect(posted).toHaveLength(0);
   } finally {

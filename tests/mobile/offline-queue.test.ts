@@ -223,10 +223,15 @@ test("a failed upload gives the message back: it leaves the outbox with its text
   const key = box.outgoingKey("https://one.test", "owner", "t1");
   const broken = heldUpload("broken.txt"),
     arrived = heldUpload("arrived.txt");
-  const sent = await box.enqueueOutgoing(key, "t1", "f", { content: "Read", reply_to: "m1" }, 0, [
-    broken.upload,
-    arrived.upload,
-  ] as never);
+  const sent = await box.enqueueOutgoing(
+    key,
+    "t1",
+    "f",
+    { content: "Read", reply_to: "m1", attachment_ids: ["file-before"] },
+    0,
+    [broken.upload, arrived.upload] as never,
+    [{ id: "file-before" }] as never,
+  );
   Object.assign(arrived.upload, { result: { id: "file-arrived" } });
   arrived.resolve({ id: "file-arrived" });
   broken.reject(new Error("upload_failed"));
@@ -239,7 +244,7 @@ test("a failed upload gives the message back: it leaves the outbox with its text
   assert.equal(failure.intent.body.reply_to, "m1");
   assert.equal(
     JSON.stringify(failure.finished.map((row: { id: string }) => row.id)),
-    '["file-arrived"]',
+    '["file-before","file-arrived"]',
   );
   assert.equal(box.outgoingMessages(key).length, 0);
 });
