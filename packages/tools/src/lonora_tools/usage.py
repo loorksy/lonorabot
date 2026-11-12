@@ -21,7 +21,8 @@ from .context import ToolContext
 class UsageInput(Contract):
     period: UsagePeriod = Field(
         default="month",
-        description="day = today so far, week = the last 7 local days, month = the last 30.",
+        description="day = today so far, week = the last 7 local days, month = the last 30 "
+        "local days. The calendar month to date is always in the result's month field.",
     )
     agent_id: str | None = Field(
         default=None, max_length=36, description="One agent's id; omit for every agent."
@@ -57,9 +58,10 @@ def tools() -> list[Tool]:
         Tool(
             "usage_read",
             "The owner's model usage: cost in USD and tokens per agent and per model for a "
-            "period in the owner's time zone, the previous equal window, and this month so far "
-            "with its projection. cost_usd covers models with a list price; unpriced_requests "
-            "counts the rest.",
+            "rolling period in the owner's time zone (totals), the previous equal window, and "
+            "the calendar month to date with its projection (month.spent_usd, "
+            "month.projected_usd). cost_usd covers models with a list price; "
+            "unpriced_requests counts the rest.",
             UsageInput,
             usage,
             True,

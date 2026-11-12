@@ -6,6 +6,7 @@ answer in chat. The tool reads the same services as the page; it is a view, neve
 cap (owner decision D4, mandate P1).
 """
 
+import os
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -38,6 +39,12 @@ def context(fixture: Fixture) -> ToolContext:
     )
 
 
+def postgres() -> None:
+    # The usage queries bucket by time zone (date_trunc, timezone): PostgreSQL only.
+    if not os.environ.get("LONORA_TASK_TEST_DATABASE_URL"):
+        pytest.skip("usage_read reads the real usage queries on a migrated PostgreSQL schema.")
+
+
 async def seed(db: Database, owner: str, agent: str, model: str, tokens: int) -> None:
     async with db.sessions() as session, session.begin():
         now = utcnow() - timedelta(minutes=5)
@@ -68,7 +75,8 @@ def test_usage_read_is_a_read_tool_in_the_intelligence_chapter() -> None:
 
 
 @pytest.mark.asyncio
-async def test_usage_read_ranks_this_months_usage_per_agent_and_model(task_db: Fixture) -> None:
+async def test_usage_read_ranks_usage_per_agent_and_model(task_db: Fixture) -> None:
+    postgres()
     db, owner, agent, _ = task_db
     async with db.sessions() as session, session.begin():
         other = AgentRow(owner_id=owner, name="Gold desk")
@@ -80,18 +88,20 @@ async def test_usage_read_ranks_this_months_usage_per_agent_and_model(task_db: F
     await seed(db, owner, other_id, "claude-sonnet-4-5", 4000)
     tool = load_tools().tools["usage_read"]
 
-    everyone = await tool.handler(context(task_db), {"period": "month"})
-    assert everyone["ok"] is True and everyone["period"] == "month"
+    # Rows are 5 minutes old: the last 7 local days hold them at any time of day.
+    everyone = await tool.handler(context(task_db), {"period": "week"})
+    assert everyone["ok"] is True and everyone["period"] == "week"
     assert everyone["totals"]["requests"] == 3
     assert [row["agent_id"] for row in everyone["agents"]] == [other_id, agent]
     assert everyone["agents"][0]["agent_name"] == "Gold desk"
     assert everyone["agents"][0]["requests"] == 2
     assert everyone["models"][0]["model"] == "claude-sonnet-4-5"
     assert everyone["totals"]["cost_usd"] > 0
-    # The month so far and its projection, as on the usage page.
-    assert everyone["month"]["spent_usd"] > 0 and "projected_usd" in everyone["month"]
+    # The calendar month so far and its projection, as on the usage page.
+    assert {"start", "spent_usd", "projected_usd"} <= set(everyone["month"])
+    assert "previous" in everyone
 
-    one = await tool.handler(context(task_db), {"period": "day", "agent_id": agent})
+    one = await tool.handler(context(task_db), {"period": "week", "agent_id": agent})
     assert one["agent_id"] == agent and one["totals"]["requests"] == 1
     assert [row["agent_id"] for row in one["agents"]] == [agent]
 
