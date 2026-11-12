@@ -684,5 +684,3 @@ async def trust_from_card(
         return {"tier": "read"}
     _, created = await subscribe_feed(session, owner.id, subscribe["url"], subscribe["name"])
     return {"tier": "read", "subscribed": True, "subscription_created": created}
-
-
