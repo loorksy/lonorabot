@@ -86,7 +86,13 @@ its lead role whatever its grant (`lonora_db.lead`), so a revoke never ends Lono
 supervised agent itself or one of its Tasks, routines or watches (`target`,
 `target_id`), or messages it (`action: message`, the same peer request as `peer_send`).
 It has no action that trades, grants, raises a limit, lifts a restriction or edits
-memory or instructions. Lonora steers every team agent's work by its lead role, with or
+memory or instructions. Lonora alone also has `cancel_run` (ends the agent's started
+runs, never Lonora's own run or its ancestors; a queued run stays) and `set_ask` (the
+same switch as `trading_mode_ask`: Ask, except within an active signed grant's own terms
+until revoked, which `active_signed_grants` counts); a team agent gets
+`agent_control_lead_only`. A change Lonora makes returns `owner_line: "required"`, and
+the conversation gate holds an empty reply until Lonora tells the owner in one line what
+it did and why (mandate 3.1.2). Lonora steers every team agent's work by its lead role, with or
 without a grant; any other agent only as its supervisor, whatever message its Run
 answers (`supervision_required`). Narrowing an agent's trading with
 `trade_restriction_create` and its `agent_id` still needs that agent's grant or the
@@ -156,8 +162,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   the hold. A watch it cancelled stays cancelled when its supervisor resumes: the
   resume only ends the hold (`stays_cancelled_by_the_agent`). A hold on work that is no
   longer paused is stale and released.
-- **The owner sees who did it.** Every pause raises a `supervision_paused` card in the
-  paused agent's conversation: "Paused by <supervisor>", the agent, and what (the whole
+- **The owner sees who did it.** A team supervisor's pause raises a `supervision_paused`
+  card (Lonora's raises none: only the fixed cards of 10.3 exist, and Lonora tells the
+  owner in one line) in the paused agent's conversation: "Paused by <supervisor>", the agent, and what (the whole
   agent, or a routine, watch or Task with its own short label, isolated), "from your
   message" when it was. Resume is the owner's own resume of that work, whoever holds
   it; Keep paused dismisses the card. Once the pause ends anywhere the card stops

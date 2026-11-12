@@ -486,9 +486,8 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
     run, or switch it to Ask. Neither needs a grant, a card or the owner's message; a team
     agent is refused, whatever its grants."""
     from lonora_core.run_state import ACTIVE
-    from lonora_db.authority_lock import authority_lock
     from lonora_db.cancellation import cancel_run
-    from lonora_db.trading_mode import set_trading_mode, trading_mode
+    from lonora_db.trading_mode import switch_to_ask
 
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease)
@@ -499,11 +498,9 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             raise LonoraError("supervision_self_target", 409)
         result: dict[str, Any] = {"agent_id": agent.id, "action": action}
         if action == "set_ask":
-            # Read under the authority lock, so an owner's tap in between is not missed.
-            await authority_lock(session, agent.id)
-            before = await trading_mode(session, context.owner_id, agent.id)
-            await set_trading_mode(session, context.owner_id, agent.id, "ask", by="lonora")
-            result.update(changed=before != "ask", trading_mode="ask")
+            # The same switch as trading_mode_ask: a signed grant still decides within its
+            # own terms until revoked, and the result says how many are active.
+            result.update(await switch_to_ask(session, context.owner_id, agent.id, by="lonora"))
         else:
             # Its current run (started, not merely queued: a queued owner message stays),
             # never this run or the runs that started it.
@@ -698,7 +695,8 @@ def tools() -> list[Tool]:
             "asks. A paused agent still wakes for its own positions and orders and only "
             "reduces their risk; unless you are Lonora, pause a whole trading agent only "
             "when the owner asks. Only the owner pauses Lonora itself. Lonora alone may also "
-            "cancel_run (end its current run) or set_ask (switch it to Ask). It never "
+            "cancel_run (end its current run) or set_ask (as trading_mode_ask: Ask, except "
+            "within an active signed grant's own terms until revoked). It never "
             "trades, grants, raises limits, lifts restrictions or edits its memory or "
             "instructions.",
             AgentControlInput,
