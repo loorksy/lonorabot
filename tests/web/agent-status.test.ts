@@ -130,13 +130,20 @@ test("the status line follows the reference priority, most urgent first", () => 
 });
 
 test("the status line keeps to the owner's words when the server names no kind of work", () => {
-  // A run with no named family is the agent busy on its own; queued work is a quiet agent.
+  // A run with no named family is the agent busy on its own.
   const busy: AgentLiveState = { ...idle, state: "working", phase: "thinking" };
   assert.equal(agentStatusLine(busy, "ar"), "يحلّل");
   assert.equal(agentStatusLine(busy, "en"), "Analysing");
-  const queued: AgentLiveState = { ...idle, state: "waiting", phase: "queued" };
-  assert.equal(agentStatusLine(queued, "ar"), "نشط");
-  assert.equal(agentStatusLine(queued, "en"), agentStatusLine(idle, "en"));
+  // A waiting agent, a model retry or a read retry included, waits: it is never «نشط».
+  const waiting: AgentLiveState[] = [
+    { ...idle, state: "waiting", phase: "queued" },
+    { ...idle, state: "waiting", phase: "recovering", reason_code: "model_provider_retry" },
+    { ...idle, state: "waiting", phase: "recovering", reason_code: "retry_backoff" },
+  ];
+  for (const state of waiting) {
+    assert.equal(agentStatusLine(state, "ar"), "ينتظر");
+    assert.equal(agentStatusLine(state, "en"), "Waiting");
+  }
   // A service problem is said as it is, never as «نشط».
   const unwell: AgentLiveState = { ...idle, state: "degraded" };
   assert.notEqual(agentStatusLine(unwell, "ar"), "نشط");
