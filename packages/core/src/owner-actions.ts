@@ -299,7 +299,7 @@ export const ownerActionLabels = {
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
     brokerConnectTitle: "Connect trading account",
-    brokerAccount: "Account {login} on server {server} ({platform})",
+    brokerAccountLine: "Account {login} on server {server} ({platform})",
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
     brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
@@ -583,7 +583,7 @@ export const ownerActionLabels = {
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     brokerConnectTitle: "ربط حساب التداول",
-    brokerAccount: "الحساب {login} على الخادم {server} ({platform})",
+    brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
     brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
@@ -1698,7 +1698,7 @@ export function ownerActionCard(
         const account = secret.account;
         title = text.brokerConnectTitle;
         lines.push(
-          fill(text.brokerAccount, {
+          fill(text.brokerAccountLine, {
             login: isolate(account.login),
             server: isolate(account.server),
             platform: account.platform.toUpperCase(),
