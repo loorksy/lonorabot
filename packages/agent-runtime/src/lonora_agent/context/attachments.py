@@ -7,6 +7,9 @@ from lonora_security.runtime_storage import confined_path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Scanned pages of one PDF sent as images with the owner's message.
+MAX_PAGE_IMAGES = 8
+
 
 async def attachment_context(
     session: AsyncSession, owner_id: str, thread_id: str, input_seq: int, root: Path
@@ -51,4 +54,15 @@ async def attachment_parts(
             )
         elif media.startswith("text/") or media == "application/json":
             notes.append(path.read_text(errors="replace")[:24000])
+        # A PDF: the text layer extracted on upload, and the images of scanned pages.
+        if text_key := payload.get("text_key"):
+            text = confined_path(root, text_key)
+            if text.is_file():
+                notes.append(text.read_text(errors="replace")[:24000])
+        for image_key in payload.get("page_image_keys", [])[:MAX_PAGE_IMAGES]:
+            page = confined_path(root, image_key)
+            if page.is_file() and page.stat().st_size <= 5 * 1024 * 1024:
+                images.append(
+                    "data:image/jpeg;base64," + base64.b64encode(page.read_bytes()).decode()
+                )
     return "\n".join(notes), images

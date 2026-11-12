@@ -1,4 +1,6 @@
+import asyncio
 import hashlib
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, File, Form, Request, UploadFile
@@ -14,6 +16,7 @@ from lonora_security.runtime_storage import confined_path
 from pydantic import Field
 
 from ..middleware.auth import require_owner, runtime
+from ..pdf_layers import is_pdf, pdf_layers
 from . import resource_router
 
 router = resource_router("/artifacts", ArtifactRepository())
@@ -24,6 +27,22 @@ def upload_type(content_type: str | None, name: str) -> str:
     if content_type and content_type != "application/octet-stream":
         return content_type
     return "text/plain" if name.lower().endswith(TEXT_SUFFIXES) else "application/octet-stream"
+
+
+async def pdf_sidecars(root: Path, key: str, content: bytes) -> dict[str, Any]:
+    """The PDF's text layer and scanned page images, stored beside it for agents to read."""
+    layers = await asyncio.to_thread(pdf_layers, content)
+    found: dict[str, Any] = {}
+    if layers.text:
+        text_key = key + ".text"
+        confined_path(root, text_key).write_text(layers.text, encoding="utf-8")
+        found["text_key"], found["text_chars"] = text_key, len(layers.text)
+    if layers.images:
+        keys = [f"{key}.page-{index}.jpg" for index in range(1, len(layers.images) + 1)]
+        for image_key, image in zip(keys, layers.images, strict=True):
+            confined_path(root, image_key).write_bytes(image)
+        found["page_image_keys"] = keys
+    return found
 
 
 @router.post("/upload", status_code=201)
@@ -43,18 +62,22 @@ async def upload(
     path = confined_path(rt.settings.artifact_root, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
+    media_type = upload_type(file.content_type, name)
+    payload: dict[str, Any] = {
+        "name": name,
+        "key": key,
+        "size": len(content),
+        "media_type": media_type,
+        "sha256": hashlib.sha256(content).hexdigest(),
+    }
+    if is_pdf(media_type, name):
+        payload.update(await pdf_sidecars(rt.settings.artifact_root, key, content))
     async with rt.db.sessions() as session, session.begin():
         return resource_data(
             await ArtifactRepository().create(
                 session,
                 owner.id,
-                {
-                    "name": name,
-                    "key": key,
-                    "size": len(content),
-                    "media_type": upload_type(file.content_type, name),
-                    "sha256": hashlib.sha256(content).hexdigest(),
-                },
+                payload,
                 agent_id=agent_id,
                 thread_id=thread_id,
                 resource_id=artifact_id,
