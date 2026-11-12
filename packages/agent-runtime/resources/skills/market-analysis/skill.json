@@ -1,15 +1,12 @@
 {
   "id": "market-analysis",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "title": "Market Analysis",
   "description": "Lonora market-analysis workflow.",
   "source": "builtin",
   "stability": "stable",
   "activation": {
-    "mode": "automatic",
-    "intents": [
-      "market"
-    ],
+    "mode": "explicit",
     "triggers": []
   },
   "risk_class": "read_only",

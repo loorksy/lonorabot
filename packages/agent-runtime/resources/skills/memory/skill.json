@@ -1,15 +1,12 @@
 {
   "id": "memory",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "title": "Memory",
   "description": "Lonora memory workflow.",
   "source": "builtin",
   "stability": "stable",
   "activation": {
-    "mode": "automatic",
-    "intents": [
-      "memory"
-    ],
+    "mode": "explicit",
     "triggers": []
   },
   "risk_class": "state_mutating",
