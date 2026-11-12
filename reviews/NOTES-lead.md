@@ -7,3 +7,4 @@
   - #198 at 1f947371: CLEAN (the parent branch is dropped; the W-TEAM stack still needs rechaining onto main's head).
   - #81 at f6affc53: review in progress.
   - #177 at 39a89b5c: one low left (the door's `lonora_opened` and `closed_trades.opening_entry` don't use the new shared ownership helper; a W-AUTH follow-up).
+- 2026-11-12T12:34Z: #81 at f6affc53 FINDINGS (medium: 14.3.15 bullet 3 not in this change, though #193 does it, so accept the split or land them together; low: three stale texts; rebase: 6 conflicts with main e67be56d).
