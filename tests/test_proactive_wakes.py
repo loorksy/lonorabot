@@ -684,7 +684,10 @@ async def test_a_stop_loss_hit_wakes_the_agent_that_opened_the_position():
 
 
 @pytest.mark.asyncio
-async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
+async def test_a_paused_agent_still_wakes_for_its_own_tickets():
+    """4.7.1: a paused agent wakes only for its own positions and orders, with its normal
+    authority (the door lets only risk-reducing requests through); a paused Lonora is not
+    woken for the owner's unattributed activity."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.broker_activity import BrokerActivity
@@ -695,29 +698,38 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
 
     fixture = await Fixture().open()
     connection = ""
+    personal_paused = False
     try:
         connection = await simulation(fixture)
         gold = await fixture.agent("Paused gold")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            row = await session.get(AgentRow, gold["id"])
-            assert row is not None
-            row.paused = True
-            change = BrokerActivity(
+
+        def change(ticket: str, agent_id: str | None) -> BrokerActivity:
+            return BrokerActivity(
                 id=str(uuid4()),
                 account_id=connection,
                 symbol="XAUUSD",
-                ticket="T-paused",
+                ticket=ticket,
                 resource="position",
                 change="closed",
                 origin="external",
                 observed_at=utcnow(),
-                previous=position("T-paused"),
-                agent_id=gold["id"],
+                previous=position(ticket),
+                agent_id=agent_id,
             )
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, gold["id"])
+            assert row is not None
+            row.paused = True
+            own = change("T-paused", gold["id"])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             # Delivered once: the same change again creates nothing.
-            await wake_for_activity(session, fixture.owner, connection, 99, [change])
+            await wake_for_activity(session, fixture.owner, connection, 99, [own])
             personal = await ensure_personal_agent(session, fixture.owner)
+            personal.paused = personal_paused = True
+            await wake_for_activity(
+                session, fixture.owner, connection, 100, [change("T-owner", None)]
+            )
         async with fixture.runtime.db.sessions() as session:
             runs = list(
                 await session.scalars(
@@ -726,9 +738,13 @@ async def test_a_paused_agents_activity_falls_back_to_the_personal_agent():
                     )
                 )
             )
-        assert len(runs) == 1 and runs[0].agent_id == personal.id
-        assert runs[0].model_metadata["authority"] == "observe_only"
+        assert len(runs) == 1 and runs[0].agent_id == gold["id"]
+        assert "authority" not in runs[0].model_metadata
+        assert "You are paused" in runs[0].prompt
     finally:
+        if personal_paused:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                (await ensure_personal_agent(session, fixture.owner)).paused = False
         await retire(fixture, connection)
         await fixture.close()
 

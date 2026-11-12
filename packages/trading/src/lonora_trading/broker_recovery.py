@@ -165,9 +165,11 @@ async def wake_for_activity(
 
     A change on a ticket the journal attributes to an Agent (a stop-loss or take-profit
     hit, a manual close of its position) wakes that Agent with its normal authority:
-    its grant, the account limits and pauses still decide at the executor. Unattributed
-    activity is the owner's own and wakes the Personal Agent with no financial effects,
-    as does activity of an Agent that is paused or no longer exists.
+    its grant, the account limits and pauses still decide at the executor. A paused
+    Agent is woken too, for its own positions and orders only, and may only reduce risk
+    (4.7.1). Unattributed activity is the owner's own and wakes the Personal Agent with
+    no financial effects, as does activity of an Agent that no longer exists; a paused
+    Personal Agent is not woken for it.
     """
     personal = await ensure_personal_agent(session, owner_id)
     groups: dict[tuple[str, bool], list[str]] = {}
@@ -178,10 +180,7 @@ async def wake_for_activity(
             continue
         responsible = await session.get(AgentRow, change.agent_id) if change.agent_id else None
         attributed = bool(
-            responsible
-            and responsible.owner_id == owner_id
-            and not responsible.paused
-            and responsible.role != "delegated"
+            responsible and responsible.owner_id == owner_id and responsible.role != "delegated"
         )
         agent = responsible if attributed and responsible else personal
         agents[agent.id] = agent
@@ -198,7 +197,7 @@ async def wake_for_activity(
         groups.setdefault((agent.id, attributed), []).append(change.id)
     for (agent_id, attributed), pending_ids in groups.items():
         agent = agents[agent_id]
-        if agent.paused:
+        if agent.paused and not attributed:
             continue
         thread = await conversation_thread(session, owner_id, agent.id)
         work = await create_thread(
@@ -217,6 +216,12 @@ async def wake_for_activity(
                 "and decide what to do next. Your normal authority applies; your grant, account "
                 "limits and pauses decide at execution. Never resend an uncertain operation."
             )
+            if agent.paused:
+                prompt += (
+                    " You are paused: only risk-reducing requests are sent (a full or partial "
+                    "close, cancelling a pending order, adding a stop loss, or moving a stop "
+                    "loss toward the market); take no new work."
+                )
             identifier = stable_id(account_id, f"external:{revision}:{agent.id}")
         else:
             # Facts only. No financial effects from this wake, its helpers, peer runs or

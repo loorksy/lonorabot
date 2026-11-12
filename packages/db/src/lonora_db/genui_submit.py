@@ -39,8 +39,8 @@ from .agent_state import watch_summary
 from .conversation_locale import conversation_locale
 from .events import emit
 from .owner_words import TERMINAL, ui_submit_origin
+from .pauses import OWNER_ADDRESSED
 from .schema import (
-    AgentRow,
     BrokerSessionRow,
     EffectReceiptRow,
     MarketWatchRow,
@@ -300,9 +300,8 @@ async def submit_card(
     agent_id = source.agent_id or document.get("agent_id")
     if not agent_id:
         raise LonoraError("ui_submit_source_invalid", 422)
-    agent: AgentRow = await owned_agent(session, owner_id, agent_id)
-    if agent.paused:
-        raise LonoraError("agent_paused", 409)
+    # A paused agent still takes the owner's input (6.10, 3.2.5); its run only reduces risk.
+    await owned_agent(session, owner_id, agent_id)
     locks = await card_locks(session, thread.id, [source])
     if lock and submit.part in locks.get(source.id, {}):
         raise LonoraError("ui_submit_locked", 409)
@@ -392,6 +391,8 @@ async def submit_card(
             thread_id=thread.id,
             agent_id=agent_id,
             trigger="group" if thread.group_id else "user",
+            # The owner answered this agent's card: addressed to it (4.7.1).
+            metadata={OWNER_ADDRESSED: True} if thread.group_id else {},
         ),
     )
     # Only this Run is a submission (the queue rules and its provenance read it).
@@ -527,20 +528,16 @@ async def requeue_folded(session: AsyncSession, run: RunRow) -> None:
 
     from .runs import create_run
 
-    try:
-        await create_run(
-            session,
-            thread.owner_id,
-            RunRequest(
-                thread_id=run.thread_id,
-                agent_id=run.agent_id,
-                trigger="group" if thread.group_id else "user",
-            ),
-        )
-    except LonoraError as error:
-        # A paused agent answers when it is resumed, as for any owner message.
-        if error.code != "agent_paused":
-            raise
+    await create_run(
+        session,
+        thread.owner_id,
+        RunRequest(
+            thread_id=run.thread_id,
+            agent_id=run.agent_id,
+            trigger="group" if thread.group_id else "user",
+            metadata={OWNER_ADDRESSED: True} if thread.group_id else {},
+        ),
+    )
 
 
 async def expire_submits(session: AsyncSession, thread_id: str | None = None) -> list[RunRow]:
