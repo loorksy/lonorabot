@@ -134,8 +134,9 @@ class ScriptedAdapter:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
-        del model, messages, tools, max_output_tokens, on_delta
+        del model, messages, tools, max_output_tokens, on_delta, allow_empty
         if not self.script.replies:
             raise AssertionError(f"{self.script.agent}'s scripted turn ended early")
         reply = self.script.replies.pop(0)

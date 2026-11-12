@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.attention import AttentionClassification
@@ -125,11 +125,14 @@ async def projected(db: Database, event: EventRow) -> EventRow:
         query = select(EventRow).where(
             EventRow.owner_id == event.owner_id, EventRow.cursor < event.cursor
         )
-        sources = metadata.get("broker_event_ids")
-        if run.trigger == "broker_event" and isinstance(sources, list) and sources:
+        stored: object = metadata.get("broker_event_ids")
+        sources = (
+            [str(item) for item in cast(list[object], stored)] if isinstance(stored, list) else []
+        )
+        if run.trigger == "broker_event" and sources:
             query = query.where(
                 EventRow.kind == "broker.external_activity",
-                EventRow.payload["id"].as_string().in_([str(item) for item in sources]),
+                EventRow.payload["id"].as_string().in_(sources),
             )
         elif metadata.get("opportunity_id"):
             query = query.where(

@@ -112,6 +112,7 @@ class RecordingAdapter:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         if model != self.model:
             raise SystemExit(f"Refusing an unexpected model: {model}")
@@ -136,6 +137,7 @@ class RecordingAdapter:
                 tools,
                 max_output_tokens=max_output_tokens,
                 on_delta=None if on_delta is None else delta,
+                allow_empty=allow_empty,
             )
         except BaseException as error:
             entry["error"] = type(error).__name__
