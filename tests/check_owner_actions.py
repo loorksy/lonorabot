@@ -498,6 +498,58 @@ async def main() -> None:
         assert "unknown" in (await acknowledgements(thread["id"]))[-1].lower()
         print("PASS an agent's uncertain operation raises its card in that agent's conversation")
 
+        # A card whose record changed elsewhere is superseded: the owner settles the
+        # operation from the journal, so its waiting card no longer asks anything.
+        elsewhere = "cards-elsewhere-op-" + uuid4().hex
+        async with db.sessions() as session, session.begin():
+            row = TradingJournalRow(
+                operation_id=elsewhere,
+                owner_id=fixture.owner,
+                account_id=account,
+                request_hash="fixture",
+                request={"account_id": account, "action": "buy", "symbol": GOLD, "volume": "0.1"},
+                status="ambiguous",
+                result={
+                    "operation_id": elsewhere,
+                    "status": "ambiguous",
+                    "code": "broker_result_ambiguous",
+                    "details": {
+                        "send_state": "sent",
+                        "execution": {
+                            "agent_id": agent["id"],
+                            "run_id": run["id"],
+                            "send_authorized": True,
+                        },
+                    },
+                },
+                submitted_at=utcnow(),
+                updated_at=utcnow(),
+            )
+            session.add(row)
+            await session.flush()
+            await operation_event(session, row)
+        await project()
+        async with db.sessions() as session:
+            waiting_card = (
+                await session.execute(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.subject == "operation:" + elsewhere,
+                        OwnerActionRow.status == "pending",
+                    )
+                )
+            ).scalar_one()
+        settled = await fixture.request(
+            "POST", f"/trading/journal/{elsewhere}/resolve", {"outcome": "not_executed"}
+        )
+        assert settled["status"] == "resolved", settled
+        await project()
+        after = await card(waiting_card.id)
+        assert (after.status, after.status_reason) == ("superseded", "operation_already_settled"), (
+            after.status,
+            after.status_reason,
+        )
+        print("PASS settling an operation elsewhere supersedes its waiting resolve card")
+
         # 8. The per-agent cap and expiry.
         expiring = {
             "kind": "set_account_limits",

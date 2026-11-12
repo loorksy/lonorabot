@@ -65,7 +65,7 @@
     "owner_action_resolve_unknown": "Recorded: the outcome stays unknown. It will not be resent and no longer holds new risk on that market.",
     "owner_action_set_account_limits": "Money limits updated for this account. They apply to every new trade.",
     "owner_action_still_unresolved": "A trade without a confirmed broker result still holds new risk there.",
-    "owner_action_grant_authority": "Signed. It now trades on its own inside this grant; anything outside it comes to you as an approval card. The account's money limits still apply.",
+    "owner_action_grant_authority": "Signed. It now trades on its own inside this grant; anything outside it comes to you as an approval card. Your pauses and the account's money limits still apply.",
     "owner_action_grant_full": "Full delegation: every pair on this account, every action and your own positions too, until you stop it. The card set no daily loss limit; the money limits you set on this account still apply, and removing them is a separate step with your passkey.",
     "owner_action_grant_daily_loss": "The daily loss limit on the card is now set on this account.",
     "owner_action_grant_no_money_limit": "As you chose, no daily loss limit was set.",
