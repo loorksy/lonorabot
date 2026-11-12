@@ -28,7 +28,6 @@ from lonora_contracts.account_authority import (
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import (
-    MODEL_CARD_KINDS,
     GrantDelegation,
     GrantDraft,
     OwnerActionProposal,
@@ -66,8 +65,6 @@ LIFETIME = {
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
-    "agent_model": timedelta(hours=24),
-    "agent_model_changed": timedelta(days=7),
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
     "agent_created": timedelta(days=7),
@@ -223,10 +220,6 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind in MODEL_CARD_KINDS:
-        from .model_cards import model_stale_reason
-
-        return await model_stale_reason(session, owner_id, kind, payload)
     if kind == "resume_trading":
         return (
             "trading_already_running"
@@ -667,11 +660,6 @@ async def card_facts(
     owner's confirmation needs a passkey (widening money limits)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind in MODEL_CARD_KINDS:
-        from .model_cards import model_card_facts
-
-        facts["model"] = await model_card_facts(session, row)
-        return facts, False
     if row.kind == "resume_trading":
         facts["global_trading"] = await global_trading(session)
         return facts, False
@@ -2182,13 +2170,11 @@ async def settle_for_delete(
         OwnerActionRow.owner_id == owner_id, OwnerActionRow.status == "pending"
     )
     if agent_id is not None:
-        # The agent's own cards, grant cards that would sign authority for it, and
-        # model cards about it.
+        # The agent's own cards and grant cards that would sign authority for it.
         query = query.where(
             or_(
                 OwnerActionRow.agent_id == agent_id,
                 OwnerActionRow.subject.startswith("grant:" + agent_id + ":"),
-                OwnerActionRow.subject == "agent-model:" + agent_id,
             )
         )
     if thread_id is not None:
