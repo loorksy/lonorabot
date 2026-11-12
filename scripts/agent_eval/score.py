@@ -181,7 +181,7 @@ def vocabulary() -> Vocabulary:
     tools = load_tools().tools
     states = state_names()
     # What the agent both creates and lists is a resource the owner knows by another name:
-    # watch_create and watch_list give "watch" and "watches"; routines, goals and boards too.
+    # watch_create and watch_list give "watch" and "watches"; routines and boards too.
     resources = {
         name.removesuffix("_list")
         for name in tools
@@ -346,7 +346,7 @@ def removals(record: Mapping[str, Any]) -> list[str]:
 
 def triggers(record: Mapping[str, Any]) -> list[str]:
     """The successful effects that leave something standing after the turn: a created
-    watch, routine or goal, a started Task, or an order at the broker."""
+    watch or routine, a started Task, or an order at the broker."""
     tools = load_tools().tools
     return [
         name
