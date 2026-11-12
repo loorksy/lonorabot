@@ -40,14 +40,10 @@ async def prepare_wait(
         ):
             raise LonoraError("task_wait_source_invalid", 409)
     elif request.kind == "broker_recovery":
-        from .agent_binding import agent_binding, assert_market_binding
-
+        # Any owned account: an agent's financial work is not bound to its pair (6.9).
         source = await session.get(BrokerSessionRow, request.source_id)
         if source is None or source.owner_id != thread.owner_id:
             raise LonoraError("task_wait_source_invalid", 409)
-        assert_market_binding(
-            await agent_binding(session, thread.owner_id, run.agent_id), source.id
-        )
     key = "task-wait:" + stable_id(run.id, call_id)
     receipt = await session.get(EffectReceiptRow, key)
     if receipt:

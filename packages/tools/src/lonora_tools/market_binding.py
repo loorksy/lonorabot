@@ -248,8 +248,9 @@ async def guard_market_tool(
 
 
 FOCUS_PAIR_NOTE = (
-    "Reading and trading are open across every owned account and symbol; charts, watches "
-    "and decisions stay on this bound account and symbol."
+    "Your assigned pair: trade it unless told otherwise; the server does not refuse other "
+    "symbols. Reading is open across every owned account and symbol; charts, watches and "
+    "decisions stay on this bound account and symbol."
 )
 
 
