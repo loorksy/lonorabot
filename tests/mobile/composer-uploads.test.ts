@@ -136,3 +136,17 @@ test("a send that was not admitted gives its files back: finished ones as attach
   );
   assert.equal(uploads.composerUploads("k").length, 0);
 });
+
+test("a hand-back never returns an upload that already failed", async () => {
+  const { uploads, transfers, transfer } = fixture();
+  uploads.startUpload(
+    "k",
+    { name: "a.pdf", size: 10, media_type: "application/pdf" },
+    transfer("a"),
+  );
+  const handed = uploads.handOver("k");
+  transfers[0].reject(new Error("upload_failed"));
+  await assert.rejects(handed[0].done);
+  uploads.handBack("k", handed);
+  assert.equal(uploads.composerUploads("k").length, 0);
+});

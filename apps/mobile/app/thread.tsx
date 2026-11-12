@@ -100,6 +100,7 @@ import {
   failOutgoing,
   hydrateOutgoing,
   type OutgoingIntent,
+  OutgoingUploadFailed,
   outgoingKey,
   outgoingMessages,
   outgoingUploads,
@@ -610,6 +611,29 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         try {
           ready = await settleOutgoingUploads(targetKey, sent.nonce);
         } catch (reason) {
+          // An upload failed: the message, never posted, goes back to the composer with the
+          // files that did arrive, so the owner's text is not lost.
+          if (reason instanceof OutgoingUploadFailed) {
+            const back = reason.intent.body;
+            const typed =
+              typeof back.content === "string" && back.content !== say.current("attach")
+                ? back.content
+                : "";
+            const quoted = canonical.current.find((row) => row.id === back.reply_to) ?? null;
+            const now = composerDraft(targetKey);
+            const restored = editComposerDraft(targetKey, {
+              text: now.text || typed,
+              attachments: [...now.attachments, ...reason.finished],
+              reply: now.reply ?? quoted,
+            });
+            if (selected.current.id === targetId && selected.current.scope === scope) {
+              setDraft(restored.text);
+              setAttachments(restored.attachments);
+              setReply(restored.reply);
+              setError(reportError.current(reason.cause));
+            }
+            return;
+          }
           if (selected.current.id === targetId && !(reason instanceof SessionRequestCancelled))
             setError(reportError.current(reason));
           return;

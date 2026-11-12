@@ -49,8 +49,11 @@ const file = (name) => ({
 
 async function held(page) {
   const waiting = [];
+  const ids = new Map();
   await page.route("**/api/artifacts/upload", async (route) => {
     const id = randomUUID();
+    // The picked file's name, from the multipart body: which id belongs to which file.
+    ids.set(/filename="([^"]+)"/.exec(route.request().postData() ?? "")?.[1], id);
     await new Promise((resolve) => waiting.push(resolve));
     await route.fulfill({
       status: 201,
@@ -67,6 +70,7 @@ async function held(page) {
     });
   });
   return {
+    idOf: (name) => ids.get(name),
     count: () => waiting.length,
     release: () => {
       for (const resolve of waiting.splice(0)) resolve();
@@ -109,7 +113,7 @@ test("several files upload at once with rings; a cancelled one leaves; the rest 
     await page.getByRole("textbox", { name: "Message…", exact: true }).fill("Here is the file");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0].attachment_ids).toHaveLength(1);
+    expect(posted[0].attachment_ids).toEqual([uploads.idOf("a.txt")]);
   } finally {
     await data.remove();
   }
@@ -140,7 +144,7 @@ test("a message sent while its file uploads waits, then goes out with the file",
     uploads.release();
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0].content).toBe("Read this report");
-    expect(posted[0].attachment_ids).toHaveLength(1);
+    expect(posted[0].attachment_ids).toEqual([uploads.idOf("report.txt")]);
   } finally {
     await data.remove();
   }
@@ -177,7 +181,7 @@ test("cancelling a sent message's upload removes the message; nothing is posted"
   }
 });
 
-test("a sent message whose file fails to upload is failed with Delete only; nothing is posted", async ({
+test("a sent message whose file fails to upload comes back to the composer; nothing is posted", async ({
   page,
   context,
 }) => {
@@ -199,17 +203,15 @@ test("a sent message whose file fails to upload is failed with Delete only; noth
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
     await choose(page, ["broken.txt"]);
-    await page.getByRole("textbox", { name: "Message…", exact: true }).fill("With a broken file");
+    const composer = page.getByRole("textbox", { name: "Message…", exact: true });
+    await composer.fill("With a broken file");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     const transcript = page.getByTestId("conversation-transcript");
     await expect(transcript.getByText("Uploading…", { exact: true })).toBeVisible();
+    await expect(composer).toHaveValue("");
     release();
-    await expect(transcript.getByText("Message not sent", { exact: true })).toBeVisible();
-    await expect(transcript.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
-    await transcript.getByText("With a broken file", { exact: true }).click({ delay: 900 });
-    await expect(page.getByText("The message was not sent", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    // The owner's text is back in the composer; the unsent bubble is gone.
+    await expect(composer).toHaveValue("With a broken file");
     await expect(transcript.getByText("With a broken file", { exact: true })).toHaveCount(0);
     expect(posted).toHaveLength(0);
   } finally {

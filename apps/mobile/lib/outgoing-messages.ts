@@ -1,5 +1,5 @@
 /** Recoverable owner-scoped send intents, never an alternate conversation store. */
-import type { Message } from "@lonora/contracts";
+import type { Artifact, Message } from "@lonora/contracts";
 import { isPlainOutgoing, pendingVoiceRich } from "@lonora/core";
 import { Platform } from "react-native";
 import { ApiError } from "./api-error";
@@ -239,10 +239,24 @@ export async function enqueueOutgoing(
   }
   return intent;
 }
+/** A sent message whose upload failed: it leaves the outbox and goes back to the composer. */
+export class OutgoingUploadFailed extends Error {
+  constructor(
+    public cause: unknown,
+    /** The message as it was sent (its text and reply). */
+    public intent: OutgoingIntent,
+    /** Its files that did arrive. */
+    public finished: Artifact[],
+  ) {
+    super("upload_failed");
+    this.name = "OutgoingUploadFailed";
+  }
+}
 /**
  * Waits for a sent message's uploads, then puts their files on it. Null when the message
- * has gone meanwhile (its uploads were cancelled). A failed upload fails the message, which
- * keeps the files it never got and can only be deleted.
+ * has gone meanwhile (its uploads were cancelled). When an upload fails, the message never
+ * posted leaves the outbox and OutgoingUploadFailed carries it and its arrived files back, so
+ * the owner's text is not lost.
  */
 export async function settleOutgoingUploads(
   key: string,
@@ -257,8 +271,14 @@ export async function settleOutgoingUploads(
   } catch (cause) {
     handles.delete(nonce);
     for (const upload of held) upload.cancel();
-    if (find()) failOutgoing(key, nonce);
-    throw cause;
+    const row = find();
+    if (!row) return null;
+    dropOutgoing(key, nonce);
+    throw new OutgoingUploadFailed(
+      cause,
+      row,
+      held.flatMap((upload) => (upload.result ? [upload.result] : [])),
+    );
   }
   handles.delete(nonce);
   const row = find();

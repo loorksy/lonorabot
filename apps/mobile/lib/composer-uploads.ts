@@ -14,6 +14,8 @@ export type ComposerUpload = PickedFile & {
   sent: boolean;
   /** The uploaded file, once it is up. */
   result?: Artifact;
+  /** The upload failed or was cancelled: it never comes back to the composer. */
+  failed?: boolean;
   cancel: () => void;
   done: Promise<Artifact>;
 };
@@ -73,6 +75,7 @@ export function startUpload(key: string, file: PickedFile, transfer: Transfer): 
       return row;
     },
     (cause) => {
+      upload.failed = true;
       leave();
       throw cause;
     },
@@ -91,7 +94,7 @@ export function cancelUpload(key: string, id: string) {
 
 /** A send that could not be admitted gives its running uploads back to the composer. */
 export function handBack(key: string, rows: readonly ComposerUpload[]) {
-  const back = rows.filter((row) => row.sent);
+  const back = rows.filter((row) => row.sent && !row.failed);
   for (const row of back) row.sent = false;
   const finished = back.flatMap((row) => (row.result ? [row.result] : []));
   if (finished.length)
