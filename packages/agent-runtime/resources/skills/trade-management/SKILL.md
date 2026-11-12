@@ -28,9 +28,9 @@ user-facing replies and labels. English examples do not require an English reply
    buy_stop or sell_stop with a valid explicit price on the correct quote side.
    Never substitute an immediate trade for a pending request.
 4. Use trade_execute or trade_close_positions for the exact request/current ticket
-   set. A matching active signed account grant permits execution without an extra
-   approval question. Otherwise use actual approve/reject; text, speech and
-   informational replies never replace required financial confirmation.
+   set. In Full, a risk-reducing request in Ask, or under a matching active signed
+   grant, it executes without an approval question. Otherwise use actual approve/reject;
+   text, speech and informational replies never replace required financial confirmation.
 5. The same server path rechecks current authority, controls and broker targets.
    Preserve manual intervention. A changed proposal needs fresh approval only
    when its action is not already covered by the current signed scope. Respect

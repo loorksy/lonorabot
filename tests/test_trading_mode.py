@@ -153,9 +153,7 @@ def test_the_frame_gives_the_agent_its_mode_every_turn():
     state: dict[str, Any] = {"effective_level": "supervised", "active_authorities": []}
 
     def snapshot(text: str) -> dict[str, Any]:
-        start = text.index("<current_financial_permission>") + len(
-            "<current_financial_permission>"
-        )
+        start = text.index("<current_financial_permission>") + len("<current_financial_permission>")
         return json.loads(text[start : text.index("</current_financial_permission>")])
 
     ask = permission_guidance(state)
