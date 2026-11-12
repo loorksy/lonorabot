@@ -630,7 +630,8 @@ def tools() -> list[Tool]:
             "you made on your own (Lonora: only those); a pause the owner asked for or made "
             "is the owner's. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A paused agent still wakes for its own positions and orders and only "
-            "reduces their risk. Only the owner pauses Lonora itself. It "
+            "reduces their risk; unless you are Lonora, pause a whole trading agent only "
+            "when the owner asks. Only the owner pauses Lonora itself. It "
             "never trades, grants, raises limits, lifts restrictions or edits its memory "
             "or instructions.",
             AgentControlInput,

@@ -333,9 +333,10 @@ async def held(fixture: Any, target_id: str) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_a_supervisor_pauses_a_trading_agent_whose_exits_continue_but_never_lonora():
-    """A paused agent still reduces the risk of its own positions (4.7.1, 14.3.7), so a
-    supervisor may pause a whole agent with money standing; nobody but the owner pauses
+async def test_lonora_pauses_a_trading_agent_a_team_supervisor_does_not_and_nobody_pauses_lonora():
+    """A paused agent still reduces the risk of its own positions (4.7.1, 14.3.7), so
+    Lonora may pause a whole agent with money standing; a team supervisor still does not
+    on its own (supervision is not extended before phase 6); nobody but the owner pauses
     Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
     database()
     from check_streaming import Fixture
@@ -369,7 +370,7 @@ async def test_a_supervisor_pauses_a_trading_agent_whose_exits_continue_but_neve
                 RoutineCreate(prompt="Review gold before London", interval_seconds=3600),
             )
             routine_id = routine.id
-        # An unbound agent that trades with the owner's approval has money standing too.
+        # An unbound agent in Ask, with no operations recorded for it.
         permission = await fixture.request("GET", f"/agents/{asker['id']}/permissions")
         await fixture.request(
             "PUT",
@@ -380,15 +381,23 @@ async def test_a_supervisor_pauses_a_trading_agent_whose_exits_continue_but_neve
             await grant(fixture, lead, supervised)
         lead_thread = await fixture.conversation(lead)
         woke = await wake(fixture, lead, lead_thread)
-        for target in (gold, asker):
-            paused = await call(woke, "agent_control", agent_id=target["id"], action="pause")
-            assert paused["changed"] is True and paused["paused"] is True
-            resumed = await call(woke, "agent_control", agent_id=target["id"], action="resume")
-            assert resumed["changed"] is True and resumed["paused"] is False
-        assert (await call(woke, "agent_control", agent_id=gold["id"], action="pause"))[
-            "still_reduces_risk"
-        ] is True
-        await call(woke, "agent_control", agent_id=gold["id"], action="resume")
+        # A team supervisor does not pause a whole trading agent on its own (supervision
+        # is not extended, 0.4); Lonora does, since its exits continue (4.7.1).
+        assert (
+            await refused(woke, "agent_control", agent_id=gold["id"], action="pause")
+            == "supervision_pause_trading_agent"
+        )
+        # money_standing reads no permission ladder (14.3.7): an Ask agent with no bound
+        # account and no recorded operations has nothing standing, so it is pausable.
+        assert (await call(woke, "agent_control", agent_id=asker["id"], action="pause"))["changed"]
+        await call(woke, "agent_control", agent_id=asker["id"], action="resume")
+        lonora_woke = await wake(
+            fixture, {"id": lonora_id}, await fixture.conversation({"id": lonora_id})
+        )
+        paused = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
+        assert paused["changed"] is True and paused["paused"] is True
+        resumed = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="resume")
+        assert resumed["changed"] is True and resumed["paused"] is False
         # Its work stays pausable, and the owner's conversation with Gold names who did it.
         paused = await call(
             woke,
