@@ -32,7 +32,7 @@ import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, time
-from decimal import ROUND_CEILING, Decimal, InvalidOperation, localcontext
+from decimal import ROUND_CEILING, Decimal, localcontext
 from typing import Any, Protocol, cast
 from zoneinfo import ZoneInfo
 
@@ -48,12 +48,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .exposure import ENTRY_ACTIONS, direction
+from .realized import deal_pnl
 
 HISTORY_LIMIT = 1000
 ECONOMICS_TIMEOUT_SECONDS = 20
-# Deal types by their ``DEAL_TYPE_`` suffix (MetaTrader/MetaApi names).
-TRADE_DEALS = frozenset({"BUY", "SELL"})
-CASH_FLOW_DEALS = frozenset({"BALANCE", "CREDIT", "BONUS"})
 MODIFICATIONS = frozenset({"modify_position", "modify_order"})
 # Actions whose result is itself a trade with a stop: the per-trade ceiling applies.
 TRADE_LIMIT_ACTIONS = ENTRY_ACTIONS | MODIFICATIONS
@@ -298,27 +296,6 @@ async def read_economics(
     except Exception as error:
         raise LonoraError("risk_economics_unavailable", 409) from error
     return dict(zip(ordered, values, strict=True))
-
-
-def deal_pnl(deal: dict[str, Any]) -> Decimal:
-    """A deal's contribution to today's P&L; only trade deals may add a gain."""
-    kind = str(deal.get("type") or "").strip().upper().removeprefix("DEAL_TYPE_")
-    if kind in CASH_FLOW_DEALS:
-        return Decimal(0)  # Deposits, withdrawals and broker credit are not trading P&L.
-    total = Decimal(0)
-    for key in ("profit", "commission", "swap"):
-        raw = deal.get(key)
-        if raw is None or raw == "":
-            continue
-        try:
-            value = Decimal(str(raw))
-        except InvalidOperation as error:
-            raise LonoraError("risk_daily_history_invalid", 409) from error
-        if not value.is_finite():
-            raise LonoraError("risk_daily_history_invalid", 409)
-        total += value
-    # A non-trading adjustment counts against the limit, never for it.
-    return total if kind in TRADE_DEALS else min(total, Decimal(0))
 
 
 def trading_day_start(now: datetime, timezone: str) -> datetime:
