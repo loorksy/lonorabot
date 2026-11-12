@@ -8,9 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def _store_in_session(
+async def encrypt_in_session(
     session: AsyncSession, cipher: SecretCipher, owner_id: str, name: str, value: str, scope: str
 ) -> str:
+    """Upsert one encrypted value. The caller decides the scope: only the two stores call
+    it, and the general store never with ``broker``."""
     require_scope(name, scope)
     row = await session.scalar(
         select(SecretRow)
@@ -69,7 +71,7 @@ class EncryptedSecretStore:
         """Commit credentials with their resource; a rejected resource writes nothing."""
         if scope == BROKER:
             raise LonoraError("secret_scope_forbidden", 403)
-        return await _store_in_session(session, self.cipher, self.owner_id, name, value, scope)
+        return await encrypt_in_session(session, self.cipher, self.owner_id, name, value, scope)
 
     async def delete(self, secret_id: str) -> None:
         async with self.db.sessions() as session, session.begin():
