@@ -245,7 +245,7 @@ async def main() -> None:
             except LonoraError as failure:
                 assert failure.code == "broker_connection_timeout"
             assert len(h.created["rpc"]) == 1 and first.waits == attempt
-        assert h.broker.rpc is None and first._closed
+        assert h.broker.rpc is None and first.instances == set()  # closed and released
         h.broker._slot("rpc").retry_at = 0
         recovered = await h.broker.prepare()
         assert recovered and len(h.created["rpc"]) == 2

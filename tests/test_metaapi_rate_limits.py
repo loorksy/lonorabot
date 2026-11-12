@@ -33,9 +33,10 @@ def later(seconds: float) -> str:
 
 
 def too_many(seconds: float) -> Exception:
-    from metaapi_cloud_sdk.clients.error_handler import TooManyRequestsException
+    import importlib
 
-    return TooManyRequestsException(
+    module: Any = importlib.import_module("metaapi_cloud_sdk.clients.error_handler")
+    return module.TooManyRequestsException(
         "You have used all your account subscriptions quota.",
         {
             "periodInMinutes": 60,
