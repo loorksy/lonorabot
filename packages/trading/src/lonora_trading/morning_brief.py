@@ -260,6 +260,7 @@ async def brief_facts(
                 "lead": agent.role == "personal",
                 "paused": agent.paused,
                 "operations": work[agent.id][-limit:],
+                "operation_count": len(work[agent.id]),
             }
             for agent in agents
         ],
@@ -308,7 +309,7 @@ WAKE_TEXT = (
     "Write the owner's morning brief now, as your message in this conversation, in the "
     "owner's language. Cover, from the facts below only: the account change since the last "
     "brief, what each agent did and its result, open positions and pending approvals; the "
-    "*_count fields give the full numbers when a list is cut. Upcoming events are not in "
+    "count fields give the full numbers when a list is cut. Upcoming events are not in "
     "the facts: read them with your calendar tool when one is configured, else leave them "
     "out. When nothing_else_needs_you is true, say plainly that nothing else needs the "
     "owner. An operation was executed only when its state is confirmed; never "
@@ -408,6 +409,9 @@ def plain_brief(facts: dict[str, Any], locale: Locale) -> str:
             + _say(STATES, item["state"], locale)
             for item in agent["operations"]
         ]
+        if agent["operation_count"] > len(done):
+            more = agent["operation_count"] - len(done)
+            done.append("+" + str(more) + " " + _say(TEXT, "more", locale))
         status = " (" + _say(TEXT, "paused", locale) + ")" if agent["paused"] else ""
         lines.append(
             "• "

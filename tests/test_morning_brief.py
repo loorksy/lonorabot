@@ -302,7 +302,24 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
     facts: dict[str, Any] = {
         "local_date": "2026-11-12",
         "accounts": [{"account": "#1", "connection": "disconnected"}],
-        "agents": [{"agent": "Euro", "lead": False, "paused": False, "operations": []}],
+        "agents": [
+            {
+                "agent": "Euro",
+                "lead": False,
+                "paused": False,
+                "operations": [],
+                "operation_count": 0,
+            },
+            {
+                "agent": "Gold",
+                "lead": False,
+                "paused": False,
+                "operations": [
+                    {"action": "buy", "symbol": "XAUUSD", "volume": "0.1", "state": "confirmed"}
+                ],
+                "operation_count": 3,
+            },
+        ],
         "open_positions": [
             {
                 "account": "#1",
@@ -328,6 +345,7 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
     assert "• Euro: no operations" in text
     assert "• EURUSD buy 1 @ 1.1 · floating -3 · you" in text
     assert "• +2 more" in text
+    assert "• Gold: buy XAUUSD 0.1 — confirmed by the broker; +2 more" in text
     assert "operations of unknown outcome to settle: 1" in text
     assert "• EURUSD شراء 1 @ 1.1" in plain_brief(facts, "ar")
     assert "Nothing else needs you." not in text
