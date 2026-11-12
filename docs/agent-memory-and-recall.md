@@ -139,8 +139,9 @@ version, leaving `MEMORY.md` as it is. `skill_save` writes an instruction-only s
 `skill_history` and `skill_restore` list and restore its versions. A deleted skill keeps
 its versions (migration 0120): `skill_restore` with `expected_version` 0 brings it back
 under its own id, except a removed package, which returns only through its own import or
-create. The owner restores a method or a skill, deleted or not, from chat: the owner asks
-the agent (or Lonora) and the restore records the owner's typed message. The owner's skill
+create. The owner restores a method or a skill, deleted or not, from chat by asking the
+agent; a method restore records the owner's typed message (skill versions carry no
+message). The owner's skill
 routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
 
 **Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`
