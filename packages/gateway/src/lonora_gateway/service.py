@@ -62,6 +62,8 @@ STEPS = (
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
+    # The morning brief: once per local date for each owner (VISION 11.1).
+    StepSpec("morning_brief", 30, 120),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -260,6 +262,11 @@ class Gateway:
 
         await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
 
+    async def morning_brief(self) -> None:
+        from lonora_trading.morning_brief import brief_tick
+
+        await self.for_each_owner(lambda service: brief_tick(self.db, service.owner_id))
+
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -284,6 +291,7 @@ class Gateway:
             "attention": self.attention,
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
+            "morning_brief": self.morning_brief,
             "watchdog": self.watchdog.tick,
         }
 
