@@ -1,8 +1,9 @@
-// The canonical alert card end to end on web (GENUI_PLAN §10.5, S-A01 acceptance), from a
+// The canonical alert card end to end on web (docs/genui.md, S-A01 acceptance), from a
 // recorded stream replay of A01 through a real Run, a real card submission, the receipt,
-// reload and «تعديل»; Stop on a queued submission; and §10.4's gate on the A01 card inside
+// reload and «تعديل»; Stop on a queued submission; and the side-by-side gate on the A01 card inside
 // the real conversation pane against Desktop-37's own alert recipe.
 import { execFileSync, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
@@ -69,7 +70,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
   const fixture = await open(page, context);
   const forbidden = [];
   page.on("request", (request) => {
-    // No card control may decide an approval, an owner action or a restriction (§10.2).
+    // No card control may decide an approval, an owner action or a restriction (mandate 6.10).
     const path = new URL(request.url()).pathname;
     if (
       request.method() !== "GET" &&
@@ -133,7 +134,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     expect(body.content).toBe("");
     expect(body.ui_submit.values).toMatchObject({ symbol: "XAUUSD", dir: "above", price: 2400 });
     // The server's bubble, quoting the card; the card locks.
-    // With several accounts in the database the server appends « · <account>» (§8.3).
+    // With several accounts in the database the server appends « · <account>» (docs/genui.md §7).
     await expect(
       page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/),
     ).toBeVisible();
@@ -217,7 +218,7 @@ test("A01: «تعديل» on a queued send marks it «مُعدّلة» and colla
   }
 });
 
-// §10.4 inside the conversation pane: the A01 card as the owner sees it against the
+// The side-by-side gate inside the conversation pane: the A01 card as the owner sees it against the
 // reference's alert recipe opened in its own conversation («جرّب في محادثة»).
 const CLASSES = [
   ".ux",
@@ -274,7 +275,7 @@ const PROPS = [
   "text-align",
   "stroke-width",
 ];
-// Intended differences, each with its reason (GENUI_PLAN §10.4 allow-list).
+// Intended differences, each with its reason (docs/genui.md allow-list).
 const ALLOWED = {
   // The delivery row shows only the real channels, read-only (Q39, Q59): one row where the
   // reference shows three, so the row, the body and the card are 84 px shorter.
@@ -395,3 +396,71 @@ for (const theme of ["dark", "light"]) {
     });
   }
 }
+
+/** The catalog generated from the server contract (packages/contracts/src/genui-catalog.ts). */
+function catalog(name) {
+  const source = readFileSync(`${ROOT}packages/contracts/src/genui-catalog.ts`, "utf8");
+  const list = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source)?.[1] ?? "";
+  return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
+test("Parity: the web card draws every node the server accepts and runs every action", async ({
+  page,
+  context,
+}) => {
+  const fixture = await open(page, context);
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    python("stream", { ...fixture.input, delay: 0 });
+    python("parity", fixture.input);
+    const ux = page.locator(".ux").filter({ hasText: "حاسبة حجم الصفقة" }).first();
+    await expect(ux).toBeVisible();
+    await expect(card(page)).toBeVisible();
+    await ux.getByRole("button", { name: "المزيد" }).click();
+    // «2%» (a set action) shows the Note its `when` hides at 1%.
+    await ux.getByRole("button", { name: "2%", exact: true }).click();
+    const drawn = await page
+      .locator(".ux [data-ux-type]:not([data-ux-off])")
+      .evaluateAll((nodes) => [...new Set(nodes.map((node) => node.dataset.uxType))].sort());
+    expect(drawn).toEqual([...catalog("UI_NODE_TYPES"), ...catalog("UI_SERVER_NODE_TYPES")].sort());
+    // Local actions and inputs, computed on the client from the server's expressions.
+    const slider = ux.getByRole("slider", { name: "المخاطرة %" });
+    await slider.fill("3");
+    await expect(ux.locator("output")).toHaveText("3%");
+    await expect(ux.getByText("مخاطرة مرتفعة")).toBeVisible();
+    await expect(ux.locator(".ux-sub.tr-up")).toBeVisible();
+    await ux.getByRole("button", { name: "2%", exact: true }).click();
+    await expect(ux.locator("output")).toHaveText("2%");
+    await expect(ux.locator(".ux-sub.tr-up")).toHaveCount(0);
+    await ux.getByRole("button", { name: "التفاصيل" }).click();
+    await expect(ux.getByText("تفاصيل إضافية")).toBeVisible();
+    await ux.getByLabel("الرافعة").selectOption({ label: "1:500" });
+    await expect(ux.getByLabel("الرافعة")).toHaveValue("3");
+    await ux.getByRole("button", { name: "إعادة" }).click();
+    await expect(ux.locator("output")).toHaveText("1%");
+    await expect(ux.getByText("تفاصيل إضافية")).toBeHidden();
+    await ux.getByRole("button", { name: "نسخ" }).click();
+    await expect(ux.getByText("تم النسخ")).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("0.50 لوت");
+    // `open` opens the server-checked literal URL with noopener (no network in the test).
+    await context.route("https://example.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<p>ok</p>" }),
+    );
+    const [popup] = await Promise.all([
+      page.waitForEvent("popup"),
+      ux.getByRole("button", { name: "المصدر" }).click(),
+    ]);
+    await popup.waitForURL("https://example.com/position-size");
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+    // The send goes through ui_submit and the server writes the owner's bubble. It is the
+    // `ask` intent (a Button with no action), which never locks its card.
+    await ux.getByRole("button", { name: "اشرح الحساب" }).click();
+    await expect(page.getByText("اشرح الحساب", { exact: true })).toHaveCount(2);
+    await expect(ux.locator(".ux-sent")).toHaveCount(0);
+    await ux.getByRole("button", { name: "السوق" }).click();
+    await expect(page).toHaveURL(/\/app\/market/);
+  } finally {
+    await fixture.cleanup();
+  }
+});

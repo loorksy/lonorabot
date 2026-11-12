@@ -1,4 +1,4 @@
-"""Browser acceptance fixture for the canonical alert card (GENUI_PLAN §10.5): real Runs,
+"""Browser acceptance fixture for the canonical alert card (docs/genui.md): real Runs,
 a scripted model, the simulation broker quoting the screenshot's prices.
 
 ``setup``   an agent, its conversation and a simulation account (XAUUSD 2368.40, XAGUSD
@@ -8,6 +8,12 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             chunks, as a model would (lead first, then one card line at a time).
 ``receipt`` the card submission's queued Run: watch_create on the card's account, then the
             receipt card, interface only.
+``parity``  the parity calculator (tests/test_genui_parity.py): every catalog node and every
+            local, copy, open and go action, streamed through the real compiler, so each
+            client's journey checks that it draws every node type the server accepts.
+``card``    the same for a card the journey writes (``owner``, ``lead``, ``document``).
+``pad``     ``count`` plain assistant messages at the end of the thread, so an earlier
+            message falls outside the newest history page.
 """
 
 import asyncio
@@ -27,6 +33,8 @@ from lonora_contracts.model_routing import ModelSelection
 from lonora_tools.loader import load_tools
 
 A01 = (Path(__file__).parent / "fixtures/genui/documents/valid/a01-alert.lonora-ui").read_text()
+PARITY = (Path(__file__).parent / "fixtures/genui/documents/valid/parity.lonora-ui").read_text()
+PARITY_OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 LEAD = "جهّزت التنبيه من رسالتك؛ راجع الشرط ثم أنشئه.\n"
 QUOTES = {"XAUUSD": "2368.40", "XAGUSD": "28.92", "EURUSD": "1.0842"}
 SELECTION = ModelSelection(provider="openai", model="scripted-genui-browser")
@@ -78,7 +86,7 @@ async def setup(_: dict[str, Any]) -> dict[str, Any]:
             },
         )
         # A verified broker identity, as a real connection has after its first read: with
-        # several accounts the server names this one in the alert's bubble (§8.3).
+        # several accounts the server names this one in the alert's bubble (docs/genui.md §7).
         from lonora_db.schema import BrokerSessionRow
 
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -212,8 +220,69 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def parity(data: dict[str, Any]) -> dict[str, Any]:
+    lead = "جهّزت لك حاسبة الحجم.\n"
+    return await card({**data, "owner": PARITY_OWNER, "lead": lead, "document": PARITY})
+
+
+async def card(data: dict[str, Any]) -> dict[str, Any]:
+    fixture = await Fixture().open()
+    try:
+        sent = await fixture.request(
+            "POST", f"/threads/{data['thread_id']}/messages", {"content": data["owner"]}
+        )
+        run = sent["runs"][0]
+        context = await fixture.lease(run)
+        reply = data["lead"] + "```lonora-ui\n" + data["document"].rstrip("\n") + "\n```"
+
+        async def complete(*args: Any, **kwargs: Any):
+            on_delta = kwargs.get("on_delta")
+            if on_delta is not None:
+                for line in reply.split("\n"):
+                    await on_delta(line + "\n")
+            return ModelReply(text=reply), SELECTION
+
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, load_tools(), 120, 6)
+        return {"run": await fixture.request("GET", "/runs/" + run["id"])}
+    finally:
+        await fixture.close(cleanup=False)
+
+
+async def pad(data: dict[str, Any]) -> dict[str, Any]:
+    from lonora_db.schema import MessageRow, ThreadRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread = await session.get(ThreadRow, data["thread_id"], with_for_update=True)
+            assert thread is not None
+            for index in range(data["count"]):
+                session.add(
+                    MessageRow(
+                        thread_id=thread.id,
+                        agent_id=data["agent_id"],
+                        seq=thread.next_seq,
+                        role="assistant",
+                        content=f"رسالة {index + 1}",
+                    )
+                )
+                thread.next_seq += 1
+            next_seq = thread.next_seq
+        return {"next_seq": next_seq}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
-    action = {"setup": setup, "stream": stream, "receipt": receipt}[command]
+    action = {
+        "setup": setup,
+        "stream": stream,
+        "receipt": receipt,
+        "parity": parity,
+        "card": card,
+        "pad": pad,
+    }[command]
     print(json.dumps(asyncio.run(action(payload))))

@@ -79,7 +79,7 @@ def test_resources_validate_and_policies_independent() -> None:
     assert "Emergency Stop" not in "\n".join(load_constitution())
     assert "Super Bot" not in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
-    assert len(built_in_skills()) == 8
+    assert len(built_in_skills()) == 7
 
 
 def test_explicit_and_trigger_modes() -> None:

@@ -103,6 +103,12 @@ export {
 export { display as genuiDisplay, environment, evaluate, renderTemplate } from "./genui/expr";
 export { DASH as GENUI_DASH } from "./genui/functions";
 export { parseCardNumber } from "./genui/input";
+export {
+  type CardInline,
+  type CardMarkdownBlock,
+  cardInline,
+  cardMarkdown,
+} from "./genui/markdown";
 export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {

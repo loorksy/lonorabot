@@ -1,4 +1,4 @@
-"""lonora-ui v2 documents (GENUI_PLAN §2.2, §7.1, §9.1).
+"""lonora-ui v2 documents (docs/genui.md).
 
 The model writes one card per reply inside the ``lonora-ui`` fence, one JSON object per
 line: a head line (``{"v":2,…}``), an optional data line (facts, state, calc), one line per
@@ -10,7 +10,7 @@ card's account, the delivery row and the budget are the compiler's
 (``lonora_agent.genui_compile``).
 
 Node props are checked by a table rather than one pydantic model per node, so a bad
-optional prop can be dropped without losing the block (the repair rules of §9.4). The
+optional prop can be dropped without losing the block (the repair rules of docs/genui.md §4). The
 stored, compiled document is re-validated by ``UiDocument`` on every write.
 """
 
@@ -313,10 +313,11 @@ NODES: dict[str, Spec] = {
 CONTAINERS = frozenset({"Row", "Col", "Grid", "Card", "More"})
 INPUTS = frozenset({"Segmented", "Select", "Number", "Slider"})
 ICON_PROPS = frozenset({"icon"})
-# The S-A01 slice renders these on web; the rest of R1's nodes follow in the widening.
-SLICE_NODES = frozenset(
-    {"Segmented", "Number", "Text", "Note", "Button", "Row", "KeyValue", "More", "Divider"}
-)
+# Rows only the compiler writes (the read-only delivery row); never taught to the model.
+SERVER_NODES = ("Delivery",)
+# NODES, SERVER_NODES and ACTIONS are the one v2 component set (mandate 10.1.5): the model
+# is taught it (``lonora_agent.genui_vocabulary``), and the clients type against the
+# catalog generated from it (``scripts/export_genui_catalog.py``).
 
 
 def repair_node(
@@ -425,10 +426,6 @@ class ParsedCard:
     diagnostics: Diagnostics = field(default_factory=Diagnostics)
 
 
-def is_v2_start(first_line: str) -> bool:
-    return re.match(r'^\s*\{\s*"v"\s*:\s*2\s*[,}]', first_line) is not None
-
-
 def _head(raw: Any, diagnostics: Diagnostics) -> dict[str, Any]:
     if not isinstance(raw, dict) or cast(dict[str, Any], raw).get("v") != 2:
         raise CardError("card_fallback")
@@ -444,8 +441,10 @@ def _head(raw: Any, diagnostics: Diagnostics) -> dict[str, Any]:
     head["icon"] = canonical_icon(raw.get("icon")) or "sparkle"
     if raw.get("icon") is not None and canonical_icon(raw.get("icon")) is None:
         diagnostics.add("icon_unknown", None, "head")
-    if raw.get("mode") in {"observed", "example", "estimate"}:
-        head["mode"] = raw["mode"]
+    mode = raw.get("mode")
+    # Only a string is looked up: a list or object never reaches a hash (it is dropped).
+    if isinstance(mode, str) and mode in {"observed", "example", "estimate"}:
+        head["mode"] = mode
     elif "mode" in raw:
         diagnostics.add("prop_dropped", None, "head", "mode")
     currency = raw.get("currency")

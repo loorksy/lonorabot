@@ -125,7 +125,7 @@ def arm(fake: broker.FakeTerminal, scenario: dict[str, Any], *, probe: bool = Fa
 async def seed(api: Any, model: str) -> dict[str, str]:
     """The template database: the owner, his model, the demo account and a signed full mandate.
 
-    ``api`` is genui_eval's in-process ``Api`` on a migrated disposable database, called
+    ``api`` is runner.py's in-process ``Api`` on a migrated disposable database, called
     inside ``broker.installed`` with LONORA_UI_TEST_PASSWORD set to the owner's password
     (the scripted authenticator enrolls with it).
     """

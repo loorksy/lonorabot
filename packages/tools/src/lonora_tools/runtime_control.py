@@ -163,7 +163,7 @@ async def ticket_create(context: ToolContext, args: dict[str, Any]) -> dict[str,
             agent_id=context.agent_id,
             resource_id=context.resource_id,
         )
-        # A ticket tainted work wrote starts tainted, whoever starts it (GENUI_PLAN §8.5).
+        # A ticket tainted work wrote starts tainted, whoever starts it (docs/genui.md).
         await taint_row_from(session, run, "ticket", row.id)
         return resource_data(row)
 

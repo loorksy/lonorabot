@@ -125,9 +125,9 @@ def test_every_request_keeps_mandatory_rules_before_owner_content():
     assert result[0].content.startswith(CORE_MARKER)
     assert len(original) == 2 and original[0].content == "Legacy Agent instructions"
     assert "4000" not in mandatory_policy()  # No requested manual line-count instruction.
-    from lonora_agent.skills.visual_policy import MAX_VISUAL_GUIDANCE_CHARS
+    from lonora_agent.skills.visual_policy import MAX_GENUI_GUIDANCE_CHARS
 
-    assert sum(message_size(item) for item in result) < 17000 + MAX_VISUAL_GUIDANCE_CHARS
+    assert sum(message_size(item) for item in result) < 17000 + MAX_GENUI_GUIDANCE_CHARS
 
 
 def test_guidance_follows_actual_calls_not_keywords_and_keeps_tool_exchanges():
