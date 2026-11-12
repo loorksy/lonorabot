@@ -272,6 +272,23 @@ async def brief_facts(
             OwnerActionRow.kind.not_in(("resolve_operation", "trading_mode")),
         ),
     )
+    # Never waiting, but news once: a Mandate card an agent proposed since the last brief
+    # reached the owner (11.4). Named by the agent it switches.
+    new_mandate_cards = [
+        names[agent_id]
+        for payload in await session.scalars(
+            select(OwnerActionRow.payload)
+            .where(
+                OwnerActionRow.owner_id == owner_id,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.source == "agent",
+                OwnerActionRow.status == "pending",
+                OwnerActionRow.created_at > since,
+            )
+            .order_by(OwnerActionRow.created_at)
+        )
+        if (agent_id := str(payload.get("agent_id"))) in names
+    ]
     questions = await _count(
         session,
         select(RunRow.id)
@@ -310,6 +327,7 @@ async def brief_facts(
         "unsettled_operations": unsettled,
         "weekly_reports": (await weekly_reports(session, record, limit))[0],
         "pending_owner_cards": owner_cards,
+        "new_mandate_cards": new_mandate_cards[:limit],
         "questions_waiting": questions,
         "attention_items": attention,
         "nothing_else_needs_you": not any(
@@ -477,7 +495,9 @@ WAKE_TEXT = (
     "owner's language. Cover, from the facts below only: the account change since the last "
     "brief, what each agent did and its result, open positions, pending approvals, and "
     "what else waits for the owner (unsettled operations, other owner cards, questions, "
-    "unseen alerts); the count fields give the full numbers when a list is cut. Upcoming events are not in "
+    "unseen alerts), and name each agent in new_mandate_cards, whose Mandate card an agent "
+    "proposed since the last brief: news only, never something that waits; the count fields "
+    "give the full numbers when a list is cut. Upcoming events are not in "
     "the facts: read them with your calendar tool when one is configured, else leave them "
     "out. When nothing_else_needs_you is true, say plainly that nothing else needs the "
     "owner. An operation was executed only when its state is confirmed; never "
@@ -554,6 +574,7 @@ TEXT: dict[str, tuple[str, str]] = {
     "owner": ("أنت", "you"),
     "profit": ("الربح العائم", "floating"),
     "nothing_else": ("لا شيء آخر يحتاجك.", "Nothing else needs you."),
+    "new_mandate_cards": ("بطاقة تفويض جديدة", "New Mandate card"),
     "more": ("وغيرها", "more"),
     "weekly": ("تقارير الأسبوع", "Weekly reports"),
 }
@@ -680,6 +701,14 @@ def plain_brief(facts: dict[str, Any], locale: Locale) -> str:
     if waiting:
         lines.append("")
         lines.extend(waiting)
+    # A brief pending before this field existed has none.
+    if mandates := facts.get("new_mandate_cards"):
+        lines.append("")
+        lines.append(
+            _say(TEXT, "new_mandate_cards", locale)
+            + ": "
+            + ("، ".join(mandates) if locale == "ar" else ", ".join(mandates))
+        )
     if facts["nothing_else_needs_you"]:
         lines.append("")
         lines.append(_say(TEXT, "nothing_else", locale))
