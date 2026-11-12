@@ -1,11 +1,9 @@
 {
   "version": 2,
-  "manual_sha256": "495db48c4802ea603608e6042951ecb2b45fa4122be4a2f361eed27cb388427b",
+  "manual_sha256": "f332fbdf699dbd1a20174dfdc0885876af6a4b9b82d64687651241eb4b9be674",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
-    "MEMORY.md": "740ebb142ee500336aa2169349f30b2ebf0fe3cee90bc281e2d8fa899877f361",
-    "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608",
-    "USER.md": "4fe9b27c7f991069bc76522f2af4bfba9c56fa9fee456e3e82c96e0423785d4f"
+    "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
   },
   "tool_policies": {
     "list_agents": "collaboration",
