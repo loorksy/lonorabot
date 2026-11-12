@@ -100,9 +100,10 @@ table inet {TABLE} {{
     type filter hook output priority 0; policy accept;
     oifname "lo" ip daddr {DOCKER_RESOLVER} meta skuid != 0 reject
     oifname "lo" accept
+    ct status dnat ip daddr 127.0.0.1 tcp dport {RELAY_PORT} accept
     meta l4proto {{ tcp, udp }} th dport {{ 53, 853 }} reject
     meta skuid != 0 udp dport 443 reject
-    meta skuid != 0 meta nfproto ipv6 meta l4proto tcp reject with tcp reset
+    meta skuid != 0 ip6 nexthdr tcp reject with tcp reset
     meta l4proto tcp ip daddr @blocked4 reject with tcp reset
     ip daddr @blocked4 reject with icmpx type admin-prohibited
     meta l4proto tcp ip6 daddr @blocked6 reject with tcp reset

@@ -309,7 +309,11 @@ def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():
     assert relayed.index("ip daddr @blocked4 return") < relayed.index("redirect to :15001")
     assert "meta skuid != 0 ip daddr != 127.0.0.0/8 meta l4proto tcp redirect" in relayed
     assert "meta skuid != 0 udp dport 443 reject" in text
-    assert "meta skuid != 0 meta nfproto ipv6 meta l4proto tcp reject" in text
+    # The redirected packet still leaves by eth0 in this hook: let it reach the relay.
+    assert text.index("ct status dnat ip daddr 127.0.0.1 tcp dport 15001 accept") < text.index(
+        "ip daddr @blocked4 reject"
+    )
+    assert "meta skuid != 0 ip6 nexthdr tcp reject" in text
 
 
 def test_an_invalid_request_never_echoes_its_input(tmp_path: Path):
