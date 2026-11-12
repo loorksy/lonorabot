@@ -655,6 +655,9 @@ class FakeAccountEntity:
 
     async def remove(self) -> None:
         self.api.called("remove")
+        if self.api.remove_fails > 0:
+            self.api.remove_fails -= 1
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
         self.api.stored(self._data["_id"])
         del self.api.accounts[self._data["_id"]]
 
@@ -682,6 +685,8 @@ class FakeProvisioningApi:
     # The create succeeds, then the SDK's read of the new account fails once (429).
     lose_read_after_create: bool = False
     unreadable: set[str] = field(default_factory=set[str])
+    # The next removals fail (429), as when MetaApi is busy.
+    remove_fails: int = 0
     transactions: list[str] = field(default_factory=list[str])
     by_transaction: dict[str, str] = field(default_factory=dict[str, str])
     sequence: int = 0

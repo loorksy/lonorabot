@@ -31,7 +31,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository, broker_identity_key
 from lonora_db.client import Database
 from lonora_db.owner_actions import continue_after_card
-from lonora_db.schema import OwnerActionRow
+from lonora_db.schema import BrokerSessionRow, OwnerActionRow
 from lonora_db.secrets import BROKER, METAAPI_TOKEN, metaapi_password_name, secret_in_use
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +58,9 @@ READ_DEADLINE = timedelta(minutes=5)
 # A deployed terminal the broker keeps refusing (DISCONNECTED_FROM_BROKER): a wrong
 # password or server, reported after this long rather than at the full deadline.
 LOGIN_DEADLINE = timedelta(minutes=3)
+# A MetaApi account Lonora created for a card that failed, whose removal failed too, is
+# removed again at most this often until it is gone (it bills while it exists).
+CLEANUP_RETRY = timedelta(minutes=5)
 PLATFORM = re.compile(r"mt\s*-?\s*([45])", re.IGNORECASE)
 
 
@@ -88,6 +91,25 @@ async def maintain_broker_provisioning(
             )
             if row.payload.get("destination") == BROKER and row.result.get("provisioning") in ACTIVE
         ]
+        leftovers = [
+            row.id
+            for row in await session.scalars(
+                select(OwnerActionRow)
+                .where(OwnerActionRow.owner_id == owner_id, OwnerActionRow.kind == "secret")
+                .order_by(OwnerActionRow.created_at, OwnerActionRow.id)
+            )
+            if row.result.get("metaapi_cleanup") == "pending"
+            and _late(str(row.result.get("cleanup_at")), CLEANUP_RETRY)
+        ]
+    for card_id in leftovers:
+        try:
+            await retry_cleanup(db, secrets, owner_id, card_id)
+        except Exception as error:
+            log.warning(
+                "broker_provisioning_cleanup_pass_failed card=%s type=%s",
+                card_id,
+                type(error).__name__,
+            )
     for card_id in cards:
         try:
             await advance(db, brokers, secrets, owner_id, card_id)
@@ -223,17 +245,88 @@ class Failing:
                 kept = token is not None and await secret_in_use(session, self.owner_id, token)
                 row = await _card(session, self.owner_id, self.card_id)
                 row.result = {**row.result, "token_kept": kept}
-        if created and account_id and provisioning is not None:
+        if created and account_id:
             try:
+                if provisioning is None:
+                    raise LonoraError("broker_secret_required", 409)
                 await provisioning.remove(str(account_id))
-            except LonoraError:
-                log.warning("broker_provisioning_cleanup_failed card=%s", self.card_id)
+            except LonoraError as failure:
+                log.warning(
+                    "broker_provisioning_cleanup_failed card=%s code=%s", self.card_id, failure.code
+                )
+                # Retried by the gateway (retry_cleanup) until MetaApi no longer has it.
+                async with self.db.sessions() as session, session.begin():
+                    row = await _card(session, self.owner_id, self.card_id)
+                    row.result = {
+                        **row.result,
+                        "metaapi_cleanup": "pending",
+                        "cleanup_at": utcnow().isoformat(),
+                    }
         await _forget(
             self.secrets,
             code,
             await self.secrets.named(metaapi_password_name(self.card_id)),
             await self.secrets.named(METAAPI_TOKEN),
         )
+
+
+async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, card_id: str) -> None:
+    """Removes a MetaApi account Lonora created for a card that failed, after the first
+    removal failed. Under the provisioning lock, so it never races a connect: an account
+    a connection or another card has taken since (a connect of the same login and server
+    finds and reuses it) is the owner's now and is kept."""
+    token_id = await secrets.named(METAAPI_TOKEN)
+    if token_id is None:
+        return  # MetaApi cannot be reached without a token; retried once one is saved.
+    provisioning = provisioning_client(await secrets.read(token_id))
+    try:
+        async with provisioning_locked(db, owner_id):
+            async with db.sessions() as session, session.begin():
+                row = await _card(session, owner_id, card_id)
+                if row.result.get("metaapi_cleanup") != "pending":
+                    return
+                account_id = str(row.result["metaapi_account_id"])
+                if await _metaapi_account_taken(session, owner_id, card_id, account_id):
+                    row.result = {**row.result, "metaapi_cleanup": "kept"}
+                    return
+                row.result = {**row.result, "cleanup_at": utcnow().isoformat()}
+            outcome = "removed"
+            try:
+                await provisioning.remove(account_id)
+            except LonoraError as failure:
+                if failure.code != "broker_account_not_found":
+                    log.warning(
+                        "broker_provisioning_cleanup_failed card=%s code=%s", card_id, failure.code
+                    )
+                    return
+                outcome = "not_found"
+            async with db.sessions() as session, session.begin():
+                row = await _card(session, owner_id, card_id)
+                row.result = {**row.result, "metaapi_cleanup": outcome}
+    finally:
+        await provisioning.close()
+
+
+async def _metaapi_account_taken(
+    session: AsyncSession, owner_id: str, card_id: str, account_id: str
+) -> bool:
+    for connection in await session.scalars(
+        select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
+    ):
+        if connection.payload.get("account_id") == account_id:
+            return True
+    for card in await session.scalars(
+        select(OwnerActionRow).where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.kind == "secret",
+            OwnerActionRow.id != card_id,
+        )
+    ):
+        if card.result.get("metaapi_account_id") == account_id and card.result.get(
+            "provisioning"
+        ) in {*ACTIVE, "connected"}:
+            return True
+    return False
 
 
 async def _provision(
