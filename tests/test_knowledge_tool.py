@@ -110,3 +110,45 @@ async def test_only_lonora_manages_another_agents_notes(task_db: Fixture) -> Non
         context(task_db, lonora), {"agent_id": uuid4().hex}
     )
     assert unknown == {"ok": False, "code": "agent_not_found"}
+
+
+@pytest.mark.asyncio
+async def test_a_peers_note_survives_and_every_write_and_removal_is_attributed(
+    task_db: Fixture,
+) -> None:
+    from lonora_db.schema import EventRow
+
+    db, owner, own, _ = task_db
+    tools = load_tools().tools
+    lonora = await agent(db, owner, "Lonora", role="personal")
+    peer = await agent(db, owner, "Peer")
+    note = await tools["knowledge_note_add"].handler(
+        context(task_db, peer), {"content": "The peer's own rule"}
+    )
+    # A team agent can neither delete nor replace a peer's note; the note survives.
+    assert await tools["knowledge_note_delete"].handler(
+        context(task_db, own), {"note_id": note["id"], "agent_id": peer}
+    ) == {"ok": False, "code": "knowledge_note_agent_not_allowed"}
+    assert await tools["knowledge_note_delete"].handler(
+        context(task_db, own), {"note_id": note["id"]}
+    ) == {"ok": False, "code": "knowledge_note_not_found"}
+    replaced = await tools["knowledge_note_add"].handler(
+        context(task_db, own), {"content": "Hijacked", "replaces": note["id"]}
+    )
+    assert replaced == {"ok": False, "code": "knowledge_note_not_found"}
+    async with db.sessions() as session:
+        rows = list(await session.scalars(select(SemanticMemoryRow)))
+    assert [row.payload["text"] for row in rows] == ["The peer's own rule"]
+    assert rows[0].payload["written_by"] == {"agent_id": peer}
+    # Lonora removes it, and the removal leaves its trace.
+    assert await tools["knowledge_note_delete"].handler(
+        context(task_db, lonora), {"note_id": note["id"], "agent_id": peer}
+    ) == {"ok": True, "deleted": True}
+    async with db.sessions() as session:
+        events = list(
+            await session.scalars(select(EventRow).where(EventRow.kind.like("knowledge_notes.%")))
+        )
+    deleted = [event for event in events if event.kind == "knowledge_notes.deleted"]
+    assert len(deleted) == 1 and deleted[0].agent_id == peer
+    assert deleted[0].payload["text"] == "The peer's own rule"
+    assert deleted[0].payload["written_by"] == {"agent_id": lonora}

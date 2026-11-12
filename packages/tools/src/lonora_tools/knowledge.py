@@ -9,6 +9,7 @@ from typing import Any
 
 from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError
+from lonora_db.events import emit
 from lonora_db.knowledge import knowledge_items
 from lonora_db.schema import AgentRow, SemanticMemoryRow
 from lonora_db.transactions import owned_agent
@@ -55,6 +56,12 @@ def refused(error: LonoraError) -> dict[str, Any]:
     return {"ok": False, "code": error.code}
 
 
+def author(context: ToolContext) -> dict[str, str]:
+    """Recorded on the note and its event: which agent and run wrote or removed it."""
+    lease = context.lease
+    return {"agent_id": context.agent_id, **({"run_id": lease.run_id} if lease else {})}
+
+
 async def add(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = NoteAdd.model_validate(args)
     try:
@@ -67,6 +74,7 @@ async def add(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             params.content,
             params.title,
             replaces=params.replaces,
+            written_by=author(context),
         )
     except LonoraError as error:
         return refused(error)
@@ -93,6 +101,18 @@ async def delete(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             if row is None or row.owner_id != context.owner_id or row.agent_id != agent_id:
                 raise LonoraError("knowledge_note_not_found", 404)
             await session.delete(row)
+            # A removal leaves a trace: the note, its last text and who removed it.
+            emit(
+                session,
+                context.owner_id,
+                "knowledge_notes.deleted",
+                agent_id=agent_id,
+                payload={
+                    "id": params.note_id,
+                    "text": str(row.payload.get("text", ""))[:8000],
+                    "written_by": author(context),
+                },
+            )
     except LonoraError as error:
         return refused(error)
     return {"ok": True, "deleted": True}
@@ -107,6 +127,8 @@ def tools() -> list[Tool]:
             "Saving the same text again changes nothing; replaces edits an existing note.",
             NoteAdd,
             add,
+            search_terms="knowledge note save remember add معرفة المعرفة ملاحظة ملاحظات احفظ احفظها "
+            "تذكر أضف معلومة",
         ),
         Tool(
             "knowledge_note_list",
@@ -114,11 +136,13 @@ def tools() -> list[Tool]:
             NoteList,
             listing,
             True,
+            search_terms="knowledge notes list show معرفة المعرفة ملاحظات اعرض قائمة",
         ),
         Tool(
             "knowledge_note_delete",
             "Remove one knowledge note by id when the owner asks.",
             NoteDelete,
             delete,
+            search_terms="knowledge note delete remove forget معرفة ملاحظة احذف امسح انس أزل",
         ),
     ]
