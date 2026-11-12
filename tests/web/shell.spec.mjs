@@ -319,13 +319,14 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect(page).toHaveURL(/\/app\/settings$/);
       await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(120);
       // The chat list rests past its filters, and stays so after a round trip or a chat.
+      // While the list loads it is a skeleton without filters: the poll waits for them.
       const filters = () =>
         main.evaluate((element) => ({
           top: element.scrollTop,
-          rest: element.querySelector(".list-filters").offsetHeight,
-          opacity: element.querySelector(".list-filters").style.opacity,
+          rest: element.querySelector(".list-filters")?.offsetHeight,
+          opacity: element.querySelector(".list-filters")?.style.opacity,
           // The room to rest that way is the same on every visit.
-          room: element.querySelector("#chat-rows").style.minHeight,
+          room: element.querySelector("#chat-rows")?.style.minHeight,
         }));
       await nav.locator('button[data-root="chats"]').click();
       await expect(page).toHaveURL(/\/app$/);
