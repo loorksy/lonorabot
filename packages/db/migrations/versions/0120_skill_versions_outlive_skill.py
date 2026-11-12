@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0120_skill_versions_outlive_skill"
-down_revision = "0085_opportunity_pending_operations"
+down_revision = "0170_broker_health_attention"
 branch_labels = None
 depends_on = None
 
