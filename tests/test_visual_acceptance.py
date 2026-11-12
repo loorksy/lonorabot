@@ -2,11 +2,13 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
+from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
@@ -129,11 +131,13 @@ async def test_acceptance_records_real_runtime_publication_and_cleans_identity(
             await connection.execute(text("PRAGMA foreign_keys=ON"))
     router = ScriptedAcceptanceRouter(journey)
     evidence = tmp_path / "evidence"
+    # The real store: workspace output is scanned for the owner's workspace secrets.
+    secrets = EncryptedSecretStore(db, os.environ["LONORA_ENCRYPTION_KEY"], owner)
     summary = await acceptance.run_journey(
         db,
         owner,
         cast(Any, router),
-        None,
+        secrets,
         acceptance.AcceptanceRegistry(),
         tmp_path,
         journey,
