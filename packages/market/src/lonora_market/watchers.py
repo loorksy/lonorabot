@@ -370,6 +370,21 @@ async def observe_stream_indicator(
     )
 
 
+def resumes_task(task_run: RunRow, watch_id: str) -> bool:
+    """Whether a confirmation resumes its Task now: ``resume_ready_waits`` wakes only a
+    Task run waiting on this very watch; otherwise the Task is not told (11.5)."""
+    environment: object = task_run.execution_state.get("environment")
+    wait: object = (
+        cast(dict[str, Any], environment).get("wait") if isinstance(environment, dict) else None
+    )
+    return (
+        task_run.status == "waiting_takeover"
+        and isinstance(wait, dict)
+        and cast(dict[str, Any], wait).get("kind") == "watch"
+        and cast(dict[str, Any], wait).get("source_id") == watch_id
+    )
+
+
 async def check_watches(
     db: Database,
     brokers: BrokerManager,
@@ -685,7 +700,15 @@ async def check_watch(
                         },
                     )
                 )
-                woken = task_run_id or (run.id if run else None)
+                woken = (
+                    (
+                        task_run_id
+                        if task_run is not None and resumes_task(task_run, row.id)
+                        else None
+                    )
+                    if task_run_id
+                    else (run.id if run else None)
+                )
                 state["last_triggered"] = now.isoformat()
                 if config.kind == "calendar":
                     state["seen_events"] = (

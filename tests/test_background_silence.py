@@ -1404,3 +1404,22 @@ async def test_a_failed_helper_of_work_the_owner_spoke_to_is_still_reported():
         assert follow_up.prompt == "Use the returned peer outcome to complete the owner's request."
     finally:
         await fixture.close()
+
+
+def test_a_task_owned_confirmation_is_a_wake_only_for_a_task_waiting_on_it():
+    from lonora_db.schema import RunRow
+    from lonora_market.watchers import resumes_task
+
+    def task_run(status: str, wait: dict[str, Any] | None) -> RunRow:
+        return RunRow(status=status, execution_state={"environment": {"wait": wait}})
+
+    waiting = {"kind": "watch", "source_id": "w2"}
+    assert resumes_task(task_run("waiting_takeover", waiting), "w2")
+    # Waiting on another watch, on a timer, or not waiting at all: nothing resumes, so the
+    # confirmation stays the owner's item.
+    assert not resumes_task(
+        task_run("waiting_takeover", {"kind": "watch", "source_id": "w1"}), "w2"
+    )
+    assert not resumes_task(task_run("waiting_takeover", {"kind": "timer", "due_at": "x"}), "w2")
+    assert not resumes_task(task_run("running", waiting), "w2")
+    assert not resumes_task(task_run("waiting_input", None), "w2")
