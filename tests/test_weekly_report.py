@@ -3,6 +3,7 @@ report in its own conversation, and the reports in the first morning brief after
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from lonora_agent.context.routine import wake_context
@@ -29,7 +30,7 @@ Fixture = tuple[Database, str, str, str]
 CLOSE = datetime(2026, 11, 13, 22, tzinfo=UTC)
 
 
-def facts_of(prompt: str, tag: str) -> dict[str, object]:
+def facts_of(prompt: str, tag: str) -> dict[str, Any]:
     return json.loads(prompt.split("<" + tag + ">\n", 1)[1].rsplit("\n</" + tag + ">", 1)[0])
 
 
@@ -97,10 +98,7 @@ async def test_each_agent_is_woken_once_per_week_in_its_own_conversation(task_db
     assert await weekly_tick(db, owner, now=CLOSE + timedelta(days=2)) is None
     woken = await runs(db, TRIGGER)
     async with db.sessions() as session:
-        names = {
-            (await session.get(AgentRow, run.agent_id)).name: run  # type: ignore[union-attr]
-            for run in woken
-        }
+        names = {(await session.get(AgentRow, run.agent_id)).name: run for run in woken}
         assert sorted(names) == sorted(["Lonora", "Gold", "Task fixture"])
         for run in woken:
             thread = await session.get(ThreadRow, run.thread_id)
@@ -150,8 +148,7 @@ async def test_the_first_brief_after_the_close_carries_the_reports_once(task_db:
     (brief,) = await runs(db, BRIEF_TRIGGER)
     assert "summarize the agents' weekly reports" in brief.prompt
     reports = {
-        item["agent"]: item
-        for item in facts_of(brief.prompt, "brief_facts")["weekly_reports"]  # type: ignore[union-attr]
+        item["agent"]: item for item in facts_of(brief.prompt, "brief_facts")["weekly_reports"]
     }
     assert reports["Task fixture"] == {
         "agent": "Task fixture",
@@ -214,6 +211,6 @@ async def test_a_brief_at_the_close_waits_for_the_reports_and_names_a_missing_on
     (brief,) = await runs(db, BRIEF_TRIGGER)
     states = {
         item["agent"]: item["state"]
-        for item in facts_of(brief.prompt, "brief_facts")["weekly_reports"]  # type: ignore[union-attr]
+        for item in facts_of(brief.prompt, "brief_facts")["weekly_reports"]
     }
     assert states == {"Lonora": "no_report", "Task fixture": "no_report"}
