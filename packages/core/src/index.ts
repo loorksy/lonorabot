@@ -5,9 +5,6 @@ export {
   agentModelLabels,
   agentModelLines,
   agentModelText,
-  type ModelCardSpec,
-  modelCard,
-  modelChoiceLine,
   modelName,
   offersDefaultModel,
   tokenCount,
@@ -149,7 +146,10 @@ export {
   ownerActionLabels,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
+  type SecretFormField,
   submitCredential,
+  submitSecret,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,

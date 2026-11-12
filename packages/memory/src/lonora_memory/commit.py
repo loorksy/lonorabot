@@ -12,8 +12,8 @@ from .edits import (
     MemoryEdit,
     MemoryEditError,
     apply_edits,
-    authority_refusal,
-    new_authority_claim,
+    disclosure_refusal,
+    new_disclosure_claim,
 )
 from .markdown_memory import normalize_memory
 from .profile import LEGACY_USER_VIEW
@@ -36,11 +36,11 @@ def has_user_section(content: str) -> bool:
 
 
 def check_agent_document(current: str, content: str) -> None:
-    """A whole-document write by an Agent: no owner section, no new authority statement."""
+    """A whole-document write by an Agent: no owner section, no new disclosure line."""
     if has_user_section(content):
         raise UserSectionMoved()
-    if claim := new_authority_claim(current, content, profile=False):
-        raise authority_refusal(0, claim)
+    if claim := new_disclosure_claim(current, content, profile=False):
+        raise disclosure_refusal(0, claim)
 
 
 async def atomic_commit(

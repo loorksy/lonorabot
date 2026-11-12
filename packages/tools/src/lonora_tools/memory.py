@@ -31,6 +31,7 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, EffectReceiptRow
 from lonora_memory.commit import atomic_commit, atomic_edit
 from lonora_memory.edits import MemoryEdit, MemoryEditError, MemoryOverflow
+from lonora_memory.method import method_history, restore_method
 from lonora_memory.profile import LEGACY_USER_VIEW, agent_memory_view, profile_documents
 from pydantic import Field, model_validator
 
@@ -202,6 +203,37 @@ async def write(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+class MethodHistoryInput(Contract):
+    version: int | None = Field(default=None, ge=1)
+
+
+class MethodRestoreInput(Contract):
+    version: int = Field(ge=1)
+    memory_version: int = Field(ge=1)
+
+
+async def method_versions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = MethodHistoryInput.model_validate(args)
+    async with context.db.sessions() as session:
+        return await method_history(
+            session, context.owner_id, context.agent_id, version=params.version
+        )
+
+
+async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = MethodRestoreInput.model_validate(args)
+    return await restore_method(
+        context.db,
+        context.owner_id,
+        context.agent_id,
+        params.version,
+        params.memory_version,
+        lease=context.lease,
+        effect_key=context.effect_key,
+        source_message_id=await _owner_message(context),
+    )
+
+
 class OwnerPreferencesUpdate(Contract):
     reach_me: ReachMe | None = None
     reply_language: Literal["ar", "en", "auto"] | None = None
@@ -328,12 +360,33 @@ def tools() -> list[Tool]:
             "with observed), MEMORY.md (your knowledge) or OPERATING.md (your method); "
             "patch replaces unique old_text with content; remove deletes the lines old_text "
             "touches. A duplicate add returns changed false; overflow returns the shortfall. "
-            "content replaces your document at version. No credentials, prices or authority "
-            "claims.",
+            "content replaces your document at version. No credentials or current prices. "
+            "Say remembered only after success.",
             MemoryWrite,
             write,
             replay_safe=True,
             eager=eager_for("core"),
+        ),
+        Tool(
+            "method_history",
+            "List the versions of your method (your OPERATING.md): every write is a version "
+            "with its number, author and an excerpt. With version, read that version in full.",
+            MethodHistoryInput,
+            method_versions,
+            True,
+            search_terms="method versions history revisions strategy rollback "
+            "إصدارات المنهج سجل الطريقة الاستراتيجية",
+        ),
+        Tool(
+            "method_restore",
+            "Restore your method (OPERATING.md) to a version from method_history, when you or "
+            "the owner decide an earlier version was better; memory_version is the one "
+            "method_history returned. It saves a new version with that text; MEMORY.md stays.",
+            MethodRestoreInput,
+            method_restore,
+            replay_safe=True,
+            search_terms="revert method restore version undo strategy "
+            "استرجاع المنهج الرجوع إلى إصدار تراجع",
         ),
         Tool(
             "owner_preferences_update",

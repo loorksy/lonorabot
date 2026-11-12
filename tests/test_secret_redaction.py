@@ -196,7 +196,7 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
     saved: list[str] = []
     try:
         saved.append(
-            (await fixture.request("POST", "/secrets", {"name": name, "value": value}))["id"]
+            await fixture.runtime.services(fixture.owner).secrets.write(name, value, "workspace")
         )
         services = fixture.runtime.services(fixture.owner)
         # A value too short to find at every base64 alignment is not stored.
@@ -211,7 +211,16 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         other_name, provider_name, broker_name = (item[:12] for item in (other, provider, broker))
         saved.append(await services.secrets.write(other_name, other, "integration"))
         saved.append(await services.secrets.write(provider_name, provider, "provider"))
-        saved.append(await services.secrets.write(broker_name, broker, "broker"))
+        # Broker values are written only through the broker layer's own store (7.2.3).
+        from lonora_adapters.storage.broker_secrets import BrokerSecrets
+
+        broker_store = BrokerSecrets(
+            fixture.runtime.db,
+            fixture.runtime.settings.encryption_key.get_secret_value(),
+            fixture.owner,
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            saved.append(await broker_store.write_in_session(session, broker_name, broker))
         scanned = await services.secrets.scanned_values()
         assert scanned[name] == value and scanned[other_name] == other
         assert scanned[provider_name] == provider
@@ -276,7 +285,9 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         said = await run("late", 4, "say " + late_value)
         assert said["stdout"] == late_value + "\n"
         saved.append(
-            (await fixture.request("POST", "/secrets", {"name": late, "value": late_value}))["id"]
+            await fixture.runtime.services(fixture.owner).secrets.write(
+                late, late_value, "workspace"
+            )
         )
         replayed = await run("late", 4, "say " + late_value)
         assert replayed["stdout"] == f"[secret:{late}]\n"
