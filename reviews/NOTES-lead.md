@@ -8,3 +8,6 @@
   - #81 at f6affc53: review in progress.
   - #177 at 39a89b5c: one low left (the door's `lonora_opened` and `closed_trades.opening_entry` don't use the new shared ownership helper; a W-AUTH follow-up).
 - 2026-11-12T12:34Z: #81 at f6affc53 FINDINGS (medium: 14.3.15 bullet 3 not in this change, though #193 does it, so accept the split or land them together; low: three stale texts; rebase: 6 conflicts with main e67be56d).
+- 2026-11-12T13:01Z: #205 84f614b2 CLEAN. Existing on main: steering.py:39 passes `context.thread_id` instead of `row.thread_id` to `third_party_attachment`, so an attachment on a steering message from another thread does not mark the run (6.10).
+- 2026-11-12T13:01Z: #172 d35efd30 CLEAN. #110 0fc31b84 CLEAN, but it now carries #71 and #73 (W-AUTH): retarget it to wauth/2-mandate-card (20 conflicts with main 0a4d9560).
+- 2026-11-12T13:01Z: #204 78f7c1d3 FINDINGS, medium: the brief's journal read keeps the oldest 5000 entries (reproduced: an agent's ticket reads "owner"). The #177 low is still open (door ticket_not_owned and closed_trades should use ticket_openers).
