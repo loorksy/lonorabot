@@ -46,6 +46,26 @@ asyncio.run(main())
   );
 }
 
+/** The operation's Settle card, raised by the gateway's own projection (tests/settle_card.py). */
+function settleCard(operationId) {
+  const script = `
+import asyncio,json,sys
+sys.path.insert(0,'tests')
+from check_streaming import Fixture
+from settle_card import settle_card
+async def main():
+    f=await Fixture().open()
+    try:
+        print(json.dumps(await settle_card(f, sys.stdin.read().strip())))
+    finally:
+        await f.close(cleanup=False)
+asyncio.run(main())
+`;
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["-c", script], { input: operationId, encoding: "utf8" }),
+  );
+}
+
 async function setup(context, locale = "en") {
   const data = simulation({ action: "init", empty: true });
   await context.addCookies(
@@ -224,15 +244,14 @@ test("owner close: a settled journal row releases the held identity for a new cl
         [failed.id, "failed", "broker_rejected"],
       ],
     });
-    const resolved = await context.request.post(
-      `/api/trading/journal/${seeded[attested.id]}/resolve`,
-      {
-        headers: state.headers,
-        data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
-      },
-    );
+    // The owner settles it on its Settle card: Not executed (6.8).
+    const card = settleCard(seeded[attested.id]);
+    const resolved = await context.request.post(`/api/owner-actions/${card}/decision`, {
+      headers: state.headers,
+      data: { decision: "confirm", outcome: "not_executed" },
+    });
     expect(resolved.ok()).toBeTruthy();
-    expect((await resolved.json()).status).toBe("resolved");
+    expect((await resolved.json()).status).toBe("confirmed");
     const sent = [];
     await page.route("**/api/trading/execute", async (route) => {
       sent.push(route.request().postDataJSON());

@@ -39,6 +39,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
+from settle_card import settle_by_card
 from sqlalchemy import delete, func, select
 
 GOLD, EURO = "XAUUSD.r", "EURUSD.r"
@@ -860,11 +861,7 @@ async def main() -> None:
         assert Decimal(evaluated["open_risk"]) == 155
         counted = {item["kind"] for item in evaluated["items"]}
         assert {"position", "order", "operation", "candidate"} <= counted, counted
-        await fixture.request(
-            "POST",
-            f"/trading/journal/{unresolved}/resolve",
-            {"outcome": "not_executed", "statement": "Checked the terminal: no euro position."},
-        )
+        await settle_by_card(fixture, unresolved, "not_executed")
         fits = await owner(trade("buy", on=risk, volume="0.1", stop_loss="1999"))
         assert fits.status == "confirmed", fits
         unprotect = await owner(

@@ -29,6 +29,7 @@ from lonora_db.schema import (
 from lonora_tools.loader import load_tools
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.manual_activity import material_state
+from settle_card import settle_by_card
 
 
 async def main() -> None:
@@ -660,12 +661,8 @@ async def main() -> None:
         blocked = await f.client.delete("/api/agents/" + agent["id"])
         assert blocked.status_code == 409
         assert blocked.json()["code"] == "delete_blocked_unresolved_operation"
-        settled = await f.request(
-            "POST",
-            f"/trading/journal/{ambiguous['operation_id']}/resolve",
-            {"outcome": "executed", "statement": "Checked the broker terminal: it executed."},
-        )
-        assert settled["status"] == "resolved", settled
+        settled = await settle_by_card(f, ambiguous["operation_id"], "executed")
+        assert settled["status"] == "confirmed", settled
         print("PASS an agent with an uncertain trade cannot be deleted until the owner settles it")
 
         # Deleting the conversation a grant was signed in revokes that grant visibly:

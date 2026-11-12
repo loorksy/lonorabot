@@ -18,6 +18,7 @@ from lonora_trading.opportunities import (
     refresh_opportunity,
     sync_opportunity_execution,
 )
+from settle_card import settle_by_card
 from sqlalchemy import select
 
 
@@ -362,18 +363,13 @@ async def main() -> None:
         async def thesis_state(thesis: dict[str, Any]) -> dict[str, Any]:
             return await f.request("GET", "/trading/opportunities/" + thesis["id"])
 
-        statement = {"statement": "Checked the broker terminal history for this request."}
         unsent = await fresh_thesis("fixture-lost-entry-not-executed")
         lost = await entry(unsent, "lost-entry-not-executed", lose_before_effect)
         assert lost["status"] == "ambiguous", lost
         assert (await thesis_state(unsent))["state"]["pending_operation_ids"] == [
             lost["operation_id"]
         ]
-        await f.request(
-            "POST",
-            f"/trading/journal/{lost['operation_id']}/resolve",
-            {"outcome": "not_executed", **statement},
-        )
+        await settle_by_card(f, lost["operation_id"], "not_executed")
         released = await thesis_state(unsent)
         assert released["status"] == "confirmed", released
         assert released["state"]["pending_operation_ids"] == []
@@ -387,11 +383,7 @@ async def main() -> None:
         executed = await fresh_thesis("fixture-lost-entry-executed")
         lost = await entry(executed, "lost-entry-executed", lose_after_effect)
         assert lost["status"] == "ambiguous", lost
-        await f.request(
-            "POST",
-            f"/trading/journal/{lost['operation_id']}/resolve",
-            {"outcome": "executed", **statement},
-        )
+        await settle_by_card(f, lost["operation_id"], "executed")
         attested = await thesis_state(executed)
         assert attested["status"] == "acted_on", attested
         assert attested["state"]["entry_operation_id"] == lost["operation_id"]
