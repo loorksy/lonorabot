@@ -1,6 +1,6 @@
 """Nothing holds a new entry before its approval card (W15-ACC).
 
-An agent in Ask (or a trade outside an On its own grant) asks the owner with an
+An agent at Ask me (or a trade outside an On its own grant) asks the owner with an
 approval card. Lonora has no Stop and no pause of new entries, so no brake refuses an
 entry before its card: the executor decides it against the fresh broker target. Runs on
 the real migrated PostgreSQL schema and the simulation broker (skipped without
