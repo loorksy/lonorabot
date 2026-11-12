@@ -22,6 +22,7 @@ MODULES = {
     "artifacts": "files",
     "mcp": "research",
     "feeds": "research",
+    "telegram": "research",
     "capabilities": "research",
     "subagent": "collaboration",
     "market": "market",

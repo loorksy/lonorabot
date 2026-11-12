@@ -52,6 +52,7 @@
     "mcp_execute": "research",
     "news_feed_read": "research",
     "news_feed_subscribe": "research",
+    "telegram_link": "research",
     "capabilities_list": "research",
     "subagent_spawn": "collaboration",
     "subagent_inspect": "collaboration",

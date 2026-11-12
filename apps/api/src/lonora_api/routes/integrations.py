@@ -16,12 +16,6 @@ from lonora_contracts.agent_secrets import SecretCreate
 from lonora_core.user_error import LonoraError
 from lonora_db.integrations import IntegrationRepository, feed_host
 from lonora_db.schema import IntegrationRow, ResourceRow
-from lonora_db.telegram_pairing import (
-    PAIRING_LIFETIME,
-    pairing_status,
-    start_pairing,
-    telegram_integration,
-)
 from lonora_db.trusted_sources import feed_trusted, revoke_feed_sites, trust_source
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -93,23 +87,3 @@ async def secret(
         .secrets.write(body.name, body.value, "integration")
     )
     return {"id": secret_id}
-
-
-@router.post("/{integration_id}/telegram/pairing")
-async def telegram_pairing(
-    request: Request, integration_id: str, owner: OwnerIdentity = Depends(require_owner)
-) -> dict[str, object]:
-    """A one-time code the owner sends to the bot as ``/start <code>`` (VISION 11.4)."""
-    async with runtime(request).db.sessions() as session, session.begin():
-        code = await start_pairing(session, owner.id, integration_id)
-    return {"code": code, "expires_in": int(PAIRING_LIFETIME.total_seconds())}
-
-
-@router.get("/{integration_id}/telegram")
-async def telegram_status(
-    request: Request, integration_id: str, owner: OwnerIdentity = Depends(require_owner)
-) -> dict[str, object]:
-    async with runtime(request).db.sessions() as session:
-        return pairing_status(
-            await telegram_integration(session, owner.id, integration_id, lock=False)
-        )

@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 from typing import Any
 
 from lonora_adapters.channels.telegram import TelegramAdapter
@@ -23,8 +24,8 @@ from lonora_db.schema import (
     EventRow,
     IntegrationRow,
 )
-from lonora_db.telegram_pairing import paired_chat
-from sqlalchemy import func, select
+from lonora_db.telegram_pairing import OFFER_TEXT, offer_code
+from sqlalchemy import select
 
 from .push import PUSH_CODES, push_record
 from .runtime import OwnerServices
@@ -41,6 +42,13 @@ FORWARDED = frozenset(
         "via_bot",
     }
 )
+log = logging.getLogger("lonora.channels")
+
+
+def offer_text(locale: str, code: str) -> str:
+    return OFFER_TEXT.get(locale, OFFER_TEXT["ar"]).format(code=code)
+
+
 # A channel request never holds the delivery loop longer than this.
 CHANNEL_TIMEOUT_SECONDS = 30
 
@@ -88,32 +96,32 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
             adapter = TelegramAdapter(secret)
             async with asyncio.timeout(CHANNEL_TIMEOUT_SECONDS):
                 updates = await adapter.updates(int(row.state.get("update_offset", 0)))
+            offers: list[tuple[str, str]] = []
             async with db.sessions() as session, session.begin():
                 locked = await session.get(IntegrationRow, row.id, with_for_update=True)
                 if locked is None:
                     return
+                locale = (await policy(session, services.owner_id)).locale
                 for update in updates:
                     message: dict[str, Any] = update.get("message") or {}
                     chat: dict[str, Any] = message.get("chat") or {}
-                    text = message.get("text")
-                    if FORWARDED.intersection(message):
+                    chat_id, text = str(chat.get("id", "")), message.get("text")
+                    paired = chat_id in config.get("allowed_destinations", [])
+                    if FORWARDED.intersection(message) or not isinstance(text, str):
                         # Forwarded or sent through another bot: someone else's words. They
                         # never reach an agent as the owner's own message (6.10).
                         pass
-                    elif isinstance(text, str) and text.strip().startswith("/start"):
-                        # A pairing message binds the chat, or does nothing; it never reaches
-                        # an agent. Delivery starts at the end of the stream: a newly paired
-                        # chat gets new alerts, never the backlog.
-                        if paired_chat(
-                            locked, text, str(chat.get("id", "")), str(chat.get("type", ""))
-                        ):
-                            config = locked.payload
-                            latest = await session.scalar(
-                                select(
-                                    func.max(EventRow.payload[PUBLIC_CURSOR].as_integer())
-                                ).where(EventRow.owner_id == services.owner_id)
-                            )
-                            locked.state = {**locked.state, "event_cursor": int(latest or 0)}
+                    elif not paired:
+                        # A chat the bot does not serve gets a code to give Lonora in the app
+                        # (telegram_link); its words never reach an agent.
+                        code = (
+                            offer_code(locked, chat_id) if chat.get("type") == "private" else None
+                        )
+                        if code is not None:
+                            offers.append((chat_id, offer_text(locale, code)))
+                    elif text.strip().startswith("/start"):
+                        # A bot command, not a message to an agent.
+                        pass
                     elif config.get("thread_id"):
                         incoming = decode_update(update, config["thread_id"])
                         if incoming and incoming.destination in config.get(
@@ -134,6 +142,13 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                             int(update["update_id"]) + 1,
                         ),
                     }
+            for chat_id, text in offers:
+                # Best effort: a lost answer costs the owner one more message to the bot.
+                try:
+                    async with asyncio.timeout(CHANNEL_TIMEOUT_SECONDS):
+                        await adapter.send(chat_id, text)
+                except Exception:
+                    log.warning("telegram_pairing_offer_unsent")
         async with db.sessions() as session, session.begin():
             locked = await session.get(IntegrationRow, row.id, with_for_update=True)
             if locked is None:

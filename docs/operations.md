@@ -653,8 +653,12 @@ without them has another runtime and never reaches that phone.
 
 The owner may also receive these alerts in Telegram (VISION 11.4). Link a bot in the web app
 (Settings, Integrations, Telegram: the bot token from @BotFather and the agent that receives
-your messages), then tap «ربط محادثة» and send the `/start <code>` it shows to your bot from
-your own private chat within ten minutes. The code works once; the chat that sent it becomes
+your messages). Then pair your chat from chat: write anything to your bot from your own
+private chat; it answers with a one-time code, and you type that code to Lonora in the app
+(«اربط تيليجرام: CODE»). Lonora links the chat only when the code is in your own typed
+message, so a code it read anywhere else links nothing. A code lasts ten minutes and works
+once, at most three chats wait at a time, and nothing a chat writes before it is linked
+reaches an agent. The linked chat becomes
 the bot's only destination, and pairing again replaces it. From then on the bot sends the
 alerts that push, from every agent's conversation (the agent's name and the same fixed text),
 once per record, with an effect receipt before each call and no second send of an unconfirmed
