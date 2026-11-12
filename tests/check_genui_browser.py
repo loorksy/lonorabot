@@ -13,8 +13,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             client's journey checks that it draws every node type the server accepts.
 ``records`` a pending Trade Approval and a resolve card for an uncertain operation in the
             conversation, as their own paths raise them; prints their ids.
-``slots``   the agent's reply that embeds the approval as a trusted slot (mandate 10.2),
-            with words, a hide condition and a tone it tries to give the slot.
+``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
+            trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
+            to give the slot.
 """
 
 import asyncio
@@ -253,7 +254,7 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
     try:
         async with fixture.runtime.db.sessions() as session, session.begin():
             thread = await session.get(ThreadRow, data["thread_id"])
-            assert thread is not None
+            assert thread is not None and thread.agent_id is not None
             # The approval's waiting Run sits in its own conversation, so the owner's next
             # message here starts a new Run instead of answering it.
             waiting_thread = ThreadRow(owner_id=thread.owner_id, agent_id=thread.agent_id)
@@ -329,8 +330,8 @@ async def slots(data: dict[str, Any]) -> dict[str, Any]:
         context = await fixture.lease(run)
         slot = {
             "type": "Slot",
-            "card": "trade_approval",
-            "record": data["approval"],
+            "card": data.get("card", "trade_approval"),
+            "record": data["record"],
             # Never drawn: the server keeps only where the slot sits (mandate 10.2.1).
             "label": "صفقة مضمونة",
             "text": "0.50 لوت",

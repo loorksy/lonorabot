@@ -10,14 +10,19 @@ from collections.abc import Iterable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .schema import OwnerActionRow, TradeApprovalRow
+from .schema import OwnerActionRow, RunRow, TradeApprovalRow
 
 
 async def slot_records(
-    session: AsyncSession, owner_id: str, thread_id: str | None, ids: Iterable[str]
+    session: AsyncSession, owner_id: str, run_id: str | None, thread_id: str, ids: Iterable[str]
 ) -> set[tuple[str, str]]:
-    """``(card, record id)`` for every named record a slot of this conversation may show."""
+    """``(card, record id)`` for every named record a slot of this reply may show. The reply's
+    conversation is its Run's origin conversation when the Run works in its own thread (a
+    broker event, a watch): its reply, approvals and cards land there (``outcome_return``)."""
     wanted = sorted(set(ids))
+    run = await session.get(RunRow, run_id) if run_id else None
+    origin = run.model_metadata.get("origin_thread_id") if run is not None else None
+    thread_id = origin if isinstance(origin, str) and origin else thread_id
     if not wanted or not thread_id:
         return set()
     found: set[tuple[str, str]] = set()

@@ -32,9 +32,14 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
 SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
-# The same card with the other fixed card that exists today (two slots exceed 560 px).
-SETTLE = SLOTS.replace(
-    '"trade_approval","record":"parity-approval"', '"settle","record":"parity-settle"'
+# The other fixed card that exists today. A settle card is tall (SLOT_HEIGHTS), so its card
+# holds the head and the slot alone at rest; two slots would exceed 560 px.
+SETTLE = "\n".join(
+    line
+    for line in SLOTS.replace(
+        '"trade_approval","record":"parity-approval"', '"settle","record":"parity-settle"'
+    ).splitlines()
+    if '"type":"Text"' not in line
 )
 # The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
 # conversation (tests/test_genui_slots.py checks the lookup against real rows).

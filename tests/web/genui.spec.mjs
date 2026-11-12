@@ -415,7 +415,7 @@ test("Parity: the web card draws every node the server accepts and runs every ac
     python("parity", fixture.input);
     // A trusted slot needs a real record: the agent's card embeds a pending approval.
     const ids = python("records", fixture.input);
-    python("slots", { ...fixture.input, approval: ids.approval });
+    python("slots", { ...fixture.input, record: ids.approval });
     const ux = page.locator(".ux").filter({ hasText: "حاسبة حجم الصفقة" }).first();
     await expect(ux).toBeVisible();
     await expect(card(page)).toBeVisible();
@@ -474,6 +474,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
   context,
 }) => {
   const fixture = await open(page, context);
+  const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
   try {
     const ids = python("records", fixture.input);
     const approval = page.locator(`[data-trade-approval="${ids.approval}"]`);
@@ -481,35 +482,64 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     // No message embeds them yet: each fixed card stands in its own row.
     await page.reload();
     await expect(approval).toHaveCount(1);
+    await expect(settle).toHaveCount(1);
     await expect(page.locator(".ux-slot")).toHaveCount(0);
-    await expect(settle.first()).toBeVisible();
-    python("slots", { ...fixture.input, approval: ids.approval });
+    python("slots", { ...fixture.input, record: ids.approval });
+    python("slots", { ...fixture.input, card: "settle", record: ids.settle });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
+    const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
     await expect(slot).toBeVisible();
-    // The server's record, drawn by the client: the request, and only the card's own words.
+    await expect(settleSlot).toBeVisible();
+    // The server's records, drawn by the client: only the cards' own words.
     await expect(slot.locator(`[data-trade-approval="${ids.approval}"]`)).toBeVisible();
+    await expect(settleSlot.locator(`[data-owner-action="${ids.settle}"]`)).toBeVisible();
     await expect(slot).toContainText("XAUUSD");
     await expect(slot).toContainText("2350.00");
-    await expect(slot).toContainText("بطاقة ثابتة من Lonora");
-    for (const forged of ["صفقة مضمونة", "0.50 لوت"]) await expect(slot).not.toContainText(forged);
-    // The slot is the record's place now: its standalone row is gone; the settle card, which
-    // no message embeds, keeps its row.
+    await expect(settleSlot).toContainText("XAGUSD");
+    for (const frame of [slot, settleSlot]) {
+      await expect(frame).toContainText("بطاقة ثابتة من Lonora");
+      for (const forged of ["صفقة مضمونة", "0.50 لوت"])
+        await expect(frame).not.toContainText(forged);
+    }
+    // The slots are the records' places now: no standalone rows.
     await expect(approval).toHaveCount(1);
-    await expect(settle.first()).toBeVisible();
-    await expect(page.locator(".ux-slot")).toHaveCount(1);
-    // The slot's button is the card's own server action on the owner session.
-    const [decision] = await Promise.all([
+    await expect(settle).toHaveCount(1);
+    // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
+    // genui_compile.py: trade approval 230 px, settle 460 px, frame included).
+    expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
+    expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
+    // Decided elsewhere while this screen still shows it pending: the second tap is refused
+    // and the slot shows the record as it is now.
+    await page.route("**/api/trading/approvals?*", (route) => route.abort());
+    const elsewhere = await context.request.post(
+      `/api/trading/approvals/${ids.approval}/decision`,
+      { data: { decision: "reject" }, headers: { "X-CSRF-Token": csrf } },
+    );
+    expect(elsewhere.status()).toBe(200);
+    await expect(slot.getByRole("button", { name: "موافقة", exact: true })).toBeVisible();
+    await page.unroute("**/api/trading/approvals?*");
+    const [stale] = await Promise.all([
       page.waitForResponse((response) =>
         response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
       ),
-      slot.getByRole("button", { name: "رفض", exact: true }).click(),
+      slot.getByRole("button", { name: "موافقة", exact: true }).click(),
     ]);
-    expect(decision.status()).toBe(200);
+    expect(stale.status()).toBe(409);
     await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
-    // Read again later, the slot shows the record as it is now, and still no row.
+    // The settle slot's buttons are the card's own server action on the owner session.
+    const [settled] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${ids.settle}/decision`),
+      ),
+      settleSlot.getByRole("button", { name: "لم تُنفذ", exact: true }).click(),
+    ]);
+    expect(settled.status()).toBe(200);
+    await expect(settleSlot.getByRole("button", { name: "لم تُنفذ", exact: true })).toHaveCount(0);
+    // Read again later, the slots show the records as they are now, and still no rows.
     await page.reload();
     await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
     await expect(approval).toHaveCount(1);
+    await expect(settle).toHaveCount(1);
   } finally {
     await fixture.cleanup();
   }

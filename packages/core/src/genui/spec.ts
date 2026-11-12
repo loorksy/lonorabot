@@ -156,19 +156,3 @@ export function isUiPart(part: { type: string; document?: unknown }): part is Ui
 
 /** A trusted slot's card and record (mandate 10.2). */
 export type UiSlotRef = { card: UiSlotCard; record: string };
-
-/** The records the cards of these messages embed as slots, keyed `card:record`: a fixed
- * card's standalone row is shown only when none of them embeds its record (10.2.3). */
-export function embeddedSlots(
-  messages: readonly { rich_content?: { parts?: readonly unknown[] } | null }[],
-): ReadonlySet<string> {
-  const found = new Set<string>();
-  for (const message of messages)
-    for (const part of message.rich_content?.parts ?? []) {
-      if (!plain(part) || part.type !== "ui") continue;
-      const document = validateUiDocument(part.document);
-      for (const block of document?.blocks ?? [])
-        if (block.type === "Slot") found.add(`${String(block.card)}:${String(block.record)}`);
-    }
-  return found;
-}

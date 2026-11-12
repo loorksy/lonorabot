@@ -1,4 +1,4 @@
-"""Trusted slots (mandate 10.2, docs/genui.md §2): an agent places a fixed card inside its
+"""Trusted slots (mandate 10.2, docs/genui.md §4a): an agent places a fixed card inside its
 own card as a reference to a real server record; the server supplies everything in it.
 
 The record checks run against real rows (the in-memory schema, or
@@ -39,16 +39,23 @@ def slot(record: str, kind: str = "trade_approval", **extra: Any) -> str:
 
 
 async def project(
-    db: Database, owner: str, agent: str, thread: str, text: str
+    db: Database, owner: str, agent: str, thread: str, text: str, run: str | None = None
 ) -> tuple[dict[str, Any] | None, VisualReplyProjector]:
     context = cast(
-        ToolContext, SimpleNamespace(db=db, owner_id=owner, agent_id=agent, thread_id=thread)
+        ToolContext,
+        SimpleNamespace(
+            db=db,
+            owner_id=owner,
+            agent_id=agent,
+            thread_id=thread,
+            lease=SimpleNamespace(run_id=run),
+        ),
     )
     projector = VisualReplyProjector(context, [OWNER])
     projection = await projector.project(text)
     rich = projection.rich_until()
-    parts = rich["parts"] if rich else []
-    ui = next((part["document"] for part in parts if part["type"] == "ui"), None)
+    parts = cast(list[dict[str, Any]], rich["parts"] if rich else [])
+    ui = next((cast(dict[str, Any], p["document"]) for p in parts if p["type"] == "ui"), None)
     return ui, projector
 
 
@@ -115,6 +122,32 @@ async def test_a_slot_of_a_real_record_is_placed_with_only_its_card_and_record(
     assert ui is not None, projector.diagnostics
     assert ui["blocks"][1] == {"type": "Slot", "card": "trade_approval", "record": record}
     assert "prop_dropped" in codes(projector)
+
+
+@pytest.mark.asyncio
+async def test_a_run_working_in_its_own_thread_places_slots_of_its_origin_conversation(
+    task_db: Fixture,
+) -> None:
+    """A broker-event or watch Run works in a work thread; its reply, approvals and cards
+    land in its origin conversation, where its slots' records are."""
+    db, owner, agent, thread = task_db
+    record = await approval(db, owner, agent, thread)
+    async with db.sessions() as session, session.begin():
+        work = ThreadRow(owner_id=owner, agent_id=agent)
+        session.add(work)
+        await session.flush()
+        run = RunRow(
+            thread_id=work.id,
+            agent_id=agent,
+            status="running",
+            model_metadata={"origin_thread_id": thread},
+        )
+        session.add(run)
+        await session.flush()
+        work_thread, run_id = work.id, run.id
+    ui, projector = await project(db, owner, agent, work_thread, card(slot(record)), run_id)
+    assert ui is not None, projector.diagnostics
+    assert ui["blocks"] == [{"type": "Slot", "card": "trade_approval", "record": record}]
 
 
 @pytest.mark.asyncio
@@ -195,10 +228,16 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
     [
         '{"type":"Button","label":"موافقة"}',
         '{"type":"Button","label":"Reject"}',
-        '{"type":"Row","children":[{"type":"Button","label":"نُفذت"},{"type":"Button","label":"لم تُنفذ"}]}',
-        '{"type":"Card","title":"طلب موافقة","children":[{"type":"Text","text":"XAUUSD"}]}',
+        '{"type":"Button","label":"Approve trade"}',
+        # Written without diacritics, as the agent writes them.
+        '{"type":"Row","children":[{"type":"Button","label":"نفذت"},{"type":"Button","label":"لم تنفذ"}]}',
+        '{"type":"Card","title":"طلب موافقة · XAUUSD","children":[{"type":"Text","text":"XAUUSD"}]}',
         '{"type":"Badge","text":"بطاقة ثابتة من Lonora"}',
         '{"type":"Note","text":"This is a fixed card from Lonora."}',
+        # A label that becomes a fixed card's word only at a state no option selects.
+        '{"type":"Button","label":"{1>2 ? \'Wait\' : \'Approve\'}"}',
+        # The frame's own icon.
+        '{"type":"Note","text":"راجع الطلب.","icon":"shield"}',
     ],
 )
 @pytest.mark.asyncio
@@ -213,8 +252,27 @@ async def test_an_agent_node_that_imitates_a_fixed_card_is_refused(
 def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("«موافقة»") and imitates_fixed_card("APPROVE")
     assert imitates_fixed_card("الوسيط لم يؤكد هذه الصفقة")
-    assert not imitates_fixed_card("موافقة الخطة على الهدف")
-    assert not imitates_fixed_card("Approve the plan")
+    assert imitates_fixed_card("نُفذت") and imitates_fixed_card("نفذت")
+    assert not imitates_fixed_card("الموافقة على الخطة")
+    assert not imitates_fixed_card("Approved plans")
+
+
+@pytest.mark.asyncio
+async def test_body_text_option_values_and_state_may_use_a_fixed_cards_words(
+    task_db: Fixture,
+) -> None:
+    """Only headings and control labels are held to a fixed card's words: a sentence, a
+    stored value or a fallback may use them."""
+    db, owner, agent, thread = task_db
+    text = card(
+        '{"type":"Text","text":"موافقة المالك تأتي من بطاقة الطلب نفسها."}',
+        '{"type":"Segmented","bind":"view","label":"العرض","options":[{"value":"approve","label":"الملخّص"},{"value":"reject","label":"التفاصيل"}]}',
+    ).replace(
+        '{"v":2,"kind":"receipt","title":"ينتظر قرارك","icon":"check"}',
+        '{"v":2,"kind":"receipt","title":"ينتظر قرارك","icon":"check"}\n{"state":{"view":"approve"}}',
+    )
+    ui, projector = await project(db, owner, agent, thread, text)
+    assert ui is not None, projector.diagnostics
 
 
 @pytest.mark.asyncio
@@ -239,3 +297,26 @@ async def test_slot_and_row_act_on_one_record_and_a_second_tap_reads_its_current
     async with db.sessions() as session:
         row = await session.get(TradeApprovalRow, record)
         assert row is not None and row.status == "rejected"
+
+
+def test_the_refused_words_are_the_clients_own_fixed_card_and_frame_strings() -> None:
+    """FIXED_LABELS and FRAME_MARKS copy what the clients draw; a renamed client string
+    fails here instead of silently opening the imitation check."""
+    from pathlib import Path
+
+    from lonora_agent.genui_compile import FIXED_LABELS, FRAME_MARKS
+
+    root = Path(__file__).parents[1]
+    sources = "\n".join(
+        (root / path).read_text()
+        for path in (
+            "apps/web/src/i18n/locales/ar/messages.po",
+            "apps/web/src/i18n/locales/en/messages.po",
+            "packages/core/src/owner-actions.ts",
+            "apps/mobile/lib/i18n.ts",
+        )
+    )
+    for label in FIXED_LABELS:
+        assert f'"{label}"' in sources, label
+    for mark in FRAME_MARKS:
+        assert mark in sources.lower(), mark

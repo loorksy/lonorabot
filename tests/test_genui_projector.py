@@ -48,7 +48,13 @@ class _Db:
 def context(agent: _Agent | None = None) -> ToolContext:
     return cast(
         ToolContext,
-        SimpleNamespace(db=_Db(agent), owner_id="o", agent_id="agent-1", thread_id="t"),
+        SimpleNamespace(
+            db=_Db(agent),
+            owner_id="o",
+            agent_id="agent-1",
+            thread_id="t",
+            lease=SimpleNamespace(run_id="run-1"),
+        ),
     )
 
 

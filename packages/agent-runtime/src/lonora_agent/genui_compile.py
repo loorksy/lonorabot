@@ -70,9 +70,10 @@ HEIGHTS = {
     "Badge": 24,
     "More": 40,
 }
-# A trusted slot's height at rest, its trust frame included, by card (mandate 10.1.4: a slot
+# A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
+# journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
 # counts toward the 560 px budget like any block, and is never folded).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 250}
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -370,16 +371,81 @@ class AgentScope:
 
 
 def _plain(text: str) -> str:
-    return fold(re.sub(r"[^\w\s]", " ", text))
+    # Folded first: Arabic diacritics go before punctuation becomes space.
+    return " ".join(re.sub(r"[^\w\s]", " ", fold(text)).split())
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
+# The frame's own icon: an agent's node never wears it.
+FRAME_ICON = "shield"
+LITERAL = re.compile(r"'([^']*)'")
+
+
+def shows_frame_mark(text: str) -> bool:
+    """Text that says what only the trust frame says."""
+    plain = f" {_plain(text)} "
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
 
 
 def imitates_fixed_card(text: str) -> bool:
-    """A string an agent's node shows that only a fixed card or its trust frame says."""
+    """A heading or control label an agent's node shows that starts with, or is, what only a
+    fixed card or its trust frame says («موافقة», «Approve trade», «طلب موافقة · XAUUSD»)."""
     plain = _plain(text)
-    return plain in FIXED_PLAIN or any(fold(mark) in plain for mark in FRAME_MARKS)
+    return shows_frame_mark(text) or any(
+        plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN
+    )
+
+
+# Props whose text heads or labels something, the way a fixed card's title and buttons do.
+LABEL_PROPS = ("label", "title", "show")
+LABEL_TEXT_NODES = frozenset({"Badge", "Title"})
+BODY_PROPS = ("text", "hint", "sub", "value", "suffix", "prefix")
+
+
+def imitation(
+    head: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    envs: list[Any],
+    why: str | None,
+    fallback: str | None,
+) -> bool:
+    """Whether the agent's own card looks like a fixed card (mandate 10.2.2): the frame's icon,
+    a heading or control label a fixed card shows, or the frame's words anywhere shown. Each
+    template is read as written, at each sampled state and by every quoted literal in it."""
+    if head.get("icon") == FRAME_ICON:
+        return True
+    labels: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+    body: list[str] = [why or "", fallback or ""]
+    for _path, node in walk(blocks):
+        if node.get("icon") == FRAME_ICON:
+            return True
+        for name in LABEL_PROPS:
+            if isinstance(node.get(name), str):
+                labels.append(node[name])
+        for name in BODY_PROPS:
+            if isinstance(node.get(name), str):
+                (labels if node["type"] in LABEL_TEXT_NODES else body).append(node[name])
+        for option in cast(list[Any], node.get("options", [])):
+            shown = cast(dict[str, Any], option).get("label") if isinstance(option, dict) else None
+            shown = (
+                (cast(dict[str, Any], option).get("value") if shown is None else shown)
+                if isinstance(option, dict)
+                else option
+            )
+            if shown is not None:
+                labels.append(show(shown))
+        for row in node.get("rows", []):
+            body.extend(cell for cell in row if isinstance(cell, str))
+
+    def readings(text: str) -> list[str]:
+        found = [text, *LITERAL.findall(text)]
+        found.extend(render_template(text, env) for env in envs)
+        return found
+
+    return any(imitates_fixed_card(t) for text in labels for t in readings(text)) or any(
+        shows_frame_mark(t) for text in body for t in readings(text)
+    )
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
@@ -787,8 +853,9 @@ def compile_card(
             extra = cast(dict[str, Any], also) if isinstance(also, dict) else {}
             states.append({**state, bind: item.get("value"), **extra})
     strings: list[str] = []
-    for at in states[:24]:
-        strings.extend(rendered(environment(at, calc, fact_values)))
+    envs = [environment(at, calc, fact_values) for at in states[:24]]
+    for at_env in envs:
+        strings.extend(rendered(at_env))
     strings.extend(raw())
     strings.extend(str(v) for v in state.values() if isinstance(v, str))
     for text in strings:
@@ -797,9 +864,9 @@ def compile_card(
         if UNBOUND.search(text):
             # A placeholder the card computes but never fills is never shown (review).
             raise CardError("card_fallback_binding")
-        if imitates_fixed_card(text):
-            # Only a slot shows a fixed card; the agent's own nodes never say what one says.
-            raise CardError("card_fallback_imitation")
+    if imitation(head, blocks, envs, card.why, card.fallback):
+        # Only a slot shows a fixed card; the agent's own nodes never look like one.
+        raise CardError("card_fallback_imitation")
     if not final:
         from .public_stream import EFFECT_CLAIM
 

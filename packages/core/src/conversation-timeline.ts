@@ -1,5 +1,25 @@
 import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
-import { embeddedSlots } from "./genui/spec";
+import { isUiPart } from "./genui/spec";
+import { validateRichContent } from "./visual-response";
+
+/** The records the drawn cards of these messages embed as trusted slots, keyed
+ * `card:record`. A message counts only as the renderers draw it: an assistant message whose
+ * whole rich content validates, each card up to its cut. A fixed card's standalone row is
+ * shown only while none of them embeds its record (mandate 10.2.3). */
+export function embeddedSlots(messages: readonly Message[]): ReadonlySet<string> {
+  const found = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    for (const part of validateRichContent(message.rich_content)?.parts ?? []) {
+      if (!isUiPart(part)) continue;
+      part.document.blocks.forEach((block, position) => {
+        if (block.type !== "Slot" || (part.cut !== undefined && position >= part.cut)) return;
+        found.add(`${String(block.card)}:${String(block.record)}`);
+      });
+    }
+  }
+  return found;
+}
 
 export type ConversationItem =
   | { kind: "message"; id: string; seq: number; message: Message }

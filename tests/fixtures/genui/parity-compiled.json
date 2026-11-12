@@ -399,10 +399,6 @@
       "calc": {},
       "blocks": [
         {
-          "type": "Text",
-          "text": "الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."
-        },
-        {
           "type": "Slot",
           "card": "settle",
           "record": "parity-settle"

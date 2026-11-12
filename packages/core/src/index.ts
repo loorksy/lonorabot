@@ -113,7 +113,6 @@ export {
   cardMarkdown,
 } from "./genui/markdown";
 export {
-  embeddedSlots,
   isUiPart,
   type UiSlotRef,
   validateUiDocument,

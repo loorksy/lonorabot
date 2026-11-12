@@ -108,7 +108,7 @@ for (const theme of ["dark", "light"]) {
       python("parity", input);
       // A trusted slot needs a real record: the agent's card embeds a pending approval.
       const ids = python("records", input);
-      python("slots", { ...input, approval: ids.approval });
+      python("slots", { ...input, record: ids.approval });
       await page.goto(`/thread?id=${fixture.thread.id}`);
       await expect(page.getByTestId("ui-slot-trade_approval")).toBeVisible();
       const ux = page.getByTestId("ux-card").filter({ hasText: "حاسبة حجم الصفقة" });
@@ -208,9 +208,16 @@ test("Expo: a slot is the live record in its trust frame, and its row steps asid
     await page.goto(`/thread?id=${fixture.thread.id}`);
     // No message embeds the approval yet: it stands in its own row.
     await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("الوسيط لم يؤكد هذه الصفقة", { exact: true })).toHaveCount(1);
     await expect(page.getByTestId("ui-slot-trade_approval")).toHaveCount(0);
-    python("slots", { ...input, approval: ids.approval });
+    python("slots", { ...input, record: ids.approval });
+    python("slots", { ...input, card: "settle", record: ids.settle });
     await page.reload();
+    // The settle card too: drawn in its slot from the live record, its row gone.
+    const settle = page.getByTestId("ui-slot-settle");
+    await expect(settle).toBeVisible();
+    await expect(settle.getByText(/XAGUSD/)).toBeVisible();
+    await expect(page.getByText("الوسيط لم يؤكد هذه الصفقة", { exact: true })).toHaveCount(1);
     const slot = page.getByTestId("ui-slot-trade_approval");
     await expect(slot).toBeVisible();
     // The server's record, drawn natively; none of the words the agent tried to give it.
