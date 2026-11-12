@@ -139,12 +139,14 @@ async def test_mcp_test_is_remote_only_and_broker_test_refuses_a_linked_account(
             json={"provider": "simulation", "account_id": "sim-x", "api_key": token},
         )
         assert token not in rejected.text
-        missing = await fixture.client.post(
+        # A MetaApi account is connected from chat (9.2), never tested or linked by its id.
+        by_id = await fixture.client.post(
             "/api/trading/connections/test",
-            json={"provider": "metaapi", "account_id": "acct-" + uuid4().hex[:8]},
+            json={"provider": "metaapi", "account_id": "acct-" + uuid4().hex[:8], "api_key": token},
         )
-        assert missing.status_code == 409
-        assert missing.json()["code"] == "broker_secret_required"
+        assert by_id.status_code == 409
+        assert by_id.json()["code"] == "broker_connect_from_chat"
+        assert token not in by_id.text
     finally:
         await fixture.close()
 

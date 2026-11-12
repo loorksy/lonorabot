@@ -36,7 +36,7 @@ from lonora_db.secrets import BROKER, METAAPI_TOKEN, metaapi_password_name, secr
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .connections import verified_identity
+from .connections import observe_legacy_identities, record_identities, verified_identity
 
 log = logging.getLogger("lonora.broker.provisioning")
 ACTIVE = ("pending", "deploying", "reading")
@@ -50,6 +50,8 @@ TRANSIENT = frozenset(
         "broker_connection_timeout",
         "broker_connection_unavailable",
         "broker_identity_unavailable",
+        # A legacy connection changed while its identity was read: read it again.
+        "broker_connection_changed",
     }
 )
 # How long a saved card may take to reach a connected terminal, then a first account read.
@@ -556,6 +558,9 @@ async def _connect(
     try:
         # Broker-observed identity from MetaApi's account entity, not the typed words.
         identity = await verified_identity(config, token)
+        # A legacy connection's identity is read first, so an alias of the same broker
+        # account (another MetaApi account id for it) is refused below.
+        legacy = await observe_legacy_identities(db, failing.secrets, failing.owner_id)
     except LonoraError as failure:
         return failure.code
     repository = BrokerSessionRepository()
@@ -564,6 +569,10 @@ async def _connect(
         row = await _card(session, failing.owner_id, failing.card_id)
         if row.result.get("provisioning") != "deploying":
             return None
+        try:
+            await record_identities(session, failing.owner_id, legacy)
+        except LonoraError as failure:
+            return failure.code
         typed = row.payload["account"]
         if (broker_identity_key(identity) or ())[:2] != (broker_identity_key(typed) or ())[:2]:
             return "broker_identity_mismatch"

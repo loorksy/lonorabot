@@ -6,9 +6,7 @@ import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 export function BrokerConnection() {
   const { refresh } = useClient();
-  const [provider, setProvider] = useState("metaapi");
   const [account, setAccount] = useState("");
-  const [key, setKey] = useState("");
   const [snapshot, setSnapshot] = useState("");
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
@@ -22,18 +20,16 @@ export function BrokerConnection() {
           e.preventDefault();
           setBusy(true);
           try {
-            const parsed = provider === "simulation" ? JSON.parse(snapshot) : null;
+            const parsed = JSON.parse(snapshot);
             const row = await connectBroker({
-              provider,
+              provider: "simulation",
               account_id: account,
               region: null,
               enabled: true,
               secret_id: null,
-              api_key: key || null,
+              api_key: null,
             });
-            if (parsed)
-              await api.post(`/trading/connections/${row.id}/simulation`, { snapshot: parsed });
-            setKey("");
+            await api.post(`/trading/connections/${row.id}/simulation`, { snapshot: parsed });
             setAccount("");
             refresh();
           } catch (err) {
@@ -43,32 +39,17 @@ export function BrokerConnection() {
           }
         }}
       >
-        <label>
-          <Trans>Connection type</Trans>
-          <select value={provider} onChange={(e) => setProvider(e.target.value)}>
-            <option value="metaapi">MetaApi</option>
-            <option value="simulation">
-              <Trans>Simulation with an imported snapshot</Trans>
-            </option>
-          </select>
-        </label>
+        <p className="muted">
+          <Trans>
+            Simulation with an imported snapshot. A real trading account is connected from chat:
+            ask Lonora to connect it.
+          </Trans>
+        </p>
         <label>
           <Trans>Account ID</Trans>
           <input dir="ltr" required value={account} onChange={(e) => setAccount(e.target.value)} />
         </label>
-        {provider === "metaapi" ? (
-          <label>
-            <Trans>MetaApi token</Trans>
-            <input
-              type="password"
-              autoComplete="off"
-              required
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-            />
-          </label>
-        ) : (
-          <label>
+        <label>
             <Trans>Simulation snapshot JSON</Trans>
             <textarea
               rows={6}
@@ -84,7 +65,6 @@ export function BrokerConnection() {
               </Trans>
             </small>
           </label>
-        )}
         <button type="submit" className="primary" disabled={busy}>
           <Trans>Connect account</Trans>
         </button>

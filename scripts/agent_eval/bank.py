@@ -120,6 +120,32 @@ def arm(fake: broker.FakeTerminal, scenario: dict[str, Any], *, probe: bool = Fa
         fake.fail(fault["kind"], after=fault.get("after", 0), times=fault.get("times", 1))
 
 
+async def demo_account(api: Any) -> dict[str, Any]:
+    """The owner's MetaApi demo account, as broker_connect's gateway step leaves it (9.2:
+    nobody links a MetaApi account by id): the owner's token and the connection with
+    MetaApi's observed identity (the fake terminal's, under ``broker.installed``)."""
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_contracts.broker import BrokerConnection
+    from lonora_db.broker_sessions import BrokerSessionRepository
+    from lonora_db.secrets import METAAPI_TOKEN
+    from lonora_db.transactions import resource_data
+    from lonora_trading.connections import verified_identity
+
+    runtime, owner = api.runtime, api.owner
+    secrets = BrokerSecrets(runtime.db, runtime.settings.encryption_key.get_secret_value(), owner)
+    async with runtime.db.sessions() as session, session.begin():
+        token_id = await secrets.write_in_session(session, METAAPI_TOKEN, "agent-eval-no-key")
+    config = BrokerConnection(
+        provider="metaapi", account_id=ACCOUNT, secret_id=token_id, enabled=True
+    )
+    identity = await verified_identity(config, "agent-eval-no-key")
+    async with runtime.db.sessions() as session, session.begin():
+        row = await BrokerSessionRepository().create(
+            session, owner, config.model_dump(mode="json"), broker_identity=identity
+        )
+        return resource_data(row)
+
+
 async def seed(api: Any, model: str) -> dict[str, str]:
     """The template database: the owner, his model, the demo account and a signed full mandate.
 
@@ -140,16 +166,7 @@ async def seed(api: Any, model: str) -> dict[str, str]:
     )
     profile = await api.request("GET", "/owner/profile")
     await api.request("PUT", "/owner/profile", {"content": PROFILE, "version": profile["version"]})
-    account = await api.request(
-        "POST",
-        "/trading/connections",
-        {
-            "provider": "metaapi",
-            "account_id": ACCOUNT,
-            "api_key": "agent-eval-no-key",
-            "enabled": True,
-        },
-    )
+    account = await demo_account(api)
     lonora = next(a for a in await api.request("GET", "/agents") if a["role"] == "personal")
     thread = await api.request("POST", f"/agents/{lonora['id']}/conversation", {})
     device = await device_type.enroll(api)

@@ -328,10 +328,13 @@ test("integrations: the demo account tests for real, MCP is remote only, usage h
     await page.goto("/app/integrations");
     await expect(page.getByText("Trading accounts")).toBeVisible();
     await page.goto("/app/broker");
-    // MetaApi is the default broker (Q52): preselected with its token and region fields.
-    await expect(page.getByLabel("Broker")).toHaveValue("metaapi");
-    await expect(page.getByLabel("Region")).toBeVisible();
-    await page.getByLabel("Broker").selectOption("simulation");
+    // Only the demo account is linked here; a real account is connected from chat (9.2).
+    await expect(page.getByLabel("Broker")).toHaveValue("simulation");
+    await expect(page.locator("option", { hasText: /MetaApi/ })).toHaveCount(0);
+    await expect(page.getByLabel("Region")).toHaveCount(0);
+    await expect(
+      page.getByText("A real trading account is connected from chat: ask Lonora to connect it."),
+    ).toBeVisible();
     await expect(page.getByText("Demo", { exact: true })).toBeVisible();
     await expect(page.getByLabel(/Password/)).toHaveCount(0);
     await page.getByLabel("Account number").fill(`demo-${randomUUID().slice(0, 8)}`);

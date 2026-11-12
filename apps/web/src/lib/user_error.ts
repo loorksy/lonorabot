@@ -143,6 +143,8 @@ export function userError(error: unknown) {
       return t`The test did not get an answer in time. Nothing was saved.`;
     case "broker_secret_required":
       return t`Enter the access token.`;
+    case "broker_connect_from_chat":
+      return t`A trading account is connected from chat: ask Lonora to connect it.`;
     case "broker_account_already_connected":
       return t`This broker account is already connected. Use the existing connection.`;
     case "broker_identity_unavailable":

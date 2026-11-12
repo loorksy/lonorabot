@@ -28,9 +28,8 @@ function TestResult({ state }: { state: TestState }) {
 const field = (form: HTMLFormElement, name: string) =>
   ((form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "").trim();
 
-/** The server's trading adapters in display order, with the fields each one takes (Q52): MetaApi
- * and «تجريبي» (the simulation provider). A local definition: the server has no provider
- * catalog route. */
+/** The trading adapters this form links, with the fields each one takes (Q52): «تجريبي» (the
+ * simulation provider). A local definition: the server has no provider catalog route. */
 export type BrokerField = {
   name: string;
   kind: "text" | "password";
@@ -43,16 +42,8 @@ export type BrokerProvider = {
   fields: BrokerField[];
 };
 export function brokerProviders(): Promise<BrokerProvider[]> {
+  // A real (MetaApi) account is connected from chat: Lonora provisions it (mandate 9.2).
   return Promise.resolve([
-    {
-      provider: "metaapi",
-      environment: "broker",
-      fields: [
-        { name: "account_id", kind: "text", required: true, secret: false },
-        { name: "api_key", kind: "password", required: true, secret: true },
-        { name: "region", kind: "text", required: false, secret: false },
-      ],
-    },
     {
       provider: "simulation",
       environment: "simulation",
@@ -67,22 +58,15 @@ const brokerName = (provider: string) =>
       ? "MetaApi (MetaTrader)"
       : provider;
 const fieldLabel = (field: BrokerField) =>
-  field.name === "account_id"
-    ? t`Account number`
-    : field.name === "region"
-      ? t`Region`
-      : field.secret
-        ? t`Access token — stored encrypted, never shown again`
-        : field.name;
+  field.name === "account_id" ? t`Account number` : field.name;
 
-/* «ربط حساب تداول» (brokerFormPage 8701-8703) with the server's fields (Q52): MetaApi is the default
-   broker (preselected, its fields shown); «تجريبي», the simulation provider, is the second choice; secrets are stored encrypted and never
-   shown again. «اختبار الاتصال» is a real read-only round trip that stores nothing. */
+/* «ربط حساب تداول» (brokerFormPage 8701-8703): only «تجريبي», the simulation provider; a real
+   account is connected from chat (mandate 9.2). «اختبار الاتصال» is a round trip that stores nothing. */
 export function BrokerFormPage() {
   const nav = useNavigation();
   const toast = useToast();
   const catalog = useLoad(brokerProviders, []);
-  const [provider, setProvider] = useState("metaapi");
+  const [provider, setProvider] = useState("simulation");
   const [test, setTest] = useState<TestState>(null);
   const [busy, setBusy] = useState(false);
   const entry = catalog.value?.find((item) => item.provider === provider);
@@ -96,14 +80,7 @@ export function BrokerFormPage() {
   const valid = (form: HTMLFormElement) => {
     if (!entry) return toast(t`Choose the broker`, { type: "warn" }), false;
     const missing = entry.fields.find((item) => item.required && !field(form, item.name));
-    if (missing)
-      return (
-        toast(
-          missing.name === "account_id" ? t`Enter the account number` : t`Enter the access token`,
-          { type: "warn" },
-        ),
-        false
-      );
+    if (missing) return toast(t`Enter the account number`, { type: "warn" }), false;
     return true;
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -170,25 +147,8 @@ export function BrokerFormPage() {
           setBusy(true);
           setTest(null);
           try {
-            const result = await api.post<{ identity?: Record<string, string> }>(
-              "/trading/connections/test",
-              body(form),
-            );
-            const who = result.identity
-              ? [result.identity.broker, result.identity.server, result.identity.login]
-                  .filter(Boolean)
-                  .join(" · ")
-              : "";
-            setTest({
-              ok: true,
-              text: who ? (
-                <Trans>
-                  The connection works · <bdi>{who}</bdi>
-                </Trans>
-              ) : (
-                <Trans>The connection works</Trans>
-              ),
-            });
+            await api.post("/trading/connections/test", body(form));
+            setTest({ ok: true, text: <Trans>The connection works</Trans> });
           } catch (error) {
             setTest({ ok: false, text: userError(error) });
           } finally {
@@ -203,6 +163,9 @@ export function BrokerFormPage() {
           After linking, the account's trading symbols are fetched from the broker and appear in the
           pair pickers.
         </Trans>
+      </Note>
+      <Note>
+        <Trans>A real trading account is connected from chat: ask Lonora to connect it.</Trans>
       </Note>
       <div className="actions">
         <button type="submit" className="btn primary" disabled={busy}>

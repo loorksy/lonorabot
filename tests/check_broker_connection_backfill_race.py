@@ -1,4 +1,8 @@
-"""Real PostgreSQL concurrent recovery/configuration while broker identity I/O is paused."""
+"""Real PostgreSQL concurrent recovery/configuration while broker identity I/O is paused.
+
+broker_connect's gateway step creates a MetaApi connection: ``observe_legacy_identities``
+(provider I/O, no lock), then ``record_identities`` and ``BrokerSessionRepository.create``
+under the owner lock. ``link`` below is that sequence."""
 
 import asyncio
 from typing import Any
@@ -6,9 +10,12 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from check_streaming import Fixture
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_contracts.broker import BrokerConnection
+from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import BrokerSessionRow, SecretRow
+from lonora_trading import connections
 from sqlalchemy import select
 
 
@@ -17,16 +24,34 @@ async def main() -> None:
     prefix = "backfill-race-" + uuid4().hex
     created: list[str] = []
 
-    async def post(account_id: str):
-        return await fixture.client.post(
-            "/api/trading/connections",
-            json={
-                "provider": "metaapi",
-                "account_id": account_id,
-                "enabled": True,
-                "api_key": "fixture-token",
-            },
+    store = BrokerSecrets(
+        fixture.runtime.db,
+        fixture.runtime.settings.encryption_key.get_secret_value(),
+        fixture.owner,
+    )
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        token_id = await store.write_in_session(session, prefix + "-token", "fixture-token")
+
+    async def link(account_id: str) -> tuple[str, str]:
+        """("created", connection id) or ("refused", code), as broker_connect's step."""
+        config = BrokerConnection(
+            provider="metaapi", account_id=account_id, secret_id=token_id, enabled=True
         )
+        try:
+            identity = await connections.verified_identity(config, "fixture-token")
+            legacy = await connections.observe_legacy_identities(
+                fixture.runtime.db, store, fixture.owner
+            )
+            repository = BrokerSessionRepository()
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await repository.lock_owner(session, fixture.owner)
+                await connections.record_identities(session, fixture.owner, legacy)
+                row = await repository.create(
+                    session, fixture.owner, config.model_dump(mode="json"), broker_identity=identity
+                )
+                return "created", row.id
+        except LonoraError as failure:
+            return "refused", failure.code
 
     def metadata(login: str) -> dict[str, Any]:
         return {"login": login, "server": "Fixture-Demo", "platform": "mt5"}
@@ -39,9 +64,8 @@ async def main() -> None:
                 "lonora_trading.connections.verified_identity",
                 AsyncMock(return_value=metadata(existing_account_id)),
             ):
-                primary = await post(existing_account_id)
-            assert primary.status_code == 201, primary.text
-            connection_id = primary.json()["id"]
+                outcome, connection_id = await link(existing_account_id)
+            assert outcome == "created", connection_id
             created.append(connection_id)
             async with fixture.runtime.db.sessions() as session, session.begin():
                 row = await BrokerSessionRepository().get(
@@ -61,7 +85,7 @@ async def main() -> None:
             with patch(
                 "lonora_trading.connections.verified_identity", AsyncMock(side_effect=observed)
             ):
-                submission = asyncio.create_task(post(existing_account_id + "-new"))
+                submission = asyncio.create_task(link(existing_account_id + "-new"))
                 try:
                     await asyncio.wait_for(metadata_started.wait(), timeout=10)
 
@@ -95,21 +119,10 @@ async def main() -> None:
                     release_metadata.set()
                     result = await asyncio.wait_for(submission, timeout=10)
             if change == "recovery":
-                assert result.status_code == 201, result.text
-                created.append(result.json()["id"])
+                assert result[0] == "created", result
+                created.append(result[1])
             else:
-                assert result.status_code == 409, result.text
-                assert result.json()["code"] == "broker_connection_changed", result.text
-                async with fixture.runtime.db.sessions() as session:
-                    assert (
-                        await session.scalar(
-                            select(SecretRow).where(
-                                SecretRow.owner_id == fixture.owner,
-                                SecretRow.name == existing_account_id + "-new",
-                            )
-                        )
-                        is None
-                    )
+                assert result == ("refused", "broker_connection_changed"), result
             async with fixture.runtime.db.sessions() as session:
                 row = await session.get(BrokerSessionRow, connection_id)
                 assert row
@@ -126,7 +139,7 @@ async def main() -> None:
             print(
                 "PASS identity backfill preserves concurrent recovery"
                 if change == "recovery"
-                else f"PASS identity backfill fences concurrent {change} change without orphan credentials"
+                else f"PASS identity backfill fences concurrent {change} change"
             )
             # Subsequent cases must only have their own legacy identity pending.
             async with fixture.runtime.db.sessions() as session, session.begin():
@@ -148,10 +161,10 @@ async def main() -> None:
                 "lonora_trading.connections.verified_identity",
                 AsyncMock(return_value=metadata(account_id)),
             ):
-                result = await post(account_id)
-            assert result.status_code == 201, result.text
-            legacy_ids[account_id] = result.json()["id"]
-            created.append(result.json()["id"])
+                outcome, connection_id = await link(account_id)
+            assert outcome == "created", connection_id
+            legacy_ids[account_id] = connection_id
+            created.append(connection_id)
         async with fixture.runtime.db.sessions() as session, session.begin():
             for connection_id in legacy_ids.values():
                 row = await session.get(BrokerSessionRow, connection_id)
@@ -172,7 +185,7 @@ async def main() -> None:
         with patch(
             "lonora_trading.connections.verified_identity", AsyncMock(side_effect=multi_observed)
         ):
-            submission = asyncio.create_task(post(prefix + "-multi-new"))
+            submission = asyncio.create_task(link(prefix + "-multi-new"))
             try:
                 await asyncio.wait_for(later_metadata_started.wait(), timeout=10)
                 first_id = legacy_ids[observed_order[0]]
@@ -188,8 +201,8 @@ async def main() -> None:
             finally:
                 release_later_metadata.set()
                 result = await asyncio.wait_for(submission, timeout=10)
-        assert result.status_code == 201, result.text
-        created.append(result.json()["id"])
+        assert result[0] == "created", result
+        created.append(result[1])
         async with fixture.runtime.db.sessions() as session:
             first = await session.get(BrokerSessionRow, first_id)
             assert first and first.state["broker_recovery"] == {"revision": 2}

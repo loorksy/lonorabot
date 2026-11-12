@@ -22,7 +22,6 @@ from lonora_contracts.model_routing import ProviderId
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_providers.registry import model_adapter
-from lonora_trading.connections import verified_identity
 from pydantic import Field
 
 from ..middleware.auth import require_owner, runtime
@@ -96,18 +95,7 @@ async def dry_run_broker(
         await BrokerSessionRepository().assert_unique(
             session, owner.id, config.model_dump(mode="json")
         )
-    if config.provider == "simulation":
-        return {"ok": True, "provider": "simulation"}
-    if not body.api_key:
-        raise LonoraError("broker_secret_required", 409)
-    # Provisioning metadata only: no trading RPC is opened and no order path exists here.
-    identity = await bounded(verified_identity(config, body.api_key))
-    return {
-        "ok": True,
-        "provider": config.provider,
-        "identity": {
-            key: identity.get(key)
-            for key in ("login", "server", "broker", "name", "platform")
-            if identity.get(key) is not None
-        },
-    }
+    if config.provider != "simulation":
+        # A MetaApi account is connected from chat (broker_connect, mandate 9.2).
+        raise LonoraError("broker_connect_from_chat", 409)
+    return {"ok": True, "provider": "simulation"}
