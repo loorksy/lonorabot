@@ -8,6 +8,9 @@ a scripted model, the simulation broker quoting the screenshot's prices.
             chunks, as a model would (lead first, then one card line at a time).
 ``receipt`` the card submission's queued Run: watch_create on the card's account, then the
             receipt card, interface only.
+``parity``  the parity calculator (tests/test_genui_parity.py): every catalog node and every
+            local, copy, open and go action, streamed through the real compiler, so each
+            client's journey checks that it draws every node type the server accepts.
 """
 
 import asyncio
@@ -27,6 +30,8 @@ from lonora_contracts.model_routing import ModelSelection
 from lonora_tools.loader import load_tools
 
 A01 = (Path(__file__).parent / "fixtures/genui/documents/valid/a01-alert.lonora-ui").read_text()
+PARITY = (Path(__file__).parent / "fixtures/genui/documents/valid/parity.lonora-ui").read_text()
+PARITY_OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 LEAD = "جهّزت التنبيه من رسالتك؛ راجع الشرط ثم أنشئه.\n"
 QUOTES = {"XAUUSD": "2368.40", "XAGUSD": "28.92", "EURUSD": "1.0842"}
 SELECTION = ModelSelection(provider="openai", model="scripted-genui-browser")
@@ -213,8 +218,32 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
         await fixture.close(cleanup=False)
 
 
+async def parity(data: dict[str, Any]) -> dict[str, Any]:
+    fixture = await Fixture().open()
+    try:
+        sent = await fixture.request(
+            "POST", f"/threads/{data['thread_id']}/messages", {"content": PARITY_OWNER}
+        )
+        run = sent["runs"][0]
+        context = await fixture.lease(run)
+        reply = "جهّزت لك حاسبة الحجم.\n```lonora-ui\n" + PARITY.rstrip("\n") + "\n```"
+
+        async def complete(*args: Any, **kwargs: Any):
+            on_delta = kwargs.get("on_delta")
+            if on_delta is not None:
+                for line in reply.split("\n"):
+                    await on_delta(line + "\n")
+            return ModelReply(text=reply), SELECTION
+
+        with patch.object(context.router, "complete", complete):
+            await execute_run(context, load_tools(), 120, 6)
+        return {"run": await fixture.request("GET", "/runs/" + run["id"])}
+    finally:
+        await fixture.close(cleanup=False)
+
+
 if __name__ == "__main__":
     command = sys.argv[1]
     payload = json.loads(sys.stdin.read() or "{}")
-    action = {"setup": setup, "stream": stream, "receipt": receipt}[command]
+    action = {"setup": setup, "stream": stream, "receipt": receipt, "parity": parity}[command]
     print(json.dumps(asyncio.run(action(payload))))

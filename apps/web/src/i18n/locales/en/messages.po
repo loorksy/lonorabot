@@ -673,7 +673,7 @@ msgstr "After linking, the account's trading symbols are fetched from the broker
 msgid "Agent"
 msgstr "Agent"
 
-#: src/components/genui/UiCard.tsx:241
+#: src/components/genui/UiCard.tsx:513
 msgid "Agent call"
 msgstr "Agent call"
 
@@ -2016,7 +2016,7 @@ msgstr "Commands at the start of the message"
 msgid "Compared with {compare} · <0>{0}</0>"
 msgstr "Compared with {compare} · <0>{0}</0>"
 
-#: src/components/genui/UiCard.tsx:473
+#: src/components/genui/UiCard.tsx:727
 msgid "Complete «{label}» first"
 msgstr "Complete «{label}» first"
 
@@ -2212,6 +2212,7 @@ msgstr "Coordinator"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
+#: src/components/genui/UiCard.tsx:792
 #: src/conversation/Conversation.tsx:425
 msgid "Copied"
 msgstr "Copied"
@@ -2788,7 +2789,7 @@ msgstr "Economic calendar"
 msgid "Economic calendar feed"
 msgstr "Economic calendar feed"
 
-#: src/components/genui/UiCard.tsx:609
+#: src/components/genui/UiCard.tsx:876
 #: src/shell/domain/FilesPages.tsx:121
 msgid "Edit"
 msgstr "Edit"
@@ -2858,7 +2859,7 @@ msgstr "Edit the list"
 msgid "Edit the message"
 msgstr "Edit the message"
 
-#: src/components/genui/UiCard.tsx:546
+#: src/components/genui/UiCard.tsx:813
 msgid "Edit, then send again"
 msgstr "Edit, then send again"
 
@@ -3593,7 +3594,7 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "In progress"
 
-#: src/components/genui/UiCard.tsx:238
+#: src/components/genui/UiCard.tsx:510
 #: src/shell/domain/SchedulesPages.tsx:207
 #: src/shell/domain/SchedulesPages.tsx:255
 #: src/shell/domain/SchedulesPages.tsx:544
@@ -3697,7 +3698,7 @@ msgstr "Integrations"
 msgid "Interactive elements in replies"
 msgstr "Interactive elements in replies"
 
-#: src/components/genui/UiCard.tsx:566
+#: src/components/genui/UiCard.tsx:833
 msgid "Interactive interface"
 msgstr "Interactive interface"
 
@@ -3732,7 +3733,7 @@ msgstr "Interrupted"
 #~ msgid "Interval"
 #~ msgstr "Interval"
 
-#: src/components/genui/UiCard.tsx:354
+#: src/components/genui/UiCard.tsx:626
 msgid "Invalid value."
 msgstr "Invalid value."
 
@@ -3879,7 +3880,7 @@ msgstr "Largest"
 msgid "Last successful read"
 msgstr "Last successful read"
 
-#: src/components/genui/UiCard.tsx:463
+#: src/components/genui/UiCard.tsx:717
 msgid "Last updated"
 msgstr "Last updated"
 
@@ -5032,7 +5033,7 @@ msgctxt "reach mode"
 msgid "Notification"
 msgstr "Notification"
 
-#: src/components/genui/UiCard.tsx:218
+#: src/components/genui/UiCard.tsx:490
 msgid "Notification method"
 msgstr "Notification method"
 
@@ -5569,7 +5570,7 @@ msgstr "Persistent child agent"
 msgid "Personal Agent"
 msgstr "Personal Agent"
 
-#: src/components/genui/UiCard.tsx:240
+#: src/components/genui/UiCard.tsx:512
 msgid "Phone notification"
 msgstr "Phone notification"
 
@@ -6713,7 +6714,7 @@ msgid "Sent"
 msgstr "Sent"
 
 #. placeholder {0}: agent?.name ?? "Lonora"
-#: src/components/genui/UiCard.tsx:606
+#: src/components/genui/UiCard.tsx:873
 msgid "Sent to {0}"
 msgstr "Sent to {0}"
 
@@ -6826,7 +6827,7 @@ msgstr "Show as a table"
 msgid "Show as text"
 msgstr "Show as text"
 
-#: src/components/genui/UiCard.tsx:366
+#: src/components/genui/UiCard.tsx:476
 #: src/shell/domain/UpdatesPages.tsx:146
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
@@ -7031,7 +7032,7 @@ msgstr "Sounds"
 msgid "Source"
 msgstr "Source"
 
-#: src/components/genui/UiCard.tsx:637
+#: src/components/genui/UiCard.tsx:904
 msgid "Sources"
 msgstr "Sources"
 
@@ -9026,7 +9027,7 @@ msgstr "When a condition is met"
 msgid "Why this interface"
 msgstr "Why this interface"
 
-#: src/components/genui/UiCard.tsx:627
+#: src/components/genui/UiCard.tsx:894
 msgid "Why this interface?"
 msgstr "Why this interface?"
 
@@ -9174,7 +9175,7 @@ msgstr "You set the markets, actions, duration and money limit"
 msgid "You stopped the reply"
 msgstr "You stopped the reply"
 
-#: src/components/genui/UiCard.tsx:616
+#: src/components/genui/UiCard.tsx:883
 msgid "You stopped the reply before the interface was complete"
 msgstr "You stopped the reply before the interface was complete"
 

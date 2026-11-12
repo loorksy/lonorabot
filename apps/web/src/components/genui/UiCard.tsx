@@ -4,9 +4,19 @@
  * While the card builds, and until its message is committed, every control is disabled. */
 import { t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import type { UiBlock, UiDocument, UiOption, UiPart } from "@lonora/contracts";
+import type {
+  UiBlock,
+  UiDocument,
+  UiOption,
+  UiPart,
+  UiRenderedNodeType,
+  UiRoute,
+} from "@lonora/contracts";
 import {
+  type CardInline,
+  cardInline,
   cardLock,
+  cardMarkdown,
   environment,
   evaluate,
   parseCardNumber,
@@ -22,7 +32,7 @@ import { useNavigation } from "../../shell/navigation";
 import "./genui.css";
 import { type UiPartHost, useGenuiHost } from "./index";
 
-const ROUTES: Record<string, string> = {
+const ROUTES: Record<UiRoute, string> = {
   market: "/app/market",
   tasks: "/app/tasks",
   schedules: "/app/routines",
@@ -60,15 +70,19 @@ function UiIcon({ name }: { name: unknown }) {
   return icon ? <Icon name={icon} /> : null;
 }
 
-/** The reference's inline Markdown in card text: **bold** only, never HTML. */
+/** The reference's inline Markdown in card text: **bold** only, never HTML, never a link. */
 function inline(text: string): ReactNode {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((piece, index) =>
-    piece.startsWith("**") && piece.endsWith("**") && piece.length > 4 ? (
+  return pieces(cardInline(text));
+}
+
+function pieces(parts: CardInline[]): ReactNode {
+  return parts.map((piece, index) =>
+    piece.bold ? (
       // biome-ignore lint/suspicious/noArrayIndexKey: static split of one string
-      <b key={index}>{piece.slice(2, -2)}</b>
+      <b key={index}>{piece.text}</b>
     ) : (
       // biome-ignore lint/suspicious/noArrayIndexKey: static split of one string
-      <Fragment key={index}>{piece}</Fragment>
+      <Fragment key={index}>{piece.text}</Fragment>
     ),
   );
 }
@@ -90,187 +104,445 @@ function visible(block: UiBlock, ctx: Ctx): boolean {
   return block.when === undefined || Boolean(evaluate(block.when, ctx.env, false));
 }
 
+type NodeProps = {
+  block: UiBlock;
+  path: string;
+  ctx: Ctx;
+  /** `data-ux` (and `data-ux-new` on the block being built). */
+  common: Record<string, string>;
+  id: string;
+  /** A display template rendered against the card's values. */
+  text: (value: unknown) => string;
+  /** ` t-<tone>` or "". */
+  tone: string;
+};
+
 function Block({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx }) {
   const isNew = path === String(ctx.newest);
-  const common = { "data-ux": path, ...(isNew ? { "data-ux-new": "" } : {}) };
+  const common = {
+    "data-ux": path,
+    "data-ux-type": block.type,
+    ...(isNew ? { "data-ux-new": "" } : {}),
+  };
   if (!visible(block, ctx)) return <div {...common} data-ux-off="" hidden />;
-  const text = (value: unknown) => ctx.stale(renderTemplate(String(value ?? ""), ctx.env));
-  const tone = typeof block.tone === "string" ? ` t-${block.tone}` : "";
-  const id = `ux-${path.replace(/\./g, "-")}`;
-  switch (block.type) {
-    case "Row":
-    case "More":
-      if (block.type === "More") return <More path={path} block={block} ctx={ctx} />;
-      return (
-        <div className="ux-row" {...common}>
-          {(block.children as UiBlock[]).map((child, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: node paths are positional (data-ux)
-            <Block key={`${path}.${index}`} block={child} path={`${path}.${index}`} ctx={ctx} />
-          ))}
-        </div>
-      );
-    case "Divider":
-      return <hr className="ux-hr" {...common} />;
-    case "Text":
-      return (
-        <div
-          className={`ux-text${tone}${block.size === "sm" ? " sm" : ""}`}
-          {...common}
-          role="status"
-        >
-          {inline(text(block.text))}
-        </div>
-      );
-    case "Note": {
-      const icon =
-        block.icon ?? (block.tone === "warn" ? "alert" : block.tone === "good" ? "check" : "info");
-      return (
-        <div className={`ux-note${tone}`} {...common} role="status">
-          <UiIcon name={icon} />
-          <span>{inline(text(block.text))}</span>
-        </div>
-      );
-    }
-    case "KeyValue":
-      return (
-        <div className="ux-kv" {...common}>
-          {(block.rows as unknown[][]).map((row, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
-            <div key={index}>
-              <span>{text(row[0])}</span>
-              <b>{text(row[1])}</b>
-            </div>
-          ))}
-        </div>
-      );
-    case "Segmented": {
-      const key = String(block.bind);
-      const options = optionList(block.options, ctx);
-      const current = Math.max(
-        0,
-        options.findIndex((option) => String(option.value) === String(ctx.values[key])),
-      );
-      return (
-        <div className="ux-field" {...common}>
-          <span className="ux-label" id={`${id}-l`}>
-            {text(block.label)}
-          </span>
-          <div
-            className="ux-seg"
-            role="radiogroup"
-            aria-labelledby={`${id}-l`}
-            style={{ "--n": options.length, "--i": current } as React.CSSProperties}
-            onKeyDown={(event) => {
-              // Left and Right follow the reading direction; Up and Down never do (review).
-              const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
-              const step = {
-                ArrowLeft: rtl ? 1 : -1,
-                ArrowRight: rtl ? -1 : 1,
-                ArrowDown: 1,
-                ArrowUp: -1,
-              }[event.key];
-              if (!step || ctx.frozen || ctx.locked) return;
-              event.preventDefault();
-              const next = (current + step + options.length) % options.length;
-              const option = options[next];
-              if (!option) return;
-              ctx.pick(key, option.value, option.also);
-              const buttons = event.currentTarget.querySelectorAll("button");
-              (buttons[next] as HTMLButtonElement | undefined)?.focus();
-            }}
-          >
-            {options.map((option, index) => (
-              // biome-ignore lint/a11y/useSemanticElements: the reference's radio buttons
-              <button
-                key={String(option.value)}
-                type="button"
-                role="radio"
-                aria-checked={index === current}
-                tabIndex={index === current ? 0 : -1}
-                disabled={ctx.frozen || ctx.locked}
-                onClick={() => ctx.pick(key, option.value, option.also)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    }
-    case "Number": {
-      const key = String(block.bind);
-      return (
-        <NumberField
-          block={block}
-          path={path}
-          id={id}
-          value={ctx.values[key]}
-          hint={block.hint !== undefined ? text(block.hint) : null}
-          ctx={ctx}
-          common={common}
-        />
-      );
-    }
-    case "Delivery":
-      return (
-        <div className="ux-field" {...common}>
-          <span className="ux-label" id={`${id}-l`}>
-            {t`Notification method`}
-          </span>
-          {/* biome-ignore lint/a11y/useSemanticElements: the reference's pick rows (Desktop-37 2230) */}
-          <div className="ux-picks" role="group" aria-labelledby={`${id}-l`}>
-            {(block.channels as string[]).map((channel) => (
-              // biome-ignore lint/a11y/useSemanticElements: a read-only checked pick row (Q59)
-              <button
-                key={channel}
-                type="button"
-                className="ux-pick"
-                role="checkbox"
-                aria-checked="true"
-                // Read-only, not disabled: the reference's disabled dim does not apply.
-                aria-disabled="true"
-              >
-                <span className="ux-box" aria-hidden="true">
-                  <Icon name="check" />
-                </span>
-                <span>
-                  {channel === "app"
-                    ? t`In the app`
-                    : channel === "push"
-                      ? t`Phone notification`
-                      : t`Agent call`}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    case "Button": {
-      const action = block.action as { do?: string } | undefined;
-      const safe = action && ["go", "open", "copy"].includes(String(action.do));
-      const sends = !action || action.do === "send";
-      // Every control waits while the card builds; only a sent card keeps go/open/copy.
-      const off =
-        ctx.frozen ||
-        (!safe && (ctx.locked || (sends && ctx.sendOff))) ||
-        // A `disabled` that fails to evaluate disables, as the server refuses it (fail closed).
-        (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, true)));
-      return (
-        <button
-          type="button"
-          className={`btn sm ${block.style === "primary" ? "primary" : "outline"}${block.full ? " ux-full" : ""}`}
-          {...common}
-          disabled={off}
-          onClick={() => ctx.act(block, path)}
-        >
-          <UiIcon name={block.icon} />
-          <span>{text(block.label)}</span>
-        </button>
-      );
-    }
-  }
-  return null;
+  const Render = Object.hasOwn(NODES, block.type)
+    ? NODES[block.type as UiRenderedNodeType]
+    : undefined;
+  if (!Render) return null;
+  return (
+    <Render
+      block={block}
+      path={path}
+      ctx={ctx}
+      common={common}
+      id={`ux-${path.replace(/\./g, "-")}`}
+      text={(value) => ctx.stale(renderTemplate(String(value ?? ""), ctx.env))}
+      tone={typeof block.tone === "string" ? ` t-${block.tone}` : ""}
+    />
+  );
 }
+
+function Children({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx }) {
+  return (
+    <>
+      {((block.children as UiBlock[]) ?? []).map((child, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: node paths are positional (data-ux)
+        <Block key={`${path}.${index}`} block={child} path={`${path}.${index}`} ctx={ctx} />
+      ))}
+    </>
+  );
+}
+
+function Segmented({ block, ctx, common, id, text }: NodeProps) {
+  const key = String(block.bind);
+  const options = optionList(block.options, ctx);
+  const current = Math.max(
+    0,
+    options.findIndex((option) => String(option.value) === String(ctx.values[key])),
+  );
+  return (
+    <div className="ux-field" {...common}>
+      <span className="ux-label" id={`${id}-l`}>
+        {text(block.label)}
+      </span>
+      <div
+        className="ux-seg"
+        role="radiogroup"
+        aria-labelledby={`${id}-l`}
+        style={{ "--n": options.length, "--i": current } as React.CSSProperties}
+        onKeyDown={(event) => {
+          // Left and Right follow the reading direction; Up and Down never do (review).
+          const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+          const step = {
+            ArrowLeft: rtl ? 1 : -1,
+            ArrowRight: rtl ? -1 : 1,
+            ArrowDown: 1,
+            ArrowUp: -1,
+          }[event.key];
+          if (!step || ctx.frozen || ctx.locked) return;
+          event.preventDefault();
+          const next = (current + step + options.length) % options.length;
+          const option = options[next];
+          if (!option) return;
+          ctx.pick(key, option.value, option.also);
+          const buttons = event.currentTarget.querySelectorAll("button");
+          (buttons[next] as HTMLButtonElement | undefined)?.focus();
+        }}
+      >
+        {options.map((option, index) => (
+          // biome-ignore lint/a11y/useSemanticElements: the reference's radio buttons
+          <button
+            key={String(option.value)}
+            type="button"
+            role="radio"
+            aria-checked={index === current}
+            tabIndex={index === current ? 0 : -1}
+            disabled={ctx.frozen || ctx.locked}
+            onClick={() => ctx.pick(key, option.value, option.also)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The reference's Select (Desktop-37 6418): a native select with a chevron. */
+function Select({ block, ctx, common, id, text }: NodeProps) {
+  const key = String(block.bind);
+  const options = optionList(block.options, ctx);
+  const current = options.findIndex((option) => String(option.value) === String(ctx.values[key]));
+  return (
+    <div className="ux-field" {...common}>
+      <label htmlFor={id}>
+        <span>{text(block.label)}</span>
+      </label>
+      <div className="ux-input ux-select">
+        <select
+          id={id}
+          data-ux-bind={key}
+          value={current < 0 ? "" : String(current)}
+          disabled={ctx.frozen || ctx.locked}
+          onChange={(event) => {
+            const option = options[Number(event.target.value)];
+            if (option) ctx.pick(key, option.value, option.also);
+          }}
+        >
+          {current < 0 && <option value="" disabled hidden />}
+          {options.map((option, index) => (
+            <option key={String(option.value)} value={String(index)}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <Icon name="down" />
+      </div>
+    </div>
+  );
+}
+
+function NumberNode({ block, path, ctx, common, id, text }: NodeProps) {
+  const key = String(block.bind);
+  return (
+    <NumberField
+      block={block}
+      path={path}
+      id={id}
+      value={ctx.values[key]}
+      hint={block.hint !== undefined ? text(block.hint) : null}
+      ctx={ctx}
+      common={common}
+    />
+  );
+}
+
+/** The reference's Slider (Desktop-37 6416): a range with its `show` readout. */
+function Slider({ block, ctx, common, id, text }: NodeProps) {
+  const key = String(block.bind);
+  const min = typeof block.min === "number" ? block.min : 0;
+  const max = typeof block.max === "number" ? block.max : 100;
+  const step = typeof block.step === "number" && block.step > 0 ? block.step : 1;
+  const raw = Number(ctx.values[key] ?? min);
+  const value = Number.isFinite(raw) ? Math.max(min, Math.min(max, raw)) : min;
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  const show = text(typeof block.show === "string" ? block.show : `{$${key}}`);
+  return (
+    <div className="ux-field ux-slider" {...common}>
+      <label htmlFor={id}>
+        <span>{text(block.label)}</span>
+        <output htmlFor={id} data-ux-out="">
+          {show}
+        </output>
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        style={{ "--p": `${pct}%` } as React.CSSProperties}
+        data-ux-bind={key}
+        aria-valuetext={show}
+        disabled={ctx.frozen || ctx.locked}
+        onChange={(event) => ctx.type(key, Number(event.target.value))}
+      />
+    </div>
+  );
+}
+
+function TextNode({ block, common, text, tone }: NodeProps) {
+  return (
+    <div className={`ux-text${tone}${block.size === "sm" ? " sm" : ""}`} {...common} role="status">
+      {inline(text(block.text))}
+    </div>
+  );
+}
+
+function Title({ block, common, text }: NodeProps) {
+  return (
+    <div className="ux-title" {...common}>
+      {text(block.text)}
+    </div>
+  );
+}
+
+/** Paragraphs and lists with **bold**; never HTML, links show as their label. */
+function MarkdownNode({ block, common, text }: NodeProps) {
+  return (
+    <div className="ux-md" {...common}>
+      {cardMarkdown(text(block.text)).map((item, index) => {
+        const lines = item.lines.map((line, at) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: static lines of one text
+          <Fragment key={at}>{pieces(line)}</Fragment>
+        ));
+        if (item.kind === "p")
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static blocks of one text
+            <p key={index}>
+              {lines.map((line, at) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static lines of one text
+                <Fragment key={at}>
+                  {at > 0 && <br />}
+                  {line}
+                </Fragment>
+              ))}
+            </p>
+          );
+        const List = item.kind;
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: static blocks of one text
+          <List key={index}>
+            {lines.map((line, at) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static lines of one text
+              <li key={at}>{line}</li>
+            ))}
+          </List>
+        );
+      })}
+    </div>
+  );
+}
+
+function Badge({ block, common, text, tone }: NodeProps) {
+  return (
+    <span className={`ux-badge${tone}`} {...common}>
+      <UiIcon name={block.icon} />
+      <span>{text(block.text)}</span>
+    </span>
+  );
+}
+
+function Note({ block, common, text, tone }: NodeProps) {
+  const icon =
+    block.icon ?? (block.tone === "warn" ? "alert" : block.tone === "good" ? "check" : "info");
+  return (
+    <div className={`ux-note${tone}`} {...common} role="status">
+      <UiIcon name={icon} />
+      <span>{inline(text(block.text))}</span>
+    </div>
+  );
+}
+
+function KeyValue({ block, common, text }: NodeProps) {
+  return (
+    <div className="ux-kv" {...common}>
+      {(block.rows as unknown[][]).map((row, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional
+        <div key={index}>
+          <span>{text(row[0])}</span>
+          <b>{text(row[1])}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The reference's Stat (Desktop-37 6412): label, value, and a sub line with its trend. */
+function Stat({ block, ctx, common, text, tone }: NodeProps) {
+  const trend = block.trend !== undefined ? String(evaluate(block.trend, ctx.env, "") ?? "") : "";
+  const arrow = trend === "up" || trend === "down" ? trend : "";
+  return (
+    <div className={`ux-stat${tone}`} {...common}>
+      <small>
+        <UiIcon name={block.icon} />
+        {text(block.label)}
+      </small>
+      <b>{text(block.value)}</b>
+      {block.sub !== undefined && (
+        <span className={`ux-sub${arrow ? ` tr-${arrow}` : ""}`} dir="auto">
+          {arrow && <Icon name={arrow === "down" ? "trendDown" : "trend"} />}
+          {text(block.sub)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ButtonNode({ block, path, ctx, common, text }: NodeProps) {
+  const action = block.action as { do?: string } | undefined;
+  const safe = action && ["go", "open", "copy"].includes(String(action.do));
+  const sends = !action || action.do === "send";
+  // Every control waits while the card builds; only a sent card keeps go/open/copy.
+  const off =
+    ctx.frozen ||
+    (!safe && (ctx.locked || (sends && ctx.sendOff))) ||
+    // A `disabled` that fails to evaluate disables, as the server refuses it (fail closed).
+    (block.disabled !== undefined && Boolean(evaluate(block.disabled, ctx.env, true)));
+  return (
+    <button
+      type="button"
+      className={`btn sm ${block.style === "primary" ? "primary" : "outline"}${block.full ? " ux-full" : ""}`}
+      {...common}
+      disabled={off}
+      onClick={() => ctx.act(block, path)}
+    >
+      <UiIcon name={block.icon} />
+      <span>{text(block.label)}</span>
+    </button>
+  );
+}
+
+function Divider({ common }: NodeProps) {
+  return <hr className="ux-hr" {...common} />;
+}
+
+function Row({ block, path, ctx, common }: NodeProps) {
+  return (
+    <div className="ux-row" {...common}>
+      <Children block={block} path={path} ctx={ctx} />
+    </div>
+  );
+}
+
+function Col({ block, path, ctx, common }: NodeProps) {
+  return (
+    <div className="ux-col" {...common}>
+      <Children block={block} path={path} ctx={ctx} />
+    </div>
+  );
+}
+
+function Grid({ block, path, ctx, common }: NodeProps) {
+  const cols = block.cols === 1 || block.cols === 3 ? block.cols : 2;
+  return (
+    <div className="ux-grid" {...common} style={{ "--cols": cols } as React.CSSProperties}>
+      <Children block={block} path={path} ctx={ctx} />
+    </div>
+  );
+}
+
+/** The reference's inner panel (Desktop-37 6402). */
+function Card({ block, path, ctx, common, text }: NodeProps) {
+  return (
+    <div className="ux-panel" {...common}>
+      {block.title !== undefined && (
+        <div className="ux-panel-h">
+          <UiIcon name={block.icon} />
+          <b>{text(block.title)}</b>
+        </div>
+      )}
+      <Children block={block} path={path} ctx={ctx} />
+    </div>
+  );
+}
+
+function More({ block, path, ctx, common, text }: NodeProps) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button type="button" className="ux-more" {...common} onClick={() => setOpen(true)}>
+        {typeof block.label === "string" ? text(block.label) : t`Show more`}
+      </button>
+    );
+  return (
+    <div className="ux-col" {...common}>
+      <Children block={block} path={path} ctx={ctx} />
+    </div>
+  );
+}
+
+function Delivery({ block, common, id }: NodeProps) {
+  return (
+    <div className="ux-field" {...common}>
+      <span className="ux-label" id={`${id}-l`}>
+        {t`Notification method`}
+      </span>
+      {/* biome-ignore lint/a11y/useSemanticElements: the reference's pick rows (Desktop-37 2230) */}
+      <div className="ux-picks" role="group" aria-labelledby={`${id}-l`}>
+        {(block.channels as string[]).map((channel) => (
+          // biome-ignore lint/a11y/useSemanticElements: a read-only checked pick row (Q59)
+          <button
+            key={channel}
+            type="button"
+            className="ux-pick"
+            role="checkbox"
+            aria-checked="true"
+            // Read-only, not disabled: the reference's disabled dim does not apply.
+            aria-disabled="true"
+          >
+            <span className="ux-box" aria-hidden="true">
+              <Icon name="check" />
+            </span>
+            <span>
+              {channel === "app"
+                ? t`In the app`
+                : channel === "push"
+                  ? t`Phone notification`
+                  : t`Agent call`}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Every node type of the catalog generated from the server contract, and the server's
+ * delivery row (mandate 10.1.5): a node the server accepts and this map lacks fails
+ * `pnpm check`. */
+const NODES: Record<UiRenderedNodeType, (props: NodeProps) => ReactNode> = {
+  Segmented,
+  Select,
+  Number: NumberNode,
+  Slider,
+  Text: TextNode,
+  Title,
+  Markdown: MarkdownNode,
+  Note,
+  Badge,
+  KeyValue,
+  Stat,
+  Button: ButtonNode,
+  Divider,
+  Row,
+  Col,
+  Grid,
+  Card,
+  More,
+  Delivery,
+};
 
 function NumberField({
   block,
@@ -354,24 +626,6 @@ function NumberField({
           <span>{t`Invalid value.`}</span>
         </span>
       )}
-    </div>
-  );
-}
-
-function More({ block, path, ctx }: { block: UiBlock; path: string; ctx: Ctx }) {
-  const [open, setOpen] = useState(false);
-  if (!open)
-    return (
-      <button type="button" className="ux-more" data-ux={path} onClick={() => setOpen(true)}>
-        {typeof block.label === "string" ? block.label : t`Show more`}
-      </button>
-    );
-  return (
-    <div className="ux-col" data-ux={path}>
-      {(block.children as UiBlock[]).map((child, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: node paths are positional (data-ux)
-        <Block key={`${path}.${index}`} block={child} path={`${path}.${index}`} ctx={ctx} />
-      ))}
     </div>
   );
 }
@@ -524,8 +778,21 @@ export default function UiCard({
       if (!action || action.do === "send") {
         void send(block, path);
       } else if (action.do === "go") {
-        const route = ROUTES[String(action.route)];
-        if (route) nav.go(route);
+        const name = String(action.route);
+        if (Object.hasOwn(ROUTES, name)) nav.go(ROUTES[name as UiRoute]);
+      } else if (action.do === "open") {
+        // A literal https URL the server matched to the owner's message or a tool result.
+        const url = String(action.url);
+        if (url.startsWith("https://")) window.open(url, "_blank", "noopener,noreferrer");
+      } else if (action.do === "copy") {
+        const copied = renderTemplate(String(action.text ?? ""), env);
+        void navigator.clipboard?.writeText(copied).then(
+          () => {
+            navigator.vibrate?.(8);
+            setNotice(t`Copied`);
+          },
+          () => setNotice(copied),
+        );
       } else if (action.do === "set") {
         setValues((old) => ({ ...old, [String(action.key)]: evaluate(action.value, env) }));
       } else if (action.do === "toggle") {

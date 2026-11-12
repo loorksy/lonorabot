@@ -1,7 +1,8 @@
 """Regenerate the lonora-ui v2 component catalog for the clients from the server contract.
 
 The server contract (``lonora_contracts.genui``) is the one source of truth for the v2
-component set (mandate 10.1.5). This writes ``packages/contracts/src/genui-catalog.ts``,
+component set (mandate 10.1.5), and ``lonora_agent.genui_capabilities.ROUTES`` of the
+routes a ``go`` action may name. This writes ``packages/contracts/src/genui-catalog.ts``,
 which the client validator, the web renderer and the mobile renderer type against, so a
 node or action the server accepts and a client does not render fails ``pnpm check`` and
 ``tests/web/genui-parity.test.ts``. Use --check during builds.
@@ -11,6 +12,7 @@ import argparse
 import json
 from pathlib import Path
 
+from lonora_agent.genui_capabilities import ROUTES
 from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +44,7 @@ def generated() -> str:
     nodes = _list(list(NODES))
     server = _list(SERVER_NODES)
     actions = _list(ACTIONS)
+    routes = _list(ROUTES)
     rows = "".join(_props(name, spec) for name, spec in props.items())
     return (
         "/** The lonora-ui v2 component catalog (mandate 10.1.5), generated from the server\n"
@@ -56,6 +59,9 @@ def generated() -> str:
         "export type UiRenderedNodeType = UiNodeType | UiServerNodeType;\n"
         f"export const UI_ACTIONS = {actions} as const;\n"
         "export type UiActionKind = (typeof UI_ACTIONS)[number];\n"
+        "/** The client routes a `go` action may name (`lonora_agent.genui_capabilities`). */\n"
+        f"export const UI_ROUTES = {routes} as const;\n"
+        "export type UiRoute = (typeof UI_ROUTES)[number];\n"
         "/** Each node's props: true when required. */\n"
         "export const UI_NODE_PROPS: Record<UiNodeType, Readonly<Record<string, boolean>>> = {\n"
         f"{rows}}};\n"

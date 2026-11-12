@@ -673,7 +673,7 @@ msgstr "بعد الربط تُجلب رموز التداول المتاحة من
 msgid "Agent"
 msgstr "الوكيل"
 
-#: src/components/genui/UiCard.tsx:241
+#: src/components/genui/UiCard.tsx:513
 msgid "Agent call"
 msgstr "مكالمة الوكيل"
 
@@ -2016,7 +2016,7 @@ msgstr "الأوامر في بداية الرسالة"
 msgid "Compared with {compare} · <0>{0}</0>"
 msgstr "مقارنة ب{compare} · <0>{0}</0>"
 
-#: src/components/genui/UiCard.tsx:473
+#: src/components/genui/UiCard.tsx:727
 msgid "Complete «{label}» first"
 msgstr "أكمل «{label}» أولًا"
 
@@ -2212,6 +2212,7 @@ msgstr "المنسق"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
+#: src/components/genui/UiCard.tsx:792
 #: src/conversation/Conversation.tsx:425
 msgid "Copied"
 msgstr "تم النسخ"
@@ -2788,7 +2789,7 @@ msgstr "التقويم الاقتصادي"
 msgid "Economic calendar feed"
 msgstr "مصدر التقويم الاقتصادي"
 
-#: src/components/genui/UiCard.tsx:609
+#: src/components/genui/UiCard.tsx:876
 #: src/shell/domain/FilesPages.tsx:121
 msgid "Edit"
 msgstr "تعديل"
@@ -2858,7 +2859,7 @@ msgstr "تعديل القائمة"
 msgid "Edit the message"
 msgstr "تعديل الرسالة"
 
-#: src/components/genui/UiCard.tsx:546
+#: src/components/genui/UiCard.tsx:813
 msgid "Edit, then send again"
 msgstr "عدّل ثم أرسل من جديد"
 
@@ -3587,7 +3588,7 @@ msgctxt "task status"
 msgid "In progress"
 msgstr "قيد التنفيذ"
 
-#: src/components/genui/UiCard.tsx:238
+#: src/components/genui/UiCard.tsx:510
 #: src/shell/domain/SchedulesPages.tsx:207
 #: src/shell/domain/SchedulesPages.tsx:255
 #: src/shell/domain/SchedulesPages.tsx:544
@@ -3691,7 +3692,7 @@ msgstr "التكاملات"
 msgid "Interactive elements in replies"
 msgstr "عناصر تفاعلية في الردود"
 
-#: src/components/genui/UiCard.tsx:566
+#: src/components/genui/UiCard.tsx:833
 msgid "Interactive interface"
 msgstr "واجهة تفاعلية"
 
@@ -3726,7 +3727,7 @@ msgstr "انقطع"
 #~ msgid "Interval"
 #~ msgstr "فاصل زمني"
 
-#: src/components/genui/UiCard.tsx:354
+#: src/components/genui/UiCard.tsx:626
 msgid "Invalid value."
 msgstr "القيمة غير صحيحة."
 
@@ -3873,7 +3874,7 @@ msgstr "الأكبر"
 msgid "Last successful read"
 msgstr "آخر قراءة ناجحة"
 
-#: src/components/genui/UiCard.tsx:463
+#: src/components/genui/UiCard.tsx:717
 msgid "Last updated"
 msgstr "آخر تحديث"
 
@@ -5026,7 +5027,7 @@ msgctxt "reach mode"
 msgid "Notification"
 msgstr "إشعار"
 
-#: src/components/genui/UiCard.tsx:218
+#: src/components/genui/UiCard.tsx:490
 msgid "Notification method"
 msgstr "طريقة الإشعار"
 
@@ -5563,7 +5564,7 @@ msgstr "وكيل ابن دائم"
 msgid "Personal Agent"
 msgstr "المساعد الشخصي"
 
-#: src/components/genui/UiCard.tsx:240
+#: src/components/genui/UiCard.tsx:512
 msgid "Phone notification"
 msgstr "إشعار الهاتف"
 
@@ -6707,7 +6708,7 @@ msgid "Sent"
 msgstr "مُرسَل"
 
 #. placeholder {0}: agent?.name ?? "Lonora"
-#: src/components/genui/UiCard.tsx:606
+#: src/components/genui/UiCard.tsx:873
 msgid "Sent to {0}"
 msgstr "أُرسل إلى {0}"
 
@@ -6820,7 +6821,7 @@ msgstr "عرض كجدول"
 msgid "Show as text"
 msgstr "عرض كنص"
 
-#: src/components/genui/UiCard.tsx:366
+#: src/components/genui/UiCard.tsx:476
 #: src/shell/domain/UpdatesPages.tsx:146
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
@@ -7025,7 +7026,7 @@ msgstr "الأصوات"
 msgid "Source"
 msgstr "المصدر"
 
-#: src/components/genui/UiCard.tsx:637
+#: src/components/genui/UiCard.tsx:904
 msgid "Sources"
 msgstr "المصادر"
 
@@ -9020,7 +9021,7 @@ msgstr "عند تحقق شرط"
 msgid "Why this interface"
 msgstr "سبب اختيار الواجهة"
 
-#: src/components/genui/UiCard.tsx:627
+#: src/components/genui/UiCard.tsx:894
 msgid "Why this interface?"
 msgstr "لماذا هذه الواجهة؟"
 
@@ -9168,7 +9169,7 @@ msgstr "تحدّد الأسواق والإجراءات والمدة والحد �
 msgid "You stopped the reply"
 msgstr "أوقفتَ الرد"
 
-#: src/components/genui/UiCard.tsx:616
+#: src/components/genui/UiCard.tsx:883
 msgid "You stopped the reply before the interface was complete"
 msgstr "أوقفتَ الرد قبل اكتمال الواجهة"
 
