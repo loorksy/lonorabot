@@ -22,7 +22,7 @@ import { useAgentLiveState } from "../../lib/agent-live-state";
 import type { Agent, Resource } from "../../lib/api";
 import { api } from "../../lib/api";
 import { brokerIdentityLabel } from "../../lib/broker-identity";
-import { readConnections, resumeTrading, stopNewTrading } from "../../lib/trading";
+import { readConnections } from "../../lib/trading";
 import { userError } from "../../lib/user_error";
 import { useClient } from "../../providers/ClientProvider";
 import { useNavigation } from "../../shell/navigation";
@@ -128,41 +128,21 @@ export function SafetyCapsule({ agent, onOpen }: { agent: Agent; onOpen: () => v
   const readiness = state?.trading_readiness;
   if (!readiness) return null;
   const count = readiness.unresolved_count;
-  const full = count ? uncertainLine(count, i18n.locale) : "";
-  const flag = count > 1 ? t`${count} unconfirmed` : full;
-  let tone: "off" | "warn";
-  let icon: IconName;
-  let text: string;
-  let showFlag = true;
-  if (readiness.global_trading.state === "stopped") {
-    tone = "off";
-    icon = "power";
-    text = t`Trading is stopped`;
-  } else if (count) {
-    tone = "warn";
-    icon = "alert";
-    text = full;
-    showFlag = false;
-  } else return null;
+  if (!count) return null;
+  const text = uncertainLine(count, i18n.locale);
   return (
     <div className="safety-row">
       <button
         type="button"
-        className={`safety-cap tone-${tone}`}
+        className="safety-cap tone-warn"
         aria-haspopup="dialog"
-        aria-label={`${text}${showFlag && full ? `، ${full}` : ""}`}
+        aria-label={text}
         data-testid="safety-capsule"
         data-readiness={readiness.state}
         onClick={onOpen}
       >
-        <Icon name={icon} />
+        <Icon name="alert" />
         <span className="sc-text">{text}</span>
-        {showFlag && flag && (
-          <span className="sc-flag">
-            <Icon name="alert" />
-            <span>{flag}</span>
-          </span>
-        )}
         <Icon name="down" />
       </button>
     </div>
@@ -279,7 +259,6 @@ function AgentSheetBody({
   };
   const work = state?.current_work;
   const pendingId = state?.pending_card_id;
-  const stopped = readiness?.global_trading.state === "stopped";
   return (
     <>
       <div className="sf-head" data-testid="agent-live-state" data-state={state?.state}>
@@ -408,67 +387,44 @@ function AgentSheetBody({
       )}
       {readiness && (
         <>
-          <h3>
-            <Trans>Trading</Trans>
-          </h3>
-          <div className="group">
-            <div className="row sf-switch">
-              <Icon name="power" />
-              <span className="body">
-                <strong>
-                  <Trans>Trading</Trans>
-                </strong>
-                <small>
-                  {stopped
-                    ? t`Stopped · no new orders are sent`
-                    : t`On · closing is always allowed`}
-                </small>
-              </span>
-              <button
-                type="button"
-                className="switch"
-                role="switch"
-                aria-checked={!stopped}
-                aria-label={t`Trading`}
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    stopped ? resumeTrading : stopNewTrading,
-                    stopped ? t`Trading resumed` : t`Trading stopped · closing is still allowed`,
-                  )
-                }
-              />
-            </div>
-            {readiness.unresolved_operations.map((op) => (
-              <div key={op.operation_id} className="row">
-                <Icon name="alert" />
-                <span className="body">
-                  <strong dir="auto">
-                    <bdi>
-                      {op.action} {op.symbol}
-                    </bdi>
-                  </strong>
-                  <small dir="auto">
-                    {accountName(op.account_id) && <>{accountName(op.account_id)} · </>}
-                    <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
-                  </small>
-                </span>
-                {op.resolve_card && (
-                  <button
-                    type="button"
-                    className="btn sm"
-                    data-resolve-card={op.resolve_card.id}
-                    onClick={() => {
-                      close();
-                      if (op.resolve_card) openCard(op.resolve_card, go);
-                    }}
-                  >
-                    <Trans>Resolve</Trans>
-                  </button>
-                )}
+          {readiness.unresolved_operations.length > 0 && (
+            <>
+              <h3>
+                <Trans>Trading</Trans>
+              </h3>
+              <div className="group">
+                {readiness.unresolved_operations.map((op) => (
+                  <div key={op.operation_id} className="row">
+                    <Icon name="alert" />
+                    <span className="body">
+                      <strong dir="auto">
+                        <bdi>
+                          {op.action} {op.symbol}
+                        </bdi>
+                      </strong>
+                      <small dir="auto">
+                        {accountName(op.account_id) && <>{accountName(op.account_id)} · </>}
+                        <Trans>Unconfirmed operation · not confirmed by the broker</Trans>
+                      </small>
+                    </span>
+                    {op.resolve_card && (
+                      <button
+                        type="button"
+                        className="btn sm"
+                        data-resolve-card={op.resolve_card.id}
+                        onClick={() => {
+                          close();
+                          if (op.resolve_card) openCard(op.resolve_card, go);
+                        }}
+                      >
+                        <Trans>Resolve</Trans>
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
           {(readiness.money_limits ?? []).map((limits) => (
             <section key={limits.account_id} data-account-limits={limits.account_id}>
               <h3>
@@ -491,9 +447,7 @@ function AgentSheetBody({
             </section>
           ))}
           <p className="note">
-            <Trans>
-              Closing and tightening the stop loss are always allowed, even when trading is stopped.
-            </Trans>
+            <Trans>Closing and tightening the stop loss are always allowed.</Trans>
           </p>
         </>
       )}

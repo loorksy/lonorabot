@@ -1,7 +1,7 @@
 """0086: trading restrictions end (mandate 14.2.3, 14.3.9, 14.3.18.6).
 
 On a disposable PostgreSQL already at head: step down below 0086, seed an agent the
-owner paused, a pending ``lift_restriction`` card and a pending ``resume_trading`` card,
+owner paused, a pending ``lift_restriction`` card and a pending ``resolve_operation`` card,
 upgrade and check that the lift card is deleted, the other card stays, the owner's pause
 stays and the restriction table is gone; the downgrade recreates the empty table and the
 upgrade runs again cleanly.
@@ -18,7 +18,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0120_skill_versions_outlive_skill"
+BEFORE = "0110_closed_trades"
 
 
 def alembic(*arguments: str) -> None:
@@ -39,7 +39,7 @@ async def cards(connection: AsyncConnection, owner: str) -> set[str]:
 async def main() -> None:
     engine = create_async_engine(test_settings().database_url)
     now = datetime.now(UTC)
-    ids = {name: str(uuid4()) for name in ("owner", "agent", "lift", "resume")}
+    ids = {name: str(uuid4()) for name in ("owner", "agent", "lift", "resolve")}
     try:
         await asyncio.to_thread(alembic, "downgrade", BEFORE)
         async with engine.begin() as connection:
@@ -59,7 +59,7 @@ async def main() -> None:
             )
             for card, kind, subject in (
                 ("lift", "lift_restriction", "restriction:r1"),
-                ("resume", "resume_trading", "trading"),
+                ("resolve", "resolve_operation", "operation:op1"),
             ):
                 await connection.execute(
                     text(
@@ -81,7 +81,7 @@ async def main() -> None:
 
         await asyncio.to_thread(alembic, "upgrade", "heads")
         async with engine.connect() as connection:
-            assert await cards(connection, ids["owner"]) == {"resume_trading"}
+            assert await cards(connection, ids["owner"]) == {"resolve_operation"}
             assert "ln_trading_restrictions" not in await tables(connection)
             paused = await connection.scalar(
                 text("SELECT paused FROM ln_agents WHERE id = :agent"), ids

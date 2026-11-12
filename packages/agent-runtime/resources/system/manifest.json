@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "501513eacd79a52cf1e635d59e78c818d2f291d95c51cdd719f91b070a58c8dc",
+  "manual_sha256": "e45e16f97ba4c68313403a79ef45f745c478271c74e814ac2b08ec3867f4657c",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -33,6 +33,11 @@
     "workspace_read": "files",
     "workspace_update": "files",
     "workspace_execute": "files",
+    "workspace_run": "files",
+    "workspace_processes": "files",
+    "workspace_stop": "files",
+    "workspace_file_read": "files",
+    "workspace_file_write": "files",
     "routine_create": "tasks",
     "routine_list": "tasks",
     "routine_toggle": "tasks",
@@ -99,6 +104,8 @@
     "account_history": "account",
     "list_accounts": "account",
     "account_read": "account",
+    "broker_manage": "account",
+    "broker_connect": "account",
     "trade_record_history": "trading",
     "trade_record_read": "trading",
     "trade_execute": "trading",

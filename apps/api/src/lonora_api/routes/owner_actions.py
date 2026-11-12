@@ -3,8 +3,7 @@
 Owner session only; no agent tool reaches these routes or the decision below. A
 confirmation re-validates the card against current state (a stale card is settled as
 expired with its reason), is idempotent per card, and then runs the existing owner
-function for its effect: Stop/Resume (``apply_controls``), the owner attestation of an
-uncertain operation
+function for its effect: the owner attestation of an uncertain operation
 (``attest_operation``), the account's execution policy (``store_execution_policy``),
 creating an agent (the creation service; never a grant), undoing a creation (the
 owner's delete for an agent that has done nothing yet, otherwise a pause), setting,
@@ -17,14 +16,14 @@ connected MCP server's trust card follows in the same conversation; when its too
 not be read or none can be trusted, the line says so and the agent that asked is woken
 to check it, so nothing waits for a card that never comes.
 Raising or removing a money limit also needs a verified passkey assertion bound to the
-card's payload hash; lowering a limit, lifting a pause, resuming, creating an agent,
+card's payload hash; lowering a limit, resuming, creating an agent,
 setting supervision, choosing a model and Undo are one tap.
 
 A grant card signs through the existing account-authority ceremony: its challenge builds
 the full-management proposal from the card's stored draft (``propose``) and returns the
 WebAuthn options bound to that envelope (``begin_activation``); its confirmation verifies
 the assertion (``finish_activation``). The card's other choices only narrow (the daily
-loss limit, stopping another agent's grant) or widen nothing (Resume). Its one choice,
+loss limit, stopping another agent's grant). Its one choice,
 Custom or Full delegation, is a ``choose`` decision: it rewrites the stored draft the
 next challenge signs and withdraws a proposal an earlier challenge prepared; it settles
 nothing and grants nothing, and Full needs the same passkey confirmation as Custom. The
@@ -48,7 +47,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionChallenge,
     OwnerActionDecision,
 )
-from lonora_contracts.trading import OperationResolution, TradingControl
+from lonora_contracts.trading import OperationResolution
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
 from lonora_db.agent_creation import (
@@ -69,7 +68,6 @@ from lonora_db.owner_actions import (
     confirm_in_thread,
     continue_after_card,
     daily_loss_change,
-    global_trading,
     grant_conflicts,
     grant_facts,
     grant_proposal,
@@ -103,7 +101,6 @@ from lonora_db.transactions import owned_thread
 from lonora_db.trusted_sources import trust_source
 from lonora_session.idempotency import stable_id
 from lonora_tools.mcp import advertised_tools, review_payload
-from lonora_trading.controls import apply_controls
 from lonora_trading.owner_controls import (
     attest_operation,
     require_account_currency,
@@ -352,17 +349,12 @@ async def decide(
     if reason is not None:
         await settle(session, row, "expired", reason)
         return
+    if row.kind == "secret":
+        # Its values come only through the card's own submit (``secret_cards``).
+        raise LonoraError("owner_action_secret_values_required", 422)
     via = "tap"
     result: dict[str, Any] = {}
-    if row.kind == "resume_trading":
-        first = (await global_trading(session))["changed_by"] == "default"
-        controls = await apply_controls(session, TradingControl.model_validate(row.payload))
-        result = {
-            "global_trading": "running" if controls.enabled else "stopped",
-            # Trading had never been started: the card said Start, its line says so too.
-            "started": first,
-        }
-    elif row.kind == "resolve_operation":
+    if row.kind == "resolve_operation":
         if body.outcome is None:
             raise LonoraError("owner_action_outcome_required", 422)
         await attest_operation(
@@ -539,7 +531,7 @@ async def confirm_grant(
     body: OwnerActionDecision,
 ) -> dict[str, Any]:
     """Activate the card's own proposal with the owner's assertion, then the card's
-    choices: stop other agents' grants there, resume, and the daily loss limit."""
+    choices: stop other agents' grants there and the daily loss limit."""
     assert body.proof is not None
     identifier = row.result.get("authority_id")
     if not isinstance(identifier, str):
@@ -563,10 +555,6 @@ async def confirm_grant(
         await revoke(session, owner.id, other)
         stopped.append(other)
     names = await agent_names(session, owner.id, {conflicts[item].agent_id for item in stopped})
-    resumed = False
-    if body.resume_trading and (await global_trading(session))["state"] == "stopped":
-        await apply_controls(session, TradingControl(enabled=True, emergency_stop=False))
-        resumed = True
     daily = kept = None
     # Full delegation has no daily loss line to opt out of: the account's own limits stay
     # as they are either way, and the confirmation says so once.
@@ -603,7 +591,6 @@ async def confirm_grant(
         **signed["grant"],
         "allow_manual_positions": bool(row.result.get("allow_manual_positions")),
     }
-    signed["global_trading"] = await global_trading(session)
     # Decided now: the stopped agents are named in the result, the rest stay as they were.
     signed["conflicts"] = []
     return {
@@ -611,7 +598,6 @@ async def confirm_grant(
         "authority_id": authority.id,
         "delegation": draft.delegation,
         "allow_manual_positions": row.result.get("allow_manual_positions"),
-        "resumed": resumed,
         "stopped_authorities": stopped,
         "stopped_agents": sorted(names.values()),
         "daily_loss": daily,

@@ -107,10 +107,6 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code == "run_quarantined":
         return True
-    if row.code == "emergency_stop":
-        return (await SettingsRepository().get(session, "trading_control")).get(
-            "emergency_stop"
-        ) is True
     if row.code == "approval_required":
         approval = await session.get(TradeApprovalRow, row.parameters.get("approval_id", ""))
         return (

@@ -18,20 +18,6 @@ const HISTORY: Text = {
 };
 
 const messages: Readonly<Record<string, Text>> = {
-  // One brake: Trading OFF and the legacy Emergency Stop are both "Stop new trading".
-  trading_disabled: {
-    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
-    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
-  },
-  // New trading was never started on this install: the agent raised a Start trading card.
-  trading_not_started: {
-    en: `New trading has not been started yet, so this was not sent. ${EXITS_EN} Tap Start trading on the card when you want agents to trade.`,
-    ar: `لم يبدأ التداول الجديد بعد، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «بدء التداول» في البطاقة متى أردت أن يتداول الوكلاء.`,
-  },
-  emergency_stop: {
-    en: `New trading is stopped for every agent and your manual orders, so this was not sent. ${EXITS_EN} Tap Resume trading when you want trading to continue.`,
-    ar: `التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية، لذلك لم يُرسل هذا الطلب. ${EXITS_AR} اضغط «استئناف التداول» متى أردت متابعة التداول.`,
-  },
   broker_reconciliation_required: {
     en: `A previous operation on this market still needs broker verification, so this request was not sent. ${EXITS_EN}`,
     ar: `عملية سابقة على هذا السوق ما زالت تحتاج إلى تحقق من الوسيط، لذلك لم يُرسل هذا الطلب. ${EXITS_AR}`,

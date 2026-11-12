@@ -25,7 +25,6 @@ const text = {
   authorize: "التفويض بمفتاح المرور",
   password: "كلمة مرور الحساب",
   register: "سجّل هذا الجهاز أولًا",
-  resumeToo: "استأنف التداول أيضًا",
   signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
   onItsOwn: "يتداول باستقلال",
   dailyLoss: "الخسارة اليومية",
@@ -62,7 +61,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   const lonora = (await (await context.request.get("/api/agents")).json()).find(
     (row) => row.role === "personal",
   );
@@ -107,13 +105,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       decisions.push(new URL(url).pathname);
   });
   try {
-    // The owner's own Stop: the grant card offers "Resume trading too".
-    for (const enabled of [true, false])
-      await context.request.put("/api/trading/controls", {
-        headers,
-        data: { enabled, emergency_stop: false },
-      });
-
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
@@ -150,11 +141,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const goldThread = await (
       await context.request.post(`/api/agents/${gold}/conversation`, { headers, data: {} })
     ).json();
-    // New trading runs for this journey (a stop would refuse the entry before any card).
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: true, emergency_stop: false },
-    });
     await page.goto(`/app/${gold}`);
     // Ask me until the grant: the pill says it asks before each trade.
     await expect(await modeLine(page)).toContainText(text.asks);
@@ -173,17 +159,12 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     expect(traded.status).toBe("completed");
     await page.reload();
     await expect(page.locator('[data-trade-result="confirmed"]').last()).toBeVisible();
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: false, emergency_stop: false },
-    });
 
-    // 3. One passkey tap signs the grant and resumes. On a device with no passkey yet the
+    // 3. One passkey tap signs the grant. On a device with no passkey yet the
     //    same card first asks for the password and registers the device; registering
     //    continues straight into the passkey prompt for this decision (no second tap).
     await page.goto(`/app/${lonora.id}`);
     const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
-    await card.getByRole("switch", { name: text.resumeToo }).click();
     const authorize = card.getByRole("button", { name: text.authorize, exact: true });
     await authorize.click();
     taps.create += 1;
@@ -195,10 +176,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
     expect(permission.effective_level).toBe("autonomous");
     expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-    expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({
-      enabled: true,
-      emergency_stop: false,
-    });
     // The gold agent's pill says what the card signed: its pair and the daily loss.
     await page.goto(`/app/${gold}`);
     const pill = await modeLine(page);
@@ -211,7 +188,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
     expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
   } finally {
-    await context.request.put("/api/trading/controls", { headers, data: original });
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
   }

@@ -68,6 +68,7 @@ ROUTES = (
     "opportunities",
     "execution_policy",
     "owner_actions",
+    "secret_cards",
     "supervision",
     "tasks",
     "collaboration",

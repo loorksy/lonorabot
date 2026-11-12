@@ -1,8 +1,7 @@
 // Simple Lonora acceptance on the phone (W15-ACC): the same Arabic sentences through the
 // Expo composer, the scripted model behind the real runtime (tests/check_simple_lonora.py
 // --ui-turn stands in for the gateway worker), and the same server cards. One sentence
-// creates the agent and its grant card; one tap stops new trading from the header pill
-// and one tap resumes it.
+// creates the agent and its grant card.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
@@ -24,17 +23,11 @@ const text = {
   created: "أُنشئ وكيل",
   grantTitle: "يتداول بنفسه",
   authorize: "التفويض بمفتاح المرور",
-  stop: "إيقاف الصفقات الجديدة",
-  resume: "استئناف التداول",
-  stopped: "التداول الجديد متوقف · الخروج متاح",
 };
 
 const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map((row) => row.id);
 
-test("Expo ar: one sentence creates the agent and its grant card; one tap stops and one resumes", async ({
-  page,
-  context,
-}) => {
+test("Expo ar: one sentence creates the agent and its grant card", async ({ page, context }) => {
   test.setTimeout(180000);
   const data = simulation({ action: "init", empty: true });
   await context.addCookies(
@@ -47,7 +40,6 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap stops 
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   const lonora = (await (await context.request.get("/api/agents")).json()).find(
     (row) => row.role === "personal",
   );
@@ -57,23 +49,12 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap stops 
   ).json();
   const name = `Gold agent ${randomUUID().slice(0, 6)}`;
   let gold;
-  const taps = { stop: 0, resume: 0 };
   const said = async (sentence) => {
     await page.getByRole("textbox", { name: text.composer, exact: true }).fill(sentence);
     await page.getByRole("button", { name: text.send, exact: true }).click();
     await expect(page.getByText(sentence, { exact: true }).first()).toBeVisible();
   };
-  const writes = [];
-  page.on("request", (request) => {
-    if (request.method() === "PUT" && request.url().endsWith("/api/trading/controls"))
-      writes.push(request.postDataJSON());
-  });
   try {
-    for (const enabled of [true, false])
-      await context.request.put("/api/trading/controls", {
-        headers,
-        data: { enabled, emergency_stop: false },
-      });
     await page.goto(`/thread?id=${thread.id}`);
 
     // «أنشئ وكيل ذهب …»: the creation card and the grant card, the same server cards
@@ -93,33 +74,7 @@ test("Expo ar: one sentence creates the agent and its grant card; one tap stops 
     await expect(grant.getByText("200.00", { exact: false }).first()).toBeVisible();
     await expect(grant.getByRole("button", { name: text.authorize, exact: true })).toBeVisible();
     await grant.screenshot({ path: test.info().outputPath("simple-lonora-grant-native-ar.png") });
-
-    // Stop all new trading from the phone: one tap; Resume: one tap, both flags cleared.
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: true, emergency_stop: false },
-    });
-    await page.reload();
-    const pill = page.getByTestId("safety-pill");
-    await pill.click();
-    const sheet = page.getByTestId("safety-sheet");
-    await sheet.getByRole("button", { name: text.stop, exact: true }).click();
-    taps.stop += 1;
-    await expect(pill).toContainText(text.stopped);
-    await sheet.getByRole("button", { name: text.resume, exact: true }).click();
-    taps.resume += 1;
-    await expect(pill).not.toContainText(text.stopped);
-    expect(writes).toEqual([
-      { enabled: false, emergency_stop: true },
-      { enabled: true, emergency_stop: false },
-    ]);
-    expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({
-      enabled: true,
-      emergency_stop: false,
-    });
-    expect(taps).toEqual({ stop: 1, resume: 1 });
   } finally {
-    await context.request.put("/api/trading/controls", { headers, data: original });
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
   }

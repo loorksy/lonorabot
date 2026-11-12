@@ -14,7 +14,7 @@ export function userError(error: unknown) {
   const code = errorCode(error);
   const permissionMessage = agentPermissionError(code, i18n.locale);
   if (permissionMessage) return permissionMessage;
-  // Stop new trading, money limits and boundary blocks: why nothing was
+  // Money limits and boundary blocks: why nothing was
   // sent, in text shared with Mobile (@lonora/core).
   const boundaryMessage = financialBoundaryError(code, i18n.locale);
   if (boundaryMessage) return boundaryMessage;

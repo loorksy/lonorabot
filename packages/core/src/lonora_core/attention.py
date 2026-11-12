@@ -6,7 +6,6 @@ from lonora_contracts.attention import AttentionClassification, AttentionCode
 
 ATTENTION_KINDS = frozenset(
     {
-        "trading.controls_updated",
         "trading.approval.updated",
         # Owner action cards follow these (lonora_gateway.owner_cards); an operation that
         # becomes ambiguous is also the owner's "operation_uncertain" item.
@@ -53,9 +52,7 @@ def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassific
     result = AttentionClassification(
         importance="silent", code="internal_update", resource_id=resource, transition=transition
     )
-    if kind == "trading.controls_updated" and payload.get("emergency_stop") is True:
-        result.importance, result.code = "critical", "emergency_stop"
-    elif kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
+    if kind == "trading.operation_updated" and payload.get("status") == "ambiguous":
         # One item per operation: later ambiguous rewrites of the row are the same fact.
         result.importance, result.code = "action_required", "operation_uncertain"
         transition = "ambiguous"

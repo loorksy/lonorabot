@@ -46,7 +46,7 @@ def test_only_server_declared_read_is_automatically_retried(code: str) -> None:
         ("version_conflict", "version_conflict"),
         ("chart_indicator_not_found", "not_found"),
         ("broker_result_ambiguous", "ambiguous_mutation"),
-        ("trading_disabled", "health_blocked"),
+        ("market_health_blocked", "health_blocked"),
         ("device_authorization_required", "authorization_required"),
         ("search_not_configured", "not_configured"),
         ("research_provider_not_configured", "not_configured"),
@@ -245,7 +245,7 @@ def test_a_handlers_own_guidance_reaches_the_model_and_is_never_overwritten() ->
         ("broker_disabled", 409, "provider", "alternate_route"),
         ("broker_endpoint_forbidden", 403, "provider", "alternate_route"),
         # Named codes never change with their status.
-        ("emergency_stop", 409, "provider", "wait_for_authoritative_recovery"),
+        ("market_health_blocked", 409, "provider", "wait_for_authoritative_recovery"),
         ("model_not_configured", 409, "provider", "inspect_authorized_alternative"),
         ("position_volume_exceeded", 409, "input", "correct_arguments"),
         ("task_run_not_found", 409, "resolution", "inspect_existing_state"),

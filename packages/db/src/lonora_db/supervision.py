@@ -703,7 +703,7 @@ async def control_work(
             result["stays_cancelled_by_the_agent"] = True
         else:
             await _apply(session, owner_id, agent.id, kind, item, "resume")
-            # Tainted work that revives another agent's work taints it (GENUI_PLAN §8.5).
+            # Tainted work that revives another agent's work taints it (docs/genui.md).
             from .genui_taint import taint_row_from
 
             actor_run = await session.get(RunRow, run_id) if run_id else None

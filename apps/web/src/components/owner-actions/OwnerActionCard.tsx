@@ -12,7 +12,9 @@ import {
   ownerActionChoose,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
   submitCredential,
+  submitSecret,
   webDeviceProof,
   webDeviceSupported,
 } from "@lonora/core";
@@ -185,6 +187,23 @@ export function OwnerActionCard({
         decision: "confirm",
         connected,
       } satisfies OwnerActionDecision);
+      if (mounted.current) onChanged(updated);
+    } catch (cause) {
+      if (mounted.current) setError(cause);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }
+  async function save(values: Record<string, string>) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      // The values go only to the card's own route, which stores them encrypted.
+      const updated = await submitSecret(
+        (path, body) => api.post<OwnerAction>(path, body),
+        row.id,
+        values,
+      );
       if (mounted.current) onChanged(updated);
     } catch (cause) {
       if (mounted.current) setError(cause);
@@ -377,6 +396,9 @@ export function OwnerActionCard({
           onSubmit={(values) => void connect(spec.credential as CredentialForm, values)}
         />
       )}
+      {spec.secret && (
+        <SecretFields form={spec.secret} busy={busy} onSubmit={(values) => void save(values)} />
+      )}
       {spec.passkey && !supported && (
         <p className="oa-warn" role="status">
           {text.passkeyUnsupported}
@@ -457,7 +479,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   set_account_limits: "scale",
   resolve_operation: "alert",
-  resume_trading: "power",
   create_agent: "userPlus",
   agent_created: "userPlus",
   supervise: "eye",
@@ -466,6 +487,7 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   supervision_paused: "pause",
   trust_source: "shield",
   connect_credential: "key",
+  secret: "key",
   watch_changed: "radar",
   stop_tightened: "shield",
 };
@@ -686,6 +708,60 @@ function CredentialFields({
       <button type="submit" className="primary" disabled={busy} data-owner-action-button="connect">
         {form.submit}
       </button>
+    </form>
+  );
+}
+
+/** A Secret card's form: the agent's fields; values stay in this component until they are
+ * posted to the card's route, and are cleared as soon as they are sent. */
+function SecretFields({
+  form,
+  busy,
+  onSubmit,
+}: {
+  form: SecretForm;
+  busy: boolean;
+  onSubmit: (values: Record<string, string>) => void;
+}) {
+  const empty = () => Object.fromEntries(form.fields.map((field) => [field.key, ""]));
+  const [values, setValues] = useState<Record<string, string>>(empty);
+  return (
+    <form
+      className="lonora-owner-action-notes"
+      data-owner-action-form="secret"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const sent = values;
+        setValues(empty());
+        onSubmit(sent);
+      }}
+    >
+      {form.fields.map((field) => (
+        <label key={field.key}>
+          <span dir="auto">{field.label}</span>
+          <input
+            name={field.key}
+            type={field.type}
+            dir="ltr"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            value={values[field.key] ?? ""}
+            disabled={busy}
+            onChange={(event) => setValues((old) => ({ ...old, [field.key]: event.target.value }))}
+          />
+        </label>
+      ))}
+      <div className="oa-actions">
+        <button
+          type="submit"
+          className={`btn sm primary${busy ? " is-busy" : ""}`}
+          disabled={busy}
+          data-owner-action-button="save"
+        >
+          {form.submit}
+        </button>
+      </div>
     </form>
   );
 }

@@ -315,8 +315,7 @@ def tools() -> list[Tool]:
         Tool(
             "owner_action_propose",
             "Put a one-tap owner action card in this conversation for an action only the "
-            "owner may take; nothing changes until the owner taps it. Kinds: resume_trading "
-            "(only when the owner asks to resume: Stop is the owner's brake), "
+            "owner may take; nothing changes until the owner taps it. Kinds: "
             "resolve_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "
             "set_account_limits (account_id with set_limits amounts in the account "
@@ -337,7 +336,11 @@ def tools() -> list[Tool]:
             "the card lists its tools for the owner to trust; github_owner, github_repo or "
             "feed_domain with identifier) and connect_credential (target mcp_server, "
             "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "
-            "server): a secure form whose value goes straight to the server, never to you. "
+            "server): a secure form whose value goes straight to the server, never to you; "
+            "secret (any other credential: label and secret_fields, each a key, the name its "
+            "value is saved under, a label, and secret false only for a value safe to show "
+            "while typed; ask non-secret details in chat): the owner's values are saved "
+            "encrypted as workspace secrets and you learn only which keys were saved. "
             "Lowering or adding a limit is one tap; a grant, raising or removing a limit, or "
             "moving the currency or trading day of set limits needs the owner's passkey. The "
             "card shows only server facts; say in one line what it does. A repeated proposal "

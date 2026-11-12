@@ -36,6 +36,8 @@ export LONORA_IMAGE_REPO="$repo" LONORA_READY_TIMEOUT="${LONORA_READY_TIMEOUT:-9
 # A disposable test machine: a lower disk minimum than production's 10 GB (the disk check
 # itself is exercised in step 17 with an explicit minimum).
 export LONORA_MIN_FREE_DISK_GB="${LONORA_MIN_FREE_DISK_GB:-2}"
+# A small workspace (tests/check_workspace_service.py proves the workspace itself).
+export LONORA_WORKSPACE_DISK="${LONORA_WORKSPACE_DISK:-1g}" LONORA_WORKSPACE_MEMORY="${LONORA_WORKSPACE_MEMORY:-512m}"
 passed=0
 ok() { passed=$((passed + 1)); printf 'PASS %s\n' "$*"; }
 fail() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
@@ -420,7 +422,7 @@ ok 'restore failing after DROP: marker kept, update, daily backup and unconfirme
 lonora update v3-broken >"$work/hold.log" 2>&1 &
 updater=$!
 wait_phase gateway "$updater" || { show "$work/hold.log"; fail 'hold update ended early'; }
-dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_settings (key, payload, updated_at) VALUES ('trading_gate_probe', '{\"probe\": true}', now())" >/dev/null
+dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_owner_actions (id, owner_id, agent_id, source, kind, subject, payload, payload_hash, status, result, expires_at, created_at, updated_at) VALUES ('card-during-gate', '$owner_id', 'agent-probe', 'system', 'resolve_operation', 'operation:op-probe', '{}', 'probe', 'pending', '{}', now() + interval '1 day', now(), now())" >/dev/null
 status=0; wait "$updater" || status=$?
 [[ "$status" == 2 ]] || { show "$work/hold.log"; fail "control write hold exit status ($status)"; }
 grep -q 'ROLLBACK HELD: owner controls' "$work/hold.log" || { show "$work/hold.log"; fail 'control write hold reason'; }
@@ -442,11 +444,11 @@ status=0; lonora update v3-broken2 --keep-data >"$work/keep-broken2.log" 2>&1 ||
 grep -q 'Returning to the held state' "$work/keep-broken2.log" || fail 'back to hold message'
 [[ "$(phase)" == hold && ! -e "$home/state/held-update" && "$(pinned)" == "$(digest_of v3-broken)" ]] || fail 'back to hold: state'
 if gateway_running; then fail 'back to hold: gateway stopped'; fi
-[[ "$(sql "SELECT count(*) FROM ln_settings WHERE key='trading_gate_probe'")" == 1 ]] || fail 'back to hold kept the control write'
+[[ "$(sql "SELECT count(*) FROM ln_owner_actions WHERE id='card-during-gate'")" == 1 ]] || fail 'back to hold kept the control write'
 # (c) a fixed version: forward update keeps the data, closes the hold
 lonora update v3-fixed --keep-data >"$work/keep-fixed.log" 2>&1 || { show "$work/keep-fixed.log"; fail 'keep-data forward update'; }
 [[ "$(pinned)" == "$(digest_of v3-fixed)" && "$(revision)" == 9999_broken_probe ]] || fail 'forward update state'
-[[ "$(sql "SELECT count(*) FROM ln_settings WHERE key='trading_gate_probe'")" == 1 ]] || fail 'forward update kept the control write'
+[[ "$(sql "SELECT count(*) FROM ln_owner_actions WHERE id='card-during-gate'")" == 1 ]] || fail 'forward update kept the control write'
 [[ ! -e "$home/state/update-in-progress" && ! -e "$home/state/held-update" && ! -e "$home/maintenance/on" ]] || fail 'forward update closed the hold'
 ready || fail 'ready after forward update'
 ok 'owner-control write during the gate: held; --keep-data same digest stays held, bad tag changes nothing, another failing version returns to the hold, fixed version updates forward keeping it'

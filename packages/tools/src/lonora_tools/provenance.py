@@ -65,7 +65,7 @@ async def owner_message_id(session: AsyncSession, run: RunRow) -> str | None:
     if run.trigger not in OWNER_TRIGGERS:
         return None
     # Only the owner's typed words: a card's send or a follow-up tap never stands for the
-    # owner, and a Run a card submission started has none (GENUI_PLAN §8.4).
+    # owner, and a Run a card submission started has none (docs/genui.md).
     found = await owner_typed_message(session, run)
     if found is None:
         return None

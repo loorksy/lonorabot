@@ -163,7 +163,8 @@ class ToolRegistry:
             (tool.financial and tool.read_only)
             # A financial deadline would cancel after send and create ambiguity.
             or (tool.financial and tool.timeout_seconds is not None)
-            or (tool.timeout_seconds is not None and not 0 < tool.timeout_seconds <= 600)
+            # Up to 15 minutes: a workspace foreground command may run 10 (7.1.3).
+            or (tool.timeout_seconds is not None and not 0 < tool.timeout_seconds <= 900)
             # Pollers are repeated observations; a repeated effect is never one.
             or (tool.poller and not tool.read_only)
             for tool in tools

@@ -1084,9 +1084,9 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
         emit(
             session,
             owner,
-            "trading.controls_updated",
+            "trading.approval.updated",
             agent_id=agent,
-            payload={"emergency_stop": True, "enabled": True},
+            payload={"status": "pending"},
         )
 
     async def poisoned(*_: Any) -> Any:
@@ -1097,7 +1097,7 @@ async def test_quarantine_notices_coalesce_per_kind_and_never_cost_a_critical_al
     for _ in range(QUARANTINE_AFTER - 1):
         await expire_backoff(db, "attention_event")
         await attention.attention_tick(db, NO_BROKERS, owner)
-    # The Emergency Stop alert still reaches the owner under its own code.
-    stops = await system_items(db, owner, "emergency_stop")
+    # The approval alert still reaches the owner under its own code.
+    stops = await system_items(db, owner, "approval_required")
     assert len(stops) == 1 and stops[0].status == "ready"
-    assert stops[0].importance == "critical" and stops[0].agent_id == agent
+    assert stops[0].importance == "action_required" and stops[0].agent_id == agent

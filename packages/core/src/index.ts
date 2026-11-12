@@ -103,7 +103,18 @@ export {
 export { display as genuiDisplay, environment, evaluate, renderTemplate } from "./genui/expr";
 export { DASH as GENUI_DASH } from "./genui/functions";
 export { parseCardNumber } from "./genui/input";
-export { isUiPart, validateUiDocument, validateUiPart } from "./genui/spec";
+export {
+  type CardInline,
+  type CardMarkdownBlock,
+  cardInline,
+  cardMarkdown,
+} from "./genui/markdown";
+export {
+  isUiPart,
+  type UiSlotRef,
+  validateUiDocument,
+  validateUiPart,
+} from "./genui/spec";
 export { cardLock, sendBlocked, submitMark } from "./genui/submit";
 export {
   archivedSummary,
@@ -146,7 +157,10 @@ export {
   ownerActionLabels,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
+  type SecretFormField,
   submitCredential,
+  submitSecret,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,
@@ -213,7 +227,6 @@ export {
   moneyLimitsLine,
   readinessTime,
   type TradingSafetyText,
-  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyLabels,

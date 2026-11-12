@@ -131,7 +131,6 @@ export type Journal = {
   thread_id?: string | null;
   timeline_seq?: number | null;
 };
-export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 export type TradeApproval = {
   timeline_seq?: number | null;
   id: string;
@@ -169,16 +168,9 @@ export type MoneyLimits = {
   not_configured: MoneyLimitName[];
   trading_day_timezone?: string;
 };
-/** Stop new trading / Resume, for every agent and the owner's manual orders. */
-export type GlobalTrading = {
-  state: "running" | "stopped";
-  since: string | null;
-  changed_by: "owner" | "default";
-};
 export type TradingReadinessState =
   | "no_trading"
   | "agent_paused"
-  | "stopped"
   | "uncertain"
   | "ask_me"
   | "on_its_own";
@@ -191,7 +183,6 @@ export type TradingReadiness = {
   observed_at: string;
   state: TradingReadinessState;
   params: {
-    since?: string | null;
     valid_until?: string | null;
     symbol?: string | null;
     /** on_its_own: the first grant's account; the line names it when the owner has several. */
@@ -216,10 +207,9 @@ export type TradingReadiness = {
     actions: string[];
     allow_manual_positions: boolean;
     valid_until: string | null;
-    /** Every pair on the account, every action and the owner's own positions, until stopped. */
+    /** Every pair on the account, every action and the owner's own positions, until revoked. */
     full_delegation?: boolean;
   }>;
-  global_trading: GlobalTrading;
   money_limits: MoneyLimits[];
   unresolved_operations: Array<{
     operation_id: string;

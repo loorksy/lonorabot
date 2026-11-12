@@ -20,6 +20,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, ClassVar, Literal
 from unittest.mock import patch
+from uuid import uuid4
 
 from lonora_adapters.brokers.metaapi import MetaApiBroker
 from lonora_adapters.brokers.metaapi_provisioning import MetaApiProvisioning
@@ -72,6 +73,8 @@ class FakeTerminal:
     calls: list[str] = field(default_factory=list[str])
     faults: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     tickets: int = 2217873129
+    login: str = "50000001"
+    server: str = "Exness-MT5Trial16"
 
     def __post_init__(self) -> None:
         self.names = {broker_symbol(base, self.variant): base for base in MARKETS}
@@ -194,8 +197,8 @@ class FakeTerminal:
         return SimpleNamespace(
             id=self.account_id,
             state="DEPLOYED",
-            login="50000001",
-            server="Exness-MT5Trial16",
+            login=self.login,
+            server=self.server,
             broker="Exness Technologies Ltd",
             name="Standard",
             version=5,
@@ -290,8 +293,8 @@ class FakeTerminal:
         return {
             "broker": "Exness Technologies Ltd",
             "currency": "USD",
-            "server": "Exness-MT5Trial16",
-            "login": "50000001",
+            "server": self.server,
+            "login": self.login,
             "name": "Standard",
             "platform": "mt5",
             "balance": float(self.balance),
@@ -682,6 +685,8 @@ class FakeProvisioningApi:
     transactions: list[str] = field(default_factory=list[str])
     by_transaction: dict[str, str] = field(default_factory=dict[str, str])
     sequence: int = 0
+    # Account ids are unique per fake, so tests sharing a database never collide.
+    prefix: str = field(default_factory=lambda: "fixture-metaapi-" + uuid4().hex[:8])
 
     def called(self, method: str) -> None:
         self.calls.append(method)
@@ -695,7 +700,7 @@ class FakeProvisioningApi:
     ) -> str:
         """An account the owner created at metaapi.cloud before Lonora provisioned anything."""
         self.sequence += 1
-        account_id = f"fixture-metaapi-{self.sequence:04d}"
+        account_id = f"{self.prefix}-{self.sequence:04d}"
         self.accounts[account_id] = {
             "_id": account_id,
             "login": login,
@@ -812,7 +817,7 @@ class FakeProvisioningApi:
             self.lose_create_answer = None
             raise lost
         self.sequence += 1
-        account_id = f"fixture-metaapi-{self.sequence:04d}"
+        account_id = f"{self.prefix}-{self.sequence:04d}"
         self.accounts[account_id] = {
             "_id": account_id,
             "terminal_password": account["password"],

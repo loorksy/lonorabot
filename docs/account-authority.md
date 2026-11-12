@@ -31,7 +31,7 @@ no numerical cap, and sets no daily loss limit from the card; the composer's ide
 proposal is the same pending envelope. It needs the same passkey ceremony, is offered
 only where account-wide scope is allowed (the Personal Agent and flexible root agents),
 and changes no limit: the account's money limits and execution caps (`ExecutionPolicy`),
-pauses and Stop new trading bind it like any grant, and removing a limit is a separate
+and pauses bind it like any grant, and removing a limit is a separate
 passkey step. Nothing in the envelope names the choice: a signed grant with exactly these
 terms is recognized as Full delegation (`full_delegation`) by the readiness projection
 (`full_delegation` on each grant and in the On its own params), the safety sheet and
@@ -68,16 +68,12 @@ monotonic:
   from Lonora's own Trading page (`POST /trading/execute`, journaled with no
   agent). `lonora_opened` counts only an entry an agent's leased Run sent
   (`journal_agent`), the same rule broker wakes use (`attributed_agent`).
-- A request that adds risk on the broker's current facts (an entry, or a stop
-  moved further away) is refused with the brake's own code before any card while
-  Stop new trading holds it (`new_risk_requests`,
-  `refuse_braked_entries`). The same exact request repeated in
-  another call of the same Run answers from the card already raised for it
-  (`reviewed_approval`, newest first): it waits on that card while it is pending,
-  uses the owner's approval when it is approved or its operation reached the
-  broker, and returns the owner's rejection until the owner writes again in that
-  conversation. A result that never reached the broker, or a rejection the owner
-  has spoken after, asks again.
+- The same exact request repeated in another call of the same Run answers from
+  the card already raised for it (`reviewed_approval`, newest first): it waits on
+  that card while it is pending, uses the owner's approval when it is approved or
+  its operation reached the broker, and returns the owner's rejection until the
+  owner writes again in that conversation. A result that never reached the broker,
+  or a rejection the owner has spoken after, asks again.
 - Moving down revokes the agent's signed and pending grants, as before
   (`change_permission`). The selector says so first, in one line: "This revokes
   the signed grant for <account>; going back needs a new signature", with Revoke
@@ -96,7 +92,7 @@ create/reuse watches, choose trades and manage positions without per-order
 approval. The task is bound to this exact grant; replacement or revocation cannot
 silently let stale kickoff work spend a newer grant. Revocation, replacement and
 device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
-entry signal or proof a broker is ready. Stop new trading and the owner's pauses
+entry signal or proof a broker is ready. The owner's pauses
 remain authoritative and are never silently switched by activation.
 
 A grant is the only authority (W15-9). The former Super Bot requests and per-goal
@@ -147,7 +143,7 @@ itself authorize a symbol. Broker-discovered symbols are checked before proposal
 
 Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
-boundary. Stop new trading, the owner's pauses, risk/preflight, execution quality,
+boundary. The owner's pauses, risk/preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
 Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
 attempts consume the lifetime budget. Known pre-submission failures and released
@@ -275,7 +271,7 @@ null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
 WebAuthn, durable kickoff Task/Run, repeat signatures, grant replacement, stale
 work, four symbol classes, market/pending orders, manual position management,
-partial close, discretionary stops, broker constraints, Stop new trading and
+partial close, discretionary stops, broker constraints and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
 actual EN/AR owner surfaces, full and bounded signatures, and unchanged global

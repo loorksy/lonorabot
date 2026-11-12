@@ -1,16 +1,11 @@
 /**
- * The header safety pill, its sheet and the brake labels, shared by Web and Mobile.
+ * The agent's status line, its sheet and their labels, shared by Web and Mobile.
  *
  * Everything here renders the server's presentation-only readiness projection; nothing
  * in a client decides whether a trade may be sent. Arabic is first-class: tickers and
  * numbers are isolated (U+2068/U+2069) so they keep their order inside Arabic text.
  */
-import type {
-  GlobalTrading,
-  MoneyLimitName,
-  MoneyLimits,
-  TradingReadiness,
-} from "@lonora/contracts";
+import type { MoneyLimitName, MoneyLimits, TradingReadiness } from "@lonora/contracts";
 
 type Language = "ar" | "en";
 type Text = { readonly en: string; readonly ar: string };
@@ -35,17 +30,6 @@ export const tradingSafetyLabels = {
   en: {
     title: "Trading safety",
     open: "Trading safety: can it trade now",
-    stop: "Stop new trading",
-    resume: "Resume trading",
-    start: "Start trading",
-    stopHint:
-      "Stops new risk for every agent and your manual orders. Exits stay allowed: closing positions, cancelling orders and tightening stops.",
-    resumeHint: "Resuming widens no authority: each agent still trades only within its level.",
-    startHint: "Starting widens no authority: each agent still trades only within its level.",
-    running: "New trading is running",
-    stopped: "New trading is stopped",
-    since: "since",
-    neverStarted: "Trading has not been started yet.",
     level: "Trading level",
     analysis: "No trading",
     supervised: "Ask me",
@@ -64,22 +48,10 @@ export const tradingSafetyLabels = {
     uncertainHint:
       "It will not be sent again. New risk on this market is held until it settles; exits stay allowed.",
     close: "Close",
-    loading: "Loading…",
   },
   ar: {
     title: "أمان التداول",
     open: "أمان التداول: هل يمكنه التداول الآن",
-    stop: "إيقاف الصفقات الجديدة",
-    resume: "استئناف التداول",
-    start: "بدء التداول",
-    stopHint:
-      "يوقف المخاطرة الجديدة لكل الوكلاء ولأوامرك اليدوية. يبقى الخروج متاحًا: إغلاق المراكز وإلغاء الأوامر وتقريب وقف الخسارة.",
-    resumeHint: "الاستئناف لا يوسّع أي صلاحية: كل وكيل يبقى ضمن مستوى تداوله.",
-    startHint: "البدء لا يوسّع أي صلاحية: كل وكيل يبقى ضمن مستوى تداوله.",
-    running: "التداول الجديد يعمل",
-    stopped: "التداول الجديد متوقف",
-    since: "منذ",
-    neverStarted: "لم يبدأ التداول بعد.",
     level: "مستوى التداول",
     analysis: "لا يتداول",
     supervised: "يسألني أولًا",
@@ -98,29 +70,12 @@ export const tradingSafetyLabels = {
     uncertainHint:
       "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا.",
     close: "إغلاق",
-    loading: "جارٍ التحميل…",
   },
 } as const satisfies Record<Language, Record<string, string>>;
 export type TradingSafetyText = (typeof tradingSafetyLabels)[Language];
 
 export function tradingSafetyText(locale: string): TradingSafetyText {
   return tradingSafetyLabels[language(locale)];
-}
-
-/**
- * The sheet's one brake: Stop while new trading runs; while it is stopped, Start when the
- * owner never started it (the first-run default) and Resume after the owner stopped it.
- */
-export function tradingBrake(
-  trading: GlobalTrading,
-  locale: string,
-): { stopped: boolean; status: string; hint: string; action: string } {
-  const text = tradingSafetyText(locale);
-  if (trading.state === "running")
-    return { stopped: false, status: text.running, hint: text.stopHint, action: text.stop };
-  if (trading.changed_by === "default")
-    return { stopped: true, status: text.neverStarted, hint: text.startHint, action: text.start };
-  return { stopped: true, status: text.stopped, hint: text.resumeHint, action: text.resume };
 }
 
 const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
@@ -189,8 +144,6 @@ export function tradingReadinessLine(
       return ar ? "لا يتداول · تحليل فقط" : "No trading · analysis only";
     case "agent_paused":
       return ar ? "الوكيل متوقف مؤقتًا · لا صفقات جديدة" : "Agent paused · no new trades";
-    case "stopped":
-      return ar ? "التداول الجديد متوقف · الخروج متاح" : "New trading stopped · exits allowed";
     case "uncertain": {
       const count = params.count ?? 1;
       const head = ar

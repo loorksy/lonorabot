@@ -1,5 +1,5 @@
-"""Card lifetimes (WP-F cards): the newer card, «طلب جديد», «غير معروف» with a pause,
-trade approval expiry and the notice cards' pure rules.
+"""Card lifetimes (WP-F cards): the newer card, «طلب جديد», trade approval expiry and the
+notice cards' pure rules.
 
 These cases run on the in-memory schema, those marked ``postgres`` only on
 ``LONORA_TASK_TEST_DATABASE_URL``. The

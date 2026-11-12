@@ -58,7 +58,6 @@ async function setup(context, locale = "en") {
   );
   await context.addInitScript((value) => localStorage.setItem("lonora.locale", value), locale);
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   // A simulation account with a fresh quote, so owner market orders pass execution quality.
   const connected = await context.request.post("/api/trading/connections", {
     headers,
@@ -95,17 +94,10 @@ async function setup(context, locale = "en") {
     },
   });
   expect(imported.ok()).toBeTruthy();
-  const controls = async (value) => {
-    const response = await context.request.put("/api/trading/controls", { headers, data: value });
-    expect(response.ok()).toBeTruthy();
-  };
   return {
     data: { ...data, account },
     headers,
-    controls,
-    read: async () => (await context.request.get("/api/trading/controls")).json(),
     async cleanup() {
-      await controls(original);
       await context.request.delete(`/api/trading/connections/${account}`, { headers });
       simulation({ ...data, action: "cleanup" });
     },
@@ -141,7 +133,6 @@ test("owner close: a double click and a retry after a timeout make exactly one o
   test.setTimeout(60000);
   const state = await setup(context);
   try {
-    await state.controls({ enabled: true, emergency_stop: false });
     const snapshot = await openPositions(context, state, 2);
     const [first, second] = snapshot.positions;
     // The owner keeps looking at the list as it was: the rows stay while closes settle.
@@ -165,10 +156,9 @@ test("owner close: a double click and a retry after a timeout make exactly one o
       await route.continue();
     });
     await page.goto("/app/trading");
-    const control = page.getByTestId("trading-control");
-    await expect(control.getByRole("status")).toHaveText("New trading is running");
-    await expect(control.getByRole("button")).toHaveCount(1);
-    await expect(control.getByRole("button", { name: "Stop new trading" })).toBeVisible();
+    // Amendment 1: Lonora has no Stop control, on this page or anywhere else.
+    await expect(page.getByRole("button", { name: "Stop new trading" })).toHaveCount(0);
+    await expect(page.getByTestId("trading-control")).toHaveCount(0);
     await page.getByLabel("Broker account").selectOption(state.data.account);
 
     const firstRow = page.locator(`[data-position-id="${first.id}"]`);
@@ -212,7 +202,6 @@ test("owner close: a settled journal row releases the held identity for a new cl
   test.setTimeout(60000);
   const state = await setup(context);
   try {
-    await state.controls({ enabled: true, emergency_stop: false });
     const [attested, failed] = (await openPositions(context, state, 2)).positions;
     // An uncertain close the owner attests was not executed, and a close that failed:
     // both positions are still open.
@@ -295,7 +284,10 @@ test("owner close: a settled journal row releases the held identity for a new cl
   }
 });
 
-test("header safety pill: one line, one brake, Resume in one call", async ({ page, context }) => {
+test("header safety capsule: abnormal states only, and no Stop control", async ({
+  page,
+  context,
+}) => {
   test.setTimeout(60000);
   const state = await setup(context);
   const response = await context.request.post("/api/agents", {
@@ -308,10 +300,8 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
   });
   expect(response.status()).toBe(201);
   const agent = await response.json();
+  let uncertain;
   try {
-    // The owner stopped it (not the never-started default), so the sheet offers Resume.
-    await state.controls({ enabled: true, emergency_stop: false });
-    await state.controls({ enabled: false, emergency_stop: false });
     const permissions = await (
       await context.request.get(`/api/agents/${agent.id}/permissions`)
     ).json();
@@ -320,41 +310,37 @@ test("header safety pill: one line, one brake, Resume in one call", async ({ pag
       data: { level: "supervised", expected_revision: permissions.revision },
     });
     expect(changed.ok()).toBeTruthy();
-    const writes = [];
-    page.on("request", (request) => {
-      if (request.method() === "PUT" && request.url().endsWith("/api/trading/controls"))
-        writes.push(request.postDataJSON());
-    });
     await page.goto(`/app/${agent.id}`);
     // The capsule under the header shows abnormal states only (reference safetyCap).
     const capsule = page.getByTestId("safety-capsule");
-    await expect(capsule).toHaveAttribute("data-readiness", "stopped");
-    await expect(capsule).toContainText("Trading is stopped");
+    await expect(capsule).toHaveCount(0);
+    // An abnormal state: a close on this market the broker never confirmed.
+    const [position] = (await openPositions(context, state, 1)).positions;
+    uncertain = seedCloses({
+      account: state.data.account,
+      symbol: state.data.symbol,
+      rows: [[position.id, "ambiguous", "broker_timeout"]],
+    })[position.id];
+    await page.reload();
+    await expect(capsule).toHaveAttribute("data-readiness", "uncertain");
     await capsule.click();
     const sheet = page.locator("#dialog");
     // The sheet's head repeats the server's line; the money limits say none is set.
     await expect(sheet.getByTestId("agent-mode-line")).toHaveText(
-      "New trading stopped · exits allowed",
+      `1 operation awaiting broker confirmation · new risk on ${state.data.symbol} held`,
     );
     await expect(sheet.getByText("No money limit set", { exact: true })).toBeVisible();
-    const trading = sheet.getByRole("switch", { name: "Trading", exact: true });
-    await expect(trading).toHaveAttribute("aria-checked", "false");
-    await expect(
-      sheet.getByText("Stopped · no new orders are sent", { exact: true }),
-    ).toBeVisible();
-    await trading.click();
-    await expect(trading).toHaveAttribute("aria-checked", "true");
-    await expect(sheet.getByTestId("agent-mode-line")).toHaveText("Asks you before each trade");
-    expect(writes).toEqual([{ enabled: true, emergency_stop: false }]);
-    expect(await state.read()).toEqual({ enabled: true, emergency_stop: false });
-    // A normal state pins nothing under the header.
-    await expect(capsule).toHaveCount(0);
-    await trading.click();
-    await expect(trading).toHaveAttribute("aria-checked", "false");
-    expect(writes.at(-1)).toEqual({ enabled: false, emergency_stop: true });
-    expect(await state.read()).toEqual({ enabled: false, emergency_stop: true });
-    await expect(capsule).toHaveAttribute("data-readiness", "stopped");
+    // Amendment 1: no Trading switch, Stop or Resume anywhere in the sheet.
+    await expect(sheet.getByRole("switch", { name: "Trading", exact: true })).toHaveCount(0);
+    await expect(sheet.getByText(/Stop new trading|Resume trading|Trading is stopped/)).toHaveCount(
+      0,
+    );
   } finally {
+    if (uncertain)
+      await context.request.post(`/api/trading/journal/${uncertain}/resolve`, {
+        headers: state.headers,
+        data: { outcome: "not_executed", statement: "Checked the terminal: still open." },
+      });
     await context.request.delete(`/api/agents/${agent.id}`, { headers: state.headers });
     await state.cleanup();
   }

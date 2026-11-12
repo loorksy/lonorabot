@@ -33,7 +33,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionProposal,
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
-from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
@@ -53,12 +53,11 @@ from .schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from .trading_readiness import RISK_LIMIT_NAMES, global_trading, risk_limit_frame
+from .trading_readiness import RISK_LIMIT_NAMES, risk_limit_frame
 from .transactions import SettingsRepository, execution_policy_key, owned_thread
 
 # How long a card stays usable.
 LIFETIME = {
-    "resume_trading": timedelta(hours=24),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
@@ -75,6 +74,8 @@ LIFETIME = {
     # Add a source to the trusted list, or connect an account or credential (W15-8).
     "trust_source": timedelta(days=7),
     "connect_credential": timedelta(days=7),
+    # The Secret card: it waits as long as a credential card did.
+    "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
     "watch_changed": timedelta(days=7),
@@ -217,12 +218,6 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind == "resume_trading":
-        return (
-            "trading_already_running"
-            if (await global_trading(session))["state"] == "running"
-            else None
-        )
     if kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None or operation.owner_id != owner_id:
@@ -293,6 +288,8 @@ async def stale_reason(
         return await watch_change_stale(session, owner_id, payload)
     if kind == "stop_tightened":
         return "nothing_to_undo"
+    if kind == "secret":
+        return None  # A credential is checked when the owner saves it.
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -584,11 +581,13 @@ def proposal_payload(
         if grant is None:
             raise LonoraError("owner_action_fields_invalid", 422)
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
-    if proposal.kind == "resume_trading":
-        return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
+    if proposal.kind == "secret":
+        from .secret_cards import secret_card_payload
+
+        return secret_card_payload(proposal)
     if proposal.kind in {"trust_source", "connect_credential"}:
         from .capability_cards import credential_payload, source_payload, trust_subject
 
@@ -645,9 +644,6 @@ async def card_facts(
     owner's confirmation needs a passkey (widening money limits)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind == "resume_trading":
-        facts["global_trading"] = await global_trading(session)
-        return facts, False
     if row.kind == "resolve_operation":
         operation = await session.get(TradingJournalRow, payload["operation_id"])
         if operation is None:
@@ -684,6 +680,12 @@ async def card_facts(
         from .notice_cards import notice_facts
 
         return await notice_facts(session, row, facts), False
+    if row.kind == "secret":
+        from .secret_cards import secret_facts
+
+        names = await agent_names(session, owner_id, {row.agent_id})
+        facts["secret"] = secret_facts(payload, names.get(row.agent_id or ""))
+        return facts, False
     if row.kind in {"trust_source", "connect_credential"}:
         from .capability_cards import card_facts as capability_facts
 
@@ -708,8 +710,7 @@ async def grant_facts(
     session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
 ) -> dict[str, Any]:
     """What the owner signs, read now: the agent, account, markets, actions, duration,
-    their own positions, the account's money limits and daily loss line, Stop new
-    trading, other agents already trading that market and the grant it replaces.
+    their own positions, the account's money limits and daily loss line, other agents already trading that market and the grant it replaces.
 
     Once signed the card shows what was signed, as stored at that moment
     (``signed_facts``): later limits or grants never rewrite it, it never names the
@@ -770,7 +771,6 @@ async def grant_facts(
             "requested_above": None if above is None else str(above),
         },
     }
-    facts["global_trading"] = await global_trading(session)
     facts["conflicts"] = [
         {
             "authority_id": item.id,
@@ -1709,7 +1709,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "resume_trading"})
+RENEWABLE_KINDS = frozenset({"resolve_operation"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1796,7 +1796,7 @@ def confirmation_code(row: OwnerActionRow) -> str:
 
 
 async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
+    """The grant's one-line confirmation: what else the card did."""
     result = row.result
     notes: list[str] = []
     if result.get("delegation") == "full":
@@ -1817,10 +1817,6 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
             if len(stopped) == 1
             else "owner_action_grant_stopped_others"
         )
-    if result.get("resumed"):
-        notes.append("owner_action_grant_resumed")
-    elif (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     return notes
 
 
@@ -1836,8 +1832,7 @@ MCP_REVIEW_LINES = {
 
 async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     """What still holds new risk where an answer just released it, read after the effect:
-    Stop new trading, or another trade there without a confirmed broker outcome. One
-    fixed clause each."""
+    another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
     if row.kind != "resolve_operation":
@@ -1853,8 +1848,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
         if operation.request.get(key)
     ]
     notes: list[str] = []
-    if (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     scope: list[ColumnElement[bool]] = []
     if symbol is not None:
         scope.append(func.lower(TradingJournalRow.request["symbol"].as_string()) == symbol.lower())
@@ -1947,6 +1940,10 @@ CONTINUE_TRIGGER = "owner_card"
 def continue_prompt(row: OwnerActionRow) -> str:
     """Fixed text and server-checked identifiers only (a repository slug, a host name,
     a connection id, a target name): nothing the model wrote reaches the system role."""
+    if row.kind == "secret":
+        from .secret_cards import saved_prompt
+
+        return saved_prompt(row)
     if row.kind == "connect_credential":
         review = row.result.get("review")
         if row.payload["target"] == "mcp_server" and review in {"unread", "nothing_to_trust"}:

@@ -39,7 +39,6 @@ from lonora_db.schema import (
     MessageRow,
     OwnerActionRow,
     RunRow,
-    SettingRow,
     ThreadRow,
     TradingJournalRow,
 )
@@ -73,7 +72,8 @@ def test_an_ambiguous_operation_is_one_action_required_item_per_operation() -> N
             "trading.operation_updated", {"operation_id": "op-1", "status": status}
         )
         assert quiet.importance == "silent", status
-    assert {"trading.operation_updated", "trading.controls_updated"} <= ATTENTION_KINDS
+    assert "trading.operation_updated" in ATTENTION_KINDS
+    assert "trading.controls_updated" not in ATTENTION_KINDS
     assert not {kind for kind in ATTENTION_KINDS if kind.startswith("trading.restriction")}
 
 
@@ -193,13 +193,11 @@ def test_a_limit_change_touches_only_the_named_limits() -> None:
         },
         {"kind": "set_account_limits", "account_id": "a", "set_limits": {"max_daily_loss": "0"}},
         {"kind": "grant_authority", "set_limits": {"max_daily_loss": "1"}},
-        {"kind": "resume_trading", "symbols": ["XAUUSD"]},
         {"kind": "grant_authority", "all_pairs": True, "symbols": ["XAUUSD"]},
         {"kind": "grant_authority", "daily_loss_percent": "2", "daily_loss_amount": "100"},
         {"kind": "grant_authority", "daily_loss_percent": "150"},
         {"kind": "grant_authority", "actions": ["buy", "buy"]},
         {"kind": "grant_authority", "title": "Sign everything"},
-        {"kind": "resume_trading", "title": "Click to approve everything"},
     ],
 )
 def test_a_proposal_carries_only_the_fields_of_its_kind(arguments: dict[str, Any]) -> None:
@@ -238,6 +236,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         # card for an MCP server whose tools changed; neither settles a card.
         "propose_capability",
         "raise_review_card",
+        # broker_connect raises the server-built broker Secret card (9.2); it settles nothing.
+        "propose_effect",
     }
     for path in (ROOT / "packages/tools/src/lonora_tools").glob("*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
@@ -406,8 +406,6 @@ async def test_the_confirmation_line_says_what_still_holds_new_risk(task_db: Fix
         english = await session.get(ThreadRow, thread_id)
         assert english is not None
         await say(session, english, "Did the gold trade go through?")
-        session.add(SettingRow(key="trading_control", payload={"enabled": True}))
-        await session.flush()
         # An answered trade releases its own hold; another uncertain one there still holds.
         for identifier in ("op-answered", "op-other"):
             session.add(
@@ -450,7 +448,6 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
     db, owner, agent, thread_id = task_db
     account = await owned_account(db, owner)
     async with db.sessions() as session, session.begin():
-        session.add(SettingRow(key="trading_control", payload={"enabled": False}))
         group = ThreadRow(owner_id=owner, agent_id=None, title="Desk")
         helper = AgentRow(owner_id=owner, name="Helper")
         other = AgentRow(owner_id=owner, name="Other")
@@ -463,7 +460,7 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
             payload: dict[str, Any] = (
                 {"account_id": account, "set": {"max_daily_loss": "10"}, "remove": []}
                 if kind == "set_account_limits"
-                else {"enabled": True, "emergency_stop": False}
+                else {"target": "news_feed", "service": None}
             )
             return await create_card(
                 session,
@@ -474,14 +471,16 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
                 run_id=None,
                 source="agent",
                 kind=kind,
-                subject="account:" + account if kind == "set_account_limits" else "trading",
+                subject="account:" + account
+                if kind == "set_account_limits"
+                else "credential:news_feed",
                 payload=payload,
             )
 
-        by_helper = await card("by-helper", group, "resume_trading", helper.id)
-        in_thread = await card("in-thread", conversation, "resume_trading", agent)
+        by_helper = await card("by-helper", group, "connect_credential", helper.id)
+        in_thread = await card("in-thread", conversation, "connect_credential", agent)
         about_account = await card("about-account", group, "set_account_limits", agent)
-        elsewhere = await card("elsewhere", group, "resume_trading", other.id)
+        elsewhere = await card("elsewhere", group, "connect_credential", other.id)
         await prepare_delete(session, owner, agent_id=helper.id)
         await prepare_delete(session, owner, thread_id=conversation.id)
         await prepare_delete(session, owner, account_id=account)
@@ -496,7 +495,7 @@ async def test_a_delete_supersedes_its_cards_and_a_gone_agent_never_blocks_the_t
         # Arabic, the default when the conversation holds no owner message yet).
         elsewhere.agent_id = "deleted-agent"
         message = await ack(session, elsewhere)
-        assert message.agent_id is None and message.content.startswith("استؤنف التداول.")
+        assert message.agent_id is None and message.content.startswith("تم الربط.")
 
 
 @pytest.mark.asyncio

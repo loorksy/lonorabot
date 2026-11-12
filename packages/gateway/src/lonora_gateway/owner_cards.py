@@ -3,8 +3,8 @@
 The attention projection hands every event it reads to ``follow_event`` before deciding
 the owner's notification: an operation that becomes ambiguous raises a three-button
 resolve card in the responsible agent's conversation (Lonora's for the owner's own
-orders), and cards whose record moved on are settled (a settled operation, resumed
-trading). Raising is idempotent per record.
+orders), and cards whose record moved on are settled (a settled operation). Raising is
+idempotent per record.
 """
 
 from lonora_contracts.owner_actions import OwnerActionProposal
@@ -12,13 +12,11 @@ from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_db.owner_actions import raise_system_card, supersede_subject
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import AgentRow, EventRow, TradingJournalRow
-from lonora_db.trading_readiness import global_trading
 from sqlalchemy.ext.asyncio import AsyncSession
 
 CARD_EVENTS = frozenset(
     {
         "trading.operation_updated",
-        "trading.controls_updated",
     }
 )
 
@@ -57,7 +55,3 @@ async def follow_event(session: AsyncSession, event: EventRow) -> None:
                 session, owner_id, "resolve_operation", subject, "operation_already_settled"
             )
         return
-    if (await global_trading(session))["state"] == "running":
-        await supersede_subject(
-            session, owner_id, "resume_trading", "trading", "trading_already_running"
-        )

@@ -1,7 +1,7 @@
 """Owner action cards on disposable PostgreSQL with the simulation broker.
 
 Exercises W15-2 end to end through the agent tool, the attention projection (runtime
-cards, no model involved) and the owner-session decision route: Resume, resolving
+cards, no model involved) and the owner-session decision route: resolving
 an uncertain operation and money limits, with re-validation, idempotency, dedupe, the
 per-agent cap, expiry, and the passkey requirement for raising or removing a limit. No
 live broker, MetaApi key or real order is involved.
@@ -20,7 +20,7 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import (
     AttentionRow,
@@ -32,7 +32,6 @@ from lonora_db.schema import (
 )
 from lonora_gateway.attention import attention_tick
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.operation_events import operation_event
 from sqlalchemy import func, select
 
@@ -83,7 +82,6 @@ def quote() -> dict[str, Any]:
 async def main() -> None:
     fixture = await Fixture().open()
     db = fixture.runtime.db
-    original = await read_controls(db)
     try:
         connection = await fixture.request(
             "POST",
@@ -154,7 +152,7 @@ async def main() -> None:
         sent = await fixture.request(
             "POST",
             f"/threads/{thread['id']}/messages",
-            {"content": "Resume trading please", "client_nonce": "cards-" + uuid4().hex},
+            {"content": "Set a trade risk limit please", "client_nonce": "cards-" + uuid4().hex},
         )
         run = {"id": sent["run_ids"][0], "agent_id": agent["id"], "thread_id": thread["id"]}
         context = await fixture.lease(run)
@@ -176,42 +174,54 @@ async def main() -> None:
                 return error.code
             raise AssertionError("Expected a refusal")
 
-        # 1. Resume: stale when trading runs; one tap when stopped; idempotent.
-        await save_controls(db, TradingControl(enabled=True))
-        assert await propose_error({"kind": "resume_trading"}) == (
-            "owner_action_not_needed_trading_already_running"
-        )
-        await save_controls(db, TradingControl(enabled=False, emergency_stop=True))
-        proposal = await propose({"kind": "resume_trading"})
+        async def trade_risk() -> Decimal | None:
+            policy = await fixture.request("GET", f"/trading/accounts/{account}/execution-policy")
+            value = policy["risk"]["max_trade_risk"]
+            return None if value is None else Decimal(value)
+
+        # 1. A limits card: one tap; proposing changes nothing; confirming is idempotent;
+        #    the same change once made is refused as not needed.
+        cap = {
+            "kind": "set_account_limits",
+            "account_id": account,
+            "set_limits": {"max_trade_risk": "1000"},
+            "currency": "USD",
+        }
+        proposal = await propose(cap)
         identifier = proposal["owner_action"]["id"]
         assert proposal["owner_must_tap"] is True and proposal["execution_authorized"] is False
         assert (await card(identifier)).status == "pending"
-        assert (await read_controls(db)).enabled is False  # Proposing changes nothing.
+        assert await trade_risk() is None  # Proposing changes nothing.
         listed = await cards_in(thread["id"])
         assert [row["id"] for row in listed] == [identifier]
-        assert listed[0]["facts"]["global_trading"]["state"] == "stopped"
+        change = {"name": "max_trade_risk", "from": None, "to": "1000"}
+        assert change in listed[0]["facts"]["changes"], listed[0]["facts"]
         assert listed[0]["timeline_seq"] is not None and listed[0]["requires_passkey"] is False
         before = len(await acknowledgements(thread["id"]))
         status, first = await decide(identifier, {"decision": "confirm"})
         assert status == 200 and first["status"] == "confirmed", first
         assert first["decided_via"] == "tap"
-        controls = await read_controls(db)
-        assert controls.enabled is True and controls.emergency_stop is False
+        assert await trade_risk() == 1000
         status, again = await decide(identifier, {"decision": "confirm"})
         assert status == 200 and again["status"] == "confirmed"
         assert again["decided_at"] == first["decided_at"]
         status, conflict = await decide(identifier, {"decision": "cancel"})
         assert status == 409 and conflict["code"] == "owner_action_already_decided"
         posted = await acknowledgements(thread["id"])
-        assert len(posted) == before + 1 and "resumed" in posted[-1].lower(), posted
-        print("PASS a resume card changes nothing until the tap; confirming is idempotent")
+        assert len(posted) == before + 1 and "limits updated" in posted[-1].lower(), posted
+        assert await propose_error(cap) == "owner_action_not_needed_limits_already_set"
+        print("PASS a limits card changes nothing until the tap; confirming is idempotent")
 
         # 2. No tool path can confirm: the agent's registry only proposes, and the
         #    decision route needs the owner's session.
         names = sorted(name for name in registry.tools if "owner_action" in name)
         assert names == ["owner_action_propose"], names
-        await save_controls(db, TradingControl(enabled=False))
-        pending = (await propose({"kind": "resume_trading"}))["owner_action"]["id"]
+        lowered = {
+            "kind": "set_account_limits",
+            "account_id": account,
+            "set_limits": {"max_trade_risk": "800"},
+        }
+        pending = (await propose(lowered))["owner_action"]["id"]
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(fixture.app), base_url="https://streaming.test"
         ) as stranger:
@@ -219,13 +229,13 @@ async def main() -> None:
                 f"/api/owner-actions/{pending}/decision", json={"decision": "confirm"}
             )
         assert anonymous.status_code == 401, anonymous.status_code
-        replay = await propose({"kind": "resume_trading"})
+        replay = await propose(lowered)
         assert replay["owner_action"]["id"] == pending and replay["already_shown"] is True
         assert (await card(pending)).status == "pending"
-        assert (await read_controls(db)).enabled is False
+        assert await trade_risk() == 1000
         status, cancelled = await decide(pending, {"decision": "cancel"})
         assert status == 200 and cancelled["status"] == "cancelled"
-        assert (await read_controls(db)).enabled is False
+        assert await trade_risk() == 1000
         print("PASS no tool confirms a card; repeated proposals return the card already shown")
 
         # 5. Money limits: lowering or adding is one tap; raising or removing needs the
@@ -339,7 +349,6 @@ async def main() -> None:
         #    an answer that settles the hold without resending.
         lonora = next(row for row in await raw_list("/agents") if row.get("role") == "personal")
         personal = await fixture.request("POST", f"/agents/{lonora['id']}/conversation", {})
-        await save_controls(db, TradingControl(enabled=True))
         await refresh()
         cached = services.brokers.connections[account]
         services.brokers.connections[account] = (
@@ -490,8 +499,12 @@ async def main() -> None:
         print("PASS an agent's uncertain operation raises its card in that agent's conversation")
 
         # 8. The per-agent cap and expiry.
-        await save_controls(db, TradingControl(enabled=False))
-        waiting = [(await propose({"kind": "resume_trading"}))["owner_action"]["id"]]
+        expiring = {
+            "kind": "set_account_limits",
+            "account_id": account,
+            "set_limits": {"max_trade_risk": "160"},
+        }
+        waiting = [(await propose(expiring))["owner_action"]["id"]]
         for amount in ("150", "140", "130", "120"):
             waiting.append(
                 (
@@ -522,25 +535,22 @@ async def main() -> None:
         assert shown[waiting[0]]["status"] == "expired"
         status, late = await decide(waiting[0], {"decision": "confirm"})
         assert status == 200 and late["status"] == "expired" and late["status_reason"] == "expired"
-        assert (await read_controls(db)).enabled is False
+        assert await trade_risk() == 1000
         # An expired card frees its slot and a new one can be proposed.
-        fresh = await propose({"kind": "resume_trading"})
+        fresh = await propose(expiring)
         assert fresh["owner_action"]["id"] != waiting[0] and not fresh["already_shown"]
         print("PASS at most five cards wait per agent; an expired card never acts")
 
         # Crash replay of the same tool call returns the same card, never a second one.
         call = "replayed-" + uuid4().hex
-        await save_controls(db, TradingControl(enabled=True))
-        await save_controls(db, TradingControl(enabled=False))
-        first_call = await propose({"kind": "resume_trading"}, call)
-        second_call = await propose({"kind": "resume_trading"}, call)
+        status, _ = await decide(fresh["owner_action"]["id"], {"decision": "cancel"})
+        assert status == 200
+        first_call = await propose(expiring, call)
+        second_call = await propose(expiring, call)
         assert first_call["owner_action"]["id"] == second_call["owner_action"]["id"]
-        await save_controls(db, TradingControl(enabled=True))
-        await project()
-        assert (await card(first_call["owner_action"]["id"])).status == "superseded"
-        print("PASS resuming elsewhere supersedes a waiting Resume card")
+        assert first_call["owner_action"]["id"] != fresh["owner_action"]["id"]
+        print("PASS a replayed tool call returns the card it raised, never a second one")
     finally:
-        await save_controls(db, original)
         await fixture.close(cleanup=False)
 
 

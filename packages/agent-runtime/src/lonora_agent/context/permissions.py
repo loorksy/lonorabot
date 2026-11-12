@@ -7,7 +7,7 @@ from lonora_contracts.account_authority import full_delegation
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
-from lonora_db.trading_readiness import account_money_limits, global_trading
+from lonora_db.trading_readiness import account_money_limits
 from lonora_tools.base import run_scope
 from lonora_trading.account_authority import provisional_voice
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,6 @@ def permission_guidance(
     observe_only: bool = False,
     provisional_approval_required: bool = False,
     risk_limits: list[dict[str, Any]] | None = None,
-    trading: dict[str, Any] | None = None,
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
     level = "analysis" if observe_only else state["effective_level"]
@@ -64,10 +63,6 @@ def permission_guidance(
         "authorized_scopes": scopes,
         # Owner monetary limits per account; not_configured limits are not enforced.
         "monetary_risk_limits": risk_limits or [],
-        # Stop new trading / Resume, for every agent and the owner's manual orders.
-        "global_trading": {
-            key: (trading or {}).get(key) for key in ("state", "since", "changed_by")
-        },
     }
     encoded = (
         json.dumps(snapshot, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -96,7 +91,7 @@ def permission_guidance(
             "numerical limits do not turn full management into supervised mode. A "
             "full_delegation scope covers every pair on its account, every action and the "
             "owner's own positions until the owner stops it; the account's monetary limits "
-            "and global_trading still bind it."
+            "still bind it."
         ),
     }[level]
     return (
@@ -112,20 +107,14 @@ def permission_guidance(
             else ""
         )
         + " An unset monetary limit is not enforced. Only the owner "
-        "signs a grant, resumes trading, attests an uncertain outcome "
+        "signs a grant, attests an uncertain outcome "
         "or changes a limit; when the owner asks for one, propose the matching owner action "
         "card (owner_action_propose), a grant only when no active scope covers it, with "
         "delegation full only when the owner asked for full delegation; the owner chooses "
         "Custom or Full on the card and signs it."
-        + " A pending review, customization draft, chat agreement, task delegation or "
-        "running global_trading grants no authority. global_trading, binding, preflight, "
-        "manual intervention and reconciliation remain authoritative. While global_trading "
-        "is stopped, new risk is blocked for every agent and exits stay allowed. When the "
-        "owner stopped it (changed_by owner) it is the owner's brake: attempt no entry, say "
-        "so in one line, and propose a Resume card only when the owner asks to resume. When "
-        "it was never started (changed_by default), an entry the owner asks for returns "
-        "trading_not_started with a one-tap Start trading card already shown: say so in one "
-        "line and ask again after the owner taps it. "
+        + " A pending review, customization draft, chat agreement or task delegation "
+        "grants no authority. Binding, preflight, manual intervention and reconciliation "
+        "remain authoritative. "
         "A profit target is an objective, never a guarantee or reason to force a trade. "
         "The LLM chooses the useful next action; no fixed keyword or workflow decides it. "
         "Claim execution only after broker confirmation and independent state verification. "
@@ -151,7 +140,6 @@ async def permission_context(
         observe_only=observe_only,
         provisional_approval_required=provisional,
         risk_limits=risk_limits,
-        trading=await global_trading(session),
     )
 
 
