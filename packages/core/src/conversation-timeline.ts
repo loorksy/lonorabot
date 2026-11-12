@@ -1,11 +1,14 @@
 import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
+import { embeddedSlots } from "./genui/spec";
 
 export type ConversationItem =
   | { kind: "message"; id: string; seq: number; message: Message }
   | { kind: "approval"; id: string; seq: number; approval: TradeApproval }
   | { kind: "owner_action"; id: string; seq: number; action: OwnerAction };
 
-/** Server sequence anchors win over fetch timing and mutable approval status. */
+/** Server sequence anchors win over fetch timing and mutable approval status. A fixed card
+ * that a message embeds as a trusted slot has no standalone row: the slot is its place
+ * (mandate 10.2.3); the row returns as soon as no message embeds it. */
 export function conversationTimeline(
   messages: Message[],
   approvals: TradeApproval[],
@@ -20,7 +23,9 @@ export function conversationTimeline(
     seq: message.seq,
     message,
   }));
+  const slots = embeddedSlots(ordered);
   for (const approval of new Map(approvals.map((row) => [row.id, row])).values()) {
+    if (slots.has(`trade_approval:${approval.id}`)) continue;
     // Legacy rows retain their persisted request timestamp, never client arrival time.
     const seq =
       approval.timeline_seq ??
@@ -30,6 +35,7 @@ export function conversationTimeline(
     rows.push({ kind: "approval", id: `approval:${approval.id}`, seq, approval });
   }
   for (const action of new Map(ownerActions.map((row) => [row.id, row])).values()) {
+    if (action.kind === "resolve_operation" && slots.has(`settle:${action.id}`)) continue;
     // Anchored like an approval: after everything that existed when it was raised.
     const seq =
       action.timeline_seq ??

@@ -89,6 +89,8 @@ export const labels = {
   uiDeliveryApp: ["داخل التطبيق", "In the app"],
   uiDeliveryPush: ["إشعار الهاتف", "Phone notification"],
   uiDeliveryCall: ["مكالمة الوكيل", "Agent call"],
+  uiSlotMark: ["بطاقة ثابتة من Lonora", "Fixed card from Lonora"],
+  uiSlotGone: ["هذه البطاقة غير متاحة هنا.", "This card is not available here."],
   uiInvalidValue: ["القيمة غير صحيحة.", "Invalid value."],
   uiShowMore: ["عرض المزيد", "Show more"],
   uiCompleteFirst: ["أكمل «{0}» أولًا", "Complete «{0}» first"],

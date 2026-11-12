@@ -20,6 +20,7 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import (
     INPUTS,
+    SLOT,
     TEXT_CAPS,
     CardError,
     Diagnostics,
@@ -69,6 +70,28 @@ HEIGHTS = {
     "Badge": 24,
     "More": 40,
 }
+# A trusted slot's height at rest, its trust frame included, by card (mandate 10.1.4: a slot
+# counts toward the 560 px budget like any block, and is never folded).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 250}
+# What only the fixed cards and their trust frame say (the clients' own strings, both
+# languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
+FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
+FIXED_LABELS = (
+    "Approval request",
+    "طلب موافقة",
+    "Approve",
+    "موافقة",
+    "Reject",
+    "رفض",
+    "The broker did not confirm this trade",
+    "الوسيط لم يؤكد هذه الصفقة",
+    "It executed",
+    "نُفذت",
+    "It did not execute",
+    "لم تُنفذ",
+    "Unknown: release the hold",
+    "غير معروفة — ارفع التعليق",
+)
 
 
 @dataclass
@@ -339,6 +362,22 @@ class AgentScope:
     # The accounts this request read that the server can name (owner-checked, read
     # directly, never from a bounded list).
     named_accounts: frozenset[str] = frozenset()
+    # ``(card, record id)`` of the records this card's slots name that exist, belong to
+    # this owner and sit in this conversation (``lonora_db.genui_slots``).
+    slot_records: frozenset[tuple[str, str]] = frozenset()
+
+
+def _plain(text: str) -> str:
+    return fold(re.sub(r"[^\w\s]", " ", text))
+
+
+FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+
+
+def imitates_fixed_card(text: str) -> bool:
+    """A string an agent's node shows that only a fixed card or its trust frame says."""
+    plain = _plain(text)
+    return plain in FIXED_PLAIN or any(fold(mark) in plain for mark in FRAME_MARKS)
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
@@ -407,6 +446,8 @@ def _node_height(node: dict[str, Any]) -> int:
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
+    if kind == SLOT:
+        return SLOT_HEIGHTS[node["card"]]
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -525,7 +566,18 @@ def compile_card(
                 entry = cast(dict[str, Any], watch) if isinstance(watch, dict) else {}
                 if isinstance(entry.get("id"), str):
                     watch_ids.add(entry["id"])
-    blocks = [dict(block) for block in card.blocks]
+    blocks: list[dict[str, Any]] = []
+    for index, block in enumerate(card.blocks):
+        if block["type"] == SLOT:
+            # A slot shows a real record of this owner and conversation, of its own kind,
+            # once (mandate 10.2.1); anything else is refused and the card falls back.
+            if (block["card"], block["record"]) not in scope.slot_records:
+                diagnostics.add("slot_refused", index, SLOT)
+                raise CardError("card_fallback_slot")
+            if any(b["type"] == SLOT and b["record"] == block["record"] for b in blocks):
+                diagnostics.add("block_dropped", index, SLOT)
+                continue
+        blocks.append(dict(block))
     sends: list[dict[str, Any]] = []
     urls = _owner_urls(messages, evidence) if final else set[str]()
 
@@ -743,6 +795,9 @@ def compile_card(
         if UNBOUND.search(text):
             # A placeholder the card computes but never fills is never shown (review).
             raise CardError("card_fallback_binding")
+        if imitates_fixed_card(text):
+            # Only a slot shows a fixed card; the agent's own nodes never say what one says.
+            raise CardError("card_fallback_imitation")
     if not final:
         from .public_stream import EFFECT_CLAIM
 
@@ -756,7 +811,7 @@ def compile_card(
 
     def protected(block: dict[str, Any]) -> bool:
         for _p, n in walk([block]):
-            if n["type"] in {"Delivery"} or (
+            if n["type"] in {"Delivery", SLOT} or (
                 n["type"] == "Button" and n.get("action", {}).get("do") == "send"
             ):
                 return True

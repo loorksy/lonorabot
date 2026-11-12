@@ -6,8 +6,10 @@ import {
   UI_ACTIONS,
   UI_NODE_TYPES,
   UI_SERVER_NODE_TYPES,
+  UI_SLOT_CARDS,
   type UiDocument,
   type UiPart,
+  type UiSlotCard,
 } from "@lonora/contracts";
 import { parse } from "./expr";
 
@@ -29,6 +31,8 @@ export const UI_NODES: ReadonlySet<string> = new Set<string>([
   ...UI_SERVER_NODE_TYPES,
 ]);
 const ACTIONS: ReadonlySet<string> = new Set<string>(UI_ACTIONS);
+const SLOT_CARDS: ReadonlySet<string> = new Set<string>(UI_SLOT_CARDS);
+const RECORD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/;
 const BLOCKED = new Set(["__proto__", "prototype", "constructor"]);
 const MAX_BYTES = 64000;
 
@@ -68,6 +72,16 @@ function expression(value: unknown): boolean {
 function block(value: unknown, depth = 0): boolean {
   if (!plain(value) || typeof value.type !== "string" || !UI_NODES.has(value.type)) return false;
   if (depth > 4 || !expression(value.when)) return false;
+  if (value.type === "Slot") {
+    // A trusted slot (mandate 10.2): top level only, its card and record and nothing else.
+    return (
+      depth === 0 &&
+      Object.keys(value).every((key) => key === "type" || key === "card" || key === "record") &&
+      SLOT_CARDS.has(String(value.card)) &&
+      typeof value.record === "string" &&
+      RECORD_ID.test(value.record)
+    );
+  }
   if (value.type === "Delivery") {
     return (
       Array.isArray(value.channels) &&
@@ -138,4 +152,23 @@ export function isUiPart(part: { type: string; document?: unknown }): part is Ui
   return (
     part.type === "ui" && plain(part.document) && (part.document as Record<string, unknown>).v === 2
   );
+}
+
+/** A trusted slot's card and record (mandate 10.2). */
+export type UiSlotRef = { card: UiSlotCard; record: string };
+
+/** The records the cards of these messages embed as slots, keyed `card:record`: a fixed
+ * card's standalone row is shown only when none of them embeds its record (10.2.3). */
+export function embeddedSlots(
+  messages: readonly { rich_content?: { parts?: readonly unknown[] } | null }[],
+): ReadonlySet<string> {
+  const found = new Set<string>();
+  for (const message of messages)
+    for (const part of message.rich_content?.parts ?? []) {
+      if (!plain(part) || part.type !== "ui") continue;
+      const document = validateUiDocument(part.document);
+      for (const block of document?.blocks ?? [])
+        if (block.type === "Slot") found.add(`${String(block.card)}:${String(block.record)}`);
+    }
+  return found;
 }

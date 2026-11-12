@@ -21,6 +21,7 @@ export const UI_NODE_TYPES = [
   "Grid",
   "Card",
   "More",
+  "Slot",
 ] as const;
 export type UiNodeType = (typeof UI_NODE_TYPES)[number];
 /** Rows only the server writes into a compiled card (never taught to the model). */
@@ -33,6 +34,10 @@ export type UiActionKind = (typeof UI_ACTIONS)[number];
 export const UI_ROUTES = ["market", "tasks", "usage", "files", "agents"] as const;
 export type UiRoute = (typeof UI_ROUTES)[number];
 export const UI_TONES = ["info", "good", "warn", "bad", "muted", "accent"] as const;
+/** The fixed cards a Slot may place (mandate 10.2); the client draws them from the
+ * live record. */
+export const UI_SLOT_CARDS = ["trade_approval", "settle"] as const;
+export type UiSlotCard = (typeof UI_SLOT_CARDS)[number];
 export type UiTone = (typeof UI_TONES)[number];
 /** Each node's props: true when required. Each renderer declares that it draws every
  * one (`UiNodeProps`), so a prop the contract gains fails `pnpm check`. */
@@ -87,6 +92,7 @@ export const UI_NODE_PROPS = {
   Grid: { children: true, cols: false, when: false },
   Card: { children: true, title: false, icon: false, when: false },
   More: { children: true, label: false, when: false },
+  Slot: { card: true, record: true },
 } as const satisfies Record<UiNodeType, Readonly<Record<string, boolean>>>;
 /** Every prop of every node, each marked as drawn by a renderer. */
 export type UiNodeProps = {

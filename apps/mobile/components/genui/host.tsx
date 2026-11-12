@@ -3,6 +3,7 @@
  * whether a send may go now, and the thread's own submit, so the accepted submission joins
  * the conversation like any message the owner sends. */
 import type { Agent, Message, Run, UiSubmitInput } from "@lonora/contracts";
+import type { UiSlotRef } from "@lonora/core";
 import { createContext, type ReactNode, useContext } from "react";
 
 export type CardSubmit = { content: ""; client_nonce: string; ui_submit: UiSubmitInput };
@@ -14,6 +15,9 @@ export type CardHostValue = {
   agents: readonly Agent[];
   /** Posts a card submission to the thread and merges what the server accepted. */
   submit: (body: CardSubmit) => Promise<void>;
+  /** The live fixed card a trusted slot names, with its own server actions; null when this
+   * conversation has no such record (mandate 10.2). */
+  slot?: (ref: UiSlotRef) => ReactNode | null;
 };
 
 const Host = createContext<CardHostValue | null>(null);

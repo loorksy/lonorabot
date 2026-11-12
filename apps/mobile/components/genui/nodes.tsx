@@ -3,7 +3,13 @@
  * `UiCard` in the reference's look (Desktop-37 `.ux*`). `NODES` is typed against the catalog
  * generated from the server contract: a node the server accepts and this renderer does not
  * draw fails `pnpm check`. Agents compose; colours, type and spacing are the renderer's. */
-import type { UiBlock, UiNodeProps, UiOption, UiRenderedNodeType } from "@lonora/contracts";
+import type {
+  UiBlock,
+  UiNodeProps,
+  UiOption,
+  UiRenderedNodeType,
+  UiSlotCard,
+} from "@lonora/contracts";
 import {
   type CardInline,
   cardInline,
@@ -18,6 +24,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Label } from "../../lib/i18n";
+import { useCardHost } from "./host";
 import type { CardPalette } from "./theme";
 
 type Values = Record<string, unknown>;
@@ -820,6 +827,51 @@ function Divider({ ctx }: NodeProps) {
   return <View style={{ height: 1, backgroundColor: ctx.p.line }} />;
 }
 
+/** A trusted slot (mandate 10.2): a fixed card in the agent's card. The agent chose only
+ * where it sits; the conversation draws the live record inside (`CardHost.slot`) with its own
+ * server actions, inside this frame, which no agent node can draw. */
+function Slot({ block, ctx }: NodeProps) {
+  const host = useCardHost();
+  const card = block.card as UiSlotCard;
+  const inner = host?.slot?.({ card, record: String(block.record) }) ?? null;
+  return (
+    <View
+      testID={`ui-slot-${card}`}
+      accessibilityLabel={ctx.t("uiSlotMark")}
+      style={{
+        gap: 8,
+        padding: 8,
+        borderWidth: 3,
+        borderStyle: "solid",
+        borderColor: ctx.p.slotFrame,
+        borderRadius: 14,
+        backgroundColor: ctx.p.slotGround,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: row(ctx.rtl),
+          alignItems: "center",
+          gap: 6,
+          paddingHorizontal: 4,
+        }}
+      >
+        <CardIcon name="shield" size={14} color={ctx.p.slotFrame} />
+        <Text style={{ color: ctx.p.slotFrame, fontSize: 12, fontWeight: "600" }}>
+          {ctx.t("uiSlotMark")}
+        </Text>
+      </View>
+      {inner ?? (
+        <Text
+          style={{ color: ctx.p.muted, fontSize: 13, textAlign: ctx.rtl ? "right" : "left" }}
+        >
+          {ctx.t("uiSlotGone")}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 function Delivery({ block, ctx }: NodeProps) {
   const labels: Record<string, Label> = {
     app: "uiDeliveryApp",
@@ -892,6 +944,7 @@ export const NODES: Record<UiRenderedNodeType, (props: NodeProps) => ReactNode> 
   Grid,
   Card,
   More,
+  Slot,
   Delivery,
 };
 
@@ -932,4 +985,5 @@ export const DRAWN_PROPS: UiNodeProps = {
   Grid: { children: true, cols: true, when: true },
   Card: { children: true, title: true, icon: true, when: true },
   More: { children: true, label: true, when: true },
+  Slot: { card: true, record: true },
 };

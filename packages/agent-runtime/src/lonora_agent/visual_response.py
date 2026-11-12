@@ -7,12 +7,14 @@ resource references use the existing owned database rows.
 
 import json
 import re
+from dataclasses import replace
 from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
-from lonora_contracts.genui import CardError, parse_lines
+from lonora_contracts.genui import SLOT, CardError, parse_lines
 from lonora_contracts.visual_response import RichContent
 from lonora_core.public_reply import redact_private_reply
+from lonora_db.genui_slots import slot_records
 from lonora_db.genui_submit import account_label, enabled_accounts
 from lonora_db.schema import AgentRow
 from lonora_tools.context import ToolContext
@@ -238,6 +240,22 @@ class VisualReplyProjector:
         )
         self.scope: AgentScope | None = None
         self.cards: dict[str, dict[str, Any] | None] = {}
+        self.slots: dict[str, frozenset[tuple[str, str]]] = {}
+
+    async def slot_scope(self, scope: AgentScope, blocks: list[dict[str, Any]]) -> AgentScope:
+        """The scope with the records this card's slots name, read once per record set."""
+        ids = sorted({block["record"] for block in blocks if block["type"] == SLOT})
+        if not ids:
+            return scope
+        key = "\n".join(ids)
+        if key not in self.slots:
+            async with self.context.db.sessions() as session:
+                self.slots[key] = frozenset(
+                    await slot_records(
+                        session, self.context.owner_id, self.context.thread_id, ids
+                    )
+                )
+        return replace(scope, slot_records=self.slots[key])
 
     async def agent_scope(self) -> AgentScope:
         """The card's agent: its id and, for a fixed-market agent, its bound pair."""
@@ -286,7 +304,7 @@ class VisualReplyProjector:
                 card = None
             if card is not None:
                 try:
-                    scope = await self.agent_scope()
+                    scope = await self.slot_scope(await self.agent_scope(), card.blocks)
                     self.cards[key] = compile_card(
                         card, self.messages, scope, self.capabilities, self.public_ids, final=final
                     )
