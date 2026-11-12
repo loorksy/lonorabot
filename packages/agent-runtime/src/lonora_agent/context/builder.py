@@ -29,6 +29,7 @@ from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
 from .attachments import attachment_parts, third_party_attachment
+from .command import command_context
 from .decisions import decision_context
 from .environment import operational_context
 from .governance import govern_context
@@ -121,6 +122,8 @@ async def build_context(
             if thread_options(thread).web_search:
                 # The per-chat option (Q33) preselects web_search for this turn.
                 blocks.append(load_prompt("web_search_on"))
+            # A / command says what this message asks for (chat.composer.slash-commands).
+            blocks.append(await command_context(session, thread.id, run.input_seq))
         if run.trigger == "subagent":
             blocks.append(load_prompt("subagent_system"))
         if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:

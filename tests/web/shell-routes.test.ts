@@ -20,6 +20,15 @@ test("the agent, identity, trades and group pages carry their item", () => {
   assert.deepEqual(parseRoute("/app/recovery/x"), { kind: "not-found" });
 });
 
+test("the rail keeps Settings on workspace files and recovery, Tasks on a new schedule", () => {
+  assert.equal(sectionOf(parseRoute("/app/artifacts"), ""), "settings");
+  assert.equal(sectionOf(parseRoute("/app/artifacts"), "?agent=a1"), "chats");
+  assert.equal(sectionOf(parseRoute("/app/artifacts/x"), ""), "chats");
+  assert.equal(sectionOf(parseRoute("/app/recovery")), "settings");
+  assert.equal(sectionOf(parseRoute("/app/new-schedule")), "tasks");
+  assert.equal(sectionOf(parseRoute("/app/new-task")), "tasks");
+});
+
 test("a broker outage opens the recovery page for its account", () => {
   assert.equal(recoveryPath("acct 1"), "/app/recovery?account=acct%201");
   assert.equal(recoveryPath(undefined), "/app/recovery");
@@ -41,6 +50,13 @@ test("calls: «المكالمة» is one page, «مكالمة واردة» takes
   assert.deepEqual(parseRoute("/app/call/x"), { kind: "not-found" });
   assert.deepEqual(parseRoute("/app/incoming/c1"), { kind: "page", page: "incoming", item: "c1" });
   assert.deepEqual(parseRoute("/app/incoming/c1/x"), { kind: "not-found" });
+});
+
+test("settings: «النماذج» is an inner settings page", () => {
+  const route = parseRoute("/app/models");
+  assert.deepEqual(route, { kind: "page", page: "models" });
+  assert.equal(sectionOf(route), "settings");
+  assert.deepEqual(parseRoute("/app/models/x"), { kind: "not-found" });
 });
 
 test("«ما يعمل الآن» (7.1.5) is a settings page without an item", () => {
