@@ -6,6 +6,7 @@ untrusted context section `webhook`. Nothing else the caller sends is kept."""
 from typing import Any
 
 from lonora_contracts.runs import RunRequest
+from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import EffectReceiptRow
@@ -24,6 +25,11 @@ PROMPT = (
 async def webhook_wake(
     db: Database, owner_id: str, request: RunRequest, nonce: str
 ) -> dict[str, Any]:
+    # As `lonora wake`: text is required and bounded, never cut silently.
+    if not request.prompt.strip():
+        raise LonoraError("webhook_text_missing", 422)
+    if len(request.prompt) > MAXIMUM_TEXT:
+        raise LonoraError("webhook_text_too_long", 422)
     key = "webhook:" + stable_id(owner_id, nonce)
     async with db.sessions() as session, session.begin():
         receipt = await session.get(EffectReceiptRow, key)
@@ -34,7 +40,7 @@ async def webhook_wake(
             agent_id=request.agent_id,
             trigger=TRIGGER,
             prompt=PROMPT,
-            metadata={WEBHOOK_KEY: {"text": request.prompt[:MAXIMUM_TEXT]}},
+            metadata={WEBHOOK_KEY: {"text": request.prompt}},
         )
         result = run_data(await create_run(session, owner_id, wake))
         session.add(EffectReceiptRow(key=key, result=result))

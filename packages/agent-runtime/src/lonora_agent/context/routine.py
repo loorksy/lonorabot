@@ -59,10 +59,10 @@ def workspace_wake_section(run: RunRow) -> ContextSection | None:
 
 def webhook_section(run: RunRow) -> ContextSection | None:
     """A signed webhook's text, as untrusted data from outside Lonora."""
-    if run.trigger != WEBHOOK:
-        return None
     stored: object = run.model_metadata.get(WEBHOOK_KEY)
-    call = cast(dict[str, object], stored) if isinstance(stored, dict) else {}
+    if run.trigger != WEBHOOK or not isinstance(stored, dict):
+        return None
+    call = cast(dict[str, object], stored)
     return ContextSection(
         "webhook", "external_caller", "webhook_untrusted", str(call.get("text", "")), 96, ()
     )
@@ -74,6 +74,10 @@ def wake_context(run: RunRow) -> str:
     if run.trigger in {"user", "group"} and not run.prompt:
         return ""
     trigger = "".join(char for char in run.trigger if char.isalnum() or char == "_")
-    if run.trigger not in SERVER_AUTHORED_TRIGGERS:
+    # A webhook run is server text only when its caller's text is in the data frame: one
+    # the earlier route wrote has the caller's text as its prompt and stays a request.
+    if run.trigger not in SERVER_AUTHORED_TRIGGERS or (
+        run.trigger == WEBHOOK and webhook_section(run) is None
+    ):
         return "<wake trigger='" + trigger + "' request='in_the_conversation_turn'/>"
     return "<wake trigger='" + trigger + "'>\n" + run.prompt + "\n</wake>"

@@ -25,7 +25,7 @@ async def test_a_webhook_wakes_the_agent_with_its_text_as_data(task_db: Any) -> 
         trigger="user",
         prompt=HOSTILE,
         # Nothing the caller sends besides its text and where it goes is kept.
-        metadata={"requested_skills": ["memory"], "authority": "full"},
+        metadata={"requested_skills": ["memory"], "authority": "observe_only"},
     )
     result = await webhook_wake(db, owner, request, "nonce-1")
     async with db.sessions() as session:
@@ -35,6 +35,7 @@ async def test_a_webhook_wakes_the_agent_with_its_text_as_data(task_db: Any) -> 
         assert run.prompt == PROMPT and HOSTILE not in run.prompt
         assert run.model_metadata == {"webhook": {"text": HOSTILE}}
         assert run.parent_run_id is None
+        # The caller's narrowing is dropped too: the run is the agent's ordinary work.
         assert run_scope(run.trigger, run.model_metadata) == "full"
         system = wake_context(run)
         section = webhook_section(run)
@@ -58,3 +59,31 @@ async def test_other_runs_have_no_webhook_section(task_db: Any) -> None:
             session, owner, RunRequest(thread_id=thread, agent_id=agent, prompt="hi")
         )
         assert webhook_section(run) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("text", "code"), [("", "webhook_text_missing"), ("x" * 4001, "webhook_text_too_long")]
+)
+async def test_a_webhook_without_text_or_with_too_much_is_refused(
+    task_db: Any, text: str, code: str
+) -> None:
+    from lonora_core.user_error import LonoraError
+
+    db, owner, agent, thread = task_db
+    request = RunRequest(thread_id=thread, agent_id=agent, prompt=text)
+    with pytest.raises(LonoraError, match=code):
+        await webhook_wake(db, owner, request, "nonce-" + code)
+    async with db.sessions() as session:
+        from sqlalchemy import func, select
+
+        assert not await session.scalar(select(func.count()).select_from(RunRow))
+
+
+def test_a_webhook_run_from_before_the_data_frame_stays_a_request() -> None:
+    """A run the old route wrote (its prompt is the caller's text, no `webhook` metadata) is
+    never read as server text: it stays the user-role turn it was."""
+    old = RunRow(trigger="webhook", prompt=HOSTILE, model_metadata={})
+    assert HOSTILE not in wake_context(old)
+    assert wake_context(old) == "<wake trigger='webhook' request='in_the_conversation_turn'/>"
+    assert webhook_section(old) is None
