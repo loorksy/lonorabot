@@ -118,7 +118,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
         data: { enabled, emergency_stop: false },
       });
 
-
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
