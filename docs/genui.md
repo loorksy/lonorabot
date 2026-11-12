@@ -171,9 +171,15 @@ after the send (rule L). Both clients post a card send at once, never through th
 auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A card's
 send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
 `ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
-Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. The
-mark never spreads: Runs it starts, its retry and the agent's later watches, routines and
-wakes are ordinary Runs. A card's `message.updated` events carry the message as a history
+Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
+retry runs the same send again and carries a provenance-only mark, `ui_submit_retry_of`
+naming the send's Run (`run_retry.retry_run`, read by `owner_words.ui_submit_provenance`):
+like that Run it never spends a grant and has no owner words, but it carries none of the
+send's queue rules. It is not the send's queued Run (`ui_submit_origin`), so its start or
+end never marks the send started, visible or «لم يُنفَّذ», rule L never cancels it, «تعديل»
+never cancels it, and a corrected send is never refused as busy because of it (it waits
+behind the retry, rule Q). The mark never spreads: Runs it starts and the agent's later
+watches, routines and wakes are ordinary Runs. A card's `message.updated` events carry the message as a history
 page shows it (`genui_submit.client_row`). In the model's context, card words are labelled as
 card words, never as the owner's own (`lonora_db/owner_words.py`), and the submission's
 validated data is marked as data (`<ui_submit>`).
