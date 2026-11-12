@@ -15,6 +15,7 @@ from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import raise_stop_tightened
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
+    AccountAuthorityRow,
     AgentRow,
     EffectReceiptRow,
     MessageRow,
@@ -49,7 +50,7 @@ from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
 from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
@@ -1064,8 +1065,18 @@ async def switch_to_ask(context: ToolContext, args: dict[str, Any]) -> dict[str,
             "ask",
             by="agent" if target == context.agent_id else "lonora",
         )
+        # A signed grant still decides within its own terms until it is revoked.
+        grants = await session.scalar(
+            select(func.count())
+            .select_from(AccountAuthorityRow)
+            .where(
+                AccountAuthorityRow.owner_id == context.owner_id,
+                AccountAuthorityRow.agent_id == target,
+                AccountAuthorityRow.status == "active",
+            )
+        )
         await require_lease(session, context.lease, lock=True)
-    return {"agent_id": target, "trading_mode": mode}
+    return {"agent_id": target, "trading_mode": mode, "active_signed_grants": grants or 0}
 
 
 def tools() -> list[Tool]:
@@ -1129,8 +1140,9 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trading_mode_ask",
-            "Switch to Ask: from now on every request that adds risk waits for the owner's "
-            "Trade Approval card. Omit agent_id for yourself; Lonora may name a team agent. "
+            "Switch to Ask: from now on a request that adds risk waits for the owner's Trade "
+            "Approval card, except within an active signed grant's own terms until it is "
+            "revoked. Omit agent_id for yourself; Lonora may name a team agent. "
             "Tell the owner in one line why. Only the owner sets Full.",
             TradingModeAsk,
             switch_to_ask,
