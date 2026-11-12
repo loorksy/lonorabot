@@ -52,7 +52,7 @@ msgid "{0} deleted"
 msgstr "حُذفت {0}"
 
 #. placeholder {0}: isolate(agent.name)
-#: src/shell/agent/AgentPage.tsx:507
+#: src/shell/agent/AgentPage.tsx:509
 msgid "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
@@ -469,7 +469,7 @@ msgctxt "agent status"
 msgid "Active"
 msgstr "نشط"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:19
+#: src/shell/domain/GoalsKnowledgePages.tsx:20
 msgctxt "goal"
 msgid "Active"
 msgstr "نشط"
@@ -505,14 +505,15 @@ msgstr "تم تحديث النشاط"
 
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
-#: src/shell/agent/AgentPage.tsx:554
+#: src/shell/agent/AgentPage.tsx:556
 #: src/shell/agent/GroupPage.tsx:243
 #: src/shell/settings/IntegrationsPage.tsx:271
 #: src/shell/settings/IntegrationsPage.tsx:359
 msgid "Add"
 msgstr "إضافة"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:81
+#: src/shell/domain/GoalsKnowledgePages.tsx:50
+#: src/shell/domain/GoalsKnowledgePages.tsx:75
 msgid "Add a goal"
 msgstr "إضافة هدف"
 
@@ -532,7 +533,7 @@ msgstr "إضافة حساب تداول"
 msgid "Add agents or groups"
 msgstr "إضافة وكلاء أو مجموعات"
 
-#: src/shell/agent/AgentPage.tsx:471
+#: src/shell/agent/AgentPage.tsx:473
 msgid "Add agents to supervise"
 msgstr "إضافة وكلاء للإشراف"
 
@@ -586,7 +587,7 @@ msgstr "إضافة مؤشر"
 #~ msgid "Add integration"
 #~ msgstr "إضافة تكامل"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:185
+#: src/shell/domain/GoalsKnowledgePages.tsx:179
 msgid "Add knowledge"
 msgstr "إضافة معرفة"
 
@@ -1504,7 +1505,7 @@ msgstr "إلغاء الرفع"
 msgid "Cancelled"
 msgstr "ملغى"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:16
+#: src/shell/domain/GoalsKnowledgePages.tsx:17
 msgctxt "goal"
 msgid "Cancelled"
 msgstr "ملغى"
@@ -2029,8 +2030,8 @@ msgstr "أكمل «{label}» أولًا"
 msgid "Completed"
 msgstr "مكتمل"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:14
-#: src/shell/domain/GoalsKnowledgePages.tsx:137
+#: src/shell/domain/GoalsKnowledgePages.tsx:15
+#: src/shell/domain/GoalsKnowledgePages.tsx:131
 msgctxt "goal"
 msgid "Completed"
 msgstr "مكتمل"
@@ -2170,7 +2171,7 @@ msgstr "نوع الاتصال"
 #: src/pages/ScratchpadSection.tsx:169
 #: src/pages/ScratchpadSection.tsx:171
 #: src/shell/domain/FilesPages.tsx:262
-#: src/shell/domain/GoalsKnowledgePages.tsx:267
+#: src/shell/domain/GoalsKnowledgePages.tsx:261
 msgid "Content"
 msgstr "المحتوى"
 
@@ -2622,7 +2623,7 @@ msgstr "اعتمادية غير متاحة"
 #: src/pages/Board.tsx:392
 #: src/pages/shell/bot-panel.tsx:202
 #: src/pages/shell/bot-settings.tsx:105
-#: src/shell/domain/GoalsKnowledgePages.tsx:131
+#: src/shell/domain/GoalsKnowledgePages.tsx:125
 #: src/shell/domain/SkillsPages.tsx:327
 msgid "Description"
 msgstr "الوصف"
@@ -3423,7 +3424,7 @@ msgstr "الانتقال إلى الرسالة المقتبسة"
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:124
+#: src/shell/domain/GoalsKnowledgePages.tsx:118
 msgid "Goal title"
 msgstr "عنوان الهدف"
 
@@ -3734,7 +3735,7 @@ msgstr "القيمة غير صحيحة."
 msgid "Isolated document preview"
 msgstr "معاينة المستند المعزولة"
 
-#: src/shell/agent/AgentPage.tsx:466
+#: src/shell/agent/AgentPage.tsx:468
 msgid "It does not supervise any agent now."
 msgstr "لا يشرف على أي وكيل حاليًا."
 
@@ -3840,7 +3841,7 @@ msgid "Knowledge note"
 msgstr "ملاحظة معرفية"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/GoalsKnowledgePages.tsx:158
+#: src/shell/domain/GoalsKnowledgePages.tsx:152
 msgid "Knowledge of <0>{0}</0>"
 msgstr "معرفة خاصة بـ <0>{0}</0>"
 
@@ -3931,10 +3932,10 @@ msgstr "أمر محدد"
 msgid "Link"
 msgstr "ربط"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:173
-#: src/shell/domain/GoalsKnowledgePages.tsx:247
+#: src/shell/domain/GoalsKnowledgePages.tsx:167
+#: src/shell/domain/GoalsKnowledgePages.tsx:241
+#: src/shell/domain/GoalsKnowledgePages.tsx:246
 #: src/shell/domain/GoalsKnowledgePages.tsx:252
-#: src/shell/domain/GoalsKnowledgePages.tsx:258
 msgctxt "knowledge"
 msgid "Link"
 msgstr "رابط"
@@ -4723,7 +4724,7 @@ msgstr "لا توجد ملفات."
 msgid "No financial executions yet."
 msgstr "لا توجد تنفيذات مالية بعد."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:50
+#: src/shell/domain/GoalsKnowledgePages.tsx:58
 msgid "No goals for this agent."
 msgstr "لا توجد أهداف لهذا الوكيل."
 
@@ -4860,7 +4861,7 @@ msgstr "لا توجد مهارات لهذا الوكيل."
 msgid "No skills."
 msgstr "لا توجد مهارات."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:167
+#: src/shell/domain/GoalsKnowledgePages.tsx:161
 msgid "No sources for this agent."
 msgstr "لا توجد مصادر لهذا الوكيل."
 
@@ -4999,9 +5000,9 @@ msgid "Not set"
 msgstr "غير محدد"
 
 #: src/components/charts/ChartAnnotations.tsx:70
-#: src/shell/domain/GoalsKnowledgePages.tsx:173
-#: src/shell/domain/GoalsKnowledgePages.tsx:247
-#: src/shell/domain/GoalsKnowledgePages.tsx:251
+#: src/shell/domain/GoalsKnowledgePages.tsx:167
+#: src/shell/domain/GoalsKnowledgePages.tsx:241
+#: src/shell/domain/GoalsKnowledgePages.tsx:245
 msgid "Note"
 msgstr "ملاحظة"
 
@@ -5458,7 +5459,7 @@ msgctxt "agent badge"
 msgid "Paused"
 msgstr "متوقف"
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:18
+#: src/shell/domain/GoalsKnowledgePages.tsx:19
 msgctxt "goal"
 msgid "Paused"
 msgstr "متوقف مؤقتًا"
@@ -5541,7 +5542,7 @@ msgctxt "slash command"
 msgid "permissions"
 msgstr "صلاحيات"
 
-#: src/shell/agent/AgentPage.tsx:350
+#: src/shell/agent/AgentPage.tsx:352
 msgid "Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations."
 msgstr "تُغيَّر الصلاحيات من الشريحة بجانب حقل الكتابة في المحادثة. ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -6010,7 +6011,7 @@ msgstr "إعادة تحميل"
 msgid "Remote servers only. You review and approve its tools before any agent uses them."
 msgstr "خوادم بعيدة فقط. تراجع أدواته وتعتمدها قبل أن يستخدمها أي وكيل."
 
-#: src/shell/agent/AgentPage.tsx:458
+#: src/shell/agent/AgentPage.tsx:460
 msgid "Remove"
 msgstr "إزالة"
 
@@ -6367,8 +6368,8 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #: src/shell/agent/GroupPage.tsx:339
 #: src/shell/agent/IdentityPage.tsx:355
 #: src/shell/agent/TradesPage.tsx:440
-#: src/shell/domain/GoalsKnowledgePages.tsx:103
-#: src/shell/domain/GoalsKnowledgePages.tsx:211
+#: src/shell/domain/GoalsKnowledgePages.tsx:97
+#: src/shell/domain/GoalsKnowledgePages.tsx:205
 #: src/shell/settings/IntegrationsPage.tsx:453
 #: src/shell/settings/NotifyPages.tsx:471
 #: src/shell/settings/OwnerPage.tsx:244
@@ -6731,7 +6732,7 @@ msgstr "الخوادم والمستودعات"
 #~ msgid "Service needs attention"
 #~ msgstr "الخدمة تحتاج إلى مراجعة"
 
-#: src/shell/agent/AgentPage.tsx:351
+#: src/shell/agent/AgentPage.tsx:353
 msgid "Services are linked from Settings → Integrations."
 msgstr "ربط الخدمات من الإعدادات ← التكاملات."
 
@@ -7153,7 +7154,7 @@ msgstr "أمر إيقاف"
 #~ msgid "Stop Super Bot"
 #~ msgstr "إيقاف سوبر بوت"
 
-#: src/shell/agent/AgentPage.tsx:361
+#: src/shell/agent/AgentPage.tsx:363
 msgid "Stop the agent"
 msgstr "إيقاف الوكيل"
 
@@ -7263,13 +7264,13 @@ msgstr "الإشراف على وكلاء آخرين"
 msgid "Supervised by {0}"
 msgstr "تحت إشراف {0}"
 
-#: src/shell/agent/AgentPage.tsx:388
-#: src/shell/agent/AgentPage.tsx:430
+#: src/shell/agent/AgentPage.tsx:390
+#: src/shell/agent/AgentPage.tsx:432
 msgid "Supervises"
 msgstr "يشرف على"
 
 #. placeholder {0}: agent.name
-#: src/shell/agent/AgentPage.tsx:414
+#: src/shell/agent/AgentPage.tsx:416
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
@@ -7676,7 +7677,7 @@ msgstr "تعذّر عرض معاينة الملف"
 #~ msgid "The grant is active, but its readiness check did not finish. No trade was sent."
 #~ msgstr "التفويض مفعّل، لكن فحص الجاهزية لم يكتمل. لم تُرسل أي صفقة."
 
-#: src/shell/domain/GoalsKnowledgePages.tsx:25
+#: src/shell/domain/GoalsKnowledgePages.tsx:26
 msgid "The item no longer exists."
 msgstr "لم يعد العنصر موجودًا."
 
@@ -8212,7 +8213,7 @@ msgstr "الفترة الزمنية"
 #: src/pages/ScratchpadSection.tsx:69
 #: src/pages/ScratchpadSection.tsx:160
 #: src/pages/shell/bot-settings.tsx:101
-#: src/shell/domain/GoalsKnowledgePages.tsx:236
+#: src/shell/domain/GoalsKnowledgePages.tsx:230
 msgid "Title"
 msgstr "العنوان"
 
@@ -8426,7 +8427,7 @@ msgstr "إعادة المحاولة"
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
-#: src/shell/agent/AgentPage.tsx:361
+#: src/shell/agent/AgentPage.tsx:363
 msgid "Turn the agent on"
 msgstr "تشغيل الوكيل"
 
@@ -8447,7 +8448,7 @@ msgid "Two steps"
 msgstr "خطوتان"
 
 #: src/pages/shell/bot-panel.tsx:214
-#: src/shell/domain/GoalsKnowledgePages.tsx:238
+#: src/shell/domain/GoalsKnowledgePages.tsx:232
 msgid "Type"
 msgstr "النوع"
 
