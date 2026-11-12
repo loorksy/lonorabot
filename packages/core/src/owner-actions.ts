@@ -301,7 +301,7 @@ export const ownerActionLabels = {
     brokerConnectTitle: "Connect trading account",
     brokerRotateTitle: "New trading password",
     brokerTokenTitle: "New MetaApi API token",
-    brokerAccount: "Account {login} on server {server} ({platform})",
+    brokerAccountLine: "Account {login} on server {server} ({platform})",
     brokerPassword: "Trading (master) password",
     brokerToken: "MetaApi API token (asked once)",
     brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
@@ -587,7 +587,7 @@ export const ownerActionLabels = {
     brokerConnectTitle: "ربط حساب التداول",
     brokerRotateTitle: "كلمة مرور تداول جديدة",
     brokerTokenTitle: "رمز MetaApi API جديد",
-    brokerAccount: "الحساب {login} على الخادم {server} ({platform})",
+    brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
     brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
     brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
@@ -1707,7 +1707,7 @@ export function ownerActionCard(
               ? text.brokerTokenTitle
               : text.brokerConnectTitle;
         lines.push(
-          fill(text.brokerAccount, {
+          fill(text.brokerAccountLine, {
             login: isolate(account.login),
             server: isolate(account.server),
             platform: account.platform.toUpperCase(),

@@ -127,7 +127,7 @@ test("a broker connect card shows the account as server facts and only our own w
     assert.equal(spec.title, text.brokerConnectTitle);
     assert.equal(
       spec.lines[0],
-      text.brokerAccount
+      text.brokerAccountLine
         .replace("{login}", isolated("70000001"))
         .replace("{server}", isolated("Exness-MT5Trial16"))
         .replace("{platform}", "MT5"),
