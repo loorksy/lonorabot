@@ -179,9 +179,9 @@ needed it. Deleting a saved MCP server removes its trust row too (kept as the re
 thing: the trusted sources, the Skills agents installed or wrote with their origin, the
 saved MCP servers with their trusted tools and tier, the integrations and feeds (domain
 only), and the built-in capabilities with an honest state: `ready`, `not_connected` (one
-card connects it) or `not_set_up` on this server (no browser service, no workspace,
-no chart renderer, no search service). The owner's view reports the workspace as part of
-the production stack; the agents' view reports whether the Gateway has its socket. Web shows it under Settings ← «التكاملات»
+card connects it). Web search, the browser, the workspace and the chart renderer are part
+of every installation's stack, so they are always ready; a tool whose service does not
+answer says so when it runs. Web shows it under Settings ← «التكاملات»
 (`/app/integrations`: news domains with undo, RSS feeds, MCP servers and their review,
 skills with their undo); Mobile under Settings, Capabilities. Each entry has its Undo: remove or restore a source,
 revoke an installed Skill version, remove an integration, remove an MCP server's trust.

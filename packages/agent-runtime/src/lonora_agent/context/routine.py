@@ -6,7 +6,8 @@ a Task or ticket title, a routine or watch prompt saved by an agent) may carry
 injected text, so the system role names only the trigger: the builder delivers
 that prompt as the user-role turn, where it is a request, never policy. A
 ``lonora wake`` run's prompt is fixed server text; the script's text and the calling
-agent reach the model only as the labelled untrusted section ``workspace_wake`` (6.10).
+agent reach the model only as the labelled untrusted section ``workspace_wake`` (6.10);
+a signed webhook's text likewise, as the section ``webhook``.
 """
 
 from typing import cast
@@ -16,9 +17,20 @@ from lonora_db.schema import RunRow
 from lonora_db.workspace_wakes import TRIGGER as WORKSPACE_WAKE
 from lonora_db.workspace_wakes import WAKE_KEY
 
+from ..automation.webhooks import TRIGGER as WEBHOOK
+from ..automation.webhooks import WEBHOOK_KEY
+
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
 SERVER_AUTHORED_TRIGGERS = frozenset(
-    {"broker_event", "follow_up", "activation", "agent_created", "owner_card", WORKSPACE_WAKE}
+    {
+        "broker_event",
+        "follow_up",
+        "activation",
+        "agent_created",
+        "owner_card",
+        WORKSPACE_WAKE,
+        WEBHOOK,
+    }
 )
 
 # A peer run's wake is fixed server text; the peer's own words stay in the transcript.
@@ -42,6 +54,17 @@ def workspace_wake_section(run: RunRow) -> ContextSection | None:
         str(wake.get("text", "")),
         96,
         (("calling_agent", str(wake.get("caller_name", ""))),),
+    )
+
+
+def webhook_section(run: RunRow) -> ContextSection | None:
+    """A signed webhook's text, as untrusted data from outside Lonora."""
+    if run.trigger != WEBHOOK:
+        return None
+    stored: object = run.model_metadata.get(WEBHOOK_KEY)
+    call = cast(dict[str, object], stored) if isinstance(stored, dict) else {}
+    return ContextSection(
+        "webhook", "external_caller", "webhook_untrusted", str(call.get("text", "")), 96, ()
     )
 
 

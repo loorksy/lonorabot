@@ -348,8 +348,8 @@ test("capability lines name source, tier and state in both languages", () => {
     assert.ok(skillLine(skill, locale).includes(isolated("example/briefings")));
     assert.ok(skillLine({ ...skill, undone: true, can_undo: false }, locale).endsWith(text.undone));
     assert.equal(
-      builtInLine({ capability: "web_browse", state: "not_set_up", via: null }, locale),
-      `${text.web_browse}: ${text.not_set_up}`,
+      builtInLine({ capability: "web_browse", state: "ready", via: null }, locale),
+      `${text.web_browse}: ${text.ready}`,
     );
   }
   assert.ok(ownerActionError("owner_action_tier_required", "ar"));

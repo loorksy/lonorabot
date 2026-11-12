@@ -79,6 +79,19 @@ opportunity wake, the activation review, a Task) also reads the conversation it 
 from (`origin_read_threads` in `lonora_db/threads.py`: the same Agent's conversation, or
 a group it belongs to).
 
+## Wakes from outside Lonora
+
+A signed `POST /api/webhook` (HMAC-SHA256 of the body with `LONORA_WEBHOOK_SECRET`, which
+the installer generates, in `X-Lonora-Signature`; a body of `{"run": {"thread_id",
+"agent_id", "prompt"}, "nonce"}`) wakes that agent in that thread of the owner's. The caller
+is outside Lonora, so its text is data, never a request (6.10): the run's trigger is
+`webhook`, its prompt is fixed server text, and the caller's text (at most 4,000
+characters) reaches the model only as the context section `webhook`, labelled
+`webhook_untrusted`. Nothing else the caller sends (metadata, a parent run, a trigger) is
+kept. The same nonce is the same wake (`lonora_agent/automation/webhooks.py`;
+`tests/test_webhook_wake.py`). A workspace script's `lonora wake` works the same way, with
+the section `workspace_wake`.
+
 ## No duplicate effects from repeated wakes
 
 - Each broker change and each opportunity version wakes once (effect receipts and

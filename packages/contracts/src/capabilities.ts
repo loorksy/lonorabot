@@ -83,8 +83,8 @@ export type BuiltInCapabilityName =
   | "workspace_execution"
   | "chart_images"
   | "mcp_tools";
-/** ready; not_connected: one owner card connects it; not_set_up: this server lacks it. */
-export type CapabilityState = "ready" | "not_connected" | "not_set_up";
+/** ready; not_connected: one owner card connects it. */
+export type CapabilityState = "ready" | "not_connected";
 export type BuiltInCapability = {
   capability: BuiltInCapabilityName;
   state: CapabilityState;
