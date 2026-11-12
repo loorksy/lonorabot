@@ -422,6 +422,7 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
     from lonora_automation.delivery import routine_history
     from lonora_contracts.domain import utcnow
     from lonora_db.schema import (
+        MarketWatchRow,
         MessageRow,
         RoutineRow,
         RunRow,
@@ -535,6 +536,25 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
             session.add(in_flight)
             await session.flush()
             in_flight_id = in_flight.id
+            # A Task's own work thread holds a watch and an in-flight follow-up: it is not
+            # a routine chat, so its run is left as it is.
+            session.add(
+                MarketWatchRow(
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=task_work.id,
+                    payload={"prompt": "task watch"},
+                )
+            )
+            task_follow_up = RunRow(
+                thread_id=task_work.id,
+                agent_id=agent["id"],
+                trigger="follow_up",
+                prompt="continue",
+            )
+            session.add(task_follow_up)
+            await session.flush()
+            task_follow_up_id = task_follow_up.id
             ids = {
                 "first": first.id,
                 "quiet": quiet.id,
@@ -545,7 +565,6 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
             }
         async with fixture.runtime.db.sessions() as session, session.begin():
             await session.execute(text(module.CONVERT))
-            await session.execute(text(module.STAMP))
             await session.execute(text(module.MOVE))
         async with fixture.runtime.db.sessions() as session:
             purposes = {
@@ -574,6 +593,8 @@ async def test_migration_turns_earlier_routine_chats_into_work_threads():
             assert stamped is not None
             assert stamped.model_metadata["origin_thread_id"] == ids["first"]
             assert stamped.model_metadata["routine_id"] == routines["quiet"]
+            untouched = await session.get(RunRow, task_follow_up_id)
+            assert untouched is not None and "origin_thread_id" not in untouched.model_metadata
         # The moved routine's history keeps the runs from its earlier chat.
         history = await routine_history(fixture.runtime.db, routines["spoken"], fixture.owner)
         assert [run["id"] for run in history] == [earlier_id]
