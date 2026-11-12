@@ -75,13 +75,15 @@ async def ticket_owners(
     return owners
 
 
-async def account_books(session: AsyncSession, owner_id: str) -> list[AccountBook]:
-    """Every enabled connection of the owner, in a stable order."""
+async def account_books(
+    session: AsyncSession, owner_id: str, limit: int
+) -> tuple[list[AccountBook], int]:
+    """The first ``limit`` enabled connections of the owner in a stable order, and how
+    many are enabled; tickets are attributed only on the connections returned."""
     books: list[AccountBook] = []
     rows = await BrokerSessionRepository().all_connections(session, owner_id)
-    for row in sorted(rows, key=lambda item: item.id):
-        if not row.payload.get("enabled"):
-            continue
+    enabled = sorted((row for row in rows if row.payload.get("enabled")), key=lambda r: r.id)
+    for row in enabled[:limit]:
         try:
             raw = row.state.get("broker_recovery")
             snapshot = BrokerRecoverySnapshot.model_validate(raw) if raw else None
@@ -93,7 +95,7 @@ async def account_books(session: AsyncSession, owner_id: str) -> list[AccountBoo
             else {}
         )
         books.append(AccountBook(row.id, snapshot, owners))
-    return books
+    return books, len(enabled)
 
 
 def net_volume(positions: list[Position]) -> Decimal:
