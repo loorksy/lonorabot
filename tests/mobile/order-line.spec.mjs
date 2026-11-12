@@ -5,6 +5,52 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
+// Cards as the runtime raises them (no model): through lonora_db.owner_actions only.
+function seedCard(data) {
+  const script = `
+import asyncio,json,sys
+from uuid import uuid4
+sys.path.insert(0,'tests')
+from check_streaming import Fixture
+from lonora_contracts.domain import utcnow
+from lonora_contracts.owner_actions import OwnerActionProposal
+from lonora_db.owner_actions import propose,raise_system_card
+from lonora_db.schema import TradingJournalRow
+async def main():
+    data=json.load(sys.stdin)
+    f=await Fixture().open()
+    try:
+        async with f.runtime.db.sessions() as session, session.begin():
+            fields={'kind':data['kind']}
+            if data['kind']=='resolve_operation':
+                operation=str(uuid4())
+                session.add(TradingJournalRow(operation_id=operation,owner_id=f.owner,account_id=data['account'],request_hash='ui-fixture',request={'account_id':data['account'],'action':'buy','symbol':data['symbol'],'volume':'0.10'},status='ambiguous',result={'status':'ambiguous','code':'broker_timeout','details':{'send_state':'sent','execution':{'agent_id':data['agent'],'send_authorized':True}}},submitted_at=utcnow(),updated_at=utcnow()))
+                await session.flush()
+                fields['operation_id']=operation
+            proposal=OwnerActionProposal(**fields)
+            if data['kind']=='grant_authority':
+                from lonora_contracts.owner_actions import DailyLossDraft,GrantDraft
+                from lonora_db.owner_actions import ALL_ACTIONS
+                draft=GrantDraft(agent_id=data['agent'],account_id=data['account'],symbol_scope='selected',symbols=[data['symbol']],actions=list(ALL_ACTIONS),daily_loss=DailyLossDraft(amount='300.00',currency='USD',basis='suggested',percent='3',equity='10000'))
+                if data.get('delegation')=='full':
+                    # Preselected because the owner's own message asked for full delegation.
+                    draft=draft.with_delegation('full')
+                row,_=await propose(session,f.owner,proposal,card_id=str(uuid4()),agent_id=data['agent'],thread_id=data['thread'],run_id=None,grant=draft)
+            else:
+                row=await raise_system_card(session,f.owner,proposal,agent_id=data['agent'],thread_id=data['thread'],run_id=None)
+            print(json.dumps({'id':row.id if row else None,'operation_id':fields.get('operation_id')}))
+    finally:
+        await f.close(cleanup=False)
+asyncio.run(main())
+`;
+  return JSON.parse(
+    execFileSync(".venv/bin/python", ["-c", script], {
+      input: JSON.stringify(data),
+      encoding: "utf8",
+    }),
+  );
+}
+
 async function fixture(context) {
   const data = JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -36,6 +82,7 @@ async function fixture(context) {
     await context.request.post(`/api/agents/${agent.id}/conversation`, { headers, data: {} })
   ).json();
   return {
+    data,
     agent,
     thread,
     remove: () => context.request.delete(`/api/agents/${agent.id}`, { headers }),
@@ -135,5 +182,67 @@ test("each operation of the chat is a line at its anchor; the sheet shows the ev
     await expect(page.getByTestId("order-sheet")).toContainText("No answer from the broker");
   } finally {
     await data.remove();
+  }
+});
+
+test("«Resolve the operation» rests the list on the operation's own settle card", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60000);
+  const fixtureData = await fixture(context);
+  const card = seedCard({
+    kind: "resolve_operation",
+    account: fixtureData.data.account,
+    symbol: fixtureData.data.symbol,
+    agent: fixtureData.agent.id,
+    thread: fixtureData.thread.id,
+  });
+  const now = new Date().toISOString();
+  const rows = Array.from({ length: 40 }, (_, index) => ({
+    id: randomUUID(),
+    thread_id: fixtureData.thread.id,
+    agent_id: fixtureData.agent.id,
+    role: "assistant",
+    seq: index + 1,
+    content: `Line ${index + 1}`,
+    attachment_ids: [],
+    reply_to: null,
+    reactions: [],
+    created_at: now,
+  }));
+  await page.route(`**/api/threads/${fixtureData.thread.id}/messages*`, (route) =>
+    route.fulfill({ json: rows }),
+  );
+  await page.route("**/api/trading/journal?thread_id=*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          operation_id: card.operation_id,
+          account_id: fixtureData.data.account,
+          status: "ambiguous",
+          request: { action: "buy", symbol: fixtureData.data.symbol, volume: "0.10" },
+          result: {},
+          submitted_at: now,
+          updated_at: now,
+          thread_id: fixtureData.thread.id,
+          timeline_seq: 40,
+        },
+      ],
+    }),
+  );
+  try {
+    await page.goto(`/thread?id=${fixtureData.thread.id}`);
+    const settle = page.getByTestId(`owner-action-${card.id}`);
+    // The order line is at the bottom; the settle card was raised when the chat began.
+    await page.getByTestId("order-line").click();
+    await expect(page.getByTestId("order-evidence")).toContainText(
+      "never shown before the evidence",
+    );
+    await page.getByRole("button", { name: "Resolve the operation", exact: true }).click();
+    await expect(page.getByTestId("order-sheet")).toHaveCount(0);
+    await expect(settle).toBeInViewport();
+  } finally {
+    await fixtureData.remove();
   }
 });

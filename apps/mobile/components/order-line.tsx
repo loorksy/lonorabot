@@ -44,8 +44,7 @@ export function OrderLine({ row, onOpen }: { row: Journal; onOpen: (row: Journal
   const limit = row.request.price != null ? String(row.request.price) : null;
   const summary = `${action.label}${action.volume ? ` ${action.volume}` : ""} ${symbol}`;
   const stateText = orderLineText(line.state, locale);
-  const icon: IconName =
-    action.direction === "down" ? "trend" : action.direction === "up" ? "trend" : "edit";
+  const icon: IconName = action.direction ? "trend" : "edit";
   return (
     <Pressable
       testID="order-line"
@@ -144,6 +143,10 @@ export function OrderSheet({ row, onResolve }: { row: Journal; onResolve?: () =>
               : orderLineText("cancelled", locale)
             : t("odWaiting");
   const align = rtl ? "right" : "left";
+  // As Web: a reached step is in the text colour, the last one in its state's colour.
+  const last = line.steps[line.steps.length - 1];
+  const dot = (name: OrderLineState, done: boolean) =>
+    !done ? c.line : name === last ? color(TONE[name]) : c.text;
   const step = (name: OrderLineState, done: boolean) => (
     <View
       key={name}
@@ -154,9 +157,9 @@ export function OrderSheet({ row, onResolve }: { row: Journal; onResolve?: () =>
           width: 10,
           height: 10,
           borderRadius: 5,
-          backgroundColor: done ? color(TONE[name]) : "transparent",
+          backgroundColor: done ? dot(name, done) : "transparent",
           borderWidth: 1.5,
-          borderColor: done ? color(TONE[name]) : c.line,
+          borderColor: dot(name, done),
         }}
       />
       <Text style={{ flex: 1, color: done ? c.text : c.muted, fontSize: 14, textAlign: align }}>

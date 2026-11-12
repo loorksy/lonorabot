@@ -198,6 +198,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [hasOlder, setHasOlder] = useState(true);
   const [actionsVisible, setActionsVisible] = useState(false);
   const list = useRef<FlatList<TimelineItem>>(null);
+  const timelineRef = useRef<TimelineItem[]>([]);
   const following = useRef(around == null);
   const jumped = useRef<number | null>(null);
   const shell = useShellColors();
@@ -882,6 +883,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     journal,
     id,
   ).reverse();
+  timelineRef.current = timeline;
   /** The order sheet; «حسم العملية» rests the list on the operation's own settle card. */
   const openOrder = (row: Journal) => {
     const settle = ownerActions.find(
@@ -899,12 +901,16 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           onResolve={
             settle
               ? () => {
+                  // The list as it is now: answers may have arrived while the sheet was open.
+                  const index = timelineRef.current.findIndex(
+                    (item) => item.id === `owner_action:${settle.id}`,
+                  );
+                  // A card drawn inside a message (a trusted slot) has no row of its own: the
+                  // sheet stays, and the card is where the agent put it.
+                  if (index < 0) return;
                   sheets.close();
-                  const index = timeline.findIndex((item) => item.id === settle.id);
-                  if (index >= 0) {
-                    following.current = false;
-                    list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
-                  }
+                  following.current = false;
+                  list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
                 }
               : undefined
           }
