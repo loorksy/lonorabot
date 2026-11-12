@@ -167,7 +167,14 @@ async def _change_credentials(
         card = await session.get(OwnerActionRow, card_id)
         assert card is not None
     change = rotate_password if payload["purpose"] == "rotate_password" else replace_token
-    code = await change(db, brokers, secrets, owner_id, card)
+    try:
+        code = await change(db, brokers, secrets, owner_id, card)
+    except Exception as error:
+        # A change card always ends: the agent hears it, and the next pass leaves it.
+        log.warning(
+            "broker_credential_change_failed card=%s type=%s", card_id, type(error).__name__
+        )
+        code = "broker_credential_change_failed"
     async with db.sessions() as session, session.begin():
         row = await _card(session, owner_id, card_id)
         if row.result.get("provisioning") != "pending":

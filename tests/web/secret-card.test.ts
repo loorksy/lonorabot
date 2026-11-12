@@ -143,6 +143,24 @@ test("a broker connect card shows the account as server facts and only our own w
   }
 });
 
+test("a settled broker card says how connecting ended", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const broker = {
+      ...card,
+      status: "confirmed" as const,
+      facts: { several_accounts: false, secret: { ...secret, destination: "broker" as const } },
+    };
+    for (const [provisioning, line] of [
+      ["pending", text.brokerSaved],
+      ["connected", text.brokerConnected],
+      ["failed", text.brokerFailed],
+    ] as const) {
+      assert.equal(ownerActionCard({ ...broker, result: { provisioning } }, locale).outcome, line);
+    }
+  }
+});
+
 test("a broker card for a new password or token is titled for what it changes", () => {
   for (const locale of ["ar", "en"] as const) {
     const text = ownerActionLabels[locale];
@@ -168,21 +186,6 @@ test("a broker card for a new password or token is titled for what it changes", 
         locale,
       );
       assert.equal(spec.title, title);
-
-test("a settled broker card says how connecting ended", () => {
-  for (const locale of ["ar", "en"] as const) {
-    const text = ownerActionLabels[locale];
-    const broker = {
-      ...card,
-      status: "confirmed" as const,
-      facts: { several_accounts: false, secret: { ...secret, destination: "broker" as const } },
-    };
-    for (const [provisioning, line] of [
-      ["pending", text.brokerSaved],
-      ["connected", text.brokerConnected],
-      ["failed", text.brokerFailed],
-    ] as const) {
-      assert.equal(ownerActionCard({ ...broker, result: { provisioning } }, locale).outcome, line);
     }
   }
 });

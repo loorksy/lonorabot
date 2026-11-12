@@ -285,3 +285,34 @@ async def test_only_the_owners_own_message_changes_a_connection() -> None:
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_disconnect_settles_first_and_removes_at_metaapi_only_after() -> None:
+    """Q8: prepare_delete runs first. When it refuses, nothing is removed at MetaApi, so
+    broker truth stays for reconciliation."""
+    database()
+    from check_streaming import Fixture
+    from lonora_core.user_error import LonoraError
+
+    fixture = await Fixture().open()
+    account = login()
+    world = open_world(fixture, account)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Order")
+        with installed():
+            connection_id = await connected(world, agent, account)
+            context = await asked(fixture, agent, "disconnect it")
+            refusal = AsyncMock(side_effect=LonoraError("delete_blocked_unresolved_operation", 409))
+            with patch("lonora_trading.broker_manage.prepare_delete", refusal):
+                code = await refused(
+                    context, "broker_manage", account_id=connection_id, action="disconnect"
+                )
+            assert code == "delete_blocked_unresolved_operation"
+            assert world.api.accounts and await row(fixture, connection_id) is not None
+            assert "undeploy" not in world.api.calls and "remove" not in world.api.calls
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()

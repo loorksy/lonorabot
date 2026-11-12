@@ -154,6 +154,12 @@ def broker_prompt(row: OwnerActionRow) -> str:
         }[purpose]
         if result.get("provisioning") == "connected":
             return done + " You never see it. Tell the owner in one line."
+        if result.get("code") == "broker_redeploy_failed":
+            return (
+                "The new trading password is stored at MetaApi and recorded, but redeploying "
+                "the terminal with it failed; it reconnects on MetaApi's next deploy. You "
+                "never see it. Tell the owner in one line."
+            )
         return (
             f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
             "You never see the values. Tell the owner in one line what went wrong."
