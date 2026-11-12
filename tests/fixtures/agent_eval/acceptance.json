@@ -8,10 +8,17 @@
    "clause": "The owner says \"I have an MT5 account at my broker, trade it\". Lonora asks for the account number and server, shows the Secret card for the password, provisions the account through MetaApi, and reports the balance.",
    "owner_says": "I have an MT5 account at my broker, trade it",
    "feature": "connect from chat with MetaApi provisioning (9.2); the broker-destination Secret card (7.2.3, 10.3)",
-   "owners": ["W-BROKER", "W-ENV"],
+   "owners": [
+    "W-BROKER",
+    "W-ENV"
+   ],
    "needs": [
-    {"pending": "W-BROKER: MetaApi provisioning from chat (9.2), with its provisioning fake in broker.py"},
-    {"pending": "W-ENV: the broker-destination Secret card (7.2.3)"}
+    {
+     "pending": "W-BROKER: MetaApi provisioning from chat (9.2), with its provisioning fake in broker.py"
+    },
+    {
+     "pending": "W-ENV: the broker-destination Secret card (7.2.3)"
+    }
    ]
   },
   {
@@ -20,10 +27,17 @@
    "clause": "The owner says \"make a gold agent with full authority, a news agent, and a euro agent that asks me first\". Lonora creates them. The gold agent's Mandate card is shown, and the owner taps it. The euro agent starts in Ask.",
    "owner_says": "make a gold agent with full authority, a news agent, and a euro agent that asks me first",
    "feature": "the Full/Ask mode and the Mandate card (4.1-4.3, 10.3); Lonora creates agents without a cap (3.1.2, 3.3.2)",
-   "owners": ["W-AUTH", "W-TEAM"],
+   "owners": [
+    "W-AUTH",
+    "W-TEAM"
+   ],
    "needs": [
-    {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"pending": "W-TEAM: Lonora's lead powers and the uncapped flat team (3.1.2, 3.3)"}
+    {
+     "code": "lonora_db.trading_mode:set_trading_mode"
+    },
+    {
+     "pending": "W-TEAM: Lonora's lead powers and the uncapped flat team (3.1.2, 3.3)"
+    }
    ]
   },
   {
@@ -31,31 +45,121 @@
    "title": "Strategy",
    "clause": "The owner uploads a strategy PDF. The gold agent turns it into its method.",
    "feature": "an owner's strategy file becomes the agent's method, with versions (5.6, 5.5.5)",
-   "owners": ["W-METHOD"],
+   "owners": [
+    "W-METHOD"
+   ],
    "needs": [
-    {"pending": "W-METHOD: owner methods from files (5.6)"}
+    {
+     "pending": "W-METHOD: owner methods from files (5.6)"
+    }
    ]
   },
   {
    "id": "4a",
    "title": "Overnight: the news agent",
    "clause": "The news agent tells the others about a central-bank speech.",
-   "feature": "peer messages, delivered to each peer as data (3.2.3, 6.10)",
-   "owners": ["W-OWNER"],
+   "feature": "peer messages, delivered to each peer as data (3.2.3, 6.10); the agent's own routine wakes it (11.8)",
+   "owners": [
+    "W-OWNER",
+    "W-AUTH for the gold agent"
+   ],
    "needs": [
-    {"tool": "peer_send"},
-    {"pending": "W-OWNER: a peer's message reaches the model as data (3.2.3)"}
-   ]
+    {
+     "tool": "peer_send"
+    },
+    {
+     "code": "lonora_agent.context.routine:PEER_WAKE"
+    }
+   ],
+   "partial": {
+    "note": "the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
+    "until": [
+     {
+      "code": "lonora_db.trading_mode:set_trading_mode"
+     }
+    ]
+   },
+   "given": {
+    "team": {
+     "news": "وكيل الأخبار",
+     "euro": "وكيل اليورو"
+    },
+    "peers": [
+     "gold",
+     "euro"
+    ],
+    "routine": "Check the calendar for central-bank speeches tonight and tell the team what matters."
+   },
+   "script": {
+    "news": [
+     [
+      {
+       "calls": [
+        {
+         "tool": "peer_send",
+         "arguments": {
+          "agent_id": "$gold",
+          "task": "خطاب رئيس الاحتياطي الفيدرالي الليلة 02:00 غرينتش: تقلّب متوقع على الذهب والدولار."
+         }
+        },
+        {
+         "tool": "peer_send",
+         "arguments": {
+          "agent_id": "$euro",
+          "task": "خطاب رئيس الاحتياطي الفيدرالي الليلة 02:00 غرينتش: تقلّب متوقع على اليورو دولار."
+         }
+        }
+       ]
+      },
+      {
+       "text": "أبلغت وكيل الذهب ووكيل اليورو بخطاب الاحتياطي الفيدرالي الليلة 02:00 غرينتش."
+      }
+     ]
+    ],
+    "gold@peer": [
+     [
+      {
+       "text": "سأبقي وقف صفقة الذهب على 4040 حتى بعد خطاب 02:00 ولن أفتح جديداً قبله."
+      }
+     ]
+    ],
+    "euro@peer": [
+     [
+      {
+       "text": "لن أطلب دخولاً على اليورو دولار قبل خطاب 02:00، وأعيد التقييم بعده."
+      }
+     ]
+    ],
+    "news@follow_up": [
+     [
+      {
+       "text": "وكيل الذهب يبقي وقفه على 4040 حتى بعد خطاب 02:00."
+      }
+     ],
+     [
+      {
+       "text": "وكيل اليورو لن يطلب دخولاً قبل خطاب 02:00."
+      }
+     ]
+    ]
+   }
   },
   {
    "id": "4b",
    "title": "Overnight: the gold agent trades",
    "clause": "The gold agent opens a position, and the broker confirms it with an Execution Receipt. The agent later moves its stop to break-even and takes partial profit.",
    "feature": "Full mode (4.1); one Execution Receipt per broker-confirmed operation (10.3, 11.2)",
-   "owners": ["W-AUTH", "W-RECEIPT"],
+   "owners": [
+    "W-AUTH",
+    "W-RECEIPT"
+   ],
    "needs": [
-    {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"pending": "W-RECEIPT: the Execution Receipt card (10.3, 11.2)"}
+    {
+     "code": "lonora_db.trading_mode:set_trading_mode"
+    },
+    {
+     "pending": "W-RECEIPT: the Execution Receipt card (10.3, 11.2)"
+    }
    ]
   },
   {
@@ -63,22 +167,54 @@
    "title": "Overnight: a connection drop during a close",
    "clause": "A connection drop during a close is reconciled without a resend.",
    "feature": "the safety core: journal, never resend, broker truth (6.2-6.4); the agent's own watch wakes it (11.8)",
-   "owners": ["(on main: the safety core, 6)", "W-AUTH for the gold agent in Full"],
+   "owners": [
+    "(on main: the safety core, 6)",
+    "W-AUTH for the gold agent in Full"
+   ],
    "partial": {
     "note": "fake terminal; the actor is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}]
+    "until": [
+     {
+      "code": "lonora_db.trading_mode:set_trading_mode"
+     }
+    ]
    },
    "needs": [],
    "given": {
-    "position": {"base": "XAUUSD", "side": "buy", "volume": "0.02", "price": "4031.500"},
-    "watch": {"symbol": "$XAUUSD", "condition": "above", "level": "4060", "cooldown_seconds": 300, "prompt": "Gold reached the target of the open buy at 4060: manage the position per the method."},
+    "position": {
+     "base": "XAUUSD",
+     "side": "buy",
+     "volume": "0.02",
+     "price": "4031.500"
+    },
+    "watch": {
+     "symbol": "$XAUUSD",
+     "condition": "above",
+     "level": "4060",
+     "cooldown_seconds": 300,
+     "prompt": "Gold reached the target of the open buy at 4060: manage the position per the method."
+    },
     "price_after": "4061.200"
    },
    "script": {
     "gold": [
      [
-      {"calls": [{"tool": "trade_execute", "arguments": {"account_id": "$account", "action": "close_position", "symbol": "XAUUSDm", "position_id": "$ticket"}}]},
-      {"text": "أرسلت إغلاق شراء الذهب 0.02 عند الهدف 4060، وانقطع الاتصال قبل رد الوسيط: النتيجة غير مؤكدة، وأتحقق منها من سجل الوسيط دون إعادة الإرسال."}
+      {
+       "calls": [
+        {
+         "tool": "trade_execute",
+         "arguments": {
+          "account_id": "$account",
+          "action": "close_position",
+          "symbol": "XAUUSDm",
+          "position_id": "$ticket"
+         }
+        }
+       ]
+      },
+      {
+       "text": "أرسلت إغلاق شراء الذهب 0.02 عند الهدف 4060، وانقطع الاتصال قبل رد الوسيط: النتيجة غير مؤكدة، وأتحقق منها من سجل الوسيط دون إعادة الإرسال."
+      }
      ]
     ]
    }
@@ -88,11 +224,20 @@
    "title": "Overnight: the euro agent asks",
    "clause": "The euro agent's request waits as a Trade Approval card, and a push reaches the owner's phone.",
    "feature": "Ask mode and the Trade Approval card with reason and tolerance (4.1, 10.3.1); one Expo push per card (11.4)",
-   "owners": ["W-AUTH", "W-PUSH"],
+   "owners": [
+    "W-AUTH",
+    "W-PUSH"
+   ],
    "needs": [
-    {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"code": "lonora_trading.approval_drift:check_drift"},
-    {"pending": "W-PUSH: one Expo push per pending card (11.4)"}
+    {
+     "code": "lonora_db.trading_mode:set_trading_mode"
+    },
+    {
+     "code": "lonora_trading.approval_drift:check_drift"
+    },
+    {
+     "pending": "W-PUSH: one Expo push per pending card (11.4)"
+    }
    ]
   },
   {
@@ -100,21 +245,119 @@
    "title": "Overnight: the card drifts",
    "clause": "When price drifts outside the tolerance, the agent re-evaluates and asks again.",
    "feature": "drift marks the card and wakes the agent with fixed text (10.3.1.2)",
-   "owners": ["W-AUTH"],
+   "owners": [
+    "W-AUTH"
+   ],
    "needs": [
-    {"code": "lonora_db.trading_mode:set_trading_mode"},
-    {"code": "lonora_trading.approval_drift:check_drift"}
+    {
+     "code": "lonora_db.trading_mode:set_trading_mode"
+    },
+    {
+     "code": "lonora_trading.approval_drift:check_drift"
+    }
    ]
   },
   {
    "id": "5",
    "title": "Morning",
    "clause": "Lonora's brief shows the account change, each agent's actions and results, the pending approval with its reason, and the day's events.",
-   "feature": "the morning brief, posted once (11.1), at a compressed time",
-   "owners": ["W-BRIEF"],
+   "feature": "the morning brief, posted once a day (11.1), at a compressed time",
+   "owners": [
+    "W-BRIEF",
+    "W-AUTH for the approval's reason"
+   ],
    "needs": [
-    {"pending": "W-BRIEF: the morning brief (11.1)"}
-   ]
+    {
+     "code": "lonora_trading.morning_brief:brief_tick"
+    }
+   ],
+   "partial": {
+    "note": "the pending approval with its reason and the day's events are not asserted: the approval's reason (10.3) waits for W-AUTH, and the brief's facts carry no calendar events; the actor is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
+    "until": [
+     {
+      "code": "lonora_db.trading_mode:set_trading_mode"
+     },
+     {
+      "code": "lonora_contracts.trading:TradeAnnotation"
+     }
+    ]
+   },
+   "given": {
+    "overnight": [
+     {
+      "watch": {
+       "symbol": "$XAUUSD",
+       "condition": "above",
+       "level": "4055",
+       "cooldown_seconds": 300,
+       "prompt": "Gold broke above 4055: the entry of the method."
+      },
+      "bid": "4056.000"
+     },
+     {
+      "watch": {
+       "symbol": "$XAUUSD",
+       "condition": "above",
+       "level": "4070",
+       "cooldown_seconds": 300,
+       "prompt": "Gold reached 4070, the target of the open buy."
+      },
+      "bid": "4071.000"
+     }
+    ]
+   },
+   "script": {
+    "gold": [
+     [
+      {
+       "calls": [
+        {
+         "tool": "trade_execute",
+         "arguments": {
+          "account_id": "$account",
+          "action": "buy",
+          "symbol": "XAUUSDm",
+          "volume": "0.02"
+         }
+        }
+       ]
+      },
+      {
+       "text": "اشتريت 0.02 ذهب بعد اختراق 4055، والوسيط أكّد التنفيذ."
+      }
+     ],
+     [
+      {
+       "calls": [
+        {
+         "tool": "trade_execute",
+         "arguments": {
+          "account_id": "$account",
+          "action": "close_position",
+          "symbol": "XAUUSDm",
+          "position_id": "$ticket"
+         }
+        }
+       ]
+      },
+      {
+       "text": "أغلقت شراء الذهب 0.02 عند الهدف 4070، والوسيط أكّد الإغلاق."
+      }
+     ]
+    ],
+    "lonora_id@morning_brief": [
+     [
+      {
+       "text": "موجز الصباح: الرصيد 10000 دولار، لا صفقات مفتوحة، ولا شيء آخر يحتاجك."
+      }
+     ],
+     [
+      {
+       "text": "موجز الصباح: الرصيد زاد 29.52 دولار منذ الموجز السابق. وكيل الذهب اشترى 0.02 ذهب بعد 4055 وأغلقها عند 4070، وكلاهما أكّده الوسيط. لا صفقات مفتوحة، ولا شيء آخر يحتاجك."
+      }
+     ]
+    ]
+   }
   },
   {
    "id": "6",
@@ -126,20 +369,82 @@
    "id": "7a",
    "title": "After a week: reports",
    "clause": "Each agent posts its report with what it learned and what it changed.",
-   "feature": "the weekly report per agent (5.5.6, 11.3), from the learning loop (5.5)",
-   "owners": ["W-BRIEF", "W-LEDGER", "W-METHOD"],
+   "feature": "the weekly report per agent after the weekly close, carried by the first brief after it (5.5.6, 11.3), at a compressed time",
+   "owners": [
+    "W-BRIEF",
+    "W-LEDGER for the results"
+   ],
    "needs": [
-    {"pending": "W-BRIEF: the weekly report (5.5.6, 11.3)"}
-   ]
+    {
+     "code": "lonora_trading.weekly_report:wake_agents"
+    }
+   ],
+   "partial": {
+    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words (live); the actor is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
+    "until": [
+     {
+      "code": "lonora_db.trading_mode:set_trading_mode"
+     },
+     {
+      "pending": "W-LEDGER: per-label statistics given on wake (5.5.4)"
+     }
+    ]
+   },
+   "given": {
+    "team": {
+     "news": "وكيل الأخبار",
+     "euro": "وكيل اليورو"
+    }
+   },
+   "script": {
+    "lonora_id@morning_brief": [
+     [
+      {
+       "text": "موجز المساء: الرصيد 10000 دولار، لا صفقات مفتوحة، ولا شيء آخر يحتاجك."
+      }
+     ],
+     [
+      {
+       "text": "موجز الصباح وتقارير الأسبوع: وكيل الذهب لم يغلق صفقات، ووكيل الأخبار رصد خطاب البنك المركزي، ووكيل اليورو بقي على الحياد. لا شيء آخر يحتاجك."
+      }
+     ]
+    ],
+    "lonora_id@weekly_report": [
+     [
+      {
+       "text": "تقرير الأسبوع: لم أغلق صفقات هذا الأسبوع، وأبقيت طريقتي كما هي."
+      }
+     ]
+    ],
+    "news@weekly_report": [
+     [
+      {
+       "text": "تقرير الأسبوع: رصدت خطاب البنك المركزي وأبلغت الفريق، وتعلمت أن أرسل التنبيه قبل الخطاب بساعة."
+      }
+     ]
+    ],
+    "euro@weekly_report": [
+     [
+      {
+       "text": "تقرير الأسبوع: لم أفتح صفقات، وغيّرت شرط الدخول إلى إغلاق ساعة فوق المقاومة."
+      }
+     ]
+    ]
+   }
   },
   {
    "id": "7b",
    "title": "After a week: a team problem",
    "clause": "When the harness presents a team problem, Lonora creates, pauses or deletes an agent without asking, and explains why in one line.",
    "feature": "Lonora's lead powers without a grant (3.1.2), delete with transfer, pauses (4.7)",
-   "owners": ["W-TEAM", "W-PAUSE"],
+   "owners": [
+    "W-TEAM",
+    "W-PAUSE"
+   ],
    "needs": [
-    {"pending": "W-TEAM: Lonora creates, pauses and deletes agents on its own judgment (3.1.2)"}
+    {
+     "pending": "W-TEAM: Lonora creates, pauses and deletes agents on its own judgment (3.1.2)"
+    }
    ]
   }
  ]

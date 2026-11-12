@@ -34,11 +34,19 @@ Each step starts from its own seeded state, not from the steps before it, so a s
 ## What the harness induces
 
 - **A lost broker reply.** The fake terminal applies the close and then drops the connection before answering (`AcceptanceTerminal.lose_reply`).
-- **A price move.**
+- **A price move.** The harness moves the fake terminal's quote and hands it to the watch check as the market stream does (`check_watches` with `price_update`).
+- **Compressed time.** The brief step takes the time it runs at (`brief_tick(db, owner, now)`), and the harness calls it with the times the step needs:
+  - step 5: yesterday's brief time and today's, in the owner's zone, with no weekly close between them;
+  - step 7a: an evening before the next weekly close (`latest_close`), then the first brief time after it.
+
+  Before each pass the harness runs the gateway's broker observation (`maintenance_account_recovery`), so the brief reads the broker as it is.
 - **The product's own wakes:**
   - the watch check of the gateway (`check_watches`);
+  - the routine step (`dispatch_routines`), with a one-shot routine due now;
+  - the brief step (`brief_tick`), which also wakes each agent for its weekly report;
   - the reconciliation step (`reconcile_ambiguous`);
-  - the queued runs, which go through `execute_run` as the worker does.
+  - the queued runs, which go through `execute_run` as the worker does. That includes the wakes those runs cause: peer runs, and the follow-up that returns a peer's answer to its sender.
+- **Scripted turns by wake.** A script key `agent` answers that agent's runs; `agent@trigger` answers only the runs that trigger started, for example `lonora_id@morning_brief`.
 
 ## Offline: the local gate of every PR and of the merged main
 
@@ -56,10 +64,14 @@ export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:ci-only-password@127.0.0.
 ## Live: a real model, run by the lead on the owner's server
 
 ```
-export LONORA_DATABASE_URL=postgresql+asyncpg://.../accept_test   # disposable, never production
-export LONORA_ACCEPT_PROVIDER_KEY=...                             # read from the environment, never printed
-.venv/bin/python scripts/agent_eval/acceptance.py --live --model openai/gpt-5.4-mini [--steps 4c]
+export LONORA_DATABASE_URL=postgresql+asyncpg://<superuser>@127.0.0.1:5432/accept_live_test  # disposable, never production
+read -rs LONORA_ACCEPT_PROVIDER_KEY && export LONORA_ACCEPT_PROVIDER_KEY                      # typed, not echoed
+.venv/bin/python scripts/agent_eval/acceptance.py --live --model <provider>/<model> [--steps 4a,4c,5,7a]
+unset LONORA_ACCEPT_PROVIDER_KEY
 ```
+
+- **The database role.** It must be allowed to create and drop databases: the run copies its template with `CREATE DATABASE … TEMPLATE`.
+- **What the run prints.** The step table, its checks and error codes. It prints no key, token, login or account id.
 
 - The same steps run, with the product calling the model through its own router and provider adapter.
 - **The provider key.** It is saved into the disposable template through the product's own credential route. Without `LONORA_ACCEPT_PROVIDER_KEY`, the template keeps the placeholder that a cloud session's network proxy replaces.
@@ -69,6 +81,9 @@ export LONORA_ACCEPT_PROVIDER_KEY=...                             # read from th
 
 | Step | State | Note |
 |---|---|---|
+| 4a, the news agent tells the others | pass, partial | The gold agent is Lonora under the template's signed grant. |
 | 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
+| 5, the morning brief | pass, partial | The pending approval with its reason and the day's events are not asserted. The approval's reason waits for W-AUTH, and the brief's facts carry no calendar events. The gold agent is Lonora under the template's grant. |
 | 6 | void | Amendment 1. |
+| 7a, the weekly reports | pass, partial | Each agent's results are its journaled operations only. The per-label statistics wait for W-LEDGER. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |

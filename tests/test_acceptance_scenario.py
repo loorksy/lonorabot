@@ -67,7 +67,9 @@ def test_every_step_names_its_feature_and_its_owner():
         if "void" in step:
             continue
         assert step["feature"] and step["owners"], step["id"]
-        for need in step["needs"]:
+        partial = step.get("partial", {"note": "-", "until": []})
+        assert set(partial) == {"note", "until"} and partial["note"], step["id"]
+        for need in step["needs"] + partial["until"]:
             assert set(need) <= {"pending", "tool", "code"} and len(need) == 1, step["id"]
 
 
@@ -92,7 +94,7 @@ def test_a_missing_feature_keeps_its_step_pending():
     assert acceptance.missing([{"code": "lonora_trading.execution:ExecutionService"}]) == []
     rows = {row["step"]: row for row in acceptance.status(SCENARIO)}
     assert rows["6"]["state"] == "void"
-    assert rows["5"]["state"] == "pending"
+    assert rows["7b"]["state"] == "pending"
 
 
 @pytest.mark.asyncio
@@ -129,9 +131,9 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     assert done.returncode == 0, done.stderr[-2000:]
     assert {row["step"] for row in report} == set(STEPS)
     passed = {row["step"]: row for row in report if row["state"] == "pass"}
-    assert "4c" in passed
-    # Today's stand-in is said, never passed off as the step itself.
-    assert "partial" in passed["4c"]
+    assert {"4a", "4c", "5", "7a"} <= set(passed)
+    # Today's stand-ins are said, never passed off as the step itself.
+    assert all("partial" in passed[step] for step in ("4a", "4c", "5", "7a"))
 
 
 def test_a_refusal_raised_or_answered_counts_against_authority():
