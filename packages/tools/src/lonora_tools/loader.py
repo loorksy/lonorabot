@@ -34,6 +34,7 @@ MODULES = {
     "consult": "intelligence",
     "models": "intelligence",
     "performance": "intelligence",
+    "usage": "intelligence",
     "chart": "charts",
     "chart_state": "charts",
     "chart_indicator": "charts",

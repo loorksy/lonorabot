@@ -62,6 +62,8 @@ STEPS = (
     StepSpec("thread_prefs", 2, 60, critical=False),
     # Which background workspace processes ended, for each agent's next wake (7.1.2).
     StepSpec("workspace", 10, 60, critical=False),
+    # The morning brief: once per local date for each owner (VISION 11.1).
+    StepSpec("morning_brief", 30, 120),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -270,6 +272,11 @@ class Gateway:
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
 
+    async def morning_brief(self) -> None:
+        from lonora_trading.morning_brief import brief_tick
+
+        await self.for_each_owner(lambda service: brief_tick(self.db, service.owner_id))
+
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -294,6 +301,7 @@ class Gateway:
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
             "workspace": self.workspace,
+            "morning_brief": self.morning_brief,
             "watchdog": self.watchdog.tick,
         }
 

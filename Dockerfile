@@ -43,7 +43,7 @@ ARG LONORA_VERSION=""
 ARG LONORA_GIT_SHA=unknown
 ARG LONORA_BUILT_AT=unknown
 RUN python scripts/release_manifest.py --version "$LONORA_VERSION" --git-sha "$LONORA_GIT_SHA" --built-at "$LONORA_BUILT_AT" >/app/release.json && cp /app/release.json /app/deploy/release.json
-RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh /app/deploy/infra/compose/*.sh /app/deploy/infra/compose/lonora
+RUN groupadd --system --gid 10001 lonora && useradd --system --uid 10001 --gid 10001 --create-home lonora && mkdir -p /app/.runtime/artifacts /app/.runtime/cli && chmod -R a+rX /app && chown -R lonora:lonora /app/.runtime && chmod +x /app/entrypoint.sh /app/scripts/*.sh /app/deploy/infra/compose/*.sh /app/deploy/infra/compose/lonora
 USER lonora
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

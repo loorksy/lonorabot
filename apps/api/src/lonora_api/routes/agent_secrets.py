@@ -31,6 +31,8 @@ async def store_secret(
 async def delete_secret(
     request: Request, secret_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
-    """The only route that deletes a stored secret; one a connection uses is refused."""
+    """The only route that deletes a stored secret; one a connection uses is refused. A
+    value already given to a workspace command stays encrypted in ln_workspace_given for
+    up to 30 days, so the output scan keeps hiding it (docs/operations.md)."""
     await runtime(request).services(owner.id).secrets.delete(secret_id)
     return {"deleted": True}
