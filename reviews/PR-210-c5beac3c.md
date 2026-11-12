@@ -1,0 +1,13 @@
+# PR #210 — W-PICTURE port onto main (picture/3-on-main), head c5beac3c
+
+- Reviewer: R-MONEY.
+- Verdict: **CLEAN**.
+- **What it is:** a port of #109, which was reviewed CLEAN at 310a6979, onto main (no W-AUTH chain).
+- **Faithfulness:** the PR's own diff matches the original's own diff hunk by hunk. The only differences are the adaptations main needs:
+  - main's `lonora_opened` journal match replaces W-AUTH's `ticket_agent` (same query, bound and first-match semantics);
+  - gateway steps and doc rows sit after main's own steps.
+- **Review fixes:** every fix made during #109's review is present. Spot-checked by me: `context/picture.py` and `trading/picture.py` against bbe62bc0 differ only in docstrings naming `lonora_opened`.
+- **W-AUTH:** no ported file uses a W-AUTH symbol (`ticket_agent`, `trading_mode`, Mandate, ladder, restrictions).
+- **Unchanged:** no migration; the door and preflight are untouched.
+- **Checks:** the picture checks on its head pass on fresh databases. On #211 the full core list passes (five `check_*.py` plus the six core pytest files: 100 passed).
+- **Rebase:** the PR body names main e67be56d; main is now 0a4d9560. `git merge-tree` with current main is conflict-free.
