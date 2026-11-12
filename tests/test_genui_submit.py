@@ -862,6 +862,20 @@ async def fail_and_retry(fixture: Any, card: Card, run_id: str, *, started: bool
     return str(response.json()["id"])
 
 
+def test_a_retry_queued_before_the_upgrade_keeps_its_old_mark() -> None:
+    """A card send's retry queued by the previous release carries ``ui_tainted``: it is
+    still a card send's retry (6.10). Any other run that release marked (a wake, a Task)
+    stays an ordinary run: the mark never spreads."""
+    from lonora_db.owner_words import ui_submit_provenance
+    from lonora_db.schema import RunRow
+
+    old = {"origin_run_id": "card-send"}
+    retry = RunRow(thread_id="t", agent_id="a", model_metadata={"retry_of": "r", "ui_tainted": old})
+    wake = RunRow(thread_id="t", agent_id="a", model_metadata={"ui_tainted": old})
+    assert ui_submit_provenance(retry) is True
+    assert ui_submit_provenance(wake) is False
+
+
 @pytest.mark.asyncio
 async def test_a_card_sends_retry_carries_a_provenance_only_mark() -> None:
     """The retry's mark names the send's own Run and is provenance only (6.10): never the

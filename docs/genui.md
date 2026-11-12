@@ -172,8 +172,10 @@ auto-flushed outbox or offline queue; a retry after a failure is the owner's tap
 send is input to the agent's own judgment (mandate 6.10): the Run it starts carries
 `ui_submit_origin`, its own mark only (`account_authority.provisional_voice`). In Full that
 Run's trades send like any other Run's; in Ask its trades that add risk ask the owner. Its
-retry runs the same send again and carries a provenance-only mark, `ui_submit_retry_of`
-naming the send's Run (`run_retry.retry_run`, read by `owner_words.ui_submit_provenance`):
+retry, and a «طلب جديد» renewal of an approval it raised, ask the same request again and
+carry a provenance-only mark, `ui_submit_retry_of` naming the send's Run
+(`owner_words.submit_provenance_of`, read by `owner_words.ui_submit_provenance`; a retry the
+previous release queued keeps its old `ui_tainted` mark, read on retries only):
 like that Run it never spends a grant and has no owner words, but it carries none of the
 send's queue rules. It is not the send's queued Run (`ui_submit_origin`), so its start or
 end never marks the send started, visible or «لم يُنفَّذ», rule L never cancels it, «تعديل»
