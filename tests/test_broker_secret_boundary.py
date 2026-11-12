@@ -135,7 +135,7 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
 
         # The broker reader reads nothing else.
         workspace_id = await services.secrets.write(
-            "FIXTURE_" + uuid4().hex[:6].upper(), "w", "workspace"
+            "FIXTURE_" + uuid4().hex[:6].upper(), "fixture-workspace", "workspace"
         )
         with pytest.raises(LonoraError) as other:
             await broker.read(workspace_id)

@@ -16,4 +16,4 @@ This document stores important information that should persist across conversati
 
 ## Important Notes
 
-(Things to remember; active steps belong in the existing task or goal.)
+(Things to remember; active steps belong in the existing task.)

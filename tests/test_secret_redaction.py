@@ -195,11 +195,40 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
     value, late_value = ("live-" + uuid4().hex for _ in range(2))
     saved: list[str] = []
     try:
+        saved.append(
+            await fixture.runtime.services(fixture.owner).secrets.write(name, value, "workspace")
+        )
         services = fixture.runtime.services(fixture.owner)
-        saved.append(await services.secrets.write(name, value, "workspace"))
-        # Another scope's value is not the workspace's to scan (VISION.md 7.2.3).
-        other = "integration-" + uuid4().hex
-        saved.append(await services.secrets.write("feed-" + other[-6:], other, "integration"))
+        # A value too short to find at every base64 alignment is not stored.
+        for short in ("ab", "\u00e9\u00e9"):
+            with pytest.raises(LonoraError) as refused:
+                await services.secrets.write(name, short, "workspace")
+            assert refused.value.code == "secret_value_too_short"
+        assert await services.secrets.read(saved[0]) == value
+        # Every stored value outside the broker scope is scanned (VISION.md 7.2.6); a
+        # broker value is read only by the execution door and provisioning (7.2.3).
+        other, provider, broker = (scope + "-" + uuid4().hex for scope in ("feed", "model", "acct"))
+        other_name, provider_name, broker_name = (item[:12] for item in (other, provider, broker))
+        saved.append(await services.secrets.write(other_name, other, "integration"))
+        saved.append(await services.secrets.write(provider_name, provider, "provider"))
+        # Broker values are written only through the broker layer's own store (7.2.3).
+        from lonora_adapters.storage.broker_secrets import BrokerSecrets
+
+        broker_store = BrokerSecrets(
+            fixture.runtime.db,
+            fixture.runtime.settings.encryption_key.get_secret_value(),
+            fixture.owner,
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            saved.append(await broker_store.write_in_session(session, broker_name, broker))
+        scanned = await services.secrets.scanned_values()
+        assert scanned[name] == value and scanned[other_name] == other
+        assert scanned[provider_name] == provider
+        assert broker_name not in scanned and broker not in scanned.values()
+        # The workspace reader (what agents use by name) holds the workspace scope only.
+        workspace = await services.secrets.workspace_values()
+        assert workspace[name] == value
+        assert not {other_name, provider_name, broker_name} & set(workspace)
         agent = await fixture.agent("Redaction")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         context = replace(
@@ -217,7 +246,7 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
 
         # A secret that crosses a page boundary never comes back in two halves.
         body = "A" * 7990 + value + "B" * 100
-        files = {"notes.txt": body, "short.txt": "key " + value}
+        files = {"notes.txt": body, "short.txt": "key " + value, value + ".md": "x"}
         written = await call(
             "write", "workspace_update", {"revision": 0, "files": files, "delete": []}
         )
@@ -234,6 +263,13 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
             offset = page["next_offset"]
         assert len(pages) == 2 and "".join(pages) == f"{'A' * 7990}[secret:{name}]{'B' * 100}"
         assert not any(value[:8] in page or value[-8:] in page for page in pages)
+        # The path a read echoes is scanned like the content.
+        named = await call(
+            "named",
+            "workspace_read",
+            {"revision": 1, "path": value + ".md", "offset": 0, "limit": 100},
+        )
+        assert named["path"] == f"[secret:{name}].md" and named["content"] == "x"
 
         plain = await run("print", 1, "print " + name)
         assert plain["stdout"] == f"[secret:{name}]\n"
@@ -242,13 +278,17 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         # What remains after the marker encodes only the newline echo added.
         assert re.fullmatch(rf"\[secret:{name}\][A-Za-z0-9+/]{{0,2}}=*", encoded["stdout"])
         assert base64.b64encode(value.encode()).decode()[:12] not in json.dumps(encoded)
-        unscanned = await run("other", 3, "say " + other)
-        assert unscanned["stdout"] == other + "\n"
+        integration = await run("other", 3, "say " + other)
+        assert integration["stdout"] == f"[secret:{other_name}]\n"
 
         # A result stored before its value became a secret is scanned when replayed.
         said = await run("late", 4, "say " + late_value)
         assert said["stdout"] == late_value + "\n"
-        saved.append(await services.secrets.write(late, late_value, "workspace"))
+        saved.append(
+            await fixture.runtime.services(fixture.owner).secrets.write(
+                late, late_value, "workspace"
+            )
+        )
         replayed = await run("late", 4, "say " + late_value)
         assert replayed["stdout"] == f"[secret:{late}]\n"
 

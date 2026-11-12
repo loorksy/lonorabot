@@ -29,7 +29,7 @@ inherits the narrowing instead (`inherited_authority` in `lonora_db/runs.py` sta
 non-financial tool and its trades fail with `observe_only_execution_forbidden`. The
 permission frame still shows such a Run as `analysis`.
 
-Watches, routines and Goals an observe-only wake sets up are not narrowed: they are
+Watches and routines an observe-only wake sets up are not narrowed: they are
 the Agent's own later work (correction 25 keeps watch and routine changes for wakes),
 and when they fire they run with the Agent's normal authority. Money still follows
 the Agent's signed grant, the account limits, pauses and the manual-positions switch
@@ -74,11 +74,9 @@ work, so its wake also carries normal authority.
 A wake's records belong to its Agent's conversation (`report_thread` in
 `lonora_db/threads.py`): approval cards, watches it sets up (Task watches stay with
 their Task) and owner alerts. Whatever its authority, a work-lane Run (a broker or
-opportunity wake, the activation review, a Task) also reads the Goals of the
-conversation it came from (`goal_read_threads` in `lonora_db/trading_goals.py`: the
-same Agent's conversation, or a group it belongs to) in its goal context, `goal_list`,
-`goal_read` and `goal_decisions`, so a woken Agent sees the plan and limits it is
-executing. Changing a Goal still requires the Goal's own thread.
+opportunity wake, the activation review, a Task) also reads the conversation it came
+from (`origin_read_threads` in `lonora_db/threads.py`: the same Agent's conversation, or
+a group it belongs to).
 
 ## No duplicate effects from repeated wakes
 
@@ -87,9 +85,8 @@ executing. Changing a Goal still requires the Goal's own thread.
 - Tool calls keep their receipts across a crash replay.
 - `watch_create` takes an optional `dedupe_key`: one live watch per Agent and key.
   Re-arming with the same condition returns the existing watch (`deduplicated: true`;
-  the request is compared as it would be stored, with the server-filled focus symbol
-  and a Goal's plan version, `MarketWatchRepository.stored_payload`); a changed
-  condition, or a Goal plan that moved on, disables the old one
+  the request is compared as it would be stored, with the server-filled focus symbol,
+  `MarketWatchRepository.stored_payload`); a changed condition disables the old one
   (`state.code = "watch_replaced"`) and creates the new one. A per-Agent and key advisory lock serializes concurrent wakes.
 - Without a `dedupe_key`, a request identical to a live watch of the same Agent, in the
   same conversation or Task (the same stored payload), returns that watch
@@ -108,7 +105,7 @@ decision history, opportunities, performance reads, sizing and
 relationships. The read guard is the registry's own effect metadata
 (`guard_market_tool(..., read=tool.read_only)`). Mutations keep the binding:
 `agent_trading_account_mismatch` and `agent_trading_symbol_mismatch` now come only
-from charts, watches, goals, decisions, opportunity and relationship records and
+from charts, watches, decisions, opportunity and relationship records and
 financial tools, and the executor asserts the binding of every leased
 request. `in_execution_scope` on accounts, positions and orders shows what the agent
 may execute. See
@@ -136,14 +133,13 @@ Delivery is in-app only until Wave 3. See
   bounds. On PostgreSQL: an observe-only wake writes memory, sets and dedupes a watch,
   messages a colleague and is refused `trade_execute` and `trade_close_positions`; the
   Task and ticket it starts are observe-only too, at the registry and the executor;
-  observe-only, attributed broker and opportunity wakes read the Goals of their
-  conversation, another Agent's lane does not; a
+  observe-only, attributed broker and opportunity wakes read their conversation; a
   stop-loss hit on a simulation position an Agent opened wakes that Agent with normal
   authority, the owner's manual position wakes the Personal Agent, a repeated
   reconciliation wakes nobody twice; a paused Agent's activity falls back to the
   Personal Agent once; a fixed-market Agent reads another account (its other-symbol
   records and decisions unfiltered) and is refused trading and watches there;
-  an identical Goal-linked watch re-armed is kept; `owner_notify` dedupe, quiet
+  `owner_notify` dedupe, quiet
   hours, critical bypass,
   activity only, the rate limit and a call request from the wake.
 - `tests/test_tool_discovery.py`: the eager budget for every scope, helper and

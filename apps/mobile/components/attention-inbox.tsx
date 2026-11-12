@@ -18,13 +18,13 @@ const labels: Record<AttentionCode, Label> = {
   emergency_stop: "attentionEmergency",
   approval_required: "attentionApproval",
   approval_resolved: "attentionRequestUpdated",
-  broker_degraded: "attentionBrokerDegraded",
-  broker_recovered: "attentionBrokerRecovered",
+  broker_token_rejected: "attentionBrokerTokenRejected",
+  broker_account_undeployed: "attentionBrokerUndeployed",
+  broker_connection_lost: "attentionBrokerConnectionLost",
   external_broker_activity: "attentionAccountChanged",
   setup_confirmed: "attentionSetupConfirmed",
   thesis_invalidated: "attentionThesisChanged",
   watch_condition_met: "attentionWatchChanged",
-  goal_changed: "attentionGoalChanged",
   collaboration_completed: "attentionCollaborationCompleted",
   task_review: "taskNeedsReview",
   task_degraded: "attentionTaskDegraded",
@@ -39,6 +39,7 @@ const labels: Record<AttentionCode, Label> = {
   operation_uncertain: "attentionOperationUncertain",
   gateway_degraded: "attentionGatewayDegraded",
   agent_notification: "attentionAgentAlert",
+  secret_requested: "attentionSecretRequested",
 };
 // An agent's summary reads in its own direction, like the web's dir="auto".
 function SummaryText({ text, rtl, color }: { text: string; rtl: boolean; color: string }) {

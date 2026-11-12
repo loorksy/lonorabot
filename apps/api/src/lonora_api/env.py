@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     chart_browser_executable: Path | None = None
     chart_browser_sandbox: bool = True
     workspace_socket: Path | None = None
+    # The `lonora` CLI endpoint (7.3): served only on this Unix socket, never by Caddy.
+    cli_socket: Path = Path(".runtime/cli/lonora.sock")
     searxng_url: str | None = None
     browser_url: str | None = None
     mcp_declarations: tuple[McpToolDeclaration, ...] = Field(default=(), max_length=128)

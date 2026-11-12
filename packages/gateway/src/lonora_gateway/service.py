@@ -50,7 +50,6 @@ STEPS = (
     StepSpec("account_recovery", 10, 300),
     # Accounts the owner connected from chat: provision, deploy, connect, report.
     StepSpec("broker_provisioning", 10, 900),
-    StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
     StepSpec("history", 10, 600, critical=False),
@@ -63,6 +62,8 @@ STEPS = (
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
+    # The morning brief: once per local date for each owner (VISION 11.1).
+    StepSpec("morning_brief", 30, 120),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -205,11 +206,6 @@ class Gateway:
             )
         )
 
-    async def goals(self) -> None:
-        from lonora_trading.goals import recover_goals
-
-        await recover_goals(self.db)
-
     async def opportunities(self) -> None:
         from lonora_trading.opportunities import maintenance_opportunities
 
@@ -272,6 +268,11 @@ class Gateway:
 
         await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
 
+    async def morning_brief(self) -> None:
+        from lonora_trading.morning_brief import brief_tick
+
+        await self.for_each_owner(lambda service: brief_tick(self.db, service.owner_id))
+
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -285,7 +286,6 @@ class Gateway:
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
             "broker_provisioning": self.broker_provisioning,
-            "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
             "history": self.history,
@@ -297,6 +297,7 @@ class Gateway:
             "attention": self.attention,
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
+            "morning_brief": self.morning_brief,
             "watchdog": self.watchdog.tick,
         }
 

@@ -14,7 +14,6 @@ from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.threads import thread_options
-from lonora_db.trading_goals import goal_read_threads
 from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
@@ -23,18 +22,17 @@ from lonora_tools.registry import ToolRegistry
 
 from ..context_engine import resolve_limits
 from ..progress import progress
-from ..runtime_notices import is_owner_message
+from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
 from .attachments import attachment_parts
 from .decisions import decision_context
 from .environment import operational_context
-from .goals import goal_context_blocks
 from .governance import govern_context
 from .history import history_context, history_gap
 from .memory import read_memory_context
 from .reply import reply_context
-from .routine import wake_context
+from .routine import wake_context, workspace_wake_section
 from .run_evidence import recent_tool_evidence
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
@@ -89,16 +87,6 @@ async def build_context(
         decisions = await timed(
             "decisions", decision_context(session, context.owner_id, context.agent_id)
         )
-        goal_core, goal_details = await timed(
-            "goals",
-            goal_context_blocks(
-                session,
-                context.owner_id,
-                context.agent_id,
-                await goal_read_threads(session, run),
-                run.model_metadata.get("goal_id") or run.model_metadata.get("review_goal_id"),
-            ),
-        )
         # Instructions another agent wrote when it created this one (agent_create) are
         # its writing, not the owner's: labelled data below, never the system role.
         written_by_agent = agent_written_instructions(
@@ -110,8 +98,6 @@ async def build_context(
                 binding_context(agent),
                 skill_context.catalog,
                 wake_context(run),
-                # Each goal's identity, limits and effect state stay mandatory.
-                goal_core,
             ]
         )
         # Larger server-derived listings are optional: admission sheds them whole,
@@ -119,7 +105,6 @@ async def build_context(
         records = [
             block
             for block in (
-                goal_details,
                 server_records("lonora_recorded_decisions", decisions),
                 server_records("lonora_operational_observations", observations),
             )
@@ -186,7 +171,12 @@ async def build_context(
         if explicit_prompt:
             messages.append(ModelMessage(role="user", content=explicit_prompt))
         query = explicit_prompt or next(
-            (message.content for message in reversed(messages) if message.role == "user"), ""
+            (
+                peer_text(message.content)
+                for message in reversed(messages)
+                if message.role == "user"
+            ),
+            "",
         )
         semantic = ""
         if query:
@@ -274,6 +264,7 @@ async def build_context(
             ContextSection(
                 "attachments", "owner_attachments", "owner_supplied_untrusted", attachments, 92
             ),
+            *[section for section in [workspace_wake_section(run)] if section is not None],
         ]
         data = context_message(sections)
         if data is not None:

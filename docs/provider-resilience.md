@@ -320,10 +320,9 @@ Agent writes (question ≤ 4,000 characters, evidence ≤ 24,000) to another
 allowed model: one named by the Agent from its candidates or the owner's allowed
 list, or the first candidate that is not the model it is using. The consulted model gets no
 tools, no conversation and no authority; markup in the pack is made inert.
-The critique (≤ 8,000 characters) returns as an advisory observation. At most
-three consultations per Run; usage is recorded with `purpose: consult_model`,
-and the budget counts those usage records as well as the transcript, so a
-provider that reuses tool-call ids across turns (or sends none) cannot reset it.
+The critique (≤ 8,000 characters) returns as an advisory observation. There is
+no per-Run budget (mandate P1): the Agent decides how often a second opinion is
+worth a model request. Usage is recorded with `purpose: consult_model`.
 Nothing waits for agreement and nothing executes on its advice.
 
 ## Limits and follow-ups
@@ -345,7 +344,7 @@ Nothing waits for agreement and nothing executes on its advice.
 - Reasoning/thinking controls (effort, thinking budgets) are not configured
   per adapter.
 - There is no spend cap (owner decision D4); usage is shown per agent.
-  `consult_model` and `model_request` are bounded per Run only.
+  `model_request` is bounded per Run only.
 - The output family table must follow provider documentation as models change.
 
 Attribution: the taxonomy and classification order adapt Hermes Agent

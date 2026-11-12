@@ -10,11 +10,8 @@ from sqlalchemy import ColumnElement, Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .runs import create_run
-from .schema import AgentRow, RoutineRow, ThreadRow, TradingGoalRow
-from .trading_goals import owned_goal, planned_step
-from .transactions import owned_agent, owned_thread
-
-ONE_SHOT_RETRY = timedelta(minutes=5)
+from .schema import AgentRow, RoutineRow, ThreadRow
+from .transactions import owned_agent
 
 
 def next_run(request: RoutineCreate, after: datetime) -> datetime:
@@ -32,8 +29,6 @@ def routine_data(row: RoutineRow) -> dict[str, Any]:
         "thread_id": row.thread_id,
         "title": row.title,
         "prompt": row.prompt,
-        "goal_id": row.goal_id,
-        "step_id": row.step_id,
         "interval_seconds": row.interval_seconds,
         "cron": row.cron,
         "run_at": row.run_at.isoformat() if row.run_at else None,
@@ -56,18 +51,9 @@ async def create_routine(
         existing = await session.get(RoutineRow, resource_id)
         if existing:
             return existing
-    goal: TradingGoalRow | None = None
-    if request.goal_id:
-        goal = await owned_goal(session, owner_id, request.goal_id)
-        thread = await owned_thread(session, owner_id, goal.thread_id or "", lock=True)
-        goal = await owned_goal(session, owner_id, request.goal_id, True)
-        if goal.agent_id != agent_id or goal.state.get("status") not in {"active", "waiting"}:
-            raise LonoraError("goal_run_mismatch", 409)
-        planned_step(goal, request.step_id)
-    else:
-        thread = ThreadRow(owner_id=owner_id, agent_id=agent_id, title=request.prompt[:80])
-        session.add(thread)
-        await session.flush()
+    thread = ThreadRow(owner_id=owner_id, agent_id=agent_id, title=request.prompt[:80])
+    session.add(thread)
+    await session.flush()
     row = RoutineRow(
         owner_id=owner_id,
         agent_id=agent_id,
@@ -79,16 +65,6 @@ async def create_routine(
         row.id = resource_id
     session.add(row)
     await session.flush()
-    if request.goal_id:
-        assert goal is not None
-        import copy
-
-        from .trading_goals import update_goal_state
-
-        state = copy.deepcopy(goal.state)
-        state["steps"][request.step_id]["routine_id"] = row.id
-        state["steps"][request.step_id]["routine_plan_version"] = state.get("plan_version", 1)
-        update_goal_state(session, goal, state)
     return row
 
 
@@ -157,71 +133,21 @@ async def disable_routine(session: AsyncSession, routine_id: str) -> bool:
 
 
 async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime) -> bool:
-    enqueued = False
-    if row.goal_id:
-        goal = await owned_goal(session, row.owner_id, row.goal_id)
-        step_state = goal.state.get("steps", {}).get(row.step_id, {})
-        source_version = (
-            step_state.get("target_review_plan_version")
-            if step_state.get("target_review_id") == row.id
-            else step_state.get("routine_plan_version")
-            if step_state.get("routine_id") == row.id
-            else None
-        )
-        if (
-            source_version is not None
-            and source_version != goal.state.get("plan_version", 1)
-            or row.step_id not in goal.state.get("steps", {})
-        ):
-            row.enabled = False
-            return False
-        target_review = (
-            goal.state.get("steps", {}).get(row.step_id, {}).get("target_review_id") == row.id
-        )
-        if target_review and (
-            goal.state.get("code") != "goal_target_pending"
-            or goal.state.get("current_step") != row.step_id
-            or goal.state.get("status") in {"completed", "cancelled"}
-        ):
-            row.enabled = False
-            return False
-    try:
-        await create_run(
-            session,
-            row.owner_id,
-            RunRequest(
-                thread_id=row.thread_id,
-                agent_id=row.agent_id,
-                trigger="routine",
-                prompt=row.prompt,
-                metadata={
-                    "routine_id": row.id,
-                    **({"goal_id": row.goal_id, "step_id": row.step_id} if row.goal_id else {}),
-                },
-            ),
-        )
-        enqueued = True
-    except LonoraError as error:
-        if error.code not in {
-            "goal_not_active",
-            "goal_step_unavailable",
-            "goal_step_not_found",
-        }:
-            raise
-        refused = error.code
-    else:
-        refused = None
+    await create_run(
+        session,
+        row.owner_id,
+        RunRequest(
+            thread_id=row.thread_id,
+            agent_id=row.agent_id,
+            trigger="routine",
+            prompt=row.prompt,
+            metadata={"routine_id": row.id},
+        ),
+    )
     if row.run_at is not None:
-        if enqueued:
-            # A one-shot routine fires once and then stays off until the owner reschedules it.
-            row.enabled, row.last_run_at = False, now
-        elif await one_shot_can_wait(session, row, refused):
-            # Its goal can still reach its step: it stays scheduled and is tried again later.
-            row.next_run_at = now + ONE_SHOT_RETRY
-        else:
-            # Its goal ended or its step is completed, passed or gone: it switches off.
-            row.enabled = False
-        return enqueued
+        # A one-shot routine fires once and then stays off until the owner reschedules it.
+        row.enabled, row.last_run_at = False, now
+        return True
     row.last_run_at = now
     request = RoutineCreate(
         prompt=row.prompt,
@@ -234,28 +160,7 @@ async def enqueue_routine(session: AsyncSession, row: RoutineRow, now: datetime)
     candidate = next_run(request, previous)
     # Collapse missed schedules into one wake; never replay a burst after downtime.
     row.next_run_at = candidate if candidate > now else next_run(request, now)
-    return enqueued
-
-
-async def one_shot_can_wait(session: AsyncSession, row: RoutineRow, refused: str | None) -> bool:
-    """A goal-linked one-shot waits while its goal can still reach its step: the goal is paused
-    or blocked, the step is not reached yet, or its trade is executing. It switches off only
-    when the goal has ended or its step is completed, passed or gone."""
-    if refused not in {"goal_not_active", "goal_step_unavailable"} or not row.goal_id:
-        return False
-    goal = await session.get(TradingGoalRow, row.goal_id)
-    if goal is None or goal.state.get("status") in {"completed", "cancelled"}:
-        return False
-    if refused == "goal_not_active":
-        return True
-    order = [step["id"] for step in goal.payload.get("steps", [])]
-    current = goal.state.get("current_step")
-    if row.step_id not in order or current not in order:
-        return False
-    if goal.state.get("steps", {}).get(row.step_id, {}).get("status") == "completed":
-        return False
-    # The current step (executing, or held) or one still ahead of it; an earlier one has passed.
-    return order.index(row.step_id) >= order.index(current)
+    return True
 
 
 async def owned_routine(session: AsyncSession, owner_id: str, routine_id: str) -> RoutineRow:

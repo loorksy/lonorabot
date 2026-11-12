@@ -146,7 +146,7 @@ executing follows your grant.
 
 Mutations keep the binding (`agent_trading_account_mismatch` and
 `agent_trading_symbol_mismatch` now come only from mutation paths). Charts, watches
-(including watches on a foreign position ticket), goals, decisions, opportunity
+(including watches on a foreign position ticket), decisions, opportunity
 records, relationship records and every financial `trade_` tool
 keep the bound account and symbol through the guard and their own handler checks.
 The financial executor independently asserts the binding of every leased request,
