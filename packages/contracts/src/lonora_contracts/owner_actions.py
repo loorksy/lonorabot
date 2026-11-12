@@ -15,6 +15,7 @@ from pydantic import Field, model_validator
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
 from .devices import DeviceProof
 from .domain import Contract
+from .trading import TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
@@ -25,6 +26,9 @@ OwnerActionKind = Literal[
     "grant_authority",
     "trust_source",
     "connect_credential",
+    # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
+    # other mode. It stays the agent's switch after a tap.
+    "trading_mode",
 ]
 # Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
 # use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
@@ -101,6 +105,11 @@ class OwnerActionProposal(Contract):
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
+        if self.kind == "trading_mode":
+            # Only the agent whose mode it switches (the proposer's own when omitted).
+            if self.model_dump(exclude={"kind", "agent_id"}, exclude_defaults=True):
+                raise ValueError("owner_action_fields_invalid")
+            return self
         if self.kind in {"trust_source", "connect_credential"}:
             return self.capability_fields()
         if any(
@@ -337,6 +346,8 @@ class OwnerActionDecision(Contract):
     """
 
     decision: Literal["confirm", "cancel", "choose"]
+    # The Mandate card: the mode its button showed at the moment of the tap.
+    trading_mode: TradingMode | None = None
     delegation: GrantDelegation | None = None
     tier: Literal["read", "write_nonfinancial"] | None = None
     connected: ConnectedResource | None = None

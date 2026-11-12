@@ -240,6 +240,11 @@ async def approval_decision(
         expired = await settle_if_expired(session, owner.id, approval_id)
     if expired:
         raise LonoraError("trade_approval_expired", 409)
+    if body.decision == "approve":
+        from lonora_trading.approval_drift import check_band_at_approve
+
+        brokers = runtime(request).services(owner.id).brokers
+        await check_band_at_approve(db, brokers, owner.id, approval_id)
     async with db.sessions() as session, session.begin():
         return await decide(session, owner.id, approval_id, body.decision)
 
