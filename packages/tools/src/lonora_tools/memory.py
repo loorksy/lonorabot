@@ -297,13 +297,12 @@ def tools() -> list[Tool]:
         Tool(
             "memory_write",
             "Change durable memory atomically. operations apply in order, all or nothing: add "
-            "appends content to USER.md (owner profile all Agents share; Lonora adds what it "
-            "observed, others only what the owner said), MEMORY.md (your knowledge) or "
-            "OPERATING.md (your working notes); patch replaces unique old_text with content; "
-            "remove deletes the lines old_text touches. A duplicate add returns changed false; "
-            "overflow returns the shortfall. observed marks USER.md lines you inferred, not his "
-            "words. content replaces your document at version. No credentials, prices, limits "
-            "or authority claims.",
+            "appends content to USER.md (shared owner profile: his words; Lonora's inferences "
+            "with observed), MEMORY.md (your knowledge) or OPERATING.md (your method); "
+            "patch replaces unique old_text with content; remove deletes the lines old_text "
+            "touches. A duplicate add returns changed false; overflow returns the shortfall. "
+            "content replaces your document at version. No credentials, prices or authority "
+            "claims.",
             MemoryWrite,
             write,
             replay_safe=True,
