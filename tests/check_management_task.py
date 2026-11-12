@@ -466,8 +466,10 @@ async def checks() -> None:
                 )
                 holding.set()
                 await release.wait()
+                # The Run's own commit locks the agent row too (atomic_commit), stronger
+                # than an FK key share.
                 await session.execute(
-                    select(AgentRow).where(AgentRow.id == agent_id).with_for_update(key_share=True)
+                    select(AgentRow).where(AgentRow.id == agent_id).with_for_update()
                 )
 
         async def act() -> None:
@@ -501,7 +503,29 @@ async def checks() -> None:
         ),
     )
     await resume()
-    print("PASS a pause and the Undo take the task's Run before the agent row: no deadlock")
+    await contended(
+        "the switch to Ask",
+        lambda session: set_trading_mode(session, owner_id, agent_id, "ask", by="agent"),
+    )
+    await tap("full")
+    assert await live() is not None
+    print("PASS a pause, the Undo and the switch to Ask take the task's Run before the agent row")
+
+    # The Undo of an agent that has done nothing but receive the owner's Full tap deletes
+    # it: its Full-mode task and that task's unstarted kickoff Run are not its work.
+    async with db.sessions() as session, session.begin():
+        fresh = AgentRow(owner_id=owner_id, name="Fresh")
+        session.add(fresh)
+        await session.flush()
+        fresh_id = fresh.id
+        await set_trading_mode(session, owner_id, fresh_id, "full", by="owner_tap")
+        assert await live_management_task(session, owner_id, fresh_id) is not None
+    async with db.sessions() as session, session.begin():
+        undone = await undo_creation(
+            session, owner_identity, OwnerActionRow(id=str(uuid4()), payload={"agent_id": fresh_id})
+        )
+        assert undone is not None and undone["undo"] == "deleted", undone
+    print("PASS the Undo deletes an agent whose only activity is its Full-mode task")
 
     # 4.5.1: the Full-mode task is the only account-management task. An active signed
     # grant starts none and never holds the agent's task back; revoking it, or deleting

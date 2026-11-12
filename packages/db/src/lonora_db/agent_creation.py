@@ -322,9 +322,24 @@ async def record_owner_creation(session: AsyncSession, owner_id: str, row: Agent
 
 async def undo_plan(session: AsyncSession, owner_id: str, agent_id: str) -> UndoPlan:
     """Delete only an agent that has done nothing yet; pause one that has (a delete
-    would cascade its work)."""
-    for row_type in (RunRow, MarketWatchRow, RoutineRow, TicketRow):
+    would cascade its work). Its Full-mode task and that task's kickoff Run that never
+    started are not work it did (the owner's tap made them)."""
+    from .management_task import MARKER, started
+
+    for row_type in (MarketWatchRow, RoutineRow):
         if await session.scalar(select(exists().where(row_type.agent_id == agent_id))):
+            return "pause"
+    if await session.scalar(
+        select(
+            exists().where(
+                TicketRow.agent_id == agent_id,
+                TicketRow.payload[MARKER].as_string().is_distinct_from(agent_id),
+            )
+        )
+    ):
+        return "pause"
+    for run in await session.scalars(select(RunRow).where(RunRow.agent_id == agent_id)):
+        if run.model_metadata.get("account_management_id") != agent_id or started(run):
             return "pause"
     for row_type in (AccountAuthorityRow, TradeApprovalRow):
         if await session.scalar(
