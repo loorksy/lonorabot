@@ -168,7 +168,7 @@ test("Q6 and Q4: only plain messages flush; mute hides heads-ups, never urgent a
     }),
     false,
   );
-  // GENUI_PLAN §8: a card submit never enters the auto-flushed outbox; nor does a voice note.
+  // docs/genui.md: a card submit never enters the auto-flushed outbox; nor does a voice note.
   assert.equal(isPlainOutgoing({ content: "x", ui_submit: { card_id: "c" } }), false);
   assert.equal(isPlainOutgoing({ content: "", voice: { artifact_id: "a" } }), false);
   assert.equal(isPlainOutgoing({ content: "x", edited_from: "m" }), false);

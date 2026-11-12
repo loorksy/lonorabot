@@ -4,7 +4,8 @@
 #
 #   sudo bash install.sh --domain lonora.example.com [--version v0.3.0] [--home /opt/lonora]
 #                        [--project lonora] [--behind-proxy 127.0.0.1:18030]
-#                        [--min-free-ram-mb 2560] [--min-free-disk-gb 10] [--no-systemd]
+#                        [--workspace-memory 4g] [--workspace-cpus 2] [--workspace-disk 20g]
+#                        [--min-free-ram-mb N] [--min-free-disk-gb N] [--no-systemd]
 #
 #   --project       Compose project name: prefixes every container, volume and network, so
 #                   this installation can run beside another one (default: lonora).
@@ -15,6 +16,8 @@
 #                   password is always new. Names are listed, values are never printed.
 #   --overlay FILE  Add a Compose overlay from the bundle (repeatable), e.g.
 #                   infra/analysis/compose.workspace.yml for the analysis workspace host.
+#   --workspace-*   Limits of the owner's workspace (7.1.3), written to .env. The memory and
+#                   disk minimums are Lonora's 3584 MB and 10 GB plus the workspace's own.
 #
 # Get this file without a checkout:
 #   docker run --rm --entrypoint cat ghcr.io/loorksy/lonorabot:main /app/deploy/infra/compose/install.sh >install.sh
@@ -35,7 +38,8 @@ ENV_FROM_KEYS=" LONORA_DOMAIN LONORA_ENCRYPTION_KEY LONORA_BOOTSTRAP_TOKEN LONOR
  LONORA_OPENAI_API_KEY LONORA_ANTHROPIC_API_KEY LONORA_DEEPSEEK_API_KEY LONORA_ZAI_API_KEY LONORA_OPENROUTER_API_KEY
  LONORA_OPENAI_COMPATIBLE_BASE_URL LONORA_OPENAI_COMPATIBLE_API_KEY "
 ENV_FROM_KEYS=" ${ENV_FROM_KEYS//$'\n'/ } "   # one space around every name, for the " $name " match
-min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-2560}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-10}"
+min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-}"
+workspace_memory="${LONORA_WORKSPACE_MEMORY:-4g}" workspace_cpus="${LONORA_WORKSPACE_CPUS:-2}" workspace_disk="${LONORA_WORKSPACE_DISK:-20g}"
 repo="${LONORA_IMAGE_REPO:-ghcr.io/loorksy/lonorabot}"
 domain_given=false
 while (($#)); do
@@ -47,6 +51,9 @@ while (($#)); do
         --behind-proxy) proxy_listen="${2:?}"; shift 2 ;;
         --env-from) env_from="${2:?}"; shift 2 ;;
         --overlay) overlays+="${overlays:+ }${2:?}"; shift 2 ;;
+        --workspace-memory) workspace_memory="${2:?}"; shift 2 ;;
+        --workspace-cpus) workspace_cpus="${2:?}"; shift 2 ;;
+        --workspace-disk) workspace_disk="${2:?}"; shift 2 ;;
         --min-free-ram-mb) min_ram_mb="${2:?}"; shift 2 ;;
         --min-free-disk-gb) min_disk_gb="${2:?}"; shift 2 ;;
         --no-systemd) systemd=false; shift ;;
@@ -55,6 +62,13 @@ while (($#)); do
 done
 say() { printf 'install: %s\n' "$*"; }
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
+[[ "$workspace_memory" =~ ^[1-9][0-9]*[mMgG]$ ]] || die '--workspace-memory must look like 4g or 2048m.'
+[[ "$workspace_cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v n="$workspace_cpus" 'BEGIN { exit !(n > 0) }' || die '--workspace-cpus must be a positive number.'
+[[ "$workspace_disk" =~ ^[1-9][0-9]{0,4}[gG]$ ]] || die '--workspace-disk must be whole gigabytes, e.g. 20g.'
+workspace_memory_mb="${workspace_memory%[mMgG]}"
+if [[ "$workspace_memory" == *[gG] ]]; then workspace_memory_mb=$((workspace_memory_mb * 1024)); fi
+min_ram_mb="${min_ram_mb:-$((3584 + workspace_memory_mb))}"
+min_disk_gb="${min_disk_gb:-$((10 + ${workspace_disk%[gG]} + 2))}"
 
 [[ "$EUID" -eq 0 || -n "${LONORA_INSTALL_ALLOW_NON_ROOT:-}" ]] || die 'Run as root (sudo).'
 command -v docker >/dev/null || die 'Docker is required: https://docs.docker.com/engine/install/'
@@ -95,7 +109,7 @@ env_line() {
 
 say "Preflight for project '$project' in $home (nothing is changed unless every check passes):"
 if [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then check true "project name '$project'"; else check false "project name '$project' (use lowercase letters, digits, - or _)"; fi
-if [[ -e "$home/state/image.env" || -e "$home/.env" || -e "$home/infra" ]]; then
+if [[ -e "$home/state/image.env" || -e "$home/.env" || -e "$home/infra" || -e "$home/workspace.img" ]]; then
     check false "$home already holds an installation (to start it: sudo lonora start; to update it: sudo lonora update <version>)"
 else
     check true "$home holds no installation"
@@ -106,10 +120,12 @@ else
     check true "no ${project}_database volume"
 fi
 taken=""
-for volume in artifacts caddy-data caddy-config; do
+for volume in artifacts caddy-data caddy-config workspace-control; do
     if docker volume inspect "${project}_$volume" >/dev/null 2>&1; then taken+=" ${project}_$volume"; fi
 done
-if docker network inspect "${project}_default" >/dev/null 2>&1; then taken+=" ${project}_default"; fi
+for network in default workspace; do
+    if docker network inspect "${project}_$network" >/dev/null 2>&1; then taken+=" ${project}_$network"; fi
+done
 if [[ -n "$taken" ]]; then check false "Docker names of project '$project' already exist:$taken"; else check true "no other volume or network named ${project}_*"; fi
 others="$(docker ps -aq --filter "label=com.docker.compose.project=$project" | wc -l)"
 if ((others > 0)); then check false "$others container(s) of Compose project '$project' already exist"; else check true "no containers of project '$project'"; fi
@@ -129,7 +145,6 @@ else
 fi
 for overlay in $overlays; do
     case "$overlay" in
-        infra/research/compose.research.yml) check true "overlay $overlay (adds about 1.1 GB)" ;;
         infra/analysis/compose.workspace.yml)
             if [[ -S /run/lonora-analysis/host.sock ]]; then check true "overlay $overlay: workspace host socket /run/lonora-analysis/host.sock is up"
             else say "  warn  overlay $overlay: /run/lonora-analysis/host.sock is missing; Lonora starts, analysis stays unavailable until lonora-analysis.service runs"; fi ;;
@@ -150,10 +165,16 @@ if [[ -n "$env_from" ]]; then
     if ((bad > 0)); then problems=$((problems + bad)); else check true "--env-from $env_from: $number lines, all readable"; fi
 fi
 ram_mb=$(($(sed -n 's/^MemAvailable: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
-if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 2.3 GB)"; fi
+if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (Lonora is limited to about 3.4 GB, the workspace to $workspace_memory; lower it with --workspace-memory)"; fi
+cpu_count="$(nproc)"
+if awk -v have="$cpu_count" -v want="$workspace_cpus" 'BEGIN { exit !(have >= want && have >= 2) }'; then check true "$cpu_count CPUs (the workspace may use $workspace_cpus, at a low weight)"
+else check false "$cpu_count CPUs: Lonora needs 2, and the workspace cannot be given more CPUs than the host has (--workspace-cpus)"; fi
 disk_dir="$(existing_dir "$home")"
 disk_gb=$(($(df -Pm "$disk_dir" | awk 'NR==2 {print $4}') / 1024))
-if ((disk_gb >= min_disk_gb)); then check true "free disk ${disk_gb} GB at $disk_dir (need ${min_disk_gb} GB)"; else check false "free disk ${disk_gb} GB at $disk_dir, below ${min_disk_gb} GB"; fi
+if ((disk_gb >= min_disk_gb)); then check true "free disk ${disk_gb} GB at $disk_dir (need ${min_disk_gb} GB, of which $workspace_disk for the workspace disk)"; else check false "free disk ${disk_gb} GB at $disk_dir, below ${min_disk_gb} GB (the workspace disk takes $workspace_disk; lower it with --workspace-disk)"; fi
+for tool in fallocate mkfs.ext4 e2fsck resize2fs losetup mountpoint findmnt; do
+    if ! command -v "$tool" >/dev/null; then check false "$tool is missing (packages util-linux, e2fsprogs: the workspace disk needs it)"; fi
+done
 ((problems == 0)) || die "Preflight failed ($problems problem(s)); nothing was changed."
 
 if ! command -v gpg >/dev/null; then
@@ -196,11 +217,19 @@ LONORA_POSTGRES_PASSWORD=$(random 24 | tr '+/' 'xy' | tr -d '=')
 LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
-# Optional overlays, space separated, e.g. infra/research/compose.research.yml (adds ~1.1 GB)
+# Optional overlays, space separated, e.g. infra/analysis/compose.workspace.yml
 LONORA_COMPOSE_OVERLAYS=$overlays
-# Resource limits (defaults shown; about 2.3 GB in all):
+# Resource limits (defaults shown; about 3.4 GB in all):
 # LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75
 # LONORA_GATEWAY_MEMORY=768m LONORA_GATEWAY_CPUS=0.75 LONORA_CADDY_MEMORY=96m LONORA_CADDY_CPUS=0.25
+# LONORA_SEARXNG_MEMORY=384m LONORA_SEARXNG_CPUS=0.25 LONORA_BROWSER_MEMORY=768m LONORA_BROWSER_CPUS=0.5
+# The owner's workspace (docs/operations.md, "The workspace"). Defaults: 4g, 2, 20g, 256, 600.
+LONORA_WORKSPACE_MEMORY=$workspace_memory
+LONORA_WORKSPACE_CPUS=$workspace_cpus
+LONORA_WORKSPACE_DISK=$workspace_disk
+# LONORA_WORKSPACE_PROCESSES=256 LONORA_WORKSPACE_FOREGROUND_SECONDS=600
+# Extra addresses the workspace may never reach, e.g. this server's public IP (CIDR, space separated):
+LONORA_WORKSPACE_BLOCKED_ADDRESSES=
 # Optional provider keys; the owner can also save encrypted keys in the Web settings.
 LONORA_OPENAI_API_KEY=
 LONORA_ANTHROPIC_API_KEY=

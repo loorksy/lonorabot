@@ -188,7 +188,6 @@ async def main() -> None:
             "PASS versioned forming/confirmed/invalidated history, explicit expiry without SL, source freshness degradation and restart/API persistence"
         )
 
-        await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         thesis = created[0]
         args = {
             "account_id": account,
@@ -564,7 +563,6 @@ async def main() -> None:
             "PASS an entry that settles after its thesis expired is still its entry, and closing its position completes the thesis"
         )
     finally:
-        await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()
 
 

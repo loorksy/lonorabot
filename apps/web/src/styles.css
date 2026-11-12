@@ -499,16 +499,6 @@ body {
 :where(.quote-card):where(:not(.app-shell *), .legacy-surface *) {
   padding: 22px 0;
 }
-:where(.trading-control):where(:not(.app-shell *), .legacy-surface *) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-:where(.trading-control .actions):where(:not(.app-shell *), .legacy-surface *) {
-  margin: 0;
-}
 :where(.table-wrap):where(:not(.app-shell *), .legacy-surface *) {
   max-width: 100%;
   overflow: auto;
