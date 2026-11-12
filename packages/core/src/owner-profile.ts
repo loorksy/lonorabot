@@ -87,6 +87,7 @@ const labels = {
   removedAgent: { en: "A removed agent", ar: "وكيل محذوف" },
   fromYourMessage: { en: "from your message", ar: "من رسالتك" },
   restoredChange: { en: "undid an earlier change", ar: "تراجع عن تغيير سابق" },
+  restoredVersion: { en: "went back to an earlier version", ar: "رجع إلى إصدار سابق" },
   added: { en: "Added", ar: "أُضيف" },
   removed: { en: "Removed", ar: "حُذف" },
   more: { en: "More lines changed", ar: "تغيّرت أسطر أخرى" },
