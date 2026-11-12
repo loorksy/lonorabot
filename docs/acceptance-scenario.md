@@ -15,6 +15,7 @@ Step 6 (Stop) is void by Amendment 1.
 | `pending` | The step's feature is not on this commit. The step is reported and not run. |
 | `not written` | The feature is here, but the harness has no runner for the step yet. |
 | `pass` / `fail` | The step ran on its own copy of the database. |
+| `known defect` | The step failed exactly the checks a `defects` entry names: a product defect in another worker's area, named with its owner. Fixing it makes the step pass, and the test then requires the entry to be removed. |
 | `not exercised` | Live only. The model chose not to produce the event the step needs, for example it did not close. Which choice the model makes is not asserted. |
 | `void` | Step 6. |
 
@@ -34,7 +35,7 @@ Each step starts from its own seeded state, not from the steps before it, so a s
 ## What the harness induces
 
 - **A lost broker reply.** The fake terminal applies the close and then drops the connection before answering (`AcceptanceTerminal.lose_reply`).
-- **A price move.** The harness moves the fake terminal's quote and hands it to the watch check as the market stream does (`check_watches` with `price_update`).
+- **A price move.** The harness moves the fake terminal's quote and hands it straight to the watch check that the market stream calls (`check_watches` with `price_update`). The stream's own health gate and store are not exercised.
 - **Compressed time.** The brief step takes the time it runs at (`brief_tick(db, owner, now)`), and the harness calls it with the times the step needs:
   - step 5: yesterday's brief time and today's, in the owner's zone, with no weekly close between them;
   - step 7a: an evening before the next weekly close (`latest_close`), then the first brief time after it.
@@ -81,9 +82,10 @@ unset LONORA_ACCEPT_PROVIDER_KEY
 
 | Step | State | Note |
 |---|---|---|
-| 4a, the news agent tells the others | pass, partial | The gold agent is Lonora under the template's signed grant. |
+| 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. The gold agent is Lonora under the template's signed grant. |
 | 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
-| 5, the morning brief | pass, partial | The pending approval with its reason and the day's events are not asserted. The approval's reason waits for W-AUTH, and the brief's facts carry no calendar events. The gold agent is Lonora under the template's grant. |
+| 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |
+| 5, the morning brief | known defect, partial | One defect: the brief shows a position an agent opened as opened by the owner. It belongs to W-BRIEF, and the scenario file names it. Not asserted: the pending approval with its reason, which comes with Ask mode (W-AUTH); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. The gold agent is Lonora under the template's grant. |
 | 6 | void | Amendment 1. |
-| 7a, the weekly reports | pass, partial | Each agent's results are its journaled operations only. The per-label statistics wait for W-LEDGER. |
+| 7a, the weekly reports | pass, partial | Each agent's results are its journaled operations only; the per-label statistics wait for W-LEDGER. What each agent learned and changed is the model's own words and is not asserted. The gold agent is Lonora under the template's grant. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |

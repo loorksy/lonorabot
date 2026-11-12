@@ -64,6 +64,7 @@ from lonora_trading.broker_recovery import maintenance_account_recovery
 from lonora_trading.morning_brief import TRIGGER, brief_tick, latest_close, owner_zone
 from lonora_trading.reconciliation import reconcile_ambiguous
 from lonora_trading.weekly_report import TRIGGER as REPORT_TRIGGER
+from lonora_trading.weekly_report import WAKE_TEXT as REPORT_TEXT
 from sqlalchemy import func, select
 from sqlalchemy.engine import URL
 
@@ -220,6 +221,7 @@ class AcceptanceTerminal(broker.FakeTerminal):
         return answer
 
     def move(self, base: str, bid: str) -> None:
+        """The market's bid is now ``bid`` (its spread is kept)."""
         self.bids[broker.broker_symbol(base, self.variant)] = Decimal(bid)
 
 
@@ -289,6 +291,8 @@ class Stage:
                 registry = runner.RecordingRegistry(self.calls)
                 async with asyncio.timeout(genui.CASE_SECONDS):
                     await execute_run(context, registry, genui.LEASE_SECONDS, genui.MAXIMUM_ROUNDS)
+                for call in self.calls:
+                    call.setdefault("agent_id", run.agent_id)
                 async with self.api.runtime.db.sessions() as session:
                     ended = await session.get(RunRow, run.id, populate_existing=True)
                     assert ended is not None
@@ -302,7 +306,10 @@ class Stage:
 
     def handle(self, agent_id: str) -> str:
         """The scenario's name for an agent (``gold``, ``euro``, ...)."""
-        scripted = [key.split("@")[0] for key in self.model.turns] if self.model else []
+        keys: list[str] = list(self.model.turns) if self.model is not None else []
+        # A plain key names the agent of an ordinary wake; a keyed one only its trigger's.
+        scripted = [key for key in keys if "@" not in key]
+        scripted += [key.split("@")[0] for key in keys if "@" in key]
         known = [*scripted, "gold", "lonora_id"]
         return next((k for k in known if self.ids.get(k) == agent_id), "an agent")
 
@@ -373,14 +380,15 @@ def refusal(call: dict[str, Any]) -> str | None:
 
 
 async def judged(stage: Stage, thread_id: str, agent_id: str | None = None) -> list[Check]:
-    """A step that depends on the model's choice: the agent acted within its authority,
-    without asking, and explained in one line."""
+    """A step that depends on the model's choice: the agent (``agent_id``, or every agent
+    of the step) acted within its authority, without asking, and explained in one line."""
+    calls = [c for c in stage.calls if agent_id is None or c.get("agent_id") == agent_id]
     refused = [
         code
-        for code in map(refusal, stage.calls)
+        for code in map(refusal, calls)
         if code and error_class(code, classify(code, None)["category"]) == "permission"
     ]
-    asked = [c["tool"] for c in stage.calls if c["tool"] in ASKING]
+    asked = [c["tool"] for c in calls if c["tool"] in ASKING]
     replies = await stage.replies(thread_id, agent_id)
     asked += [text for text in replies if "?" in text or "؟" in text]
     return [
@@ -470,6 +478,11 @@ def brief_time(day: date, zone: ZoneInfo) -> datetime:
     return datetime.combine(day, time(7, 1), zone).astimezone(UTC)
 
 
+def local_date(at: datetime, zone: ZoneInfo) -> str:
+    """The owner's local date of ``at``, as the brief step names a brief."""
+    return at.astimezone(zone).date().isoformat()
+
+
 def quiet_days(zone: ZoneInfo) -> tuple[datetime, datetime]:
     """Yesterday's and today's brief times, moved back until no weekly close falls between
     them: step 5 is a plain morning, not the first brief after a close."""
@@ -514,20 +527,25 @@ async def tick(stage: Stage, at: datetime) -> str | None:
     return await brief_tick(db, owner, at)
 
 
-async def watched(stage: Stage, watch: dict[str, Any], bid: str) -> None:
-    """The gold agent's own watch fires at ``bid`` and its runs are driven (11.8)."""
+async def watched(stage: Stage, handle: str, wake: dict[str, Any]) -> None:
+    """An agent's own watch fires when the price reaches ``wake["bid"]``, and the runs it
+    causes are driven (11.8)."""
     async with stage.api.runtime.db.sessions() as session, session.begin():
         await MarketWatchRepository().create(
             session,
             stage.api.owner,
-            {"account_id": stage.ids["account_id"], **bank.named(watch, stage.terminal.variant)},
-            agent_id=stage.ids["gold"],
-            thread_id=stage.ids["gold_thread"],
+            {
+                "account_id": stage.ids["account_id"],
+                **bank.named(wake["watch"], stage.terminal.variant),
+            },
+            agent_id=stage.ids[handle],
+            thread_id=stage.ids[handle + "_thread"],
         )
-    stage.terminal.move("XAUUSD", bid)
-    # A move reaches watches as the gateway's quote stream delivers it.
+    stage.terminal.move(wake["market"], wake["bid"])
+    # The new quote goes straight to the watch check that the market stream calls (the
+    # stream's own health gate and store are not exercised).
     account = await stage.brokers.get(stage.api.owner, stage.ids["account_id"])
-    quote = await account.quote(broker.broker_symbol("XAUUSD", stage.terminal.variant))
+    quote = await account.quote(broker.broker_symbol(wake["market"], stage.terminal.variant))
     await check_watches(
         stage.api.runtime.db,
         stage.brokers,
@@ -539,25 +557,27 @@ async def watched(stage: Stage, watch: dict[str, Any], bid: str) -> None:
 
 
 async def morning(stage: Stage, step: dict[str, Any]) -> list[Check]:
-    """5: Lonora's brief shows the account change and each agent's actions and results.
+    """5: Lonora's brief shows the account change, each agent's actions and results, and
+    the open positions with the agent that opened each.
 
     Yesterday's brief sets the baseline. Overnight the gold agent's own watches wake it:
-    it buys, and later closes at a profit. At today's brief time the gateway's brief step
+    it buys, and later takes partial profit. At today's brief time the gateway's brief step
     wakes Lonora with the facts; a second pass the same day posts nothing.
     """
     given, terminal = step["given"], stage.terminal
     if stage.model is not None:
         stage.model.names["$account"] = stage.ids["account_id"]
-    first, second = quiet_days(await owner_zone_of(stage))
+    zone = await owner_zone_of(stage)
+    first, second = quiet_days(zone)
     yesterday = await tick(stage, first)
     await stage.drain()
     await tick(stage, first + timedelta(minutes=1))
     start = terminal.balance
-    entry, exit_ = given["overnight"]
-    await watched(stage, entry["watch"], entry["bid"])
+    entry, profit = given["overnight"]
+    await watched(stage, "gold", entry)
     if stage.model is not None and terminal.positions:
         stage.model.names["$ticket"] = terminal.positions[-1]["id"]
-    await watched(stage, exit_["watch"], exit_["bid"])
+    await watched(stage, "gold", profit)
     change = terminal.balance - start
     today = await tick(stage, second)
     briefs = await runs_of(stage, TRIGGER)
@@ -573,10 +593,18 @@ async def morning(stage: Stage, step: dict[str, Any]) -> list[Check]:
     async with stage.api.runtime.db.sessions() as session:
         name = await session.scalar(select(AgentRow.name).where(AgentRow.id == stage.ids["gold"]))
     gold: list[dict[str, Any]] = work.get(name or "", {}).get("operations", [])
+    opened = [
+        (item["symbol"], item["side"], item["volume"], item["opened_by"])
+        for item in facts.get("open_positions", [])
+    ]
+    held = [
+        (p["symbol"], p["type"].removeprefix("POSITION_TYPE_").lower(), str(p["volume"]), name)
+        for p in terminal.positions
+    ]
     return [
         (
             "one brief a day, by the brief step",
-            [yesterday, today] == [first.date().isoformat(), second.date().isoformat()],
+            [yesterday, today] == [local_date(first, zone), local_date(second, zone)],
             f"started {[yesterday, today]}",
         ),
         (
@@ -599,8 +627,8 @@ async def morning(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ),
         (
             "open positions as the broker shows them",
-            facts.get("open_position_count") == len(terminal.positions),
-            f"brief {facts.get('open_position_count')}, broker {len(terminal.positions)}",
+            bool(held) and opened == held and facts.get("open_position_count") == len(held),
+            f"brief {opened}, broker {held}",
         ),
     ]
 
@@ -620,12 +648,17 @@ async def week(stage: Stage, step: dict[str, Any]) -> list[Check]:
             )
             stage.ids[handle] = agent.id
     zone = await owner_zone_of(stage)
-    week = latest_close(datetime.now(UTC) + timedelta(days=7))
+    week = latest_close(datetime.now(UTC) + timedelta(days=8))
     assert week is not None and week[1] > datetime.now(UTC)
     close = week[1]
-    after = close.astimezone(zone)
-    day = after.date() + timedelta(days=int(after.timetz() >= time(7, 1, tzinfo=zone)))
-    evening, morning_after = close - timedelta(hours=2), brief_time(day, zone)
+    # The last brief time before the close, and the first after it, in the owner's zone.
+    day = close.astimezone(zone).date()
+    evening = brief_time(day, zone)
+    if evening >= close:
+        evening = brief_time(day - timedelta(days=1), zone)
+    morning_after = brief_time(day, zone)
+    if morning_after <= close:
+        morning_after = brief_time(day + timedelta(days=1), zone)
     await tick(stage, evening)
     await stage.drain()
     await tick(stage, evening + timedelta(minutes=1))
@@ -638,7 +671,8 @@ async def week(stage: Stage, step: dict[str, Any]) -> list[Check]:
     facts: dict[str, Any] = tagged(briefs[-1].prompt, "brief_facts") or {}
     await stage.drain()
     await tick(stage, morning_after + timedelta(minutes=2))
-    later = await tick(stage, morning_after + timedelta(hours=3))
+    # The next day's brief: a new day, the same close, no second report.
+    later = await tick(stage, morning_after + timedelta(days=1))
     async with stage.api.runtime.db.sessions() as session:
         team = {
             agent.id: agent.name
@@ -669,8 +703,19 @@ async def week(stage: Stage, step: dict[str, Any]) -> list[Check]:
             f"posted by {sorted(words)}",
         ),
         (
+            "each agent was asked for results, what it learned and what it changed",
+            bool(reports) and all(run.prompt.startswith(REPORT_TEXT) for run in reports),
+            f"{len(reports)} report wakes",
+        ),
+        (
             "the brief carries each report as the agent's own words",
-            started is not None and {item["agent"]: item["report"] for item in carried} == words,
+            started is not None
+            and {item["agent"] for item in carried} == set(words)
+            # The brief bounds a report's length (REPORT_CHARACTERS): its words, cut.
+            and all(
+                item["report"] and words[item["agent"]].startswith(item["report"])
+                for item in carried
+            ),
             f"{len(carried)} reports in the brief",
         ),
         (
@@ -681,8 +726,8 @@ async def week(stage: Stage, step: dict[str, Any]) -> list[Check]:
         ),
         (
             "one report per agent per week",
-            later is None and len(await runs_of(stage, REPORT_TRIGGER)) == len(team),
-            f"a later pass: {later}",
+            len(await runs_of(stage, REPORT_TRIGGER)) == len(team),
+            f"the next day's brief ({later}) woke {len(await runs_of(stage, REPORT_TRIGGER))}",
         ),
     ]
 
@@ -729,11 +774,12 @@ async def news(stage: Stage, step: dict[str, Any]) -> list[Check]:
         raise NotExercised("the news agent chose not to message its peers")
     peers = [stage.ids[handle] for handle in given["peers"]]
     woken = {run.agent_id: run for run in await runs_of(stage, "peer")}
+    started = await stage.triggers()
     checks: list[Check] = [
         (
             "the news agent's own routine woke it",
-            (await stage.triggers())[:1] == ["routine"],
-            f"runs started by {await stage.triggers()}",
+            started[:1] == ["routine"],
+            f"runs started by {started}",
         ),
         (
             "one message to each peer",
@@ -767,19 +813,16 @@ async def news(stage: Stage, step: dict[str, Any]) -> list[Check]:
                 (
                     f"{handle} saw the message only as the peer's data",
                     len(framed) == 1
-                    and any(m.content == PEER_WAKE or PEER_WAKE in m.content for m in seen)
+                    and any(PEER_WAKE in m.content for m in seen)
                     and bool(carrying)
                     and all(framed[0] in m.content and m.role == "user" for m in carrying),
                     f"{len(carrying)} messages carry it",
                 )
             )
-    for handle in given["peers"]:
-        thread = woken[stage.ids[handle]].thread_id if stage.ids[handle] in woken else ""
-        checks += [
-            (f"{handle}: {name}", ok, seen)
-            for name, ok, seen in await judged(stage, thread, stage.ids[handle])
-        ]
-    return checks
+    routine = next(iter(await runs_of(stage, "routine")), None)
+    result = await posted(stage, routine) if routine is not None else None
+    thread = result.thread_id if result is not None else ""
+    return checks + await judged(stage, thread, stage.ids["news"])
 
 
 RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = {
@@ -834,12 +877,22 @@ async def run_step(
                     await api.close()
             finally:
                 await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
-    passed = error is None and all(ok for _, ok, _ in checks)
+    failed = {name for name, ok, _ in checks if not ok}
+    known = {item["check"] for item in step.get("defects", [])}
+    if not exercised:
+        state = "not exercised"
+    elif error is not None or (failed and failed != known):
+        state = "fail"
+    else:
+        # A product defect another worker owns fails exactly the checks it names, held as
+        # strictly as agent_eval's baseline: fixing it flips the step until the entry goes.
+        state = "known defect" if failed else "pass"
     return {
         "step": step["id"],
-        "state": "not exercised" if not exercised else ("pass" if passed else "fail"),
+        "state": state,
         "error": error,
         **({"partial": step["partial"]["note"]} if "partial" in step else {}),
+        **({"defects": step["defects"]} if "defects" in step else {}),
         "checks": [{"check": name, "ok": ok, "seen": seen} for name, ok, seen in checks],
     }
 
