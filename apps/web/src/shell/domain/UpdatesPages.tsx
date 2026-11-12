@@ -1,11 +1,6 @@
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import {
-  type ActivityCode,
-  type ActivityEntry,
-  type AttentionNotification,
-  isBrokerHealth,
-} from "@lonora/contracts";
+import type { ActivityCode, ActivityEntry, AttentionViewRow } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
@@ -16,12 +11,10 @@ import { useAttention } from "../../providers/AttentionProvider";
 import { useShellData } from "../data";
 import { clockTime } from "../lists/ThreadRow";
 import { useNavigation } from "../navigation";
-import { recoveryPath } from "../routes";
 import { SkHead, SkPage, SkRows } from "../Skeleton";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { useLoad } from "./hooks";
-import { routineTitle, scheduleFacts, useScheduleDetails } from "./SchedulesPages";
 import { Empty } from "./ui";
 
 function activityTitle(code: ActivityCode): string {
@@ -140,201 +133,79 @@ export function ActivityPage() {
   );
 }
 
-const unread = (item: AttentionNotification) =>
-  item.status === "pending" || item.status === "ready";
-
-/** «المستجدات»: stories, «التنبيهات», «المواعيد القادمة», «آخر الإجراءات». */
+/** «يحتاج انتباهك» (mandate 11.7): what needs the owner, across all agents, from one
+ * server projection (GET /attention/view). A row opens its conversation, where the
+ * fixed card or the question stands; opening it decides nothing. */
 export function UpdatesPage() {
   const data = useShellData();
   const nav = useNavigation();
-  const toast = useToast();
-  const attention = useAttention();
   const labels = useAttentionLabels();
-  const notes = useLoad(
-    () => api.get<AttentionNotification[]>("/attention/history"),
-    "attention-history",
-  );
-  const routines = useLoad(() => domainApi.routines(), "routines:*");
-  const feed = useLoad(() => domainApi.activity(), "activity");
-  const details = useScheduleDetails(routines.reload);
-  if ([notes, routines, feed].some((load) => load.data === undefined && load.error == null))
+  const attention = useAttention();
+  const toast = useToast();
+  const rows = useLoad(() => api.get<AttentionViewRow[]>("/attention/view"), "attention-view");
+  if (rows.data === undefined && rows.error == null)
     return (
       <SkPage>
         <SkHead width={24} />
-        <SkRows count={2} size={40} group />
-        <SkHead width={20} />
-        <SkRows count={5} icon group />
+        <SkRows count={4} icon group />
       </SkPage>
     );
-  const upcoming = (routines.data ?? []).filter((row) => row.enabled);
-  const ring = (agentId: string) =>
-    data.inbox.some((entry) => entry.agent_id === agentId && entry.unread_count > 0) ||
-    upcoming.some((row) => row.agent_id === agentId);
-  const list = notes.data ?? [];
-  const unreadCount = list.filter(unread).length;
   const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name ?? "";
-  const readAll = async () => {
-    try {
-      await domainApi.seenAll();
-      notes.reload();
-      attention.refresh();
-    } catch (cause) {
-      toast(userError(cause), { type: "error" });
-    }
-  };
-  const openNote = async (item: AttentionNotification) => {
-    if (unread(item)) {
-      notes.set((rows) =>
-        rows?.map((row) => (row.id === item.id ? { ...row, status: "seen" } : row)),
-      );
-      void attention.seen(item.id).catch(() => notes.reload());
-    }
-    // A group's notification opens the group conversation, as the inbox did.
-    // A broker outage opens the recovery page for its account (recovery.page).
+  const title = (row: AttentionViewRow) =>
+    row.kind === "owner_question"
+      ? t`A question is waiting for your answer`
+      : row.code
+        ? labels[row.code]
+        : "";
+  const open = (row: AttentionViewRow) => {
+    // Opening an alert reads it; a card or a question stays until it is answered.
+    if (row.kind === "agent_alert" || row.kind === "system_alert")
+      attention.seen(row.id).catch((cause) => toast(userError(cause), { type: "error" }));
     nav.go(
-      isBrokerHealth(item.code)
-        ? recoveryPath(item.parameters.account_id)
-        : item.parameters.group_id
-          ? `/app/g/${item.parameters.group_id}`
-          : `/app/${item.agent_id}?thread=${item.thread_id}`,
+      row.group_id ? `/app/g/${row.group_id}` : `/app/${row.agent_id}?thread=${row.thread_id}`,
     );
   };
-  const acts = (feed.data?.items ?? []).slice(0, 4);
+  const list = rows.data ?? [];
   return (
     <div className="domain-page">
-      {/* biome-ignore lint/a11y/useSemanticElements: the reference's labelled row of stories. */}
-      <div className="stories" role="group" aria-label={t`Agents`}>
-        {data.agents.map((agent) => (
-          <button
-            key={agent.id}
-            type="button"
-            className={`story ${ring(agent.id) ? "ring" : ""}`.trim()}
-            aria-label={ring(agent.id) ? t`${agent.name}, has something new` : agent.name}
-            onClick={() => nav.go(`/app/${agent.id}`)}
-          >
-            <span className="story-ring">
-              <AgentAvatar agent={agent} />
-            </span>
-            <small>
-              <bdi>{agent.name}</bdi>
-            </small>
-          </button>
-        ))}
-      </div>
-      <div className="section-head">
-        <h3>
-          <Trans context="updates section">Notifications</Trans>
-        </h3>
-        {unreadCount > 0 && (
-          <button type="button" className="link" onClick={() => void readAll()}>
-            <Trans>Mark all as read</Trans>
-          </button>
-        )}
-      </div>
-      <div className="group">
-        {list.length ? (
-          list.map((item) => (
+      <div className="group" data-testid="attention-view">
+        {rows.error != null ? (
+          <p className="pad muted small">{userError(rows.error)}</p>
+        ) : list.length ? (
+          list.map((row) => (
             <button
-              key={item.id}
+              key={row.id}
               type="button"
-              className={`row ${unread(item) ? "unread" : ""}`.trim()}
-              data-attention-id={item.id}
-              onClick={() => void openNote(item)}
+              className="row"
+              data-attention-id={row.id}
+              data-attention-kind={row.kind}
+              onClick={() => open(row)}
             >
               <span className="row-icon">
                 <Icon name="bell" />
               </span>
               <span className="body">
-                <strong>{labels[item.code]}</strong>
-                {item.parameters.summary ? (
+                <strong>{title(row)}</strong>
+                {row.summary ? (
                   <small dir="auto" data-testid="attention-summary">
-                    {item.parameters.summary}
+                    {row.summary}
                   </small>
-                ) : (
-                  <small>
-                    <bdi>{agentName(item.agent_id)}</bdi>
-                    {item.parameters.symbol ? (
-                      <>
-                        {" · "}
-                        <bdi>{item.parameters.symbol}</bdi>
-                      </>
-                    ) : null}
-                  </small>
-                )}
+                ) : null}
+                <small>
+                  <bdi>{agentName(row.agent_id)}</bdi>
+                  {row.symbol ? (
+                    <>
+                      {" · "}
+                      <bdi>{row.symbol}</bdi>
+                    </>
+                  ) : null}
+                </small>
               </span>
-              {unread(item) && <span className="dot" role="img" aria-label={t`Unread`} />}
             </button>
           ))
         ) : (
           <p className="pad muted small">
-            <Trans>No notifications.</Trans>
-          </p>
-        )}
-      </div>
-      <div className="section-head">
-        <h3>
-          <Trans>Upcoming</Trans>
-        </h3>
-      </div>
-      <div className="group">
-        {upcoming.length ? (
-          upcoming.map((routine) => {
-            const agent = data.agents.find((row) => row.id === routine.agent_id);
-            const facts = scheduleFacts(routine);
-            return (
-              <button
-                key={routine.id}
-                type="button"
-                className="row"
-                onClick={() => details(routine)}
-              >
-                {agent ? (
-                  <AgentAvatar agent={agent} />
-                ) : (
-                  <span className="row-icon">
-                    <Icon name="clock" />
-                  </span>
-                )}
-                <span className="body">
-                  <strong>
-                    <bdi>{routineTitle(routine)}</bdi>
-                  </strong>
-                  <small>
-                    <bdi>{agent?.name ?? ""}</bdi> · {facts.repeat}
-                  </small>
-                </span>
-                <span className="value ltr">{facts.time}</span>
-              </button>
-            );
-          })
-        ) : (
-          <p className="pad muted small">
-            <Trans>No enabled schedules.</Trans>
-          </p>
-        )}
-      </div>
-      <div className="section-head">
-        <h3>
-          <Trans>Latest actions</Trans>
-        </h3>
-      </div>
-      <div className="group">
-        {acts.length ? (
-          <>
-            {acts.map((entry) => (
-              <ActivityRow key={entry.id} entry={entry} boxed />
-            ))}
-            <button
-              type="button"
-              className="btn full ghost"
-              onClick={() => nav.go("/app/activity")}
-            >
-              <Trans>Show the full log</Trans>
-            </button>
-          </>
-        ) : (
-          <p className="pad muted small">
-            <Trans>No activity yet.</Trans>
+            <Trans>Nothing needs you right now.</Trans>
           </p>
         )}
       </div>

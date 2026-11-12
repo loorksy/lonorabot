@@ -377,8 +377,10 @@ async def main():
 
         with patch("lonora_gateway.event_dispatch.WebhookAdapter.send", scripted_send):
             # The previously queued uncertainty has settled: do not send obsolete safety state.
+            # (Lonora's onboarding Mandate card is a real pending owner event: it is sent.)
+            stale = "صفقة بلا نتيجة مؤكدة من الوسيط"
             await dispatch_channels(f.runtime.db, services)
-            assert not sent
+            assert not [content for content in sent if stale in content]
             await uncertain()
             await attention_tick(f.runtime.db, context.brokers, f.owner)
             await asyncio.gather(
@@ -386,15 +388,24 @@ async def main():
                 dispatch_channels(f.runtime.db, services),
             )
             await dispatch_channels(f.runtime.db, services)
-            assert len(sent) == 1 and "صفقة بلا نتيجة مؤكدة من الوسيط" in sent[0], sent
+            assert len([content for content in sent if stale in content]) == 1, sent
         async with f.runtime.db.sessions() as session:
-            receipts = list(
+            others = set(
                 await session.scalars(
+                    select(AttentionRow.id).where(
+                        AttentionRow.owner_id == f.owner, AttentionRow.code != "operation_uncertain"
+                    )
+                )
+            )
+            receipts = [
+                receipt
+                for receipt in await session.scalars(
                     select(EffectReceiptRow).where(
                         EffectReceiptRow.key.startswith("channel:" + channel_id + ":attention:")
                     )
                 )
-            )
+                if receipt.key.split(":")[3] not in others
+            ]
             assert len(receipts) == 1
             skipped = await session.get(
                 EffectReceiptRow,

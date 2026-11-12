@@ -41,14 +41,14 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
       .toBe(true);
     expect(await page.evaluate(() => window.svgProbe)).toBeUndefined();
     await expect(page.locator(".chat-head .chat-name")).toContainText(data.name);
-    // The rail opens «المستجدات» (UI phase 4b: stories, notifications, upcoming, latest actions).
+    // The rail opens «يحتاج انتباهك» (11.7), the only list there besides the chats.
     await page
       .locator(".desktop-rail")
-      .getByRole("button", { name: "Updates", exact: true })
+      .getByRole("button", { name: "Needs your attention", exact: true })
       .click();
     await expect(page).toHaveURL(/\/app\/updates$/);
-    await expect(page.locator("main .stories")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Latest actions", exact: true })).toBeVisible();
+    await expect(page.getByTestId("attention-view")).toBeVisible();
+    await expect(page.locator("main .stories")).toHaveCount(0);
     await page.goto(`/app/${data.agent}?thread=${data.thread}`);
     await page.getByRole("button", { name: "Agent info", exact: true }).click();
     const profile = page.locator("#dialog");

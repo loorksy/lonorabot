@@ -34,16 +34,20 @@ AttentionCode = Literal[
     "gateway_degraded",
     "agent_notification",
     "secret_requested",
+    "mandate_proposed",
 ]
 AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
 
 # The events of mandate 11.4 that need the owner, by code: each is one item, ready at
 # once and withdrawn when its card ends or its problem clears.
-AttentionEvent = Literal["trade_approval", "settle_operation", "secret_request", "broker_health"]
+AttentionEvent = Literal[
+    "trade_approval", "settle_operation", "secret_request", "mandate_card", "broker_health"
+]
 ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
     "approval_required": "trade_approval",
     "operation_uncertain": "settle_operation",
     "secret_requested": "secret_request",
+    "mandate_proposed": "mandate_card",
     "broker_token_rejected": "broker_health",
     "broker_account_undeployed": "broker_health",
     "broker_connection_lost": "broker_health",
@@ -54,6 +58,45 @@ BROKER_HEALTH_CODES: tuple[AttentionCode, ...] = (
     "broker_account_undeployed",
     "broker_connection_lost",
 )
+
+
+# What the "needs your attention" view (11.7) lists: the owner's events, the questions
+# a run waits on the owner to answer, the Tasks that need the owner's review, and an
+# agent's own unread alert (owner_notify), and the watchdog's unread items about an
+# unresolved operation or quarantined work; neither has another place outside chat.
+AttentionViewKind = Literal[
+    "trade_approval",
+    "settle_operation",
+    "secret_request",
+    "mandate_card",
+    "broker_health",
+    "owner_question",
+    "task_review",
+    "agent_alert",
+    "system_alert",
+]
+
+
+class AttentionViewRow(Contract):
+    """One row of the attention view, projected by the server; the only model text in
+    it is an agent alert's own summary.
+
+    The row opens its conversation (``thread_id``, or the group's), where the fixed card
+    or the question stands; opening it decides nothing.
+    """
+
+    kind: AttentionViewKind
+    id: str
+    agent_id: str
+    thread_id: str
+    group_id: str | None = None
+    # The attention item's code (None for a question a run waits on).
+    code: AttentionCode | None = None
+    run_id: str | None = None
+    symbol: str | None = None
+    # An agent's alert: its plain summary for the owner (the agent's words).
+    summary: str | None = None
+    created_at: datetime
 
 
 class AttentionNotification(Contract):

@@ -13,7 +13,7 @@ test.afterEach(() => {
   fixtureAgent = undefined;
 });
 
-test("Expo Arabic attention uses durable server state and stays read after reload", async ({
+test("Expo Arabic attention view lists what needs the owner and opens its conversation", async ({
   page,
   context,
 }) => {
@@ -31,18 +31,19 @@ test("Expo Arabic attention uses durable server state and stays read after reloa
   );
   await page.goto("/");
   await page.getByTestId("tab-updates").click();
-  // This owner may hold earlier alerts from other specs: read them all, one at a time.
+  // «يحتاج انتباهك» (11.7): the same server view as the web, in Arabic.
+  const view = page.getByTestId("attention-view");
+  const row = view.getByTestId("attention-row-settle_operation").filter({
+    hasText: fixture.agent.name,
+  });
   await expect(
-    page.getByText("توقف عمل بعد انقطاعات متكررة", { exact: true }).first(),
+    row.getByText("الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت", { exact: true }),
   ).toBeVisible();
-  const read = page.getByRole("button", { name: "تحديد كمقروء", exact: true });
-  while (await read.count()) {
-    const before = await read.count();
-    await read.first().click();
-    await expect(read).toHaveCount(before - 1);
-  }
-  await expect(page.getByText("توقف عمل بعد انقطاعات متكررة", { exact: true })).toHaveCount(0);
-  await page.reload();
-  await page.getByTestId("tab-updates").click();
-  await expect(page.getByText("لا توجد تنبيهات جديدة", { exact: true })).toBeVisible();
+  await expect(row.getByText("XAUUSD", { exact: true })).toBeVisible();
+  await expect(row).not.toContainText(fixture.uncertain.parameters.operation_id);
+  // Opening it shows the conversation, where the Settle card stands; it settles nothing.
+  await row.getByRole("button", { name: "فتح المحادثة", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/thread\\?id=${fixture.uncertain.thread_id}`));
+  const listed = await (await context.request.get("/api/attention/view")).json();
+  expect(listed.map((entry) => entry.id)).toContain(fixture.uncertain.id);
 });

@@ -1,20 +1,22 @@
-"""Seed an actual server-owned notification for both browser renderers."""
+"""Seed real server-owned attention for both browser renderers of the attention view.
+
+An agent's operation becomes ambiguous through the real projection, which raises its
+Settle card and the owner's "operation_uncertain" item in that agent's conversation;
+a plain update the view never lists sits beside it.
+"""
 
 import asyncio
 import json
-import sys
 from datetime import timedelta
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_contracts.domain import AgentCreate, utcnow
 from lonora_db.agents import agent_data, create_agent
-from lonora_db.personal_agent import ensure_personal_agent
-from lonora_db.schema import AttentionRow, RunRow, TradingJournalRow
+from lonora_db.events import emit
+from lonora_db.schema import AttentionRow, TradingJournalRow
 from lonora_db.threads import conversation_thread
 from lonora_gateway.attention import attention_tick
-from lonora_gateway.liveness import Liveness
-from lonora_gateway.watchdog import Watchdog
 
 
 def cookies(fixture: Fixture) -> list[dict[str, str]]:
@@ -23,42 +25,11 @@ def cookies(fixture: Fixture) -> list[dict[str, str]]:
     ]
 
 
-async def critical_item(fixture: Fixture) -> str:
-    """A fresh critical item in Lonora's conversation: work stopped after failures."""
-    key = "browser-critical-" + uuid4().hex[:12]
-    async with fixture.runtime.db.sessions() as session, session.begin():
-        lonora = await ensure_personal_agent(session, fixture.owner)
-        thread = await conversation_thread(session, fixture.owner, lonora.id)
-        row = AttentionRow(
-            owner_id=fixture.owner,
-            agent_id=lonora.id,
-            thread_id=thread.id,
-            logical_key=key,
-            coalesce_key=key,
-            importance="critical",
-            code="run_quarantined",
-            due_at=utcnow(),
-        )
-        session.add(row)
-        await session.flush()
-        return row.id
-
-
 async def main():
     fixture = await Fixture().open()
     try:
-        critical = await critical_item(fixture)
-        await attention_tick(
-            fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
-        )
-        if "--uncertain" not in sys.argv:
-            notifications = (await fixture.client.get("/api/attention")).json()
-            alert = next(row for row in notifications if row["id"] == critical)
-            print(json.dumps({"notification": alert, "cookies": cookies(fixture)}))
-            return
-        # An operation still uncertain after the watchdog's threshold reaches the owner
-        # once, in the conversation of the agent that placed it. The agent is created
-        # directly (not cleaned up): its uncertain trade rightly refuses its deletion.
+        # The agent is created directly (not cleaned up): its uncertain trade rightly
+        # refuses its deletion.
         async with fixture.runtime.db.sessions() as session, session.begin():
             desk = agent_data(
                 await create_agent(
@@ -66,22 +37,28 @@ async def main():
                 )
             )
             thread = await conversation_thread(session, fixture.owner, desk["id"])
-            run = RunRow(thread_id=thread.id, agent_id=desk["id"], status="completed")
-            session.add(run)
-            await session.flush()
+            operation_id = "browser-" + uuid4().hex[:12]
             session.add(
                 TradingJournalRow(
-                    operation_id="browser-" + uuid4().hex[:12],
+                    operation_id=operation_id,
                     owner_id=fixture.owner,
                     account_id="browser-account",
                     request_hash="h",
                     request={"symbol": "XAUUSD"},
                     status="ambiguous",
                     submitted_at=utcnow() - timedelta(hours=1),
-                    result={"details": {"execution": {"agent_id": desk["id"], "run_id": run.id}}},
                 )
             )
-            # A plain update «تحديد الكل كمقروء» marks read (critical items stay unread, Q4).
+            await session.flush()
+            emit(
+                session,
+                fixture.owner,
+                "trading.operation_updated",
+                agent_id=desk["id"],
+                thread_id=thread.id,
+                payload={"operation_id": operation_id, "status": "ambiguous"},
+            )
+            # A plain update: an attention item the view never lists.
             info_key = "browser-info-" + uuid4().hex[:12]
             session.add(
                 AttentionRow(
@@ -95,10 +72,16 @@ async def main():
                     due_at=utcnow(),
                 )
             )
-        await Watchdog(fixture.runtime.db, Liveness(), set()).aging_operations()
+        await attention_tick(
+            fixture.runtime.db, fixture.runtime.services(fixture.owner).brokers, fixture.owner
+        )
         notifications = (await fixture.client.get("/api/attention")).json()
-        alert = next(row for row in notifications if row["id"] == critical)
-        uncertain = next(row for row in notifications if row["code"] == "operation_unresolved")
+        uncertain = next(
+            row
+            for row in notifications
+            if row["code"] == "operation_uncertain"
+            and row["parameters"].get("operation_id") == operation_id
+        )
         informational = next(
             row
             for row in notifications
@@ -107,7 +90,6 @@ async def main():
         print(
             json.dumps(
                 {
-                    "notification": alert,
                     "uncertain": uncertain,
                     "informational": informational,
                     "agent": {"id": desk["id"], "name": desk["name"]},

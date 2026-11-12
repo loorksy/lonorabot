@@ -39,10 +39,13 @@ for (const locale of ["ar", "en"]) {
     await expect(summary).toHaveAttribute("dir", "auto");
     await expect(alert).not.toContainText(fixture.notification.id);
     await expect(alert).not.toContainText("broker:sim-gold-1");
-    // Opening it reads it: the unread dot goes, the row stays in «التنبيهات».
-    await expect(alert.locator(".dot")).toHaveCount(1);
+    // «يحتاج انتباهك» lists it while unread; opening it reads it and it leaves the view.
+    await expect(alert).toHaveAttribute("data-attention-kind", "agent_alert");
+    const seen = page.waitForResponse((response) => response.url().endsWith("/api/attention/seen"));
     await alert.click();
+    expect((await seen).ok()).toBeTruthy();
     await page.goto("/app/updates");
-    await expect(alert.locator(".dot")).toHaveCount(0);
+    await expect(page.getByTestId("attention-view")).toBeVisible();
+    await expect(alert).toHaveCount(0);
   });
 }

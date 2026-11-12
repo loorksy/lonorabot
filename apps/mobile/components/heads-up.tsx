@@ -9,13 +9,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, AppState, PanResponder, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../lib/api";
+import { attentionLabels } from "../lib/attention-labels";
 import { subscribeOwnerEvents } from "../lib/events";
 import { attentionBanner, type Banner, messageBanner } from "../lib/heads-up";
 import { useLists } from "../lib/lists-state";
 import { useSession } from "../lib/session";
 import { useShellData } from "../lib/shell-data";
 import { useTheme } from "../lib/theme";
-import { attentionLabels } from "./attention-inbox";
 import { useOpenChat } from "./shell/chat-list";
 import { RowAvatar } from "./shell/kit";
 

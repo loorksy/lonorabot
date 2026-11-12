@@ -17,7 +17,7 @@ import { NavRow, Note, ToggleRow, useLoad } from "./ui";
 type Channel = IncomingCallPolicy["channel"];
 /** The reference's REACH (8368), one to one with the server's ReachMe. */
 export const reachOptions = (): [Channel, string, string, IconName][] => [
-  ["activity", t`Activity log only`, t`Recorded in Updates without any alert`, "updates"],
+  ["activity", t`Activity log only`, t`Recorded without any alert`, "updates"],
   [
     "notify",
     t({ message: "Notification", context: "reach mode" }),

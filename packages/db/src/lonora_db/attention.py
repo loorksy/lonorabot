@@ -1,14 +1,16 @@
 """Durable notification decisions reuse event publication and effect receipts."""
 
-from datetime import timedelta
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, cast
 
 from lonora_contracts.attention import (
     ATTENTION_EVENTS,
     BROKER_HEALTH_CODES,
     AttentionClassification,
+    AttentionCode,
     AttentionNotification,
     AttentionPolicy,
+    AttentionViewRow,
     OwnerNotifyRequest,
 )
 from lonora_contracts.domain import utcnow
@@ -127,14 +129,30 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         return found[0] == row.code or (
             row.code != "broker_connection_lost" and found[0] == "broker_connection_lost"
         )
-    if row.code == "secret_requested":
+    if row.code in {"secret_requested", "mandate_proposed"}:
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
-        return (
-            card is not None
-            and card.owner_id == row.owner_id
-            and card.status == "pending"
-            and card.expires_at > utcnow()
-        )
+        if (
+            card is None
+            or card.owner_id != row.owner_id
+            or card.status != "pending"
+            or card.expires_at <= utcnow()
+        ):
+            return False
+        if row.code == "mandate_proposed":
+            # Another Mandate card for the same agent, tapped after this one was raised,
+            # already answered what this one asks.
+            return not await session.scalar(
+                select(OwnerActionRow.id)
+                .where(
+                    OwnerActionRow.owner_id == row.owner_id,
+                    OwnerActionRow.kind == "trading_mode",
+                    OwnerActionRow.subject == card.subject,
+                    OwnerActionRow.status == "confirmed",
+                    OwnerActionRow.decided_at > card.created_at,
+                )
+                .limit(1)
+            )
+        return True
     if row.code == "task_review":
         task = await session.get(TicketRow, row.parameters.get("task_id", ""))
         state: dict[str, Any] = task.state.get("task", {}) if task is not None else {}
@@ -395,7 +413,7 @@ async def notify_owner(
     CRITICAL_LIMIT_PER_HOUR critical alerts per owner, a critical one counts as an
     important change. Under reach-me "activity
     only" a non-critical alert raises no item (``activity_only``): the Agent says it in
-    its reply, which reaches its conversation and the Activity list. Delivery is in the
+    its reply, which reaches its conversation and the activity log. Delivery is in the
     app until off-app delivery exists. The item grants nothing.
     """
     now = utcnow()
@@ -543,27 +561,6 @@ async def acknowledge(session: AsyncSession, owner_id: str, identifier: str) -> 
             payload=attention_data(row),
         )
     return row
-
-
-# Kept unread by «تحديد الكل كمقروء»: each needs the owner's own look (Q4).
-KEEP_UNREAD = ("critical", "action_required")
-
-
-async def acknowledge_all(session: AsyncSession, owner_id: str) -> int:
-    rows = await session.scalars(
-        select(AttentionRow)
-        .where(
-            AttentionRow.owner_id == owner_id,
-            AttentionRow.status.in_(["pending", "ready"]),
-            AttentionRow.importance.not_in(KEEP_UNREAD),
-        )
-        .with_for_update()
-    )
-    count = 0
-    for row in rows:
-        await acknowledge(session, owner_id, row.id)
-        count += 1
-    return count
 
 
 async def set_cursor(session: AsyncSession, owner_id: str, cursor: int) -> None:
@@ -760,6 +757,149 @@ async def lock_attention(session: AsyncSession, owner_id: str) -> None:
         )
 
 
+VIEW_LIMIT = 100
+# The watchdog's items that wait on the owner's look: an operation still unresolved after
+# its threshold, and work stopped after repeated interruptions. Listed while unread.
+SYSTEM_VIEW_CODES = ("operation_unresolved", "run_quarantined")
+
+
+async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str, Any]]:
+    """The "needs your attention" view (11.7) across all agents, newest first.
+
+    It lists the open, still-current items of the owner's events and of Tasks that need
+    review, every run in a conversation that waits on the owner's answer to its
+    question, each agent's own unread alert, and the watchdog's unread items about an
+    unresolved operation or quarantined work. Only an agent alert's summary is the
+    agent's words; the server writes everything else.
+    """
+    from .schema import RunRow, ThreadRow
+
+    rows: list[AttentionViewRow] = []
+    query = (
+        select(AttentionRow)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code.in_([*sorted(ATTENTION_EVENTS), "task_review"]),
+            AttentionRow.status.in_(["pending", "ready", "seen"]),
+        )
+        .order_by(AttentionRow.created_at.desc(), AttentionRow.id)
+    )
+    # Page until the limit of current rows: ended items never push an open card out,
+    # and one fact (the same Task failing again) is one row, the newest.
+    facts: set[tuple[str, str]] = set()
+    offset = 0
+    current: list[AttentionRow] = []
+    while len(current) < VIEW_LIMIT:
+        page = list(await session.scalars(query.offset(offset).limit(VIEW_LIMIT)))
+        for item in page:
+            if (item.code, item.coalesce_key) in facts:
+                continue
+            facts.add((item.code, item.coalesce_key))
+            if await mandatory_current(session, item):
+                current.append(item)
+        if len(page) < VIEW_LIMIT:
+            break
+        offset += VIEW_LIMIT
+    for item in current[:VIEW_LIMIT]:
+        code = cast(AttentionCode, item.code)
+        rows.append(
+            AttentionViewRow(
+                kind=ATTENTION_EVENTS.get(code, "task_review"),
+                id=item.id,
+                agent_id=item.agent_id,
+                thread_id=item.thread_id,
+                group_id=item.parameters.get("group_id"),
+                code=code,
+                symbol=item.parameters.get("symbol"),
+                created_at=item.created_at,
+            )
+        )
+    alerts = await session.scalars(
+        select(AttentionRow)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code.in_(["agent_notification", *SYSTEM_VIEW_CODES]),
+            AttentionRow.status.in_(["pending", "ready"]),
+        )
+        .order_by(AttentionRow.created_at.desc())
+        .limit(VIEW_LIMIT)
+    )
+    now = utcnow()
+    for alert in alerts:
+        if alert.code in SYSTEM_VIEW_CODES and not await mandatory_current(session, alert):
+            continue
+        # An alert held by quiet hours is not shown before it is due.
+        if alert.status == "pending" and alert.due_at > now:
+            continue
+        until = alert.parameters.get("valid_until")
+        if until and datetime.fromisoformat(str(until)) <= now:
+            continue
+        code = cast(AttentionCode, alert.code)
+        rows.append(
+            AttentionViewRow(
+                kind="agent_alert" if code == "agent_notification" else "system_alert",
+                id=alert.id,
+                agent_id=alert.agent_id,
+                thread_id=alert.thread_id,
+                group_id=alert.parameters.get("group_id"),
+                code=code,
+                symbol=alert.parameters.get("symbol"),
+                summary=alert.parameters.get("summary") if code == "agent_notification" else None,
+                created_at=alert.created_at,
+            )
+        )
+    waiting = await session.execute(
+        select(RunRow, ThreadRow)
+        .join(ThreadRow, ThreadRow.id == RunRow.thread_id)
+        .where(
+            ThreadRow.owner_id == owner_id,
+            ThreadRow.purpose == "conversation",
+            RunRow.status == "waiting_input",
+        )
+        .order_by(RunRow.updated_at.desc())
+        .limit(VIEW_LIMIT)
+    )
+    for run, thread in waiting:
+        questions: list[dict[str, Any]] = run.execution_state.get("input_requests", [])
+        if not any(question.get("status") == "pending" for question in questions):
+            continue
+        rows.append(
+            AttentionViewRow(
+                kind="owner_question",
+                id=run.id,
+                agent_id=run.agent_id,
+                thread_id=thread.id,
+                group_id=thread.group_id,
+                run_id=run.id,
+                created_at=run.updated_at,
+            )
+        )
+    rows.sort(key=lambda row: row.created_at, reverse=True)
+    return [row.model_dump(mode="json") for row in rows[:VIEW_LIMIT]]
+
+
+async def mandate_already_shown(session: AsyncSession, card: OwnerActionRow) -> bool:
+    """Whether another pending Mandate card for the same agent already has an open item:
+    the agent itself and Lonora can each raise one, and the owner needs one."""
+    others = await session.scalars(
+        select(AttentionRow).where(
+            AttentionRow.owner_id == card.owner_id,
+            AttentionRow.code == "mandate_proposed",
+            AttentionRow.status.in_(["pending", "ready", "seen"]),
+            AttentionRow.parameters["owner_action_id"].as_string() != card.id,
+        )
+    )
+    for item in others:
+        other = await session.get(OwnerActionRow, item.parameters.get("owner_action_id", ""))
+        if (
+            other is not None
+            and other.subject == card.subject
+            and await mandatory_current(session, item)
+        ):
+            return True
+    return False
+
+
 async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
     """Raise one item per account and broker health problem (9.4) while it lasts.
 
@@ -830,9 +970,10 @@ SWEEP_BATCH = 200
 
 
 async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
-    """Withdraw every open item of the 11.4 owner events whose card ended or whose
-    problem cleared, including one the owner has already seen (which keeps its
-    ``updated_at``, so the history does not reorder).
+    """Withdraw every open item of the 11.4 owner events, and of Tasks that need review,
+    whose card ended, whose problem cleared or whose Task no longer waits, including
+    one the owner has already seen (which keeps its ``updated_at``, so the history
+    does not reorder).
 
     A card can end without an event (a Secret card's lifetime runs out), and a broker
     problem clears with a recovery that raises no item of its own, so the current
@@ -849,7 +990,7 @@ async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
             select(AttentionRow)
             .where(
                 AttentionRow.owner_id == owner_id,
-                AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
+                AttentionRow.code.in_([*sorted(ATTENTION_EVENTS), "task_review"]),
                 AttentionRow.status.in_(["pending", "ready", "seen"]),
                 AttentionRow.id > after,
             )

@@ -11,6 +11,7 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 | `trade_approval` | `approval_required` | a Trade Approval card becomes pending | the card is no longer pending |
 | `settle_operation` | `operation_uncertain` | an operation becomes ambiguous (its Settle card is raised from the same event) | the operation is no longer ambiguous, or its Settle card ended (answered, superseded or expired) |
 | `secret_request` | `secret_requested` | a `connect_credential` card becomes pending | the card is no longer pending, or its lifetime ran out |
+| `mandate_card` | `mandate_proposed` | a Mandate card (`trading_mode`) becomes pending: an agent proposed it, or Lonora offered its own at onboarding; one item per agent, so a second card for the same agent while one is shown raises none | the card is no longer pending (the owner tapped it, or its agent was deleted), or another Mandate card for the same agent was tapped after it was raised |
 | `broker_health` | `broker_token_rejected` | the account is disconnected with `broker_credentials_rejected` | the account is no longer disconnected with that problem, or its connection is disabled or removed |
 | `broker_health` | `broker_account_undeployed` | the account is disconnected with `broker_account_undeployed` or `broker_account_not_found` | the same |
 | `broker_health` | `broker_connection_lost` | the account has been disconnected for any other reason for 2 minutes (`LOST_CONNECTION_GRACE`) | the same |
@@ -57,3 +58,25 @@ woken for yet.
   that fails is logged and tried again on a later tick.
 - An uncertain operation delivered without its record (its projection kept failing,
   `quarantine_event`) names no operation, so it wakes nobody; the owner has the item.
+
+## The attention view
+
+The owner's one "needs your attention" view across all agents (mandate 11.7) is a server
+projection with no model: `GET /attention/view` (`attention_view`, `AttentionViewRow`).
+
+- It lists, newest first:
+  - the open, still-current items of the owner's events above (Trade Approval, Settle,
+    Secret and Mandate cards, broker health problems);
+  - Tasks that need the owner's review (`task_review`);
+  - every run in a conversation that waits on the owner's answer to its question
+    (`waiting_input` with a pending input request), as `owner_question`;
+  - each agent's own unread alert (`owner_notify`, `agent_notification`), as
+    `agent_alert`, with its summary: an alert has no other place outside its chat.
+  - the watchdog's unread items about an operation still unresolved after its
+    threshold (`operation_unresolved`) or work stopped after repeated interruptions
+    (`run_quarantined`), as `system_alert`: they have no other lasting place either.
+- Web and mobile show the same list as the «يحتاج انتباهك» tab. A row opens its
+  conversation, where the fixed card or the question stands; opening it decides
+  nothing. Opening an alert (an agent's or the watchdog's) marks it read, so it leaves
+  the list.
+- The tab's dot shows while an item the view lists is unread (`inAttentionView`).

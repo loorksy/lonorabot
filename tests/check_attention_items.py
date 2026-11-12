@@ -11,17 +11,17 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import get_args
+from typing import Any, cast, get_args
 from unittest.mock import patch
 from uuid import uuid4
 
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_agent.collaboration.outcome_return import return_outcome
-from lonora_contracts.attention import AttentionCode
+from lonora_contracts.attention import ATTENTION_EVENTS, AttentionCode
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
-from lonora_db.attention import raise_system_attention, withdraw_ended
+from lonora_db.attention import mandatory_current, raise_system_attention, withdraw_ended
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.schema import (
@@ -133,6 +133,90 @@ async def secret_card(fixture: Fixture) -> None:
     _, second = await items(fixture, "secret_requested")
     assert second.status == "suppressed"
     print("PASS a seen Secret item is withdrawn when the card's lifetime runs out")
+
+
+async def mandate_card(fixture: Fixture) -> None:
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        lonora = await ensure_personal_agent(session, fixture.owner)
+        lonora_thread = (await conversation_thread(session, fixture.owner, lonora.id)).id
+        onboarding = await session.scalar(
+            select(OwnerActionRow).where(
+                OwnerActionRow.owner_id == fixture.owner,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.subject == "trading_mode:" + lonora.id,
+            )
+        )
+        assert onboarding is not None and onboarding.status == "pending"
+    await tick(fixture)
+    await tick(fixture)
+    [item] = await items(fixture, "mandate_proposed")
+    assert item.status == "ready" and item.importance == "action_required"
+    assert (item.agent_id, item.thread_id) == (lonora.id, lonora_thread)
+    assert item.parameters["owner_action_id"] == onboarding.id
+    assert await ready_events(fixture, item.id) == 1
+    print("PASS Lonora's onboarding Mandate card is one ready item in Lonora's conversation")
+
+    await fixture.request(
+        "POST",
+        f"/owner-actions/{onboarding.id}/decision",
+        {"decision": "confirm", "trading_mode": "ask"},
+    )
+    await tick(fixture)
+    [item] = await items(fixture, "mandate_proposed")
+    assert item.status == "suppressed"
+    print("PASS the Mandate item is withdrawn when the owner taps the card")
+
+    agent = await fixture.agent("Mandate asker")
+    thread = await fixture.conversation(agent)
+    context = await fixture.lease(await fixture.run(agent, thread))
+    card = await load_tools().execute(
+        ToolCall(
+            id="call-" + uuid4().hex,
+            name="owner_action_propose",
+            arguments={"kind": "trading_mode"},
+        ),
+        context,
+    )
+    await tick(fixture)
+    proposed = (await items(fixture, "mandate_proposed"))[-1]
+    assert proposed.status == "ready" and proposed.agent_id == agent["id"]
+    assert proposed.parameters["owner_action_id"] == card["owner_action"]["id"]
+    print("PASS a Mandate card an agent proposes is one ready item in its conversation")
+
+    # Lonora raises a second card for the same agent: the owner still has one item, and
+    # one tap on the agent's own card answers both.
+    lonora_agent = {"id": lonora.id}
+    lonora_context = await fixture.lease(
+        await fixture.run(lonora_agent, await fixture.conversation(lonora_agent))
+    )
+    second = await load_tools().execute(
+        ToolCall(
+            id="call-" + uuid4().hex,
+            name="owner_action_propose",
+            arguments={"kind": "trading_mode", "agent_id": agent["id"]},
+        ),
+        lonora_context,
+    )
+    assert second["owner_action"]["id"] != card["owner_action"]["id"]
+    await tick(fixture)
+    open_items = [
+        row
+        for row in await items(fixture, "mandate_proposed")
+        if row.agent_id == agent["id"] and row.status == "ready"
+    ]
+    assert [row.id for row in open_items] == [proposed.id]
+    await fixture.request(
+        "POST",
+        f"/owner-actions/{card['owner_action']['id']}/decision",
+        {"decision": "confirm", "trading_mode": "ask"},
+    )
+    await tick(fixture)
+    assert not [
+        row
+        for row in await items(fixture, "mandate_proposed")
+        if row.agent_id == agent["id"] and row.status != "suppressed"
+    ]
+    print("PASS two Mandate cards for one agent are one item, and one tap ends it")
 
 
 async def set_recovery(
@@ -546,6 +630,141 @@ async def fallbacks(fixture: Fixture) -> None:
     print("PASS the sweep rotates, so current items never starve an ended one")
 
 
+async def view(fixture: Fixture) -> None:
+    """The attention view (11.7): the open owner events of every agent and the runs that
+    wait on the owner's answer; nothing that ended, and reading it changes nothing."""
+    agent = await fixture.agent("Asks a question")
+    thread = await fixture.conversation(agent)
+    run = await fixture.run(agent, thread)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run["id"], with_for_update=True)
+        assert row is not None
+        row.status = "waiting_input"
+        row.execution_state = {
+            **row.execution_state,
+            "input_requests": [{"id": "q1", "status": "pending"}],
+        }
+    # A Task review whose Task is gone, and an alert quiet hours still hold: not listed.
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        for key, code, status, due, parameters in (
+            ("stale-review", "task_review", "seen", utcnow(), {"task_id": "gone"}),
+            (
+                "held-alert",
+                "agent_notification",
+                "pending",
+                utcnow() + timedelta(hours=1),
+                {"summary": "Held until the quiet hours end"},
+            ),
+        ):
+            session.add(
+                AttentionRow(
+                    id=key + "-" + uuid4().hex[:8],
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    logical_key=key + uuid4().hex[:8],
+                    coalesce_key=key + uuid4().hex[:8],
+                    importance="action_required",
+                    code=code,
+                    status=status,
+                    parameters=parameters,
+                    source_events=[],
+                    due_at=due,
+                )
+            )
+    before = await fixture.request("GET", "/attention/history")
+    rows = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    by_id = {entry["id"]: entry for entry in rows}
+    question = by_id[run["id"]]
+    assert (question["kind"], question["agent_id"], question["thread_id"]) == (
+        "owner_question",
+        agent["id"],
+        thread["id"],
+    )
+    async with fixture.runtime.db.sessions() as session:
+        open_items = [
+            item
+            for item in await session.scalars(
+                select(AttentionRow).where(
+                    AttentionRow.owner_id == fixture.owner,
+                    AttentionRow.status.in_(["pending", "ready", "seen"]),
+                )
+            )
+            if await mandatory_current(session, item)
+            and (item.code in ATTENTION_EVENTS or item.code == "task_review")
+        ]
+        ended = list(
+            await session.scalars(
+                select(AttentionRow.id).where(
+                    AttentionRow.owner_id == fixture.owner,
+                    AttentionRow.status == "suppressed",
+                )
+            )
+        )
+    assert open_items, "the earlier steps leave open items"
+    for item in open_items:
+        entry = by_id[item.id]
+        assert entry["code"] == item.code and entry["thread_id"] == item.thread_id
+        assert entry["kind"] == ATTENTION_EVENTS.get(item.code, "task_review")  # type: ignore[arg-type]
+    assert not set(ended) & set(by_id)
+    assert not [key for key in by_id if key.startswith(("stale-review-", "held-alert-"))]
+    # Several agents' items in one view.
+    assert len({entry["agent_id"] for entry in rows}) > 1
+    assert await fixture.request("GET", "/attention/history") == before
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        row = await session.get(RunRow, run["id"], with_for_update=True)
+        assert row is not None
+        row.execution_state = {
+            **row.execution_state,
+            "input_requests": [{"id": "q1", "status": "answered"}],
+        }
+    after = cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    assert run["id"] not in {entry["id"] for entry in after}
+
+    # The watchdog's items wait on the owner's look: listed while unread, read on open.
+    operation_id = "op-" + uuid4().hex[:20]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=operation_id,
+                owner_id=fixture.owner,
+                account_id="acc-" + uuid4().hex[:8],
+                request_hash="h",
+                request={"symbol": "XAUUSD"},
+                status="ambiguous",
+            )
+        )
+        await session.flush()
+        unresolved = await raise_system_attention(
+            session,
+            fixture.owner,
+            "operation_unresolved",
+            "operation:" + operation_id,
+            {"operation_id": operation_id, "symbol": "XAUUSD"},
+            agent_id=agent["id"],
+        )
+        quarantined = await raise_system_attention(
+            session, fixture.owner, "run_quarantined", "run:" + uuid4().hex, agent_id=agent["id"]
+        )
+        assert unresolved is not None and quarantined is not None
+        watched = {unresolved.id: "operation_unresolved", quarantined.id: "run_quarantined"}
+    listed = {
+        entry["id"]: entry
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    for identifier, code in watched.items():
+        assert (listed[identifier]["kind"], listed[identifier]["code"]) == ("system_alert", code)
+        await fixture.request("POST", "/attention/seen", {"notification_id": identifier})
+    listed = {
+        entry["id"]
+        for entry in cast(list[dict[str, Any]], await fixture.request("GET", "/attention/view"))
+    }
+    assert not set(watched) & listed
+    print(
+        "PASS the attention view lists every agent's open owner events and waiting questions, and nothing ended"
+    )
+
+
 async def migration(fixture: Fixture) -> None:
     environment = {**os.environ}
 
@@ -561,7 +780,33 @@ async def migration(fixture: Fixture) -> None:
     async with fixture.runtime.db.sessions() as session, session.begin():
         lonora = await ensure_personal_agent(session, fixture.owner)
         thread = (await conversation_thread(session, fixture.owner, lonora.id)).id
+        unknown = {
+            code: (
+                await session.scalars(
+                    select(AttentionRow.id).where(
+                        AttentionRow.owner_id == fixture.owner, AttentionRow.code == code
+                    )
+                )
+            ).all()
+            for code in ("mandate_proposed", "secret_requested")
+        }
+        assert all(unknown.values())
+
+    async def remaining(code: str) -> list[str]:
+        async with fixture.runtime.db.sessions() as session:
+            return list(
+                await session.scalars(
+                    select(AttentionRow.id).where(AttentionRow.id.in_(unknown[code]))
+                )
+            )
+
+    # The code before 0172 does not know mandate_proposed: its downgrade removes those
+    # rows, and 0170's removes secret_requested ones.
+    await asyncio.to_thread(alembic, "downgrade", "0060_agent_trading_mode")
+    assert await remaining("mandate_proposed") == []
+    assert await remaining("secret_requested")
     await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")
+    assert await remaining("secret_requested") == []
     rows = {
         code + status: uuid4().hex[:32]
         for code in ("broker_degraded", "broker_recovered")
@@ -614,12 +859,14 @@ async def migration(fixture: Fixture) -> None:
 async def main() -> None:
     fixture = await Fixture().open()
     try:
+        await mandate_card(fixture)
         await secret_card(fixture)
         await broker_health(fixture)
         await settle_card(fixture)
         await every_alert_wakes(fixture)
         await failed_wake(fixture)
         await fallbacks(fixture)
+        await view(fixture)
         await migration(fixture)
     finally:
         await fixture.close()

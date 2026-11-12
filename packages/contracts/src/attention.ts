@@ -28,7 +28,8 @@ export type AttentionCode =
   | "operation_uncertain"
   | "gateway_degraded"
   | "agent_notification"
-  | "secret_requested";
+  | "secret_requested"
+  | "mandate_proposed";
 /**
  * The events of mandate 11.4 that need the owner, by code: each is one item, ready at
  * once and withdrawn when its card ends or its problem clears. Mirrors ATTENTION_EVENTS
@@ -38,11 +39,13 @@ export type AttentionEvent =
   | "trade_approval"
   | "settle_operation"
   | "secret_request"
+  | "mandate_card"
   | "broker_health";
 export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = {
   approval_required: "trade_approval",
   operation_uncertain: "settle_operation",
   secret_requested: "secret_request",
+  mandate_proposed: "mandate_card",
   broker_token_rejected: "broker_health",
   broker_account_undeployed: "broker_health",
   broker_connection_lost: "broker_health",
@@ -68,7 +71,7 @@ export interface AttentionNotification {
     /** Broker health: when the problem started and the adapter's reason code. */
     since?: string;
     reason_code?: string;
-    /** The Secret card the item is about. */
+    /** The Secret or Mandate card the item is about. */
     owner_action_id?: string;
     /** An Agent's own alert (agent_notification): its plain summary for the owner. */
     summary?: string;
@@ -84,4 +87,41 @@ export interface AttentionPolicy {
   opportunities: boolean;
   informational: boolean;
   locale: "ar" | "en";
+}
+/**
+ * What the "needs your attention" view (mandate 11.7) lists: the owner's events, the
+ * questions a run waits on the owner to answer, the Tasks that need review, and an
+ * agent's own unread alert (owner_notify), and the watchdog's unread items about an
+ * unresolved operation or quarantined work; neither has another place outside chat.
+ */
+export type AttentionViewKind =
+  | AttentionEvent
+  | "owner_question"
+  | "task_review"
+  | "agent_alert"
+  | "system_alert";
+/** Whether an item of this code is listed in the attention view (the tab's dot). */
+export function inAttentionView(code: AttentionCode): boolean {
+  return (
+    code in ATTENTION_EVENTS ||
+    code === "task_review" ||
+    code === "agent_notification" ||
+    code === "operation_unresolved" ||
+    code === "run_quarantined"
+  );
+}
+/** One row of GET /attention/view; it opens its conversation, and opening decides nothing. */
+export interface AttentionViewRow {
+  kind: AttentionViewKind;
+  id: string;
+  agent_id: string;
+  thread_id: string;
+  group_id?: string | null;
+  /** The attention item's code (null for a question a run waits on). */
+  code?: AttentionCode | null;
+  run_id?: string | null;
+  symbol?: string | null;
+  /** An agent's alert: its plain summary for the owner (the agent's words). */
+  summary?: string | null;
+  created_at: string;
 }

@@ -1,5 +1,6 @@
 // The four root tabs (chats, updates, tasks, settings) under one floating tab bar, with the
 // network strip beneath the status bar. Inner pages are stacked above this group.
+import { inAttentionView } from "@lonora/contracts";
 import { unreadBadgeTotal } from "@lonora/core";
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { View } from "react-native";
@@ -28,7 +29,9 @@ export default function TabsLayout() {
           <FloatingTabBar
             section={ROOTS[state.index] ?? "chats"}
             chatsBadge={unreadBadgeTotal(data.inbox)}
-            updatesDot={data.attention.length > 0}
+            updatesDot={data.attention.some(
+              (item) => item.status === "ready" && inAttentionView(item.code),
+            )}
             onTab={(root: RootTab) => {
               lists.end();
               router.navigate(root === "chats" ? "/" : (`/${root}` as never));

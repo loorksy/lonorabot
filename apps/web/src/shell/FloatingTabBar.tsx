@@ -18,7 +18,7 @@ export function tabLabel(root: Root) {
     case "chats":
       return t`Chats`;
     case "updates":
-      return t`Updates`;
+      return t`Needs your attention`;
     case "tasks":
       return t`Tasks`;
     default:

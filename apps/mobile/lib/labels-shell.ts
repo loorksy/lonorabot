@@ -180,7 +180,7 @@ export const shellLabels = {
     "يبدأ بمستوى «دون تنفيذ». يُغيَّر المستوى من محادثته.",
     "It starts at «No trading». The level is changed from its chat.",
   ],
-  sh_updates: ["المستجدات", "Updates"],
+  sh_updates: ["يحتاج انتباهك", "Needs your attention"],
   sh_tasks: ["المهام", "Tasks"],
   sh_settings: ["الإعدادات", "Settings"],
   sh_chats: ["المحادثات", "Chats"],
