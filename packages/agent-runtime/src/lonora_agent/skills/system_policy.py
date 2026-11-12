@@ -45,7 +45,7 @@ def _load(path: Path, mtime_ns: int, manifest_mtime_ns: int) -> PolicyBundle:
         digest = hashlib.sha256(content.encode()).hexdigest()
         bootstrap = {
             name: (path.parent.parent / "bootstrap" / name).read_text()
-            for name in ("AGENTS.md", "SOUL.md", "USER.md", "MEMORY.md")
+            for name in ("AGENTS.md", "SOUL.md")
         }
         if manifest.get("bootstrap_sha256") != {
             name: hashlib.sha256(body.encode()).hexdigest() for name, body in bootstrap.items()
