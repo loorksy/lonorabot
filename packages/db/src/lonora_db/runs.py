@@ -228,13 +228,19 @@ async def claim_next(
     # the thread has ended, so it never overtakes work in retry backoff, an open question
     # or an approved trade waiting for its execution (GENUI_PLAN §8.2).
     earlier = aliased(RunRow)
+    earlier_agent = aliased(AgentRow)
     behind = exists(
-        select(earlier.id).where(
+        select(earlier.id)
+        .join(earlier_agent, earlier_agent.id == earlier.agent_id)
+        .where(
             earlier.thread_id == RunRow.thread_id,
             earlier.agent_id == RunRow.agent_id,
             earlier.id != RunRow.id,
             earlier.created_at < RunRow.created_at,
             earlier.status.not_in(["completed", "failed", "cancelled"]),
+            # A paused agent's held run waits for its resume: the owner's card submission
+            # never waits behind it (4.7.1, 3.2.5).
+            or_(earlier_agent.paused.is_(False), claimable_while_paused(earlier)),
         )
     )
     eligible = and_(

@@ -258,3 +258,63 @@ async def test_a_card_ending_notice_waits_for_the_resume_instead_of_failing() ->
             run.status = "cancelled"
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_owners_card_submission_never_waits_behind_a_held_run() -> None:
+    """Rule Q holds a card submission until its agent's earlier runs end; a paused
+    agent's held run never ends while it is paused, so it is not waited for (3.2.5)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.runs import claim_next, create_run
+    from lonora_db.schema import RunRow
+    from lonora_db.trade_approvals import WITHDRAWN_TRIGGER
+
+    fixture = await Fixture().open()
+    try:
+        gold = await fixture.agent("Paused submit")
+        thread = await fixture.conversation(gold)
+        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": True})
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            held = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=thread["id"],
+                    agent_id=gold["id"],
+                    trigger=WITHDRAWN_TRIGGER,
+                    prompt="x",
+                ),
+                held_while_paused=True,
+            )
+            await session.flush()
+            submission = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(thread_id=thread["id"], agent_id=gold["id"], prompt="card"),
+            )
+            submission.model_metadata = {**submission.model_metadata, "ui_submit_origin": "card"}
+            held_id, submission_id = held.id, submission.id
+        claimed: list[RunRow] = []
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for _ in range(50):
+                row = await claim_next(session, "paused-submit-test", 120)
+                if row is None:
+                    break
+                claimed.append(row)
+                if row.id == submission_id:
+                    break
+            # Runs of other tests sharing this database go back exactly as they were.
+            for row in claimed:
+                if row.id != submission_id:
+                    row.status, row.lease_owner, row.lease_expires_at = "queued", None, None
+        ids = [row.id for row in claimed]
+        assert submission_id in ids and held_id not in ids, ids
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for run_id in (held_id, submission_id):
+                row = await session.get(RunRow, run_id)
+                assert row is not None
+                row.status = "cancelled"
+    finally:
+        await fixture.close()
