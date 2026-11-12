@@ -28,7 +28,7 @@ Superseded by VISION.md
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
-- **الإشعارات على الهاتف:** تصل إشعارة واحدة لكل بطاقة موافقة على صفقة ولكل بطاقة «عملية غير محسومة» عند إنشائها، بنص ثابت وباسم الوكيل، دون سعر أو حجم أو رقم حساب، ولا زر فيها؛ لمسها يفتح المحادثة عند البطاقة. تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
+- **الإشعارات على الهاتف:** تصل إشعارة واحدة عند إنشاء بطاقة موافقة على صفقة، أو بطاقة «عملية غير محسومة»، أو بطاقة سرّ ينتظرها وكيل، وإشعارة واحدة لكل انقطاع في حساب الوسيط (رمز مرفوض، حساب غير مُشغَّل، أو اتصال مقطوع لأكثر من دقيقتين)، بنص ثابت وباسم الوكيل، دون سعر أو حجم أو رقم حساب، ولا زر فيها؛ لمسها يفتح المحادثة عند البطاقة. تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -495,7 +495,10 @@ turned off (`DELETE /api/push/devices/<install id>`). The token is never logged 
 shown to a model.
 
 The gateway step `push` sends one push per record, when it is created, to every phone whose
-sign-in session is live: a pending Trade Approval card and a Settle Uncertain Operation card. The text is
+sign-in session is live: a pending Trade Approval card, a Settle Uncertain Operation card, a
+Secret card an agent's run is waiting on, and a broker health problem (a rejected MetaApi
+token, an undeployed account, or a connection lost for more than two minutes), once per
+account and outage however often its reason changes. The text is
 Lonora's fixed text for that event in the owner's language under the agent's name; no price,
 volume, symbol or account number leaves the server, and the notification has no button. A tap
 opens the conversation at the card, and the card itself is where the owner approves or

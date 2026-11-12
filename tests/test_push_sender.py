@@ -28,6 +28,7 @@ from lonora_db.schema import (
     AttentionRow,
     BrokerSessionRow,
     EffectReceiptRow,
+    OwnerActionRow,
     OwnerRow,
     PushDeviceRow,
     SessionRow,
@@ -471,3 +472,115 @@ async def test_a_phone_that_registered_a_new_token_is_kept(task_db: Fixture) -> 
     await dispatch_push(db, owner_id, CIPHER, expo)
     async with db.sessions() as session:
         assert [row.device_id for row in await session.scalars(select(PushDeviceRow))] == [PHONE]
+
+
+async def secret_card(
+    db: Database, owner_id: str, agent_id: str, thread_id: str, source: str
+) -> str:
+    async with db.sessions() as session, session.begin():
+        card_row = OwnerActionRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            run_id=str(uuid4()) if source == "agent" else None,
+            source=source,
+            kind="connect_credential",
+            subject="secret:" + uuid4().hex,
+            payload={},
+            payload_hash=uuid4().hex,
+            status="pending",
+            timeline_seq=11,
+            expires_at=utcnow() + timedelta(days=7),
+        )
+        session.add(card_row)
+        await session.flush()
+        item = AttentionRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            logical_key=uuid4().hex,
+            coalesce_key=uuid4().hex,
+            importance="action_required",
+            code="secret_requested",
+            parameters={"owner_action_id": card_row.id},
+            due_at=utcnow(),
+        )
+        session.add(item)
+        await session.flush()
+        publish_ready(session, item, None)
+        return card_row.id
+
+
+async def outage(
+    db: Database, owner_id: str, agent_id: str, thread_id: str, account: str | None, code: str
+) -> str:
+    """A disconnected account and its health item, as W-ATTN raises it."""
+    since = (utcnow() - timedelta(minutes=3)).isoformat()
+    async with db.sessions() as session, session.begin():
+        if account is None:
+            row = BrokerSessionRow(owner_id=owner_id, payload={"enabled": True})
+            session.add(row)
+            await session.flush()
+            account = row.id
+        broker = await session.get(BrokerSessionRow, account)
+        assert broker
+        recovery = dict(broker.state.get("broker_recovery") or {})
+        if recovery.get("status") != "disconnected":
+            recovery = {"status": "disconnected", "since": since}
+        recovery["reason_code"] = (
+            "broker_credentials_rejected" if code == "broker_token_rejected" else "timeout"
+        )
+        broker.state = {**broker.state, "broker_recovery": recovery}
+        item = AttentionRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=thread_id,
+            logical_key=uuid4().hex,
+            coalesce_key=uuid4().hex,
+            importance="action_required",
+            code=code,
+            parameters={"account_id": account, "since": recovery["since"]},
+            due_at=utcnow(),
+        )
+        session.add(item)
+        await session.flush()
+        publish_ready(session, item, None)
+    return account
+
+
+@pytest.mark.asyncio
+async def test_a_secret_card_an_agent_waits_on_pushes_and_a_system_one_does_not(
+    task_db: Fixture,
+) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await secret_card(db, owner_id, agent_id, thread_id, "system")
+    await secret_card(db, owner_id, agent_id, thread_id, "agent")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert expo.sent[0]["body"] == attention_text("secret_requested", "ar")
+    assert expo.sent[0]["data"] == {"thread_id": thread_id, "around": 11}
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_broker_problem_pushes_once_per_account_and_outage(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    account = await outage(db, owner_id, agent_id, thread_id, None, "broker_token_rejected")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+    assert expo.sent[0]["body"] == attention_text("broker_token_rejected", "ar")
+    assert expo.sent[0]["data"] == {"thread_id": thread_id}
+    # The same outage named again by another health item (the reason flapped): no push.
+    await outage(db, owner_id, agent_id, thread_id, account, "broker_connection_lost")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 0
+    # A new outage of the same account is a new problem.
+    async with db.sessions() as session, session.begin():
+        broker = await session.get(BrokerSessionRow, account)
+        assert broker
+        broker.state = {"broker_recovery": {"status": "connected"}}
+    await outage(db, owner_id, agent_id, thread_id, account, "broker_connection_lost")
+    assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
