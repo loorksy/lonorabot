@@ -36,10 +36,10 @@ def no_credential(text: str) -> None:
 async def test_first_connect_creates_one_account_with_the_recorded_defaults() -> None:
     api = FakeProvisioningApi()
     account, created = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert created and account.login == LOGIN and account.server == SERVER
-    assert account.platform == "mt5" and account.state == "DEPLOYING"
+    assert account.platform == "mt5" and account.state == "DEPLOYED"  # read back after create
     assert api.creates == [
         {
             "login": LOGIN,
@@ -53,7 +53,11 @@ async def test_first_connect_creates_one_account_with_the_recorded_defaults() ->
     ]
     assert api.accounts[account.account_id]["password"] == PASSWORD
     again, created_again = await client(api).find_or_create(
-        login=LOGIN, server=SERVER.upper(), platform="mt5", password=PASSWORD
+        login=LOGIN,
+        server=SERVER.upper(),
+        platform="mt5",
+        password=PASSWORD,
+        request_key="fixture-request",
     )
     assert not created_again and again.account_id == account.account_id
     assert api.calls.count("create_account") == 1 and len(api.accounts) == 1
@@ -65,7 +69,7 @@ async def test_a_new_account_takes_the_region_of_the_tokens_existing_account() -
     api.servers["Other-Server"] = {"7001": "other-fixture-password"}
     api.link("7001", "Other-Server", region="singapore")
     account, created = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert created and account.region == "singapore"
     assert api.creates[-1]["region"] == "singapore"
@@ -75,12 +79,16 @@ async def test_a_new_account_takes_the_region_of_the_tokens_existing_account() -
 async def test_a_lost_create_answer_finds_the_account_instead_of_a_second_one() -> None:
     api = FakeProvisioningApi(lose_create_answer="after_commit")
     account, created = await client(api).find_or_create(
-        login=" " + LOGIN + " ", server=SERVER, platform="mt5", password=PASSWORD
+        login=" " + LOGIN + " ",
+        server=SERVER,
+        platform="mt5",
+        password=PASSWORD,
+        request_key="fixture-request",
     )
     assert created and list(api.accounts) == [account.account_id]
     assert api.calls.count("create_account") == 1 and api.creates[0]["login"] == LOGIN
     again, created_again = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert not created_again and again.account_id == account.account_id
 
@@ -90,11 +98,15 @@ async def test_a_create_lost_before_metaapi_saw_it_fails_and_the_retry_creates_o
     api = FakeProvisioningApi(lose_create_answer="before_commit")
     with pytest.raises(LonoraError) as lost:
         await client(api).find_or_create(
-            login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+            login=LOGIN,
+            server=SERVER,
+            platform="mt5",
+            password=PASSWORD,
+            request_key="fixture-request",
         )
     assert lost.value.code == "broker_provisioning_unavailable" and api.accounts == {}
     account, created = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert created and list(api.accounts) == [account.account_id]
     assert "login" not in repr(account) and LOGIN not in repr(account)
@@ -111,7 +123,7 @@ async def test_an_owner_linked_account_is_reused_deployed_one_first() -> None:
     assert found is not None and found.account_id == running != stopped
     assert found.deployed and found.connected
     account, created = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert not created and account.account_id == running
     assert "create_account" not in api.calls
@@ -134,7 +146,11 @@ async def test_refusals_are_mapped_and_carry_no_credential(
     caplog.set_level(logging.DEBUG)
     with pytest.raises(LonoraError) as refused:
         await client(api).find_or_create(
-            login=LOGIN, server=server, platform="mt5", password=password
+            login=LOGIN,
+            server=server,
+            platform="mt5",
+            password=password,
+            request_key="fixture-request",
         )
     assert refused.value.code == code and api.accounts == {}
     assert refused.value.__cause__ is None and refused.value.__suppress_context__
@@ -146,7 +162,13 @@ async def test_refusals_are_mapped_and_carry_no_credential(
 async def test_platform_is_required() -> None:
     api = FakeProvisioningApi()
     with pytest.raises(LonoraError) as refused:
-        await client(api).find_or_create(login=LOGIN, server=SERVER, platform="", password=PASSWORD)
+        await client(api).find_or_create(
+            login=LOGIN,
+            server=SERVER,
+            platform="",
+            password=PASSWORD,
+            request_key="fixture-request",
+        )
     assert refused.value.code == "broker_platform_required" and api.calls == []
 
 
@@ -155,7 +177,7 @@ async def test_lifecycle_reports_state_and_broker_connection_status() -> None:
     api = FakeProvisioningApi()
     provisioning = client(api)
     account, _ = await provisioning.find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     deployed = await provisioning.deploy(account.account_id)
     assert deployed.deployed and deployed.connected
@@ -197,7 +219,7 @@ async def test_a_password_update_keeps_an_owner_linked_accounts_settings() -> No
 async def test_the_client_never_opens_a_terminal_connection_or_trades() -> None:
     api = FakeProvisioningApi()
     account, _ = await client(api).find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     for forbidden in ("get_rpc_connection", "get_streaming_connection", "update"):
         with pytest.raises(LonoraError) as refused:
@@ -273,7 +295,11 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
     scripted(provisioning, transport)
     with pytest.raises(LonoraError) as refused:
         await provisioning.find_or_create(
-            login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+            login=LOGIN,
+            server=SERVER,
+            platform="mt5",
+            password=PASSWORD,
+            request_key="fixture-request",
         )
     assert refused.value.code == "broker_password_rejected"
     assert [request["method"] for request in transport.requests] == ["GET", "GET", "POST"]
@@ -297,7 +323,11 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
         )
         with pytest.raises(LonoraError) as mapped:
             await provisioning.find_or_create(
-                login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+                login=LOGIN,
+                server=SERVER,
+                platform="mt5",
+                password=PASSWORD,
+                request_key="fixture-request",
             )
         assert mapped.value.code == code
 
@@ -311,7 +341,11 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
     scripted(provisioning, transport)
     with pytest.raises(LonoraError) as failed:
         await provisioning.find_or_create(
-            login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+            login=LOGIN,
+            server=SERVER,
+            platform="mt5",
+            password=PASSWORD,
+            request_key="fixture-request",
         )
     assert failed.value.code == "broker_provisioning_unavailable"
     assert [request["method"] for request in transport.requests].count("POST") == 1
@@ -326,12 +360,15 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
     )
     scripted(provisioning, transport)
     account, was_created = await provisioning.find_or_create(
-        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="fixture-request"
     )
     assert was_created and account.account_id == "fixture-created"
     posts = [request for request in transport.requests if request["method"] == "POST"]
     assert len(posts) == 2 and posts[0]["headers"] == posts[1]["headers"]
     assert json.dumps(posts[0]["body"]) == json.dumps(posts[1]["body"])
+    # Account-entity calls only: no terminal socket was ever opened (R1).
+    websocket = provisioning.api._metaapi_websocket_client
+    assert not any(websocket._socket_instances.values())
     await provisioning.close()
     await trading.close()
 
@@ -345,3 +382,34 @@ async def test_an_account_access_token_cannot_provision() -> None:
         await provisioning.accounts()
     assert refused.value.code == "broker_token_rejected" and transport.requests == []
     await provisioning.close()
+
+
+@pytest.mark.asyncio
+async def test_a_create_sent_again_carries_the_same_transaction_id() -> None:
+    api = FakeProvisioningApi(lose_create_answer="before_commit")
+    with pytest.raises(LonoraError):
+        await client(api).find_or_create(
+            login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="card-1"
+        )
+    account, created = await client(api).find_or_create(
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="card-1"
+    )
+    assert created and len(api.transactions) == 2 and len(set(api.transactions)) == 1
+    assert len(api.transactions[0]) == 32 and api.transactions[0].isalpha()
+    # The answer is lost after MetaApi stored the account: the same key finds it, and a
+    # create sent again would carry the same transaction id.
+    api.lose_create_answer = "after_commit"
+    again, created_again = await client(api).find_or_create(
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="card-1"
+    )
+    assert not created_again and again.account_id == account.account_id
+    assert len(api.accounts) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failed_read_after_a_successful_create_is_not_a_refusal() -> None:
+    api = FakeProvisioningApi(lose_read_after_create=True)
+    account, created = await client(api).find_or_create(
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD, request_key="card-3"
+    )
+    assert created and account.login == LOGIN and len(api.accounts) == 1

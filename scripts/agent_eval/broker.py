@@ -676,6 +676,11 @@ class FakeProvisioningApi:
     # "after_commit": MetaApi creates the account and the answer is lost on the way back;
     # "before_commit": the request is lost before MetaApi saw it.
     lose_create_answer: Literal["after_commit", "before_commit"] | None = None
+    # The create succeeds, then the SDK's read of the new account fails once (429).
+    lose_read_after_create: bool = False
+    unreadable: set[str] = field(default_factory=set[str])
+    transactions: list[str] = field(default_factory=list[str])
+    by_transaction: dict[str, str] = field(default_factory=dict[str, str])
     sequence: int = 0
 
     def called(self, method: str) -> None:
@@ -736,6 +741,9 @@ class FakeProvisioningApi:
 
     async def get_account(self, account_id: str) -> FakeAccountEntity:
         self.called("get_account")
+        if account_id in self.unreadable:
+            self.unreadable.discard(account_id)
+            raise sdk_error("TooManyRequestsException", "Rate limited", {}, PROVISIONING_URL)
         return self.entity(account_id)
 
     async def get_accounts_with_infinite_scroll_pagination(
@@ -753,7 +761,35 @@ class FakeProvisioningApi:
         ]
         return [self.entity(account_id) for account_id in rows[offset : offset + limit]]
 
-    async def create_account(self, account: dict[str, Any]) -> FakeAccountEntity:
+    @property
+    def _metatrader_account_client(self) -> Any:
+        """The SDK account client's surface the provisioning client posts a create with."""
+        api = self
+
+        class HttpClient:
+            async def request(self, options: dict[str, Any], kind: str) -> dict[str, Any]:
+                assert kind == "create_account" and options["method"] == "POST"
+                transaction = options["headers"]["transaction-id"]
+                api.transactions.append(transaction)
+                if transaction in api.by_transaction:
+                    # MetaApi answers a repeated transaction id with the same account.
+                    return {"id": api.by_transaction[transaction], "state": "DEPLOYING"}
+                created = await api.create_account(options["body"], transaction)
+                if api.lose_read_after_create:
+                    api.lose_read_after_create = False
+                    api.unreadable.add(created.id)
+                return {"id": created.id, "state": "DEPLOYING"}
+
+        return SimpleNamespace(
+            _is_not_jwt_token=lambda: False,
+            _host="https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai",
+            _token="fixture",
+            _http_client=HttpClient(),
+        )
+
+    async def create_account(
+        self, account: dict[str, Any], transaction: str | None = None
+    ) -> FakeAccountEntity:
         self.called("create_account")
         self.creates.append({key: value for key, value in account.items() if key != "password"})
         server = self.servers.get(account["server"])
@@ -786,6 +822,8 @@ class FakeProvisioningApi:
             "connectionStatus": "DISCONNECTED",
             **{key: account[key] for key in ("login", "server", "name", "password", "magic")},
         }
+        if transaction:
+            self.by_transaction[transaction] = account_id
         if self.lose_create_answer == "after_commit":
             self.lose_create_answer = None
             raise lost
