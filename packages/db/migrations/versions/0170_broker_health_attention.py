@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0170_broker_health_attention"
-down_revision = "0060_agent_trading_mode"
+down_revision = ("0060_agent_trading_mode", "0140_push_devices")
 branch_labels = None
 depends_on = None
 
