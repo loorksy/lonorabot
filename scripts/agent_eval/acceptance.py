@@ -505,9 +505,11 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             if row.payload.get("destination") == "broker"
         ]
     if not cards:
-        if stage.model is None:
-            raise AssertionError("no broker Secret card was raised")
-        raise NotExercised("Lonora did not raise the password card")
+        called = [c for c in stage.calls if c["tool"] == "broker_connect"]
+        if stage.model is None or called:
+            # The model asked for the card and none came: a product fault, not a choice.
+            raise AssertionError(f"no broker Secret card was raised ({len(called)} calls)")
+        raise NotExercised("Lonora did not call broker_connect")
     card = cards[-1]
     values = {"PASSWORD": password, "METAAPI_TOKEN": given["token"]}
     asks = [field["key"] for field in card.payload["fields"]]
@@ -544,7 +546,10 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
                 break
     before_wake = len(await stage.replies(thread, lonora))
     await stage.drain()
+    from lonora_session.idempotency import stable_id
+
     async with db.sessions() as session:
+        wake = await session.get(RunRow, stable_id(card.id, "continue-after-card"))
         connection = (
             await session.get(BrokerSessionRow, outcome["connection_id"])
             if outcome.get("connection_id")
@@ -560,10 +565,11 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             default=str,
         )
     reported = await stage.replies(thread, lonora)
-    balance = given["balance"]
+    balance = re.compile(r"(?<![\d.])" + re.escape(given["balance"]) + r"(?!\d)")
+    woken = wake.prompt if wake is not None else ""
     return [
         (
-            "Lonora asked for the account number and server in chat first",
+            "Lonora answered first and connected only after the owner gave the account",
             bool(asked) and not early,
             f"{len(asked)} replies before the answer; broker_connect before it: {early}",
         ),
@@ -588,8 +594,13 @@ async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
             "connection " + ("made" if connection is not None else "missing"),
         ),
         (
+            "the wake carries the balance the broker reports",
+            bool(balance.search(digits(woken))),
+            "wake " + ("found" if wake is not None else "missing"),
+        ),
+        (
             "Lonora reports the balance",
-            any(balance in digits(text) for text in reported[before_wake:]),
+            any(balance.search(digits(text)) for text in reported[before_wake:]),
             f"{len(reported) - before_wake} replies after the provisioning wake",
         ),
         (

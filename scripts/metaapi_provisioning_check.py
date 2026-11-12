@@ -38,6 +38,20 @@ from lonora_db.schema import BrokerSessionRow, OwnerRow
 from lonora_db.secrets import METAAPI_TOKEN
 from sqlalchemy import select
 
+# Answers that prove MetaApi made no account.
+REFUSED = frozenset(
+    {
+        "broker_password_rejected",
+        "broker_server_not_found",
+        "broker_provisioning_rejected",
+        "broker_token_rejected",
+    }
+)
+STRAY = (
+    "Check metaapi.cloud for an account named 'Lonora <the demo server>' with no Lonora "
+    "connection, and remove it there."
+)
+
 
 def say(line: str) -> None:
     print(line, flush=True)
@@ -55,11 +69,17 @@ async def probe(client: MetaApiProvisioning, *, server: str, platform: str, expe
         )
     except LonoraError as failure:
         say(f"  refused with {failure.code} (expected {expected})")
+        if failure.code not in REFUSED:
+            # A timeout or an outage: MetaApi may still have made the account.
+            say(f"  {STRAY}")
         return failure.code == expected
     say(f"  NOT refused: MetaApi {'created' if created else 'found'} an account; removing it")
     if created:
-        await client.remove(found.account_id)
-        say("  removed")
+        try:
+            await client.remove(found.account_id)
+            say("  removed")
+        except LonoraError as failure:
+            say(f"  removal failed with {failure.code}. {STRAY}")
     return False
 
 
@@ -107,13 +127,28 @@ async def check(probe_refusals: bool, owner: str | None = None) -> int:
                     say(f"connection {index}: no observed identity on record")
                     failures += 1
                     continue
-                found = await client.find(str(identity["login"]), str(identity["server"]))
-                same = found is not None and found.account_id == config.account_id
-                state = await client.state(config.account_id)
+                # Each connection is read with its own token, as the product does.
+                own = (
+                    client
+                    if config.secret_id in {None, token_id}
+                    else MetaApiProvisioning(await broker.read(str(config.secret_id)))
+                )
+                try:
+                    found = await own.find(str(identity["login"]), str(identity["server"]))
+                    same = found is not None and found.account_id == config.account_id
+                    state = await own.state(config.account_id)
+                except LonoraError as failure:
+                    say(f"connection {index}: read failed with {failure.code}")
+                    failures += 1
+                    continue
+                finally:
+                    if own is not client:
+                        await own.close()
                 say(
                     f"connection {index}: found again by login and server: "
                     f"{'yes' if found else 'no'}; the same MetaApi account: {'yes' if same else 'no'}; "
-                    f"state {state.state}; broker link {state.connection_status}"
+                    f"state {state.state}; broker link {state.connection_status}; "
+                    f"region on record: {'yes' if config.region else 'no'}"
                 )
                 failures += 0 if same else 1
                 demo = demo or {

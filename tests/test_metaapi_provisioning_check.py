@@ -85,8 +85,16 @@ async def test_the_live_check_reads_finds_and_probes_without_printing_identifier
             return FakeMetaApiProvisioning(api, value)
 
         with patch.object(check, "MetaApiProvisioning", client):
+            await check.check(False, owner=fixture.owner)
+            quiet = capsys.readouterr().out
+            calls = list(api.calls)
             code = await check.check(True, owner=fixture.owner)
         out = capsys.readouterr().out
+        # Without --probe-refusals it only reads: no create, update, deploy or remove.
+        assert "probe" not in quiet and not {"create_account", "update", "deploy", "remove"} & set(
+            calls
+        )
+        assert "found again by login and server: yes" in quiet
         if not others:  # other tests' connections in a shared database fail their own line
             assert code == 0, out
         assert "found again by login and server: yes; the same MetaApi account: yes" in out
