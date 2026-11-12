@@ -26,6 +26,7 @@
 - **النطاق:** عند التثبيت مباشرة على الاسم الأساسي استخدم `--domain lonora.lork.cloud`. إن ثبّتّ على اسم تجريبي ثم أردت التحويل: غيّر `LONORA_DOMAIN=lonora.lork.cloud` في `/opt/lonora2/.env` ثم نفّذ `sudo lonora start` قبل تعديل traefik.
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
+- **الإشعارات على الهاتف:** تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -447,6 +448,39 @@ printed `sudo lonora restore FILE --replace`), go back to the state before it
 (`sudo lonora restore <its safety backup> --replace`; the safety backup is named in `lonora status`
 and is never rotated away), or `sudo lonora restore --abandon` (asks to type ABANDON, or `--yes`),
 which only clears the marker and leaves the database as it is.
+
+## Push to the owner's phone
+
+Push goes through the Expo push service with the owner's own Expo project (VISION 11.4). What
+exists at this commit is the phone side: after sign-in the app asks for the notification
+permission and registers the phone with `PUT /api/push/devices/<install id>` (owner session
+only). The server stores the Expo push token encrypted, bound to the sign-in session that sent
+it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds the permission
+turned off (`DELETE /api/push/devices/<install id>`). A revoked or expired session's phone is
+never a push target. The token is never logged and never shown to a model.
+
+A native release with push needs, once:
+
+1. An Expo project at expo.dev owned by the owner; its project id (a UUID) is
+   `LONORA_EXPO_PROJECT_ID`.
+2. A Firebase project with an Android app whose package is `ai.lonora.mobile`; download its
+   `google-services.json` and upload the same project's FCM V1 service-account key to the
+   Expo project (expo.dev, project credentials, Android, FCM V1). The path of the
+   `google-services.json` file is `LONORA_ANDROID_GOOGLE_SERVICES_FILE`.
+3. For iOS (no iOS release is built today): an APNs key registered in the same Expo project.
+
+Then build the APK as usual with both variables set:
+
+```bash
+LONORA_EXPO_PROJECT_ID=<uuid> LONORA_ANDROID_GOOGLE_SERVICES_FILE=/path/google-services.json \
+  pnpm --filter @lonora/mobile android:release
+```
+
+The release refuses one variable without the other, verifies that the APK declares
+`POST_NOTIFICATIONS`, and prints `Push: built in.`. Without the variables it prints
+`Push: not configured`, and that build never asks for the permission or registers. The
+notification module is native code, so an OTA update cannot add it to an older APK: the phone
+needs this new APK (the fingerprint `runtimeVersion` changes with it).
 
 ## Release manifest and client versions
 
