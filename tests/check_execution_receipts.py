@@ -29,6 +29,7 @@ from lonora_contracts.trading import (
     TradingControl,
 )
 from lonora_core.user_error import LonoraError
+from lonora_db import execution_receipts as receipts_module
 from lonora_db.agent_permissions import change_permission
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.execution_receipts import thread_receipts
@@ -305,7 +306,25 @@ async def checks() -> None:
     assert await count(db, killed.operation_id) == 1
     print("PASS a restart between the broker effect and the journal posts exactly one receipt")
 
-    # 8. Deleting the conversation, then the agent, keeps the receipt (3.1.2).
+    # 8. A failure while placing the receipt never undoes the broker's confirmation.
+    async def broken(*_: Any) -> None:
+        raise RuntimeError("placement failed")
+
+    placing = receipts_module._posting_thread
+    receipts_module._posting_thread = broken  # type: ignore[assignment]
+    try:
+        unplaced = buy()
+        assert (await service.execute(owner_id, unplaced, gold_lease)).status == "confirmed"
+    finally:
+        receipts_module._posting_thread = placing  # type: ignore[assignment]
+    async with db.sessions() as session:
+        journal = await session.get(TradingJournalRow, unplaced.operation_id)
+        assert journal is not None and journal.status == "confirmed"
+    kept = await receipt(db, unplaced.operation_id)
+    assert kept.thread_id is None and kept.agent_id == gold_id
+    print("PASS a placement failure keeps the confirmation and its one receipt")
+
+    # 9. Deleting the conversation, then the agent, keeps the receipt (3.1.2).
     async with db.sessions() as session, session.begin():
         await session.execute(delete(ThreadRow).where(ThreadRow.id == threads["gold"]))
     kept = await receipt(db, full.operation_id)

@@ -130,20 +130,32 @@ async def post_receipt(session: AsyncSession, row: TradingJournalRow) -> bool:
     """
     if row.status != "confirmed":
         return False
-    thread = await _posting_thread(session, row)
     agent_id = _execution(row).get("agent_id")
-    posted = await session.scalar(
-        insert(ExecutionReceiptRow)
-        .values(
-            operation_id=row.operation_id,
-            owner_id=row.owner_id,
-            agent_id=agent_id if isinstance(agent_id, str) and agent_id else None,
-            thread_id=thread.id if thread is not None else None,
-            timeline_seq=thread.next_seq if thread is not None else None,
+    agent_id = agent_id if isinstance(agent_id, str) and agent_id else None
+
+    async def insert_receipt(thread: ThreadRow | None) -> str | None:
+        return await session.scalar(
+            insert(ExecutionReceiptRow)
+            .values(
+                operation_id=row.operation_id,
+                owner_id=row.owner_id,
+                agent_id=agent_id,
+                thread_id=thread.id if thread is not None else None,
+                timeline_seq=thread.next_seq if thread is not None else None,
+            )
+            .on_conflict_do_nothing(index_elements=[ExecutionReceiptRow.operation_id])
+            .returning(ExecutionReceiptRow.operation_id)
         )
-        .on_conflict_do_nothing(index_elements=[ExecutionReceiptRow.operation_id])
-        .returning(ExecutionReceiptRow.operation_id)
-    )
+
+    try:
+        async with session.begin_nested():
+            thread = await _posting_thread(session, row)
+            posted = await insert_receipt(thread)
+    except Exception:
+        # Where it is posted never stands between the broker's confirmation and the
+        # journal: the receipt is kept, without a conversation, rather than lost with it.
+        thread = None
+        posted = await insert_receipt(None)
     if posted is None:
         return False
     # Clients refresh the conversation; an Execution Receipt never sends a push (11.4).
@@ -152,7 +164,7 @@ async def post_receipt(session: AsyncSession, row: TradingJournalRow) -> bool:
         row.owner_id,
         "trading.receipt_posted",
         thread_id=thread.id if thread is not None else None,
-        agent_id=agent_id if isinstance(agent_id, str) and agent_id else None,
+        agent_id=agent_id,
         payload={"operation_id": row.operation_id},
     )
     return True
