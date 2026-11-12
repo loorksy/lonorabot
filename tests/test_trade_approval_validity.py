@@ -144,14 +144,18 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
         agent = await fixture.agent("Validity at approve", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         asked = await same_call(
-            context, "band", **ENTRY, account_id=connection, reason="Retest", tolerance="1"
+            context, "band", **ENTRY, account_id=connection, reason="Retest", tolerance="10"
         )
         assert asked.get("approval_id"), asked
+        shown = await fixture.request("GET", f"/trading/approvals?thread_id={context.thread_id}")
+        card = next(row for row in shown if row["id"] == asked["approval_id"])  # type: ignore[union-attr]
+        # Plain decimals, never an exponent ("1E+1").
+        assert card["tolerance"] == "10", card
         async with fixture.runtime.db.sessions() as session, session.begin():
             waiting = await session.get(RunRow, context.lease.run_id, with_for_update=True)
             assert waiting is not None
             waiting.status = "waiting_input"
-        await set_quote(fixture, connection, "104", "105")
+        await set_quote(fixture, connection, "120", "121")
         tapped = await fixture.client.post(
             f"/api/trading/approvals/{asked['approval_id']}/decision",
             json={"decision": "approve"},

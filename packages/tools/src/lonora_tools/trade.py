@@ -385,7 +385,7 @@ async def reference_quote(context: ToolContext, request: TradeRequest) -> dict[s
         "account_id": request.account_id,
         "symbol": request.symbol,
         "side": "ask" if buy else "bid",
-        "price": str((quote.ask if buy else quote.bid).normalize()),
+        "price": format((quote.ask if buy else quote.bid).normalize(), "f"),
     }
 
 
@@ -561,7 +561,7 @@ async def approved_execution(
                 },
             )
         validity = {
-            "tolerance": str(annotation.tolerance.normalize()),
+            "tolerance": format(annotation.tolerance.normalize(), "f"),
             "reference": await reference_quote(context, adding[0]),
         }
     try:
