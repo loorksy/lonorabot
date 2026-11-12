@@ -43,7 +43,7 @@ export function ChatPrefsPage() {
         />
       </div>
       <h3>
-        <Trans>Writing</Trans>
+        <Trans context="settings section">Writing</Trans>
       </h3>
       <div className="group">
         <ToggleRow

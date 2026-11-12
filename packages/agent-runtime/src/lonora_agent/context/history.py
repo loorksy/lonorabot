@@ -9,10 +9,18 @@ from lonora_core.message_preview import model_content
 from lonora_db.genui_submit import NEVER_RAN_NOTE, never_ran, submit_status
 from lonora_db.owner_words import submit_hidden
 from lonora_db.schema import AgentRow, MessageRow, RunRow
+from lonora_db.threads import asks_in
 from lonora_tools.runtime_control import WaitInput
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Read by a later turn of the conversation: the owner's answer to a background run's
+# question already went to that work, which acts on it and reports here.
+ROUTED_ANSWER_NOTE = (
+    "\n[This answered a question from your background work; that work received it, acts"
+    " on it and reports here.]"
+)
 
 HISTORY_WINDOW = 100
 
@@ -35,8 +43,8 @@ def peer_content(name: str, text: str) -> str:
 
 
 def card_words(row: MessageRow, run: RunRow | None) -> str:
-    """Card words are labelled as such, never as the owner's own (§8.4); the submission a
-    Run answers carries its validated data as ``<ui_submit>``, marked as data (§3.7)."""
+    """Card words are labelled as such, never as the owner's own (docs/genui.md §7); the submission a
+    Run answers carries its validated data as ``<ui_submit>``, marked as data (docs/genui.md §7)."""
     if row.origin == "ui_follow_up":
         return "[owner_via_card]\n" + row.content
     if row.origin != "ui_submit":
@@ -154,22 +162,46 @@ async def history_context(
     # choices. Recover a bounded projection so a new turn can understand the
     # original alternatives without manufacturing them or reading future replies.
     question_ids = {row.id for row in rows if row.role == "assistant"}
+    answer_ids = {row.id for row in rows if row.role == "user"}
     options: dict[str, str] = {}
+    remote_answers: dict[str, str] = {}
     if question_ids:
-        histories = await session.scalars(
-            select(RunRow.execution_state["input_requests"])
-            .where(RunRow.thread_id == thread_id, RunRow.input_seq <= input_seq)
+        # A background run's question copied here is read like this thread's own; the
+        # answer the owner gave it is marked as already sent to that work.
+        histories = await session.execute(
+            select(RunRow.thread_id, RunRow.execution_state["input_requests"])
+            .where(
+                or_(
+                    and_(RunRow.thread_id == thread_id, RunRow.input_seq <= input_seq),
+                    asks_in(thread_id),
+                )
+            )
             .order_by(RunRow.created_at.desc())
             .limit(100)
         )
-        for history in histories:
+        for asker_thread, history in histories:
             if not isinstance(history, list):
                 continue
             for raw in reversed(cast(list[Any], history)[-20:]):
                 if not isinstance(raw, dict):
                     continue
                 item = cast(dict[str, Any], raw)
-                message_id = item.get("message_id")
+                answered = item.get("answer_message_id")
+                if asker_thread != thread_id and answered in answer_ids:
+                    options.setdefault(str(answered), ROUTED_ANSWER_NOTE)
+                # A background run's own question is in its thread (``source_message_id``);
+                # the request names the copy in the conversation it reports to.
+                message_id = (
+                    item.get("source_message_id") or item.get("message_id")
+                    if asker_thread == thread_id
+                    else item.get("message_id")
+                )
+                if (
+                    asker_thread == thread_id
+                    and item.get("source_message_id") in question_ids
+                    and isinstance(answered, str)
+                ):
+                    remote_answers[str(item["source_message_id"])] = answered
                 if (
                     not isinstance(message_id, str)
                     or message_id not in question_ids
@@ -190,6 +222,24 @@ async def history_context(
                         ensure_ascii=False,
                     ).replace("<", "\\u003c")
                     options[message_id] = "\n<question_choices>" + payload + "</question_choices>"
+    if remote_answers:
+        # The owner answered this run's question in the conversation it reports to: the
+        # work thread, its memory, keeps what the owner said.
+        answers = {
+            row.id: row
+            for row in await session.scalars(
+                select(MessageRow).where(MessageRow.id.in_(list(remote_answers.values())))
+            )
+        }
+        for question_id, answer_id in remote_answers.items():
+            answer = answers.get(answer_id)
+            if answer is not None and answer.role == "user":
+                options[question_id] = (
+                    options.get(question_id, "")
+                    + "\n[The owner answered in the conversation: "
+                    + model_content(answer.content, answer.rich_content)[:2000]
+                    + "]"
+                )
     names = {
         agent.id: agent.name
         for agent in (
@@ -204,7 +254,7 @@ async def history_context(
     for row in reversed(rows):
         peer = bool(agent_id and row.agent_id and row.agent_id != agent_id)
         if row.origin == "ui_submit" and await submit_hidden(session, row, run):
-            # Rules V and N (GENUI_PLAN §8.2): a submission another Run has not finished is
+            # Rules V and N (docs/genui.md): a submission another Run has not finished is
             # not shown at all; one whose Run never started leaves only a note, never its
             # bubble, intent, data or values.
             if never_ran(row.ui_submit, await submit_status(session, row)):

@@ -172,16 +172,11 @@ test("mute silences a chat's heads-up and badge; critical attention always shows
   await desktopRow(page, key(personal)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Mute notifications" }).click();
   await expect(desktopRow(page, key(personal)).getByRole("img", { name: "Muted" })).toBeVisible();
-  const controls = await (await context.request.get("/api/trading/controls")).json();
   try {
     const alert = seed({ action: "attention" });
     expect(alert.importance).toBe("critical");
     await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
   } finally {
-    seed({
-      action: "restore",
-      controls: { enabled: controls.enabled, emergency_stop: controls.emergency_stop },
-    });
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
     await context.request.post("/api/threads/prefs", {
       headers,
@@ -202,6 +197,15 @@ test("archive leaves the list with an undo; the archived page keeps its setting"
   await toolbar(page).getByRole("button", { name: "Archive", exact: true }).click();
   const toast = page.locator("#toast");
   await expect(toast).toContainText("one chat archived");
+  // The toast stays centred once its pop-in ends.
+  await expect
+    .poll(() =>
+      toast.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return Math.round(box.left + box.width / 2 - window.innerWidth / 2);
+      }),
+    )
+    .toBe(0);
   await expect(desktopRow(page, key(gamma))).toHaveCount(0);
   await expect(page.locator(".desktop-list .archive-row")).toBeVisible();
   await toast.getByRole("button", { name: "Undo" }).click();
@@ -400,6 +404,56 @@ test("unified search: categories with counts, the latest query only, and the jum
   await expect(page.locator(".desktop-list .thread[data-key]").first()).toBeVisible();
 });
 
+test("a task, a note and a text file found by search each open their own page", async ({
+  page,
+  context,
+}) => {
+  const fixture = seed({ action: "init" });
+  await signIn(context, fixture);
+  const agent = fixture.agents[0].id;
+  const hit = (category, id, extra = {}) => ({
+    category,
+    id,
+    title: `${category} ${id}`,
+    snippet: "found",
+    created_at: null,
+    agent_id: agent,
+    ...extra,
+  });
+  const results = {
+    tasks: [hit("tasks", "task-1")],
+    knowledge: [hit("knowledge", "note-1", { kind: "note" })],
+    files: [
+      hit("files", "file-1", { title: "plan.md", media_type: "text/markdown" }),
+      hit("files", "file-2", { title: "chart.png", media_type: "image/png" }),
+    ],
+  };
+  await page.route("**/api/search?*", (route) =>
+    route.fulfill({
+      json: {
+        q: "found",
+        category: null,
+        limit: 20,
+        offset: 0,
+        counts: { tasks: 1, knowledge: 1, files: 2 },
+        results,
+      },
+    }),
+  );
+  const field = page.locator("#desktop-search");
+  const open = async (category, index, url) => {
+    await page.goto("/app");
+    await field.fill("found");
+    await page.locator(`#search-results [data-search-hit='${category}']`).nth(index).click();
+    await expect(page).toHaveURL(url);
+  };
+  await open("tasks", 0, /\/app\/tasks\/task-1$/);
+  await open("knowledge", 0, new RegExp(`/app/knowledge-edit\\?agent=${agent}&item=note-1$`));
+  await open("files", 0, new RegExp(`/app/file-edit\\?item=file-1&agent=${agent}$`));
+  // A file that is not text has no page in «الملفات»: it keeps its viewer.
+  await open("files", 1, /\/app\/artifacts\/file-2$/);
+});
+
 test("a message hit from an agent's other conversation opens that conversation", async ({
   page,
   context,
@@ -464,6 +518,16 @@ test("phone search browses recent content when the query is empty", async ({ pag
   await page.getByRole("tab", { name: "الرسائل" }).click();
   await expect(page.locator("#search-results .search-count")).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(page.locator("#app")).not.toHaveClass(/search-mode/);
+  // A tap on the results keeps the search; a tap on the blank space below them closes it.
+  await page.locator("#search").fill("zzzz-no-hit");
+  const surface = page.locator(".search-surface");
+  await expect(surface).toBeVisible();
+  await surface.click({ position: { x: 20, y: 10 } });
+  await expect(page.locator("#app")).toHaveClass(/search-mode/);
+  const box = await surface.boundingBox();
+  expect(box.y + box.height).toBeLessThan(560);
+  await page.mouse.click(195, 600);
   await expect(page.locator("#app")).not.toHaveClass(/search-mode/);
 });
 

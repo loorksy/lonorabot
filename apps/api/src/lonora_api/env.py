@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     chart_renderer_url: str | None = None
     chart_browser_executable: Path | None = None
     chart_browser_sandbox: bool = True
-    workspace_socket: Path | None = None
     # The `lonora` CLI endpoint (7.3): served only on this Unix socket, never by Caddy.
     cli_socket: Path = Path(".runtime/cli/lonora.sock")
     searxng_url: str | None = None
@@ -84,13 +83,6 @@ class Settings(BaseSettings):
             raise ValueError("mcp_declarations_duplicate")
         return values
 
-    @field_validator("workspace_socket")
-    @classmethod
-    def absolute_workspace_socket(cls, value: Path | None) -> Path | None:
-        if value is not None and not value.is_absolute():
-            raise ValueError("workspace_socket_invalid")
-        return value
-
     artifact_root: Path = Path(".runtime/artifacts")
     android_apk_path: Path = Path(".runtime/releases/android/lonora.apk")
     ota_root: Path = Path(".runtime/releases/ota")
@@ -99,6 +91,8 @@ class Settings(BaseSettings):
     maximum_tool_rounds: int = Field(default=24, ge=1, le=100)
     maximum_subagents: int = Field(default=4, ge=1, le=12)
     webhook_secret: SecretStr | None = None
+    # Optional: the owner's Expo access token, when the Expo project requires one to push.
+    expo_access_token: SecretStr | None = None
     log_level: str = "INFO"
 
 

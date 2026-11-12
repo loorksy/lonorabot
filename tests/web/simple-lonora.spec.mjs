@@ -17,7 +17,6 @@ const worker = (data) => python(["tests/check_simple_lonora.py", "--ui-turn"], d
 
 const words = {
   createGold: "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
-  pauseToday: "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب",
   buyOnce: "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
 };
 const text = {
@@ -26,12 +25,9 @@ const text = {
   authorize: "التفويض بمفتاح المرور",
   password: "كلمة مرور الحساب",
   register: "سجّل هذا الجهاز أولًا",
-  resumeToo: "استأنف التداول أيضًا",
   signed: "وُقّع. يتداول بنفسه ضمن هذا التفويض.",
-  lift: "رفع الإيقاف",
   onItsOwn: "يتداول باستقلال",
   dailyLoss: "الخسارة اليومية",
-  paused: "لا صفقات جديدة",
   asks: "يسألك قبل كل صفقة",
 };
 
@@ -42,14 +38,14 @@ const raised = (turn, kind) => turn.cards.filter((row) => row.kind === kind).map
 async function modeLine(page) {
   await page.getByRole("button", { name: /^(Chat menu|قائمة المحادثة)$/ }).click();
   await page
-    .getByRole("button", {
+    .getByRole("menuitem", {
       name: /^(Status and safety|الحالة والأمان|Trading and safety|التداول والأمان)$/,
     })
     .click();
   return page.getByTestId("agent-mode-line");
 }
 
-test("ar: one sentence creates a gold agent; one tap approves a trade, one passkey signs the grant, one tap lifts today's pause", async ({
+test("ar: one sentence creates a gold agent; one tap approves a trade, one passkey signs the grant", async ({
   page,
   context,
 }) => {
@@ -65,7 +61,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   );
   await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
   const headers = { "X-CSRF-Token": data.cookies.find((row) => row.name === "lonora_csrf").value };
-  const original = await (await context.request.get("/api/trading/controls")).json();
   const lonora = (await (await context.request.get("/api/agents")).json()).find(
     (row) => row.role === "personal",
   );
@@ -75,9 +70,8 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
   ).json();
   const name = `Gold agent ${randomUUID().slice(0, 6)}`;
   let gold;
-  let pause;
   // enroll: the one-time device registration on a device with no passkey yet.
-  const taps = { create: 0, enroll: 0, approve: 0, pause: 0 };
+  const taps = { create: 0, enroll: 0, approve: 0 };
   const said = async (sentence) => {
     const composer = page.locator("textarea");
     await composer.fill(sentence);
@@ -111,13 +105,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
       decisions.push(new URL(url).pathname);
   });
   try {
-    // The owner's own Stop: the grant card offers "Resume trading too".
-    for (const enabled of [true, false])
-      await context.request.put("/api/trading/controls", {
-        headers,
-        data: { enabled, emergency_stop: false },
-      });
-
     // 1. «أنشئ وكيل ذهب …»: the agent and its grant card, with no question asked.
     await page.goto(`/app/${lonora.id}`);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
@@ -154,11 +141,6 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const goldThread = await (
       await context.request.post(`/api/agents/${gold}/conversation`, { headers, data: {} })
     ).json();
-    // New trading runs for this journey (a stop would refuse the entry before any card).
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: true, emergency_stop: false },
-    });
     await page.goto(`/app/${gold}`);
     // Ask me until the grant: the pill says it asks before each trade.
     await expect(await modeLine(page)).toContainText(text.asks);
@@ -177,17 +159,12 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     expect(traded.status).toBe("completed");
     await page.reload();
     await expect(page.locator('[data-trade-result="confirmed"]').last()).toBeVisible();
-    await context.request.put("/api/trading/controls", {
-      headers,
-      data: { enabled: false, emergency_stop: false },
-    });
 
-    // 3. One passkey tap signs the grant and resumes. On a device with no passkey yet the
+    // 3. One passkey tap signs the grant. On a device with no passkey yet the
     //    same card first asks for the password and registers the device; registering
     //    continues straight into the passkey prompt for this decision (no second tap).
     await page.goto(`/app/${lonora.id}`);
     const card = page.locator(`[data-owner-action="${grantRow.id}"]`);
-    await card.getByRole("switch", { name: text.resumeToo }).click();
     const authorize = card.getByRole("button", { name: text.authorize, exact: true });
     await authorize.click();
     taps.create += 1;
@@ -199,56 +176,18 @@ test("ar: one sentence creates a gold agent; one tap approves a trade, one passk
     const permission = await (await context.request.get(`/api/agents/${gold}/permissions`)).json();
     expect(permission.effective_level).toBe("autonomous");
     expect(permission.active_authorities[0].envelope.allow_manual_positions).toBe(false);
-    expect(await (await context.request.get("/api/trading/controls")).json()).toEqual({
-      enabled: true,
-      emergency_stop: false,
-    });
     // The gold agent's pill says what the card signed: its pair and the daily loss.
     await page.goto(`/app/${gold}`);
-    let pill = await modeLine(page);
+    const pill = await modeLine(page);
     await expect(pill).toContainText(text.onItsOwn);
     await expect(pill).toContainText(data.symbol);
     await expect(pill).toContainText(text.dailyLoss);
     await expect(pill).toContainText("200.00 USD");
 
-    // 4. «أوقف فتح صفقات جديدة اليوم …»: one Lift card; the pill shows the pause; one tap.
-    await page.goto(`/app/${lonora.id}`);
-    await said(words.pauseToday);
-    const paused = worker({
-      thread: lonoraThread.id,
-      account: data.account,
-      symbol: data.symbol,
-    });
-    expect(paused.status).toBe("completed");
-    expect(paused.restrictions).toHaveLength(1);
-    pause = paused.restrictions[0];
-    const lifts = raised(paused, "lift_restriction");
-    expect(lifts).toHaveLength(1);
-    const liftRow = { id: lifts[0] };
-    await page.goto(`/app/${gold}`);
-    pill = await modeLine(page);
-    await expect(pill).toContainText(text.paused);
-    await page.goto(`/app/${lonora.id}`);
-    const lift = page.locator(`[data-owner-action="${liftRow.id}"]`);
-    await lift.getByRole("button", { name: text.lift, exact: true }).click();
-    taps.pause += 1;
-    await expect(lift).toHaveAttribute("data-owner-action-status", "confirmed");
-    pause = undefined;
-    await page.goto(`/app/${gold}`);
-    pill = await modeLine(page);
-    await expect(pill).toContainText(text.onItsOwn);
-    await expect(pill).not.toContainText(text.paused);
-
     // The vision's counts: one confirmation each; nothing else was sent.
-    expect(taps).toEqual({ create: 1, enroll: 1, approve: 1, pause: 1 });
+    expect(taps).toEqual({ create: 1, enroll: 1, approve: 1 });
     expect(decisions.filter((path) => path.includes("/trading/execute"))).toEqual([]);
   } finally {
-    if (pause)
-      await context.request.post(`/api/trading/restrictions/${pause}/revoke`, {
-        headers,
-        data: { reason: "" },
-      });
-    await context.request.put("/api/trading/controls", { headers, data: original });
     if (gold) await context.request.delete(`/api/agents/${gold}`, { headers });
     simulation({ ...data, action: "cleanup" });
   }

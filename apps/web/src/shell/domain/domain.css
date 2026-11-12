@@ -277,6 +277,7 @@
   max-height: 320px;
   z-index: 1000;
   scrollbar-width: thin;
+  animation: pop-in 0.14s ease;
 }
 .app-shell .select-option {
   display: flex;

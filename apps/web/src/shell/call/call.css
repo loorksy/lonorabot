@@ -1,6 +1,7 @@
 /* UI phase 6, calls: the reference's call strip, call page, controls and wave
    (Lonora-Desktop-37.html 85, 506-525, 625). The wave follows the call's real levels through
-   transform only; muted or not connected, it lies flat and grey. */
+   transform and keeps the reference's idle rise and fall on scale; muted or not connected, it
+   lies flat and grey. */
 .call-strip {
   display: flex;
   align-items: center;
@@ -122,19 +123,29 @@
   border-radius: var(--r-pill);
   background: var(--text);
   transition: transform 0.12s linear;
+  animation: wave 0.7s ease-in-out alternate infinite;
 }
 .wave i:nth-child(2) {
   height: 30px;
+  animation-delay: 0.2s;
 }
 .wave i:nth-child(3) {
   height: 22px;
   background: var(--accent);
+  animation-delay: 0.4s;
 }
 .wave i:nth-child(4) {
   height: 12px;
+  animation-delay: 0.1s;
+}
+@keyframes wave {
+  to {
+    scale: 1 0.4;
+  }
 }
 .wave.muted i {
   background: var(--muted);
+  animation: none;
 }
 /* The call's approval cards: a call never approves a trade; each keeps its own card. */
 .call-follow {
@@ -162,6 +173,7 @@
 @media (prefers-reduced-motion: reduce) {
   .wave i {
     transition: none;
+    animation: none;
   }
 }
 @media (max-height: 650px) {
@@ -197,6 +209,9 @@
   border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--accent) 12%, var(--fill));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition:
+    background 0.25s,
+    box-shadow 0.25s;
 }
 .chat-head .call-pill > legend {
   position: absolute;
@@ -284,6 +299,13 @@
   border-radius: 50%;
   background: var(--fill);
   color: var(--text);
+  transition:
+    background 0.2s,
+    color 0.2s,
+    transform 0.15s var(--spring);
+}
+.chat-head .cp-btn:active {
+  transform: scale(0.9);
 }
 .chat-head .cp-btn svg {
   width: 17px;
@@ -307,6 +329,7 @@
   animation: none;
   height: 4px;
   background: var(--faint);
+  transition: height 0.2s;
 }
 .chat-head .call-pill.muted .cp-mute {
   background: color-mix(in srgb, var(--danger-fill) 18%, var(--fill));

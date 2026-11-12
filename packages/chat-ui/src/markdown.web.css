@@ -94,7 +94,7 @@
   gap: 0.4em;
   border: 1px solid var(--border);
   border-radius: 0.5em;
-  background: var(--muted);
+  background: var(--legacy-muted);
   color: var(--foreground);
   padding: 0.25em 0.6em;
   font: inherit;
@@ -114,7 +114,7 @@
 }
 
 .rk-chat-markdown .rk-chat-markdown-image:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
 }
 
 .rk-chat-markdown .rk-chat-markdown-image:focus-visible {
@@ -132,7 +132,7 @@
 .rk-chat-markdown code {
   border: 1px solid var(--border);
   border-radius: 0.35em;
-  background: var(--muted);
+  background: var(--legacy-muted);
   color: var(--foreground);
   padding: 0.08em 0.32em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -180,7 +180,7 @@
   height: 1.75em;
   border: 1px solid var(--border);
   border-radius: 0.4em;
-  background: var(--muted);
+  background: var(--legacy-muted);
   color: var(--muted-foreground);
   opacity: 0;
   transition: opacity 0.12s;
@@ -193,7 +193,7 @@
 }
 
 .rk-chat-markdown-copy:hover {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: var(--foreground);
 }
 
@@ -222,7 +222,7 @@
 }
 
 .rk-chat-markdown th {
-  background: var(--muted);
+  background: var(--legacy-muted);
   color: var(--foreground);
   font-weight: 600;
 }
@@ -243,7 +243,7 @@
 
 .rk-chat-markdown input[type="checkbox"] {
   margin-right: 0.4em;
-  accent-color: var(--primary);
+  accent-color: var(--legacy-primary);
 }
 
 .rk-chat-markdown-streaming {

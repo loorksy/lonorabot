@@ -40,6 +40,8 @@ async def knowledge_items(
             "title": note_title(row.payload),
             "content": str(row.payload.get("text", "")),
             "url": None,
+            # Which agent and run wrote it from chat; None for the owner's own note.
+            "written_by": row.payload.get("written_by"),
             "version": row.version,
             "updated_at": row.updated_at.isoformat(),
         }

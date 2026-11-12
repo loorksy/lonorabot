@@ -293,6 +293,8 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     monkeypatch.setattr(
         builder, "attachment_parts", AsyncMock(return_value=("Attachment " + hostile, []))
     )
+    # The owner's own note, not a file someone else wrote: the run keeps its provenance.
+    monkeypatch.setattr(builder, "third_party_attachment", AsyncMock(return_value=False))
     monkeypatch.setattr(
         builder, "history_gap", AsyncMock(return_value=HistoryGap(11, 30, 20, None, None))
     )
@@ -350,6 +352,7 @@ class SimpleAgent:
     id = "agent"
     instructions = "Owner style"
     trading_account_id = None
+    role = "general"
 
 
 class SimpleThread:
@@ -1295,7 +1298,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
     # tool must be placed here or classified as external in run_evidence.
     first_party = {
         "account_activity", "account_history", "account_read", "agent_control", "agent_create",
-        "artifact_create",
+        "artifact_create", "broker_connect", "broker_manage",
         "board_create", "board_list", "chart_add_indicator", "chart_annotate",
         "chart_indicator", "chart_inspect", "chart_list", "chart_open",
         "chart_read_indicator", "chart_remove_indicator", "chart_set_symbol",
@@ -1308,7 +1311,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_snapshot", "market_structure",
-        "market_symbols", "model_list", "model_request", "news_feed_subscribe",
+        "market_symbols", "model_list", "model_request", "news_feed_subscribe", "telegram_link",
         "capabilities_list", "owner_action_propose", "owner_attention_list",
         "owner_call_request",
         "owner_notify", "peer_send",
@@ -1317,10 +1320,9 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "skill_package_validate", "subagent_spawn", "supervision_change",
         "task_control", "task_inspect", "task_start", "task_step_update",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",
-        "trade_restriction_create", "trade_restriction_list", "usage_read", "watch_cancel",
-        "watch_create",
+        "usage_read", "watch_cancel", "watch_create",
         "watch_list", "watch_pause", "watch_resume", "watch_update",
-        "workspace_export", "workspace_update",
+        "workspace_export", "workspace_file_write", "workspace_stop",
     }  # fmt: skip
     for name in sorted(tool.name for tool in load_tools().definitions()):
         if name in SKIPPED_TOOLS or name in EFFECT_TOOLS:
@@ -1332,6 +1334,10 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "consult_model",
         "web_fetch",
         "mcp_execute",
+        # Removed tools whose results earlier Runs stored stay untrusted evidence.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
     ):
         assert is_external(name), name
 
