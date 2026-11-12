@@ -84,6 +84,7 @@ async def index_note(
     text: str,
     title: str | None = None,
     replaces: str | None = None,
+    written_by: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Index one note; ``replaces`` (the owner's edit) removes that note of the same agent in
     the same transaction, so an edit never leaves both notes or neither.
@@ -113,6 +114,8 @@ async def index_note(
                     "embedding": vector,
                     "model": model,
                     **({"title": title} if title is not None else {}),
+                    # Which agent and run wrote a note from chat; none for the owner's own.
+                    **({"written_by": written_by} if written_by else {}),
                 },
             )
             session.add(row)
@@ -125,7 +128,7 @@ async def index_note(
                 owner_id,
                 "knowledge_notes.updated" if replaces else "knowledge_notes.created",
                 agent_id=agent_id,
-                payload={"id": document_id},
+                payload={"id": document_id, **({"written_by": written_by} if written_by else {})},
             )
         elif title is not None and row.payload.get("title") != title:
             # The owner's name for the note in «المعرفة»; recall reads the text only.
@@ -136,4 +139,20 @@ async def index_note(
             if old is None or old.owner_id != owner_id or old.agent_id != agent_id:
                 raise LonoraError("knowledge_note_not_found", 404)
             await session.delete(old)
+            from lonora_db.events import emit
+
+            # The replaced note leaves a trace, even when the new text matched a note that
+            # already existed (then no created or updated event is written).
+            emit(
+                session,
+                owner_id,
+                "knowledge_notes.deleted",
+                agent_id=agent_id,
+                payload={
+                    "id": replaces,
+                    "text": str(old.payload.get("text", ""))[:8000],
+                    "replaced_by": document_id,
+                    **({"written_by": written_by} if written_by else {}),
+                },
+            )
         return {"id": document_id, "indexed": True}
