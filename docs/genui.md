@@ -167,10 +167,13 @@ submission (`origin = 'ui_submit'`) always gets its own queued Run carrying
 earlier Runs in the thread end (rule Q), reads the thread up to its claim (rule W), stays
 invisible to every other Run until it ends and for good if it never started (rules V and N),
 takes its ticks from its own Run (rule T), and is cancelled if it has not started 30 minutes
-after the send (rule L). A Run started by a card send, and work it creates, is tainted
-(`lonora_db/genui_taint.py`). In the model's context, card words are labelled as card words,
-never as the owner's own (`lonora_db/owner_words.py`), and the submission's validated data is
-marked as data (`<ui_submit>`).
+after the send (rule L). Both clients post a card send at once, never through the
+auto-flushed outbox or offline queue; a retry after a failure is the owner's tap. A Run
+started by a card send, its retry, and work it creates are tainted
+(`lonora_db/genui_taint.py`). A card's `message.updated` events carry the message as a history
+page shows it (`genui_submit.client_row`). In the model's context, card words are labelled as
+card words, never as the owner's own (`lonora_db/owner_words.py`), and the submission's
+validated data is marked as data (`<ui_submit>`).
 
 A locking send locks its card part (`ui_lock`); «تعديل» posts
 `/threads/{thread}/messages/{message}/ui-state/{part}/unlock`, which cancels a send whose Run
