@@ -1,9 +1,10 @@
 """Which commands receive the agent's `lonora` CLI token (7.3.3, 6.9).
 
-The workspace calls this when it starts a command for a run and sets the result as
-``LONORA_AGENT_TOKEN``. Only a run of full scope gets it: a research subagent's command
-and an observe-only broker-activity wake get none, so their ``lonora`` calls exit 77,
-just as the door refuses those runs for the trade tool (6.9).
+``token_for_command`` is the token a command started for this run would carry as
+``LONORA_AGENT_TOKEN``. Only a run of full scope has one: a research subagent's command
+and an observe-only broker-activity wake get ``None``, so their ``lonora`` calls would
+exit 77, just as the door refuses those runs for the trade tool (6.9). Nothing injects it
+yet: the workspace that starts commands is not built.
 """
 
 from lonora_db.cli_tokens import cli_token

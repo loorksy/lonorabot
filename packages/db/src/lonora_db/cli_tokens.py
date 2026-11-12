@@ -1,7 +1,8 @@
 """Each agent's own `lonora` CLI token (mandate 7.3.3).
 
-Lonora issues every agent one token. The CLI endpoint maps a presented token to exactly
-one agent; deleting the agent deletes its row (``ON DELETE CASCADE``), which revokes it.
+Each agent gets one token the first time ``cli_token`` is asked for it. The CLI endpoint
+maps a presented token to exactly one agent; deleting the agent deletes its row
+(``ON DELETE CASCADE``), which revokes it.
 """
 
 import hashlib
@@ -54,9 +55,7 @@ async def cli_token(session: AsyncSession, key: str, owner_id: str, agent_id: st
 
 
 async def revoke_cli_token(session: AsyncSession, agent_id: str) -> None:
-    """Revoke the agent's token now, for the agent-delete path (W-TEAM) to call before it
-    transfers the agent's tickets (3.1.2). Deleting the agent row also revokes it, by the
-    foreign key's cascade."""
+    """Revoke the agent's token explicitly. Deleting the agent row revokes it by cascade."""
     await session.execute(delete(AgentCliTokenRow).where(AgentCliTokenRow.agent_id == agent_id))
 
 

@@ -151,7 +151,7 @@ async def test_one_token_per_agent_stable_and_revoked_with_the_agent() -> None:
         async with runtime.db.sessions() as session:
             assert (await agent_for_cli_token(session, token)).id == setup.agent  # type: ignore[union-attr]
             assert (await agent_for_cli_token(session, other_token)).id == other  # type: ignore[union-attr]
-        # revoke_cli_token is for W-TEAM's delete path; today's delete revokes by cascade.
+        # revoke_cli_token revokes explicitly; the delete route revokes by cascade.
         async with runtime.db.sessions() as session, session.begin():
             await revoke_cli_token(session, other)
         assert (await setup.call("account", other_token))[0] == 77
