@@ -2,7 +2,7 @@
 
 Exercises crash-before-send recovery, interruption after submission (Owner addendum §6
 step 7), scoped blocking against reduce-only admission under Emergency Stop, Trading OFF
-and degraded/disconnected recovery, owner attestation through the authenticated API,
+and degraded/disconnected recovery, owner settlement through the fixed Settle card,
 target-state reconciliation of modify/cancel operations, verification rechecks and an
 approved close-all whose exits never wait on one another. No live broker, MetaApi key or
 real order is involved.
@@ -23,7 +23,8 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.owner_actions import CARD_ATTESTATION
+from lonora_contracts.trading import OperationResolution, TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import (
@@ -39,11 +40,14 @@ from lonora_tools.loader import load_tools
 from lonora_trading.broker_recovery import reconcile_broker_account
 from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.execution import ExecutionService
+from lonora_trading.journal import journal_data
+from lonora_trading.owner_controls import attest_operation
 from lonora_trading.reconciliation import (
     recheck_verifications,
     reconcile_ambiguous,
     send_lock_key,
 )
+from settle_card import settle_by_card, settle_card
 from sqlalchemy import delete, select, text
 
 GOLD, EURO, POUND = "XAUUSD.r", "EURUSD.r", "GBPUSD.r"
@@ -440,22 +444,24 @@ async def main() -> None:
             "PASS degraded recovery blocks only markets with unresolved operations; a disconnected observation blocks new risk but still admits closing"
         )
 
-        # 4. Owner attestation through the authenticated API: audited, history retained.
-        path = f"/api/trading/journal/{unknown.operation_id}/resolve"
-        body = {
-            "outcome": "not_executed",
-            "statement": "Checked the broker terminal: no order for this request.",
-            "broker_reference": "terminal-history-check",
-        }
-        forged = await fixture.client.post(path, json=body, headers={"X-CSRF-Token": "invalid"})
+        # 4. Owner settlement through the fixed Settle card (6.8): authenticated, audited,
+        # history retained. The card runs the same owner attestation the route ran.
+        card = await settle_card(fixture, unknown.operation_id)
+        decision = f"/api/owner-actions/{card}/decision"
+        body = {"decision": "confirm", "outcome": "not_executed"}
+        forged = await fixture.client.post(decision, json=body, headers={"X-CSRF-Token": "invalid"})
         assert forged.status_code == 403 and forged.json()["code"] == "csrf_required"
         assert (await journal(unknown.operation_id)).status == "ambiguous"
-        resolved = await fixture.request("POST", path.removeprefix("/api"), body)
+        answered = await fixture.request("POST", decision.removeprefix("/api"), body)
+        assert answered["status"] == "confirmed", answered
+        resolved = journal_data(await journal(unknown.operation_id))
         assert resolved["status"] == "resolved" and resolved["send_state"] == "sent"
         resolution = resolved["result"]["details"]["resolution"]
         assert resolution["source"] == "owner" and resolution["outcome"] == "not_executed"
         assert resolution["actor"]["owner_id"] == fixture.owner
-        assert resolution["broker_confirmed"] is False and resolution["broker_reference"]
+        # The card's fixed statement (it has no free-text fields): the owner's word.
+        assert resolution["broker_confirmed"] is False
+        assert resolution["statement"] == CARD_ATTESTATION
         assert resolved["result"]["details"]["prior_receipt"]["code"] == (
             "execution_interrupted_after_send"
         )
@@ -463,14 +469,30 @@ async def main() -> None:
         assert resolved["request"] == unknown.model_dump(mode="json")
         audit = await events("trading.operation_resolved", unknown.operation_id)
         assert len(audit) == 1 and audit[0]["actor"]["owner_id"] == fixture.owner
-        again = await fixture.client.post(path, json=body)
-        assert again.status_code == 409 and again.json()["code"] == "operation_already_settled"
-        settled = await fixture.client.post(
-            f"/api/trading/journal/{after_effect.operation_id}/resolve", json=body
-        )
-        assert settled.status_code == 409
-        missing = await fixture.client.post("/api/trading/journal/missing-op/resolve", json=body)
-        assert missing.status_code == 404
+        # The same tap again answers from the card's record; nothing is recorded twice.
+        again = await fixture.client.post(decision, json=body)
+        assert again.status_code == 200 and again.json()["status"] == "confirmed"
+        assert len(await events("trading.operation_resolved", unknown.operation_id)) == 1
+        # The attestation itself settles only an uncertain operation that exists.
+        actor = {"kind": "owner", "owner_id": fixture.owner}
+        for operation_id, code in (
+            (unknown.operation_id, "operation_already_settled"),
+            (after_effect.operation_id, "operation_already_settled"),
+            ("missing-op", "operation_not_found"),
+        ):
+            try:
+                async with db.sessions() as session, session.begin():
+                    await attest_operation(
+                        session,
+                        fixture.owner,
+                        operation_id,
+                        OperationResolution(outcome="not_executed"),
+                        actor,
+                    )
+            except LonoraError as error:
+                assert error.code == code, (operation_id, error.code)
+            else:
+                raise AssertionError("attested twice or a missing operation: " + operation_id)
         async with db.sessions() as session, session.begin():
             assert not await persist_result(
                 session,
@@ -482,7 +504,7 @@ async def main() -> None:
             )
         assert (await run(trade("buy", volume="0.1", stop_loss="95"))).status == "confirmed"
         print(
-            "PASS owner attestation is session-authenticated, audited and terminal, retains the original evidence, and clears the market block"
+            "PASS owner settlement through the Settle card is session-authenticated, audited and terminal, retains the original evidence, and clears the market block"
         )
 
         # 4b. A submission whose broker evidence stays unavailable is still owner-resolvable.
@@ -519,15 +541,8 @@ async def main() -> None:
         await blocked(
             trade("buy", EURO, volume="0.1", stop_loss="95"), "broker_reconciliation_required"
         )
-        resolved = await fixture.request(
-            "POST",
-            f"/trading/journal/{unobservable.operation_id}/resolve",
-            {
-                "outcome": "not_executed",
-                "statement": "Broker history unavailable; terminal shows none.",
-            },
-        )
-        assert resolved["status"] == "resolved"
+        await settle_by_card(fixture, unobservable.operation_id, "not_executed")
+        assert (await journal(unobservable.operation_id)).status == "resolved"
         assert (await run(trade("buy", EURO, volume="0.1", stop_loss="95"))).status == "confirmed"
         print(
             "PASS a crashed submission whose broker observation keeps failing becomes ambiguous once its send lock is free, so the owner can resolve it and unblock its market"
