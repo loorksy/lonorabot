@@ -314,6 +314,7 @@ def test_the_plain_brief_in_english_names_the_owner_and_no_raw_values() -> None:
         "pending_orders": [],
         "pending_approvals": [],
         "unsettled_operations": 1,
+        "weekly_reports": [],
         "nothing_else_needs_you": False,
     }
     text = plain_brief(facts, "en")

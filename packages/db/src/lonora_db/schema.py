@@ -570,6 +570,8 @@ class MorningBriefRow(Base):
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     pending: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # The latest weekly close the agents were woken for, and whether a brief carried it.
+    weekly: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

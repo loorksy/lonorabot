@@ -19,6 +19,7 @@ SERVER_AUTHORED_TRIGGERS = frozenset(
         "agent_created",
         "owner_card",
         "morning_brief",
+        "weekly_report",
     }
 )
 
