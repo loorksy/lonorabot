@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -291,7 +292,7 @@ class MessageRow(Base):
     # Edit and resend (Q21): the original owner message this one replaces; both stay.
     edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
+    # Who wrote it (docs/genui.md): ``owner``, ``ui_submit`` (a card's send, text composed
     # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
     # own words for any owner-words check.
     origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
@@ -542,7 +543,7 @@ class MemoryRevisionRow(Base):
         ForeignKey("ln_messages.id", ondelete="SET NULL")
     )
     source_run_id: Mapped[str | None] = mapped_column(String(36))
-    # operations | document | revert | merge | preferences
+    # operations | document | revert | restore | merge | preferences
     change: Mapped[str] = mapped_column(String(16))
     reverted_revision_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -736,6 +737,21 @@ class WorkspaceOperationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WorkspaceGivenRow(Base):
+    """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
+
+    __tablename__ = "ln_workspace_given"
+    __table_args__ = (UniqueConstraint("owner_id", "digest", name="ln_workspace_given_digest"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    given_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ResourceRow(Base):
     __abstract__ = True
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -781,14 +797,19 @@ class SkillRow(ResourceRow):
 
 
 class SkillVersionRow(Base):
-    """One saved version of a skill's validated payload (its «سجل الإصدارات»)."""
+    """One saved version of a skill's validated payload (its «سجل الإصدارات»).
+
+    Versions outlive the skill (5.5.5): deleting a skill keeps them, so it can be restored.
+    """
 
     __tablename__ = "ln_skill_versions"
-    skill_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_skills.id", ondelete="CASCADE"), primary_key=True
-    )
+    __table_args__ = (Index("ix_ln_skill_versions_agent", "owner_id", "agent_id", "skill_id"),)
+    skill_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    # A workspace or GitHub package version: only skill_package_control restores it.
+    package: Mapped[bool] = mapped_column(default=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -909,6 +930,84 @@ class MarketSnapshotRow(Base):
     connection_version: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BrokerDealRow(Base):
+    """A broker trade deal of a position that is still open, kept until its trade closes.
+
+    A copy of broker history (mandate 5.5.1), read from a stored cursor: the closed-trade
+    ledger sums a position's deals when its volume reaches zero at the broker.
+    """
+
+    __tablename__ = "ln_broker_deals"
+    __table_args__ = (Index("ln_broker_deals_position", "owner_id", "account_id", "position_id"),)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    deal_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    position_id: Mapped[str] = mapped_column(String(120))
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class ClosedTradeCursorRow(Base):
+    """How far broker deal history of one account has been read into the ledger."""
+
+    __tablename__ = "ln_closed_trade_cursors"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    # Deals up to here are read; ``complete`` is False while a full page is being paged.
+    read_to: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    complete: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ClosedTradeRow(Base):
+    """One closed trade: its position's volume reached zero at the broker (5.5.1).
+
+    Durable record: it survives the agent, the conversation and the connection. The
+    agent id is kept as a value; None means the owner's own ticket (3.3.4).
+    """
+
+    __tablename__ = "ln_closed_trades"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
+        ),
+        Index("ln_closed_trades_agent", "owner_id", "agent_id", "closed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    account_id: Mapped[str] = mapped_column(String(120))
+    position_id: Mapped[str] = mapped_column(String(120))
+    # The deal that closed the trade: the last exit, or a reversal that took a netting
+    # position through zero (one position can hold several trades).
+    closing_deal_id: Mapped[str] = mapped_column(String(120))
+    symbol: Mapped[str] = mapped_column(String(80))
+    side: Mapped[str] = mapped_column(String(8))
+    # What the trade opened; None when unknown (a reversal closed a trade the ledger
+    # never saw open).
+    volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # The journaled order that opened the position, when Lonora's door sent it.
+    opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    # Account currency; P&L is never summed across currencies.
+    currency: Mapped[str] = mapped_column(String(16))
+    # Profit + commission + swap of the trade's deals. None when an exit carried no
+    # broker-reported profit, or the ledger never read the opening deal: nothing is
+    # computed in its place.
+    realized_pnl: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deals: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class TradeApprovalRow(Base):

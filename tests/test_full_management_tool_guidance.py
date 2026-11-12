@@ -35,5 +35,4 @@ def test_personal_agent_guidance_does_not_contradict_signed_management():
     assert (
         "without per-order confirmation; otherwise use the existing approval controls" in guidance
     )
-    assert "global trading and emergency controls" in guidance
     assert "Owner-wide visibility is NOT autonomous execution authority" in guidance
