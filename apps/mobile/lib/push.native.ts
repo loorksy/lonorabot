@@ -63,3 +63,35 @@ export function onPushTokenChange(listener: () => void): () => void {
   const subscription = Notifications.addPushTokenListener(listener);
   return () => subscription.remove();
 }
+
+export type PushTarget = { threadId: string; around: number | null };
+
+// The push carries only the conversation and the card's position in it (no price, no
+// volume, no account): the tap opens the conversation, where the fixed card reads the live
+// record. A push has no action button and never approves anything.
+function target(response: Notifications.NotificationResponse | null): PushTarget | null {
+  const data = response?.notification.request.content.data;
+  const threadId = data?.thread_id;
+  if (typeof threadId !== "string" || !threadId) return null;
+  const around = data?.around;
+  return {
+    threadId,
+    around: typeof around === "number" && Number.isInteger(around) && around > 0 ? around : null,
+  };
+}
+
+export function onPushOpened(open: (target: PushTarget) => void): () => void {
+  const seen = new Set<string>();
+  const handle = (response: Notifications.NotificationResponse | null) => {
+    const value = target(response);
+    const id = response?.notification.request.identifier;
+    if (!value || !id || seen.has(id)) return;
+    seen.add(id);
+    open(value);
+  };
+  void Notifications.getLastNotificationResponseAsync()
+    .then(handle)
+    .catch(() => undefined);
+  const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+  return () => subscription.remove();
+}
