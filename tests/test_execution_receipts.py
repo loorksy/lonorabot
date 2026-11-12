@@ -109,3 +109,21 @@ def test_the_reason_is_the_agents_and_the_owners_order_has_none() -> None:
     owner = ExecutionReceiptRow(operation_id="op", owner_id="owner", agent_id=None)
     owner.created_at = utcnow()
     assert receipt_data(owner, row)["reason"] is None
+
+
+def test_a_fill_reconciled_from_a_tickets_current_state_shows_no_volume_or_price() -> None:
+    # A 1.00 buy, reconciled later from its open position, which now holds 0.40.
+    row = journal(
+        {"action": "buy", "volume": "1"},
+        {"reconciled": True, "position_id": "p1", "deal_id": None, "volume": 0.4, "price": 2400},
+        broker_id="p1",
+    )
+    facts = receipt_facts(row)
+    assert facts["ticket"] == "p1" and facts["volume"] is None and facts["price"] is None
+    # Reconciled from the fill's own deal: the deal's numbers are the fill's.
+    deal = journal(
+        {"action": "buy", "volume": "1"},
+        {"reconciled": True, "position_id": "p1", "deal_id": "d1", "volume": 1.0, "price": 2401},
+        broker_id="d1",
+    )
+    assert (receipt_facts(deal)["volume"], receipt_facts(deal)["price"]) == ("1.0", "2401")
