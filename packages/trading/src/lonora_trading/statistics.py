@@ -1,11 +1,11 @@
 """An agent's results per judgment label, from broker-confirmed closes (mandate 5.5.4).
 
 "The system computes, per label, the count and net realized P&L from broker-confirmed
-closes, and gives them to the agent on wake." A closed trade (``ln_closed_trades``, read
-from broker deals) counts once, with its whole realized P&L, under the label of the
-order that opened it, and per account currency: amounts in different currencies are
-never added. A trade whose exit carried no broker profit is counted as ``unpriced`` and
-adds nothing to the net. Labels on later orders that managed a position (a close, a
+closes." A closed trade (``ln_closed_trades``, read from broker deals) counts once, with
+its whole realized P&L, under the label of the order that opened it, and per account
+currency: amounts in different currencies are never added. A trade whose P&L the broker
+deals do not fully give (an exit without a profit, or an opening deal the ledger never
+read) is counted as ``unpriced`` and adds nothing to the net. Labels on later orders that managed a position (a close, a
 stop moved, a partial take) are counted without money, from the journal's confirmed
 operations only. Nothing here reads an operation the owner settled by attestation
 (``resolved``): only broker evidence makes a profit number (6.4).
@@ -22,7 +22,7 @@ from .exposure import ENTRY_ACTIONS
 
 # What a trade opened without a label counts under.
 UNLABELLED = "unlabelled"
-# Bounded for the wake: the most used labels first.
+# Bounded: the most used labels first.
 MAXIMUM_ROWS = 20
 
 
@@ -39,8 +39,7 @@ async def statistics_block(
     symbol: str | None = None,
 ) -> dict[str, Any]:
     """The agent's statistics: closed trades per opening label and currency, and its
-    management labels. The one function for the agent's wake (5.5.4) and for
-    ``market_performance_read``.
+    management labels. It is what ``market_performance_read`` returns.
 
     Labels are slugs (``LABEL_PATTERN``) and currencies come from the broker account, so
     the block carries no free text.
