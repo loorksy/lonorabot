@@ -234,6 +234,10 @@ profile) do not fit and are promoted after first use like any remembered tool.
   without a grant or owner message is 403; supervision from a card and from a sentence
   with Undo; the supervised agent refused revoking its own oversight and a revoke from
   chat restored from its card; the Personal Agent's default grant on a new agent.
+- `tests/test_pauses.py` (the owner's pauses, `lonora_db.pauses`): holds kept by their
+  supervisor and the owner winning; the owner's pause becoming the owner's and the
+  owner's word resuming; the owner's own pause or cancel never lifted by the agent; a
+  deleted supervisor's pauses kept as the owner's.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
   round trip, a Personal Agent created after other agents, a later agent; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
