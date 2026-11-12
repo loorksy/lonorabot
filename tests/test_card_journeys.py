@@ -39,7 +39,6 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow, TradingJournalRow
-    from lonora_db.trade_approvals import APPROVAL_LIFETIME
 
     fixture = await Fixture().open()
     db = fixture.runtime.db
@@ -55,6 +54,8 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
         tool_call = ToolCall(id="buy-" + uuid4().hex, name="trade_execute", arguments=entry)
         registry = load_tools()
@@ -63,9 +64,10 @@ async def test_an_expired_approval_is_never_executed_and_renew_only_asks_again()
         approval_id = asked["approval_id"]
         async with db.sessions() as session, session.begin():
             row = await session.get(TradeApprovalRow, approval_id, with_for_update=True)
-            assert row is not None and row.expires_at is not None
-            assert row.expires_at - row.created_at == APPROVAL_LIFETIME
-            # Its lifetime ends unapproved.
+            assert row is not None
+            # A new card has no time limit; a card stored before the lifetime was removed
+            # keeps its stored expiry, and past it can never be approved.
+            assert row.expires_at is None
             row.expires_at = utcnow() - timedelta(seconds=1)
         status, refused = await raw(
             fixture, "POST", f"/trading/approvals/{approval_id}/decision", {"decision": "approve"}

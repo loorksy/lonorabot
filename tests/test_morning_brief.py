@@ -391,6 +391,69 @@ async def write_brief(db: Database) -> None:
 
 
 @pytest.mark.asyncio
+async def test_a_mandate_card_never_waits_for_the_owner(
+    task_db: Fixture,
+) -> None:
+    db, owner, agent, thread = task_db
+    async with db.sessions() as session, session.begin():
+        lonora, _gold = await seed(session, owner)
+        offered = await session.scalar(
+            select(func.count())
+            .select_from(OwnerActionRow)
+            .where(
+                OwnerActionRow.agent_id == lonora,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.status == "pending",
+            )
+        )
+    # A Mandate card is the owner's standing switch (10.3, 4.2), with no answer that ends
+    # it: Lonora's from onboarding (4.3.1) never waits, so nothing else needs the owner.
+    assert offered == 1
+    at = DAY + timedelta(hours=4, minutes=1)
+    first = await facts_now(db, owner, at)
+    assert first["pending_owner_cards"] == 0 and first["nothing_else_needs_you"] is True
+    assert first["new_mandate_cards"] == []
+    await write_brief(db)
+    # Nor does one an agent's run proposed: the owner may keep Ask and never tap it. The
+    # brief names it once, as information, since it reached the owner (11.4).
+    async with db.sessions() as session, session.begin():
+        run = RunRow(
+            thread_id=thread, agent_id=agent, trigger="user", prompt="x", status="completed"
+        )
+        session.add(run)
+        await session.flush()
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=agent,
+                run_id=run.id,
+                source="agent",
+                kind="trading_mode",
+                subject="trading_mode:" + agent,
+                payload={"agent_id": agent},
+                payload_hash="h-mode",
+                expires_at=DAY + timedelta(days=3650),
+                status="pending",
+                created_at=at + timedelta(hours=1),
+            )
+        )
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        name = row.name
+    second = await facts_now(db, owner, at + timedelta(days=1))
+    assert second["pending_owner_cards"] == 0 and second["nothing_else_needs_you"] is True
+    assert second["new_mandate_cards"] == [name]
+    assert name in plain_brief(second, "en") and "Nothing else needs you." in plain_brief(
+        second, "en"
+    )
+    await write_brief(db)
+    # Settle the second brief first: the third one also waits for the week's reports.
+    assert await brief_tick(db, owner, now=at + timedelta(days=2)) is None
+    third = await facts_now(db, owner, at + timedelta(days=2))
+    assert third["new_mandate_cards"] == [] and third["nothing_else_needs_you"] is True
+
+
+@pytest.mark.asyncio
 async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     async with db.sessions() as session, session.begin():

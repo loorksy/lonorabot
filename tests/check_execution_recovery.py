@@ -22,12 +22,20 @@ from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.base import BrokerManager
 from lonora_adapters.brokers.simulation import SimulationBroker
+from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
-from lonora_db.schema import BrokerSessionRow, EventRow, TradingAccountRow, TradingJournalRow
+from lonora_db.schema import (
+    AgentRow,
+    BrokerSessionRow,
+    EventRow,
+    TradingAccountRow,
+    TradingJournalRow,
+)
 from lonora_db.trading_journal import persist_result, release_reservation
+from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
 from lonora_trading.broker_recovery import reconcile_broker_account
 from lonora_trading.execution import ExecutionService
@@ -84,6 +92,16 @@ class LossyBroker(SimulationBroker):
         # Operation -> gate: cross the send boundary, wait, then report a broker rejection.
         self.reject_after_boundary: dict[str, asyncio.Event] = {}
         self.boundary = asyncio.Event()
+        # Runs once, right after the next positions read: a ticket changes at the broker
+        # between the set a call read and its sends.
+        self.after_read: Callable[[], Awaitable[None]] | None = None
+
+    async def positions(self) -> list[Position]:
+        positions = await super().positions()
+        hook, self.after_read = self.after_read, None
+        if hook is not None:
+            await hook()
+        return positions
 
     async def execute(
         self, request: TradeRequest, before_send: Callable[[], Awaitable[None]] | None = None
@@ -626,20 +644,28 @@ async def main() -> None:
             "PASS pending broker-state verification is rechecked until verified, or ends unverified after the window without changing the confirmed receipt"
         )
 
-        # 7. An approved close-all is a batch of independent exits: a close that fails,
-        # is blocked or stays uncertain never holds back the other approved closes.
+        # 7. A close-all is a batch of independent exits: a close that fails, is blocked or
+        # stays uncertain never holds back the other closes. In Ask a close-all reduces
+        # risk and executes without a card (mandate 4.1); the set the call read is frozen
+        # with the call, so a replay never extends it.
         agent = await fixture.agent("Recovery batch", supervised=True)
+        # The owner's standing instruction (3.3.4): this agent manages every position,
+        # including the ones the owner's own orders opened above.
+        async with db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, agent["id"])
+            assert managing is not None
+            managing.manages_all_positions = True
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
 
-        async def approve_close_all(identity: str) -> tuple[ToolCall, list[str]]:
+        async def close_all(identity: str) -> tuple[ToolCall, list[str]]:
             await refresh()
             frozen = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
             assert len(frozen) >= 3
-            # Proposed through the tool_call bridge, as a model without the native schema
-            # would: resolution yields the exact direct call, so the approval card and its
-            # call identity are the same as for a direct call.
+            # Called through the tool_call bridge, as a model without the native schema
+            # would: resolution yields the exact direct call, so its call identity (and
+            # the operation ids derived from it) are the same as for a direct call.
             arguments = {"account_id": account, "symbol": GOLD}
             call = registry.resolve_call(
                 ToolCall(
@@ -649,29 +675,30 @@ async def main() -> None:
                 )
             )
             assert call == ToolCall(id=identity, name="trade_close_positions", arguments=arguments)
-            proposal = await registry.execute(call, context)
-            assert proposal["_runtime_wait"], proposal
             return call, frozen
 
-        async def decide(call: ToolCall) -> None:
-            proposal = await registry.execute(call, context)
-            await fixture.request(
-                "POST",
-                f"/trading/approvals/{proposal['approval_id']}/decision",
-                {"decision": "approve"},
-            )
+        def close_operation(call: ToolCall, position_id: str) -> str:
+            return stable_id(context.lease.run_id, "close:" + call.id + ":" + position_id)
 
-        # 7a. The first reviewed position is stopped out before the approved card runs:
-        # that close fails on the changed target, the others are sent.
-        call, gold = await approve_close_all("batch-stopped-" + uuid4().hex)
-        await decide(call)
-        stopped_out = await run(trade("close_position", position_id=gold[0]))
-        assert stopped_out.status == "confirmed", stopped_out
-        sent_before = len(lossy.sent)
-        await refresh()
-        results = (await registry.execute(call, context))["results"]
+        # 7a. The first position the call read is stopped out before its batch runs: that
+        # close fails on the changed target, the others are sent.
+        call, gold = await close_all("batch-stopped-" + uuid4().hex)
+        sent_before = -1
+
+        async def stop_out() -> None:
+            nonlocal sent_before
+            stopped_out = await run(trade("close_position", position_id=gold[0]))
+            assert stopped_out.status == "confirmed", stopped_out
+            sent_before = len(lossy.sent)
+
+        lossy.after_read = stop_out
+        outcome = await registry.execute(call, context)
+        results = outcome["results"]
         operations.extend(item["operation_id"] for item in results)
+        assert sent_before >= 0 and lossy.after_read is None
+        assert "approval_id" not in outcome, outcome
         assert len(results) == len(gold)
+        assert results[0]["operation_id"] == close_operation(call, gold[0]), results[0]
         assert results[0]["status"] == "failed" and results[0]["code"] in {
             "trade_approval_broker_state_changed",
             "position_not_found",
@@ -680,25 +707,34 @@ async def main() -> None:
         assert len(lossy.sent) == sent_before + len(gold) - 1
         assert not any(p.symbol == GOLD for p in await broker.positions())
         print(
-            "PASS an approved close-all still sends every other exit after one reviewed position was stopped out"
+            "PASS a close-all still sends every other exit after one position it read was stopped out"
         )
+
+        # The broker rejects the first close: the others are sent.
+        for volume in ("0.3", "0.4", "0.5"):
+            assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
+        call, gold = await close_all("batch-rejected-" + uuid4().hex)
+        rejected_close = asyncio.Event()
+        rejected_close.set()
+        lossy.reject_after_boundary[close_operation(call, gold[0])] = rejected_close
+        sent_before = len(lossy.sent)
+        outcome = await registry.execute(call, context)
+        results = outcome["results"]
+        operations.extend(item["operation_id"] for item in results)
+        assert "approval_id" not in outcome, outcome
+        assert len(results) == len(gold)
+        assert results[0]["status"] == "failed" and results[0]["code"] == "market_closed"
+        assert all(item["status"] == "confirmed" for item in results[1:]), results
+        assert len(lossy.sent) == sent_before + len(gold)
+        assert [p.id for p in await broker.positions() if p.symbol == GOLD] == [gold[0]]
+        print("PASS a close-all still sends every other exit after the broker refused one")
 
         # 7b. The first close's response is lost: it stays uncertain and is never resent,
         # yet every other reviewed close is sent. Positions opened after the review are
         # never silently added to the approved set.
         for volume in ("0.3", "0.4", "0.5"):
             assert (await run(trade("buy", volume=volume, stop_loss="95"))).status == "confirmed"
-        call, gold = await approve_close_all("batch-lost-" + uuid4().hex)
-        later: list[str] = []
-        for volume in ("0.6", "0.7"):
-            result = await run(trade("buy", volume=volume, stop_loss="95"))
-            assert result.status == "confirmed" and result.broker_id, result
-            later.append(result.broker_id)
-        # A protective order: a sell stop that would offset the net long GOLD book. It is
-        # placed while GOLD is still settled; section 8 tries to cancel it once uncertain.
-        guard = await run(trade("sell_stop", volume="0.2", price="96"))
-        assert guard.status == "confirmed" and guard.broker_id, guard
-        await decide(call)
+        call, gold = await close_all("batch-lost-" + uuid4().hex)
         lossy.lose_next_close = True
         sent_before = len(lossy.sent)
         await refresh()
@@ -709,26 +745,61 @@ async def main() -> None:
         assert all(item["status"] == "confirmed" for item in results[1:]), results
         assert len(lossy.sent) == sent_before + len(gold)
         assert lossy.sent[sent_before:].count(results[0]["operation_id"]) == 1
+        # The uncertain close is reconciled from broker evidence, never resent; only then
+        # does its market take new risk again.
+        await backdate(results[0]["operation_id"], timedelta(minutes=3))
+        assert await reconcile_ambiguous(db, services.brokers) == 1
+        later: list[str] = []
+        for volume in ("0.6", "0.7"):
+            result = await run(trade("buy", volume=volume, stop_loss="95"))
+            assert result.status == "confirmed" and result.broker_id, result
+            later.append(result.broker_id)
+        # A protective order: a sell stop that would offset the net long GOLD book. It is
+        # placed while GOLD is settled; section 8 tries to cancel it once GOLD is uncertain.
+        guard = await run(trade("sell_stop", volume="0.2", price="96"))
+        assert guard.status == "confirmed" and guard.broker_id, guard
+        sent_before = len(lossy.sent)
+        await refresh()
+        # The identical call replays its frozen set: nothing is sent again and the
+        # positions opened since are never added.
+        replayed = (await registry.execute(call, context))["results"]
+        assert [item["operation_id"] for item in replayed] == [
+            item["operation_id"] for item in results
+        ]
+        assert replayed[0]["status"] == "confirmed" and replayed[1:] == results[1:], replayed
+        assert len(lossy.sent) == sent_before
+        assert lossy.sent.count(results[0]["operation_id"]) == 1
         remaining = sorted(p.id for p in await broker.positions() if p.symbol == GOLD)
         assert remaining == sorted(later), (remaining, later)
-        # The identical call replays the completed approval and sends nothing again.
-        assert (await registry.execute(call, context))["results"] == results
-        assert len(lossy.sent) == sent_before + len(gold)
+        # GOLD is left with an uncertain entry for the next case.
+        uncertain = trade("buy", volume="0.1", stop_loss="95")
+        lossy.lose_after_effect.add(uncertain.operation_id)
+        assert (await run(uncertain)).status == "ambiguous"
         services.brokers.connections[account] = cached
         print(
-            "PASS an approved close-all (proposed through the tool_call bridge) sends every reviewed close after an uncertain one, never resends it and never extends the reviewed set"
+            "PASS a close-all (called through the tool_call bridge) sends every close after an uncertain one, never resends it and never extends the set it read"
         )
 
-        # 8. Approved cards (the supervised agent path): exits stay admissible on the
-        # still-uncertain GOLD market, new risk there never is.
+        # 8. Agent requests in Ask: exits stay admissible on the still-uncertain GOLD
+        # market (without a card, they reduce risk), new risk there never is.
         async def approved(arguments: dict[str, Any]) -> dict[str, Any]:
             call = ToolCall(
                 id="card-" + uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, **arguments},
+                # A card for new risk carries a tolerance and the agent's reason (10.3.1).
+                arguments={
+                    "account_id": account,
+                    "tolerance": "5",
+                    "reason": "Fixture request",
+                    **arguments,
+                },
             )
             proposal = await registry.execute(call, context)
-            assert proposal["_runtime_wait"], proposal
+            if not proposal.get("_runtime_wait"):
+                # Risk-reducing in Ask: executed at once, no card (4.1).
+                assert "approval_id" not in proposal, proposal
+                operations.extend(item["operation_id"] for item in proposal["results"])
+                return proposal
             await fixture.request(
                 "POST",
                 f"/trading/approvals/{proposal['approval_id']}/decision",
@@ -739,7 +810,7 @@ async def main() -> None:
             operations.extend(item["operation_id"] for item in outcome["results"])
             return outcome
 
-        assert (await journal(results[0]["operation_id"])).status == "ambiguous"
+        assert (await journal(uncertain.operation_id)).status == "ambiguous"
         resting = await run(trade("buy_limit", POUND, volume="0.2", price="99"))
         assert resting.status == "confirmed" and resting.broker_id
         await refresh()
@@ -794,7 +865,7 @@ async def main() -> None:
         assert entry["status"] == "failed", entry
         assert entry["code"] == "broker_reconciliation_required", entry
         print(
-            "PASS approved agent cards close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked"
+            "PASS agent requests close, cancel and tighten on an uncertain market, while entries, wider stops and cancelling a protective order there stay blocked"
         )
     finally:
         async with db.sessions() as session, session.begin():

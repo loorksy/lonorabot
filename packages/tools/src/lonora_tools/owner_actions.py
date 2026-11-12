@@ -52,6 +52,19 @@ async def grant_draft(context: ToolContext, proposal: OwnerActionProposal) -> Gr
     return await resolve_grant(context.db, context.brokers, context.owner_id, grantee, proposal)
 
 
+async def mandate_target(
+    context: ToolContext, proposal: OwnerActionProposal
+) -> OwnerActionProposal:
+    """Whose mode the Mandate card switches: the proposer's own, or any agent for Lonora."""
+    target = proposal.agent_id or context.agent_id
+    async with context.db.sessions() as session:
+        proposer = await agent_binding(session, context.owner_id, context.agent_id)
+        if target != context.agent_id and proposer.role != "personal":
+            raise LonoraError("owner_action_trading_mode_agent_forbidden", 403)
+        await agent_binding(session, context.owner_id, target)
+    return proposal.model_copy(update={"agent_id": target})
+
+
 async def resolve_grant(
     db: Database,
     brokers: BrokerManager,
@@ -239,6 +252,8 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
 
 async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     proposal = OwnerActionProposal.model_validate(args)
+    if proposal.kind == "trading_mode":
+        proposal = await mandate_target(context, proposal)
     grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
@@ -285,7 +300,10 @@ def tools() -> list[Tool]:
         Tool(
             "owner_action_propose",
             "Put a one-tap owner action card in this conversation for an action only the "
-            "owner may take; nothing changes until the owner taps it. Kinds: "
+            "owner may take; nothing changes until the owner taps it. Kinds: trading_mode (the "
+            "Mandate card: the owner switches an agent between Full and Ask, and only this tap "
+            "sets Full; show it when the owner asks for an agent with full authority; optional "
+            "agent_id, Lonora's for any agent), "
             "resolve_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "
             "set_account_limits (account_id with set_limits amounts in the account "

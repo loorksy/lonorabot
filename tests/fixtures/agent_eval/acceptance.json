@@ -47,8 +47,8 @@
     {"code": "lonora_agent.context.routine:PEER_WAKE"}
    ],
    "partial": {
-    "note": "the speech is given in the news agent's routine (no calendar source is fed); the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}]
+    "note": "the speech is given in the news agent's routine (no calendar source is fed)",
+    "until": [{"pending": "a calendar source the harness can feed to economic_calendar_read"}]
    },
    "given": {
     "team": {"news": "وكيل الأخبار", "euro": "وكيل اليورو"},
@@ -99,11 +99,7 @@
    "clause": "A connection drop during a close is reconciled without a resend.",
    "feature": "the safety core: journal, never resend, broker truth (6.2-6.4); the agent's own watch wakes it (11.8)",
    "owners": ["(on main: the safety core, 6)", "W-AUTH for the gold agent in Full"],
-   "partial": {
-    "note": "fake terminal; the actor is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}]
-   },
-   "needs": [],
+   "needs": [{"code": "lonora_db.trading_mode:set_trading_mode"}],
    "given": {
     "position": {"base": "XAUUSD", "side": "buy", "volume": "0.02", "price": "4031.500"},
     "watch": {"symbol": "$XAUUSD", "condition": "above", "level": "4060", "cooldown_seconds": 300, "prompt": "Gold reached the target of the open buy at 4060: manage the position per the method."},
@@ -151,8 +147,8 @@
     {"code": "lonora_trading.morning_brief:brief_tick"}
    ],
    "partial": {
-    "note": "not asserted: the pending approval with its reason (a card for new risk comes with Ask mode and its reason with W-AUTH; on this commit a new agent is analysis-only and is refused with agent_analysis_only), and the day's events (the brief's facts carry none, and Lonora reads them with economic_calendar_read, which no harness source feeds); the brief Lonora posts is checked to be posted once, its words are the model's; the gold agent is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}, {"code": "lonora_contracts.trading:TradeAnnotation"}, {"pending": "a calendar source the harness can feed to economic_calendar_read"}]
+    "note": "not asserted: the pending approval with its reason (the reason a Trade Approval card carries comes with W-AUTH's TradeAnnotation, not on this commit), and the day's events (the brief's facts carry none, and Lonora reads them with economic_calendar_read, which no harness source feeds); the brief Lonora posts is checked to be posted once, its words are the model's",
+    "until": [{"code": "lonora_contracts.trading:TradeAnnotation"}, {"pending": "a calendar source the harness can feed to economic_calendar_read"}]
    },
    "given": {
     "overnight": [
@@ -181,7 +177,7 @@
     ]
    },
    "defects": [
-    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) matches a position's operation_id against journal operation ids, but a MetaApi position carries the broker tag broker_operation_tag(operation_id) that the adapter sent as its clientId, so a position an agent opened is shown as opened by the owner (3.3.4); lonora_opened matches both forms"}
+    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) looks a ticket's opener up under the account id account_snapshots gives, the provider's account id in the connection's payload (MetaApi's account), but ticket_openers keys each journal entry by its account_id, the connection's own id; the two never match, so a position an agent opened is shown as opened by the owner (3.3.4)"}
    ]
   },
   {
@@ -200,8 +196,8 @@
     {"code": "lonora_trading.weekly_report:wake_agents"}
    ],
    "partial": {
-    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words and is not asserted; the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}, {"pending": "W-LEDGER: per-label statistics given on wake (5.5.4)"}]
+    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words and is not asserted",
+    "until": [{"pending": "W-LEDGER: per-label statistics given on wake (5.5.4)"}]
    },
    "given": {
     "team": {"news": "وكيل الأخبار", "euro": "وكيل اليورو"}
@@ -216,6 +212,11 @@
      ]
     ],
     "lonora_id@weekly_report": [
+     [
+      {"text": "تقرير الأسبوع: لم أتداول بنفسي هذا الأسبوع، وأبقيت الفريق كما هو."}
+     ]
+    ],
+    "gold@weekly_report": [
      [
       {"text": "تقرير الأسبوع: لم أغلق صفقات هذا الأسبوع، وأبقيت طريقتي كما هي."}
      ]
