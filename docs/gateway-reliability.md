@@ -163,9 +163,7 @@ financial, authority or evidence record (migration `0036_durable_records`):
 - contextual links become `ON DELETE SET NULL`: the conversation of a grant, approval
   or Super Bot request, and the Run of an approval;
 - identity links keep their id as a plain value, with no cascade: the agent and account
-  of a grant, approval or restriction, and the goal id a retired Super Bot request names.
-  A NULL agent on a restriction would mean "every agent", so a
-  deleted agent's restriction never turns account-wide.
+  of a grant or approval, and the goal id a retired Super Bot request names.
 
 The trading journal and trading decisions already had no such links. A downgrade is
 refused while any record has outlived its parent.

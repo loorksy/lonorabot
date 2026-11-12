@@ -931,7 +931,6 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           agent ? (
             <SafetyPill
               readiness={liveState.state?.trading_readiness ?? null}
-              agents={agents}
               onChanged={liveState.refresh}
             />
           ) : undefined

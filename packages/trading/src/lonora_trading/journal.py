@@ -87,7 +87,7 @@ def record_excerpt(row: TradingJournalRow, *, symbol: str | None = None) -> dict
             "resolution",
             "conclusion",
             # Boundary decisions: the monetary limit evaluation and, for a blocked
-            # request, the restriction or limit that stopped it before the broker.
+            # request, what stopped it before the broker.
             "risk_assessment",
             "admission_block",
         )

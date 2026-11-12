@@ -2,7 +2,7 @@
 
 One bounded projection for the owner's header safety pill, its sheet and the agent's
 status line. It is built from the same records the financial boundary reads: the
-agent's ladder level and signed grants, global trading, restrictions in force, each
+agent's ladder level and signed grants, global trading, each
 account's money limits and unresolved operations with their scoped block.
 
 It is never consulted for enforcement. The single executor re-reads every one of
@@ -30,7 +30,6 @@ from .schema import (
     ThreadRow,
     TradingJournalRow,
 )
-from .trading_restrictions import list_restrictions, relevant_to, restriction_state
 from .transactions import SettingsRepository, execution_policy_key
 
 RISK_LIMIT_NAMES = (
@@ -43,8 +42,6 @@ RISK_LIMIT_NAMES = (
 )
 ACCOUNT_LIMIT = 10
 LIST_LIMIT = 5
-# Most restrictive first: the headline names the strongest pause in force.
-RESTRICTION_ORDER = ("all_mutations", "no_risk_increase", "no_new_entries")
 
 
 def risk_limit_frame(account_id: str, policy: ExecutionPolicy) -> dict[str, Any]:
@@ -138,40 +135,12 @@ async def trading_readiness(
     accounts = list(await session.scalars(accounts_query.limit(ACCOUNT_LIMIT)))
     # The accounts the line speaks for: the agent's own market, its signed grants when it
     # trades on its own, otherwise every account it may ask to trade on. The sheet still
-    # lists pauses and operations on the other accounts, each with its account named.
+    # lists operations on the other accounts, each with its account named.
     granted = {str(row["account_id"]) for row in permission["active_authorities"]}
     # A signed grant's account is always read, however many other accounts the owner has:
-    # otherwise its money limits and pauses would be missing from the line it speaks for.
+    # otherwise its money limits would be missing from the line it speaks for.
     accounts += sorted(granted - set(accounts))
     in_scope = granted if level == "autonomous" and granted else set(accounts)
-    restrictions: list[dict[str, Any]] = []
-    for row in await list_restrictions(session, owner_id, agent_id=agent.id, limit=20, now=now):
-        if not relevant_to(row, agent):
-            continue
-        restrictions.append(
-            {
-                "id": row.id,
-                "account_id": row.account_id,
-                "symbol": row.symbol,
-                "action_class": row.action_class,
-                "state": restriction_state(row, now),
-                "applies_to": "all_agents" if row.agent_id is None else "this_agent",
-                "includes_owner_manual": row.applies_to_owner_manual,
-                "valid_from": _iso(row.valid_from),
-                "valid_until": _iso(row.valid_until),
-                # owner_ui: the owner set it; owner_message: an agent recorded the owner's
-                # words; agent: an agent narrowed on its own. Only the owner lifts any.
-                "source": row.source,
-                "created_by_agent_id": row.created_by_agent_id,
-            }
-        )
-    restrictions.sort(
-        key=lambda item: (
-            item["state"] != "active",
-            item["account_id"] not in in_scope,
-            RESTRICTION_ORDER.index(item["action_class"]),
-        )
-    )
     money_limits = [
         await account_money_limits(session, owner_id, account_id) for account_id in accounts
     ]
@@ -254,23 +223,11 @@ async def trading_readiness(
             }
     for item in operations:
         item["resolve_card"] = cards.get(item["operation_id"])
-    active = [
-        item
-        for item in restrictions
-        if item["state"] == "active" and item["account_id"] in in_scope
-    ]
-    # Exits stay allowed under every brake except a freeze: one on a whole account the
-    # agent acts on, or (market-bound agent) on its own market.
-    exits_allowed = not any(
-        item["action_class"] == "all_mutations" and (item["symbol"] is None or fixed_market(agent))
-        for item in active
-    )
     state, params = _headline(
         level=level,
         paused=bool(agent.paused),
         trading=trading,
         grants=grants,
-        restrictions=active,
         operations=[item for item in operations if item["account_id"] in in_scope],
         unresolved_count=sum(
             count for account_id, count in counts.items() if account_id in in_scope
@@ -285,11 +242,9 @@ async def trading_readiness(
         "level": level,
         "grants": grants,
         "global_trading": trading,
-        "restrictions": restrictions[:LIST_LIMIT],
         "money_limits": money_limits,
         "unresolved_operations": operations,
         "unresolved_count": sum(counts.values()),
-        "exits_allowed": exits_allowed,
     }
 
 
@@ -299,7 +254,6 @@ def _headline(
     paused: bool,
     trading: dict[str, Any],
     grants: list[dict[str, Any]],
-    restrictions: list[dict[str, Any]],
     operations: list[dict[str, Any]],
     unresolved_count: int,
     money_limits: list[dict[str, Any]],
@@ -312,15 +266,6 @@ def _headline(
         return "agent_paused", {}
     if trading["state"] == "stopped":
         return "stopped", {"since": trading["since"]}
-    if restrictions:
-        first = restrictions[0]
-        return "paused", {
-            "action_class": first["action_class"],
-            "valid_until": first["valid_until"],
-            "symbol": first["symbol"],
-            "account_id": first["account_id"],
-            "count": len(restrictions),
-        }
     if unresolved_count:
         return "uncertain", {
             "count": unresolved_count,

@@ -329,10 +329,10 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
+undo something that must not be undone: an owner's "stop trading", a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
-on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
+on its own) of `ln_account_authorities`, `ln_supervision_grants`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the
 `trading…` rows of `ln_settings`, paused agents, the broker connections' enabled flags, paused or
 cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
@@ -604,9 +604,9 @@ machine. It uses the projects `lonora` and `lonora2`, their volume names, ports 
     would delete it: read-only (503, no Gateway) during its safety backup, file kept, older schema
     migrated up; then a restore failing after `DROP DATABASE`: the printed command resumes without a
     second safety backup while `update` refuses; `KEEP=1` keeps a held backup and `KEEP=0` is refused;
-14. a restriction written during the gate: held; `--keep-data` with the same digest stays held, a
-    bad tag changes nothing, another failing version returns to the hold, a fixed version updates
-    forward keeping the restriction;
+14. an owner-control write during the gate (the `ln_settings` key `trading_gate_probe`): held;
+    `--keep-data` with the same digest stays held, a bad tag changes nothing, another failing
+    version returns to the hold, a fixed version updates forward keeping the write;
 15. a trading-journal row written during the gate: held; backups during the hold keep its backup;
     `rollback` still holds; `rollback --force` restores;
 16. disaster recovery: a newer backup refused on an older image; `--with-config` restores the

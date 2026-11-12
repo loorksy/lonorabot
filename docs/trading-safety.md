@@ -7,8 +7,8 @@ agent can trade right now and what is stopping it. Stopping and resuming new tra
 one tap on Web and Mobile. No owner click can create a second financial operation.
 
 Nothing here changes what the financial boundary admits. The single executor
-(`lonora_trading.execution`) still re-reads the grant, global trading, restrictions,
-money limits and unresolved operations at the moment of sending.
+(`lonora_trading.execution`) still re-reads the grant, global trading, money limits and
+unresolved operations at the moment of sending.
 
 ## One brake: Stop new trading / Resume
 
@@ -24,7 +24,7 @@ contract is unchanged; the clients now offer one control:
   withdrawn on Resume.
 - **Resume trading** sends `{enabled: true, emergency_stop: false}` in one call, one tap,
   no passkey. It widens no authority: each agent still trades only within its ladder
-  level, signed grant, pauses and money limits.
+  level, signed grant and money limits.
 
 Trading OFF and the Emergency Stop flag are both "stopped" everywhere. Trading starts
 stopped until the owner starts it: while nobody has changed it (`changed_by: "default"`)
@@ -40,13 +40,13 @@ in the header safety sheet. Both send the same payloads.
 ### Brakes come before approval cards
 
 An agent at *Ask me*, or a trade outside an *On its own* grant, asks the owner with an
-approval card. While Stop new trading or a pause holds new risk, a card for a new entry
+approval card. While Stop new trading holds new risk, a card for a new entry
 could only fail after the owner's tap. `trade_execute` therefore checks the brakes before
 it raises a card (`refuse_braked_entries` in `lonora_tools.trade`) and returns the
-boundary's own code instead (`trading_disabled`, `emergency_stop`,
-`trading_restriction_active`), so the agent tells the owner in one line what is holding
-it; the owner's own brake is lifted by the owner (the agent proposes the Resume or Lift
-card only when the owner asks). An entry, and a stop moved further away, counts as new
+boundary's own code instead (`trading_disabled`, `emergency_stop`), so the agent tells
+the owner in one line what is holding it; the owner's own brake is lifted by the owner
+(the agent proposes the Resume card only when the owner asks). An entry, and a stop
+moved further away, counts as new
 risk on the broker's current facts (`new_risk_requests`); a close, a cancel or a
 tightening is still asked and is decided by the executor against the fresh broker
 target. The executor repeats every check at the moment of sending; this only refuses
@@ -74,27 +74,18 @@ same facts every turn. Enforcement code must never import it
 | `level` | `permission_state` effective level: `analysis` (No trading), `supervised` (Ask me), `autonomous` (On its own, signed) |
 | `grants` | active, verified `AccountAuthority` rows: account, markets, actions, manual positions, until |
 | `global_trading` | `running` or `stopped`, `since` (the settings row's change time), `changed_by` (`owner`, or `default` when never changed) |
-| `restrictions` | active and scheduled restrictions that apply to the agent: class, account, symbol, scope, window, source (`owner_ui`, `owner_message`, `agent`). No reason text: an agent's words are model prose |
 | `money_limits` | each readable account's `ExecutionPolicy.risk`, configured or not |
 | `unresolved_operations` | live `submitted`/`ambiguous` journal rows on readable accounts (a market-bound agent: its own market), with the scoped block `new_risk_on_this_symbol_or_ticket` and whether this agent sent it |
-| `exits_allowed` | false only under an active `all_mutations` freeze on an account the agent acts on (account-wide, or for a market-bound agent, on its market) |
 
 `state` is the one line, chosen in this order: `no_trading` (the agent never trades),
-`agent_paused`, `stopped`, `paused` (strongest active restriction first), `uncertain`
-(unresolved operations), then `ask_me` or `on_its_own`. `params` carry the values the line
-needs (time, symbol, class, account of the pause, count, whether a money limit is set).
+`agent_paused`, `stopped`, `uncertain` (unresolved operations), then `ask_me` or
+`on_its_own`. `params` carry the values the line needs (time, symbol, the grant's account,
+count, whether a money limit is set).
 
 The line speaks only for the accounts the agent acts on: its bound account, its signed
-grants when it trades on its own, otherwise every account it may ask to trade on. A pause
-or an uncertain operation on another account does not turn an agent that trades on its own
-on account A into "Paused"; the sheet still lists it, with its account named. With several
-accounts the "Paused" line names the account too ("Paused (Simulation · 2): no new
-entries · until you lift it").
-
-The stopped line follows `exits_allowed`: "New trading stopped · exits allowed" /
-«التداول الجديد متوقف · الخروج متاح» only when no freeze is in force, otherwise "New trading
-stopped · exits frozen too" / «التداول الجديد متوقف · والخروج مجمّد أيضًا», matching the
-sheet's freeze alert.
+grants when it trades on its own, otherwise every account it may ask to trade on. An
+uncertain operation on another account does not change the line of an agent that trades
+on its own on account A; the sheet still lists it, with its account named.
 
 The line and every sheet label come from one shared table in
 `packages/core/src/trading-readiness.ts` (English and Arabic, tickers and times isolated
@@ -108,14 +99,11 @@ money limit set" when it has no money limit at all.
 
 Every agent thread header shows the line as a pill (Web `SafetyPill`, Mobile
 `components/safety-pill.tsx` under the thread title). Tapping it opens a sheet with:
-Stop new trading / Resume, the ladder level and signed grants, active pauses (each with
-a one-tap **Lift pause** for the owner, `POST /trading/restrictions/{id}/revoke`; no agent
-can lift one), money limits per
+Stop new trading / Resume, the ladder level and signed grants, money limits per
 account ("No money limit set" when none) and operations awaiting broker confirmation
 (never resent; new risk on that market is held, exits stay allowed). No ids, codes or
 JSON are shown; account names appear only when several accounts are involved, and then
-on every grant, pause, money limit and operation. A pause an agent set names that agent
-on both clients ("Set by an agent · <name>").
+on every grant, money limit and operation.
 
 Web reads `GET /agents/{id}/state` through the shared request layer, which coalesces the
 pill's and the background-status strip's concurrent reads of the same path into one
@@ -156,15 +144,15 @@ it will not be sent again").
 ## Owner text for boundary codes
 
 `trading_disabled` and `emergency_stop` join the shared financial-boundary table
-(`packages/core/src/financial-boundary.ts`) with every `risk_*` code and
-`trading_restriction_active`, in English and Arabic. Web `userError`, Mobile
+(`packages/core/src/financial-boundary.ts`) with every `risk_*` code, in English and
+Arabic. Web `userError`, Mobile
 `errorText`, and both approval cards resolve codes through it first.
 
 ## Verification
 
 - `tests/test_trading_readiness.py`: no grant, Ask me, signed grant with and without a
-  money limit, globally stopped (and `since` not moving on a repeated Stop), active and
-  scheduled restrictions and a freeze, ambiguous and submitted operations with their
+  money limit, globally stopped (and `since` not moving on a repeated Stop), ambiguous
+  and submitted operations with their
   scoped block, a paused and a market-bound agent, the owner-only live state and grant
   money limits, and the presentation-only import guard.
 - `tests/test_agent_permissions_enforcement.py`: `global_trading` is re-read every turn

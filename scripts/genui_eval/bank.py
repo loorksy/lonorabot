@@ -68,7 +68,6 @@ CONTRACTS: dict[str, tuple[tuple[str, type[BaseModel]], ...]] = {
     "trade_close_positions": (),
     "trade_execute": (),
     "trade_record_history": (),
-    "trade_restriction_create": (),
     "watch_cancel": (("/payload", Watch),),
     "watch_create": (("/payload", Watch),),
     "watch_list": (("/watches/*/payload", Watch),),

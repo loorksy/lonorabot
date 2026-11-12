@@ -40,7 +40,6 @@ MODULES = {
     "chart_snapshot": "charts",
     "account": "account",
     "trade": "trading",
-    "restrictions": "trading",
     "owner_actions": "trading",
     "runtime_control": "tasks",
     "tasks": "tasks",

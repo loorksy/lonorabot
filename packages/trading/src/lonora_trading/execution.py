@@ -25,7 +25,6 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import RunRow, TicketRow, TradingJournalRow
 from lonora_db.trade_approvals import require_approved_target_current
 from lonora_db.trading_journal import anchor_operation, persist_result, reserve_operation
-from lonora_db.trading_restrictions import restriction_lock
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +39,6 @@ from .manual_activity import material_state
 from .operation_events import operation_event
 from .preflight import preflight
 from .reconciliation import send_lock_key
-from .restrictions import require_unrestricted
 from .risk_limits import assess_risk, risk_operations
 from .verification import verify_effect
 
@@ -210,15 +208,6 @@ class ExecutionService:
                 recovery=connection.state.get("broker_recovery"),
                 send_locked=False,
             )
-            # Fail fast on an owner restriction; the decisive check repeats at the send
-            # boundary, so a restriction created while this request waits still applies.
-            await require_unrestricted(
-                session,
-                owner_id,
-                request,
-                agent_id=leased_run.agent_id if leased_run else None,
-                reducing=planned_reducing,
-            )
             journal, fresh = await reserve_operation(
                 session,
                 owner_id,
@@ -263,8 +252,6 @@ class ExecutionService:
                 },
             ).model_dump(mode="json")
 
-        # Restrictions govern agent-originated operations; None is the owner's manual path.
-        restricted_agent = leased_run.agent_id if leased_run else None
         send_authorized = False
         quality: ExecutionQuality | None = None
         before_snapshot: ExecutionSnapshot | None = None
@@ -424,13 +411,6 @@ class ExecutionService:
                             snapshot,
                             expected_target,
                         )
-                # Owner restrictions: held shared against concurrent creation, so this
-                # operation either commits its send authorization before a restriction
-                # exists or sees it here. Queued work is decided now, not when queued.
-                await restriction_lock(session, owner_id, request.account_id, shared=True)
-                await require_unrestricted(
-                    session, owner_id, request, agent_id=restricted_agent, reducing=reducing
-                )
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )

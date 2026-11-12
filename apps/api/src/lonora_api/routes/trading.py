@@ -84,7 +84,7 @@ async def disconnect(
     rt = runtime(request)
     async with rt.db.sessions() as session, session.begin():
         # Refused while an operation on this account is uncertain; grants on it are
-        # revoked first, and its journal, grants and restrictions outlive it.
+        # revoked first, and its journal and grants outlive it.
         await prepare_delete(session, owner.id, account_id=connection_id)
         await BrokerSessionRepository().delete(session, owner.id, connection_id)
     prior = rt.services(owner.id).brokers.connections.pop(connection_id, None)

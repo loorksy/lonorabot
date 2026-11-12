@@ -36,7 +36,6 @@ from lonora_trading.exposure import direction
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
-from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -295,29 +294,21 @@ async def start_trading_card(context: ToolContext) -> dict[str, Any]:
         }
 
 
-async def refuse_braked_entries(
-    session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
-) -> None:
+async def refuse_braked_entries(session: AsyncSession, requests: list[TradeRequest]) -> None:
     """Never ask the owner to approve new risk a brake in force would refuse at send.
 
-    Stop new trading and a pause (``no_new_entries`` and stronger) hold every entry, so an
-    approval card for one could only fail after the owner's tap. The boundary's own codes
-    (``trading_disabled``, ``emergency_stop``, ``trading_restriction_active``) come back
-    instead, and the agent offers the owner's Resume or Lift card. ``requests`` are the
+    Stop new trading holds every entry, so an approval card for one could only fail after
+    the owner's tap. The boundary's own codes (``trading_disabled``, ``emergency_stop``)
+    come back instead, and the agent offers the owner's Resume card. ``requests`` are the
     ones that add risk on the broker's current facts (``new_risk_requests``); a close,
     cancel or tightening is still asked and decided by the executor against the fresh
     broker target, which repeats every check at the moment of sending. This only
     refuses earlier.
     """
-    entries = requests
-    if not entries:
+    if not requests:
         return
     stored = await session.get(SettingRow, "trading_control", populate_existing=True)
     require_trading(TradingControl.model_validate(stored.payload if stored else {}))
-    for request in entries:
-        await require_unrestricted(
-            session, context.owner_id, request, agent_id=context.agent_id, reducing=False
-        )
 
 
 def independent_exits(requests: list[TradeRequest]) -> bool:
@@ -433,7 +424,7 @@ async def approved_execution(
                 approval_id = row.id
         if row is None:
             if not gate_only:
-                await refuse_braked_entries(session, context, adding)
+                await refuse_braked_entries(session, adding)
             created = utcnow()
             row = TradeApprovalRow(
                 id=approval_id,

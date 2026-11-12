@@ -103,8 +103,8 @@ holds the document's lock. Every write reads the row again under that lock
 (`populate_existing`), never an earlier read, so two Agents answering one group
 message, or an Agent and the owner saving in Knowledge, both keep their lines and
 get distinct versions; a stale explicit version is `version_conflict`. A profile
-write needs a Run that answers the owner's message (`owner_message_id`, the same
-rule restrictions use): a wake, peer or task Run gets
+write needs a Run that answers the owner's message (`owner_message_id`): a wake,
+peer or task Run gets
 `owner_profile_requires_owner_message` and nothing is saved, so text an Agent
 read elsewhere can never become an owner preference. `owner_preferences_update`
 (long-tail, reached through `tool_call`) sets the reach-me channel, reply

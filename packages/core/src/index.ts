@@ -214,7 +214,6 @@ export {
   listSeparator,
   moneyLimitLabel,
   moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   type TradingSafetyText,
   tradingBrake,

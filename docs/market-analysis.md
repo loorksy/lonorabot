@@ -152,7 +152,7 @@ keep the bound account and symbol through the guard and their own handler checks
 The financial executor independently asserts the binding of every leased request,
 and preflight requires a position's or order's symbol to equal the request's symbol,
 so reading another account or symbol cannot widen execution. Signed grants,
-approvals, restrictions and risk limits are untouched.
+approvals and risk limits are untouched.
 
 ## Instrument resolution
 
@@ -177,14 +177,14 @@ symbol a request names is decided by code, never by the model:
   uses the first (shortest name) and lists the others with a note that an order needs
   the owner's choice. The catalogue is cached per account (per broker adapter, five
   minutes) and read again on a miss.
-- **Orders, closes, sizing, grants and restrictions** (`trade_execute`,
-  `trade_close_positions`, `market_position_size`, grant drafts,
-  `trade_restriction_create`) name a symbol the catalogue lists exactly, letter case
-  aside (`order_symbol`, `canonical_broker_symbol`, `restriction_symbol`). They are
+- **Orders, closes, sizing and grants** (`trade_execute`,
+  `trade_close_positions`, `market_position_size`, grant drafts) name a symbol the
+  catalogue lists exactly, letter case aside (`order_symbol`,
+  `canonical_broker_symbol`). They are
   never resolved to another symbol (an exit or a change to an existing ticket is not
   checked against the catalogue at all: preflight requires the ticket's own symbol, and
   a failed or shortened listing never holds back a close), so resolution cannot move an order to another
-  instrument or widen what a grant, a restriction or an agent's binding covers: those
+  instrument or widen what a grant or an agent's binding covers: those
   still compare the exact symbol.
 - **A request that is not listed** fails with `symbol_not_found` (no match, or exactly
   one: `hint` names it and tells the model to repeat the call) or `symbol_ambiguous`

@@ -3,11 +3,10 @@ import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { AgentModelMode, ModelLabel } from "./models";
-import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type { GlobalTrading, MoneyLimitName, MoneyLimits } from "./trading";
 
 export type OwnerActionKind =
   | "resume_trading"
-  | "lift_restriction"
   | "resolve_operation"
   | "set_account_limits"
   | "grant_authority"
@@ -107,18 +106,6 @@ export type OwnerAction = {
     several_accounts: boolean;
     global_trading?: GlobalTrading;
     account?: OwnerActionAccount;
-    restriction?: {
-      action_class: RestrictionActionClass;
-      symbol: string | null;
-      all_agents: boolean;
-      agent_name: string | null;
-      includes_owner_manual: boolean;
-      state: "scheduled" | "active" | "expired" | "revoked";
-      valid_from: string;
-      valid_until: string | null;
-      source: "owner_ui" | "owner_message" | "agent";
-      set_by_agent_name: string | null;
-    };
     operation?: {
       operation_id: string;
       action: string | null;
@@ -285,8 +272,6 @@ export type OwnerAction = {
     integration_id?: string;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
-    /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */
-    restriction_id?: string;
     /** watch_changed Undo: the watch's expiry now. */
     expires_at?: string | null;
   };
@@ -315,11 +300,6 @@ export type OwnerActionDecision = {
   tier?: EffectTier;
   /** connect_credential: what the secure form created; never the value it holds. */
   connected?: { resource: "integration" | "mcp" | "broker"; id: string };
-  /**
-   * Resolve card answered "unknown" only: also pause new trades by every agent on its
-   * account until the trading day ends there (an owner restriction; it only narrows).
-   */
-  pause_new_today?: boolean;
 };
 /**
  * The mandate sheet («تنفيذ مفوَّض»): POST /agents/{id}/account-authorities/draft. It

@@ -58,7 +58,6 @@ from lonora_db.schema import (
     TradeApprovalRow,
     TradingAccountRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_gateway.run_dispatch import run_model_choice
@@ -1065,128 +1064,6 @@ class Acceptance:
         self.watch_name = name
         return watches[0].id
 
-    # Journey 3 -----------------------------------------------------------------------
-
-    async def pause_today_then_resume(self, watch_id: str) -> None:
-        """«أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب»: one restriction for all agents
-        until the end of the day, the watch keeps running, one Lift card; one tap resumes."""
-        name = "J3 stop new trades today, then resume later"
-        words = "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب"
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
-        self.model.script(
-            words,
-            lambda t: call(
-                "j3-pause",
-                "trade_restriction_create",
-                {
-                    "account_id": self.account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today; keep watching gold.",
-                },
-            ),
-            "أوقفت الصفقات الجديدة لكل الوكلاء حتى نهاية اليوم؛ الإغلاق وتقريب الوقف مسموحان، "
-            "ومراقبة الذهب مستمرة.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, words))
-        assert run.status == "completed", (run.status, run.error_code)
-        restriction_id = json.loads(
-            next(
-                m.content
-                for m in self.model.sent[-1]
-                if m.role == "tool" and m.tool_call_id == "j3-pause"
-            )
-        )["restriction"]["id"]
-        async with self.db.sessions() as session:
-            restriction = await session.get(TradingRestrictionRow, restriction_id)
-            assert restriction is not None and restriction.agent_id is None
-            assert restriction.source == "owner_message" and restriction.revoked_at is None
-            watch = await session.get(MarketWatchRow, watch_id, populate_existing=True)
-            assert watch is not None and watch.payload["enabled"] is True  # Still watching.
-        await self.project()
-        lifts = await self.pending(self.lonora_thread, "lift_restriction")
-        assert len(lifts) == 1, lifts
-        facts = lifts[0]["facts"]["restriction"]
-        assert facts["action_class"] == "no_new_entries" and facts["valid_until"], facts
-        # The pill on every agent says the same thing as the card and the record.
-        for agent_id in (self.lonora, self.created[0]):
-            readiness = (await self.state(agent_id))["trading_readiness"]
-            assert readiness["state"] == "paused", (agent_id, readiness)
-            assert readiness["params"]["action_class"] == "no_new_entries"
-            assert readiness["params"]["valid_until"] == facts["valid_until"]
-            assert readiness["exits_allowed"] is True
-        # A new entry is held; nothing reaches the broker.
-        before = await self.positions(self.account)
-        self.model.script(
-            "اشترِ 0.01 ذهب الآن",
-            lambda t: call(
-                "j3-buy",
-                "trade_execute",
-                {
-                    "action": "buy",
-                    "account_id": self.account,
-                    "symbol": GOLD,
-                    "volume": "0.01",
-                    "stop_loss": "1990",
-                },
-            ),
-            "الصفقات الجديدة متوقفة اليوم بطلبك.",
-        )
-        await self.refresh_quotes(self.account)
-        refused = await self.work(await self.say(self.lonora_thread, "اشترِ 0.01 ذهب الآن"))
-        assert refused.status == "completed", (
-            refused.status,
-            refused.error_code,
-            [m.content[:300] for m in self.model.sent[-1][-2:]],
-        )
-        result = json.loads(
-            next(
-                m.content
-                for m in self.model.sent[-1]
-                if m.role == "tool" and m.tool_call_id == "j3-buy"
-            )
-        )
-        # Refused with the pause's own code before any approval card (Lonora is Ask me).
-        assert result.get("ok") is False and result.get("reason") == "trading restriction active", (
-            result
-        )
-        assert await self.count(TradeApprovalRow, TradeApprovalRow.run_id == refused.id) == 0
-        assert await self.positions(self.account) == before
-        # Later the owner says «رجّع التداول»: Lonora offers the Lift card (the same one).
-        self.model.script(
-            "رجّع التداول",
-            lambda t: call(
-                "j3-lift",
-                "owner_action_propose",
-                {"kind": "lift_restriction", "restriction_id": restriction_id},
-            ),
-            "اضغط «رفع الإيقاف» على البطاقة.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, "رجّع التداول"))
-        assert run.status == "completed"
-        again = await self.pending(self.lonora_thread, "lift_restriction")
-        assert [card["id"] for card in again] == [lifts[0]["id"]], again  # No second card.
-        lifted = await self.decide(name, lifts[0]["id"], {"decision": "confirm"})
-        assert lifted["status"] == "confirmed" and lifted["decided_via"] == "tap", lifted
-        async with self.db.sessions() as session:
-            restriction = await session.get(
-                TradingRestrictionRow, restriction_id, populate_existing=True
-            )
-            assert restriction is not None and restriction.revoked_at is not None
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "on_its_own" or (
-            await self.level(self.lonora)
-        ) == "supervised"
-        line = (await self.lines(self.lonora_thread))[-1]
-        assert any("\u0600" <= char <= "\u06ff" for char in line), line
-        self.journey(name, 1)
-
     # Journey 12 ----------------------------------------------------------------------
 
     async def stop_all_from_phone(self) -> None:
@@ -1196,7 +1073,7 @@ class Acceptance:
         await self.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
         self.tap(name)
         readiness = (await self.state(self.created[0]))["trading_readiness"]
-        assert readiness["state"] == "stopped" and readiness["exits_allowed"] is True, readiness
+        assert readiness["state"] == "stopped", readiness
         # An exit is still allowed: the gold agent closes its position under Stop.
         gold_positions = [p for p in await self.positions(self.account) if p["symbol"] == GOLD]
         assert gold_positions
@@ -1229,52 +1106,6 @@ class Acceptance:
         state = await self.state(self.lonora)
         assert state["watches"] == [] and state.get("watch_count", 0) == 0, state
         self.journey(self.watch_name, 0)
-
-    # Journey 3, two accounts ----------------------------------------------------------
-
-    async def pause_every_account(self) -> None:
-        """With two accounts a pause for "today" is one restriction and one Lift card per
-        account (a restriction is scoped to one account); lifting is one tap per account."""
-        name = "J3b stop new trades today on two accounts, then resume"
-        words = "أوقف الصفقات الجديدة اليوم على كل حساباتي"
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
-
-        def pause(call_id: str, account: str) -> tuple[str, str, dict[str, Any]]:
-            return (
-                call_id,
-                "trade_restriction_create",
-                {
-                    "account_id": account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today on every account.",
-                },
-            )
-
-        self.model.script(
-            words,
-            lambda t: calls(
-                pause("j3b-first", self.account), pause("j3b-second", self.second_account)
-            ),
-            "أوقفت الصفقات الجديدة على الحسابين حتى نهاية اليوم.",
-        )
-        run = await self.work(await self.say(self.lonora_thread, words))
-        assert run.status == "completed", (run.status, run.error_code)
-        await self.project()
-        lifts = await self.pending(self.lonora_thread, "lift_restriction")
-        assert len(lifts) == 2, lifts
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "paused"
-        for card in lifts:
-            await self.decide(name, card["id"], {"decision": "confirm"})
-        assert (await self.state(self.lonora))["trading_readiness"]["state"] == "on_its_own"
-        self.journey(name, 2, "one Lift card per account; the journey list assumes one account")
 
     # Journey 7 -----------------------------------------------------------------------
 
@@ -2121,11 +1952,9 @@ async def main() -> None:
         await acceptance.gold_agent_trades_on_its_own()
         await acceptance.approve_one_trade()
         watch = await acceptance.watch_london_session()
-        await acceptance.pause_today_then_resume(watch)
         await acceptance.stop_all_from_phone()
         await acceptance.stop_watching(watch)
         await acceptance.lonora_manages_all_pairs()
-        await acceptance.pause_every_account()
         await acceptance.resolve_uncertain_trade()
         news, desk, _ = await acceptance.news_agent_and_supervisor()
         await acceptance.add_mcp_server()
@@ -2153,7 +1982,6 @@ async def main() -> None:
 # The owner's sentences the browser specs type into the real composer.
 UI_WORDS = {
     "create_gold": "أنشئ وكيل ذهب يدير صفقاتي على حسابي بنفسه، وخسارة يومية قصوى 2%",
-    "pause_today": "أوقف فتح صفقات جديدة اليوم، وكمّل مراقبة الذهب",
     "buy_once": "اشترِ 0.1 ذهب على حسابي بوقف خسارة 150",
 }
 
@@ -2168,12 +1996,6 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
     try:
         await acceptance.provider()
         account, symbol = cast(str, data["account"]), cast(str, data["symbol"])
-        from datetime import datetime, time
-        from zoneinfo import ZoneInfo
-
-        end_of_day = datetime.combine(
-            datetime.now(ZoneInfo("UTC")).date(), time(23, 59, 59), ZoneInfo("UTC")
-        ).isoformat()
         model = acceptance.model
         model.script(
             UI_WORDS["create_gold"],
@@ -2198,22 +2020,6 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 },
             ),
             "أنشأت وكيل الذهب؛ وقّع البطاقة ليتداول بنفسه.",
-        )
-        model.script(
-            UI_WORDS["pause_today"],
-            lambda t: call(
-                "ui-pause",
-                "trade_restriction_create",
-                {
-                    "account_id": account,
-                    "all_symbols": True,
-                    "all_agents": True,
-                    "action_class": "no_new_entries",
-                    "valid_until": end_of_day,
-                    "reason": "The owner asked: no new trades today; keep watching gold.",
-                },
-            ),
-            "أوقفت الصفقات الجديدة لكل الوكلاء حتى نهاية اليوم، والمراقبة مستمرة.",
         )
         model.script(
             UI_WORDS["buy_once"],
@@ -2271,21 +2077,12 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     .order_by(OwnerActionRow.created_at)
                 )
             ]
-            restrictions = list(
-                await session.scalars(
-                    select(TradingRestrictionRow.id).where(
-                        TradingRestrictionRow.account_id == account,
-                        TradingRestrictionRow.source_run_id == run_id,
-                    )
-                )
-            )
         return {
             "run": run_id,
             "status": status,
             "error_code": error_code,
             "agent": created,
             "cards": raised,
-            "restrictions": restrictions,
         }
     finally:
         await fixture.close(cleanup=False)

@@ -32,10 +32,6 @@ function activityTitle(code: ActivityCode): string {
       return t`Delegation changed`;
     case "limits_changed":
       return t`Account limits changed`;
-    case "restriction_set":
-      return t`Restriction set`;
-    case "restriction_lifted":
-      return t`Restriction lifted`;
     case "operation_resolved":
       return t`Operation resolved`;
     case "approval_approved":

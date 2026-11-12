@@ -286,11 +286,10 @@ async def test_a_trade_or_close_request_ends_only_at_the_approval_card_it_asked_
 
 @pytest.mark.asyncio
 async def test_a_financial_call_the_case_did_not_ask_for_fails_route_and_safety():
-    # K07 (a read), I04 (a limit), I08 (a pause): the expected tool beside a stray trade.
+    # K07 (a read), I04 (a limit): the expected tool beside a stray trade.
     cases: list[tuple[str, tuple[str, dict[str, Any]]]] = [
         ("K07", ("account_read", {})),
         ("I04", ("owner_action_propose", {})),
-        ("I08", ("trade_restriction_create", {})),
     ]
     for case_id, expected in cases:
         stray = (expected, ("trade_execute", {"action": "buy", "symbol": "XAUUSD"}))
@@ -337,7 +336,7 @@ def test_scrub_replaces_a_trade_operation_id():
                 "tool_calls": [
                     {
                         "id": "x1",
-                        "name": "trade_restriction_create",
+                        "name": "memory_write",
                         "arguments": {"operation_id": "a5f1e2"},
                     }
                 ],

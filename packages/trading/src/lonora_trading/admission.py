@@ -9,7 +9,7 @@ gross exposure or bound its loss:
   exits allowed). Closing one leg of a hedge reduces gross exposure and modeled loss at
   the stops even though it can raise net directional exposure on the symbol: that is
   deliberate, since flattening a hedged book requires it, and owner-facing texts for
-  ``no_risk_increase`` and Emergency Stop say that closing a hedge leg stays allowed.
+  Emergency Stop say that closing a hedge leg stays allowed.
 - ``cancel_order`` of an existing pending order on the same symbol whose fill would not
   reduce the symbol's absolute net position volume: an entry order only adds exposure,
   so removing it reduces risk. A *protective* order — an opposite-side order whose fill

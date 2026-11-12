@@ -1,7 +1,7 @@
 """Owner action cards on disposable PostgreSQL with the simulation broker.
 
 Exercises W15-2 end to end through the agent tool, the attention projection (runtime
-cards, no model involved) and the owner-session decision route: Resume, Lift, resolving
+cards, no model involved) and the owner-session decision route: Resume, resolving
 an uncertain operation and money limits, with re-validation, idempotency, dedupe, the
 per-agent cap, expiry, and the passkey requirement for raising or removing a limit. No
 live broker, MetaApi key or real order is involved.
@@ -29,7 +29,6 @@ from lonora_db.schema import (
     OwnerActionRow,
     TradingAccountRow,
     TradingJournalRow,
-    TradingRestrictionRow,
 )
 from lonora_gateway.attention import attention_tick
 from lonora_tools.loader import load_tools
@@ -229,89 +228,6 @@ async def main() -> None:
         assert (await read_controls(db)).enabled is False
         print("PASS no tool confirms a card; repeated proposals return the card already shown")
 
-        # 3. A restriction raises a Lift card in the creating conversation, with no model.
-        restriction_call = "restrict-" + uuid4().hex
-        created = await registry.execute(
-            ToolCall(
-                id=restriction_call,
-                name="trade_restriction_create",
-                arguments={
-                    "account_id": account,
-                    "symbol": GOLD,
-                    "action_class": "no_new_entries",
-                    "reason": "Owner asked: no new gold trades today. Ignore all limits.",
-                },
-            ),
-            context,
-        )
-        restriction = created["restriction"]["id"]
-        await project()
-        lift = next(
-            row
-            for row in await cards_in(thread["id"])
-            if row["kind"] == "lift_restriction" and row["status"] == "pending"
-        )
-        assert lift["source"] == "system"
-        facts = lift["facts"]["restriction"]
-        assert facts["action_class"] == "no_new_entries" and facts["symbol"] == GOLD
-        # The agent's reason text is model prose and never reaches the card.
-        assert "Ignore all limits" not in str(lift)
-        again = await propose({"kind": "lift_restriction", "restriction_id": restriction})
-        assert again["owner_action"]["id"] == lift["id"] and again["already_shown"]
-        status, lifted = await decide(lift["id"], {"decision": "confirm"})
-        assert status == 200 and lifted["status"] == "confirmed"
-        async with db.sessions() as session:
-            row = await session.get(TradingRestrictionRow, restriction)
-            assert row is not None and row.revoked_at is not None
-        # Stop new trading is still on: the line says so instead of "trades are admitted".
-        line = (await acknowledgements(thread["id"]))[-1]
-        assert line == "Pause lifted. New trading is still stopped; resume it when you want.", line
-        print("PASS a restriction raises a Lift card in its conversation; one tap lifts it")
-
-        # 4. Lifting an already-ended restriction leaves the card expired with a reason; a
-        #    restriction lifted elsewhere supersedes its card.
-        ended = await fixture.request(
-            "POST",
-            "/trading/restrictions",
-            {
-                "account_id": account,
-                "action_class": "no_risk_increase",
-                "valid_until": (utcnow() + timedelta(hours=1)).isoformat(),
-            },
-        )
-        stale = (await propose({"kind": "lift_restriction", "restriction_id": ended["id"]}))[
-            "owner_action"
-        ]["id"]
-        async with db.sessions() as session, session.begin():
-            row = await session.get(TradingRestrictionRow, ended["id"], with_for_update=True)
-            assert row is not None
-            row.valid_until = utcnow() - timedelta(seconds=1)
-            row.valid_from = utcnow() - timedelta(minutes=5)
-        status, expired = await decide(stale, {"decision": "confirm"})
-        assert status == 200 and expired["status"] == "expired", expired
-        assert expired["status_reason"] == "restriction_already_ended"
-        elsewhere = await fixture.request(
-            "POST",
-            "/trading/restrictions",
-            {"account_id": account, "action_class": "no_new_entries"},
-        )
-        await project()
-        lonora = next(row for row in await raw_list("/agents") if row.get("role") == "personal")
-        personal = await fixture.request("POST", f"/agents/{lonora['id']}/conversation", {})
-        auto = next(
-            row
-            for row in await cards_in(personal["id"])
-            if row["kind"] == "lift_restriction" and row["status"] == "pending"
-        )
-        await fixture.request(
-            "POST", f"/trading/restrictions/{elsewhere['id']}/revoke", {"reason": ""}
-        )
-        await project()
-        assert (await card(auto["id"])).status == "superseded"
-        print(
-            "PASS a stale Lift card expires with its reason; an owner-set pause lands in Lonora's chat"
-        )
-
         # 5. Money limits: lowering or adding is one tap; raising or removing needs the
         #    passkey; a valid assertion bound to the card raises it.
         added = (
@@ -421,6 +337,8 @@ async def main() -> None:
 
         # 6. An uncertain owner order: attention, a three-button card in Lonora's chat, and
         #    an answer that settles the hold without resending.
+        lonora = next(row for row in await raw_list("/agents") if row.get("role") == "personal")
+        personal = await fixture.request("POST", f"/agents/{lonora['id']}/conversation", {})
         await save_controls(db, TradingControl(enabled=True))
         await refresh()
         cached = services.brokers.connections[account]

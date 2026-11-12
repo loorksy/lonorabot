@@ -683,27 +683,3 @@ for (const locale of ["en", "ar"])
       await state.cleanup();
     }
   });
-
-test("the safety sheet lifts a pause with one tap", async ({ page, context }) => {
-  test.setTimeout(60000);
-  const state = await setup(context, "en");
-  try {
-    const created = await context.request.post("/api/trading/restrictions", {
-      headers: state.headers,
-      data: { account_id: state.account, action_class: "no_new_entries" },
-    });
-    expect(created.status()).toBe(201);
-    const pause = (await created.json()).id;
-    await page.goto(`/app/${state.agent.id}`);
-    await page.getByTestId("safety-capsule").click();
-    const sheet = page.locator("#dialog");
-    await sheet.locator(`[data-lift-restriction="${pause}"]`).click();
-    await expect(sheet.locator(`[data-lift-restriction="${pause}"]`)).toHaveCount(0);
-    const current = await (
-      await context.request.get(`/api/trading/restrictions?account_id=${state.account}`)
-    ).json();
-    expect(current.map((row) => row.id)).not.toContain(pause);
-  } finally {
-    await state.cleanup();
-  }
-});

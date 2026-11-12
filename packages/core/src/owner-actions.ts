@@ -27,7 +27,6 @@ import {
   listSeparator,
   moneyLimitLabel,
   moneyLimitsLine,
-  pauseClassLabel,
   readinessTime,
   tradingSafetyLabels,
 } from "./trading-readiness";
@@ -52,22 +51,9 @@ export const ownerActionLabels = {
     start: "Start trading",
     started: "Trading started.",
     notNow: "Not now",
-    pausedEntries: "New entries paused",
-    pausedRisk: "Only exits allowed",
-    pausedFrozen: "Trading frozen",
-    exitsAllowed: "Closing positions and tightening stops stay allowed.",
-    exitsFrozen: "Exits are frozen too.",
-    lift: "Lift pause",
     keep: "Keep it",
-    allPairs: "all pairs",
-    allAgents: "all agents",
-    yourOrdersToo: "your manual orders too",
-    untilLifted: "until you lift it",
     until: "until",
-    starts: "starts",
-    setByYou: "set by you",
     fromYourMessage: "from your message",
-    setByAgent: "set by",
     anAgent: "an agent",
     resolveTitle: "The broker did not confirm this trade",
     resolveHint:
@@ -95,7 +81,6 @@ export const ownerActionLabels = {
     simulation: "Simulation",
     brokerAccount: "Broker account",
     resumed: "Trading resumed.",
-    lifted: "Pause lifted.",
     recordedExecuted: "Recorded: it executed (your statement, not broker confirmation).",
     recordedNotExecuted: "Recorded: it did not execute (your statement, not broker confirmation).",
     recordedUnknown:
@@ -289,8 +274,6 @@ export const ownerActionLabels = {
     connect: "Connect",
     connected: "Connected. Agents see only that it is configured.",
     alreadyConnected: "This is already connected. Nothing changed.",
-    pauseNewToday: "Stop new trades today",
-    pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
     noteShort: "Note",
     brokerRefShort: "Broker reference",
@@ -328,22 +311,9 @@ export const ownerActionLabels = {
     start: "بدء التداول",
     started: "بدأ التداول.",
     notNow: "ليس الآن",
-    pausedEntries: "الصفقات الجديدة متوقفة",
-    pausedRisk: "الخروج فقط مسموح",
-    pausedFrozen: "التداول مجمّد",
-    exitsAllowed: "يبقى إغلاق المراكز وتقريب وقف الخسارة متاحًا.",
-    exitsFrozen: "الخروج مجمّد أيضًا.",
-    lift: "رفع الإيقاف",
     keep: "إبقاؤه",
-    allPairs: "كل الأزواج",
-    allAgents: "كل الوكلاء",
-    yourOrdersToo: "وأوامرك اليدوية أيضًا",
-    untilLifted: "حتى ترفعه",
     until: "حتى",
-    starts: "يبدأ",
-    setByYou: "وضعته أنت",
     fromYourMessage: "من رسالتك",
-    setByAgent: "وضعه",
     anAgent: "وكيل",
     resolveTitle: "الوسيط لم يؤكد هذه الصفقة",
     resolveHint:
@@ -371,7 +341,6 @@ export const ownerActionLabels = {
     simulation: "محاكاة",
     brokerAccount: "حساب الوسيط",
     resumed: "استؤنف التداول.",
-    lifted: "رُفع الإيقاف.",
     recordedExecuted: "سُجّل: نُفذت (تصريحك، لا تأكيد من الوسيط).",
     recordedNotExecuted: "سُجّل: لم تُنفذ (تصريحك، لا تأكيد من الوسيط).",
     recordedUnknown:
@@ -561,8 +530,6 @@ export const ownerActionLabels = {
     connect: "ربط",
     connected: "تم الربط. لا يرى الوكلاء إلا أنه مُعدّ.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
-    pauseNewToday: "أوقف الصفقات الجديدة اليوم",
-    pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
     noteShort: "ملاحظة",
     brokerRefShort: "مرجع الوسيط",
@@ -700,8 +667,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
         return text.resumedWork;
       case "resume_trading":
         return card.result.started === true ? text.started : text.resumed;
-      case "lift_restriction":
-        return text.lifted;
       case "set_account_limits":
         return text.limitsSaved;
       case "trust_source":
@@ -726,8 +691,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
     }
   }
   switch (card.status_reason) {
-    case "restriction_already_ended":
-      return text.alreadyEnded;
     case "operation_already_settled":
       return text.alreadySettled;
     case "trading_already_running":
@@ -1392,45 +1355,6 @@ export function ownerActionCard(
       buttons = pair(start ? text.start : text.resume, text.notNow);
       break;
     }
-    case "lift_restriction": {
-      const pause = facts.restriction;
-      title =
-        pause?.action_class === "all_mutations"
-          ? text.pausedFrozen
-          : pause?.action_class === "no_risk_increase"
-            ? text.pausedRisk
-            : text.pausedEntries;
-      if (pause) {
-        const who = pause.all_agents
-          ? text.allAgents
-          : pause.agent_name
-            ? isolate(pause.agent_name)
-            : text.anAgent;
-        const scope = [
-          pause.symbol ? isolate(pause.symbol) : text.allPairs,
-          who,
-          ...(pause.includes_owner_manual ? [text.yourOrdersToo] : []),
-          ...(account ? [account] : []),
-        ];
-        lines.push(`${pauseClassLabel(pause.action_class, locale)} · ${scope.join(" · ")}`);
-        const when =
-          pause.state === "scheduled"
-            ? `${text.starts} ${readinessTime(pause.valid_from, locale, now)}`
-            : pause.valid_until
-              ? `${text.until} ${readinessTime(pause.valid_until, locale, now)}`
-              : text.untilLifted;
-        const source =
-          pause.source === "owner_ui"
-            ? text.setByYou
-            : pause.source === "owner_message"
-              ? text.fromYourMessage
-              : `${text.setByAgent} ${pause.set_by_agent_name ? isolate(pause.set_by_agent_name) : text.anAgent}`;
-        lines.push(`${when} · ${source}`);
-        hint = pause.action_class === "all_mutations" ? text.exitsFrozen : text.exitsAllowed;
-      }
-      buttons = pair(text.lift, text.keep);
-      break;
-    }
     case "resolve_operation": {
       title = text.resolveTitle;
       const operation = facts.operation;
@@ -1792,10 +1716,6 @@ const errors: Readonly<Record<string, { en: string; ar: string }>> = {
   owner_action_not_renewable: {
     en: "This card can no longer be asked again. Nothing changed.",
     ar: "لم يعد ممكنًا طلب هذه البطاقة من جديد. لم يتغير شيء.",
-  },
-  owner_action_pause_unsupported: {
-    en: "This card cannot pause new trades.",
-    ar: "لا تستطيع هذه البطاقة إيقاف الصفقات الجديدة.",
   },
   trade_approval_expired: {
     en: "This request expired. Ask for a new one.",

@@ -79,19 +79,17 @@ widening protection — is risk-increasing.
   be verified, which is a different cause than a previous operation — but still
   admits exits.
 
-## Owner restrictions and monetary limits at the send boundary
+## Monetary limits at the send boundary
 
 After the execution-quality gate and global controls, `before_send` evaluates the
 owner's monetary limits (`ExecutionPolicy.risk`, `lonora_trading/risk_limits.py`) from
 fresh broker economics for any request that is not risk-reducing. Open risk counts
 `submitted` and `ambiguous` entries and confirmed entries awaiting verification whose
-ticket is not yet visible, so an unresolved operation can never free risk budget. The
-final transaction then checks owner restrictions (`lonora_trading/restrictions.py`)
-under a shared restriction lock before moving the row to `submitted`. Either block is
-recorded on the reserved row (`details.risk_assessment`, `details.admission_block`)
-and concluded as `failed` with `send_state: not_sent`; `persist_result` keeps both as
-server evidence. Neither ever blocks a risk-reducing request, except an explicit
-`all_mutations` restriction. See `account-authority.md` for the semantics.
+ticket is not yet visible, so an unresolved operation can never free risk budget. A
+block is recorded on the reserved row (`details.risk_assessment`,
+`details.admission_block`) and concluded as `failed` with `send_state: not_sent`;
+`persist_result` keeps both as server evidence. A limit never blocks a risk-reducing
+request. See `account-authority.md` for the semantics.
 
 ## Observe-only recovery
 
@@ -196,9 +194,9 @@ close-all) is a set of independent exits: no close depends on another, each one 
 admitted again against its own fresh broker target under the send lock, and admission
 never blocks a risk-reducing exit. Both the standing-authority and approval paths
 therefore send every close of such a batch, whatever the result of the others: a close
-whose reviewed position was stopped out or changed fails on its own, a close blocked by
-a restriction is reported on its own, and a lost response leaves only that close
-`ambiguous`. Calling the identical close-all again replays the completed approval.
+whose reviewed position was stopped out or changed fails on its own, and a lost
+response leaves only that close `ambiguous`. Calling the identical close-all again
+replays the completed approval.
 
 Any other multi-request batch is treated as a dependent sequence: both paths stop after
 the first result that is not `confirmed`, and the remaining requests are reported as
@@ -233,7 +231,7 @@ Today every other caller (`trade_execute`) submits a single request.
 
 ## Durable records and deletes
 
-Journal rows, approvals, grants, restrictions and retired Super Bot
+Journal rows, approvals, grants and retired Super Bot
 requests survive the agent, conversation, Run or broker connection they name (migration
 `0036_durable_records`). A delete of an agent, a conversation or a broker connection is
 refused with `delete_blocked_unresolved_operation` while an operation it touches has no

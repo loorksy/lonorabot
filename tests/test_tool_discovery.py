@@ -143,8 +143,6 @@ def test_eager_working_sets_are_data_from_tool_metadata():
     # Calendar evidence is native for research Agents only when a source exists.
     assert "economic_calendar_read" in research - market
     assert catalog.tools["economic_calendar_read"].availability is not None
-    # Owner restrictions are shown in the permission frame; their tools are long-tail.
-    assert not {"trade_restriction_create", "trade_restriction_list"} & (market | research)
     assert not {"market_quote", "trade_execute"} & research
     assert {"task_wait", "task_step_update"} <= set(catalog.eager_names(["core", "task"]))
     assert "task_wait" not in market | research

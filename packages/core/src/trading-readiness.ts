@@ -9,7 +9,6 @@ import type {
   GlobalTrading,
   MoneyLimitName,
   MoneyLimits,
-  RestrictionActionClass,
   TradingReadiness,
 } from "@lonora/contracts";
 
@@ -58,25 +57,12 @@ export const tradingSafetyLabels = {
     until: "until",
     manualIncluded: "Your own positions included",
     manualExcluded: "Your own positions excluded",
-    pauses: "Pauses",
-    noPauses: "No pauses",
-    allAgents: "All agents",
-    thisAgent: "This agent",
-    includesManual: "includes your manual orders",
-    setByYou: "Set by you",
-    fromYourMessage: "Recorded from your message",
-    setByAgent: "Set by an agent",
-    onlyYouLift: "Only you can lift a pause.",
-    lift: "Lift pause",
-    starts: "starts",
-    noEnd: "no end time",
     moneyLimits: "Money limits",
     noMoneyLimit: "No money limit set",
     unresolved: "Awaiting broker confirmation",
     noUnresolved: "No operation is waiting for the broker.",
     uncertainHint:
       "It will not be sent again. New risk on this market is held until it settles; exits stay allowed.",
-    exitsFrozen: "A freeze is active: exits are blocked too.",
     close: "Close",
     loading: "Loading…",
   },
@@ -105,25 +91,12 @@ export const tradingSafetyLabels = {
     until: "حتى",
     manualIncluded: "يشمل مراكزك اليدوية",
     manualExcluded: "لا يشمل مراكزك اليدوية",
-    pauses: "الإيقافات",
-    noPauses: "لا توجد إيقافات",
-    allAgents: "كل الوكلاء",
-    thisAgent: "هذا الوكيل",
-    includesManual: "يشمل أوامرك اليدوية",
-    setByYou: "وضعته أنت",
-    fromYourMessage: "سُجّل من رسالتك",
-    setByAgent: "وضعه وكيل",
-    onlyYouLift: "أنت وحدك من يرفع الإيقاف.",
-    lift: "رفع الإيقاف",
-    starts: "يبدأ",
-    noEnd: "دون وقت انتهاء",
     moneyLimits: "الحدود المالية",
     noMoneyLimit: "لا حد مالي محدد",
     unresolved: "بانتظار تأكيد الوسيط",
     noUnresolved: "لا توجد عملية بانتظار الوسيط.",
     uncertainHint:
       "لن تُرسل مجددًا. المخاطرة الجديدة على هذا السوق معلّقة حتى تُحسم؛ يبقى الخروج متاحًا.",
-    exitsFrozen: "يوجد تجميد نشط: الخروج محظور أيضًا.",
     close: "إغلاق",
     loading: "جارٍ التحميل…",
   },
@@ -150,12 +123,6 @@ export function tradingBrake(
   return { stopped: true, status: text.stopped, hint: text.resumeHint, action: text.resume };
 }
 
-const pauseClass: Readonly<Record<RestrictionActionClass, Text>> = {
-  no_new_entries: { en: "no new entries", ar: "لا صفقات جديدة" },
-  no_risk_increase: { en: "exits only", ar: "الخروج فقط" },
-  all_mutations: { en: "frozen, exits too", ar: "تجميد كامل، والخروج أيضًا" },
-};
-
 const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
   max_daily_loss: { en: "Daily loss", ar: "الخسارة اليومية" },
   max_trade_risk: { en: "Risk per trade", ar: "المخاطرة لكل صفقة" },
@@ -173,10 +140,6 @@ const moneyLimitNames: Readonly<Record<MoneyLimitName, Text>> = {
 
 export function moneyLimitLabel(name: MoneyLimitName, locale: string): string {
   return moneyLimitNames[name][language(locale)];
-}
-
-export function pauseClassLabel(value: RestrictionActionClass, locale: string): string {
-  return pauseClass[value][language(locale)];
 }
 
 /** A short local time today, otherwise day and time; isolated for Arabic text. */
@@ -208,7 +171,7 @@ export function moneyLimitsLine(value: MoneyLimits, locale: string): string {
 /**
  * The one line: the agent's ladder level, or the strongest thing stopping it, in the
  * owner's language. Built only from the server's projection. ``accountName`` names the
- * paused account when the owner has several (null keeps the line without it).
+ * grant's account when the owner has several (null keeps the line without it).
  */
 export function tradingReadinessLine(
   readiness: TradingReadiness,
@@ -227,21 +190,7 @@ export function tradingReadinessLine(
     case "agent_paused":
       return ar ? "الوكيل متوقف مؤقتًا · لا صفقات جديدة" : "Agent paused · no new trades";
     case "stopped":
-      // A freeze also blocks exits: the line never claims what the sheet denies.
-      if (!readiness.exits_allowed)
-        return ar
-          ? "التداول الجديد متوقف · والخروج مجمّد أيضًا"
-          : "New trading stopped · exits frozen too";
       return ar ? "التداول الجديد متوقف · الخروج متاح" : "New trading stopped · exits allowed";
-    case "paused": {
-      const kind = pauseClassLabel(params.action_class ?? "no_new_entries", locale);
-      const account = params.account_id ? accountName(params.account_id) : null;
-      const where =
-        (params.symbol ? ` ${ar ? "على" : "on"} ${isolate(params.symbol)}` : "") +
-        (account ? ` (${isolate(account)})` : "");
-      const end = until(params.valid_until, { en: "until you lift it", ar: "حتى ترفعه" });
-      return ar ? `إيقاف${where}: ${kind} · ${end}` : `Paused${where}: ${kind} · ${end}`;
-    }
     case "uncertain": {
       const count = params.count ?? 1;
       const head = ar
