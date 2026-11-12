@@ -47,6 +47,16 @@ let generation = 0;
 export const outgoingKey = (server: string, owner: string, thread: string) =>
   JSON.stringify([server, owner, thread]);
 export const outgoingMessages = (key: string): OutgoingIntent[] => entries.get(key) ?? empty;
+/**
+ * Every outbox of this server and owner known on this device: those the chat list hydrated
+ * and those of any other conversation opened (a routine's, a task's or a chart's thread).
+ */
+export function ownerOutgoingKeys(server: string, owner: string): string[] {
+  return [...entries.keys()].filter((key) => {
+    const [keyServer, keyOwner] = JSON.parse(key) as string[];
+    return keyServer === server && keyOwner === owner;
+  });
+}
 export function subscribeOutgoing(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -254,16 +264,17 @@ export async function flushQueued(
       for (const row of outgoingMessages(key).filter(
         (item) => item.message.delivery === "queued",
       )) {
-        if (epoch !== generation) return sent;
+        if (epoch !== generation) return 0;
         failOutgoing(key, row.nonce, "sending");
         try {
           const message = await post(thread, row.body);
-          if (epoch !== generation) return sent;
+          // The session that queued it is gone: nothing is reported to the next one.
+          if (epoch !== generation) return 0;
           acknowledgeOutgoing(key, [message]);
           for (const listener of flushedListeners) listener(key, message);
           sent += 1;
         } catch (error) {
-          if (epoch !== generation) return sent;
+          if (epoch !== generation) return 0;
           const waits = waitsForNetwork(error, row.body);
           failOutgoing(key, row.nonce, waits ? "queued" : "failed");
           if (waits) return sent;

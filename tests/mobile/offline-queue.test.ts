@@ -109,14 +109,17 @@ test("the flush posts queued messages with their own nonce, in order, and stops 
   box.failOutgoing(one, failed.nonce);
 
   const posted: [string, unknown][] = [];
-  let network = false;
+  let network = false,
+    attempts = 0;
   const post = async (thread: string, body: Record<string, unknown>) => {
+    attempts += 1;
     if (!network) throw offline;
     posted.push([thread, body.client_nonce]);
     return { ...a.message, id: `m-${body.client_nonce}`, client_nonce: String(body.client_nonce) };
   };
   // Still offline: nothing is lost and the first one waits again.
   assert.equal(await box.flushQueued([one, two], post), 0);
+  assert.equal(attempts, 1, "the flush stops at the first send the API does not answer");
   assert.equal(
     box.outgoingMessages(one).find((r) => r.nonce === a.nonce)?.message.delivery,
     "queued",
@@ -152,5 +155,19 @@ test("a message the server refuses during the flush fails and the flush goes on"
   assert.equal(
     JSON.stringify(box.outgoingMessages(key).map((row) => [row.nonce, row.message.delivery])),
     JSON.stringify([[a.nonce, "failed"]]),
+  );
+});
+
+test("the flush covers every conversation of this server and owner, and no other", async () => {
+  const { box } = outbox();
+  const listed = box.outgoingKey("https://one.test", "owner", "inbox-thread");
+  const routine = box.outgoingKey("https://one.test", "owner", "routine-thread");
+  const otherOwner = box.outgoingKey("https://one.test", "someone", "thread");
+  const otherServer = box.outgoingKey("https://two.test", "owner", "thread");
+  for (const key of [listed, routine, otherOwner, otherServer])
+    await box.enqueueOutgoing(key, JSON.parse(key)[2], key, { content: "x" }, 0);
+  assert.equal(
+    JSON.stringify(box.ownerOutgoingKeys("https://one.test", "owner").sort()),
+    JSON.stringify([listed, routine].sort()),
   );
 });

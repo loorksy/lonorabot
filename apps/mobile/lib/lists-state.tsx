@@ -25,6 +25,7 @@ import {
   type OutgoingIntent,
   outgoingKey,
   outgoingMessages,
+  ownerOutgoingKeys,
   subscribeOutgoing,
 } from "./outgoing-messages";
 import { useSession } from "./session";
@@ -79,15 +80,16 @@ export function ListsProvider({ children }: { children: ReactNode }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: `version` re-reads the outbox
   const { outgoing, queued } = useMemo(() => {
     const map = new Map<string, OutgoingIntent>();
-    let count = 0;
     for (const row of rows) {
       if (!row.threadId) continue;
-      const pending = outgoingMessages(outgoingKey(server, ownerId, row.threadId));
-      // Only messages still waiting count; a failed one needs the owner's retry (Q6).
-      count += pending.filter((item) => item.message.delivery !== "failed").length;
-      const last = pending.at(-1);
+      const last = outgoingMessages(outgoingKey(server, ownerId, row.threadId)).at(-1);
       if (last) map.set(row.threadId, last);
     }
+    // Only messages still waiting count, in every conversation; a failed one needs the
+    // owner's retry (Q6).
+    let count = 0;
+    for (const key of ownerOutgoingKeys(server, ownerId))
+      count += outgoingMessages(key).filter((item) => item.message.delivery !== "failed").length;
     return { outgoing: map, queued: count };
   }, [rows, server, ownerId, version]);
   /* Q6, as on Web: while the shell's reads succeed, the messages that waited for the network go
@@ -96,10 +98,7 @@ export function ListsProvider({ children }: { children: ReactNode }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: each poll's inbox is the retry tick
   useEffect(() => {
     if (!ownerId || data.offline || !queued) return;
-    const keys = rows.flatMap((row) =>
-      row.threadId ? [outgoingKey(server, ownerId, row.threadId)] : [],
-    );
-    void flushQueued(keys, (thread, body) =>
+    void flushQueued(ownerOutgoingKeys(server, ownerId), (thread, body) =>
       api
         .post<{ message: Message }>(`/threads/${encodeURIComponent(thread)}/messages`, body)
         .then((accepted) => accepted.message),
