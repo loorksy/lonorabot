@@ -721,7 +721,7 @@ msgstr "يقرأ الوكلاء الأخبار من هذه النطاقات فق
 msgid "Alert channel"
 msgstr "قناة التنبيه"
 
-#: src/shell/settings/IntegrationsPage.tsx:733
+#: src/shell/settings/IntegrationsPage.tsx:753
 msgid "Alerts that need you also reach your Telegram chat."
 msgstr "التنبيهات التي تحتاجك تصل أيضًا إلى محادثتك في Telegram."
 
@@ -5083,15 +5083,15 @@ msgstr "الصفحة غير موجودة"
 msgid "Pair"
 msgstr "الزوج"
 
-#: src/shell/settings/IntegrationsPage.tsx:749
+#: src/shell/settings/IntegrationsPage.tsx:772
 msgid "Pair a chat"
 msgstr "ربط محادثة"
 
-#: src/shell/settings/IntegrationsPage.tsx:749
-msgid "Pair another chat"
-msgstr "ربط محادثة أخرى"
+#: src/shell/settings/IntegrationsPage.tsx:770
+msgid "Pair a different chat (it replaces this one)"
+msgstr "ربط محادثة أخرى (تحلّ محلّ هذه)"
 
-#: src/shell/settings/IntegrationsPage.tsx:735
+#: src/shell/settings/IntegrationsPage.tsx:755
 msgid "Pair your Telegram chat to receive the alerts that need you there."
 msgstr "اربط محادثتك في Telegram لتصلك هناك التنبيهات التي تحتاجك."
 
@@ -6357,7 +6357,7 @@ msgstr "إرسال الرسالة"
 msgid "Send the voice message"
 msgstr "إرسال الرسالة الصوتية"
 
-#: src/shell/settings/IntegrationsPage.tsx:741
+#: src/shell/settings/IntegrationsPage.tsx:761
 msgid "Send this to your bot within ten minutes:"
 msgstr "أرسل هذا إلى البوت خلال عشر دقائق:"
 
