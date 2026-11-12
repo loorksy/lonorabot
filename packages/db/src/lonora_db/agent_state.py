@@ -70,7 +70,7 @@ DECISION_CARD_KINDS = frozenset(
         "supervise",
         "trust_source",
         "connect_credential",
-        "agent_model",
+        "secret",
     }
 )
 

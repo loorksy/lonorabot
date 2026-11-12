@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0130_owner_signals"
-down_revision = "0176_weekly_reports"
+down_revision = "0145_metaapi_token"
 branch_labels = None
 depends_on = None
 

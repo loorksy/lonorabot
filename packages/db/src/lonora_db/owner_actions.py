@@ -28,7 +28,6 @@ from lonora_contracts.account_authority import (
 from lonora_contracts.domain import new_id, utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
 from lonora_contracts.owner_actions import (
-    MODEL_CARD_KINDS,
     GrantDelegation,
     GrantDraft,
     OwnerActionProposal,
@@ -66,8 +65,6 @@ LIFETIME = {
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
     "grant_authority": timedelta(hours=24),
-    "agent_model": timedelta(hours=24),
-    "agent_model_changed": timedelta(days=7),
     # An agent's proposal to create an agent, and the Undo card after a creation.
     "create_agent": timedelta(hours=24),
     "agent_created": timedelta(days=7),
@@ -81,6 +78,8 @@ LIFETIME = {
     # Add a source to the trusted list, or connect an account or credential (W15-8).
     "trust_source": timedelta(days=7),
     "connect_credential": timedelta(days=7),
+    # The Secret card: it waits as long as a credential card did.
+    "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
     "watch_changed": timedelta(days=7),
@@ -223,10 +222,6 @@ async def stale_reason(
 
     Raises when the record it names is not the owner's: such a card is never created.
     """
-    if kind in MODEL_CARD_KINDS:
-        from .model_cards import model_stale_reason
-
-        return await model_stale_reason(session, owner_id, kind, payload)
     if kind == "resume_trading":
         return (
             "trading_already_running"
@@ -312,6 +307,8 @@ async def stale_reason(
         return await watch_change_stale(session, owner_id, payload)
     if kind == "stop_tightened":
         return "nothing_to_undo"
+    if kind == "secret":
+        return None  # A credential is checked when the owner saves it.
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -611,6 +608,10 @@ def proposal_payload(
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
+    if proposal.kind == "secret":
+        from .secret_cards import secret_card_payload
+
+        return secret_card_payload(proposal)
     if proposal.kind in {"trust_source", "connect_credential"}:
         from .capability_cards import credential_payload, source_payload, trust_subject
 
@@ -667,11 +668,6 @@ async def card_facts(
     owner's confirmation needs a passkey (widening money limits)."""
     owner_id, payload = row.owner_id, row.payload
     facts: dict[str, Any] = {"several_accounts": await several_accounts(session, owner_id)}
-    if row.kind in MODEL_CARD_KINDS:
-        from .model_cards import model_card_facts
-
-        facts["model"] = await model_card_facts(session, row)
-        return facts, False
     if row.kind == "resume_trading":
         facts["global_trading"] = await global_trading(session)
         return facts, False
@@ -737,6 +733,12 @@ async def card_facts(
         from .notice_cards import notice_facts
 
         return await notice_facts(session, row, facts), False
+    if row.kind == "secret":
+        from .secret_cards import secret_facts
+
+        names = await agent_names(session, owner_id, {row.agent_id})
+        facts["secret"] = secret_facts(payload, names.get(row.agent_id or ""))
+        return facts, False
     if row.kind in {"trust_source", "connect_credential"}:
         from .capability_cards import card_facts as capability_facts
 
@@ -2047,6 +2049,10 @@ CONTINUE_TRIGGER = "owner_card"
 def continue_prompt(row: OwnerActionRow) -> str:
     """Fixed text and server-checked identifiers only (a repository slug, a host name,
     a connection id, a target name): nothing the model wrote reaches the system role."""
+    if row.kind == "secret":
+        from .secret_cards import saved_prompt
+
+        return saved_prompt(row)
     if row.kind == "connect_credential":
         review = row.result.get("review")
         if row.payload["target"] == "mcp_server" and review in {"unread", "nothing_to_trust"}:
@@ -2182,13 +2188,11 @@ async def settle_for_delete(
         OwnerActionRow.owner_id == owner_id, OwnerActionRow.status == "pending"
     )
     if agent_id is not None:
-        # The agent's own cards, grant cards that would sign authority for it, and
-        # model cards about it.
+        # The agent's own cards and grant cards that would sign authority for it.
         query = query.where(
             or_(
                 OwnerActionRow.agent_id == agent_id,
                 OwnerActionRow.subject.startswith("grant:" + agent_id + ":"),
-                OwnerActionRow.subject == "agent-model:" + agent_id,
             )
         )
     if thread_id is not None:

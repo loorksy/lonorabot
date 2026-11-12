@@ -2,7 +2,6 @@ import type { AuthorityAction } from "./account-authority";
 import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
-import type { AgentModelMode, ModelLabel } from "./models";
 import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
 
 export type OwnerActionKind =
@@ -11,8 +10,6 @@ export type OwnerActionKind =
   | "resolve_operation"
   | "set_account_limits"
   | "grant_authority"
-  | "agent_model"
-  | "agent_model_changed"
   | "create_agent"
   | "agent_created"
   | "supervise"
@@ -21,6 +18,8 @@ export type OwnerActionKind =
   | "supervision_paused"
   | "trust_source"
   | "connect_credential"
+  /** The Secret card: fields the agent chose; values go straight to the encrypted store. */
+  | "secret"
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
   /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
@@ -31,8 +30,6 @@ export type OwnerActionKind =
  * action and the owner's own positions, until stopped, no daily loss limit from the card).
  */
 export type GrantDelegation = "custom" | "full";
-/** A model card's side of a choice: the mode and its model (null: the owner's default). */
-export type OwnerActionModelState = { mode: AgentModelMode; model: ModelLabel };
 /** trust_source: what the owner adds to the trusted list. */
 export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
 /** connect_credential: which secure form the card offers. */
@@ -42,6 +39,11 @@ export type CredentialTarget =
   | "brave_search"
   | "economic_calendar"
   | "broker";
+/** One field of a Secret card, chosen by the agent: its key names the saved value; a
+ * field with secret false may be shown while typed. Every value is stored encrypted. */
+export type SecretField = { key: string; label: string; secret: boolean };
+/** Where a Secret card's values go; the server sets it, never the agent's fields. */
+export type SecretDestination = "workspace" | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
 /** A creation card's agent, read on the server. */
@@ -177,18 +179,6 @@ export type OwnerAction = {
     replaces?: OwnerActionGrantTerms | null;
     /** The owner's first grant: the card shows the one rule. */
     first_grant?: boolean;
-    /** A model card (W15-10): which agent, the choice now and the one asked for or made. */
-    model?: {
-      agent_name: string | null;
-      default_model: ModelLabel;
-      current?: OwnerActionModelState;
-      requested?: OwnerActionModelState;
-      previous?: OwnerActionModelState;
-      /** Confirming adds the requested model to the models agents may choose. */
-      allow?: boolean;
-      /** Lonora asked on the owner's behalf for another agent. */
-      asked_by_agent_name?: string;
-    };
     /** create_agent / agent_created: the agent the card creates or created. */
     agent?: OwnerActionAgent;
     /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
@@ -231,6 +221,17 @@ export type OwnerAction = {
     };
     /** connect_credential: the form to offer ("x" names an X MCP server). */
     credential?: { target: CredentialTarget; service: "x" | null };
+    /** The Secret card: the agent's label and fields, where they go and who asked. */
+    secret?: {
+      label: string;
+      fields: SecretField[];
+      destination: SecretDestination;
+      agent_name: string | null;
+      /** A broker card (raised only by the connect tool): the account the password is for. */
+      account?: { login: string; server: string; platform: "mt4" | "mt5" };
+      /** A broker card: connect the account, store its new password, or a new token. */
+      purpose?: "connect" | "rotate_password" | "replace_token";
+    };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
     watch?: {
       symbol: string | null;
@@ -283,6 +284,11 @@ export type OwnerAction = {
     configured?: boolean;
     connection_id?: string;
     integration_id?: string;
+    /** A saved Secret card: the keys saved and where; never a value. */
+    saved?: string[];
+    /** A broker card: how provisioning stands (9.2). */
+    provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
+    destination?: SecretDestination;
     /** connect_credential for an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";
     /** resolve_operation answered unknown with pause_new_today: the owner pause it set. */

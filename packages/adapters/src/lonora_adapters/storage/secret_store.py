@@ -8,7 +8,34 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+async def encrypt_in_session(
+    session: AsyncSession, cipher: SecretCipher, owner_id: str, name: str, value: str, scope: str
+) -> str:
+    """Upsert one encrypted value. The caller decides the scope: only the two stores call
+    it, and the general store never with ``broker``."""
+    require_scope(name, scope)
+    row = await session.scalar(
+        select(SecretRow)
+        .where(SecretRow.owner_id == owner_id, SecretRow.scope == scope, SecretRow.name == name)
+        .with_for_update()
+    )
+    if row:
+        row.ciphertext = cipher.encrypt(value)
+        row.updated_at = utcnow()
+    else:
+        row = SecretRow(owner_id=owner_id, scope=scope, name=name, ciphertext=cipher.encrypt(value))
+        session.add(row)
+        await session.flush()
+    return row.id
+
+
 class EncryptedSecretStore:
+    """The owner's secrets of every scope except ``broker``.
+
+    Broker values (7.2.3) are read and written only through ``BrokerSecrets``; this store,
+    which every tool context carries, refuses them.
+    """
+
     def __init__(self, db: Database, key: str, owner_id: str):
         self.db, self.cipher, self.owner_id = db, SecretCipher(key), owner_id
 
@@ -17,6 +44,8 @@ class EncryptedSecretStore:
             row = await session.get(SecretRow, secret_id)
             if row is None or row.owner_id != self.owner_id:
                 raise LonoraError("secret_not_found", 404)
+            if row.scope == BROKER:
+                raise LonoraError("secret_scope_forbidden", 403)
             return self.cipher.decrypt(row.ciphertext)
 
     async def workspace_values(self) -> dict[str, str]:
@@ -61,34 +90,16 @@ class EncryptedSecretStore:
         self, session: AsyncSession, name: str, value: str, scope: str
     ) -> str:
         """Commit credentials with their resource; a rejected resource writes nothing."""
+        if scope == BROKER:
+            # Broker values are written only through ``BrokerSecrets`` (7.2.3).
+            raise LonoraError("secret_scope_forbidden", 403)
         require_scope(name, scope)
-        if scope != BROKER and len(value) < SHORTEST_SECRET:
+        if len(value) < SHORTEST_SECRET:
             # Workspace output is scanned for every value outside the broker scope; a
             # shorter value cannot be found there.
             # Three characters are at least three bytes.
             raise LonoraError("secret_value_too_short", 422)
-        row = await session.scalar(
-            select(SecretRow)
-            .where(
-                SecretRow.owner_id == self.owner_id,
-                SecretRow.scope == scope,
-                SecretRow.name == name,
-            )
-            .with_for_update()
-        )
-        if row:
-            row.ciphertext = self.cipher.encrypt(value)
-            row.updated_at = utcnow()
-        else:
-            row = SecretRow(
-                owner_id=self.owner_id,
-                scope=scope,
-                name=name,
-                ciphertext=self.cipher.encrypt(value),
-            )
-            session.add(row)
-            await session.flush()
-        return row.id
+        return await encrypt_in_session(session, self.cipher, self.owner_id, name, value, scope)
 
     async def delete(self, secret_id: str) -> None:
         async with self.db.sessions() as session, session.begin():

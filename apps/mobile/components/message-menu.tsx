@@ -93,7 +93,10 @@ export function useMessageMenu(read: () => MessageMenuActions) {
           title: t("messageNotSent"),
           body: (
             <GroupBox>
-              {item("refresh", t("retry"), () => read().onRetry(message.retry_nonce))}
+              {/* Files that never arrived cannot be sent again: only «حذف» is left. */}
+              {message.uploading?.length
+                ? null
+                : item("refresh", t("retry"), () => read().onRetry(message.retry_nonce))}
               {item(
                 "trash",
                 t("deleteMessage"),
