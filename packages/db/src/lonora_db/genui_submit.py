@@ -465,9 +465,21 @@ async def mark_submit_started(session: AsyncSession, run: RunRow) -> None:
         await _updated(session, message)
 
 
-async def _updated(session: AsyncSession, message: MessageRow) -> None:
-    from .messages import message_data
+async def client_row(session: AsyncSession, message: MessageRow) -> dict[str, Any]:
+    """The message as a history page shows it: its reactions, ``superseded_by``, the card's
+    lock and the send's mark and ticks. A client that replaces its copy with a card's
+    ``message.updated`` event keeps them."""
+    from .messages import messages_data
+    from .thread_prefs import consumed, consumed_seq, steered_message_ids
 
+    (item,) = await messages_data(session, [message])
+    await decorate(session, message.thread_id, [message], [item])
+    steered = await steered_message_ids(session, [message.id] if message.role == "user" else [])
+    item["consumed"] = consumed(item, await consumed_seq(session, message.thread_id), steered)
+    return item
+
+
+async def _updated(session: AsyncSession, message: MessageRow) -> None:
     thread = await session.get(ThreadRow, message.thread_id)
     if thread is not None:
         emit(
@@ -475,7 +487,7 @@ async def _updated(session: AsyncSession, message: MessageRow) -> None:
             thread.owner_id,
             "message.updated",
             thread_id=message.thread_id,
-            payload=message_data(message),
+            payload=await client_row(session, message),
         )
 
 
@@ -608,9 +620,8 @@ async def unlock_card(
     parts = dict(state.get("parts", {}))
     parts[str(part)] = {**parts.get(str(part), {}), "unlocked_seq": submit.seq}
     source.ui_state = {**state, "parts": parts, "updated_at": utcnow().isoformat()}
-    from .messages import message_data
-
-    emit(session, owner_id, "message.updated", thread_id=thread.id, payload=message_data(source))
+    payload = await client_row(session, source)
+    emit(session, owner_id, "message.updated", thread_id=thread.id, payload=payload)
     return {"unlocked": True, "cancelled_run_id": run.id if run else None}
 
 

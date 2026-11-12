@@ -839,3 +839,80 @@ async def test_an_edit_never_duplicates_an_owner_message_another_run_answers() -
         assert queued == [earlier["id"]]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_retried_card_send_stays_tainted() -> None:
+    """A card send's Run that failed and is retried keeps the taint: the retry can never
+    spend the signed grant either (docs/genui.md §7), as a spoken request's retry stays
+    provisional."""
+    from lonora_db.genui_taint import is_tainted
+    from lonora_db.runs import fail_run
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        response = await card.post(card.body({"price": 2460}))
+        assert response.status_code == 202, response.text
+        run_id = response.json()["run_ids"][0]
+        context = await fixture.lease(
+            {"id": run_id, **await fixture.request("GET", f"/runs/{run_id}")}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await fail_run(session, context.lease, "model_provider_unavailable")
+        retried = await fixture.client.request("POST", f"/api/runs/{run_id}/retry")
+        assert retried.status_code == 202, retried.text
+        async with fixture.runtime.db.sessions() as session:
+            retry = await session.get(RunRow, retried.json()["id"])
+            assert retry is not None
+            assert await is_tainted(session, retry)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_card_events_carry_the_row_a_history_page_shows() -> None:
+    """A card's own ``message.updated`` events (its send started, «تعديل») carry the message
+    as a history page shows it, reactions included, so a client that replaces the row with
+    the event keeps them."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.schema import EventRow, RunRow
+    from sqlalchemy import select
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        thread_id = card.thread["id"]
+        await fixture.request(
+            "PUT", f"/threads/{thread_id}/messages/{card.message_id}/reactions/👍"
+        )
+        response = await card.post(card.body({"price": 2470}))
+        assert response.status_code == 202, response.text
+        submit = response.json()["message"]
+        await fixture.request("PUT", f"/threads/{thread_id}/messages/{submit['id']}/reactions/👍")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, response.json()["run_ids"][0], with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+            run.status = "completed"
+        unlocked = await fixture.request(
+            "POST", f"/threads/{thread_id}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        assert unlocked["unlocked"] is True
+        page = {m["id"]: m for m in await fixture.request("GET", f"/threads/{thread_id}/messages")}
+        async with fixture.runtime.db.sessions() as session:
+            events = list(
+                await session.scalars(
+                    select(EventRow)
+                    .where(EventRow.thread_id == thread_id, EventRow.kind == "message.updated")
+                    .order_by(EventRow.cursor)
+                )
+            )
+        latest = {e.payload["id"]: e.payload for e in events}
+        for message_id in (card.message_id, submit["id"]):
+            assert latest[message_id]["reactions"] == page[message_id]["reactions"] != []
+            assert latest[message_id].get("ui_lock") == page[message_id].get("ui_lock")
+            assert latest[message_id].get("ui_mark") == page[message_id].get("ui_mark")
+    finally:
+        await fixture.close()
