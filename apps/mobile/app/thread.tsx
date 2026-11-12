@@ -16,6 +16,7 @@ import {
   accumulateStream,
   activeStatuses,
   type ConversationItem,
+  commandQuery,
   conversationTimeline,
   type LiveReplyStream,
   liveAvatarState,
@@ -27,6 +28,7 @@ import {
   retryableFailure,
   runStatusText,
   seedStream,
+  showsTradingControl,
   stopTargets,
   streamForRun,
   submitMark,
@@ -61,7 +63,7 @@ import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
 import { Icon } from "../components/shell/icon";
-import { GroupBox, Row } from "../components/shell/kit";
+import { Btn, GroupBox, Row } from "../components/shell/kit";
 import { useSheets } from "../components/shell/sheets";
 import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
@@ -95,7 +97,8 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
-import { fill } from "../lib/i18n";
+import { chatsWord, fill } from "../lib/i18n";
+import { listsApi } from "../lib/lists-api";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -115,6 +118,7 @@ import {
   waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
+import { useShellData } from "../lib/shell-data";
 import { useShellColors, useTheme } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
@@ -170,6 +174,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     });
   }, []);
   const toast = useToast();
+  const { patchInbox } = useShellData();
   const menuActions = useRef<() => MessageMenuActions>(() => {
     throw new Error("message_menu_unset");
   });
@@ -278,16 +283,21 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   );
   useEffect(() => {
     const agentId = thread?.group_id ? null : thread?.agent_id;
-    if (!agentId || skillsOf.current === agentId || !draft.trimStart().startsWith("/")) return;
+    if (skillsOf.current !== agentId) setSkills([]);
+    if (
+      !agentId ||
+      skillsOf.current === agentId ||
+      commandQuery(draft.split(/\s/)[0] ?? "") === null
+    )
+      return;
     skillsOf.current = agentId;
     void api
       .get<Skill[]>(`/skills?agent_id=${encodeURIComponent(agentId)}`)
       .then((rows) => {
         if (skillsOf.current === agentId) setSkills(rows);
       })
-      .catch(() => {
-        skillsOf.current = null;
-      });
+      // Without its skills the chat still offers its commands; the next chat asks again.
+      .catch(() => undefined);
   }, [draft, thread?.agent_id, thread?.group_id]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
@@ -879,7 +889,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     {
       group: Boolean(thread?.group_id),
       symbol: agent?.trading_symbol,
-      trading: Boolean(agent?.trading_account_id),
+      // As Web: a trading agent, or one that shows the trading control (Lonora, an account,
+      // a trade waiting for the owner).
+      trading: agent
+        ? agent.template === "trading" ||
+          showsTradingControl({
+            role: agent.role,
+            trading_account_id: agent.trading_account_id,
+            pendingTrade: approvals.some(
+              (row) => row.agent_id === agent.id && row.status === "pending",
+            ),
+          })
+        : false,
       name: title,
       callable: Boolean(agent && !agent.paused),
     },
@@ -888,39 +909,64 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   /** A command that sends nothing opens what the chat already has; «ملخص» is sent at once. */
   const runCommand = (row: CommandRow) => {
     if (row.command === "summary")
-      void send(undefined, `/${row.name}`, { name: "summary", argument: "" });
+      // Sent at once with the reply it answers, which then leaves the composer (as on Web).
+      void send(undefined, `/${row.name}`, { name: "summary", argument: "" }, reply?.id ?? null)
+        .then(() => updateDraft({ reply: null }))
+        .catch(() => undefined);
     else if (row.command === "chart")
       chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) });
     else if (row.command === "call") {
       if (agent && thread) void voice.start(agent, thread.id);
     } else if (row.command === "clear") confirmClear();
   };
+  /** «مسح»: asks, then hides this chat's history for the owner, as the list's «مسح» does. */
   const confirmClear = () =>
     sheets.open({
       id: "clear-chat",
-      title: t("clearMessagesQ"),
+      title: t("sh_clearMessagesQ"),
       body: (
-        <Row
-          lead={<Icon name="trash" size={22} color={shellTheme.red} />}
-          title={t("clearAction")}
-          last
-          onPress={() => {
-            sheets.close();
-            void api
-              .post(`/threads/${encodeURIComponent(id)}/clear`, {})
-              .then(() => {
-                setMessages([]);
-                void snapshot();
-              })
-              .catch((reason) => setError(errorText(reason)));
-          }}
-        />
+        <View style={{ gap: 16 }}>
+          <Text
+            style={{
+              color: shellTheme.text,
+              fontSize: 16,
+              lineHeight: 26,
+              textAlign: rtl ? "right" : "left",
+            }}
+          >
+            {fill(t("sh_confClear"), chatsWord(locale, 1))}
+          </Text>
+          <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10 }}>
+            <Btn label={t("sh_cancel")} variant="outline" full onPress={() => sheets.close()} />
+            <Btn
+              label={t("sh_clear")}
+              variant="danger"
+              full
+              onPress={() => {
+                sheets.close();
+                void listsApi
+                  .clear(id)
+                  .then((prefs) => {
+                    patchInbox([prefs]);
+                    setMessages([]);
+                    setStreams({});
+                    // The draft's quote and files belonged to the cleared history.
+                    updateDraft({ text: "", attachments: [], reply: null });
+                    void snapshot();
+                  })
+                  .catch((reason) => setError(errorText(reason)));
+              }}
+            />
+          </View>
+        </View>
       ),
     });
   const send = async (
     mentions?: MentionAddress,
     followUp?: string,
     asked?: ReturnType<typeof sentCommand>,
+    /** The reply a command sent at once answers (a follow-up has none otherwise). */
+    replyTo: string | null = null,
   ) => {
     if (
       sendLocks.current.has(outboxKey) ||
@@ -949,7 +995,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }
         command = sentCommand(option, typed.argument);
         if (!command) {
-          updateDraft({ text: "" });
+          updateDraft({ text: "", reply: null, attachments: [] });
           runCommand(option);
           return;
         }
@@ -961,7 +1007,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     // Files still uploading go with the message, which waits for them.
     const handed = followUp ? [] : handOver(outboxKey);
     const edit = followUp ? null : editing;
-    const reply_to = followUp || edit ? null : (reply?.id ?? null);
+    const reply_to = edit ? null : followUp ? replyTo : (reply?.id ?? null);
     const targetKey = outboxKey,
       targetId = id;
     const body = {

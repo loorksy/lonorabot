@@ -69,13 +69,27 @@ test("«/» lists the commands; a task is sent with its command; summary goes at
   const posted = [];
   let cleared = 0;
   await page.route(`**/api/threads/${data.thread.id}/messages`, async (route) => {
-    if (route.request().method() === "GET") return route.fulfill({ json: saved });
+    if (route.request().method() === "GET") return route.fulfill({ json: cleared ? [] : saved });
     posted.push(route.request().postDataJSON());
     return route.fulfill({ status: 503, json: { code: "request_failed" } });
   });
   await page.route(`**/api/threads/${data.thread.id}/clear`, (route) => {
     cleared += 1;
-    return route.fulfill({ json: { thread_id: data.thread.id } });
+    return route.fulfill({
+      json: {
+        thread_id: data.thread.id,
+        agent_id: data.agent.id,
+        group_id: null,
+        last_message: null,
+        unread_count: 0,
+        last_read_seq: 0,
+        pinned_order: null,
+        muted: false,
+        archived: false,
+        favourite: false,
+        marked_unread: false,
+      },
+    });
   });
   await page.route("**/api/skills?agent_id=*", (route) =>
     route.fulfill({
@@ -121,12 +135,20 @@ test("«/» lists the commands; a task is sent with its command; summary goes at
     expect(posted[2].command).toEqual({ name: "summary", argument: "" });
     await expect(composer).toHaveValue("");
 
-    // «clear» asks first.
+    // «clear» asks first, says what it does, and can be cancelled.
     await composer.fill("/cl");
     await list.getByRole("button", { name: "/clear", exact: true }).click();
     await expect(page.getByText("Clear the messages?", { exact: true })).toBeVisible();
+    await expect(page.getByText(/hidden for you/)).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(cleared).toBe(0);
+    await composer.fill("/clear");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await page.getByRole("button", { name: "Clear", exact: true }).click();
     await expect.poll(() => cleared).toBe(1);
+    // The cleared history does not come back (the unsent commands of this test stay on the
+    // device, failed, as any unsent message does).
+    await expect(page.getByText("/search gold news", { exact: true })).toHaveCount(0);
   } finally {
     await data.remove();
   }

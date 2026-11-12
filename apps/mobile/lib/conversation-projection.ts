@@ -26,6 +26,9 @@ export function projectConversation(
     const active = ["queued", "leased", "running", "waiting_input", "waiting_takeover"].includes(
       run.status,
     );
+    // A finished reply whose message is no longer in the transcript (a cleared chat) is not
+    // drawn again from its stream, as on Web (stream-timeline streamVisible).
+    if (stream?.phase === "committed" && !canonical.length) continue;
     const visible =
       stream &&
       ["streaming", "committed", "cancelled", "failed"].includes(stream.phase) &&
