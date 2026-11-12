@@ -7,19 +7,19 @@ a money limit) also needs a verified passkey assertion bound to the card's paylo
 """
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
+from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
 from .trading import TradingMode
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "resume_trading",
     "lift_restriction",
     "settle_operation",
     "set_account_limits",
@@ -29,11 +29,10 @@ OwnerActionKind = Literal[
     # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
     # other mode. It stays the agent's switch after a tap.
     "trading_mode",
+    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
+    # straight to the encrypted store as workspace secrets; the agent learns "saved".
+    "secret",
 ]
-# Model cards (W15-10), raised only by model_request: "agent_model" asks the owner to
-# use a model for an agent; "agent_model_changed" offers Undo of a switch that applied.
-ModelCardKind = Literal["agent_model", "agent_model_changed"]
-MODEL_CARD_KINDS: tuple[ModelCardKind, ...] = ("agent_model", "agent_model_changed")
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
 # an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
 # only reports a tightened stop loss (undoing it would be a new financial modification).
@@ -61,6 +60,26 @@ MoneyLimitName = Literal[
 AttestedOutcome = Literal["executed", "not_executed", "unknown"]
 # The owner's statement when the card's optional note is left empty.
 CARD_ATTESTATION = "Owner attested via chat card; not broker confirmation."
+
+
+class SecretField(Contract):
+    """One field of a Secret card: its key names the saved value (an environment variable
+    name), its label is shown to the owner; ``secret`` masks it while it is typed.
+    Every value is stored encrypted, whatever ``secret`` says."""
+
+    key: str = Field(pattern=WORKSPACE_SECRET_NAME)
+    label: str = Field(min_length=1, max_length=60)
+    secret: bool = True
+
+
+class SecretCardSave(Contract):
+    """The owner's values for a Secret card's fields, by key; they go to the encrypted
+    store and are never kept on the card, in an event or in the conversation."""
+
+    values: dict[
+        Annotated[str, Field(pattern=WORKSPACE_SECRET_NAME)],
+        Annotated[str, Field(min_length=1, max_length=16000)],
+    ] = Field(min_length=1, max_length=8)
 
 
 class OwnerActionProposal(Contract):
@@ -102,6 +121,10 @@ class OwnerActionProposal(Contract):
     # connect_credential: the form to offer; service "x" for an X MCP server (D3).
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
+    # secret: the card's label and its fields, in the owner's language. Each value is
+    # saved under its field's key, the name agents use for it.
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
@@ -110,6 +133,10 @@ class OwnerActionProposal(Contract):
             if self.model_dump(exclude={"kind", "agent_id"}, exclude_defaults=True):
                 raise ValueError("owner_action_fields_invalid")
             return self
+        if self.kind == "secret":
+            return self.secret_card_fields()
+        if self.label is not None or self.secret_fields is not None:
+            raise ValueError("owner_action_fields_invalid")
         if self.kind in {"trust_source", "connect_credential"}:
             return self.capability_fields()
         if any(
@@ -124,6 +151,18 @@ class OwnerActionProposal(Contract):
         ):
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
+
+    def secret_card_fields(self) -> "OwnerActionProposal":
+        if (
+            self.model_dump(exclude={"kind", "label", "secret_fields"}, exclude_defaults=True)
+            or self.label is None
+            or self.secret_fields is None
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        keys = [field.key for field in self.secret_fields]
+        if len(set(keys)) != len(keys):
+            raise ValueError("owner_action_secret_fields_duplicate")
+        return self
 
     def capability_fields(self) -> "OwnerActionProposal":
         if (
@@ -182,7 +221,6 @@ class OwnerActionProposal(Contract):
         )
         grant = self.grant_fields()
         needed = {
-            "resume_trading": (),
             "lift_restriction": ("restriction_id",),
             "settle_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
@@ -343,7 +381,7 @@ class OwnerActionDecision(Contract):
 
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
-    "none"), resuming new trading, and stopping other agents' grants on that market.
+    "none") and stopping other agents' grants on that market.
     """
 
     decision: Literal["confirm", "cancel", "choose"]
@@ -355,7 +393,6 @@ class OwnerActionDecision(Contract):
     outcome: AttestedOutcome | None = None
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
-    resume_trading: bool = False
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
     # A resolve card answered «غير معروف»: also pause new trades on its account until the
     # end of the trading day (an owner restriction; it only narrows). Only with "unknown".

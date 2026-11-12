@@ -36,7 +36,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
   const [model, setModel] = useState("");
   const data = useShellData();
   const openAvatar = useAvatarSheet();
-  // The models a Fixed choice can pick are the owner's, not the agent's: read them once
+  // The models the owner can pick are the connected providers', not the agent's: read them once
   // from the personal agent's summary (the same catalog every agent offers).
   const personal = data.agents.find((row) => row.role === "personal");
   const models = useRead<AgentModelSummary>(
@@ -225,7 +225,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
           <Trans>Model</Trans>
         </span>
         <select name="model" value={model} onChange={(event) => setModel(event.target.value)}>
-          <option value="">{t({ message: "Automatic", context: "model" })}</option>
+          <option value="">{t({ message: "Lonora's model", context: "model" })}</option>
           {(models.value?.available ?? []).map((item) => (
             <option
               key={`${item.provider}:${item.model}`}

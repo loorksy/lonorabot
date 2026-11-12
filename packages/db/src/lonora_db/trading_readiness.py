@@ -2,7 +2,7 @@
 
 One bounded projection for the owner's header safety pill, its sheet and the agent's
 status line. It is built from the same records the financial boundary reads: the
-agent's ladder level and signed grants, global trading, restrictions in force, each
+agent's ladder level and signed grants, restrictions in force, each
 account's money limits and unresolved operations with their scoped block.
 
 It is never consulted for enforcement. The single executor re-reads every one of
@@ -16,7 +16,7 @@ from typing import Any, cast
 from lonora_contracts.account_authority import full_delegation
 from lonora_contracts.domain import utcnow
 from lonora_contracts.execution_quality import ExecutionPolicy
-from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +26,6 @@ from .schema import (
     AgentRow,
     BrokerSessionRow,
     OwnerActionRow,
-    SettingRow,
     ThreadRow,
     TradingJournalRow,
 )
@@ -74,22 +73,6 @@ async def account_money_limits(
     return risk_limit_frame(account_id, policy)
 
 
-async def global_trading(session: AsyncSession) -> dict[str, Any]:
-    """Stop new trading / Resume. Trading starts stopped until the owner resumes it.
-
-    Trading OFF and the legacy Emergency Stop flag are both "stopped": either blocks new
-    risk for every agent and the owner's manual orders, and neither traps an exit. Only
-    the owner's session can change it, so a stored change is always the owner's.
-    """
-    row = await session.get(SettingRow, "trading_control", populate_existing=True)
-    control = TradingControl.model_validate(row.payload if row else {})
-    return {
-        "state": "stopped" if control.emergency_stop or not control.enabled else "running",
-        "since": row.updated_at.isoformat() if row else None,
-        "changed_by": "owner" if row else "default",
-    }
-
-
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
@@ -123,11 +106,10 @@ async def trading_readiness(
                 "actions": list(envelope.get("actions", []))[:10],
                 "allow_manual_positions": bool(envelope.get("allow_manual_positions")),
                 "valid_until": row["valid_until"],
-                # Every pair, every action and the owner's own positions, until stopped.
+                # Every pair, every action and the owner's own positions, until revoked.
                 "full_delegation": full_delegation(envelope),
             }
         )
-    trading = await global_trading(session)
     accounts_query = (
         select(BrokerSessionRow.id)
         .where(BrokerSessionRow.owner_id == owner_id)
@@ -268,7 +250,6 @@ async def trading_readiness(
     state, params = _headline(
         level=level,
         paused=bool(agent.paused),
-        trading=trading,
         grants=grants,
         restrictions=active,
         operations=[item for item in operations if item["account_id"] in in_scope],
@@ -284,7 +265,6 @@ async def trading_readiness(
         "params": params,
         "level": level,
         "grants": grants,
-        "global_trading": trading,
         "restrictions": restrictions[:LIST_LIMIT],
         "money_limits": money_limits,
         "unresolved_operations": operations,
@@ -297,7 +277,6 @@ def _headline(
     *,
     level: str,
     paused: bool,
-    trading: dict[str, Any],
     grants: list[dict[str, Any]],
     restrictions: list[dict[str, Any]],
     operations: list[dict[str, Any]],
@@ -310,8 +289,6 @@ def _headline(
         return "no_trading", {}
     if paused:
         return "agent_paused", {}
-    if trading["state"] == "stopped":
-        return "stopped", {"since": trading["since"]}
     if restrictions:
         first = restrictions[0]
         return "paused", {

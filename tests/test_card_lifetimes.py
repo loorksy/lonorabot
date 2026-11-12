@@ -303,20 +303,20 @@ async def test_the_pause_switch_is_refused_on_any_other_card(task_db: Fixture) -
         await create_card(
             session,
             owner,
-            card_id="resume",
+            card_id="lift",
             agent_id=agent,
             thread=thread,
             run_id=None,
             source="system",
-            kind="resume_trading",
-            subject="trading",
-            payload={"enabled": True, "emergency_stop": False},
+            kind="lift_restriction",
+            subject="restriction:gone",
+            payload={"restriction_id": "gone"},
         )
     with pytest.raises(LonoraError) as error:
         await answer(
             db,
             owner,
-            "resume",
+            "lift",
             OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
         )
     assert (error.value.code, error.value.status) == ("owner_action_pause_unsupported", 422)

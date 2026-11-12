@@ -41,7 +41,7 @@ from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDef
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.events import emit
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
@@ -65,7 +65,6 @@ from lonora_gateway.run_dispatch import run_model_choice
 from lonora_gateway.service import Gateway
 from lonora_tools import mcp
 from lonora_trading.broker_recovery import reconcile_broker_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 
@@ -622,9 +621,7 @@ class Acceptance:
         )
         await self.services.brokers.get(self.owner, self.account)
         self.lonora_thread = await self.conversation(self.lonora)
-        # The first-run default: new trading has not been started yet.
-        await save_controls(self.db, TradingControl(enabled=False))
-        print("PASS setup: one simulation account, Lonora, trading not started, scripted model")
+        print("PASS setup: one simulation account, Lonora, scripted model")
 
     # Journey 1 -----------------------------------------------------------------------
 
@@ -686,19 +683,15 @@ class Acceptance:
         assert grant["allow_manual_positions"] is False  # D1: the owner's own excluded.
         daily = card["facts"]["money"]["daily_loss"]
         assert daily["proposed"] == "200.00" and daily["basis"] == "requested", daily
-        assert card["facts"]["global_trading"]["state"] == "stopped"  # "Resume too" shows.
         assert card["requires_passkey"] is True
         # Nothing trades before the signature: the agent is still Ask me.
         state = await self.state(gold.id)
-        assert state["trading_readiness"]["state"] in {"stopped", "ask_me"}, state
-        # One tap on Authorize with the passkey (the device enrolls inline the first time),
-        # with "Resume trading too" ticked.
-        decided = await self.passkey(name, card["id"], {"resume_trading": True})
-        assert decided["status"] == "confirmed" and decided["result"]["resumed"] is True, decided
+        assert state["trading_readiness"]["state"] == "ask_me", state
+        # One tap on Authorize with the passkey (the device enrolls inline the first time).
+        decided = await self.passkey(name, card["id"], {})
+        assert decided["status"] == "confirmed", decided
         assert decided["result"]["daily_loss"] == "200.00"
         assert await self.level(gold.id) == "autonomous"
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False
         policy = await self.request("GET", f"/trading/accounts/{self.account}/execution-policy")
         assert Decimal(policy["risk"]["max_daily_loss"]) == 200
         # The status line, the card and the records agree.
@@ -1193,25 +1186,6 @@ class Acceptance:
         ) == "supervised"
         line = (await self.lines(self.lonora_thread))[-1]
         assert any("\u0600" <= char <= "\u06ff" for char in line), line
-        self.journey(name, 1)
-
-    # Journey 12 ----------------------------------------------------------------------
-
-    async def stop_all_from_phone(self) -> None:
-        """The safety pill's Stop new trading (Mobile sends the same request): one tap;
-        exits stay allowed; one Resume clears both stop flags."""
-        name = "J12 stop all new trading from my phone"
-        await self.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
-        self.tap(name)
-        readiness = (await self.state(self.created[0]))["trading_readiness"]
-        assert readiness["state"] == "stopped" and readiness["exits_allowed"] is True, readiness
-        # An exit is still allowed: the gold agent closes its position under Stop.
-        gold_positions = [p for p in await self.positions(self.account) if p["symbol"] == GOLD]
-        assert gold_positions
-        await self.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
-        controls = await read_controls(self.db)
-        assert controls.enabled is True and controls.emergency_stop is False  # One request.
-        assert (await self.state(self.created[0]))["trading_readiness"]["state"] == "on_its_own"
         self.journey(name, 1)
 
     # Journey 10 (end) ----------------------------------------------------------------
@@ -2127,14 +2101,12 @@ class Acceptance:
 async def main() -> None:
     fixture = await Fixture().open()
     acceptance = Acceptance(fixture)
-    original = await read_controls(acceptance.db)
     try:
         await acceptance.setup()
         await acceptance.gold_agent_trades_on_its_own()
         await acceptance.approve_one_trade()
         watch = await acceptance.watch_london_session()
         await acceptance.pause_today_then_resume(watch)
-        await acceptance.stop_all_from_phone()
         await acceptance.stop_watching(watch)
         await acceptance.lonora_manages_all_pairs()
         await acceptance.pause_every_account()
@@ -2151,7 +2123,6 @@ async def main() -> None:
         if acceptance.model.unscripted:
             print("unscripted triggers:", *acceptance.model.unscripted, sep="\n  ", file=sys.stderr)
     finally:
-        await save_controls(acceptance.db, original)
         async with acceptance.db.sessions() as session, session.begin():
             for row in await session.scalars(
                 select(AgentRow).where(AgentRow.id.in_(acceptance.set_aside))
