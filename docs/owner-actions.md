@@ -43,10 +43,9 @@ tap runs the existing owner function for that effect, in the owner's session.
 | `expires_at`, `decided_at`, `decided_via` | Single use with expiry; `tap` or `passkey` |
 | `result` | What the confirmation did (the attested outcome, the stored limits) |
 
-Lifetimes: limit and grant cards 24 hours, resolve cards 7 days, Mandate cards 3650 days
-(no time limit in practice: the card stays the agent's switch). Expiry needs no
-scheduler: a pending card past `expires_at` reads as expired and is settled as expired
-when next touched.
+Lifetimes: limit and grant cards 24 hours, resolve cards 7 days, Mandate cards 3650
+days. Expiry needs no scheduler: a pending card past `expires_at` reads as expired and is
+settled as expired when next touched.
 
 ## How cards appear
 

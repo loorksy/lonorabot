@@ -24,12 +24,12 @@ OwnerActionKind = Literal[
     "set_account_limits",
     "grant_authority",
     "connect_credential",
-    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
-    # straight to the encrypted store as workspace secrets; the agent learns "saved".
-    "secret",
     # The Mandate card (mandate 10.3): the agent's mode read live and one button for the
     # other mode. It stays the agent's switch after a tap.
     "trading_mode",
+    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
+    # straight to the encrypted store as workspace secrets; the agent learns "saved".
+    "secret",
 ]
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
 # an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
