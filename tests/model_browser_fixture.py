@@ -46,7 +46,7 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
                             SecretRow.scope == "provider", SecretRow.name == provider
                         )
                     )
-            # Its agent goes too, so it never counts against the owner's agent cap.
+            # Its agent goes too, so later specs start without it.
             if data["restore"].get("agent"):
                 await fixture.client.delete("/api/agents/" + data["restore"]["agent"])
             return {"cleaned": True}

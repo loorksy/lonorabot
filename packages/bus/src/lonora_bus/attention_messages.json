@@ -3,7 +3,9 @@
     "super_bot_authorization": "أُوقف طلب تفويض قديم ولم تُمنح به أي صلاحية. التداول المستقل يكون فقط بتفويض توقّعه لكل وكيل.",
     "emergency_stop": "التداول الجديد متوقف لكل الوكلاء ولأوامرك اليدوية. يبقى الخروج متاحًا، وتستأنفه بلمسة واحدة.",
     "approval_required": "يوجد طلب يحتاج موافقتك. افتح المحادثة لمراجعة التفاصيل؛ لم تنفذ هذه الرسالة أي إجراء.",
-    "broker_degraded": "اتصال الوسيط متدهور. تحقّق من حالة الحساب والعمليات غير المحسومة.",
+    "broker_token_rejected": "رفضت MetaApi رمز الوصول، فانقطع الاتصال بالحساب. يلزم رمز وصول جديد.",
+    "broker_account_undeployed": "الحساب غير مُشغَّل على MetaApi أو لم يعد موجودًا هناك، فلا اتصال به ولا تداول عليه.",
+    "broker_connection_lost": "انقطع الاتصال بالحساب منذ أكثر من دقيقتين، ونواصل محاولة إعادة الاتصال.",
     "task_review": "تحتاج المهمة إلى مراجعتك. افتح المحادثة لفحص سبب التوقف وخيارات الاستكمال.",
     "internal_update": "يوجد تحديث محفوظ في Lonora.",
     "grant_activated": "صار التداول المستقل مفعّلاً: أتداول فقط ضمن التفويض الذي وقّعته وضمن حدود حسابك، وتستطيع إيقافه بلمسة.",
@@ -47,13 +49,16 @@
     "owner_action_connect_credential_mcp": "تم الربط. يبقى السرّ على الخادم. راجع أدواته في البطاقة التالية قبل أن يستخدمها الوكلاء.",
     "owner_action_connect_credential_mcp_unread": "تم الربط. يبقى السرّ على الخادم، لكن تعذّرت قراءة أدواته حتى الآن؛ سيتحقق وكيلك مجددًا ويخبرك.",
     "owner_action_connect_credential_mcp_blocked": "تم الربط. يبقى السرّ على الخادم، لكن لا يمكن الوثوق بأي من أدواته: الأدوات التي تتداول أو تحرّك المال لا تعمل هنا أبدًا. سيخبرك وكيلك بما يقدّمه.",
-    "owner_action_trust_source_mcp_read": "صار موثوقًا للقراءة: يستخدم الوكلاء أدواته التي تقرأ فقط. تنتظر الأدوات التي قد تغيّر شيئًا حتى تثق به للكتابة غير المالية، وتبقى الأدوات التي تتداول أو تحرّك المال محظورة."
+    "owner_action_trust_source_mcp_read": "صار موثوقًا للقراءة: يستخدم الوكلاء أدواته التي تقرأ فقط. تنتظر الأدوات التي قد تغيّر شيئًا حتى تثق به للكتابة غير المالية، وتبقى الأدوات التي تتداول أو تحرّك المال محظورة.",
+    "secret_requested": "وكيلك ينتظر منك تعبئة بطاقة السرّ في المحادثة. تُحفظ القيمة مباشرةً في المخزن المشفّر."
   },
   "en": {
     "super_bot_authorization": "An older authorization request was retired and granted nothing. Trading on its own needs a grant you sign for each agent.",
     "emergency_stop": "New trading is stopped for every agent and your manual orders. Exits stay allowed; resume with one tap.",
     "approval_required": "A request needs your approval. Open the conversation to review it; this message executed no action.",
-    "broker_degraded": "The broker connection is degraded. Review the account and unresolved operations.",
+    "broker_token_rejected": "MetaApi rejected the access token, so the account is disconnected. A new token is needed.",
+    "broker_account_undeployed": "The account is not deployed on MetaApi or no longer exists there, so there is no connection and no trading on it.",
+    "broker_connection_lost": "The account connection has been lost for more than two minutes; reconnecting continues.",
     "task_review": "A task needs your review. Open the conversation to inspect the failure and recovery options.",
     "internal_update": "A saved Lonora update is available.",
     "grant_activated": "Trading on its own is on: I trade only inside the grant you signed and within your account limits, and you can stop it with one tap.",
@@ -97,6 +102,7 @@
     "owner_action_connect_credential_mcp": "Connected. The secret stays on the server. Review its tools on the next card before agents use them.",
     "owner_action_connect_credential_mcp_unread": "Connected. The secret stays on the server, but its tools could not be read yet; your agent will check again and tell you.",
     "owner_action_connect_credential_mcp_blocked": "Connected. The secret stays on the server, but none of its tools can be trusted: tools that can trade or move money never run here. Your agent will tell you what it offers.",
-    "owner_action_trust_source_mcp_read": "Trusted for reading: agents use its tools that only read. Tools that may change something wait until you trust it for non-financial writes; tools that can trade or move money stay blocked."
+    "owner_action_trust_source_mcp_read": "Trusted for reading: agents use its tools that only read. Tools that may change something wait until you trust it for non-financial writes; tools that can trade or move money stay blocked.",
+    "secret_requested": "Your agent is waiting for you to fill in the secret card in the conversation. The value goes straight to the encrypted store."
   }
 }
