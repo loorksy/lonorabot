@@ -32,6 +32,7 @@ from lonora_db.owner_actions import (
     lock_owner_actions,
     raise_system_card,
 )
+from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
 from pydantic import Field
@@ -40,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .restrictions import OWNER_TRIGGERS
 
 # A broker's spelling of a symbol may add a suffix ("XAUUSD.r", "XAUUSDm").
 SUFFIX_SEPARATORS = frozenset(".-_#!+")
@@ -254,7 +255,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         await lock_owner_actions(session, context.owner_id)
         run = await require_lease(session, context.lease)
         origin_thread = run.model_metadata.get("origin_thread_id") or context.thread_id
-        message_id = await owner_message_id(session, run)
+        # The owner's typed request, also after the run read outside text: an agent the
+        # owner asked for never takes Lonora's mode, so injected text can only make it Ask.
+        typed = await owner_typed_message(session, run) if run.trigger in OWNER_TRIGGERS else None
+        message_id = str(typed.id) if typed is not None else None
         if message_id is not None:
             # The owner asked for it (4.3.2): it starts in Ask, and a request for full
             # authority shows its Mandate card; only the owner's tap sets Full.
@@ -288,7 +292,9 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         )
         if key is not None and receipt is None:
             session.add(EffectReceiptRow(key=key, result={"agent_id": row.id}))
-        if created and mandate:
+        if mandate:
+            # Raised once per agent (the card's id is its subject), also when a repeated
+            # call for the same request names full authority only now.
             await raise_system_card(
                 session,
                 context.owner_id,

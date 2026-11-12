@@ -32,9 +32,8 @@ EXPOSURE_VERSION = 1
 def run_profiles(
     agent: AgentRow, task_run: bool, *, supervises: bool = False
 ) -> list[ExposureProfile]:
-    """``market`` for trading identities: an agent bound to a broker account, and
-    the owner's Personal Agent, which reads every owned account and analyzes
-    directly when no specialist exists. Other agents get ``research``.
+    """``market`` for every agent (3.2.1: no template, role or scope makes one agent less
+    capable); only a delegated helper gets ``research``.
 
     ``coordination`` (inspect and message other agents) for the Personal Agent, which
     leads every team agent by its built-in role (``lonora_db.lead``), and for any agent
@@ -42,7 +41,9 @@ def run_profiles(
     task schemas fill the eager budget, and coordination stays one tool_call away.
     """
     lead = agent.role == LEAD_ROLE
-    trading = bool(agent.trading_account_id) or lead
+    # Same capabilities (mandate 3.2.1): every agent trades, bound to an account or not;
+    # only a delegated helper (removed with child roles) keeps the research set.
+    trading = agent.role != "delegated"
     profiles: list[ExposureProfile] = ["core", "market" if trading else "research"]
     if (lead or supervises) and not (trading and task_run):
         profiles.append("coordination")

@@ -340,7 +340,7 @@ async def test_bridged_mutation_runs_through_the_same_effect_boundaries_and_is_r
     assert offered[0] == offered[1] == offered[2]
     assert set(offered[0]) == BRIDGE_TOOLS | {"fixture_read"}
     exposure = run.execution_state["tool_exposure"]
-    assert exposure["profiles"] == ["core", "research"] and exposure["promoted"] == []
+    assert exposure["profiles"] == ["core", "market"] and exposure["promoted"] == []
     assert all(kw["policy_tools"] == registry.names() for kw in model.kwargs)
     db, owner, agent, _ = task_db
     async with db.sessions() as session:
@@ -660,19 +660,17 @@ def test_run_profiles_follow_the_agent_identity():
     # A trading identity's Task Run keeps its budget for the task tools.
     assert run_profiles(agent(role="personal"), True) == ["core", "market", "task"]
     assert run_profiles(bound, False, supervises=True) == ["core", "market", "coordination"]
+    # Same capabilities (3.2.1): an unbound team agent trades like a bound one.
     assert run_profiles(agent(role="general", scope_mode="flexible"), False) == [
         "core",
-        "research",
+        "market",
     ]
     general = agent(role="general", scope_mode="flexible")
-    assert run_profiles(general, True, supervises=True) == [
-        "core",
-        "research",
-        "coordination",
-        "task",
-    ]
+    assert run_profiles(general, False, supervises=True) == ["core", "market", "coordination"]
+    assert run_profiles(general, True) == ["core", "market", "task"]
+    assert run_profiles(agent(role="legacy"), False) == ["core", "market"]
+    # A delegated helper (removed with child roles) keeps the research set.
     assert run_profiles(agent(role="delegated"), True) == ["core", "research", "task"]
-    assert run_profiles(agent(role="legacy"), False) == ["core", "research"]
 
 
 @pytest.mark.asyncio

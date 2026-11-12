@@ -329,6 +329,12 @@ async def main() -> None:
             assert "peer_send" in error.details["hint"] and "Lonora" in error.details["hint"]
         else:
             raise AssertionError("a team agent created an agent")
+        try:
+            await call(team, "child_agent_create", {"name": "Child", "task": "x"})
+        except ToolRefusal as error:
+            assert error.code == "agent_create_lead_only", error.code
+        else:
+            raise AssertionError("a team agent created a child agent")
         await end_runs(gold_id)
         print("PASS a team agent cannot create agents and is told to ask Lonora")
 

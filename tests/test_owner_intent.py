@@ -209,14 +209,21 @@ async def test_a_created_agents_written_responsibility_stays_out_of_the_system_r
         # the agent is server-listed data).
         assert payload not in system.split("\n\n")
         assert any(payload in m.content and "responsibility" in m.content for m in messages)
-        # After reading a feed, Lonora still creates on its own judgment (3.1.2): the
-        # responsibility it wrote stays its data for the new agent, never a card.
+        # After reading a feed the owner's request is still the owner's (4.3.2): with
+        # Lonora in Full, the agent the owner asked for starts in Ask, never a card.
+        from lonora_db.trading_mode import set_trading_mode
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, lonora["id"], "full", by="owner_tap")
         again = await owner_says(fixture, lonora, thread, "And one for silver news")
         await tainted(fixture, again)
         second = await create(
             again, name="Silver " + uuid4().hex[:6], responsibility="Watch silver news."
         )
         assert second["created"] is True and "owner_action" not in second, second
+        assert second["agent"]["trading_mode"] == "ask", second
         fixture.agents.append(second["agent"]["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, lonora["id"], "ask", by="owner_tap")
     finally:
         await fixture.close()
