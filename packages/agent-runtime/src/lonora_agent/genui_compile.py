@@ -33,6 +33,7 @@ from lonora_contracts.instrument_names import known_names
 from lonora_core.public_reply import public_reply_violation, redact_private_reply
 from lonora_core.search_fold import fold
 
+from .context.financial_result import FINANCIAL_CALLS
 from .genui_capabilities import UiCapabilities
 
 PRIVATE_KEY = re.compile(
@@ -153,6 +154,20 @@ def unconfirmed(data: Any) -> bool:
     return str(status).lower() != "confirmed"
 
 
+def holds_unconfirmed(data: Any, depth: int = 0) -> bool:
+    """Whether a result names, anywhere within it, an operation the broker has not
+    confirmed."""
+    if depth > 6:
+        return False
+    if unconfirmed(data):
+        return True
+    if isinstance(data, dict):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(dict[str, Any], data).values())
+    if isinstance(data, list):
+        return any(holds_unconfirmed(v, depth + 1) for v in cast(list[Any], data))
+    return False
+
+
 def unusable(data: Any) -> bool:
     """Not usable as card evidence: a failed result or an unconfirmed operation."""
     return failed(data) or unconfirmed(data)
@@ -236,6 +251,8 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
         elif isinstance(data, list) and token.isdigit() and int(token) < len(cast(list[Any], data)):
             data = cast(list[Any], data)[int(token)]
         elif isinstance(data, list) and token == "length":
+            for item in cast(list[Any], data):
+                _refuse(item)
             data = len(cast(list[Any], data))
         else:
             raise ValueError("genui_fact_path_unknown")
@@ -491,6 +508,13 @@ def compile_card(
     state: dict[str, Any] = dict(data.get("state", {}))
     calc: dict[str, Any] = dict(data.get("calc", {}))
     evidence = request_evidence(messages)
+    if any(
+        item.name in FINANCIAL_CALLS and holds_unconfirmed(item.result)
+        for item in evidence.values()
+    ):
+        # An order or close of this request the broker has not confirmed: the reply is text
+        # only, so no card, cited or not, can read as done (10.3, 6.4).
+        raise CardError("card_fallback_unconfirmed")
 
     # Facts, and the card's one account (the first account-bearing fact, as written).
     facts: dict[str, dict[str, Any]] = {}

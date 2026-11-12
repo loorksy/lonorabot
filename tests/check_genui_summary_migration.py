@@ -13,11 +13,11 @@ from typing import Any
 
 from check_trading import database
 from lonora_contracts.visual_response import RichContent
-from lonora_db.schema import MessageRow, OwnerRow, ThreadRow
+from lonora_db.schema import AgentRow, MessageRow, OwnerRow, RunRow, ThreadRow
 from sqlalchemy import select
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0176_weekly_reports"
+BEFORE = "0131_agent_model_owner_only"
 
 
 def alembic(*arguments: str) -> None:
@@ -77,11 +77,28 @@ async def main() -> None:
             thread_id=thread.id, seq=2, role="assistant", content="b", rich_content=card("form")
         )
         session.add_all([old, other])
+        agent = AgentRow(owner_id=owner.id, name="Peer")
+        session.add(agent)
         await session.flush()
-        ids = [old.id, other.id]
+        # A peer run's result card, which the outcome return reads later.
+        run = RunRow(
+            thread_id=thread.id,
+            agent_id=agent.id,
+            status="completed",
+            model_metadata={"rich_content": card("receipt"), "kept": "as is"},
+        )
+        session.add(run)
+        await session.flush()
+        ids, run_id = [old.id, other.id], run.id
     await db.engine.dispose()
     alembic("upgrade", "head")
     assert await kinds(db, ids) == ["summary", "form"]
+    async with db.sessions() as session:
+        stored_run = await session.get(RunRow, run_id)
+        assert stored_run is not None
+        metadata = stored_run.model_metadata
+        assert metadata["rich_content"]["parts"][1]["document"]["kind"] == "summary"
+        assert metadata["kept"] == "as is"
     async with db.sessions() as session:
         stored = await session.get(MessageRow, ids[0])
         assert stored is not None and stored.rich_content is not None

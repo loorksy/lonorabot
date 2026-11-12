@@ -869,3 +869,31 @@ async def test_a_trades_ticket_and_price_are_cited_never_typed() -> None:
         ]
     )
     assert await falls_back(body, history_with("trade_execute", result))
+
+
+@pytest.mark.asyncio
+async def test_no_card_at_all_beside_an_unconfirmed_trade() -> None:
+    """10.3: after a trade the broker has not confirmed, a card that cites nothing can
+    still not read as done; the reply carries text only."""
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"تم تنفيذ الصفقة","icon":"check"}',
+            '{"type":"Badge","text":"مؤكَّد","tone":"good"}',
+            '{"type":"KeyValue","rows":[["الحالة","نُفّذت بنجاح"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    for name in ("trade_execute", "trade_close_positions"):
+        ambiguous = {"operation_id": "op-1", "status": "ambiguous"}
+        assert await falls_back(body, history_with(name, ambiguous))
+        assert await falls_back(body, history_with(name, TWO_RESULTS))
+    # A confirmed trade does not hold the card back.
+    confirmed = {"operation_id": "op-1", "status": "confirmed", "broker_id": "50071"}
+    assert not await falls_back(body, history_with("trade_execute", confirmed))
+
+
+@pytest.mark.asyncio
+async def test_the_length_of_a_list_with_an_unconfirmed_operation_is_not_shown() -> None:
+    assert await falls_back(
+        trade_card("/results/length"), history_with("trade_record_history", TWO_RESULTS)
+    )
