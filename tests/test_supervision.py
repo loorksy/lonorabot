@@ -341,7 +341,6 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
-    from lonora_db.owner_actions import raise_supervision_pause_card
     from lonora_db.routines import create_routine
     from lonora_db.schema import (
         AgentRow,
@@ -351,6 +350,7 @@ async def test_lonora_pauses_a_trading_agent_a_team_agent_does_not_and_nobody_pa
         SupervisionHoldRow,
     )
     from lonora_db.supervision import money_standing
+    from pause_cards import raise_supervision_pause_card
 
     async def legacy_card(target_id: str) -> None:
         # Nothing raises this card any more; a row stored before still renders and resumes.

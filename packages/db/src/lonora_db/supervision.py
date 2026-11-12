@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .lead import is_lead, personal_agent_id, reaches
+from .lead import reaches
 from .pauses import live_hold, release_hold, work_paused
 from .schema import (
     AgentRow,
@@ -218,10 +218,7 @@ async def control_work(
     Only the lead reaches another agent (``lead.reaches``); a team agent is refused
     (``supervision_required``). No agent ever pauses the Personal Agent itself. Lonora
     may pause a trading agent, since a paused agent still reduces its risk (4.7.1), and
-    its pause raises no card (it reports in one line). The branches below for a non-lead
-    supervisor (the money-standing refusal, lifting another supervisor's hold, the
-    supervisor's pause card) are no longer reached; they go with W-PAUSE's rewrite of
-    ``money_standing`` (14.3.7).
+    its pause raises no card (it reports in one line).
 
     Resuming on its own initiative lifts only a hold Lonora set on its own (4.7.2). A
     pause made from the owner's message is the owner's (``source='owner'``, the actor kept
@@ -298,16 +295,6 @@ async def control_work(
         if kind == "agent" and agent.role == "personal":
             # The owner's entry point: only the owner pauses it, from its profile.
             raise LonoraError("supervision_personal_agent", 403)
-        if (
-            kind == "agent"
-            and not owner_message
-            and actor_id != await personal_agent_id(session, owner_id)
-            and await money_standing(session, owner_id, agent)
-        ):
-            # Supervision is removed in phase 6 and is not extended (0.4): a team
-            # supervisor still pauses only an agent's routines, watches or Tasks on its own.
-            # Lonora's pause of a trading agent stands (its exits continue, 4.7.1).
-            raise LonoraError("supervision_pause_trading_agent", 403)
         # No cycle rule: only the lead pauses another agent, and only the owner pauses the
         # lead (3.1.2, 3.3.1). A pause an earlier team supervisor left never blocks it.
         await _apply(session, owner_id, agent.id, kind, item, "pause")
@@ -325,12 +312,8 @@ async def control_work(
         )
         session.add(hold)
         await session.flush()
-        if not await is_lead(session, owner_id, actor_id):
-            from .owner_actions import raise_supervision_pause_card
-
-            # Lonora's pause raises no card (only the five fixed cards, 10.3): Lonora tells
-            # the owner in one line. Other supervisors keep theirs until supervision goes.
-            await raise_supervision_pause_card(session, hold, run_id=run_id)
+        # Lonora's pause raises no card (only the fixed cards of 10.3): Lonora tells the
+        # owner in one line.
     else:
         if not paused:
             return {**result, "changed": False, "paused": False}
@@ -343,9 +326,7 @@ async def control_work(
         elif hold is None:
             # The agent's own pause: only it lifts it.
             raise LonoraError("supervision_resume_not_yours", 403)
-        elif hold.holder_agent_id != actor_id and (
-            not owner_message or actor_id == await personal_agent_id(session, owner_id)
-        ):
+        elif hold.holder_agent_id != actor_id:
             # Lonora lifts only the pauses Lonora made (4.7.2).
             raise LonoraError("supervision_resume_not_yours", 403)
         await release_hold(

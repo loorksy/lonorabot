@@ -31,7 +31,6 @@ from lonora_contracts.runs import RunRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.events import emit
 from lonora_db.lead import reaches
-from lonora_db.owner_actions import raise_supervision_pause_card
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import create_run
 from lonora_db.schema import (
@@ -45,6 +44,7 @@ from lonora_db.schema import (
 )
 from lonora_db.trading_decisions import DECISION_KIND
 from lonora_tools.loader import load_tools
+from pause_cards import raise_supervision_pause_card
 from sqlalchemy import insert, select, text
 from sqlalchemy.ext.asyncio import create_async_engine
 

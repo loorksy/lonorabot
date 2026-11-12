@@ -617,9 +617,10 @@ async def test_deleting_a_holder_keeps_its_pauses_as_the_owners():
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
-    from lonora_db.owner_actions import raise_supervision_pause_card, stale_reason
+    from lonora_db.owner_actions import stale_reason
     from lonora_db.routines import create_routine
     from lonora_db.schema import AgentRow, OwnerActionRow, RoutineRow, SupervisionHoldRow
+    from pause_cards import raise_supervision_pause_card
     from sqlalchemy import select
 
     fixture = await Fixture().open()

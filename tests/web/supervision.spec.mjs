@@ -24,7 +24,7 @@ from lonora_db.personal_agent import ensure_personal_agent
 from lonora_contracts.routines import RoutineCreate
 from lonora_db.routines import create_routine
 from lonora_db.schema import OwnerActionRow, SupervisionHoldRow
-from lonora_db.owner_actions import raise_supervision_pause_card
+from pause_cards import raise_supervision_pause_card
 from lonora_db.supervision import control_work
 from sqlalchemy import select
 from lonora_db.threads import conversation_thread

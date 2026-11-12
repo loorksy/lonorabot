@@ -1250,33 +1250,6 @@ async def review_card_wanted(session: AsyncSession, owner_id: str, payload: dict
     return await stale_reason(session, owner_id, "trust_source", payload) is None
 
 
-async def raise_supervision_pause_card(
-    session: AsyncSession, hold: SupervisionHoldRow, *, run_id: str | None
-) -> OwnerActionRow:
-    """The card a supervisor's pause raises in the paused agent's conversation: who
-    paused which work, with one-tap Resume; one per hold. The caller holds the
-    owner-actions lock before the work's locks, the order a card decision takes."""
-    await lock_owner_actions(session, hold.owner_id)
-    subject = "supervision-hold:" + hold.id
-    card_id = stable_id(hold.owner_id, "owner-action:supervision_paused:" + subject)
-    existing = await session.get(OwnerActionRow, card_id)
-    if existing is not None:
-        return existing
-    thread = await card_thread(session, hold.owner_id, hold.agent_id, None)
-    return await create_card(
-        session,
-        hold.owner_id,
-        card_id=card_id,
-        agent_id=hold.agent_id,
-        thread=thread,
-        run_id=run_id,
-        source="system",
-        kind="supervision_paused",
-        subject=subject,
-        payload={"hold_id": hold.id},
-    )
-
-
 async def raise_system_card(
     session: AsyncSession,
     owner_id: str,

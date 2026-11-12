@@ -131,7 +131,7 @@ Holds (`ln_supervision_holds`) record each pause Lonora or the owner sets:
 message in the Run (`restriction_supervision_required`, 403); there is no grant to stand
 in for it, also not for Lonora. Narrowing itself stays
 free, `all_mutations` on others still needs the owner's message, a restriction on others
-is still time-boxed, and only the owner lifts one. Restrictions are removed with W-REMOVE.
+is still time-boxed, and only the owner lifts one.
 
 ## Exposure
 
