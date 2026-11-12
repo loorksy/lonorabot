@@ -70,8 +70,8 @@ export function saveDraft(key: string): Promise<void> {
       const text = editing.has(key) ? "" : composerDraft(key).text;
       const empty = !text && !attachments.length && !reply;
       const raw = empty ? null : JSON.stringify({ key, text, attachments, reply } satisfies Saved);
-      if (raw && raw.length > MAX_BYTES) return;
-      await write(key, raw);
+      // Too large to keep: the older saved version must not come back in its place.
+      await write(key, raw && raw.length > MAX_BYTES ? null : raw);
     })
     .catch(() => undefined);
   writes.set(key, next);
@@ -105,8 +105,9 @@ export async function restoreDraft(key: string): Promise<boolean> {
   } catch {
     return false;
   }
-  const current = composerDraft(key);
-  if (current.text || current.attachments.length || current.reply) return false;
+  // Only a draft untouched since the app started is filled from the device: one typed, sent or
+  // cleared in this run (its save may still be pending) is newer than anything on disk.
+  if (composerDraft(key).revision !== 0) return false;
   if (
     !saved ||
     saved.key !== key ||

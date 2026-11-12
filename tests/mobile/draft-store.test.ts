@@ -7,6 +7,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as drafts from "../../apps/mobile/lib/composer-drafts";
+import { closeSessionResources } from "../../apps/mobile/lib/session-lifecycle";
 
 type Store = typeof import("../../apps/mobile/lib/draft-store");
 
@@ -70,8 +71,9 @@ test("a draft written before a restart comes back in its own conversation only",
   await first.store.saveDraft(key("a"));
   assert.ok(Object.keys(local.values).some((name) => name.startsWith("lonora.draft.v1:")));
 
-  // Restart (not sign-out): the drafts in memory are gone, the saved ones are not.
-  drafts.consumeComposerDraft(key("a"), drafts.composerDraft(key("a")).revision);
+  // Restart (not sign-out): the drafts in memory are gone, the saved ones are not. Clearing
+  // memory runs only the drafts' own teardown; the device store's is not registered here.
+  await closeSessionResources();
   const second = load(local);
   await second.store.restoreDraft(key("a"));
   const restored = drafts.composerDraft(key("a"));
@@ -125,5 +127,29 @@ test("an edit in progress is never saved as text: a restart cannot turn it into 
   assert.equal(
     Object.keys(local.values).filter((name) => name.startsWith("lonora.draft.v1:")).length,
     1,
+  );
+});
+
+test("a draft sent or cleared in this run never comes back from the device, even before its save", async () => {
+  const local = storage();
+  const { store } = load(local);
+  drafts.editComposerDraft(key("f"), { text: "foo" });
+  await store.saveDraft(key("f"));
+  // Sent: memory is empty; leaving and coming back before any save must not restore "foo".
+  drafts.consumeComposerDraft(key("f"), drafts.composerDraft(key("f")).revision);
+  assert.equal(await store.restoreDraft(key("f")), false);
+  assert.equal(drafts.composerDraft(key("f")).text, "");
+});
+
+test("a draft too large to keep removes the older saved one", async () => {
+  const local = storage();
+  const { store } = load(local);
+  drafts.editComposerDraft(key("g"), { text: "short" });
+  await store.saveDraft(key("g"));
+  drafts.editComposerDraft(key("g"), { text: "x".repeat(300 * 1024) });
+  await store.saveDraft(key("g"));
+  assert.equal(
+    Object.keys(local.values).filter((name) => name.startsWith("lonora.draft.v1:")).length,
+    0,
   );
 });
