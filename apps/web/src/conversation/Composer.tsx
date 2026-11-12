@@ -317,7 +317,7 @@ export function Composer({
     setHighlight(0);
   };
   const runCommand = (row: CommandRow) => {
-    if (row.command !== "summary") return commands.run(row.command, form.current);
+    if (row.command !== "summary") return commands.run(row.command);
     onSend(`/${row.name}`, [], reply?.id ?? null, undefined, { command: { name: "summary" } });
     if (reply) onClearReply();
   };

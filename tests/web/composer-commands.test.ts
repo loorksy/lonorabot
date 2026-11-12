@@ -30,7 +30,6 @@ const OPTIONS: CommandOption[] = [
   builtin("task", "مهمة", true, "حوّل طلبك إلى مهمة يتابعها الوكيل"),
   builtin("search", "بحث", true, "ابحث في الويب ثم أجب مع المصادر"),
   builtin("summary", "ملخص", false, "لخّص هذه المحادثة"),
-  builtin("schedule", "جدولة"),
   builtin("call", "اتصال"),
   builtin("clear", "مسح"),
   { id: "s1", command: "skill", name: "موجز الأخبار", sub: "تلخيص الأخبار", argument: true },
@@ -48,30 +47,25 @@ test("a «/» opens the list only as the first thing in the message", () => {
 });
 
 test("a chat offers the commands that work in it, in the reference's order", () => {
-  assert.deepEqual(availableCommands({ group: false, trading: true, chart: true, call: true }), [
+  assert.deepEqual(availableCommands({ group: false, chart: true, call: true }), [
     "task",
     "search",
     "summary",
-    "schedule",
     "chart",
     "call",
-    "permission",
     "clear",
   ]);
-  // A task and a call are one agent's; a group has its members' permissions.
-  assert.deepEqual(availableCommands({ group: true, trading: false, chart: true, call: true }), [
+  // A task and a call are one agent's.
+  assert.deepEqual(availableCommands({ group: true, chart: true, call: true }), [
     "search",
     "summary",
-    "schedule",
     "chart",
-    "permission",
     "clear",
   ]);
-  assert.deepEqual(availableCommands({ group: false, trading: false, chart: false, call: false }), [
+  assert.deepEqual(availableCommands({ group: false, chart: false, call: false }), [
     "task",
     "search",
     "summary",
-    "schedule",
     "clear",
   ]);
 });
@@ -82,7 +76,7 @@ test("the list keeps what the query matches: commands first, the better match fi
   // The English name finds a command in any language, and folding ignores hamza and ta marbuta.
   assert.deepEqual(names(rankCommands(OPTIONS, "sea")), ["بحث"]);
   assert.deepEqual(names(rankCommands(OPTIONS, "اتصا")), ["اتصال"]);
-  assert.deepEqual(names(rankCommands(OPTIONS, "جدوله")), ["جدولة"]);
+  assert.deepEqual(names(rankCommands(OPTIONS, "مهمه")), ["مهمة"]);
   // «بح» starts the command and the skill; a word inside a skill's name comes after.
   assert.deepEqual(names(rankCommands(OPTIONS, "بح")), ["بحث", "بحث متقدم"]);
   assert.deepEqual(names(rankCommands(OPTIONS, "الاخبار")), ["موجز الأخبار"]);

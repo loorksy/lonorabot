@@ -61,7 +61,6 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
     "Watches",
     "New task",
     "Agent files",
-    "Chat background",
     "Clear the chat",
   ]);
   await expect(menu.locator(".pop-sep")).toHaveCount(1);
@@ -86,18 +85,11 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
     "Agent info",
     "New task",
     "Agent files",
-    "Chat background",
     "Clear the chat",
   ]);
   await page.goto(`/app/g/${data.group.id}`);
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-  await expect(menuItems(page)).toHaveText([
-    "Group info",
-    "Chart",
-    "New task",
-    "Chat background",
-    "Clear the chat",
-  ]);
+  await expect(menuItems(page)).toHaveText(["Group info", "Chart", "New task", "Clear the chat"]);
 });
 
 test("info goes to the agent or group page from the avatar, the name and the menu", async ({

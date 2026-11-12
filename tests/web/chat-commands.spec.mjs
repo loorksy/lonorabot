@@ -51,15 +51,13 @@ test("the / list: this chat's commands in order, filtered, and picked with a hin
     "/task",
     "/search",
     "/summary",
-    "/schedule",
     "/chart",
     "/call",
-    "/permissions",
     "/clear",
   ]);
   await expect(page.locator(".assist[data-type=command] .as-sec")).toHaveText("Commands");
   await expect(rows(page).nth(0).locator("em")).toHaveText("Task title");
-  await expect(rows(page).nth(7).locator(".as-ic")).toHaveClass(/danger/);
+  await expect(rows(page).nth(5).locator(".as-ic")).toHaveClass(/danger/);
   // The typed part is marked, and only what matches stays.
   await field(page).fill("/sum");
   await expect(names(page)).toHaveText(["/summary"]);
@@ -87,27 +85,13 @@ test("the / list: this chat's commands in order, filtered, and picked with a hin
   await field(page).fill("/tas");
   await expect(names(page)).toHaveText(["/task"]);
 
-  // An agent that does not trade has no chart and no permissions; a group has no task or call.
+  // An agent that does not trade has no chart; a group has no task or call.
   await page.goto(`/app/${data.research.id}`);
   await field(page).fill("/");
-  await expect(names(page)).toHaveText([
-    "/task",
-    "/search",
-    "/summary",
-    "/schedule",
-    "/call",
-    "/clear",
-  ]);
+  await expect(names(page)).toHaveText(["/task", "/search", "/summary", "/call", "/clear"]);
   await page.goto(`/app/g/${data.group.id}`);
   await field(page).fill("/");
-  await expect(names(page)).toHaveText([
-    "/search",
-    "/summary",
-    "/schedule",
-    "/chart",
-    "/permissions",
-    "/clear",
-  ]);
+  await expect(names(page)).toHaveText(["/search", "/summary", "/chart", "/clear"]);
 });
 
 test("in Arabic the commands are Arabic and their English names still find them", async ({
@@ -196,10 +180,5 @@ test("the commands that send nothing open what the chat already has", async ({ p
     await expect(sheet).toContainText("Calls are not set up");
     await page.keyboard.press("Escape");
   }
-  await run("/permissions");
-  await expect(page.getByRole("menu", { name: "Permission level" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await run("/schedule");
-  await expect(page).toHaveURL(new RegExp(`/app/new-schedule\\?agent=${data.trader.id}$`));
   expect(sent).toEqual([]);
 });

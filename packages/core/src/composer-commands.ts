@@ -5,24 +5,14 @@
  */
 import { foldSearch } from "./search-fold";
 
-export type CommandId =
-  | "task"
-  | "search"
-  | "summary"
-  | "schedule"
-  | "chart"
-  | "call"
-  | "permission"
-  | "clear";
+export type CommandId = "task" | "search" | "summary" | "chart" | "call" | "clear";
 /** The English name of each command, typed in any language. */
 export const COMMAND_ALIAS: Record<CommandId, string> = {
   task: "task",
   search: "search",
   summary: "summary",
-  schedule: "schedule",
   chart: "chart",
   call: "call",
-  permission: "permissions",
   clear: "clear",
 };
 export type CommandOption = {
@@ -46,7 +36,6 @@ export function commandQuery(beforeCaret: string): string | null {
 /** The built-in commands a chat offers, in the reference's order. A task is one agent's. */
 export function availableCommands(chat: {
   group: boolean;
-  trading: boolean;
   chart: boolean;
   call: boolean;
 }): CommandId[] {
@@ -54,10 +43,8 @@ export function availableCommands(chat: {
     ["task", !chat.group],
     ["search", true],
     ["summary", true],
-    ["schedule", true],
     ["chart", chat.chart],
     ["call", !chat.group && chat.call],
-    ["permission", chat.group || chat.trading],
     ["clear", true],
   ];
   return offered.filter(([, shown]) => shown).map(([id]) => id);

@@ -12,23 +12,19 @@ import type { Agent } from "../lib/api";
 import { useCallStarter } from "../shell/call/CallPages";
 import { domainApi } from "../shell/domain/api";
 import { useLoad } from "../shell/domain/hooks";
-import { useNavigation } from "../shell/navigation";
-import { useToast } from "../shell/Toast";
 
 /* The composer's / commands (reference commandOptions and runCommand, Desktop-37 5089-5104,
-   5192-5199): the eight commands a chat offers, then the agent's enabled skills. «مهمة»,
+   5192-5199): the six commands a chat offers, then the agent's enabled skills. «مهمة»,
    «بحث», «ملخص» and a skill are sent as the owner's message; the others open what the chat
-   already has (the schedule page, the chart, the call, the permissions, the clear confirm). */
+   already has (the chart, the call, the clear confirm). */
 export type CommandRow = CommandOption & { icon: IconName; hint?: string };
 
 const ICONS: Record<CommandId, IconName> = {
   task: "task",
   search: "globe",
   summary: "news",
-  schedule: "clock",
   chart: "chart",
   call: "phone",
-  permission: "shield",
   clear: "trash",
 };
 
@@ -36,10 +32,8 @@ function commandName(id: CommandId): string {
   if (id === "task") return t({ message: "task", context: "slash command" });
   if (id === "search") return t({ message: "search", context: "slash command" });
   if (id === "summary") return t({ message: "summary", context: "slash command" });
-  if (id === "schedule") return t({ message: "schedule", context: "slash command" });
   if (id === "chart") return t({ message: "chart", context: "slash command" });
   if (id === "call") return t({ message: "call", context: "slash command" });
-  if (id === "permission") return t({ message: "permissions", context: "slash command" });
   return t({ message: "clear", context: "slash command" });
 }
 
@@ -73,8 +67,6 @@ export function useComposerCommands({
   /** The owner has typed «/» in this chat: the agent's skills are loaded then, not before. */
   wanted: boolean;
 }) {
-  const nav = useNavigation();
-  const toast = useToast();
   const starter = useCallStarter();
   const skills = useLoad(
     agent && !isGroup && wanted ? () => domainApi.skills(agent.id) : null,
@@ -85,10 +77,8 @@ export function useComposerCommands({
     task: t`Turn your request into a task the agent follows`,
     search: t`Search the web, then answer with sources`,
     summary: t`Summarize this conversation`,
-    schedule: t`One time or repeating`,
     chart: !isGroup && symbol ? t`Open the ${symbol} chart` : t`Open the market chart`,
     call: t`Start a voice call with ${name}`,
-    permission: isGroup ? t`Group members' permissions` : t`Change the agent's permissions`,
     clear: t`Clear this conversation's messages`,
   };
   const hints: Partial<Record<CommandId, string>> = {
@@ -104,7 +94,6 @@ export function useComposerCommands({
   const rows: CommandRow[] = [
     ...availableCommands({
       group: isGroup,
-      trading,
       chart: isGroup || Boolean(symbol) || trading,
       call: Boolean(agent) && !agent?.paused,
     }).map((id) => ({
@@ -131,24 +120,11 @@ export function useComposerCommands({
       })),
   ];
   /** Opens what a command that sends nothing stands for. */
-  const run = (command: CommandRow["command"], form: HTMLFormElement | null) => {
-    if (command === "schedule")
-      nav.go(
-        `/app/new-schedule${agent && !isGroup ? `?agent=${encodeURIComponent(agent.id)}` : ""}`,
-      );
-    else if (command === "chart") window.dispatchEvent(new CustomEvent("lonora:open-chart"));
+  const run = (command: CommandRow["command"]) => {
+    if (command === "chart") window.dispatchEvent(new CustomEvent("lonora:open-chart"));
     else if (command === "call") {
       // Through the call's own start: without a voice provider it explains how to set one up.
       if (agent) void starter.start(agent, threadId);
-    } else if (command === "permission") {
-      if (isGroup) window.dispatchEvent(new CustomEvent("lonora:members-permissions"));
-      else
-        requestAnimationFrame(() => {
-          // The chip that opens something: the level's menu, or why there is no level yet.
-          const chip = form?.querySelector<HTMLButtonElement>("button.mode-chip, button.no-trade");
-          if (chip) chip.click();
-          else toast(t`The permission level is still loading`, { type: "warn" });
-        });
     } else if (command === "clear") window.dispatchEvent(new CustomEvent("lonora:clear-chat"));
   };
   return { rows, run };
