@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib
+import random
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime
@@ -63,6 +64,49 @@ def subscribe_locked_until(websocket: Any) -> float | None:
             if moment is not None and moment > time.time():
                 times.append(moment)
     return max(times, default=None)
+
+
+# Seconds added to MetaApi's recommended retry time, so retries do not land together.
+JITTER_SECONDS = 5.0
+
+
+def jitter() -> float:
+    return random.uniform(1.0, JITTER_SECONDS)
+
+
+def throttle_aware(original: Callable[..., Coroutine[Any, Any, Any]]) -> Any:
+    """The SDK's streaming ``synchronize``, made to honour MetaApi's TooManyRequests: the
+    SDK's own retry (``_ensure_synchronized``) then waits until MetaApi's recommended time
+    (plus jitter) instead of its 1-300 s backoff, and the time is kept on the connection
+    for the adapter to read."""
+
+    async def synchronize(self: Any, instance_index: str) -> Any:
+        try:
+            return await original(self, instance_index)
+        except Exception as error:
+            until = throttled_until(error)
+            if until is not None:
+                self._lonora_throttled_until = max(
+                    getattr(self, "_lonora_throttled_until", 0.0), until
+                )
+                state = self._get_state(instance_index)
+                state["synchronizationRetryIntervalInSeconds"] = max(
+                    state.get("synchronizationRetryIntervalInSeconds") or 1,
+                    until - time.time() + jitter(),
+                )
+            raise
+
+    return synchronize
+
+
+def configure_sdk_throttling() -> None:
+    """Install ``throttle_aware`` once per process on the SDK's streaming connection."""
+    module: Any = importlib.import_module("metaapi_cloud_sdk.metaapi.streaming_metaapi_connection")
+    cls = module.StreamingMetaApiConnection
+    if getattr(cls, "_lonora_throttle_aware", False):
+        return
+    cls.synchronize = throttle_aware(cls.synchronize)
+    cls._lonora_throttle_aware = True
 
 
 def closed_error(error: Exception) -> bool:
@@ -131,7 +175,7 @@ class ConnectionSlot:
         self.failure = failure
         wait: float = min(30, 2 ** min(self.failures, 5))
         if until is not None:
-            wait = max(wait, until - time.time())
+            wait = max(wait, until - time.time() + jitter())
         self.retry_at = asyncio.get_running_loop().time() + wait
 
     def ready(self) -> None:

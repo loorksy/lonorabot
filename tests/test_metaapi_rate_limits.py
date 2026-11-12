@@ -130,9 +130,14 @@ async def test_a_throttled_subscription_keeps_the_connection_and_says_rate_limit
 ) -> None:
     monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
     value = account()
-    websocket = SimpleNamespace(
-        _subscribe_lock={"recommendedRetryTime": later(600)}, socket_instances={}
-    )
+    websocket = SimpleNamespace(_subscribe_lock=None, socket_instances={})
+
+    async def refused(*args: Any) -> None:
+        # MetaApi refuses the SDK's subscription meanwhile; the SDK locks until its time.
+        websocket._subscribe_lock = {"recommendedRetryTime": later(600)}
+        raise TimeoutError()
+
+    value.get_streaming_connection.return_value.wait_synchronized = AsyncMock(side_effect=refused)
     adapter = broker(value, websocket)
     with pytest.raises(LonoraError) as caught:
         await adapter.prepare_stream()
@@ -236,3 +241,75 @@ def test_throttling_has_its_own_owner_text_and_wake_text() -> None:
         text = attention_text("broker_rate_limited", locale)
         assert "MetaApi" in text and text != lost[locale]
     assert "throttling" in PROBLEMS["broker_rate_limited"]
+
+
+@pytest.mark.asyncio
+async def test_the_sdks_own_synchronization_retry_waits_metaapis_time() -> None:
+    """The production log: every TooManyRequests came from the SDK's streaming
+    synchronization, whose own retry (1-300 s backoff) ignored MetaApi's time."""
+    from lonora_adapters.brokers.metaapi_lifecycle import throttle_aware
+
+    state: dict[str, Any] = {"synchronizationRetryIntervalInSeconds": 1}
+    other: dict[str, Any] = {"synchronizationRetryIntervalInSeconds": 4}
+
+    def states(value: dict[str, Any]) -> Any:
+        def get(index: str) -> dict[str, Any]:
+            return value
+
+        return SimpleNamespace(_get_state=get)
+
+    connection = states(state)
+
+    async def refused(self: Any, instance_index: str) -> None:
+        raise too_many(600)
+
+    with pytest.raises(Exception) as caught:
+        await throttle_aware(refused)(connection, "london:0")
+    assert type(caught.value).__name__ == "TooManyRequestsException"
+    assert 600 < state["synchronizationRetryIntervalInSeconds"] < 610  # MetaApi's time + jitter
+    assert connection._lonora_throttled_until > datetime.now(UTC).timestamp() + 590
+
+    async def timeout(self: Any, instance_index: str) -> None:
+        raise TimeoutError()
+
+    with pytest.raises(TimeoutError):
+        await throttle_aware(timeout)(states(other), "0")
+    assert other["synchronizationRetryIntervalInSeconds"] == 4  # the SDK's own backoff
+
+
+def test_the_wrapper_is_installed_once_on_the_sdks_streaming_connection() -> None:
+    import importlib
+
+    from lonora_adapters.brokers.metaapi_lifecycle import configure_sdk_throttling
+
+    module: Any = importlib.import_module("metaapi_cloud_sdk.metaapi.streaming_metaapi_connection")
+    configure_sdk_throttling()
+    installed = module.StreamingMetaApiConnection.synchronize
+    configure_sdk_throttling()
+    assert module.StreamingMetaApiConnection.synchronize is installed
+    assert module.StreamingMetaApiConnection._lonora_throttle_aware is True
+
+
+@pytest.mark.asyncio
+async def test_while_the_account_is_throttled_no_caller_starts_another_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One owner of synchronization: RPC, symbol and readiness callers do not open or wait
+    on another connection while the streaming one waits for MetaApi's time."""
+    monkeypatch.setattr(metaapi, "monotonic", lambda: 1000.0)
+    value = account()
+    adapter = broker(value)
+    adapter.streaming = SimpleNamespace(
+        _closed=False,
+        _meta_api_connection=SimpleNamespace(
+            _closed=False,
+            synchronized=False,
+            _lonora_throttled_until=datetime.now(UTC).timestamp() + 300,
+        ),
+    )
+    for prepare in (adapter.prepare, adapter.prepare_stream):
+        with pytest.raises(LonoraError) as caught:
+            await prepare()
+        assert caught.value.code == "broker_rate_limited"
+    value.get_rpc_connection.assert_not_called()
+    adapter.api.metatrader_account_api.get_account.assert_not_awaited()

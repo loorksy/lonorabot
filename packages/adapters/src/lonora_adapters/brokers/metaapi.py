@@ -27,6 +27,7 @@ from .metaapi_discovery import update_domain
 from .metaapi_lifecycle import (
     ConnectionSlot,
     closed_error,
+    configure_sdk_throttling,
     history_storage,
     is_closed,
     subscribe_locked_until,
@@ -224,6 +225,7 @@ class MetaApiBroker:
         self, account_id: str, region: str | None, token: str, connection_id: str | None = None
     ):
         configure_sdk_transport()
+        configure_sdk_throttling()
         sdk: Any = importlib.import_module("metaapi_cloud_sdk")
         self.api: Any = sdk.MetaApi(
             token,
@@ -260,6 +262,8 @@ class MetaApiBroker:
         self._history_billing_retry_at = 0.0
         self._history_billing_probe = False
         self._closing = False
+        # Until when MetaApi throttles this account (epoch seconds): every path waits.
+        self._throttled_until = 0.0
 
     def diagnose(self, error: Exception, stage: str) -> LonoraError:
         if isinstance(error, LonoraError) and error.diagnostic_message:
@@ -398,6 +402,10 @@ class MetaApiBroker:
             and (slot.task is None or slot.task.done())
         ):
             return existing
+        if self.account_throttle() is not None:
+            # One owner of synchronization while MetaApi throttles the account: the SDK
+            # retries at MetaApi's time; no Lonora caller starts or awaits another attempt.
+            raise LonoraError("broker_rate_limited", 429)
 
         async def create() -> Any:
             try:
@@ -465,8 +473,7 @@ class MetaApiBroker:
         """MetaApi throttling, told apart from a lost link: a TooManyRequests answer, or a
         subscribe lock the SDK holds after one, gives ``broker_rate_limited`` and the time
         MetaApi recommends retrying at (epoch seconds)."""
-        websocket = getattr(getattr(self, "api", None), "_metaapi_websocket_client", None)
-        times = [t for t in (throttled_until(error), subscribe_locked_until(websocket)) if t]
+        times = [t for t in (throttled_until(error), self.account_throttle()) if t]
         if not times or failure.code not in {
             "broker_connection_timeout",
             "broker_connection_unavailable",
@@ -476,7 +483,21 @@ class MetaApiBroker:
         limited = LonoraError("broker_rate_limited", 429)
         limited.diagnostic_type = failure.diagnostic_type
         limited.diagnostic_message = failure.diagnostic_message
+        self._throttled_until = max(getattr(self, "_throttled_until", 0.0), *times)
         return limited, max(times)
+
+    def account_throttle(self) -> float | None:
+        """Until when MetaApi throttles this account, if that is still ahead: what a
+        TooManyRequests answer said, what the SDK's synchronization or subscription
+        retries were told (each adapter owns its SDK client, so they are this account's)."""
+        websocket = getattr(getattr(self, "api", None), "_metaapi_websocket_client", None)
+        times = [getattr(self, "_throttled_until", 0.0), subscribe_locked_until(websocket) or 0.0]
+        for kind in ("rpc", "streaming"):
+            shared = getattr(getattr(self, kind, None), "_meta_api_connection", None)
+            value = getattr(shared, "_lonora_throttled_until", 0.0)
+            times.append(value if isinstance(value, (int, float)) else 0.0)
+        until = max(times)
+        return until if until > time.time() else None
 
     @staticmethod
     def keep(connection: Any, failure: LonoraError, slot: ConnectionSlot) -> bool:
