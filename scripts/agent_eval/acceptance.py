@@ -40,6 +40,7 @@ from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -77,6 +78,8 @@ from scripts.agent_eval import runner as harness  # noqa: E402
 SCENARIO = bank.FIXTURES / "acceptance.json"
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
 MAXIMUM_RUNS = 6
+# Gateway passes of the provisioning step: pending, deploying, reading, connected.
+MAXIMUM_PASSES = 6
 
 
 def load() -> dict[str, Any]:
@@ -465,6 +468,144 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     return checks + await judged(stage, stage.ids["gold_thread"])
 
 
+# --- Connecting from chat (9.2) ------------------------------------------------------------
+
+
+async def connecting(stage: Stage, step: dict[str, Any]) -> list[Check]:
+    """1: the owner says he has an MT5 account. Lonora asks for its number and server in
+    chat, calls broker_connect, and its broker Secret card takes the password. The
+    gateway's provisioning step creates and deploys the account at MetaApi (the
+    provisioning fake of broker.py) and wakes Lonora, which reports the balance.
+    """
+    from lonora_adapters.storage.broker_secrets import BrokerSecrets
+    from lonora_db.schema import BrokerSessionRow, EventRow, OwnerActionRow
+    from lonora_trading.broker_provisioning import maintain_broker_provisioning
+
+    given = step["given"]
+    login, server, password = given["login"], given["server"], given["password"]
+    metaapi = broker.FakeProvisioningApi(servers={server: {login: password}})
+    if stage.model is not None:
+        stage.model.names.update({"$login": login, "$server": server})
+    thread, lonora = stage.ids["thread_id"], stage.ids["lonora_id"]
+    path = f"/threads/{thread}/messages"
+    await stage.api.request("POST", path, {"content": step["owner_says"]})
+    await stage.drain()
+    asked = await stage.replies(thread, lonora)
+    early = [c["tool"] for c in stage.calls if c["tool"] == "broker_connect"]
+    await stage.api.request("POST", path, {"content": given["owner_answers"]})
+    await stage.drain()
+    async with stage.api.runtime.db.sessions() as session:
+        cards = [
+            row
+            for row in await session.scalars(
+                select(OwnerActionRow)
+                .where(OwnerActionRow.owner_id == stage.api.owner, OwnerActionRow.kind == "secret")
+                .order_by(OwnerActionRow.created_at)
+            )
+            if row.payload.get("destination") == "broker"
+        ]
+    if not cards:
+        if stage.model is None:
+            raise AssertionError("no broker Secret card was raised")
+        raise NotExercised("Lonora did not raise the password card")
+    card = cards[-1]
+    values = {"PASSWORD": password, "METAAPI_TOKEN": given["token"]}
+    asks = [field["key"] for field in card.payload["fields"]]
+    await stage.api.request(
+        "POST", f"/owner-actions/{card.id}/secret", {"values": {k: values[k] for k in asks}}
+    )
+    db = stage.api.runtime.db
+    secrets = BrokerSecrets(
+        db, stage.api.settings.encryption_key.get_secret_value(), stage.api.owner
+    )
+
+    def client(token: str) -> broker.FakeMetaApiProvisioning:
+        return broker.FakeMetaApiProvisioning(metaapi, token)
+
+    outcome: dict[str, Any] = {}
+    with patch("lonora_trading.broker_provisioning.provisioning_client", client):
+        for _ in range(MAXIMUM_PASSES):
+            for account_id, data in metaapi.accounts.items():
+                broker.FakeMetaApiBroker.terminals.setdefault(
+                    account_id,
+                    AcceptanceTerminal(
+                        account_id=account_id,
+                        login=data["login"],
+                        server=data["server"],
+                        balance=Decimal(given["balance"]),
+                    ),
+                )
+            await maintain_broker_provisioning(db, stage.brokers, secrets, stage.api.owner)
+            async with db.sessions() as session:
+                row = await session.get(OwnerActionRow, card.id, populate_existing=True)
+                assert row is not None
+                outcome = dict(row.result or {})
+            if outcome.get("provisioning") in {"connected", "failed"}:
+                break
+    await stage.drain()
+    async with db.sessions() as session:
+        connection = (
+            await session.get(BrokerSessionRow, outcome["connection_id"])
+            if outcome.get("connection_id")
+            else None
+        )
+        stored = json.dumps(
+            [
+                [m.content for m in await session.scalars(select(MessageRow))],
+                [r.prompt for r in await session.scalars(select(RunRow))],
+                [e.payload for e in await session.scalars(select(EventRow))],
+                [(a.payload, a.result) for a in await session.scalars(select(OwnerActionRow))],
+            ],
+            default=str,
+        )
+    reported = await stage.replies(thread, lonora)
+    balance = given["balance"]
+    return [
+        (
+            "Lonora asked for the account number and server in chat first",
+            bool(asked) and not early,
+            f"{len(asked)} replies before the answer; broker_connect before it: {early}",
+        ),
+        (
+            "the password card is a broker Secret card for that account",
+            card.payload.get("account", {}).get("login") == login
+            and card.payload.get("account", {}).get("server") == server
+            and "PASSWORD" in asks,
+            f"fields {asks}",
+        ),
+        (
+            "provisioned through MetaApi: one account created and deployed",
+            outcome.get("provisioning") == "connected"
+            and len(metaapi.creates) == 1
+            and [data.get("state") for data in metaapi.accounts.values()] == ["DEPLOYED"],
+            f"card {outcome.get('provisioning')} {outcome.get('code', '')}; "
+            f"{len(metaapi.creates)} creates",
+        ),
+        (
+            "the connection carries MetaApi's observed identity",
+            connection is not None
+            and (connection.state.get("broker_identity") or {}).get("login") == login,
+            "connection " + ("made" if connection is not None else "missing"),
+        ),
+        (
+            "Lonora reports the balance",
+            any(balance in digits(text) for text in reported[len(asked) :]),
+            f"{len(reported) - len(asked)} replies after the answer",
+        ),
+        (
+            "the password and token never reached a message, run, event or card",
+            password not in stored and given["token"] not in stored,
+            "values absent" if password not in stored else "a value leaked",
+        ),
+    ]
+
+
+def digits(text: str) -> str:
+    """Arabic-Indic digits as ASCII, without thousands separators."""
+    table = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+    return re.sub(r"(?<=\d)[,٬ ](?=\d)", "", text.translate(table))
+
+
 # --- Compressed time: the brief clock (section 16 Setup) ---------------------------------
 
 
@@ -828,6 +969,7 @@ async def news(stage: Stage, step: dict[str, Any]) -> list[Check]:
 
 
 RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = {
+    "1": connecting,
     "4a": news,
     "4c": close_with_dropped_connection,
     "5": morning,

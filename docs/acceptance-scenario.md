@@ -41,6 +41,7 @@ Each step starts from its own seeded state, not from the steps before it, so a s
   - step 7a: an evening before the next weekly close (`latest_close`), then the first brief time after it.
 
   Before each pass the harness runs the gateway's broker observation (`maintenance_account_recovery`), so the brief reads the broker as it is.
+- **The owner's Secret card (step 1).** The harness saves the broker card as the owner, through the card's own route, with the password (and the MetaApi token while none is saved). It then runs the gateway's provisioning step (`maintain_broker_provisioning`) over the provisioning fake of `scripts/agent_eval/broker.py`, pass by pass, until the card is connected. A fake terminal answers for each account the fake creates. Real MetaApi provisioning is checked separately, on the demo account, by `scripts/metaapi_provisioning_check.py`.
 - **The product's own wakes:**
   - the watch check of the gateway (`check_watches`);
   - the routine step (`dispatch_routines`), with a one-shot routine due now;
@@ -67,7 +68,7 @@ export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:ci-only-password@127.0.0.
 ```
 export LONORA_DATABASE_URL=postgresql+asyncpg://<superuser>@127.0.0.1:5432/accept_live_test  # disposable, never production
 read -rs LONORA_ACCEPT_PROVIDER_KEY && export LONORA_ACCEPT_PROVIDER_KEY                      # typed, not echoed
-.venv/bin/python scripts/agent_eval/acceptance.py --live --model <provider>/<model> [--steps 4a,4c,5,7a]
+.venv/bin/python scripts/agent_eval/acceptance.py --live --model <provider>/<model> [--steps 1,4a,4c,5,7a]
 unset LONORA_ACCEPT_PROVIDER_KEY
 ```
 

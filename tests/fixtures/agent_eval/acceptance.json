@@ -9,10 +9,33 @@
    "owner_says": "I have an MT5 account at my broker, trade it",
    "feature": "connect from chat with MetaApi provisioning (9.2); the broker-destination Secret card (7.2.3, 10.3)",
    "owners": ["W-BROKER", "W-ENV"],
+   "partial": {
+    "note": "MetaApi provisioning is broker.py's fake (the harness reaches no network); scripts/metaapi_provisioning_check.py reads the real provisioning API on the demo account",
+    "until": [{"pending": "a harness run that provisions at MetaApi itself (the owner's server only)"}]
+   },
    "needs": [
-    {"pending": "W-BROKER: MetaApi provisioning from chat (9.2), with its provisioning fake in broker.py"},
-    {"pending": "W-ENV: the broker-destination Secret card (7.2.3)"}
-   ]
+    {"tool": "broker_connect"},
+    {"code": "lonora_trading.broker_provisioning:maintain_broker_provisioning"},
+    {"code": "lonora_db.secret_cards:broker_card_payload"}
+   ],
+   "given": {
+    "login": "52741006",
+    "server": "Exness-MT5Trial16",
+    "owner_answers": "The account number is 52741006 and the server is Exness-MT5Trial16.",
+    "password": "acceptance-master-password-7f3c",
+    "token": "acceptance.metaapi.token.91d2",
+    "balance": "10000"
+   },
+   "script": {
+    "lonora_id": [
+     [{"text": "Sure. What is the account number, and the exact server name your broker gave you?"}],
+     [
+      {"calls": [{"tool": "broker_connect", "arguments": {"login": "$login", "server": "$server"}}]},
+      {"text": "Enter the trading password in the card; I connect the account as soon as it is saved."}
+     ],
+     [{"text": "Account 52741006 on Exness-MT5Trial16 is connected: balance 10000 USD, and trading is allowed."}]
+    ]
+   }
   },
   {
    "id": "2",
