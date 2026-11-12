@@ -96,6 +96,7 @@ async def test_disable_enable_and_disconnect_from_chat() -> None:
                 context, "broker_manage", account_id=connection_id, action="disconnect"
             )
             assert gone["removed_at_metaapi"] is True
+            assert "no longer read or managed" in gone["note"] and gone["open_positions"] == 0
         # Lonora created it at MetaApi, so it is removed there; the token is kept.
         assert world.api.accounts == {} and await row(fixture, connection_id) is None
         broker = BrokerSecrets(fixture.runtime.db, key(fixture), fixture.owner)

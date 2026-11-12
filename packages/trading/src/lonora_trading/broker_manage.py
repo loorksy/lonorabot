@@ -79,12 +79,12 @@ async def set_enabled(
 
 
 async def disconnect(
-    db: Database, brokers: Any, store: Any, owner_id: str, connection_id: str
+    db: Database, brokers: Any, owner_id: str, connection_id: str
 ) -> dict[str, Any]:
     """Remove the connection. A MetaApi account Lonora created is undeployed and removed
     there too; one the owner linked by id is left as it is. The trading password is
-    deleted; the owner's MetaApi token is kept for other accounts (Q8). ``store`` deletes
-    only (an unused secret); no value is read here."""
+    deleted; the owner's MetaApi token is kept for other accounts (Q8). No value is read
+    here."""
     await refuse_unsettled(db, owner_id, connection_id)
     repository = BrokerSessionRepository()
     async with db.sessions() as session:
@@ -98,6 +98,7 @@ async def disconnect(
                 SecretRow.name == METAAPI_TOKEN,
             )
         )
+    left = await _open_at_broker(brokers, owner_id, connection_id)
     remove = payload.provider == "metaapi" and state.get("provisioned_by_lonora") is True
     provisioning = await brokers.provisioning(owner_id, connection_id) if remove else None
     removed: bool | str = False
@@ -125,14 +126,32 @@ async def disconnect(
     password = state.get("password_secret_id")
     for secret_id in (password, payload.secret_id if payload.secret_id != token else None):
         if isinstance(secret_id, str):
-            try:
-                await store.delete(secret_id)  # a per-account token copy, or the password
-            except LonoraError:
-                pass  # Still used by another connection, or already gone.
-    result: dict[str, Any] = {"connection_id": connection_id, "removed_at_metaapi": removed is True}
+            # The broker layer forgets it (under the provisioning lock) unless still used.
+            await brokers.forget_secret(owner_id, secret_id)
+    result: dict[str, Any] = {
+        "connection_id": connection_id,
+        "removed_at_metaapi": removed is True,
+        # Said, not hidden: what the broker still holds is no longer read or managed.
+        "note": "Disconnected: its open positions and orders stay at the broker and are no "
+        "longer read or managed by any agent.",
+        **left,
+    }
     if isinstance(removed, str):
         result["metaapi_not_removed"] = removed
     return result
+
+
+async def _open_at_broker(brokers: Any, owner_id: str, connection_id: str) -> dict[str, Any]:
+    """How many positions and orders the broker holds, read just before disconnecting."""
+    try:
+        async with asyncio.timeout(20):
+            broker = await brokers.get(owner_id, connection_id)
+            return {
+                "open_positions": len(await broker.positions()),
+                "pending_orders": len(await broker.orders()),
+            }
+    except Exception:  # noqa: BLE001 - a count is information; disconnect goes on
+        return {"open_positions": "unknown", "pending_orders": "unknown"}
 
 
 async def _close_adapter(brokers: Any, connection_id: str) -> None:
@@ -156,7 +175,7 @@ async def rotate_password(
     new_password = await secrets.named(metaapi_password_name(card.id))
     if new_password is None:
         return "broker_secret_required"
-    stored = False
+    stored = sent = False
     old_password: Any = None
     try:
         repository = BrokerSessionRepository()
@@ -177,6 +196,7 @@ async def rotate_password(
                     await provisioning.update_password(
                         payload.account_id, await secrets.read(new_password)
                     )
+                sent = True
                 # MetaApi holds the new password now: record it and move the version at once.
                 async with db.sessions() as session, session.begin():
                     await repository.credentials_changed(
@@ -191,6 +211,8 @@ async def rotate_password(
         finally:
             await provisioning.close()
     except (LonoraError, TimeoutError) as failure:
+        if sent and not stored:
+            return "broker_rotation_incomplete"  # MetaApi may hold it; nothing recorded
         if not stored:
             return getattr(failure, "code", "broker_provisioning_timeout")
         # Stored and recorded, but the terminal was not redeployed with it yet.
@@ -235,6 +257,8 @@ async def replace_token(
             # A connection made or removed since the check is caught here, and then
             # nothing changes (connect takes the same provisioning lock).
             await broker_provisioning.lock_provisioning(session, owner_id)
+            # Owner first, as connection creation takes it, then the rows.
+            await repository.lock_owner(session, owner_id)
             now = sorted(
                 row.id
                 for row in await repository.all_connections(session, owner_id)

@@ -32,7 +32,7 @@ from lonora_db.broker_sessions import BrokerSessionRepository, broker_identity_k
 from lonora_db.client import Database
 from lonora_db.owner_actions import continue_after_card
 from lonora_db.schema import OwnerActionRow
-from lonora_db.secrets import BROKER, METAAPI_TOKEN, metaapi_password_name
+from lonora_db.secrets import BROKER, METAAPI_TOKEN, metaapi_password_name, secret_in_use
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -215,6 +215,14 @@ class Failing:
             await _record(session, row, provisioning="failed", code=code)
             created = row.result.get("created") is True
             account_id = row.result.get("metaapi_account_id")
+        if code == "broker_token_rejected":
+            # Whether the refused token stays (a live connection still names it) decides
+            # what the agent is told to do next.
+            token = await self.secrets.named(METAAPI_TOKEN)
+            async with self.db.sessions() as session, session.begin():
+                kept = token is not None and await secret_in_use(session, self.owner_id, token)
+                row = await _card(session, self.owner_id, self.card_id)
+                row.result = {**row.result, "token_kept": kept}
         if created and account_id and provisioning is not None:
             try:
                 await provisioning.remove(str(account_id))
@@ -325,7 +333,10 @@ async def other_card_active(
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.kind == "secret",
             OwnerActionRow.status == "confirmed",
-            OwnerActionRow.subject == subject,
+            # Cards saved before the subject named its purpose used the earlier form.
+            OwnerActionRow.subject.in_(
+                {subject, subject.replace("secret:broker:connect:", "secret:broker:", 1)}
+            ),
             OwnerActionRow.id != card_id,
         )
     ):

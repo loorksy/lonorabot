@@ -147,9 +147,7 @@ async def manage(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             params.action == "enable",
         )
     if params.action == "disconnect":
-        return await disconnect(
-            context.db, context.brokers, context.secrets, context.owner_id, params.account_id
-        )
+        return await disconnect(context.db, context.brokers, context.owner_id, params.account_id)
     if params.action == "rotate_password":
         await refuse_unsettled(context.db, context.owner_id, params.account_id)
     if not identity.get("login") or row.payload.get("provider") != "metaapi":
@@ -188,7 +186,8 @@ def manage_tools() -> list[Tool]:
         Tool(
             "broker_manage",
             "Change one of the owner's broker connections on the owner's own request: "
-            "disconnect (an account Lonora created at MetaApi is removed there too), enable, "
+            "disconnect (an account Lonora created at MetaApi is removed there too; its open "
+            "positions and orders stay at the broker, unmanaged), enable, "
             "disable (its positions are then not read or managed), rotate_password or "
             "replace_token (each shows a card for the new value; you never see it). "
             "account_id is the connection_id from list_accounts. Refused while an operation "

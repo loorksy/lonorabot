@@ -73,6 +73,12 @@ class BrokerManager:
         factory = getattr(self, "provisioning_factory", MetaApiProvisioning)
         return factory(await self._secrets.read(config.secret_id))
 
+    async def forget_secret(self, owner_id: str, secret_id: str) -> None:
+        """Delete a broker value no connection uses any more (disconnect's password or a
+        per-account token copy). Nothing is read; the broker layer does the deleting."""
+        del owner_id  # The reader is already the owner's.
+        await self._secrets.delete_unused(secret_id)
+
     async def account(self, owner_id: str, connection_id: str) -> AccountState:
         async with self.db.sessions() as session:
             saved = await BrokerSessionRepository().get(session, owner_id, connection_id)

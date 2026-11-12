@@ -154,6 +154,12 @@ def broker_prompt(row: OwnerActionRow) -> str:
         }[purpose]
         if result.get("provisioning") == "connected":
             return done + " You never see it. Tell the owner in one line."
+        if result.get("code") == "broker_rotation_incomplete":
+            return (
+                "MetaApi may already hold the new trading password, but Lonora could not record "
+                "it. Rotate again with broker_manage. You never see it. Tell the owner in one "
+                "line."
+            )
         if result.get("code") == "broker_redeploy_failed":
             return (
                 "The new trading password is stored at MetaApi and recorded, but redeploying "
@@ -166,12 +172,16 @@ def broker_prompt(row: OwnerActionRow) -> str:
         )
     if result.get("provisioning") != "connected":
         # The login was checked as digits; the failure code is the server's own word.
-        token = (
-            " The saved MetaApi API token itself was refused: ask the owner for a new one with"
-            " broker_manage (action replace_token), never in chat."
-            if result.get("code") == "broker_token_rejected"
-            else ""
-        )
+        token = ""
+        if result.get("code") == "broker_token_rejected":
+            token = (
+                " The saved MetaApi API token itself was refused. Live connections still use"
+                " it: ask the owner for a new one with broker_manage (action replace_token),"
+                " never in chat."
+                if result.get("token_kept")
+                else " The MetaApi API token was refused and is forgotten: call broker_connect"
+                " again, and its card asks the owner for a new token. Never ask in chat."
+            )
         return (
             f"Connecting the owner's account {row.payload['account']['login']} failed: "
             f"{result.get('code')}.{token} You never see "

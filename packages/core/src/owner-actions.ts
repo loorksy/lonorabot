@@ -299,6 +299,7 @@ export const ownerActionLabels = {
     secretSaved: "Saved encrypted. No agent sees the values.",
     brokerConnectTitle: "Connect trading account",
     brokerRotateTitle: "New trading password",
+    brokerTokenNew: "New MetaApi API token",
     brokerTokenTitle: "New MetaApi API token",
     brokerAccountLine: "Account {login} on server {server} ({platform})",
     brokerPassword: "Trading (master) password",
@@ -586,6 +587,7 @@ export const ownerActionLabels = {
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     brokerConnectTitle: "ربط حساب التداول",
     brokerRotateTitle: "كلمة مرور تداول جديدة",
+    brokerTokenNew: "رمز MetaApi API الجديد",
     brokerTokenTitle: "رمز MetaApi API جديد",
     brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
     brokerPassword: "كلمة مرور التداول (الرئيسية)",
@@ -1725,7 +1727,12 @@ export function ownerActionCard(
         secretForm = {
           fields: secret.fields.map((field) => ({
             key: field.key,
-            label: field.key === "METAAPI_TOKEN" ? text.brokerToken : text.brokerPassword,
+            label:
+              field.key !== "METAAPI_TOKEN"
+                ? text.brokerPassword
+                : secret.purpose === "replace_token"
+                  ? text.brokerTokenNew
+                  : text.brokerToken,
             type: "password",
           })),
           submit: text.secretSave,

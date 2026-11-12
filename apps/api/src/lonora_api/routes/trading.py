@@ -87,7 +87,7 @@ async def disconnect(
     # The same disconnect as from chat (9.3, Q8): refused while an operation on this
     # account is uncertain; prepare_delete first; a MetaApi account Lonora created is
     # removed there too; the password is deleted, the token kept. The journal outlives it.
-    await disconnect_connection(rt.db, services.brokers, services.secrets, owner.id, connection_id)
+    await disconnect_connection(rt.db, services.brokers, owner.id, connection_id)
     return {"deleted": True}
 
 
