@@ -25,6 +25,7 @@ from lonora_db.cli_tokens import agent_for_cli_token
 from lonora_db.messages import post_agent_message
 from lonora_db.schema import AgentRow
 from lonora_db.workspace_wakes import MAXIMUM_TEXT, wake_by_handle
+from lonora_security.secrets import SecretScan
 from lonora_tools.account import read_account
 from lonora_tools.market import CandlesInput, read_candles, read_quote
 from lonora_tools.market_binding import named_account
@@ -131,19 +132,27 @@ def snapshot_part(part: str) -> Command:
     return command
 
 
+async def scanned(rt: ApiRuntime, owner_id: str, text: str) -> str:
+    """Text a workspace script sent, as the scan of workspace output leaves it: each stored
+    value outside the broker scope, and its encoded forms, become [secret:NAME] (7.2.6)."""
+    return SecretScan(await rt.services(owner_id).secrets.scanned_values()).text(text)
+
+
 async def notify(rt: ApiRuntime, agent: AgentRow, body: dict[str, Any]) -> JSONResponse:
     """The text in the calling agent's own conversation, as its message (7.3.8)."""
     args = NotifyArgs.model_validate(body)
+    text = await scanned(rt, agent.owner_id, args.text)
     async with rt.db.sessions() as session, session.begin():
-        message = await post_agent_message(session, agent.owner_id, agent.id, args.text)
+        message = await post_agent_message(session, agent.owner_id, agent.id, text)
     return answer(EXECUTED, {"posted": True, "message_id": message.id})
 
 
 async def wake(rt: ApiRuntime, agent: AgentRow, body: dict[str, Any]) -> JSONResponse:
     """A run of the agent with that @handle, naming the caller, the text as data (7.3.7)."""
     args = WakeArgs.model_validate(body)
+    text = await scanned(rt, agent.owner_id, args.text)
     async with rt.db.sessions() as session, session.begin():
-        run = await wake_by_handle(session, agent, args.handle, args.text)
+        run = await wake_by_handle(session, agent, args.handle, text)
     return answer(EXECUTED, {"woken": True, "run_id": run.id})
 
 
