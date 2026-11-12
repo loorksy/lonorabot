@@ -232,3 +232,7 @@ async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) 
             state.status, state.phase = "cancelled", "cancelled"
             save_task(session, task, state)
         await settle_task_watches(session, task)
+    from .management_task import ensure_management_task
+
+    # Without the grant's Task, an agent in Full runs its own continuous task (4.5).
+    await ensure_management_task(session, row.owner_id, row.agent_id)

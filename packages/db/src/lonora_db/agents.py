@@ -111,6 +111,11 @@ async def list_agents(session: AsyncSession, owner_id: str) -> list[AgentRow]:
 async def update_agent(
     session: AsyncSession, owner_id: str, agent_id: str, request: AgentUpdate
 ) -> AgentRow:
+    if request.paused is not None:
+        from .authority_lock import authority_lock
+
+        # Taken before the row lock, in the order a mode change takes them.
+        await authority_lock(session, agent_id)
     row = await owned_agent(session, owner_id, agent_id, lock=True)
     was_paused = row.paused
     if "scope_mode" in request.model_fields_set:
@@ -141,4 +146,12 @@ async def update_agent(
         await owner_takes_over(
             session, owner_id, "agent", agent_id, paused=request.paused, agent_id=agent_id
         )
+        from .management_task import end_management_task, ensure_management_task
+
+        # Pausing ends the Full-mode task (4.5.2); resuming a Full agent starts it again.
+        if request.paused:
+            await end_management_task(session, owner_id, agent_id)
+        else:
+            await session.flush()
+            await ensure_management_task(session, owner_id, agent_id)
     return row

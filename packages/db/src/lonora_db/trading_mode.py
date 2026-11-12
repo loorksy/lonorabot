@@ -57,6 +57,13 @@ async def set_trading_mode(
             agent_id=agent_id,
             payload={"agent_id": agent_id, "trading_mode": mode, "by": by},
         )
+    from .management_task import end_management_task, ensure_management_task
+
+    # Full runs one continuous account-management task; Ask ends it (4.5).
+    if mode == "full":
+        await ensure_management_task(session, owner_id, agent_id)
+    else:
+        await end_management_task(session, owner_id, agent_id)
     return cast(TradingMode, agent.trading_mode)
 
 

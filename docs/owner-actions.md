@@ -329,6 +329,21 @@ Switching an agent to Full withdraws its pending Trade Approval cards (status
 with fixed server text to decide again under Full. A card for an agent that is deleted
 ends with it.
 
+## Full mode keeps working (mandate 4.5)
+
+An agent in Full that is not paused has one continuous account-management Task
+(`lonora_db.management_task`). The tap that sets Full starts it in the same transaction;
+switching to Ask, pausing the agent or deleting it ends it, and resuming a paused agent
+in Full starts it again. A second Full tap finds the running Task and adds none. The
+Task is bound to no account: each wake reads the accounts connected at that moment, so
+an account connected later joins it and a disconnected one leaves it. Its Runs are
+ordinary Runs of the agent under its mode (the kickoff Run's `account_management_id` is
+the agent's id). Ending it never removes the agent's watches (they move from the Task's
+work lane to the agent's conversation and keep watching), routines or Trade Approval
+cards; the agent keeps managing its own positions and orders in Ask. While an active
+signed grant's own management Task runs for the agent, that Task drives the account and
+the Full-mode Task does not start; revoking the grant starts it.
+
 ## Model cards (W15-10)
 
 Two kinds no agent can propose with `owner_action_propose`; only `model_request` raises

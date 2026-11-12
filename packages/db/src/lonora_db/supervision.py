@@ -598,10 +598,17 @@ async def _apply(
     (holds are settled by the caller, so the item's own hold checks pass)."""
     if kind == "agent":
         from .agents import agent_data
+        from .management_task import end_management_task, ensure_management_task
 
         agent = await owned_agent(session, owner_id, agent_id, lock=True)
         agent.paused = action == "pause"
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
+        # Pausing ends the Full-mode task (4.5.2); resuming a Full agent starts it again.
+        if action == "pause":
+            await end_management_task(session, owner_id, agent_id)
+        else:
+            await session.flush()
+            await ensure_management_task(session, owner_id, agent_id)
     elif kind == "routine":
         from .routines import owned_routine
 
@@ -651,6 +658,11 @@ async def control_work(
     agent cancelled itself while held stays cancelled; the resume only ends the hold.
     """
     owner_message = owner_message_id is not None
+    if kind == "agent":
+        from .authority_lock import authority_lock
+
+        # Taken before the agent's row lock, in the order a mode change takes them.
+        await authority_lock(session, agent_id)
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)
@@ -749,7 +761,10 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
     kind, target_id = hold.target_kind, hold.target_id
     if kind == "agent":
         from .agents import agent_data
+        from .authority_lock import authority_lock
+        from .management_task import ensure_management_task
 
+        await authority_lock(session, target_id)
         agent = await owned_agent(session, owner_id, target_id, lock=True)
         await owner_takes_over(
             session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
@@ -757,6 +772,9 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
         if agent.paused:
             agent.paused = False
             emit(session, owner_id, "agent.updated", agent_id=agent.id, payload=agent_data(agent))
+            await session.flush()
+            # Resuming a Full agent starts its continuous task again (4.5.1).
+            await ensure_management_task(session, owner_id, agent.id)
     elif kind == "routine":
         from .routines import owned_routine
 

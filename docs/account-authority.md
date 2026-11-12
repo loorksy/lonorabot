@@ -72,7 +72,9 @@ monotonic:
   when nothing records what it read. The executor repeats the grant check at send
   for every operation sent under one; a grant decides within its own terms in
   either mode until it is revoked. A grant's management Task is held to its own grant;
-  outside it, it asks too. Provisional speech never spends a grant: its
+  outside it, it asks too. The Full-mode account-management Task
+  (`lonora_db.management_task`, docs/owner-actions.md) does not start while such a
+  grant Task runs; its own Runs are ordinary Runs of the agent under its mode. Provisional speech never spends a grant: its
   operations are sent under the owner's exact approval only.
 - The owner's own positions are the tickets the journal does not connect to an
   agent's entry: a position opened outside Lonora, and also one the owner opened
