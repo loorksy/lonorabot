@@ -104,10 +104,16 @@ async def test_one_tap_stops_one_process_and_one_tap_stops_all(
         async def scanned_values(self) -> dict[str, str]:
             return {}
 
-    service = SimpleNamespace(owner_id=owner, secrets=Secrets(), given=None)
+    service: Any = SimpleNamespace(owner_id=owner, secrets=Secrets(), given=None)
     gateway: Any = SimpleNamespace(db=db)
-    gateway.workspace_scan = lambda service: Gateway.workspace_scan(gateway, service)
-    gateway.record_running = lambda service: Gateway.record_running(gateway, service)
+
+    async def workspace_scan(each: Any) -> Any:
+        return await Gateway.workspace_scan(gateway, each)
+
+    async def record_running(each: Any) -> None:
+        await Gateway.record_running(gateway, each)
+
+    gateway.workspace_scan, gateway.record_running = workspace_scan, record_running
 
     async with db.sessions() as session, session.begin():
         await request_stop(session, owner, 101, agent)
