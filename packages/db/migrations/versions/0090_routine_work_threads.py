@@ -15,7 +15,7 @@ Agent's conversation, like the runs the new code queues.
 from alembic import op
 
 revision = "0090_routine_work_threads"
-down_revision = "0170_broker_health_attention"
+down_revision = "0176_weekly_reports"
 branch_labels = None
 depends_on = None
 
