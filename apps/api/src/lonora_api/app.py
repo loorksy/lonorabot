@@ -64,7 +64,6 @@ ROUTES = (
     "market",
     "charts",
     "trading",
-    "trading_goals",
     "trading_decisions",
     "opportunities",
     "execution_policy",

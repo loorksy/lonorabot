@@ -286,7 +286,9 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           onClick={() => go(`/app/knowledge${q}`)}
         />
         <NavRow icon="bolt" label={<Trans>Skills</Trans>} onClick={() => go(`/app/skills${q}`)} />
-        <NavRow icon="target" label={<Trans>Goals</Trans>} onClick={() => go(`/app/goals${q}`)} />
+        {!trader && (
+          <NavRow icon="target" label={<Trans>Goals</Trans>} onClick={() => go(`/app/goals${q}`)} />
+        )}
         <NavRow
           icon="clock"
           label={<Trans>Scheduled tasks</Trans>}

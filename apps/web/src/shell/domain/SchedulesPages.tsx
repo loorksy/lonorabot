@@ -282,7 +282,7 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
   if (routines.loading && !routines.data) return <SkRows count={3} />;
   if (routines.error != null && !routines.data)
     return <p role="alert">{userError(routines.error)}</p>;
-  const rows = (routines.data ?? []).filter((routine) => !routine.goal_id);
+  const rows = routines.data ?? [];
   const conditional = (watches.data ?? []).filter(listedWatch);
   const watchToggle = async (watch: WatchRow, on: boolean) => {
     watches.set((list) =>

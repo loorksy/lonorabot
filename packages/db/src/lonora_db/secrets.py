@@ -18,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, SecretRow
 
 WORKSPACE = "workspace"
-SCOPES = ("broker", "provider", "integration", WORKSPACE)
+BROKER = "broker"
+SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 # Where a connection names its secrets: an MCP server saved from a Secret card also
 # names the secret that holds its address.
