@@ -2,14 +2,13 @@
 
 Runs on a fresh migrated PostgreSQL database (LONORA_DATABASE_URL):
 
-1. No Super Bot tool or route remains, and a goal has no autonomy switch.
+1. No Super Bot tool or route remains.
 2. A grant signed from the trading-level controls is confirmed by one line in the
    conversation (a lost-response replay adds none), and the agent shows "trades on its
    own" only while that grant is in force: pausing the agent or revoking the passkey
    device ends it, and replaying the old proof never restores it.
 3. Migration 0040_retire_super_bot_requests marks pending and activated requests
-   retired, withdraws their open inbox items, removes the retired autonomy keys from
-   goals and gives grants signed before the readiness review a skipped review; the
+   retired, withdraws their open inbox items and gives grants signed before the readiness review a skipped review; the
    downgrade restores exactly those rows and the upgrade is repeatable. A retired
    request grants nothing.
 """
@@ -32,9 +31,7 @@ from lonora_db.schema import (
     EffectReceiptRow,
     MessageRow,
     SuperBotRequestRow,
-    TradingGoalRow,
 )
-from lonora_db.trading_goals import goal_data
 from lonora_tools.loader import load_tools
 from sqlalchemy import select
 
@@ -130,37 +127,7 @@ async def retired_surface(f: Fixture, agent: dict[str, Any], thread: dict[str, A
     ):
         response = await f.client.request(method, path, json={})
         assert response.status_code in {404, 405}, (path, response.status_code)
-    account = await simulated_account(f, "retired-surface")
-    goal = await f.request(
-        "POST",
-        "/trading/goals",
-        {
-            "agent_id": agent["id"],
-            "thread_id": thread["id"],
-            "title": "A plan, never authority",
-            "objective": "Observe the reviewed plan",
-            "account_id": account,
-            "symbol": "EURUSDm",
-            "steps": [{"id": "read", "title": "Read source", "kind": "analysis"}],
-        },
-    )
-    assert "autonomous" not in goal["state"], goal["state"]
-    for extra in ({"autonomous": True}, {"maximum_volume": "0.2"}):
-        refused = await f.client.post(
-            f"/api/trading/goals/{goal['id']}/control",
-            json={"version": goal["version"], "action": "resume", **extra},
-        )
-        assert refused.status_code == 422, (extra, refused.status_code)
-    paused = await f.request(
-        "POST",
-        f"/trading/goals/{goal['id']}/control",
-        {"version": goal["version"], "action": "pause"},
-    )
-    assert paused["state"]["status"] == "paused"
-    print(
-        "PASS no Super Bot tool or route remains; a goal has no autonomy switch or limit knobs "
-        "and its owner controls only pause, resume and cancel"
-    )
+    print("PASS no Super Bot tool or route remains")
 
 
 async def signed_grant_and_devices(f: Fixture, device: Device) -> None:
@@ -236,9 +203,6 @@ async def migration_round_trip(f: Fixture) -> None:
     review = "activation-review:" + grant["id"]
     await alembic("downgrade", BEFORE)
     now = utcnow()
-    goal_id = "retired-goal-" + owner[:8]
-    goal_state: dict[str, Any] = {"status": "paused", "plan_version": 1, "steps": {}}
-    autonomy = {"autonomous": True, "super_bot_request_id": "sb-activated-" + owner[:8]}
     statuses = {"sb-pending": "pending", "sb-activated": "activated", "sb-paused": "paused"}
     async with f.runtime.db.sessions() as session, session.begin():
         for identifier, status in statuses.items():
@@ -273,24 +237,6 @@ async def migration_round_trip(f: Fixture) -> None:
                 due_at=now,
             )
         )
-        # A goal created under goal autonomy carries the retired keys in its state.
-        session.add(
-            TradingGoalRow(
-                id=goal_id,
-                owner_id=owner,
-                agent_id=agent["id"],
-                thread_id=thread["id"],
-                payload={"objective": "Old plan", "steps": []},
-                state={**goal_state, **autonomy},
-            )
-        )
-
-    async def goal_state_now() -> dict[str, Any]:
-        async with f.runtime.db.sessions() as session:
-            row = await session.get(TradingGoalRow, goal_id, populate_existing=True)
-            assert row and row.version == 1
-            assert goal_data(row)["state"] == row.state
-            return dict(row.state)
 
     async def observed() -> tuple[dict[str, str], str, dict[str, Any] | None]:
         async with f.runtime.db.sessions() as session:
@@ -317,22 +263,16 @@ async def migration_round_trip(f: Fixture) -> None:
         assert item == "suppressed" and receipt == {"skipped": "granted_before_review"}, receipt
         # No agent is woken for a grant signed before the review existed.
         assert await dispatch_activation_reviews(f.runtime.db) == 0
-        # No goal read (tools, API) tells the model it trades autonomously any more.
-        stripped = await goal_state_now()
-        assert not set(autonomy) & set(stripped), stripped
-        assert {key: stripped[key] for key in goal_state} == goal_state, stripped
         if attempt == 0:
             await alembic("downgrade", BEFORE)
             rows, item, receipt = await observed()
             assert rows == statuses and item == "ready" and receipt is None, (rows, receipt)
-            restored = await goal_state_now()
-            assert {key: restored[key] for key in autonomy} == autonomy, restored
     assert not await on_its_own(f, agent["id"])
     live = await f.request("GET", f"/agents/{agent['id']}/state")
     assert live["pending_authorization_count"] == 0 and "super_bot" not in live
     print(
         "PASS migration 0040 retires pending and activated Super Bot requests and withdraws "
-        "their inbox items without deleting a row, removes goal autonomy keys from goals, "
+        "their inbox items without deleting a row, "
         "skips the review for grants signed before "
         "it, restores exactly those rows on downgrade and repeats cleanly; a retired request "
         "grants nothing"

@@ -164,6 +164,12 @@ async def main() -> None:
 
         await f.request("PUT", "/trading/controls", {"enabled": True, "emergency_stop": False})
         agent = await f.agent("Manual management", supervised=True)
+        # The owner's standing instruction (3.3.4): this agent manages the owner's own
+        # position opened in the broker terminal.
+        async with f.runtime.db.sessions() as session, session.begin():
+            managing = await session.get(AgentRow, agent["id"])
+            assert managing is not None
+            managing.manages_all_positions = True
         thread = await f.conversation(agent)
         manager = await f.lease(await f.run(agent, thread))
         registry = load_tools()

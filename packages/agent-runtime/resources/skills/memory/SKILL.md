@@ -34,7 +34,7 @@ already saved and nothing new was stored.
 
 Keep atomic current facts, not "discussed risk". Merge duplicates, replace
 corrected facts and remove superseded details. Apply SNIP: Signal, Novel,
-Important, Persistent. Active work belongs in the existing task/goal and
+Important, Persistent. Active work belongs in the existing task and
 scratchpad, not permanent identity. Reusable procedures belong in skills,
 not repeated in preferences. Never store secrets or infer financial permission
 from a remembered amount. A reminder in memory does not schedule anything.
