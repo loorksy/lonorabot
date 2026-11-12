@@ -16,11 +16,10 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage
-from unittest.mock import patch
-
 from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, SLOT, node_props, walk
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
