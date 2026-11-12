@@ -98,7 +98,8 @@ async def test_each_agent_is_woken_once_per_week_in_its_own_conversation(task_db
     assert await weekly_tick(db, owner, now=CLOSE + timedelta(days=2)) is None
     woken = await runs(db, TRIGGER)
     async with db.sessions() as session:
-        names = {(await session.get(AgentRow, run.agent_id)).name: run for run in woken}
+        agents = {row.id: row.name for row in await session.scalars(select(AgentRow))}
+        names = {agents[run.agent_id]: run for run in woken}
         assert sorted(names) == sorted(["Lonora", "Gold", "Task fixture"])
         for run in woken:
             thread = await session.get(ThreadRow, run.thread_id)
