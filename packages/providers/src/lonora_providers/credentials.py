@@ -21,10 +21,35 @@ class ProviderCredentials:
     def __init__(self, db: Database, store: SecretStore):
         self.db, self.store = db, store
 
-    async def resolve(self, provider: str) -> str:
-        if provider in OWNER_ENDPOINT and await self.endpoint(provider) is None:
-            # A key without the URL it belongs to connects nothing.
+    async def connection(self, provider: str) -> tuple[str, str | None]:
+        """The provider's key and, for a provider with an owner endpoint, the base URL that
+        key belongs to, from one read, so a card saved meanwhile never pairs one card's
+        key with another's URL. The card's URL goes with the card's key; the deployment's
+        URL with the deployment's or a settings-era key. A URL that fails the check
+        connects nothing: the router passes over the provider as unconfigured instead of
+        failing every route that lists it."""
+        if provider not in OWNER_ENDPOINT:
+            return await self.resolve(provider), None
+        async with self.db.sessions() as session:
+            saved = await saved_key(session, provider)
+        prefix = "LONORA_" + provider.upper()
+        if saved is not None:
+            key: str | None = await self.store.read(saved.secret_id)
+            url = saved.url or _deployment(prefix + "_BASE_URL")
+        else:
+            key, url = _deployment(prefix + "_API_KEY"), _deployment(prefix + "_BASE_URL")
+        if not key or not url:
+            # A key without the URL it belongs to connects nothing, nor the reverse.
             raise LonoraError("model_not_configured", 409)
+        try:
+            return key, compatible_endpoint(url)
+        except LonoraError:
+            log.warning("model_endpoint_unsafe provider=%s", provider)
+            raise LonoraError("model_not_configured", 409) from None
+
+    async def resolve(self, provider: str) -> str:
+        if provider in OWNER_ENDPOINT:
+            return (await self.connection(provider))[0]
         async with self.db.sessions() as session:
             saved = await saved_key(session, provider)
         if saved is not None:
@@ -35,26 +60,12 @@ class ProviderCredentials:
         raise LonoraError("model_not_configured", 409)
 
     async def endpoint(self, provider: str) -> str | None:
-        """The owner's base URL for a provider that has one, else ``None``. It travels
-        with its key: the URL saved on the card when the card's key is the one in use,
-        else the deployment's (with the deployment's or a settings-era key).
-
-        A URL that fails the check connects nothing, so the router passes over the
-        provider as unconfigured instead of failing every route that lists it.
-        """
+        """The base URL of a provider with an owner endpoint, with its key; else None."""
         if provider not in OWNER_ENDPOINT:
             return None
-        async with self.db.sessions() as session:
-            saved = await saved_key(session, provider)
-        value = (saved.url if saved is not None else None) or _deployment(
-            "LONORA_" + provider.upper() + "_BASE_URL"
-        )
-        if not value:
-            return None
         try:
-            return compatible_endpoint(value)
+            return (await self.connection(provider))[1]
         except LonoraError:
-            log.warning("model_endpoint_unsafe provider=%s", provider)
             return None
 
     async def configured(self, provider: str) -> bool:

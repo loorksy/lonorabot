@@ -24,7 +24,7 @@ from lonora_db.transactions import SettingsRepository
 
 from .catalog import store_catalog
 from .credentials import ProviderCredentials
-from .registry import PROVIDERS, build_adapter, model_adapter
+from .registry import OWNER_ENDPOINT, PROVIDERS, build_adapter, model_adapter
 
 log = logging.getLogger("lonora.model_router")
 
@@ -80,7 +80,11 @@ async def choose_default_model(
             if error.code != "model_not_configured":
                 raise
             continue
-        adapter = build_adapter(factory, provider, secret, await credentials.endpoint(provider))
+        endpoint = None
+        if provider in OWNER_ENDPOINT:
+            # The key and its URL from one read.
+            secret, endpoint = await credentials.connection(provider)
+        adapter = build_adapter(factory, provider, secret, endpoint)
         try:
             models = await adapter.discover()
         except LonoraError as error:

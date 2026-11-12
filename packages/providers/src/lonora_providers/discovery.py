@@ -9,8 +9,8 @@ from .registry import build_adapter, model_adapter
 async def discover_models(
     db: Database, credentials: ProviderCredentials, provider: str
 ) -> list[ModelDescriptor]:
-    secret = await credentials.resolve(provider)
-    adapter = build_adapter(model_adapter, provider, secret, await credentials.endpoint(provider))
+    secret, endpoint = await credentials.connection(provider)
+    adapter = build_adapter(model_adapter, provider, secret, endpoint)
     try:
         models = await adapter.discover()
     finally:

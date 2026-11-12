@@ -63,6 +63,17 @@ def test_an_agents_own_card_cannot_take_a_providers_key_name() -> None:
             )
 
 
+@pytest.mark.asyncio
+async def test_an_older_own_card_under_a_providers_key_name_settles_stale() -> None:
+    from typing import Any, cast
+
+    from lonora_db.secret_cards import secret_stale_reason
+
+    payload = {"connect": None, "fields": [{"key": "OPENAI_API_KEY", "label": "k"}]}
+    reason = await secret_stale_reason(cast(Any, None), "owner", payload)
+    assert reason == "secret_name_reserved"
+
+
 def test_an_endpoint_card_asks_for_its_url_and_a_fixed_provider_only_for_its_key() -> None:
     from lonora_db.secret_cards import secret_card_payload
 

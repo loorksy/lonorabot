@@ -142,6 +142,10 @@ async def secret_stale_reason(
     uses (a feed's address saved under that name would then read another site)."""
     if payload.get("connect") is None:
         keys = [str(field["key"]) for field in payload["fields"]]
+        if set(keys) & set(PROVIDER_KEY_NAMES.values()):
+            # A card raised before these names were reserved: only a model_provider card
+            # sets the router's key.
+            return "secret_name_reserved"
         saved = await session.scalars(
             select(SecretRow.id).where(
                 SecretRow.owner_id == owner_id,
