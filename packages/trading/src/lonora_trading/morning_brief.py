@@ -60,10 +60,12 @@ WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
-# A weekly report reaches the brief's facts bounded, as data.
+# Attention codes whose fact the brief already counts (approvals, unsettled operations).
+COUNTED_ELSEWHERE = ("approval_required", "operation_uncertain", "operation_unresolved")
+# A weekly report reaches the brief bounded, as the agent's own words.
 REPORT_CHARACTERS = 1500
-# How long after the weekly close the brief waits for the agents' reports.
-REPORT_WAIT = timedelta(minutes=60)
+# How long the brief waits for the agents it woke for their weekly reports.
+REPORT_WAIT = timedelta(minutes=30)
 
 Locale = Literal["ar", "en"]
 
@@ -246,10 +248,15 @@ async def brief_facts(
             TradingJournalRow.owner_id == owner_id, TradingJournalRow.status == "ambiguous"
         ),
     )
+    # Counted once each: a Settle card is its unsettled operation, and an attention item
+    # for an approval or an uncertain operation is that approval or that operation.
     owner_cards = await _count(
         session,
         select(OwnerActionRow.id).where(
-            OwnerActionRow.owner_id == owner_id, OwnerActionRow.status == "pending"
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.status == "pending",
+            OwnerActionRow.expires_at > now,
+            OwnerActionRow.kind != "resolve_operation",
         ),
     )
     questions = await _count(
@@ -264,6 +271,7 @@ async def brief_facts(
             AttentionRow.owner_id == owner_id,
             AttentionRow.status.in_(["pending", "ready"]),
             AttentionRow.importance.in_(["critical", "action_required"]),
+            AttentionRow.code.not_in(COUNTED_ELSEWHERE),
         ),
     )
     return {

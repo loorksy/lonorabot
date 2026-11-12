@@ -400,8 +400,55 @@ async def test_what_waits_for_the_owner_counts_whatever_its_date(task_db: Fixtur
             )
         )
     at = DAY + timedelta(hours=4, minutes=1)
+    async with db.sessions() as session, session.begin():
+        # The same uncertain operation's Settle card and attention item are not counted again.
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=lonora,
+                source="system",
+                kind="resolve_operation",
+                subject="op-unknown",
+                payload={},
+                payload_hash="h",
+                expires_at=DAY + timedelta(days=30),
+                status="pending",
+            )
+        )
+        session.add(
+            AttentionRow(
+                owner_id=owner,
+                agent_id=agent,
+                thread_id=thread,
+                logical_key="op",
+                coalesce_key="op",
+                importance="action_required",
+                code="operation_uncertain",
+                status="ready",
+                due_at=DAY,
+            )
+        )
+        # A card past its expiry no longer waits.
+        session.add(
+            OwnerActionRow(
+                owner_id=owner,
+                agent_id=lonora,
+                source="agent",
+                kind="connect_credential",
+                subject="old",
+                payload={},
+                payload_hash="h-old",
+                expires_at=DAY - timedelta(days=1),
+                status="pending",
+            )
+        )
     first = await facts_now(db, owner, at)
-    assert first["unsettled_operations"] == 1 and first["nothing_else_needs_you"] is False
+    assert (
+        first["unsettled_operations"],
+        first["pending_owner_cards"],
+        first["attention_items"],
+    ) == (1, 0, 0)
+    assert first["nothing_else_needs_you"] is False
     await write_brief(db)
     await brief_tick(db, owner, now=at + timedelta(minutes=1))
     # Day 2: the operation is still unsettled, from before the last brief.
