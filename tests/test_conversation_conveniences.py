@@ -676,6 +676,32 @@ async def test_no_cap_on_agents_and_a_full_session_never_refuses_the_owner():
             assert row is not None
             rounds = row.state["rounds"]
             row.state = {**row.state, "rounds": [rounds[0]] * MAXIMUM_ROUNDS}
+        # The guard itself stays: an agent that names the full session gets the honest code.
+        from lonora_core.user_error import LonoraError
+        from lonora_db.collaboration import invite
+        from lonora_db.schema import RunRow, ThreadRow
+        from sqlalchemy import select
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            thread_row = await session.get(ThreadRow, thread["id"])
+            host_run = await session.scalar(
+                select(RunRow).where(
+                    RunRow.thread_id == thread["id"], RunRow.agent_id == host["id"]
+                )
+            )
+            assert thread_row is not None and host_run is not None
+            with pytest.raises(LonoraError) as hit:
+                await invite(
+                    session,
+                    fixture.owner,
+                    thread_row,
+                    host_run,
+                    [guests[0]["id"]],
+                    "A ninth round",
+                    session_id=first_id,
+                    message_id="ninth-round",
+                )
+            assert hit.value.code == "collaboration_round_limit"
         everyone = await send(
             fixture,
             thread["id"],

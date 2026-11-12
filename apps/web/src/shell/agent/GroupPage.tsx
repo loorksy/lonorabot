@@ -329,7 +329,6 @@ export function NewGroupPage({
             value={agent.id}
             checked={picked.includes(agent.id)}
             aria-checked={picked.includes(agent.id)}
-            disabled={!picked.includes(agent.id) && picked.length >= 12}
             onChange={(event) => {
               const next = event.target.checked
                 ? [...picked, agent.id]
