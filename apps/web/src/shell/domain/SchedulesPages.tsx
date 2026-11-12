@@ -4,8 +4,7 @@ import type { Resource, Routine } from "@lonora/contracts";
 import { errorCode } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { type Agent, api } from "../../lib/api";
+import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
 import { useNavigation } from "../navigation";
@@ -14,13 +13,11 @@ import { useSheets } from "../sheets/SheetHost";
 import { useToast } from "../Toast";
 import { domainApi } from "./api";
 import { isTrader, useAgentParam, useLoad } from "./hooks";
-import { Empty, Field, FormPage, Note, SelectField, Toggle, text, ValueRow } from "./ui";
+import { Empty, Field, FormPage, SelectField, Toggle, text, ValueRow } from "./ui";
 
 type Repeat = "daily" | "workdays" | "weekly";
 type Kind = "repeat" | "once" | "condition";
 type WatchPayload = {
-  kind?: string;
-  goal_id?: string | null;
   symbol?: string;
   condition?: string;
   level?: string;
@@ -29,13 +26,9 @@ type WatchPayload = {
   expires_at?: string | null;
 };
 export type WatchRow = Resource<WatchPayload> & { state?: { code?: string; lifecycle?: string } };
-/** A schedule «عند تحقق شرط» is a price watch the owner or an agent set with a task. The other
- * kinds and a goal plan's own watches are the agent's working tools, shown on its page. A
- * cancelled or expired watch is no longer a schedule; a paused one keeps its switch off. */
+/** A cancelled or expired watch is no longer a schedule; a paused one keeps its switch off. */
 export const listedWatch = (row: WatchRow) =>
   !!row.payload.prompt &&
-  (row.payload.kind ?? "price") === "price" &&
-  !row.payload.goal_id &&
   row.state?.code !== "watch_cancelled" &&
   row.state?.lifecycle !== "expired" &&
   !(row.payload.expires_at && new Date(row.payload.expires_at).getTime() <= Date.now());
@@ -281,11 +274,8 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
   const toast = useToast();
   const routines = useLoad(() => domainApi.routines(agentId), `routines:${agentId ?? "*"}`);
   const watches = useLoad(
-    () =>
-      api.get<WatchRow[]>(
-        agentId ? `/watches?agent_id=${encodeURIComponent(agentId)}` : "/watches",
-      ),
-    `watches:${agentId ?? "*"}`,
+    agentId ? () => api.get<WatchRow[]>(`/watches?agent_id=${encodeURIComponent(agentId)}`) : null,
+    `watches:${agentId ?? "-"}`,
   );
   const details = useScheduleDetails(routines.reload);
   const watchDetails = useWatchDetails(() => watches.reload());
@@ -404,48 +394,42 @@ export function parseCondition(value: string): { level: string; below: boolean }
 
 const CRON_DAYS: Record<Repeat, string> = { daily: "*", workdays: "1-5", weekly: "" };
 
-/** A conditional alert watches a pair on an account: only such an agent can take one. */
-const canWatch = (agent?: Agent) =>
-  isTrader(agent) && !!agent?.trading_account_id && !!agent.trading_symbol;
-
 /** «جدولة مهمة». */
 export function NewSchedulePage() {
   const data = useShellData();
   const nav = useNavigation();
   const toast = useToast();
   const initial = useAgentParam();
-  const [params] = useSearchParams();
   // The agent list may arrive after the first render: follow `?agent=` until the owner picks.
   const [chosen, setAgentId] = useState<string>();
-  const [type, setKind] = useState<Kind>(
-    params.get("kind") === "condition" ? "condition" : "repeat",
-  );
+  const agentId = chosen ?? initial?.id ?? "";
+  const [kind, setKind] = useState<Kind>("repeat");
   const [busy, setBusy] = useState(false);
-  const pool = type === "condition" ? data.agents.filter(canWatch) : data.agents;
-  const wanted = chosen ?? initial?.id;
-  const agent = pool.find((row) => row.id === wanted) ?? pool[0];
-  const agentId = agent?.id ?? "";
-  // «عند تحقق شرط» with no agent that can watch: the form says what is missing.
-  const blocked = type === "condition" && !agent;
+  const agent = data.agents.find((row) => row.id === agentId);
+  const canWatch = isTrader(agent) && !!agent?.trading_account_id && !!agent.trading_symbol;
   const kinds: [Kind, string][] = [
     ["repeat", t({ message: "Recurring", context: "schedule type" })],
     ["once", t({ message: "Once", context: "schedule type" })],
-    ["condition", t({ message: "When a condition is met", context: "schedule type" })],
+    ...(canWatch
+      ? ([["condition", t({ message: "When a condition is met", context: "schedule type" })]] as [
+          Kind,
+          string,
+        ][])
+      : []),
   ];
+  const type = kinds.some(([key]) => key === kind) ? kind : "repeat";
   return (
     <div className="domain-page">
       <FormPage
         name="schedule"
         submit={<Trans>Save schedule</Trans>}
         busy={busy}
-        disabled={blocked}
         onSubmit={async (form) => {
-          if (!agent) return;
           const title = text(form, "title");
           const [hour, minute] = (text(form, "time") || "09:00").split(":").map(Number);
           setBusy(true);
           try {
-            if (type === "condition") {
+            if (type === "condition" && agent) {
               const condition = parseCondition(text(form, "condition"));
               if (!condition) {
                 toast(t`Write the alert condition.`, { type: "warn" });
@@ -521,25 +505,7 @@ export function NewSchedulePage() {
         />
         <Field label={t`Date`} name="date" type="date" />
         <Field label={t`Time`} name="time" type="time" defaultValue="09:00" />
-        <Field
-          label={t`Condition — for the conditional alert`}
-          name="condition"
-          required={type === "condition"}
-        />
-        {blocked && (
-          <>
-            <Note>
-              <Trans>Conditional alerts need a trading agent linked to an account.</Trans>
-            </Note>
-            <button
-              type="button"
-              className="btn full outline"
-              onClick={() => nav.go("/app/broker")}
-            >
-              <Trans>Link a trading account</Trans>
-            </button>
-          </>
-        )}
+        {canWatch && <Field label={t`Condition — for the conditional alert`} name="condition" />}
         {/* Lonora is the owner's only channel (Q53); the channel is owner-wide (Q39). */}
         <SelectField label={t`Alert channel`} name="channel" options={[["app", t`In the app`]]} />
       </FormPage>

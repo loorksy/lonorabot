@@ -63,6 +63,21 @@ export function accountLabel(connections: Resource[], id: string | null | undefi
   return index < 0 ? t`Unknown account` : brokerIdentityLabel(connections[index], index);
 }
 
+export function watchCondition(payload: Record<string, unknown>) {
+  const symbol = String(payload.symbol ?? "");
+  const level = payload.level != null ? String(payload.level) : "";
+  switch (payload.condition) {
+    case "below":
+    case "cross_below":
+      return t`${symbol} below ${level}`;
+    case "above":
+    case "cross_above":
+      return t`${symbol} above ${level}`;
+    default:
+      return symbol || t`Watch`;
+  }
+}
+
 export const clockTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 

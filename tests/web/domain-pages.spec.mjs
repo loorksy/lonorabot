@@ -130,21 +130,9 @@ test("schedules: a titled daily routine and a one-shot, with the switch", async 
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   const routines = await call("GET", `/routines?agent_id=${agent.id}`);
   expect(routines.map((row) => row.title).sort()).toEqual([`${prefix} brief`, `${prefix} once`]);
-  // «عند تحقق شرط» is always offered. With no trading agent on an account, the form says
-  // what is missing and cannot be saved.
-  await page.route("**/api/agents", async (route) => {
-    const response = await route.fetch();
-    const rows = await response.json();
-    return route.fulfill({ response, json: rows.filter((row) => !row.trading_account_id) });
-  });
-  await page.goto(`/app/new-schedule?agent=${agent.id}&kind=condition`);
-  form = page.locator('form[data-form="schedule"]');
-  await expect(form.locator('select[name="type"]')).toHaveValue("condition");
-  await expect(form.getByLabel("Condition — for the conditional alert")).toBeVisible();
-  await expect(form).toContainText("Conditional alerts need a trading agent linked to an account.");
-  await expect(form.getByRole("button", { name: "Save schedule", exact: true })).toBeDisabled();
-  await form.getByRole("button", { name: "Link a trading account", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/broker$/);
+  // A general agent has no account: no conditional type is offered.
+  await page.goto(`/app/new-schedule?agent=${agent.id}`);
+  await expect(page.locator('select[name="type"] option[value="condition"]')).toHaveCount(0);
   // The Tasks tab is in the address: Back from another page returns to it.
   await page.goto("/app/tasks");
   await page.getByRole("tab", { name: "Scheduled", exact: true }).click();
@@ -387,7 +375,7 @@ test("goals: a trading agent lists its plans with their titles and a cancelled p
   }
 });
 
-test("a conditional alert is saved for a trading agent and waits in Tasks and in Updates", async ({
+test("a conditional alert is saved for a trading agent and waits in its schedules and in Updates", async ({
   page,
   context,
 }) => {
@@ -422,10 +410,11 @@ test("a conditional alert is saved for a trading agent and waits in Tasks and in
     expect(created.status()).toBe(201);
     agent = await created.json();
     const title = `Tell me ${randomUUID().slice(0, 6)}`;
-    await page.goto(`/app/new-schedule?agent=${agent.id}&kind=condition`);
+    await page.goto(`/app/new-schedule?agent=${agent.id}`);
     const form = page.locator('form[data-form="schedule"]');
     await expect(form.locator('select[name="agent"]')).toHaveValue(agent.id);
     await form.getByLabel("Task", { exact: true }).fill(title);
+    await form.getByLabel("Schedule type", { exact: true }).selectOption("condition");
     await form.getByLabel("Condition — for the conditional alert").fill("above 2350");
     const posted = saved(page, "POST", /^\/api\/watches$/);
     await form.getByRole("button", { name: "Save schedule", exact: true }).click();
@@ -438,10 +427,11 @@ test("a conditional alert is saved for a trading agent and waits in Tasks and in
       level: "2350",
       prompt: title,
     });
-    // It waits with the schedules, for every agent together and under «Upcoming».
+    // It waits with the agent's schedules and under «Upcoming».
+    await expect(page).toHaveURL(new RegExp(`/app/routines\\?agent=${agent.id}$`));
     await page.goto("/app/updates");
     await expect(page.locator(".row", { hasText: title })).toContainText("above 2350");
-    await page.goto("/app/tasks?tab=scheduled");
+    await page.goto(`/app/routines?agent=${agent.id}`);
     const toggle = page.getByRole("switch", { name: `Enable ${title}`, exact: true });
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     const control = saved(page, "POST", new RegExp(`^/api/watches/${watch.id}/control$`));

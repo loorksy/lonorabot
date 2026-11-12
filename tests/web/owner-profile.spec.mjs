@@ -137,7 +137,7 @@ test("the profile page reads right to left in Arabic with the reference's labels
   expect(owner.agent.id).toBeTruthy();
 });
 
-test("one name and initial everywhere, the reference's zones, an enabled Save and the device row", async ({
+test("one name and initial everywhere, every time zone, an enabled Save and no call without a device", async ({
   page,
   context,
   owner,
@@ -156,13 +156,10 @@ test("one name and initial everywhere, the reference's zones, an enabled Save an
   const initial = local.slice(0, 1).toUpperCase();
   await expect(page.locator(".hero .avatar")).toHaveText(initial);
   await expect(page.locator(".desktop-rail .avatar.initial")).toHaveText(initial);
-  await expect(page.locator("select[name=zone] option")).toHaveText([
-    "دمشق",
-    "أمستردام",
-    "الرياض",
-    "دبي",
-    "UTC",
-  ]);
+  // Every IANA time zone the browser knows, each by its own name.
+  const zones = page.locator("select[name=zone] option");
+  await expect(zones.filter({ hasText: /^Asia\/Damascus$/ })).toHaveCount(1);
+  expect(await zones.count()).toBeGreaterThan(100);
   // «حفظ» is the ivory primary from the start; with nothing changed it sends nothing.
   const writes = [];
   page.on("request", (request) => request.method() === "PUT" && writes.push(request.url()));
@@ -204,10 +201,12 @@ test("one name and initial everywhere, the reference's zones, an enabled Save an
   await page.goto("/app/notify-settings");
   await expect(page.getByRole("radio", { name: /^رسالة/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: /^مكالمة/ })).toBeVisible();
-  // No passkey device yet: the device row says what to do, and «مكالمة» does not save.
-  await expect(page.getByText("سجّل مفتاح مرور على هذا الجهاز ليصلك الاتصال")).toBeVisible();
+  // No passkey device yet: no device list, and «مكالمة» does not save; the server says why.
+  await expect(page.getByRole("heading", { name: "الجهاز", exact: true })).toHaveCount(0);
   await page.getByRole("radio", { name: /^مكالمة/ }).click();
-  await expect(page.locator(".t-msg").getByText(/^سجّل مفتاح مرور/)).toBeVisible();
+  await expect(
+    page.locator(".t-msg").getByText("سجّل جهازًا بمفتاح المرور قبل اختيار الاتصال."),
+  ).toBeVisible();
   expect((await (await context.request.get("/api/voice/incoming/policy")).json()).channel).toBe(
     "message",
   );
@@ -233,55 +232,6 @@ test("quiet hours turned off log only the struck window", async ({ page, context
   const off = page.locator(".pf-log .row").filter({ hasText: "ساعات الهدوء" }).first();
   await expect(off.locator("del")).toHaveText("22:00 – 08:00");
   await expect(off.locator("ins")).toHaveCount(0);
-});
-
-/* With no passkey device, «هذا الجهاز» opens the one-time registration; then «مكالمة» saves. */
-test("the device row registers this device so a call can be chosen", async ({
-  page,
-  context,
-  owner,
-}) => {
-  await context.addInitScript(() => {
-    localStorage.setItem("lonora.locale", "en");
-    localStorage.setItem("lonora.auth.intro-seen", "1");
-  });
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("WebAuthn.enable");
-  await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
-  await page.goto("/app/notify-settings");
-  await page.getByRole("radio", { name: /^Call/ }).click();
-  await page
-    .getByLabel("Password", { exact: true })
-    .fill(process.env.LONORA_UI_TEST_PASSWORD ?? "ci-only-owner-password");
-  await page.getByRole("button", { name: "Register this device", exact: true }).click();
-  const device = page.getByRole("radiogroup", { name: "Device" }).getByRole("radio");
-  await expect(device).toHaveCount(1);
-  const [registered] = (await (await context.request.get("/api/owner/profile")).json()).devices;
-  try {
-    await page.getByRole("radio", { name: /^Call/ }).click();
-    await expect
-      .poll(
-        async () =>
-          (await (await context.request.get("/api/voice/incoming/policy")).json()).channel,
-      )
-      .toBe("call");
-    await expect(device).toHaveAttribute("aria-checked", "true");
-  } finally {
-    await context.request.put("/api/owner/preferences", {
-      headers: owner.headers,
-      data: { reach_me: { channel: "message", quiet_start_hour: null, quiet_end_hour: null } },
-    });
-    await context.request.delete(`/api/auth/devices/${registered.id}`, { headers: owner.headers });
-  }
 });
 
 test("the Knowledge panel's profile link closes the chat menu and opens the profile page", async ({

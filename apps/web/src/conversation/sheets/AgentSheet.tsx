@@ -285,7 +285,7 @@ function AgentSheetBody({
   const { refresh } = useClient();
   const toast = useToast();
   const limits_ = useLimitsSheet();
-  const watches = useWatchesSheet(go);
+  const watches = useWatchesSheet();
   const [busy, setBusy] = useState(false);
   const readiness = state?.trading_readiness ?? null;
   const { agents } = useShellData();

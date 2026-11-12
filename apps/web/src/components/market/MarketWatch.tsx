@@ -10,7 +10,7 @@ import { AgentPicker } from "../../pages/shell/bot-picker";
 import { useClient } from "../../providers/ClientProvider";
 
 /** The watch as the status line summarizes it: condition, market and expiry. */
-export function watchSummary(row: Resource): AgentWatchSummary {
+function watchSummary(row: Resource): AgentWatchSummary {
   const payload = row.payload;
   const text = (value: unknown) => (value == null || value === "" ? null : String(value));
   return {

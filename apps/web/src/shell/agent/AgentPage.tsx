@@ -8,7 +8,6 @@ import { type ReactNode, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { useChatPrefs } from "../../conversation/prefs";
 import { useAgentSheet } from "../../conversation/sheets/AgentSheet";
-import { newWatchPath, WatchList } from "../../conversation/sheets/WatchesSheet";
 import { useVoice } from "../../hooks/useVoice";
 import { useAgentLiveState } from "../../lib/agent-live-state";
 import { type Agent, api, type Resource } from "../../lib/api";
@@ -25,12 +24,14 @@ import { useAvatarSheet } from "./AvatarSheet";
 import { scoped } from "./scope";
 import {
   accountLabel,
+  clockTime,
   hasDelegation,
   isTrader,
   levelIcon,
   levelLabel,
   usePageAgent,
   useRead,
+  watchCondition,
 } from "./shared";
 import "./agent.css";
 
@@ -133,6 +134,9 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   );
   const connections = useRead<Resource[]>("/trading/connections");
   const voice = useRead<{ transport_configured: boolean }>("/voice/status");
+  const watches = useRead<Resource[]>(
+    trader ? `/watches?agent_id=${encodeURIComponent(agent.id)}` : null,
+  );
   const [busy, setBusy] = useState(false);
   const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
@@ -188,6 +192,36 @@ function AgentPageBody({ agent }: { agent: Agent }) {
       setBusy(false);
     }
   };
+
+  const controlWatch = async (watch: Resource, action: "pause" | "resume" | "cancel") => {
+    try {
+      await api.post(`/watches/${watch.id}/control`, { action });
+      watches.reload();
+      refresh();
+      if (action === "cancel")
+        toast(t`Watch cancelled`, {
+          type: "success",
+          action: {
+            label: t`Undo`,
+            run: () =>
+              void api
+                .post(`/watches/${watch.id}/control`, { action: "resume" })
+                .then(() => {
+                  watches.reload();
+                  refresh();
+                })
+                .catch((failure) => toast(userError(failure), { type: "error" })),
+          },
+        });
+      else toast(action === "pause" ? t`Watch paused` : t`Watch resumed`, { type: "success" });
+    } catch (failure) {
+      toast(userError(failure), { type: "error" });
+    }
+  };
+
+  const shownWatches = (watches.value ?? []).filter(
+    (row) => row.payload.enabled !== false || row.state?.code === "watch_paused",
+  );
 
   return (
     <>
@@ -328,7 +362,62 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           <h3>
             <Trans>Watches</Trans>
           </h3>
-          <WatchList agent={agent} onNew={() => go(newWatchPath(agent))} />
+          {watches.error != null ? (
+            <p role="alert">{userError(watches.error)}</p>
+          ) : !watches.value ? (
+            <SkPage>
+              <SkRows count={1} />
+            </SkPage>
+          ) : shownWatches.length ? (
+            <div className="group">
+              {shownWatches.map((watch) => {
+                const paused = watch.state?.code === "watch_paused";
+                const until = watch.payload.expires_at;
+                return (
+                  <div key={watch.id} className={`row wt-row wt-${paused ? "paused" : "active"}`}>
+                    <span className="row-icon">
+                      <Icon name={paused ? "pause" : "radar"} />
+                    </span>
+                    <span className="body">
+                      <strong className="ltr-mix">
+                        <bdi>{watchCondition(watch.payload)}</bdi>
+                      </strong>
+                      <small>
+                        {typeof until === "string" ? (
+                          <Trans>
+                            Until <span className="ltr">{clockTime(until)}</span>
+                          </Trans>
+                        ) : (
+                          <Trans>Until you stop it</Trans>
+                        )}
+                        {paused && <> · {t`Paused for now`}</>}
+                      </small>
+                      <span className="wt-acts">
+                        <button
+                          type="button"
+                          className="btn sm outline"
+                          onClick={() => void controlWatch(watch, paused ? "resume" : "pause")}
+                        >
+                          {paused ? <Trans>Resume</Trans> : <Trans>Pause for now</Trans>}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn sm danger"
+                          onClick={() => void controlWatch(watch, "cancel")}
+                        >
+                          <Trans>Cancel</Trans>
+                        </button>
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="pad muted small">
+              <Trans>No watches.</Trans>
+            </p>
+          )}
         </>
       )}
       {agent.role !== "delegated" && (

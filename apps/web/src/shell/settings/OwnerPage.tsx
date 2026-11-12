@@ -3,7 +3,7 @@ import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import { preferenceFieldLabel, preferenceValueText } from "@lonora/core";
 import { Icon } from "@lonora/ui-web";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -40,14 +40,17 @@ const filled = (value: unknown) => value != null && value !== "";
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
-/** The reference's five time zones; the server keeps the IANA name. */
-const zones = (): [string, string][] => [
-  ["Asia/Damascus", t`Damascus`],
-  ["Europe/Amsterdam", t`Amsterdam`],
-  ["Asia/Riyadh", t`Riyadh`],
-  ["Asia/Dubai", t`Dubai`],
-  ["UTC", "UTC"],
-];
+function zones(): string[] {
+  try {
+    return (
+      (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.(
+        "timeZone",
+      ) ?? ["UTC"]
+    );
+  } catch {
+    return ["UTC"];
+  }
+}
 
 /* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما يعرفه وكلاؤك
    عنك» (lines agents wrote into the shared profile, each removable) and «سجل التغييرات» (who · field,
@@ -69,6 +72,7 @@ export function OwnerPage() {
     content: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const zoneList = useMemo(zones, []);
   const form = draft ?? {
     name: profile?.name ?? "",
     address: profile?.address ?? "",
@@ -167,7 +171,6 @@ export function OwnerPage() {
       toast(userError(error), { type: "error" });
     }
   };
-  const zoneList = zones();
   const name = ownerDisplayName(
     profile && { ...profile, name: form.name.trim(), address: form.address.trim() },
     data.owner,
@@ -217,12 +220,9 @@ export function OwnerPage() {
             value={form.zone}
             onChange={(event) => edit({ zone: event.target.value })}
           >
-            {(zoneList.some(([zone]) => zone === form.zone)
-              ? zoneList
-              : [[form.zone, form.zone], ...zoneList]
-            ).map(([zone, label]) => (
+            {(zoneList.includes(form.zone) ? zoneList : [form.zone, ...zoneList]).map((zone) => (
               <option key={zone} value={zone}>
-                {label}
+                {zone}
               </option>
             ))}
           </select>
