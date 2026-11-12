@@ -2,7 +2,7 @@
 
 A card's send is input to the agent's own judgment. Its mark is the one Run the send
 started (``ui_submit_origin``), and it never spreads to the agent's later watches,
-routines, tickets, Tasks, goals, opportunities or wakes, nor to a peer, follow-up or
+routines, tickets, Tasks, opportunities or wakes, nor to a peer, follow-up or
 child Run. The same holds for a provisional voice handoff. Unfinished sends stay out of
 search, recall and skill selection. Runs on the real migrated PostgreSQL schema (skipped
 without ``LONORA_DATABASE_URL``).
@@ -40,7 +40,7 @@ async def marked(fixture: Any, run_id: str) -> bool:
 
 
 async def started(fixture: Any, card: Card, parent: str | None = None, **metadata: Any) -> str:
-    """A Run the way a watcher, routine, ticket, goal, peer or follow-up starts one."""
+    """A Run the way a watcher, routine, ticket, peer or follow-up starts one."""
     from lonora_contracts.runs import RunRequest
     from lonora_db.runs import create_run
 

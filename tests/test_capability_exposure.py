@@ -187,7 +187,7 @@ UNRESOLVED_FINANCIAL_PROPOSALS: dict[str, ToolCall] = {
     "flattened": bridge("p", "trade_execute", None, action="open", side="buy"),
     "list_arguments": bridge("p", "trade_close_positions", ["account-1"]),
     "unparseable_arguments": bridge("p", "trade_execute", "{action: open"),
-    "nested_bridge": bridge("p", BRIDGE, {"name": "goal_step_execute", "arguments": {}}),
+    "nested_bridge": bridge("p", BRIDGE, {"name": "trade_close_positions", "arguments": {}}),
     "hermes_batch": ToolCall(
         id="p",
         name=BRIDGE,
@@ -620,14 +620,14 @@ async def test_trading_identities_get_the_market_working_set(
         "account_read",
         "chart_snapshot",
     } <= offered
-    assert "web_search" not in offered and "goal_create" not in offered
+    assert "web_search" not in offered
     # No SearXNG, browser, workspace, executor or MCP declaration in this context.
     assert exposure["unavailable"]["web_browse"] == "browser_unconfigured"
     assert exposure["unavailable"]["workspace_execute"] == "workspace_unconfigured"
     assert exposure["unavailable"]["mcp_execute"] == "mcp_tool_not_authorized"
     inventory = model.kwargs[0]["capability_inventory"]
     assert "web_browse=browser_unconfigured" in inventory
-    financial = {"trade_execute", "trade_close_positions", "goal_step_execute"}
+    financial = {"trade_execute", "trade_close_positions"}
     # No trading refuses every live mutation: the tools are named unavailable instead
     # of offered natively.
     assert "trade_execute" not in offered
@@ -960,7 +960,6 @@ def test_hand_maintained_tool_sets_stay_consistent_with_registry_metadata():
         "chart": "charts",
         "account": "account",
         "trade": "trading",
-        "goal": "goals",
         "watch": "market",
         "collaboration": "collaboration",
     }

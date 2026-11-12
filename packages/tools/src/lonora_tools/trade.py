@@ -1202,7 +1202,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_record_read",
-            "Read one owned historical trade request, exact outcome, Goal lineage and original planned/final preflight evidence. Missing legacy evidence stays unavailable. Never resubmit a trade from this record.",
+            "Read one owned historical trade request, exact outcome and original planned/final preflight evidence. Missing legacy evidence stays unavailable. Never resubmit a trade from this record.",
             TradeRecordReference,
             read_record,
             True,

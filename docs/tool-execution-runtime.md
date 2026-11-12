@@ -153,7 +153,7 @@ handler remains authoritative.
 | `workspace_*` | no analytical workspace | `workspace_unconfigured` |
 | `workspace_execute`, `skill_package_validate` | no analysis host bridge | `workspace_execution_unconfigured` |
 | `mcp_execute` | no operator declaration and no MCP server the owner trusted (or the operator's deny override) | `mcp_tool_not_authorized` |
-| `trade_execute`, `trade_close_positions`, `goal_step_execute` | Run of an agent whose current permission is analysis | `agent_analysis_only` |
+| `trade_execute`, `trade_close_positions` | Run of an agent whose current permission is analysis | `agent_analysis_only` |
 
 Unavailable tools stay out of the native set, are listed under
 `unavailable_now` in the capability inventory and are marked in discovery
@@ -181,7 +181,7 @@ checked against registry metadata by `tests/test_capability_exposure.py`.
   ability being missing, and `permitted_names`: every tool the Run may use.
 - `watch_create` and `routine_create` refuse `enabled: false`
   (`create_disabled_refused`): nothing is created to try a tool. A replayed call is still
-  answered from its row, and the owner's routes, goals and the evaluator still store
+  answered from its row, and the owner's routes and the evaluator still store
   disabled rows. The refusal names no next call.
 - The `market` and `trading` policy chapters are read before the first call of an agent
   that is offered a tool of those domains, after the chapters its recent calls selected
@@ -308,7 +308,7 @@ What a name may do depends on the call:
 
 | Reference | Where | Named by | Acts on a name |
 |---|---|---|---|
-| Account | `market_binding.named_account`, before validation, for every market tool | account number, account name, broker | reads only; an order, a watch, a goal or a grant is refused with the account |
+| Account | `market_binding.named_account`, before validation, for every market tool | account number, account name, broker | reads only; an order, a watch or a grant is refused with the account |
 | No account named | `prepare_market_arguments`, for an agent with no market of its own and a tool that requires one | | the agent's own, its one signed, or the owner's only account as before; with several and none of those, `broker_sessions_ambiguous` with the accounts |
 | Position or order ticket | `trade.require_ticket`, only for a ticket `trade_execute` itself named | its symbol | never: the refusal lists the tickets; first attempt only; a batch built from the account's own list is never checked |
 | Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
