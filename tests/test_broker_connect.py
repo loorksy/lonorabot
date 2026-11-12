@@ -194,6 +194,7 @@ async def test_the_owner_connects_an_account_from_chat_and_hears_its_balance(
         await no_value_anywhere(fixture, [PASSWORD, TOKEN], caplog.text)
     finally:
         FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -260,6 +261,7 @@ async def test_a_refused_account_wakes_the_agent_with_the_reason(
         assert await broker.named(METAAPI_TOKEN) is not None
         await no_value_anywhere(fixture, [password, TOKEN], caplog.text)
     finally:
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -299,6 +301,7 @@ async def test_a_crash_between_create_and_record_never_makes_a_second_account() 
         assert api.calls.count("create_account") == 1 and len(api.accounts) == 1
     finally:
         FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -320,6 +323,7 @@ async def test_only_the_owners_own_message_raises_a_password_card() -> None:
             "broker_platform_required"
         )
     finally:
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -349,6 +353,7 @@ async def test_a_run_that_read_third_party_text_cannot_raise_a_password_card() -
             "broker_connect_needs_owner_message"
         )
     finally:
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -382,6 +387,7 @@ async def test_a_card_raised_before_the_token_was_saved_never_replaces_it() -> N
         assert token_id is not None and await broker.read(token_id) == TOKEN
     finally:
         FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
 
 
@@ -415,4 +421,5 @@ async def test_a_transient_metaapi_failure_is_retried_not_ended() -> None:
         assert [data["login"] for data in api.accounts.values()].count(account) == 1
     finally:
         FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)  # later tests expect the accounts they made
         await fixture.close()
