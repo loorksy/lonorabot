@@ -140,8 +140,17 @@ export type TradeApproval = {
   run_id: string;
   thread_id: string;
   agent_id: string;
-  /** expired: its lifetime (30-60 min) ended unapproved; «طلب جديد» asks the agent again. */
-  status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "expired" | "withdrawn";
+  /** expired: a card stored with a lifetime ended unapproved («طلب جديد» asks again);
+   * drifted: the quote left reference ± tolerance; withdrawn: ended without a decision. */
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "completed"
+    | "cancelled"
+    | "expired"
+    | "withdrawn"
+    | "drifted";
   requests: Payload[];
   results: {
     operation_id: string;
@@ -150,8 +159,14 @@ export type TradeApproval = {
     code?: string | null;
     details: Payload;
   }[];
-  /** Past it the card can no longer be approved; null on older approvals. */
+  /** Stored cards only: past it the card can no longer be approved. New cards have none. */
   expires_at?: string | null;
+  /** The agent's own words: shown labelled as the agent's, never as the owner's. */
+  reason?: string;
+  label?: string | null;
+  /** Price distance; the card drifts outside reference_price ± tolerance. */
+  tolerance?: string | null;
+  reference_price?: string | null;
   created_at: string;
 };
 /** Owner money limits of one account (lonora_db.trading_readiness.risk_limit_frame). */

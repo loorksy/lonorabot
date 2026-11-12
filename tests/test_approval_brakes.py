@@ -55,6 +55,7 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
         }
 
         async def cards() -> int:
@@ -138,6 +139,7 @@ async def test_a_first_trade_on_a_fresh_install_raises_the_start_trading_card() 
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
         }
         first = await call(context, "trade_execute", **entry)
         assert first["code"] == "trading_not_started", first

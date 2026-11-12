@@ -99,6 +99,32 @@ class TradeRequest(Contract):
         return self
 
 
+class TradeAnnotation(Contract):
+    """The agent's own words about a request, stored beside it (mandate 14.3.9): never part
+    of the request, its fingerprint or its operation id. Two sends that differ only in
+    reason are the same operation."""
+
+    reason: str = Field(default="", max_length=500)
+    # The judgment the agent chose (for example scale_in or secure_then_add).
+    label: str | None = Field(
+        default=None, min_length=1, max_length=40, pattern=r"^[a-z][a-z0-9_]*$"
+    )
+    # A price distance in the symbol's price units: a card drifts outside reference ± it.
+    tolerance: Decimal | None = Field(default=None, gt=0)
+
+
+class AnnotatedTradeRequest(TradeRequest):
+    """trade_execute's input: the request and, beside it, the agent's reason and tolerance.
+    The judgment label joins with the learning loop (mandate 5.5.3)."""
+
+    reason: str = Field(default="", max_length=500, description="Your one-line why.")
+    tolerance: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="Price band a card holds within.",
+    )
+
+
 # Durable operation lifecycle, distinct from any one broker's vocabulary:
 # reserved   identity journaled; the send boundary was provably not crossed. Only the
 #            executor's send boundary moves it to submitted, under the journal row lock.

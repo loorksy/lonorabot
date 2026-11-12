@@ -1657,7 +1657,8 @@
        "action": "buy",
        "account_id": "$account",
        "symbol": "$XAUUSD",
-       "volume": "0.01"
+       "volume": "0.01",
+       "tolerance": "1"
       }
      }
     ],

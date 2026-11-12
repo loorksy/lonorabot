@@ -3,7 +3,13 @@ from typing import Any
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import (
+    AnnotatedTradeRequest,
+    TradeAnnotation,
+    TradeRequest,
+    TradeResult,
+    TradingControl,
+)
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_binding import (
@@ -26,8 +32,9 @@ from lonora_db.steering import user_interrupt_pending
 from lonora_db.threads import report_thread
 from lonora_db.trade_approvals import (
     approval_event,
-    approval_expiry,
+    drifted_prompt,
     expire_if_due,
+    withdraw_own,
     withdrawn_prompt,
 )
 from lonora_db.trading_mode import set_trading_mode, trading_mode
@@ -344,6 +351,24 @@ async def start_trading_card(context: ToolContext) -> dict[str, Any]:
         }
 
 
+async def reference_quote(context: ToolContext, request: TradeRequest) -> dict[str, Any]:
+    """The executable side now: ask for a buy, bid for a sell (10.3.1). A change to an
+    existing ticket reads the side that closes it."""
+    buy = request.action.startswith("buy")
+    if request.position_id or request.order_id:
+        target = (await management_targets(context, [request])).get(target_key(request))
+        side = direction(str(target.side)) if target is not None else ""
+        buy = side == "sell" if request.position_id else side == "buy"
+    broker = await context.brokers.get(context.owner_id, request.account_id)
+    quote = await broker.quote(request.symbol)
+    return {
+        "account_id": request.account_id,
+        "symbol": request.symbol,
+        "side": "ask" if buy else "bid",
+        "price": str((quote.ask if buy else quote.bid).normalize()),
+    }
+
+
 class ModeChangedToFull(Exception):
     """The agent's mode became Full before its card was raised."""
 
@@ -421,9 +446,11 @@ async def approved_execution(
     *,
     gate_only: bool = False,
     named_ticket: bool = False,
+    annotation: TradeAnnotation | None = None,
 ) -> dict[str, Any]:
     """``named_ticket``: the call itself named the ticket it manages (``trade_execute``).
-    A batch built from the account's own list never is: its exits are never held back."""
+    A batch built from the account's own list never is: its exits are never held back.
+    ``annotation``: the agent's reason, label and tolerance, stored beside the requests."""
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     level = "analysis"
     provisional = False
@@ -464,7 +491,7 @@ async def approved_execution(
     if named_ticket and previous is None:
         await require_ticket(context, requests[0])
     if grants:
-        return await direct_execution(context, authority_requests, grants)
+        return await direct_execution(context, authority_requests, grants, annotation=annotation)
     adding: list[TradeRequest] = []
     foreign: list[TradeRequest] = []
     if previous is None and not gate_only and not await reused_card(context, requests):
@@ -478,12 +505,33 @@ async def approved_execution(
         if (mode == "full" or not adding) and not foreign:
             if adding and await never_started(context):
                 return await start_trading_card(context)
-            return await direct_execution(context, requests)
+            return await direct_execution(context, requests, annotation=annotation)
     initial_snapshot = await management_snapshot(context, requests) if previous is None else {}
     contracts = await reviewed_contracts(context, requests) if previous is None else []
     if adding:
         if await never_started(context):
             return await start_trading_card(context)
+    validity: dict[str, Any] = {}
+    if previous is None and not gate_only and adding:
+        # Every card for new risk carries a tolerance; its reference is read now (10.3.1).
+        if annotation is None or annotation.tolerance is None:
+            async with context.db.sessions() as reader:
+                # A brake in force answers first: no card could be raised anyway.
+                await refuse_braked_entries(reader, context, adding)
+            raise ToolRefusal(
+                "tolerance_required",
+                details={
+                    "class": "input",
+                    "retryable": True,
+                    "hint": "Nothing was sent and no card was raised. Ask again with "
+                    "tolerance: the price distance from the current executable price beyond "
+                    "which the owner's approval no longer holds.",
+                },
+            )
+        validity = {
+            "tolerance": str(annotation.tolerance.normalize()),
+            "reference": await reference_quote(context, adding[0]),
+        }
     try:
         async with context.db.sessions() as session, session.begin():
             current = await require_lease(session, context.lease)
@@ -531,7 +579,11 @@ async def approved_execution(
                     results=[],
                     created_at=created,
                     updated_at=created,
-                    expires_at=approval_expiry(created),
+                    # No time limit (10.3.1): drift, a decision or a withdrawal ends it.
+                    expires_at=None,
+                    reason=annotation.reason if annotation else "",
+                    label=annotation.label if annotation else None,
+                    validity=validity,
                 )
                 session.add(row)
                 await session.flush()
@@ -560,6 +612,14 @@ async def approved_execution(
                     "code": "trade_approval_rejected",
                     "approval_id": row.id,
                 }
+            if row.status == "drifted":
+                # The quote left reference ± tolerance: nothing was sent.
+                return {
+                    "status": "drifted",
+                    "code": "trade_approval_drifted",
+                    "approval_id": row.id,
+                    "recovery": drifted_prompt(row),
+                }
             if row.status == "withdrawn":
                 # Nothing was sent; the agent decides again under its current mode.
                 return {
@@ -577,6 +637,11 @@ async def approved_execution(
             if row.status != "approved":
                 raise LonoraError("trade_approval_unavailable", 409)
             frozen = [TradeRequest.model_validate(item) for item in row.requests]
+            card_annotation = TradeAnnotation(
+                reason=row.reason,
+                label=row.label,
+                tolerance=row.validity.get("tolerance"),
+            )
             expected_snapshot = row.broker_snapshot
             if gate_only:
                 if await user_interrupt_pending(session, context.lease.run_id):
@@ -630,6 +695,7 @@ async def approved_execution(
                 authorization=authorize,
                 account_authority_id=grants[index] if grants else None,
                 expected_target=expected_snapshot.get(target_key(request)),
+                annotation=card_annotation,
             )
         except LonoraError as error:
             result = TradeResult(
@@ -745,7 +811,11 @@ async def stop_notice(
 
 
 async def direct_execution(
-    context: ToolContext, requests: list[TradeRequest], grants: list[str | None] | None = None
+    context: ToolContext,
+    requests: list[TradeRequest],
+    grants: list[str | None] | None = None,
+    *,
+    annotation: TradeAnnotation | None = None,
 ) -> dict[str, Any]:
     """Execution without a card: an agent in Full, a risk-reducing request in Ask, or a
     standing grant (``grants``, until grants are removed). The same executor, journal and
@@ -771,6 +841,7 @@ async def direct_execution(
                 authorization=current,
                 account_authority_id=identifier,
                 expected_target=expected.get(target_key(request)),
+                annotation=annotation,
             )
         except LonoraError as error:
             result = TradeResult(
@@ -845,6 +916,12 @@ async def never_recorded(context: ToolContext, operation_id: str) -> bool:
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     args = dict(args)
     args.pop("operation_id", None)
+    # Beside the request, never inside it: the operation id is the request's alone.
+    annotation = TradeAnnotation(
+        reason=str(args.pop("reason", "") or ""),
+        label=args.pop("label", None),
+        tolerance=args.pop("tolerance", None),
+    )
     if args.get("thesis_id") is None:
         args.pop("thesis_id", None)
     for field in ("clear_stop_loss", "clear_take_profit"):
@@ -869,7 +946,10 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     if sized is not None and await never_recorded(context, args["operation_id"]):
         await require_order_size(sized, args["symbol"], args["volume"])
     return await approved_execution(
-        context, [TradeRequest.model_validate(args)], named_ticket=bool(managing)
+        context,
+        [TradeRequest.model_validate(args)],
+        named_ticket=bool(managing),
+        annotation=annotation,
     )
 
 
@@ -993,6 +1073,19 @@ async def record_history(context: ToolContext, args: dict[str, Any]) -> dict[str
         }
 
 
+class ApprovalReference(Contract):
+    approval_id: str = Field(min_length=1, max_length=36)
+
+
+async def withdraw_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    params = ApprovalReference.model_validate(args)
+    async with context.db.sessions() as session, session.begin():
+        await require_lease(session, context.lease)
+        row = await withdraw_own(session, context.owner_id, context.agent_id, params.approval_id)
+        await require_lease(session, context.lease, lock=True)
+    return {"approval_id": row.id, "status": row.status}
+
+
 class TradingModeAsk(Contract):
     agent_id: str | None = Field(default=None, min_length=1, max_length=36)
 
@@ -1035,15 +1128,13 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "trade_execute",
-            "Execute a broker trade: buy or sell to open a position, place a pending limit/stop order, close or modify a position, or modify/cancel an order. In Full, or for a risk-reducing request, it executes at once, except on a ticket your own order did not open. "
-            "In Ask, a request that adds risk (outside an active signed grant) waits for the owner's Trade Approval "
-            "card; spoken or typed agreement is not approval. "
-            "The server validates current authority, broker preflight and the actual broker result. "
-            "Reconcile ambiguous execution before retrying. When an immutable "
-            "trading market is bound, omit account_id and symbol or pass that bound pair; never ask "
-            "which pair or ask the owner to retype the symbol. Read broker positions/orders first, "
-            "including manually opened tickets. Saved goals use goal_step_execute instead.",
-            TradeRequest,
+            "Buy, sell, pending orders; close, modify or cancel positions/orders. In Full, or "
+            "for a risk-reducing request, it executes at once, except on a ticket you did not "
+            "open. In Ask, a request that adds risk (outside an active signed grant) waits for a "
+            "Trade Approval card; chat agreement is not approval. Reconcile an ambiguous result "
+            "before retrying. With a bound market, omit account_id and symbol. A card needs "
+            "tolerance.",
+            AnnotatedTradeRequest,
             execute,
             financial=True,
             replay_safe=True,
@@ -1056,8 +1147,8 @@ def tools() -> list[Tool]:
             "Close currently open broker positions, or only an exact symbol. A close reduces risk, so "
             "it executes without a card in Full and in Ask, except on a ticket your own order did not open. "
             "Each ticket has an independent durable receipt, and a failed or uncertain close never "
-            "holds back the other tickets. Never silently extend a reviewed operation to later "
-            "positions. Reconcile an uncertain ticket before retrying it.",
+            "holds back the other tickets; a repeat never adds later positions. Reconcile an "
+            "uncertain ticket before retrying it.",
             ClosePositions,
             close_positions,
             financial=True,
@@ -1065,6 +1156,14 @@ def tools() -> list[Tool]:
             legacy_replay_safe=True,
             eager=eager_for("market"),
             availability=trading_permission_available,
+        ),
+        Tool(
+            "trade_approval_withdraw",
+            "Withdraw your own pending Trade Approval card when its reason no longer holds; "
+            "nothing is sent. Tell the owner in one line why.",
+            ApprovalReference,
+            withdraw_card,
+            replay_safe=True,
         ),
         Tool(
             "trading_mode_ask",

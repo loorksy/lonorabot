@@ -115,7 +115,13 @@ async def test_switching_to_full_withdraws_pending_approvals_and_never_executes_
         await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Withdraw", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        entry = {"action": "buy", "account_id": connection, "symbol": "XAUUSD", "volume": "0.1"}
+        entry = {
+            "action": "buy",
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "volume": "0.1",
+            "tolerance": "2",
+        }
         asked = await same_call(context, entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -232,7 +238,13 @@ async def test_a_switch_to_full_while_a_card_is_prepared_decides_under_full(
             return await prepare(*args)
 
         monkeypatch.setattr(trade, "reviewed_contracts", owner_taps_full_meanwhile)
-        entry = {"action": "buy", "account_id": connection, "symbol": "XAUUSD", "volume": "0.1"}
+        entry = {
+            "action": "buy",
+            "account_id": connection,
+            "symbol": "XAUUSD",
+            "volume": "0.1",
+            "tolerance": "2",
+        }
         result = await call(context, "trade_execute", **entry)
         assert result.get("status") == "confirmed" and "approval_id" not in result, result
         async with fixture.runtime.db.sessions() as session:

@@ -99,6 +99,7 @@
     "trade_record_read": "trading",
     "trade_execute": "trading",
     "trade_close_positions": "trading",
+    "trade_approval_withdraw": "trading",
     "trading_mode_ask": "trading",
     "trade_restriction_create": "trading",
     "trade_restriction_list": "trading",
