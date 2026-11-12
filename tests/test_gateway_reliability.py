@@ -39,7 +39,6 @@ from lonora_db.schema import (
     EffectReceiptRow,
     EventRow,
     GatewayRow,
-    GoalDecisionRow,
     ItemFailureRow,
     MarketWatchRow,
     RoutineRow,
@@ -48,7 +47,6 @@ from lonora_db.schema import (
     SuperBotRequestRow,
     ThreadRow,
     TradeApprovalRow,
-    TradingGoalRow,
     TradingJournalRow,
     TradingRestrictionRow,
 )
@@ -58,7 +56,6 @@ from lonora_gateway.runtime import OwnerServices
 from lonora_gateway.shutdown import drain
 from lonora_gateway.watchdog import Watchdog
 from lonora_tools.context import ToolContext
-from lonora_trading.goals import recover_goals
 from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 from test_task_runtime import task_db as task_db
@@ -677,6 +674,10 @@ async def test_lease_renewal_gives_up_before_expiry_or_at_once_when_fenced(
     assert lost == [True] and asyncio.get_running_loop().time() - started < 1.5
 
 
+# A retired Super Bot request keeps the id of the goal it named, as a value.
+RETIRED_GOAL = "retired-goal"
+
+
 async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
     async with db.sessions() as session, session.begin():
         agent = AgentRow(owner_id=owner, name="Gold desk")
@@ -687,8 +688,7 @@ async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
         session.add_all([thread, account])
         await session.flush()
         run = RunRow(thread_id=thread.id, agent_id=agent.id, status="completed")
-        goal = TradingGoalRow(owner_id=owner, agent_id=agent.id, thread_id=thread.id)
-        session.add_all([run, goal])
+        session.add(run)
         await session.flush()
         now = utcnow()
         session.add_all(
@@ -722,18 +722,11 @@ async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
                     source="owner_ui",
                     created_by="owner",
                 ),
-                GoalDecisionRow(
-                    goal_id=goal.id,
-                    owner_id=owner,
-                    step_id="entry",
-                    operation_id="op-" + run.id,
-                    run_id=run.id,
-                ),
                 SuperBotRequestRow(
                     owner_id=owner,
                     agent_id=agent.id,
                     thread_id=thread.id,
-                    goal_id=goal.id,
+                    goal_id=RETIRED_GOAL,
                     mode="advisory",
                     status="cancelled",
                     envelope={"symbol": "XAUUSD"},
@@ -747,13 +740,12 @@ async def financial_fixture(db: Database, owner: str) -> dict[str, str]:
         "thread": thread.id,
         "account": account.id,
         "run": run.id,
-        "goal": goal.id,
     }
 
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not POSTGRES, reason="Cascades need PostgreSQL foreign keys.")
-async def test_deleting_a_conversation_agent_goal_or_account_keeps_financial_records(
+async def test_deleting_a_conversation_agent_or_account_keeps_financial_records(
     task_db: Fixture,
 ) -> None:
     db, owner, _, _ = task_db
@@ -761,7 +753,6 @@ async def test_deleting_a_conversation_agent_goal_or_account_keeps_financial_rec
     for row_type, identifier in (
         (ThreadRow, ids["thread"]),
         (AgentRow, ids["agent"]),
-        (TradingGoalRow, ids["goal"]),
         (BrokerSessionRow, ids["account"]),
     ):
         async with db.sessions() as session, session.begin():
@@ -776,9 +767,6 @@ async def test_deleting_a_conversation_agent_goal_or_account_keeps_financial_rec
         restriction = await session.scalar(
             select(TradingRestrictionRow).where(TradingRestrictionRow.owner_id == owner)
         )
-        decision = await session.scalar(
-            select(GoalDecisionRow).where(GoalDecisionRow.owner_id == owner)
-        )
         request = await session.scalar(
             select(SuperBotRequestRow).where(SuperBotRequestRow.owner_id == owner)
         )
@@ -790,8 +778,7 @@ async def test_deleting_a_conversation_agent_goal_or_account_keeps_financial_rec
     # A restriction on a deleted agent never turns into an account-wide one.
     assert restriction and restriction.agent_id == ids["agent"]
     assert restriction.account_id == ids["account"]
-    assert decision and decision.goal_id == ids["goal"] and decision.run_id is None
-    assert request and request.thread_id is None and request.goal_id == ids["goal"]
+    assert request and request.thread_id is None and request.goal_id == RETIRED_GOAL
 
 
 @pytest.mark.asyncio
@@ -869,15 +856,15 @@ async def test_a_delete_is_refused_while_its_trade_is_uncertain_then_narrows_aut
 @pytest.mark.asyncio
 async def test_an_item_guard_never_quarantines_financial_kinds(task_db: Fixture) -> None:
     db, owner, *_ = task_db
-    guard = ItemGuard(db, "goal_decision", quarantine_after=None)
+    guard = ItemGuard(db, "opportunity", quarantine_after=None)
 
     async def broken() -> None:
         raise ConnectionError("broker")
 
     for _ in range(QUARANTINE_AFTER + 2):
-        await expire_backoff(db, "goal_decision")
+        await expire_backoff(db, "opportunity")
         assert await guard.run("op-1", owner, broken) is None
-    recorded = await failure(db, "goal_decision", "op-1")
+    recorded = await failure(db, "opportunity", "op-1")
     assert (
         recorded and recorded.quarantined_at is None and recorded.failures == QUARANTINE_AFTER + 2
     )
@@ -911,34 +898,20 @@ async def test_two_gateways_recording_one_items_first_failure_both_count(
         assert recorded.failures == 2, recorded.failures
 
 
-def waiting_goal_state(request_id: str | None = None) -> dict[str, Any]:
-    # A goal saved before Super Bot was retired may still carry its old request id.
-    return {
-        "status": "waiting",
-        "code": "goal_target_pending",
-        **({"super_bot_request_id": request_id} if request_id else {}),
-        "current_step": "entry",
-        "steps": {"entry": {"status": "waiting"}},
-    }
-
-
 @pytest.mark.asyncio
-async def test_deleting_a_conversation_settles_its_grant_and_goal_and_keeps_retired_history(
+async def test_deleting_a_conversation_settles_its_grant_and_keeps_retired_history(
     task_db: Fixture,
 ) -> None:
     db, owner, _, _ = task_db
     ids = await financial_fixture(db, owner)
     async with db.sessions() as session, session.begin():
-        goal = await session.get(TradingGoalRow, ids["goal"])
-        assert goal
-        goal.state = waiting_goal_state("sb-live")
         session.add(
             SuperBotRequestRow(
                 id="sb-live",
                 owner_id=owner,
                 agent_id=ids["agent"],
                 thread_id=ids["thread"],
-                goal_id=ids["goal"],
+                goal_id=RETIRED_GOAL,
                 mode="autonomous",
                 status="retired",
                 envelope={"symbol": "XAUUSD"},
@@ -964,45 +937,8 @@ async def test_deleting_a_conversation_settles_its_grant_and_goal_and_keeps_reti
         assert frame["status"] == "autonomous_stopped"
         assert frame["effective_level"] != "autonomous" and not frame["active_authorities"]
         request = await session.get(SuperBotRequestRow, "sb-live", populate_existing=True)
-        goal = await session.get(TradingGoalRow, ids["goal"], populate_existing=True)
     # A retired Super Bot request is audit history only: nothing settles or reads it.
     assert request and request.status == "retired"
-    assert goal and goal.state["status"] == "cancelled"
-    assert goal.state["code"] == "goal_origin_deleted"
-    # Settled once: recovery never retries it through the failure ledger.
-    assert await recover_goals(db) == 0
-    assert await failure(db, "goal_target", ids["goal"]) is None
-
-
-@pytest.mark.asyncio
-async def test_a_goal_orphaned_before_the_rule_settles_once_and_is_never_retried(
-    task_db: Fixture,
-) -> None:
-    db, owner, _, _ = task_db
-    ids = await financial_fixture(db, owner)
-    async with db.sessions() as session, session.begin():
-        goal = await session.get(TradingGoalRow, ids["goal"])
-        assert goal
-        # As left by a conversation delete before deletes settled their goals.
-        goal.state, goal.thread_id = waiting_goal_state(), None
-        healthy = TradingGoalRow(
-            owner_id=owner,
-            agent_id=ids["agent"],
-            thread_id=ids["thread"],
-            state={"status": "active", "current_step": "entry", "steps": {}},
-        )
-        session.add(healthy)
-        await session.flush()
-        healthy_id = healthy.id
-    assert await recover_goals(db) == 1
-    assert await recover_goals(db) == 0
-    async with db.sessions() as session:
-        orphan = await session.get(TradingGoalRow, ids["goal"], populate_existing=True)
-        alive = await session.get(TradingGoalRow, healthy_id, populate_existing=True)
-    assert orphan and orphan.state["status"] == "cancelled"
-    assert orphan.state["code"] == "goal_origin_deleted"
-    assert alive and alive.state["status"] == "active"
-    assert await failure(db, "goal_target", ids["goal"]) is None
 
 
 @pytest.mark.asyncio

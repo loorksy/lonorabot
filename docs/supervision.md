@@ -68,7 +68,7 @@ call, inside the same Run.
 - `agent_inspect` (read-only, toolset `collaboration`) reads an agent the caller
   supervises, or itself, one bounded page at a time: `overview` (role, template, focus
   pair, trading level, who paused it, the live status, the W15-1 trading readiness and
-  who supervises it), `work` (watches, routines, Tasks, active goals and the pauses
+  who supervises it), `work` (watches, routines, Tasks and the pauses
   supervisors hold), `runs` (trigger, status, error, prompt and result excerpts),
   `decisions`, `operations` (journal rows the executor recorded for that agent; a journal
   status is not broker confirmation) or `memory` (its standing instructions and its own
