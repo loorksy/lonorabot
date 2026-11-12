@@ -920,9 +920,11 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
     starts the task again (4.5.1)."""
     database()
     from check_streaming import Fixture
+    from lonora_contracts.runs import RunRequest
     from lonora_db.management_task import ensure_management_task, live_management_task
-    from lonora_db.pauses import owner_resumes, runs_while_paused
+    from lonora_db.pauses import claimable_while_paused, owner_resumes
     from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.runs import create_run
     from lonora_db.schema import RunRow
     from lonora_db.trading_mode import set_trading_mode
 
@@ -938,7 +940,9 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
             async with fixture.runtime.db.sessions() as session:
                 return await live_management_task(session, fixture.owner, gold["id"])
 
-        assert await live_task() is not None
+        task = await live_task()
+        assert task is not None
+        task_id = task.id
         # Lonora holds its default grant over the new agent.
         lonora_woke = await wake(fixture, lonora, await fixture.conversation(lonora))
         paused = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="pause")
@@ -947,12 +951,36 @@ async def test_pausing_an_agent_ends_its_full_task_and_resuming_starts_it_again(
         async with fixture.runtime.db.sessions() as session, session.begin():
             # A paused agent's task is never started again while it is paused (4.7.1).
             assert await ensure_management_task(session, fixture.owner, gold["id"]) is None
-            queued = list(
+            # The ended task's Runs: each is ended, or held (never claimed while paused).
+            task_runs = list(
                 await session.scalars(
-                    select(RunRow).where(RunRow.agent_id == gold["id"], RunRow.status == "queued")
+                    select(RunRow).where(RunRow.model_metadata["task_id"].as_string() == task_id)
                 )
             )
-            assert all(not runs_while_paused(r.trigger, r.model_metadata) for r in queued)
+            assert task_runs, "the task had no Runs to check"
+            assert all(
+                run.status in {"cancelled", "completed", "failed", "queued"} for run in task_runs
+            )
+            claimable = await session.scalar(
+                select(RunRow.id).where(
+                    RunRow.agent_id == gold["id"],
+                    RunRow.status == "queued",
+                    claimable_while_paused(),
+                )
+            )
+            assert claimable is None
+            # A new Run of its work while it is paused is refused (it takes no new work).
+            with pytest.raises(LonoraError, match="agent_paused"):
+                await create_run(
+                    session,
+                    fixture.owner,
+                    RunRequest(
+                        thread_id=task_runs[0].thread_id,
+                        agent_id=gold["id"],
+                        trigger="tickets",
+                        prompt="x",
+                    ),
+                )
 
         resumed = await call(lonora_woke, "agent_control", agent_id=gold["id"], action="resume")
         assert resumed["changed"] is True
