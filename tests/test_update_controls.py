@@ -45,7 +45,6 @@ TABLES = {
     "ln_settings": "key text, payload json",
     "ln_agents": "id text, paused boolean",
     "ln_broker_sessions": "id text, payload json",
-    "ln_trading_goals": "id text, state json",
     "ln_tickets": "id text, state json",
     "ln_messages": "id text, role text, content text",
 }
@@ -83,7 +82,7 @@ def schemas() -> Iterator[tuple[str, str]]:
     sql(f"CREATE SCHEMA {full}; CREATE SCHEMA {dropped}")
     for name, columns in TABLES.items():
         sql(f"CREATE TABLE {full}.{name} ({columns})")
-        if name not in {"ln_trading_goals", "ln_settings", "ln_supervision_holds"}:
+        if name not in {"ln_settings", "ln_supervision_holds"}:
             sql(f"CREATE TABLE {dropped}.{name} ({columns})")
     sql(
         f"""INSERT INTO {full}.ln_trading_restrictions VALUES ('r1', 'no_new_entries');

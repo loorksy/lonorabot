@@ -29,7 +29,7 @@ control_part() { # $1 table, $2 row expression over t, $3 WHERE clause (optional
 }
 
 # One sha256 of every owner-control, authority and money record (whole rows), the trading
-# settings rows, the owner's pauses of agents, goals and tasks, the broker connections'
+# settings rows, the owner's pauses of agents and tasks, the broker connections'
 # enabled flags and the owner's own messages. Empty when the database cannot be read.
 control_fingerprint() {
     local table part all=""
@@ -45,8 +45,6 @@ control_fingerprint() {
     control_add settings ln_settings 't::text' "WHERE key LIKE 'trading%'" || return 0
     control_add agent_pauses ln_agents "t.id || ':' || t.paused::text" 'WHERE t.paused' || return 0
     control_add connections ln_broker_sessions "t.id || ':' || coalesce(t.payload->>'enabled', '')" || return 0
-    control_add goal_exits ln_trading_goals "t.id || ':' || coalesce(t.state->>'status', '')" \
-        "WHERE t.state->>'status' IN ('paused', 'cancelled')" || return 0
     control_add task_exits ln_tickets \
         "t.id || ':' || coalesce(t.state->>'control_requested', '') || ':' || CASE WHEN t.state->>'status' IN ('paused', 'cancelled') THEN t.state->>'status' ELSE '' END" \
         "WHERE t.state->>'control_requested' IS NOT NULL OR t.state->>'status' IN ('paused', 'cancelled')" || return 0

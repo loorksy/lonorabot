@@ -334,7 +334,7 @@ authority, an owner's message, or the record of an order already at the broker. 
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the
 `trading…` rows of `ln_settings`, paused agents, the broker connections' enabled flags, paused or
-cancelled goals and tasks, and the owner's own messages in `ln_messages` (including Telegram and
+cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
 voice). If any of them changed, or cannot be read, it does **not** restore.
 
 The definition of this fingerprint is its own file, `infra/compose/lonora-controls.sh`, and the one
