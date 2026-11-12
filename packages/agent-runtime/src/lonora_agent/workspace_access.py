@@ -232,7 +232,7 @@ class RunWorkspaceAccess:
         content = await asyncio.to_thread(scan.text, text)
         return {
             "revision": revision,
-            "path": path,
+            "path": scan.text(path),
             "content": content[offset : offset + limit],
             "offset": offset,
             "next_offset": offset + limit if len(content) > offset + limit else None,
@@ -327,14 +327,16 @@ class RunWorkspaceAccess:
             row.snapshot = encode_snapshot(snapshot)
             row.revision += 1
             row.updated_at = utcnow()
-            result = {
-                "operation_id": context.resource_id,
-                "revision": row.revision,
-                "path": path,
-                "size": len(body),
-                "sha256": hashlib.sha256(body).hexdigest(),
-                **summary,
-            }
+            result = scan.data(
+                {
+                    "operation_id": context.resource_id,
+                    "revision": row.revision,
+                    "path": path,
+                    "size": len(body),
+                    "sha256": hashlib.sha256(body).hexdigest(),
+                    **summary,
+                }
+            )
             session.add(
                 WorkspaceOperationRow(
                     id=context.resource_id,

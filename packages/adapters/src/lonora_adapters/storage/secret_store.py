@@ -3,7 +3,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import SecretRow
 from lonora_db.secrets import WORKSPACE, require_scope, secret_in_use
-from lonora_security.secrets import SecretCipher
+from lonora_security.secrets import SHORTEST_SECRET, SecretCipher
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,10 @@ class EncryptedSecretStore:
     ) -> str:
         """Commit credentials with their resource; a rejected resource writes nothing."""
         require_scope(name, scope)
+        if scope == WORKSPACE and len(value) < SHORTEST_SECRET:
+            # Workspace output is scanned for it; a shorter value cannot be found there.
+            # Three characters are at least three bytes.
+            raise LonoraError("secret_value_too_short", 422)
         row = await session.scalar(
             select(SecretRow)
             .where(
