@@ -234,11 +234,11 @@ async def main() -> None:
         # 3. The router asks the new model on the next turn, with the whole history.
         calls: list[tuple[str, str, int]] = []
         services = fixture.runtime.services(fixture.owner)
-        router = GlobalModelRouter(
-            db,
-            ProviderCredentials(db, services.secrets),
-            lambda provider, _secret: cast(Any, ScriptedAdapter(provider, calls)),
-        )
+
+        def scripted(provider: str, _secret: str) -> Any:
+            return cast(Any, ScriptedAdapter(provider, calls))
+
+        router = GlobalModelRouter(db, ProviderCredentials(db, services.secrets), scripted)
         history = [
             ModelMessage(role="system", content="explicit fixture"),
             ModelMessage(role="user", content="analyze gold"),

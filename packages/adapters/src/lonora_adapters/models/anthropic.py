@@ -94,6 +94,10 @@ class AnthropicAdapter(BaseModelAdapter):
     def headers(self) -> dict[str, str]:
         return {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
 
+    def auth_headers(self) -> dict[str, str]:
+        # An API key travels only as x-api-key; Authorization is not sent at all.
+        return self.headers()
+
     async def complete(
         self,
         model: str,

@@ -241,13 +241,13 @@ class RecordingAdapter:
 
 def recording_factory(
     model: str, log: list[dict[str, Any]], origin: float
-) -> Callable[[str, str], ModelAdapter]:
+) -> Callable[..., ModelAdapter]:
     provider, name = model.split("/", 1)
 
-    def factory(selected: str, secret: str) -> ModelAdapter:
+    def factory(selected: str, secret: str, base_url: str | None = None) -> ModelAdapter:
         if selected != provider:
             raise SystemExit(f"Refusing an unexpected provider: {selected}")
-        return RecordingAdapter(model_adapter(selected, secret), name, log, origin)
+        return RecordingAdapter(model_adapter(selected, secret, base_url), name, log, origin)
 
     return factory
 
