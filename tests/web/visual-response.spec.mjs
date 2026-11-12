@@ -133,7 +133,7 @@ for (const variant of [
     );
     for (let index = 0; index < 9; index += 1) await slider.press(increase);
     await expect.poll(numeric).toBe("40");
-    await page.getByRole("checkbox", { name: "Show additional context" }).check();
+    await page.getByRole("switch", { name: "Show additional context" }).check();
     await expect(page.getByText("Additional context is visible.")).toBeVisible();
     await page.getByRole("combobox", { name: "Pace", exact: true }).selectOption("fast");
     await page.getByRole("textbox", { name: "Search illustration", exact: true }).fill("Beta");
@@ -161,7 +161,7 @@ for (const variant of [
     await page.reload();
     await expect(response).toBeVisible();
     await expect.poll(numeric).toBe("40");
-    await expect(page.getByRole("checkbox", { name: "Show additional context" })).toBeChecked();
+    await expect(page.getByRole("switch", { name: "Show additional context" })).toBeChecked();
     await expect(page.getByRole("combobox", { name: "Pace", exact: true })).toHaveValue("fast");
     await expect(
       page.getByRole("textbox", { name: "Search illustration", exact: true }),
