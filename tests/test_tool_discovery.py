@@ -196,7 +196,7 @@ def test_exposure_promotes_remembered_tools_within_count_and_schema_budget():
     remembered = [
         "invented",
         "web_search",  # already eager: never counted twice
-        "goal_create",  # larger than the whole promoted budget
+        "market_decision_record",  # larger than the whole promoted budget
         "list_accounts",
         "market_quote",
         "trade_execute",
@@ -207,7 +207,7 @@ def test_exposure_promotes_remembered_tools_within_count_and_schema_budget():
         "chart_list",
     ]
     native, promoted = catalog.exposure(["core", "research"], remembered=remembered)
-    assert "goal_create" not in promoted and "invented" not in promoted
+    assert "market_decision_record" not in promoted and "invented" not in promoted
     assert promoted == [
         name
         for name in remembered
@@ -304,7 +304,7 @@ async def test_observe_only_scope_keeps_every_non_financial_capability():
     catalog = load_tools()
     names = catalog.names("observe_only")
     assert {"memory_write", "watch_create", "peer_send", "owner_call_request"} <= names
-    assert not {"trade_execute", "trade_close_positions", "goal_step_execute"} & names
+    assert not {"trade_execute", "trade_close_positions"} & names
     assert names == {name for name, tool in catalog.tools.items() if not tool.financial}
     helper = catalog.names("helper")
     assert {"workspace_execute", "artifact_create", "web_search"} <= helper
@@ -365,19 +365,29 @@ async def test_unicode_search_and_bounded_schema_results():
         EnvironmentInput(query="x" * 301)
 
 
+class LargePlan(Contract):
+    plan: str = Field(min_length=1, description="Plan text. " * 900)
+
+
 @pytest.mark.asyncio
-async def test_real_catalog_search_bounds_total_schema_size():
-    catalog = load_tools()
-    result = await inspect(catalog, {"query": "goal", "limit": 40})
+async def test_search_bounds_total_schema_size():
+    catalog = ToolRegistry(
+        [Tool(f"plan_{index}", "Save a review plan", LargePlan, unused, True) for index in range(3)]
+        + [
+            Tool(f"plan_read_{index}", "Read a review plan", Input, unused, True)
+            for index in range(4)
+        ]
+    )
+    result = await inspect(catalog, {"query": "plan", "limit": 40})
     assert 5 < len(result["tools"]) <= MAX_SEARCH_RESULTS
     shown = [tool for tool in result["tools"] if "input_schema" in tool]
     omitted = [tool for tool in result["tools"] if tool.get("input_schema_omitted")]
     assert sum(len(json.dumps(tool["input_schema"], ensure_ascii=False)) for tool in shown) <= (
         SEARCH_SCHEMA_BUDGET
     )
-    # Two large schemas do not both fit: the later one names its required fields
+    # Large schemas do not all fit: a later one names its required fields
     # and is loaded with an exact tool_name inspection instead.
-    assert omitted and {"goal_plan", "goal_create"} & {tool["name"] for tool in shown}
+    assert omitted and any(tool["name"].startswith("plan_") for tool in shown)
     assert all(isinstance(tool["required"], list) and tool["required"] for tool in omitted)
     assert result["tools"][0].get("input_schema")
 
@@ -410,7 +420,6 @@ def test_real_catalog_discovers_supported_work_from_business_terms(query: str, e
         ("امسح المهام", "task_control"),
         ("remove the alert", "watch_cancel"),
         ("ألغِ المتابعة", "watch_cancel"),
-        ("أوقف الهدف", "goal_control"),
     ],
 )
 def test_everyday_words_in_the_owners_language_find_the_tool(query: str, expected: str):
