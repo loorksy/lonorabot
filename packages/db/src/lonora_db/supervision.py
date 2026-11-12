@@ -1,41 +1,22 @@
-"""Supervision: one agent reads and steers another agent's work, visibly and revocably.
+"""Lonora steers a team agent's work: pauses, holds and the record of each intervention.
 
-A grant (``ln_supervision_grants``) lets the supervisor read the supervised agent's
-threads, runs, decisions, memory and records (``session_search``, ``search_internal``,
-``subagent_inspect``, ``agent_inspect``), message it, pause or resume its work
-(``agent_control``, ``routine_toggle``) and add narrowing pauses on its trading
-(``trade_restriction_create``). It never trades for it, never uses its grant, never
-lifts a brake and never edits its memory or instructions. Agents without a grant stay
-private from each other.
+Only Lonora, by its built-in lead role (``lead.py``), reads and steers another agent
+(3.3.1: two levels, no supervision grants). It pauses or resumes a team agent's work
+(``agent_control``, ``routine_toggle``): the agent itself, a Task, a routine or a watch.
+It never trades for it, lifts a brake or edits its memory or instructions.
 
-Lonora, the Personal Agent, needs no grant: its lead role (``lead.py``) reads and steers
-every team agent, and no revoked grant takes that away. It still holds a ``default``
-grant over every agent from the agent's creation (migration ``0041_supervision_grants``
-seeds existing agents) until grants are deleted. Another agent becomes a
-supervisor only from the owner's message, recorded as the grant's source, or from the
-owner's tap on a card. The owner sees every grant on the agents' profiles and in chat
-and revokes one with one tap; a revoked grant ends that supervisor's reads and control at
-once, never Lonora's (its lead role).
-
-Holds (``ln_supervision_holds``) record the pauses a supervisor put on another agent's
-work: the agent itself, a Task, a routine or a watch. On its own initiative only the
-supervisor that set a hold lifts it, while it still supervises; Lonora lifts only the
-pauses it made (4.7.2). A pause an agent makes from the owner's message, and the owner
+Holds (``ln_supervision_holds``) record those pauses. On its own initiative Lonora lifts
+only the pauses it made (4.7.2). A pause made from the owner's message, and the owner
 pausing the same work, make the hold the owner's (``source='owner'``, the agent kept
-for attribution): then only the owner lifts it, from the work itself or the card.
-The owner resuming the work releases it. The paused agent never resumes held work on
-its own initiative. Each pause raises a card in the paused agent's conversation that
-names the supervisor, with one-tap Resume.
+for attribution): then only the owner lifts it, from the work itself or the card. The
+owner resuming the work releases it. The paused agent never resumes held work on its own
+initiative. Holds and pause cards an earlier team supervisor left stay readable; the
+owner's Resume lifts them.
 
 Pausing a whole agent never stops its exits: a paused agent still wakes for its own
-positions and pending orders and sends risk-reducing requests (4.7.1). Lonora may pause a
-trading agent on its own; another supervisor pauses a whole agent with money standing
-only from the owner's message and narrows it otherwise. Only the owner pauses the
-Personal Agent, the owner's entry point.
-
-The cycle rule: an agent cannot pause or narrow an agent that holds an active pause over
-it, unless the owner's message asks for it. Every intervention is an event recorded for
-both agents.
+positions and pending orders and sends risk-reducing requests (4.7.1). Only the owner
+pauses the Personal Agent, the owner's entry point. Every intervention is an event
+recorded for both agents.
 """
 
 from collections.abc import Iterable
@@ -43,7 +24,7 @@ from typing import Any, Literal
 
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
@@ -53,7 +34,6 @@ from .schema import (
     AgentRow,
     MarketWatchRow,
     RoutineRow,
-    SupervisionGrantRow,
     SupervisionHoldRow,
     TicketRow,
     TradingJournalRow,
@@ -61,71 +41,10 @@ from .schema import (
 )
 from .transactions import owned_agent
 
-GrantVia = Literal["default", "owner_ui", "owner_message", "owner_card"]
-RevokeVia = Literal["owner_ui", "owner_card", "owner_message"]
 HoldKind = Literal["agent", "task", "routine", "watch"]
 # agent: the supervisor (or Lonora) on its own; owner: the owner's pause, made by the
 # owner or by an agent from the owner's message (the holder kept for attribution, 4.7.2).
 HoldSource = Literal["agent", "owner"]
-# Agents one call or card may put under one supervisor.
-MAXIMUM_SUPERVISED_PER_CHANGE = 10
-
-
-async def lock_supervision(session: AsyncSession, owner_id: str) -> None:
-    """Serialize grant changes per owner, so a pair has at most one active grant."""
-    if session.get_bind().dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": "supervision:" + owner_id},
-        )
-
-
-def _active(owner_id: str) -> Any:
-    return (SupervisionGrantRow.owner_id == owner_id) & SupervisionGrantRow.revoked_at.is_(None)
-
-
-async def supervised_ids(session: AsyncSession, owner_id: str, supervisor_id: str) -> list[str]:
-    """The agents this one supervises now, in a stable order."""
-    rows = await session.scalars(
-        select(SupervisionGrantRow.supervised_agent_id)
-        .where(_active(owner_id), SupervisionGrantRow.supervisor_agent_id == supervisor_id)
-        .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.supervised_agent_id)
-    )
-    return list(rows)
-
-
-async def supervisor_ids(session: AsyncSession, owner_id: str, agent_id: str) -> list[str]:
-    rows = await session.scalars(
-        select(SupervisionGrantRow.supervisor_agent_id)
-        .where(_active(owner_id), SupervisionGrantRow.supervised_agent_id == agent_id)
-        .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.supervisor_agent_id)
-    )
-    return list(rows)
-
-
-async def supervises(
-    session: AsyncSession, owner_id: str, supervisor_id: str, agent_id: str
-) -> bool:
-    found = await session.scalar(
-        select(SupervisionGrantRow.id)
-        .where(
-            _active(owner_id),
-            SupervisionGrantRow.supervisor_agent_id == supervisor_id,
-            SupervisionGrantRow.supervised_agent_id == agent_id,
-        )
-        .limit(1)
-    )
-    return found is not None
-
-
-async def supervises_all(session: AsyncSession, owner_id: str, supervisor_id: str) -> bool:
-    """Whether this agent supervises every other agent of the owner right now."""
-    others = set(
-        await session.scalars(
-            select(AgentRow.id).where(AgentRow.owner_id == owner_id, AgentRow.id != supervisor_id)
-        )
-    )
-    return others <= set(await supervised_ids(session, owner_id, supervisor_id))
 
 
 async def require_supervision(
@@ -141,114 +60,6 @@ async def require_supervision(
     return agent
 
 
-def _grant_payload(row: SupervisionGrantRow) -> dict[str, Any]:
-    return {
-        "id": row.id,
-        "supervisor_agent_id": row.supervisor_agent_id,
-        "supervised_agent_id": row.supervised_agent_id,
-        "created_via": row.created_via,
-        "revoked_via": row.revoked_via,
-    }
-
-
-def _grant_events(session: AsyncSession, row: SupervisionGrantRow, kind: str) -> None:
-    """Recorded for both agents: each sees who supervises it and whom it supervises."""
-    for agent_id in (row.supervisor_agent_id, row.supervised_agent_id):
-        emit(session, row.owner_id, kind, agent_id=agent_id, payload=_grant_payload(row))
-
-
-async def grant_supervision(
-    session: AsyncSession,
-    owner_id: str,
-    supervisor_id: str,
-    supervised_id: str,
-    *,
-    via: GrantVia,
-    created_by_agent_id: str | None = None,
-    source_message_id: str | None = None,
-) -> tuple[SupervisionGrantRow, bool]:
-    """The active grant for the pair and whether it is new; a repeat changes nothing."""
-    await lock_supervision(session, owner_id)
-    if supervisor_id == supervised_id:
-        raise LonoraError("supervision_self_target", 409)
-    supervisor = await owned_agent(session, owner_id, supervisor_id)
-    await owned_agent(session, owner_id, supervised_id)
-    if supervisor.role == "delegated":
-        # A temporary helper holds no standing responsibility over other agents.
-        raise LonoraError("supervision_supervisor_invalid", 422)
-    existing = await session.scalar(
-        select(SupervisionGrantRow).where(
-            _active(owner_id),
-            SupervisionGrantRow.supervisor_agent_id == supervisor_id,
-            SupervisionGrantRow.supervised_agent_id == supervised_id,
-        )
-    )
-    if existing is not None:
-        return existing, False
-    row = SupervisionGrantRow(
-        owner_id=owner_id,
-        supervisor_agent_id=supervisor_id,
-        supervised_agent_id=supervised_id,
-        created_via=via,
-        created_by_agent_id=created_by_agent_id,
-        source_message_id=source_message_id,
-        created_at=utcnow(),
-    )
-    session.add(row)
-    await session.flush()
-    _grant_events(session, row, "supervision.granted")
-    return row, True
-
-
-async def owned_grant(
-    session: AsyncSession, owner_id: str, grant_id: str, *, lock: bool = False
-) -> SupervisionGrantRow:
-    row = await session.get(
-        SupervisionGrantRow, grant_id, with_for_update=lock, populate_existing=lock
-    )
-    if row is None or row.owner_id != owner_id:
-        raise LonoraError("supervision_grant_not_found", 404)
-    return row
-
-
-async def revoke_supervision(
-    session: AsyncSession, owner_id: str, grant_id: str, *, via: RevokeVia
-) -> SupervisionGrantRow:
-    """End a grant now; revoking an ended grant changes nothing. Holds the supervisor
-    set stay in force (they only narrow); the owner lifts them on the work itself."""
-    await lock_supervision(session, owner_id)
-    row = await owned_grant(session, owner_id, grant_id, lock=True)
-    if row.revoked_at is None:
-        row.revoked_at, row.revoked_via = utcnow(), via
-        await session.flush()
-        _grant_events(session, row, "supervision.revoked")
-    return row
-
-
-async def grant_default(session: AsyncSession, owner_id: str, agent: AgentRow) -> None:
-    """A new agent is supervised by the Personal Agent from its creation."""
-    personal = await personal_agent_id(session, owner_id)
-    if personal is None or personal == agent.id or agent.role == "personal":
-        return
-    await grant_supervision(session, owner_id, personal, agent.id, via="default")
-
-
-async def seed_personal_grants(session: AsyncSession, owner_id: str, personal_id: str) -> int:
-    """A Personal Agent created after other agents supervises each of them by default."""
-    others = list(
-        await session.scalars(
-            select(AgentRow.id)
-            .where(AgentRow.owner_id == owner_id, AgentRow.id != personal_id)
-            .order_by(AgentRow.created_at, AgentRow.id)
-        )
-    )
-    created = 0
-    for agent_id in others:
-        _, new = await grant_supervision(session, owner_id, personal_id, agent_id, via="default")
-        created += new
-    return created
-
-
 async def agent_names(
     session: AsyncSession, owner_id: str, ids: Iterable[str | None]
 ) -> dict[str, str]:
@@ -261,56 +72,6 @@ async def agent_names(
         )
     )
     return {str(identity): str(name) for identity, name in rows}
-
-
-def grant_data(row: SupervisionGrantRow, names: dict[str, str]) -> dict[str, Any]:
-    return {
-        "id": row.id,
-        "supervisor": {
-            "id": row.supervisor_agent_id,
-            "name": names.get(row.supervisor_agent_id),
-        },
-        "supervised": {
-            "id": row.supervised_agent_id,
-            "name": names.get(row.supervised_agent_id),
-        },
-        "created_via": row.created_via,
-        "created_at": row.created_at.isoformat(),
-        "revoked_at": row.revoked_at.isoformat() if row.revoked_at else None,
-        "revoked_via": row.revoked_via,
-    }
-
-
-async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) -> dict[str, Any]:
-    """The active grants around one agent: whom it supervises and who supervises it."""
-    await owned_agent(session, owner_id, agent_id)
-    rows = list(
-        await session.scalars(
-            select(SupervisionGrantRow)
-            .where(
-                _active(owner_id),
-                or_(
-                    SupervisionGrantRow.supervisor_agent_id == agent_id,
-                    SupervisionGrantRow.supervised_agent_id == agent_id,
-                ),
-            )
-            .order_by(SupervisionGrantRow.created_at, SupervisionGrantRow.id)
-        )
-    )
-    names = await agent_names(
-        session,
-        owner_id,
-        {row.supervisor_agent_id for row in rows} | {row.supervised_agent_id for row in rows},
-    )
-    return {
-        "agent_id": agent_id,
-        "supervises": [
-            grant_data(row, names) for row in rows if row.supervisor_agent_id == agent_id
-        ],
-        "supervised_by": [
-            grant_data(row, names) for row in rows if row.supervised_agent_id == agent_id
-        ],
-    }
 
 
 # Holds: pauses a supervisor put on another agent's work (the hold primitives are in
@@ -509,23 +270,22 @@ async def control_work(
     owner_message_id: str | None,
     run_id: str | None,
 ) -> dict[str, Any]:
-    """A supervisor pauses or resumes another agent's work (the agent itself, a Task, a
-    routine or a watch). Repeating either changes nothing.
+    """Lonora pauses or resumes a team agent's work (the agent itself, a Task, a routine
+    or a watch). Repeating either changes nothing.
 
-    Pausing and resuming need the grant (Lonora needs none: it leads every team agent),
-    and pausing passes the cycle rule. No agent ever pauses the Personal Agent
-    itself. On its own a team supervisor never pauses a whole agent with money standing
-    (supervision is not extended before phase 6 removes it); Lonora may, since a paused
-    agent still reduces its risk (4.7.1). A supervisor's pause raises a card in the paused
-    agent's conversation naming it, with Resume; Lonora's raises none (it reports in one
-    line).
+    Only the lead reaches another agent (``lead.reaches``); a team agent is refused
+    (``supervision_required``). No agent ever pauses the Personal Agent itself. Lonora
+    may pause a trading agent, since a paused agent still reduces its risk (4.7.1), and
+    its pause raises no card (it reports in one line). The branches below for a non-lead
+    supervisor (the money-standing refusal, lifting another supervisor's hold, the
+    supervisor's pause card) are no longer reached; they go with W-PAUSE's rewrite of
+    ``money_standing`` (14.3.7).
 
-    Resuming on its own initiative lifts only a hold this agent set on its own. With the
-    owner's message a supervisor lifts another supervisor's hold; Lonora never lifts a
-    pause it did not make (4.7.2). A pause made from the owner's message is the owner's
-    (``source='owner'``, the actor kept as holder). A pause the owner holds, the owner's
-    pause without a hold and the agent's own stay until they lift them. A watch the
-    agent cancelled itself while held stays cancelled; the resume only ends the hold.
+    Resuming on its own initiative lifts only a hold Lonora set on its own (4.7.2). A
+    pause made from the owner's message is the owner's (``source='owner'``, the actor kept
+    as holder). A pause the owner holds, the owner's pause without a hold and the agent's
+    own stay until they lift them. A watch the agent cancelled itself while held stays
+    cancelled; the resume only ends the hold.
     """
     owner_message = owner_message_id is not None
     if kind == "agent":
@@ -546,8 +306,8 @@ async def control_work(
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)
-    # Lonora steers every team agent by its built-in lead role; any other agent steers
-    # another only under a visible grant, whatever a message said.
+    # Lonora steers every team agent by its built-in lead role; no other agent steers
+    # another (3.3.1), whatever a message said.
     if not await reaches(session, owner_id, actor_id, agent.id):
         raise LonoraError("supervision_required", 403)
     item = agent.id if kind == "agent" else target_id

@@ -37,7 +37,6 @@ PSQL_VALUE = (
 TABLES = {
     "ln_trading_restrictions": "id text, v text",
     "ln_account_authorities": "id text, v text",
-    "ln_supervision_grants": "id text, v text",
     "ln_supervision_holds": "id text, v text",
     "ln_owner_actions": "id text, v text",
     "ln_trade_approvals": "id text, v text",

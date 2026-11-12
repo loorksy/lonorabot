@@ -17,7 +17,6 @@ from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
 from lonora_db.lead import LEAD_ROLE
 from lonora_db.schema import AgentRow, ThreadRow
-from lonora_db.supervision import supervised_ids
 from lonora_db.threads import thread_options
 from lonora_db.tool_usage import record_tool_use, remembered_tools
 from lonora_tools.base import EXPOSURE_PROFILES, ExposureProfile, ToolScope
@@ -29,23 +28,21 @@ log = logging.getLogger("lonora.tool_loop")
 EXPOSURE_VERSION = 1
 
 
-def run_profiles(
-    agent: AgentRow, task_run: bool, *, supervises: bool = False
-) -> list[ExposureProfile]:
+def run_profiles(agent: AgentRow, task_run: bool) -> list[ExposureProfile]:
     """``market`` for every agent (3.2.1: no template, role or scope makes one agent less
     capable); only a delegated helper gets ``research``.
 
     ``coordination`` (inspect and message other agents) for the Personal Agent, which
-    leads every team agent by its built-in role (``lonora_db.lead``), and for any agent
-    while it holds a supervision grant. A trading identity's Task Run leaves it out: its market and
-    task schemas fill the eager budget, and coordination stays one tool_call away.
+    leads every team agent by its built-in role (``lonora_db.lead``); no team agent leads
+    another (3.3.1). A trading identity's Task Run leaves it out: its market and task
+    schemas fill the eager budget, and coordination stays one tool_call away.
     """
     lead = agent.role == LEAD_ROLE
     # Same capabilities (mandate 3.2.1): every agent trades, bound to an account or not;
     # only a delegated helper (removed with child roles) keeps the research set.
     trading = agent.role != "delegated"
     profiles: list[ExposureProfile] = ["core", "market" if trading else "research"]
-    if (lead or supervises) and not (trading and task_run):
+    if lead and not (trading and task_run):
         profiles.append("coordination")
     if task_run:
         profiles.append("task")
@@ -96,11 +93,10 @@ async def ensure_exposure(
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         remembered = await remembered_tools(session, context.owner_id, context.agent_id)
-        supervising = bool(await supervised_ids(session, context.owner_id, context.agent_id))
         thread = await session.get(ThreadRow, context.thread_id)
         # The owner switched on web search for this chat (Q33): its schema is native.
         web_search = thread is not None and thread_options(thread).web_search
-    profiles = run_profiles(agent, task_run, supervises=supervising)
+    profiles = run_profiles(agent, task_run)
     unavailable = await registry.availability(context)
     native, promoted = registry.exposure(
         profiles, scope=scope, remembered=remembered, unavailable=unavailable

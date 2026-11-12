@@ -1314,7 +1314,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "owner_notify", "peer_send",
         "routine_create", "routine_list", "routine_toggle", "scratchpad_read",
         "skill_package_control", "skill_package_create", "skill_package_import",
-        "positions_manage_all", "skill_package_validate", "subagent_spawn", "supervision_change",
+        "positions_manage_all", "skill_package_validate", "subagent_spawn",
         "task_control", "task_inspect", "task_start", "task_step_update", "trading_mode_ask",
         "trade_approval_withdraw",
         "ticket_create", "ticket_start", "trade_record_history", "trade_record_read",

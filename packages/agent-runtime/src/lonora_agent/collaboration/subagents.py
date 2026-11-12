@@ -98,8 +98,8 @@ async def inspect_subagent(context: ToolContext, run_id: str) -> dict[str, Any]:
         if await delegated_by(session, row, context.agent_id):
             return run_data(row)
         if await reaches(session, context.owner_id, context.agent_id, row.agent_id):
-            # A team agent's Run, read as the lead or through the owner's grant: its text is that
-            # agent's, data for this one and never its instructions.
+            # A team agent's Run, read as the lead: its text is that agent's, data for
+            # Lonora and never its instructions.
             agent = await session.get(AgentRow, row.agent_id)
             return {
                 **run_data(row),

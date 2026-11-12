@@ -4125,31 +4125,7 @@ p.pad {
 .pop-opt.danger-opt strong {
   color: var(--red);
 }
-/* ---- Supervision, evidence chips, quick replies */
-.sup-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px auto 0;
-  padding: 5px 12px;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-}
-.sup-line svg {
-  width: 14px;
-  height: 14px;
-}
-.sup-line svg:last-child {
-  width: 12px;
-  height: 12px;
-}
-.hero .sup-line {
-  display: flex;
-  width: max-content;
-}
+/* ---- Evidence chips, quick replies */
 /* ---- Settings: capabilities, profile, reach */
 .badge.warn-b {
   color: var(--amber);

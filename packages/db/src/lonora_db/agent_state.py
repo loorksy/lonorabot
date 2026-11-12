@@ -66,7 +66,6 @@ DECISION_CARD_KINDS = frozenset(
         "resume_trading",
         "resolve_operation",
         "set_account_limits",
-        "supervise",
         "trust_source",
         "connect_credential",
         "agent_model",

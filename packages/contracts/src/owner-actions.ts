@@ -19,9 +19,6 @@ export type OwnerActionKind =
   | "grant_authority"
   | "agent_model"
   | "agent_model_changed"
-  | "supervise"
-  | "supervision_created"
-  | "supervision_stopped"
   | "supervision_paused"
   | "trust_source"
   | "connect_credential"
@@ -189,17 +186,13 @@ export type OwnerAction = {
     /** trading_mode: the agent the Mandate card switches. */
     agent?: OwnerActionAgent;
     /**
-     * supervise / supervision_created / supervision_stopped: who supervises whom;
      * supervision_paused: which supervisor paused which work of which agent. Names are
      * read on the server.
      */
     supervision?: {
       supervisor_name: string | null;
       supervised_names: string[];
-      /**
-       * supervision_created: a grant of this change is still in force; supervision_stopped:
-       * one can still be restored; supervision_paused: the pause still holds.
-       */
+      /** The pause still holds. */
       active: boolean;
       /** supervision_paused: what is paused, and that item's own short label. */
       target?: "agent" | "task" | "routine" | "watch";
@@ -261,10 +254,6 @@ export type OwnerAction = {
     agent_id?: string;
     agent_name?: string;
     undo?: "deleted" | "paused";
-    grant_ids?: string[];
-    supervisor_id?: string;
-    revoked?: number;
-    restored?: number;
     /** A grant card resumed new trading (true); supervision_paused: what was resumed. */
     resumed?: boolean | "agent" | "task" | "routine" | "watch";
     /** resume_trading: new trading had never been started, so the card started it. */

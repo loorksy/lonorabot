@@ -1,4 +1,4 @@
-"""Lonora's lead powers are built in (mandate 3.1.6, 14.3.15): no revoked grant ends them.
+"""Lonora's lead powers are built in (mandate 3.1.6, 14.3.15): they need no grant.
 
 Runs the real tools and owner routes against the test database (skipped without
 ``LONORA_DATABASE_URL``).
@@ -58,7 +58,7 @@ async def wake(fixture: Any, agent: dict[str, Any]) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked():
+async def test_lonora_reads_and_steers_a_team_agent_with_no_grant():
     database()
     from check_streaming import Fixture
     from lonora_db.personal_agent import ensure_personal_agent
@@ -87,16 +87,6 @@ async def test_lonora_reads_and_steers_a_team_agent_after_its_grant_is_revoked()
             assert memory is not None
             memory.content = "# MEMORY.md\n- " + SENTINEL + " spreads widen at the open\n"
         gold_run = await fixture.run(gold, gold_thread)
-
-        # The owner revokes Lonora's default grant over Gold: the lead role remains.
-        view = await fixture.request("GET", f"/supervision?agent_id={gold['id']}")
-        (default,) = [
-            item for item in view["supervised_by"] if item["supervisor"]["id"] == lonora["id"]
-        ]
-        assert default["created_via"] == "default"
-        await fixture.request("POST", f"/supervision/{default['id']}/revoke")
-        view = await fixture.request("GET", f"/supervision?agent_id={gold['id']}")
-        assert view["supervised_by"] == []
 
         lead = await wake(fixture, lonora)
         found = await call(lead, "session_search", query=SENTINEL)
@@ -148,7 +138,6 @@ async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
     from check_streaming import Fixture
     from lonora_db.personal_agent import ensure_personal_agent
     from lonora_db.schema import OwnerActionRow, RunRow
-    from lonora_db.supervision import grant_supervision
     from lonora_db.trading_mode import set_trading_mode, trading_mode
     from sqlalchemy import select
 
@@ -212,15 +201,10 @@ async def test_lonora_cancels_a_run_switches_to_ask_and_pauses_without_a_card():
 
         # A team agent leads no one (3.2.2): Lonora's powers are refused to it.
         team = await wake(fixture, peer)
-        silver = await fixture.agent("Silver")
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await grant_supervision(
-                session, fixture.owner, peer["id"], silver["id"], via="owner_message"
-            )
-        # A granted supervisor's pause still raises its card; the one-line rule is Lonora's.
-        other = await call(team, "agent_control", agent_id=silver["id"], action="pause")
-        assert other["changed"] is True and "owner_line" not in other
-        assert await pause_cards() == cards + 1
+        assert (
+            await refused(team, "agent_control", agent_id=gold["id"], action="resume")
+            == "supervision_required"
+        )
         for action in ("cancel_run", "set_ask"):
             assert (
                 await refused(team, "agent_control", agent_id=gold["id"], action=action)

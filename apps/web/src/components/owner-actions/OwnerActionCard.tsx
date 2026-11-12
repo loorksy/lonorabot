@@ -472,12 +472,7 @@ export function OwnerActionCard({
 }
 
 /** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
-const NOTICE_KINDS = new Set<string>([
-  "agent_model_changed",
-  "supervision_created",
-  "watch_changed",
-  "stop_tightened",
-]);
+const NOTICE_KINDS = new Set<string>(["agent_model_changed", "watch_changed", "stop_tightened"]);
 const KIND_ICON: Partial<Record<string, IconName>> = {
   grant_authority: "shield",
   set_account_limits: "scale",
@@ -486,9 +481,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   resume_trading: "power",
   agent_model: "cpu",
   agent_model_changed: "cpu",
-  supervise: "eye",
-  supervision_created: "eye",
-  supervision_stopped: "eye",
   supervision_paused: "pause",
   trust_source: "shield",
   connect_credential: "key",

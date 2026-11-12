@@ -5,9 +5,8 @@ authority. When the run was started by the owner's message, the restriction reco
 that message as its source. Revocation is an owner-session action (API), deliberately
 absent here.
 
-Narrowing another agent needs a run that answers the owner's message, or a supervision
-grant over that agent (over every agent, for all agents; ``lonora_db.supervision``), and
-passes the cycle rule: an agent never narrows one that holds an active pause over it
+Narrowing another agent needs a run that answers the owner's message (no agent holds a
+supervision grant, 3.3.3), and passes the cycle rule: an agent never narrows one that holds an active pause over it
 unless the owner asks. ``all_mutations`` on another agent or on all agents always needs
 the owner's message: on its own initiative an agent may freeze only itself. Whatever its class, a restriction an agent
 records never blocks a risk-reducing exit (``lonora_trading.restrictions``): its scope
@@ -36,7 +35,7 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from lonora_db.supervision import check_cycle, record_intervention, supervises, supervises_all
+from lonora_db.supervision import check_cycle, record_intervention
 from lonora_db.trading_restrictions import (
     create_restriction,
     list_restrictions,
@@ -159,14 +158,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             # Freezing other agents also blocks their protective exits: the owner asks.
             raise LonoraError("restriction_all_mutations_requires_owner_message", 403)
         if not replayed and scoped_agent != context.agent_id:
-            # Narrowing another agent needs the owner's message in this run or a
-            # supervision grant over it (over every agent, for all agents); and an agent
-            # never narrows one that holds an active pause over it, unless the owner asks.
-            if message_id is None and not (
-                await supervises_all(session, context.owner_id, context.agent_id)
-                if scoped_agent is None
-                else await supervises(session, context.owner_id, context.agent_id, scoped_agent)
-            ):
+            # Narrowing another agent needs the owner's message in this run (supervision
+            # grants are gone, 3.3.3); and an agent never narrows one that holds an active
+            # pause over it, unless the owner asks.
+            if message_id is None:
                 raise LonoraError("restriction_supervision_required", 403)
             await check_cycle(
                 session,
@@ -295,8 +290,8 @@ def tools() -> list[Tool]:
             "cancellations or tighter stops; only the owner's own freeze does. Scope: account "
             "(default your bound account); symbol (the broker must list it; your home market "
             "by default on your home account) or all_symbols for every symbol on the account "
-            "(not for a market-bound agent); yourself by default, another agent_id (one you "
-            "supervise, or when the owner's message asked) or all_agents. Set valid_until for a time-limited instruction such as 'today' (end "
+            "(not for a market-bound agent); yourself by default, another agent_id (only "
+            "when the owner's message asked) or all_agents. Set valid_until for a time-limited instruction such as 'today' (end "
             "of the owner's day, timezone-aware); it is required, within 31 days, for another "
             "agent or all agents, and may be omitted only for an open-ended one on yourself. "
             "It only narrows: watches and analysis continue, existing positions and pending "

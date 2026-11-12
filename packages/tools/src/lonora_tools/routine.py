@@ -103,7 +103,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         if row.agent_id != context.agent_id:
             raise LonoraError("routine_not_found", 404)
         if args["enabled"]:
-            # A routine a supervisor paused stays paused until it or the owner resumes it.
+            # A routine Lonora paused stays paused until it or the owner resumes it.
             await refuse_held(
                 session,
                 context.owner_id,
@@ -119,7 +119,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def supervised_toggle(
     context: ToolContext, session: AsyncSession, found: RoutineRow, enabled: bool
 ) -> dict[str, Any]:
-    """A supervised agent's routine follows the supervision rules; any other agent's
+    """A team agent's routine follows Lonora's lead rules (``control_work``); any other agent's
     routine reads as not found. Cards, then the work, then the Run: the lock order the
     owner's card decision and message admission take."""
     if not await reaches(session, context.owner_id, context.agent_id, found.agent_id):
@@ -152,7 +152,7 @@ def tools() -> list[Tool]:
         Tool("routine_list", "Read scheduled work for this agent.", Empty, read, True),
         Tool(
             "routine_toggle",
-            "Pause or resume one of your own routines, or one of an agent you supervise.",
+            "Pause or resume one of your own routines, or (Lonora) one of a team agent.",
             RoutineToggle,
             toggle,
             search_terms="stop disable schedule scheduled حذف احذف امسح مسح ألغ ألغِ الغ إلغاء الغاء أوقف وقف ايقاف إيقاف شيل ازل أزل إزالة جدول الجدول مجدول المجدولة روتين الروتين",

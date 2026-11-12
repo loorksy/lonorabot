@@ -4,7 +4,6 @@ import {
   financialBoundaryError,
   ownerActionError,
   ownerProfileError,
-  supervisionError,
 } from "@lonora/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
@@ -169,8 +168,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Profile, reach-me and memory errors: the same shared text as the Web.
       const profileMessage = ownerProfileError(error.code, locale);
       if (profileMessage) return profileMessage;
-      const supervisionMessage = supervisionError(error.code, locale);
-      if (supervisionMessage) return supervisionMessage;
       return Object.hasOwn(labels, error.code)
         ? translate(locale, error.code as Label)
         : t("request_failed");

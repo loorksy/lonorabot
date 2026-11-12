@@ -56,7 +56,7 @@ def tools() -> list[Tool]:
         Tool(
             "subagent_inspect",
             "Inspect the state and outcome of a run this Agent delegated (its subagents, peer "
-            "or collaboration requests it sent) or of an agent it supervises. Other Agents' "
+            "or collaboration requests it sent) or (Lonora) of a team agent. Other Agents' "
             "runs are run_not_found.",
             InspectInput,
             inspect,

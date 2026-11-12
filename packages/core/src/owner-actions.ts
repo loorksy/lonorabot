@@ -197,24 +197,6 @@ export const ownerActionLabels = {
     kept: "Kept.",
     agentRemoved: "This agent was already removed.",
     connectionChanged: "The broker account changed. Nothing changed.",
-    supervises: "Supervises",
-    superviseTitle: "Let it supervise?",
-    supervisionTitle: "Supervision set",
-    supervisor: "Supervisor",
-    allow: "Allow",
-    supervisionHint:
-      "It reads their work and memory, messages them and can pause or resume their work. It never trades for them, never uses their grant and never lifts your brakes.",
-    supervisionUndoHint: "Undo stops it at once.",
-    supervisionSet: "Supervision set.",
-    supervisionUndone: "Undone: supervision stopped.",
-    supervisionKept: "Kept.",
-    supervisionEnded: "This supervision already ended.",
-    supervisionAlreadySet: "This supervision is already set. Nothing changed.",
-    supervisionAgentMissing: "One of these agents no longer exists. Nothing changed.",
-    stoppedTitle: "Supervision stopped",
-    restore: "Restore",
-    stoppedHint: "It no longer reads, messages or pauses their work. Restore sets it again.",
-    restored: "Restored: supervision set again.",
     pauseTitle: "Paused by a supervisor",
     pausedBy: "Paused by",
     pausedWhat: "What",
@@ -460,24 +442,6 @@ export const ownerActionLabels = {
     kept: "أُبقي الوكيل.",
     agentRemoved: "أُزيل هذا الوكيل مسبقًا.",
     connectionChanged: "تغيّر حساب الوسيط. لم يتغير شيء.",
-    supervises: "يشرف على",
-    superviseTitle: "السماح له بالإشراف؟",
-    supervisionTitle: "تم تعيين الإشراف",
-    supervisor: "المشرف",
-    allow: "السماح",
-    supervisionHint:
-      "يقرأ عملهم وذاكرتهم ويراسلهم ويستطيع إيقاف عملهم أو استئنافه. لا يتداول عنهم أبدًا ولا يستخدم تفويضهم ولا يرفع فراملك.",
-    supervisionUndoHint: "التراجع يوقفه فورًا.",
-    supervisionSet: "تم تعيين الإشراف.",
-    supervisionUndone: "تم التراجع: توقف الإشراف.",
-    supervisionKept: "أُبقي.",
-    supervisionEnded: "انتهى هذا الإشراف مسبقًا.",
-    supervisionAlreadySet: "هذا الإشراف معيّن مسبقًا. لم يتغير شيء.",
-    supervisionAgentMissing: "أحد هؤلاء الوكلاء لم يعد موجودًا. لم يتغير شيء.",
-    stoppedTitle: "توقف الإشراف",
-    restore: "استعادة",
-    stoppedHint: "لم يعد يقرأ عملهم أو يراسلهم أو يوقفه. الاستعادة تعيده.",
-    restored: "تمت الاستعادة: عاد الإشراف.",
     pauseTitle: "أوقفه مشرف مؤقتًا",
     pausedBy: "أوقفه",
     pausedWhat: "ما أُوقف",
@@ -653,11 +617,9 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
   if (card.status === "cancelled")
     return card.kind === "watch_changed"
       ? text.kept
-      : card.kind === "supervision_created" || card.kind === "supervision_stopped"
-        ? text.supervisionKept
-        : card.kind === "supervision_paused"
-          ? text.keptPaused
-          : text.cancelled;
+      : card.kind === "supervision_paused"
+        ? text.keptPaused
+        : text.cancelled;
   if (card.status === "confirmed") {
     switch (card.kind) {
       case "trading_mode":
@@ -673,12 +635,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
           ? `${signed} ${fill(text.stoppedOthers, { agents: stopped.map(isolate).join(listSeparator(lang)) })}`
           : signed;
       }
-      case "supervise":
-        return text.supervisionSet;
-      case "supervision_created":
-        return text.supervisionUndone;
-      case "supervision_stopped":
-        return text.restored;
       case "supervision_paused":
         return text.resumedWork;
       case "resume_trading":
@@ -727,12 +683,6 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       return text.agentRemoved;
     case "broker_connection_changed":
       return text.connectionChanged;
-    case "supervision_ended":
-      return text.supervisionEnded;
-    case "supervision_already_set":
-      return text.supervisionAlreadySet;
-    case "supervision_agent_missing":
-      return text.supervisionAgentMissing;
     case "supervision_pause_ended":
       return text.alreadyEnded;
     case "watch_expired":
@@ -1072,18 +1022,6 @@ export function ownerActionChoices(
 /** Agent names, each isolated, joined with the language's list comma. */
 function nameList(names: string[], lang: Language): string {
   return names.map(isolate).join(listSeparator(lang));
-}
-
-/** A supervision card's lines: the supervisor and the agents it supervises. */
-function supervisionLines(card: OwnerAction, lang: Language, text: OwnerActionText): string[] {
-  const supervision = card.facts.supervision;
-  if (!supervision) return [];
-  const lines: string[] = [];
-  if (supervision.supervisor_name)
-    lines.push(`${text.supervisor}: ${isolate(supervision.supervisor_name)}`);
-  if (supervision.supervised_names.length)
-    lines.push(`${text.supervises}: ${nameList(supervision.supervised_names, lang)}`);
-  return lines;
 }
 
 const TARGET_LABEL = {
@@ -1471,45 +1409,6 @@ export function ownerActionCard(
         );
       break;
     }
-    case "supervise": {
-      title = text.superviseTitle;
-      lines.push(...supervisionLines(card, lang, text));
-      hint = text.supervisionHint;
-      buttons = pair(text.allow, text.notNow);
-      break;
-    }
-    case "supervision_created": {
-      title = text.supervisionTitle;
-      lines.push(...supervisionLines(card, lang, text));
-      if (!card.facts.supervision?.active) {
-        // Revoked elsewhere (the profile): the card can only be dismissed.
-        hint = text.supervisionEnded;
-        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
-        break;
-      }
-      hint = `${text.supervisionHint} ${text.supervisionUndoHint}`;
-      buttons = [
-        { key: "confirm", label: text.undo, decision: "confirm", primary: false },
-        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
-      ];
-      break;
-    }
-    case "supervision_stopped": {
-      title = text.stoppedTitle;
-      lines.push(...supervisionLines(card, lang, text));
-      if (!card.facts.supervision?.active) {
-        // Set again elsewhere (the profile, a card): the card can only be dismissed.
-        hint = text.supervisionAlreadySet;
-        buttons = [{ key: "cancel", label: text.keep, decision: "cancel", primary: false }];
-        break;
-      }
-      hint = text.stoppedHint;
-      buttons = [
-        { key: "confirm", label: text.restore, decision: "confirm", primary: false },
-        { key: "cancel", label: text.keep, decision: "cancel", primary: false },
-      ];
-      break;
-    }
     case "supervision_paused": {
       title = text.pauseTitle;
       lines.push(...pauseLines(card, text));
@@ -1779,11 +1678,7 @@ export function ownerActionError(code: string | null | undefined, locale: string
 }
 
 // The notices whose «تراجع» is their confirm decision; the others (stop_tightened) are records.
-const UNDOABLE_NOTICES = new Set<string>([
-  "agent_model_changed",
-  "supervision_created",
-  "watch_changed",
-]);
+const UNDOABLE_NOTICES = new Set<string>(["agent_model_changed", "watch_changed"]);
 
 /** A settled notice reads «تم التراجع» only when its confirm was the owner's Undo (Q31); a
     settled stop_tightened record was applied, never undone. */

@@ -167,4 +167,4 @@ Delivery is in-app only until Wave 3. See
   paused Agent is not woken when it resumes.
 - Off-app delivery of Agent alerts (push, messaging channels) arrives in Wave 3.
 - Supervision (W15-6, `docs/supervision.md`): the Personal Agent reads other Agents'
-  runs and memory by its lead role, whatever its grant, on demand.
+  runs and memory by its lead role, on demand; no team agent does.

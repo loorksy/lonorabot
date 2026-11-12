@@ -56,7 +56,7 @@ class TextParser(HTMLParser):
 async def agent_search(db: Database, owner_id: str, agent_id: str, query: str) -> dict[str, Any]:
     """Literal search limited to this Agent's own memory and the threads it takes
     part in (its own and its subagents' threads, and groups it is a member of), plus
-    the memory and threads of the agents it supervises, each labelled with that agent
+    the memory and threads of every team agent for Lonora, each labelled with that agent
     and as untrusted."""
     async with db.sessions() as session:
         scope = await history_scope(session, owner_id, agent_id)
@@ -315,7 +315,7 @@ def tools() -> list[Tool]:
         Tool(
             "search_internal",
             "Find a literal text substring in agent names, this Agent's own memory and the "
-            "conversations it takes part in, and those of agents it supervises. Prefer session_search for ranked history with "
+            "conversations it takes part in, and (Lonora) every team agent's. Prefer session_search for ranked history with "
             "sequence numbers. An empty result means no text match, not that the team is "
             "empty. Use list_agents to discover colleagues.",
             SearchInput,

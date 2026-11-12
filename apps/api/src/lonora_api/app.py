@@ -69,7 +69,6 @@ ROUTES = (
     "execution_policy",
     "trading_restrictions",
     "owner_actions",
-    "supervision",
     "tasks",
     "collaboration",
     "watches",

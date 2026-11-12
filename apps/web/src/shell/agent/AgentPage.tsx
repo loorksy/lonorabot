@@ -1,7 +1,7 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { PermissionState, SupervisionView, TradingReadiness } from "@lonora/contracts";
+import type { PermissionState, TradingReadiness } from "@lonora/contracts";
 import { isolate, tradingReadinessLine } from "@lonora/core";
 import { Icon, type IconName, PairIcon } from "@lonora/ui-web";
 import { type ReactNode, useState } from "react";
@@ -90,9 +90,9 @@ function modeLine(
   }
 }
 
-/* «معلومات الوكيل» (route agent): hero, the rows to its pages, trading and safety, watches,
-   supervision and the on/off button. Everything is the server's: the level from
-   /permissions, the readiness and watches from /state, supervision from /supervision. */
+/* «معلومات الوكيل» (route agent): hero, the rows to its pages, trading and safety, watches
+   and the on/off button. Everything is the server's: the level from /permissions, the
+   readiness and watches from /state. */
 export function AgentPage({ agentId }: { agentId: string }) {
   const data = useShellData();
   const { agent, missing } = usePageAgent(agentId, data.agents, data.agentsLoading);
@@ -122,9 +122,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
     delegated ? `/agents/${encodeURIComponent(agent.id)}/permissions` : null,
   );
   const live = useAgentLiveState(agent.id).state;
-  const supervision = useRead<SupervisionView>(
-    agent.role === "delegated" ? null : `/supervision?agent_id=${encodeURIComponent(agent.id)}`,
-  );
   const connections = useRead<Resource[]>("/trading/connections");
   const voice = useRead<{ transport_configured: boolean }>("/voice/status");
   const watches = useRead<Resource[]>(
@@ -133,12 +130,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const [busy, setBusy] = useState(false);
   const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
-  // Lonora supervises every agent by default: the line names a chosen supervisor first.
-  const personalId = data.agents.find((row) => row.role === "personal")?.id;
-  const supervisors = supervision.value?.supervised_by ?? [];
-  const supervisor = (
-    supervisors.find((grant) => grant.supervisor.id !== personalId) ?? supervisors[0]
-  )?.supervisor;
   const go = (path: string) => nav.go(path);
   const q = `?agent=${encodeURIComponent(agent.id)}`;
 
@@ -241,19 +232,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
             <Icon name={levelIcon[level]} />
             {levelLabel(level)}
           </span>
-        )}
-        {supervisor && (
-          <button
-            type="button"
-            className="sup-line"
-            onClick={() => go(`/app/agent/${supervisor.id}`)}
-          >
-            <Icon name="eye" />
-            <span>
-              <Trans>Supervised by {isolate(supervisor.name ?? "")}</Trans>
-            </span>
-            <Icon name="chev" />
-          </button>
         )}
         <div className="hero-actions">
           <button type="button" onClick={() => go(`/app/${agent.id}`)}>
@@ -418,17 +396,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           )}
         </>
       )}
-      {agent.role !== "delegated" && (
-        <SupervisionSection
-          agent={agent}
-          view={supervision.value}
-          error={supervision.error}
-          onChange={() => {
-            supervision.reload();
-            refresh();
-          }}
-        />
-      )}
       <p className="note">
         {delegated
           ? t`Permissions are changed from the chip beside the message field in the chat. Services are linked from Settings → Integrations.`
@@ -445,198 +412,6 @@ function AgentPageBody({ agent }: { agent: Agent }) {
           {agent.paused ? <Trans>Turn the agent on</Trans> : <Trans>Stop the agent</Trans>}
         </button>
       )}
-    </>
-  );
-}
-
-/* «يشرف على»: the agents this one supervises, «إزالة», and the picker sheet. A grant is
-   never money authority (docs/supervision.md). */
-function SupervisionSection({
-  agent,
-  view,
-  error,
-  onChange,
-}: {
-  agent: Agent;
-  view: SupervisionView | undefined;
-  error: unknown;
-  onChange: () => void;
-}) {
-  const data = useShellData();
-  const sheets = useSheets();
-  const toast = useToast();
-  if (!view)
-    return (
-      <>
-        <h3>
-          <Trans>Supervises</Trans>
-        </h3>
-        {error != null ? (
-          <p role="alert">{userError(error)}</p>
-        ) : (
-          <SkPage>
-            <SkRows count={1} />
-          </SkPage>
-        )}
-      </>
-    );
-  const supervised = new Set(view.supervises.map((grant) => grant.supervised.id));
-  const candidates = data.agents.filter(
-    (row) => row.id !== agent.id && row.role !== "delegated" && !supervised.has(row.id),
-  );
-  const revoke = async (grantId: string) => {
-    try {
-      await api.post(`/supervision/${grantId}/revoke`, {});
-      onChange();
-    } catch (failure) {
-      toast(userError(failure), { type: "error" });
-    }
-  };
-  const openPicker = () =>
-    sheets.open({
-      id: "sup",
-      title: t`Supervision · ${agent.name}`,
-      body: scoped(
-        <SupervisionPicker
-          agent={agent}
-          candidates={candidates}
-          onError={(failure) => toast(userError(failure), { type: "error" })}
-          onSaved={() => {
-            sheets.close();
-            onChange();
-          }}
-        />,
-      ),
-    });
-  return (
-    <>
-      <h3>
-        <Trans>Supervises</Trans>
-      </h3>
-      {view.supervises.length ? (
-        <div className="group">
-          {view.supervises.map((grant) => {
-            const row = data.agents.find((item) => item.id === grant.supervised.id);
-            return (
-              <div className="row" key={grant.id}>
-                {row ? (
-                  <AgentAvatar agent={row} />
-                ) : (
-                  <span className="avatar icon-av">
-                    <Icon name="bot" />
-                  </span>
-                )}
-                <span className="body">
-                  <strong>
-                    <bdi>{grant.supervised.name ?? row?.name ?? ""}</bdi>
-                  </strong>
-                  <small>
-                    <bdi>{row ? agentRole(row) : ""}</bdi>
-                  </small>
-                </span>
-                <button
-                  type="button"
-                  className="btn sm outline"
-                  onClick={() => void revoke(grant.id)}
-                >
-                  <Trans>Remove</Trans>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="pad muted small">
-          <Trans>It does not supervise any agent now.</Trans>
-        </p>
-      )}
-      {candidates.length > 0 && (
-        <button type="button" className="btn full outline" onClick={openPicker}>
-          <Trans>Add agents to supervise</Trans>
-        </button>
-      )}
-    </>
-  );
-}
-
-function SupervisionPicker({
-  agent,
-  candidates,
-  onSaved,
-  onError,
-}: {
-  agent: Agent;
-  candidates: Agent[];
-  onSaved: () => void;
-  /** Sheets render outside the toast provider: the page reports for them. */
-  onError: (failure: unknown) => void;
-}) {
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    if (!picked.size || busy) return;
-    setBusy(true);
-    try {
-      for (const id of picked)
-        await api.post("/supervision", { supervisor_id: agent.id, supervised_id: id });
-      onSaved();
-    } catch (failure) {
-      onError(failure);
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <p className="muted">
-        <Trans>
-          {isolate(agent.name)} follows the work of the chosen agents and answers you about it with
-          evidence. This gives it no execution authority.
-        </Trans>
-      </p>
-      <div className="group">
-        {candidates.map((row) => {
-          const on = picked.has(row.id);
-          return (
-            // biome-ignore lint/a11y/useSemanticElements: a whole row toggles, as in the reference
-            <button
-              type="button"
-              key={row.id}
-              className={`row reach-opt${on ? " on" : ""}`}
-              role="checkbox"
-              aria-checked={on}
-              onClick={() =>
-                setPicked((old) => {
-                  const next = new Set(old);
-                  if (on) next.delete(row.id);
-                  else next.add(row.id);
-                  return next;
-                })
-              }
-            >
-              <AgentAvatar agent={row} />
-              <span className="body">
-                <strong>
-                  <bdi>{row.name}</bdi>
-                </strong>
-                <small>
-                  <bdi>{agentRole(row)}</bdi>
-                </small>
-              </span>
-              <span className={`pick-box${on ? " on" : ""}`} aria-hidden="true">
-                {on && <Icon name="check" />}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        className={`btn full primary${picked.size ? "" : " is-off"}`}
-        disabled={!picked.size || busy}
-        onClick={() => void save()}
-      >
-        <Trans>Add</Trans>
-      </button>
     </>
   );
 }

@@ -18,8 +18,7 @@ DEFAULT_MUTATION_TIMEOUT_SECONDS = 90.0
 # Exposure profiles name the working sets a Run receives as native schemas from
 # its first model turn. "core" applies to every Run; an agent bound to a broker
 # account and the owner's Personal Agent add "market", every other agent
-# "research"; a supervisor (the Personal Agent, and any agent while it holds a
-# supervision grant) adds "coordination"; durable Task Runs add "task". Exposure is
+# "research"; the lead (the Personal Agent, 3.3.1) adds "coordination"; durable Task Runs add "task". Exposure is
 # presentation only: execution validates every boundary whatever was exposed, and
 # any registered tool stays reachable via tool_call.
 ExposureProfile = Literal["core", "market", "research", "coordination", "task"]

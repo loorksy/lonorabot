@@ -332,7 +332,7 @@ wrote (including a half-applied migration) survives.
 undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
-on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
+on its own) of `ln_trading_restrictions`, `ln_account_authorities`,
 `ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the
 `trading…` rows of `ln_settings`, paused agents, the broker connections' enabled flags, paused or
 cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and

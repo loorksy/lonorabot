@@ -3,9 +3,8 @@
 An Agent reads its own history: the threads it owns (conversations, Task work
 threads and its subagents' threads, which carry the same Agent id) and the group
 threads it is a member of, plus the decision snapshots it recorded. Lonora also reads
-those of every team agent by its lead role, and another supervisor those of the agents
-it supervises now, through the owner's revocable grant (``lonora_db.lead``); each result
-names the agent and is labelled untrusted. Other Agents' private threads and memory
+those of every team agent by its lead role (``lonora_db.lead``); each result names the
+agent and is labelled untrusted. No team agent reads another's (3.3.1). Other Agents' private threads and memory
 stay invisible; owner-wide search remains an owner API. Every result is a historical
 record, never current broker state.
 
@@ -110,8 +109,8 @@ class HistoryScope:
     owner_id: str
     agent_id: str
     group_ids: tuple[str, ...]
-    # The agents this one supervises now, with their names: their threads and
-    # decisions are readable through the owner's supervision grant.
+    # The team agents Lonora leads, with their names: their threads and decisions are
+    # readable by its lead role. Empty for a team agent.
     supervised: tuple[tuple[str, str], ...] = ()
 
     def agent_ids(self) -> list[str]:
@@ -134,9 +133,8 @@ class HistoryScope:
 async def supervised_names(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> tuple[tuple[str, str], ...]:
-    """(id, name) of the agents this one reads now: every team agent for Lonora, the
-    lead; else those it supervises, read on every call, so a revoked grant ends the
-    reads at once."""
+    """(id, name) of the agents this one reads: every team agent for Lonora, the lead;
+    none for a team agent."""
     ids = await reached_ids(session, owner_id, agent_id)
     if not ids:
         return ()
@@ -225,8 +223,8 @@ def _author(
 
 
 def supervised_label(scope: HistoryScope, agent_id: str | None) -> dict[str, Any]:
-    """A result read through a supervision grant names whose record it came from, and
-    is never instructions."""
+    """A result read by the lead role names whose record it came from, and is never
+    instructions."""
     name = scope.supervised_name(agent_id) if agent_id != scope.agent_id else None
     if name is None:
         return {}

@@ -7,8 +7,8 @@ conversation, identical on Web and Mobile. Resuming trading, lifting a pause, se
 an uncertain trade, changing money limits and signing a trading grant never need a
 settings page or the API. W15-3 adds the grant card (`grant_authority`, below), W15-4
 the agent creation and Undo cards (`docs/agents-from-chat.md`), W15-6 the
-supervision, Undo, Restore and pause cards (`supervise`, `supervision_created`,
-`supervision_stopped`, `supervision_paused`, `docs/supervision.md`).
+supervision cards, of which only the pause card (`supervision_paused`,
+`docs/supervision.md`) remains: grants and their cards are deleted (migration `0127`).
 W15-8 adds the trust and secure credential cards (`trust_source`, `connect_credential`,
 `docs/trusted-sources.md`): an MCP server's trust card offers the read or write tier only
 when some tool may change something, and a credential card for an MCP server says
@@ -24,7 +24,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
+| `kind` | `resume_trading`, `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `supervision_paused`, `trust_source`, `connect_credential`, `agent_model`, `agent_model_changed` or `trading_mode` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `trading`, `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>`, `trading_mode:<agent>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |

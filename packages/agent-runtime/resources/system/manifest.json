@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "435a5d777575fd5a94c35c2f481eb998e122ee72bdf739d205376b1ed2647ea9",
+  "manual_sha256": "b4dba3d75232090c4a42ee24c16058910de1852d8dfb4dcb385c70ef98d8b097",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "MEMORY.md": "740ebb142ee500336aa2169349f30b2ebf0fe3cee90bc281e2d8fa899877f361",
@@ -123,7 +123,6 @@
     "collaboration_finish": "collaboration",
     "agent_inspect": "collaboration",
     "agent_control": "collaboration",
-    "supervision_change": "collaboration",
     "owner_attention_list": "voice",
     "owner_notify": "voice",
     "owner_call_request": "voice",

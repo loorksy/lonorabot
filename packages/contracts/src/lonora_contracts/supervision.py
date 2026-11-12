@@ -1,9 +1,8 @@
-"""Supervision: one agent reads and steers another's work through a visible grant.
+"""Lonora's lead tools (agent_inspect, agent_control): read and steer team agents.
 
-A grant never carries money authority: the supervisor reads, messages, pauses and
-resumes the supervised agent's work and adds narrowing pauses, and never trades for it,
-uses its grant or lifts a brake. The Personal Agent supervises every agent by default;
-the owner revokes any grant with one tap.
+No team agent reads or steers another, and no control carries money authority: Lonora
+reads, messages, pauses and resumes a team agent's work, cancels its current run, switches
+it to Ask or deletes it, and never trades for it or lifts a brake (3.1.2, 3.3.1).
 """
 
 from typing import Literal, Self
@@ -13,16 +12,9 @@ from pydantic import Field, model_validator
 from .domain import Contract
 
 InspectSection = Literal["overview", "work", "runs", "decisions", "operations", "memory"]
-# cancel_run and set_ask are Lonora's alone (mandate 3.1.2, 4.2.2).
+# Every action is Lonora's alone (mandate 3.1.2, 3.3.1).
 ControlAction = Literal["pause", "resume", "message", "cancel_run", "set_ask", "delete"]
 ControlTarget = Literal["agent", "task", "routine", "watch"]
-
-
-class SupervisionCreate(Contract):
-    """The owner's own grant from the profile (one tap; supervision is never money)."""
-
-    supervisor_id: str = Field(min_length=1, max_length=36)
-    supervised_id: str = Field(min_length=1, max_length=36)
 
 
 class AgentInspectInput(Contract):
@@ -49,20 +41,4 @@ class AgentControlInput(Contract):
             raise ValueError("agent_control_fields_invalid")
         if (self.target == "agent") != (self.target_id is None):
             raise ValueError("agent_control_fields_invalid")
-        return self
-
-
-class SupervisionChange(Contract):
-    """The supervision tool input: who supervises whom, from the owner's message."""
-
-    action: Literal["grant", "revoke"]
-    supervisor_id: str | None = Field(
-        default=None, min_length=1, max_length=36, description="Default: yourself."
-    )
-    supervised_ids: list[str] = Field(min_length=1, max_length=10)
-
-    @model_validator(mode="after")
-    def distinct(self) -> Self:
-        if len(set(self.supervised_ids)) != len(self.supervised_ids):
-            raise ValueError("supervision_duplicate")
         return self

@@ -1075,55 +1075,6 @@ class OwnerActionRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
-class SupervisionGrantRow(Base):
-    """One agent may read and steer another's work: visible, revocable, never money.
-
-    The Personal Agent holds a ``default`` grant over every agent; the owner revokes any
-    grant with one tap. A grant lets the supervisor read the supervised agent's threads,
-    runs, memory and records, message it, pause or resume its work and add narrowing
-    pauses. It never trades for it, never uses its grant and never lifts a brake.
-    """
-
-    __tablename__ = "ln_supervision_grants"
-    __table_args__ = (
-        CheckConstraint(
-            "created_via IN ('default','owner_ui','owner_message','owner_card')",
-            name="ln_supervision_grant_created_via",
-        ),
-        CheckConstraint(
-            "revoked_via IS NULL OR revoked_via IN ('owner_ui','owner_card','owner_message')",
-            name="ln_supervision_grant_revoked_via",
-        ),
-        CheckConstraint(
-            "supervisor_agent_id <> supervised_agent_id", name="ln_supervision_grant_distinct"
-        ),
-        Index("ln_supervision_grant_supervisor", "owner_id", "supervisor_agent_id", "revoked_at"),
-        Index("ln_supervision_grant_supervised", "owner_id", "supervised_agent_id", "revoked_at"),
-        # One active grant per pair; a revoked one stays as the record of what was allowed.
-        Index(
-            "ln_supervision_grant_active_pair",
-            "supervisor_agent_id",
-            "supervised_agent_id",
-            unique=True,
-            postgresql_where=text("revoked_at IS NULL"),
-            sqlite_where=text("revoked_at IS NULL"),
-        ),
-    )
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
-    supervisor_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
-    supervised_agent_id: Mapped[str] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
-    created_via: Mapped[str] = mapped_column(String(16))
-    source_message_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_messages.id", ondelete="SET NULL")
-    )
-    # The agent whose tool call or card recorded it; a value, never cascaded away.
-    created_by_agent_id: Mapped[str | None] = mapped_column(String(36))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_via: Mapped[str | None] = mapped_column(String(16))
-
-
 class SupervisionHoldRow(Base):
     """A pause on an agent's work (the agent itself, one of its Tasks, routines or
     watches), put there by a supervising agent or by the owner. On its own initiative

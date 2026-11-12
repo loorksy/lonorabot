@@ -78,7 +78,6 @@ from lonora_db.owner_actions import (
     owner_action_data,
     proposed_limits,
     raise_review_card,
-    raise_supervision_card,
     renew_card,
     review_card_wanted,
     settle,
@@ -89,11 +88,6 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.pauses import owner_resumes
 from lonora_db.schema import McpConnectionRow, OwnerActionRow, TradingJournalRow
-from lonora_db.supervision import (
-    grant_supervision,
-    owned_grant,
-    revoke_supervision,
-)
 from lonora_db.threads import conversation_thread
 from lonora_db.trading_mode import set_trading_mode
 from lonora_db.trading_readiness import risk_limit_frame
@@ -426,14 +420,6 @@ async def decide(
             raise LonoraError("owner_action_passkey_required", 403)
         result = await confirm_grant(session, rt, owner, row, body)
         via = "passkey"
-    elif row.kind == "supervise":
-        granted = await supervise_from_card(session, owner, row)
-        result = {"grant_ids": granted, "supervisor_id": row.payload["supervisor_id"]}
-    elif row.kind == "supervision_created":
-        revoked = await undo_supervision(session, owner, row)
-        result = {"revoked": revoked}
-    elif row.kind == "supervision_stopped":
-        result = {"restored": await restore_supervision(session, owner, row)}
     elif row.kind == "supervision_paused":
         result = {"resumed": await owner_resumes(session, owner.id, row.payload["hold_id"])}
     elif row.kind == "watch_changed":
@@ -473,17 +459,6 @@ async def decide(
         )
         result = {"limits": risk_limit_frame(account_id, stored)}
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
-    if row.kind == "supervise":
-        # The same one-line result with Undo as a grant set from the owner's message.
-        await raise_supervision_card(
-            session,
-            owner.id,
-            result["grant_ids"],
-            card_key=row.id,
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            run_id=row.run_id,
-        )
     await supersede_subject(
         session,
         owner.id,
@@ -711,52 +686,3 @@ async def trust_from_card(
     return {"tier": "read", "subscribed": True, "subscription_created": created}
 
 
-async def supervise_from_card(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> list[str]:
-    """The owner's tap sets the supervision the card names; pairs already set stay as
-    they are and are not part of this change (its Undo never takes them back)."""
-    created: list[str] = []
-    for agent_id in row.payload["supervised_ids"]:
-        grant, new = await grant_supervision(
-            session,
-            owner.id,
-            row.payload["supervisor_id"],
-            agent_id,
-            via="owner_card",
-            created_by_agent_id=row.agent_id,
-        )
-        if new:
-            created.append(grant.id)
-    return created
-
-
-async def restore_supervision(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> int:
-    """Restore: the grants stopped from chat are set again by the owner's tap; a pair
-    supervised again meanwhile stays as it is."""
-    restored = 0
-    for grant_id in row.payload["grant_ids"]:
-        stopped = await owned_grant(session, owner.id, grant_id)
-        _, new = await grant_supervision(
-            session,
-            owner.id,
-            stopped.supervisor_agent_id,
-            stopped.supervised_agent_id,
-            via="owner_card",
-            created_by_agent_id=row.agent_id,
-        )
-        restored += new
-    return restored
-
-
-async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow) -> int:
-    """Undo: the grants this change set end now; reads and control stop at once."""
-    revoked = 0
-    for grant_id in row.payload["grant_ids"]:
-        grant = await owned_grant(session, owner.id, grant_id)
-        if grant.revoked_at is None:
-            await revoke_supervision(session, owner.id, grant_id, via="owner_card")
-            revoked += 1
-    return revoked

@@ -3,9 +3,8 @@
 ``create_root_agent`` is what ``agent_create`` (Lonora's) runs. It creates a flat team
 agent through ``agents.create_agent``: no template, no parent, no hierarchy, no binding
 to an account or symbol (an instrument or account Lonora assigns is an instruction in
-the agent's method, written by ``lonora_agent.collaboration``). It creates no trading
-grant; ``agents.create_agent`` still gives Lonora its default supervision grant until
-grants are deleted. The new agent uses Lonora's current model (12.3: until the owner
+the agent's method, written by ``lonora_agent.collaboration``). It creates no trading or
+supervision grant: Lonora leads it by its role. The new agent uses Lonora's current model (12.3: until the owner
 assigns another) and starts in the mode its creator resolved (4.3.2, 4.3.3); in Full its
 continuous account-management task starts at once (4.5.1).
 

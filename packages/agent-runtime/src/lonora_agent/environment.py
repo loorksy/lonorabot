@@ -194,7 +194,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "restriction_all_mutations_requires_owner_message",
         # Supervision never silences the owner's entry point or sheds its own oversight.
         "supervision_personal_agent",
-        "supervision_revoke_own_oversight",
         # The owner or a supervisor paused this agent.
         "agent_paused",
         # One Run creates so many agents and no more.

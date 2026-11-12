@@ -7,8 +7,8 @@ whatever the message said and whatever the Run had read. Now:
 - once a tool returned third-party or other-agent content into the Run (a feed, web
   page, MCP result, peer's memory) or another agent's message reached it, the Run's
   owner message no longer counts, so those tools fall back to the owner's card;
-- oversight for the calling agent itself, or over Lonora, is always the owner's tap;
-- only a supervisor (or Lonora on the owner's message) steers another agent's work;
+- no team agent reads or steers another agent, even from the owner's message: only
+  Lonora does, by its lead role (supervision grants are gone, 3.3.3);
 - the shared profile refuses lines that tell agents to hand private data elsewhere;
 - instructions another agent wrote when it created an agent never enter the system role;
 """
@@ -83,7 +83,7 @@ async def test_a_run_that_read_others_text_no_longer_speaks_for_the_owner():
 
 
 @pytest.mark.asyncio
-async def test_oversight_for_itself_or_over_lonora_is_always_the_owners_tap():
+async def test_a_team_agent_reads_no_other_agent_even_from_the_owners_message():
     database()
     from check_streaming import Fixture
     from lonora_db.personal_agent import ensure_personal_agent
@@ -99,26 +99,18 @@ async def test_oversight_for_itself_or_over_lonora_is_always_the_owners_tap():
             personal_id = (await ensure_personal_agent(session, fixture.owner)).id
         thread = await fixture.conversation(research)
         context = await owner_says(fixture, research, thread, "Summarize the gold headlines")
-        for supervised in ([gold["id"]], [personal_id]):
-            granted = await call(
-                context,
-                "supervision_change",
-                action="grant",
-                supervised_ids=supervised,
+        # Only Lonora reads another agent (3.3.1); no grant opens a team agent's reads.
+        for agent_id in (gold["id"], personal_id):
+            assert (
+                await refused(context, "agent_inspect", agent_id=agent_id, section="memory")
+                == "supervision_required"
             )
-            assert granted.get("owner_must_tap") is True, granted
-            assert not granted.get("changed"), granted
-        # Nothing opened before the owner taps.
-        assert (
-            await refused(context, "agent_inspect", agent_id=gold["id"], section="memory")
-            == "supervision_required"
-        )
     finally:
         await fixture.close()
 
 
 @pytest.mark.asyncio
-async def test_only_a_supervisor_or_lonora_steers_another_agents_work():
+async def test_only_lonora_steers_another_agents_work():
     database()
     from check_streaming import Fixture
     from lonora_db.schema import AgentRow

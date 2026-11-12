@@ -42,7 +42,7 @@ eagerly (`Tool.eager`). A Run's profiles come from its agent and kind:
 | `core` | every Run | `tool_environment`, `tool_call`, `skills_list`, `skill_view`, `wait_for_input`, `memory_read`, `memory_write`, `session_search` |
 | `market` | agent bound to a broker account, and the owner's Personal Agent (it reads every owned account and analyzes directly when no specialist exists) | `list_accounts`, `market_quote`, `market_candles`, `market_instrument`, `market_snapshot`, `market_sessions`, `account_read`, `chart_snapshot`, `market_decision_record`, `market_decision_history`, `watch_create`, `watch_list`, `watch_cancel`, `trade_execute`, `trade_close_positions` |
 | `research` | every other agent | `web_search`, `web_fetch`, `artifact_read`, `economic_calendar_read` (only when the owner configured a calendar source) |
-| `coordination` | the Personal Agent, and any agent while it holds a supervision grant; not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
+| `coordination` | the Personal Agent only (3.3.1); not a trading identity's Task Run (`docs/supervision.md`) | `agent_inspect`, `peer_send`, `web_search` |
 | `task` | durable Task Runs | `task_wait`, `task_step_update` |
 
 A Run's tool scope (`ToolScope`, `run_scope` in `lonora_tools/base.py`) narrows
@@ -314,7 +314,7 @@ What a name may do depends on the call:
 | Watch | `market_watch.named_watch` | symbol, "symbol condition level", prompt | cancel and pause on an exact name, among watches the action still applies to; resume and update never |
 | Routine | `routine.named_routine` | title, prompt | switching off on an exact title; switching on never |
 | Task | `tasks.named_task` | title | `task_inspect` only |
-| Agent | `supervision.named_agent` | name, among this agent and those it supervises now | `agent_inspect` only; `agent_control` never |
+| Agent | `supervision.named_agent` | name, among this agent and, for Lonora, every team agent | `agent_inspect` only; `agent_control` never |
 
 A change is never pointed at something the call did not name, an exit is never held back
 by a resolver (a ticket is only checked for existing, on a first attempt, and a failed

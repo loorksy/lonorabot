@@ -1,6 +1,6 @@
 """The owner's pauses (14.3.6): an agent, routine, watch or Task the owner paused stays
-paused until the owner resumes it, and a supervisor's hold the owner takes over becomes
-the owner's.
+paused until the owner resumes it, and a hold of Lonora's the owner takes over becomes
+the owner's. Only Lonora pauses another agent's work, by its lead role (3.3.1): no grant.
 
 The PostgreSQL tests run the real tools and owner routes against the test database
 (skipped without ``LONORA_DATABASE_URL``).
@@ -8,7 +8,7 @@ The PostgreSQL tests run the real tools and owner routes against the test databa
 
 import json
 import os
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -80,14 +80,11 @@ async def refused(context: Any, name: str, **arguments: Any) -> str:
     raise AssertionError("expected a refusal from " + name)
 
 
-async def grant(fixture: Any, supervisor: dict[str, Any], supervised: dict[str, Any]) -> str:
-    row = await fixture.request(
-        "POST",
-        "/supervision",
-        {"supervisor_id": supervisor["id"], "supervised_id": supervised["id"]},
-    )
-    assert row["created_via"] == "owner_ui" and row["revoked_at"] is None
-    return cast(str, row["id"])
+async def lonora_of(fixture: Any) -> dict[str, Any]:
+    from lonora_db.personal_agent import ensure_personal_agent
+
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        return {"id": (await ensure_personal_agent(session, fixture.owner)).id}
 
 
 async def held(fixture: Any, target_id: str) -> Any:
@@ -104,7 +101,7 @@ async def held(fixture: Any, target_id: str) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
+async def test_pauses_are_held_by_lonora_and_the_owner_wins():
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
@@ -113,8 +110,7 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
 
     fixture = await Fixture().open()
     try:
-        lead, gold = await fixture.agent("Lead"), await fixture.agent("Gold")
-        await grant(fixture, lead, gold)
+        lead, gold = await lonora_of(fixture), await fixture.agent("Gold")
         lead_thread, gold_thread = (
             await fixture.conversation(lead),
             await fixture.conversation(gold),
@@ -155,40 +151,23 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
             target_id=routine_id,
         )
         assert again["changed"] is False and again["paused_by"] == "you"
-        # The paused agent cannot resume what its supervisor paused.
+        # The paused agent cannot resume what Lonora paused.
         assert (
             await refused(gold_context, "routine_toggle", routine_id=routine_id, enabled=True)
             == "work_paused_by_supervisor"
         )
-        # Cycle rule: holding a pause over Lead, Gold may not pause or narrow Lead back.
-        await grant(fixture, gold, lead)
-        assert await refused(
-            gold_context, "agent_control", agent_id=lead["id"], action="pause"
-        ) == ("supervision_cycle")
-        # ...unless the owner's message asks.
-        owner_context = await owner_says(fixture, gold, gold_thread, "Pause Lead for now")
-        paused_lead = await call(
-            owner_context, "agent_control", agent_id=lead["id"], action="pause"
-        )
-        assert paused_lead["changed"] is True
-        # A pause made from the owner's message is the owner's (4.7.2): the agent that
-        # made it never lifts it on its own; the owner lifts it, by a control or by
-        # asking in chat (P5).
-        made = await held(fixture, lead["id"])
-        assert made.source == "owner" and made.holder_agent_id == gold["id"]
-        assert await refused(
-            gold_context, "agent_control", agent_id=lead["id"], action="resume"
-        ) == ("supervision_resume_not_yours")
-        asked_back = await owner_says(fixture, gold, gold_thread, "Resume Lead")
-        assert (await call(asked_back, "agent_control", agent_id=lead["id"], action="resume"))[
-            "changed"
-        ]
-        assert (await held(fixture, lead["id"])).released_by == "owner"
-        # The supervisor lifts its own hold; routine_toggle follows the same rules.
+        # A team agent never pauses Lonora, even from the owner's message.
+        owner_context = await owner_says(fixture, gold, gold_thread, "Pause Lonora for now")
+        for context in (gold_context, owner_context):
+            assert (
+                await refused(context, "agent_control", agent_id=lead["id"], action="pause")
+                == "supervision_required"
+            )
+        # Lonora lifts its own hold; routine_toggle follows the same rules.
         resumed = await call(lead_context, "routine_toggle", routine_id=routine_id, enabled=True)
         assert resumed["enabled"] is True and await routine_enabled()
         # Pausing the agent itself. Saving its profile (the form sends the switch with
-        # every save) leaves the supervisor's pause the supervisor's.
+        # every save) leaves Lonora's pause Lonora's.
         assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="pause"))[
             "paused"
         ]
@@ -200,7 +179,7 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
         assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="resume"))[
             "changed"
         ]
-        # The owner switching it back on releases the supervisor's pause.
+        # The owner switching it back on releases Lonora's pause.
         assert (await call(lead_context, "agent_control", agent_id=gold["id"], action="pause"))[
             "paused"
         ]
@@ -268,7 +247,7 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
             target_id=task_id,
         )
         assert freed["changed"] is True and freed["paused"] is False
-        # Without a grant there is nothing to steer, and another agent's routine is hidden.
+        # A team agent steers no one, and another agent's routine is hidden from it.
         outsider = await fixture.agent("Outsider")
         outsider_context = await wake(fixture, outsider, await fixture.conversation(outsider))
         assert (
@@ -286,8 +265,8 @@ async def test_pauses_are_held_by_their_supervisor_and_the_owner_wins():
 @pytest.mark.asyncio
 async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
     """The owner pausing held work makes the pause the owner's, never weaker; the
-    owner's message lifts a supervisor's pause; a watch the agent cancelled stays
-    cancelled when its supervisor resumes."""
+    owner's message lifts Lonora's pause; a watch the agent cancelled stays cancelled
+    when Lonora resumes."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
@@ -299,11 +278,10 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
     fixture = await Fixture().open()
     try:
         lead, gold, helper = (
-            await fixture.agent("Lead"),
+            await lonora_of(fixture),
             await fixture.agent("Gold"),
             await fixture.agent("Helper"),
         )
-        await grant(fixture, lead, gold)
         lead_thread, gold_thread, helper_thread = (
             await fixture.conversation(lead),
             await fixture.conversation(gold),
@@ -365,7 +343,7 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
             await refused(gold_context, "routine_toggle", routine_id=routine_id, enabled=True)
             == "work_paused_by_supervisor"
         )
-        # The owner's word to the paused agent lifts its supervisor's pause.
+        # The owner's word to the paused agent lifts Lonora's pause.
         asked = await owner_says(fixture, gold, gold_thread, "Resume your review routine")
         assert (await call(asked, "routine_toggle", routine_id=routine_id, enabled=True))["enabled"]
         async with fixture.runtime.db.sessions() as session:
@@ -408,20 +386,11 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
             assert (
                 await refused(context, "watch_resume", watch_id=watch_id) == "work_paused_by_owner"
             )
-        # The owner holds no pause over Gold for the cycle rule: Lead did not.
-        gold_over_lead = await grant(fixture, gold, lead)
-        assert (await call(gold_context, "agent_control", agent_id=lead["id"], action="pause"))[
-            "changed"
-        ]
-        assert (await call(gold_context, "agent_control", agent_id=lead["id"], action="resume"))[
-            "changed"
-        ]
-        await fixture.request("POST", f"/supervision/{gold_over_lead}/revoke")
         await fixture.request("POST", f"/watches/{watch_id}/control", {"action": "resume"})
         assert await watch_state() == (True, None)
         assert (await held(fixture, watch_id)).released_by == "owner"
 
-        # The agent cancels a watch its supervisor paused: the cancel stays its own.
+        # The agent cancels a watch Lonora paused: the cancel stays its own.
         await call(
             lead_context,
             "agent_control",
@@ -449,8 +418,8 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
         assert await watch_state() == (False, "watch_cancelled")
         assert (await held(fixture, watch_id)).released_by == "holder"
 
-        # A Task: Lonora lifts only pauses Lonora made (4.7.2), even with the owner's
-        # word; an agent with no grant does not, whatever message its Run answers.
+        # A Task: a team agent never lifts Lonora's pause, whatever message its Run
+        # answers; Lonora lifts its own.
         await call(
             lead_context,
             "agent_control",
@@ -483,31 +452,8 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
             )
             == "supervision_required"
         )
-        from lonora_db.personal_agent import ensure_personal_agent
-        from lonora_db.schema import SupervisionGrantRow
-        from lonora_db.supervision import revoke_supervision
-        from sqlalchemy import select
-
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            lonora = {"id": (await ensure_personal_agent(session, fixture.owner)).id}
-            # Even without its default grant, Lonora acts on the owner's word.
-            default = await session.scalar(
-                select(SupervisionGrantRow).where(
-                    SupervisionGrantRow.supervisor_agent_id == lonora["id"],
-                    SupervisionGrantRow.supervised_agent_id == gold["id"],
-                    SupervisionGrantRow.revoked_at.is_(None),
-                )
-            )
-            if default is not None:
-                await revoke_supervision(session, fixture.owner, default.id, via="owner_ui")
-        told = await owner_says(
-            fixture, lonora, await fixture.conversation(lonora), "Resume Gold's review task"
-        )
+        lonora = lead
         task_call = {"agent_id": gold["id"], "target": "task", "target_id": task_id}
-        assert (
-            await refused(told, "agent_control", action="resume", **task_call)
-            == "supervision_resume_not_yours"
-        )
         freed = await call(lead_context, "agent_control", action="resume", **task_call)
         assert freed["changed"] is True and freed["paused"] is False
         assert (await held(fixture, task_id)).released_by == "holder"
@@ -518,7 +464,6 @@ async def test_the_owners_pause_is_the_owners_and_the_owners_word_resumes():
         assert (await call(told, "agent_control", action="pause", **task_call))["changed"]
         hold = await held(fixture, task_id)
         assert hold.source == "owner" and hold.holder_agent_id == lonora["id"]
-        await grant(fixture, lonora, gold)
         lonora_woke = await wake(fixture, lonora, await fixture.conversation(lonora))
         # Lonora never lifts it on its own initiative.
         assert (
@@ -665,13 +610,14 @@ async def test_the_owners_own_pause_or_cancel_is_never_lifted_by_the_agent():
 
 
 @pytest.mark.asyncio
-async def test_deleting_a_supervisor_keeps_its_pauses_as_the_owners():
-    """A deleted supervisor's pauses stay in force as the owner's: the work stays paused,
-    its card keeps offering Resume, and the paused agent still cannot lift them."""
+async def test_deleting_a_holder_keeps_its_pauses_as_the_owners():
+    """Pauses a team agent holds from before grants were removed (3.3.3) stay in force as
+    the owner's when it is deleted: the work stays paused, the card on record keeps
+    offering Resume, and the paused agent still cannot lift them."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
-    from lonora_db.owner_actions import stale_reason
+    from lonora_db.owner_actions import raise_supervision_pause_card, stale_reason
     from lonora_db.routines import create_routine
     from lonora_db.schema import AgentRow, OwnerActionRow, RoutineRow, SupervisionHoldRow
     from sqlalchemy import select
@@ -679,9 +625,9 @@ async def test_deleting_a_supervisor_keeps_its_pauses_as_the_owners():
     fixture = await Fixture().open()
     try:
         lead, gold = await fixture.agent("Lead deleted"), await fixture.agent("Gold held")
-        await grant(fixture, lead, gold)
-        lead_thread, gold_thread = (
-            await fixture.conversation(lead),
+        lonora = await lonora_of(fixture)
+        lonora_thread, gold_thread = (
+            await fixture.conversation(lonora),
             await fixture.conversation(gold),
         )
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -692,16 +638,23 @@ async def test_deleting_a_supervisor_keeps_its_pauses_as_the_owners():
                 RoutineCreate(prompt="Review gold", interval_seconds=3600),
             )
             routine_id = routine.id
-        lead_context = await wake(fixture, lead, lead_thread)
-        await call(lead_context, "agent_control", agent_id=gold["id"], action="pause")
+        lonora_context = await wake(fixture, lonora, lonora_thread)
+        await call(lonora_context, "agent_control", agent_id=gold["id"], action="pause")
         await call(
-            lead_context,
+            lonora_context,
             "agent_control",
             agent_id=gold["id"],
             action="pause",
             target="routine",
             target_id=routine_id,
         )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            # Stored as a team agent's holds with their cards, as rows made before 0127.
+            for hold in await session.scalars(
+                select(SupervisionHoldRow).where(SupervisionHoldRow.agent_id == gold["id"])
+            ):
+                hold.holder_agent_id = lead["id"]
+                await raise_supervision_pause_card(session, hold, run_id=None)
         async with fixture.runtime.db.sessions() as session:
             holds = list(
                 await session.scalars(
@@ -789,8 +742,8 @@ async def test_a_hold_is_the_owners_or_an_agents_and_nothing_else():
 async def test_a_pause_the_owner_asked_for_stays_the_owners():
     """4.7.2: a pause made from the owner's untainted message is the owner's; a run that
     read other content never speaks for the owner (6.10); asking to pause work already
-    paused makes that pause the owner's; the owner lifts it by asking in chat (P5);
-    Lonora never lifts a pause it did not make, even from the owner's words."""
+    paused makes that pause the owner's; the owner lifts it by asking in chat (P5); a
+    team agent pauses no other agent, even from the owner's words."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
@@ -801,19 +754,13 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
 
     fixture = await Fixture().open()
     try:
-        lead, gold = await fixture.agent("Lead words"), await fixture.agent("Gold words")
-        await grant(fixture, lead, gold)
+        team, gold = await fixture.agent("Team words"), await fixture.agent("Gold words")
         async with fixture.runtime.db.sessions() as session, session.begin():
-            lonora_id = (await ensure_personal_agent(session, fixture.owner)).id
-        await grant(fixture, lead, {"id": lonora_id})
-        async with fixture.runtime.db.sessions() as session, session.begin():
+            lead_id = (await ensure_personal_agent(session, fixture.owner)).id
             gold_routine = await create_routine(
                 session, fixture.owner, gold["id"], RoutineCreate(prompt="A", interval_seconds=3600)
             )
-            lonora_routine = await create_routine(
-                session, fixture.owner, lonora_id, RoutineCreate(prompt="B", interval_seconds=3600)
-            )
-            gold_routine_id, lonora_routine_id = gold_routine.id, lonora_routine.id
+            gold_routine_id = gold_routine.id
 
         gold_thread = await fixture.conversation(gold)
         await add_messages(
@@ -836,7 +783,7 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
                 return await control_work(
                     session,
                     fixture.owner,
-                    actor_id=ids.get("actor", lead["id"]),
+                    actor_id=ids.get("actor", lead_id),
                     agent_id=ids.get("agent", gold["id"]),
                     kind=kind,  # type: ignore[arg-type]
                     target_id=ids.get("target"),
@@ -860,7 +807,7 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
         assert (await control("resume", words=words_2))["changed"] is True
         assert (await held(fixture, gold["id"])).released_by == "owner"
 
-        # Lead pauses on its own; the owner then asks for the same pause: it is the owner's.
+        # Lonora pauses on its own; the owner then asks for the same pause: it is the owner's.
         await control("pause", words=None)
         assert (await held(fixture, gold["id"])).source == "agent"
         again = await control("pause", words=words_2)
@@ -890,22 +837,10 @@ async def test_a_pause_the_owner_asked_for_stays_the_owners():
             )
         assert (await held(fixture, gold_routine_id)).released_by == "owner"
 
-        # Lead pauses Lonora's routine; Lonora cannot lift it, even from the owner's words.
-        await control(
-            "pause", words=None, kind="routine", agent=lonora_id, target=lonora_routine_id
-        )
-        with pytest.raises(LonoraError, match="work_paused_by_supervisor"):
-            async with fixture.runtime.db.sessions() as session, session.begin():
-                await refuse_held(
-                    session,
-                    fixture.owner,
-                    "routine",
-                    lonora_routine_id,
-                    lonora_id,
-                    owner_message=True,
-                )
-        await control(
-            "resume", words=None, kind="routine", agent=lonora_id, target=lonora_routine_id
-        )
+        # A team agent pauses no other agent, even from the owner's words, nor Lonora.
+        for target in (gold["id"], lead_id):
+            for words in (None, words_1):
+                with pytest.raises(LonoraError, match="supervision_required"):
+                    await control("pause", words=words, actor=team["id"], agent=target)
     finally:
         await fixture.close()

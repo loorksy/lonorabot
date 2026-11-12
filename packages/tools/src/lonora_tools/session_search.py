@@ -27,7 +27,7 @@ class SessionSearchInput(Contract):
 
 async def search(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # A subagent Run carries its parent's Agent id, so it shares exactly the
-    # parent's history scope; the agents it supervises come from the owner's grants,
+    # parent's history scope; the team agents it reads come from Lonora's lead role,
     # re-read on every call. Nothing here is widened by the model's arguments.
     query, thread_id, limit = args["query"].strip(), args["thread_id"], args["limit"]
     async with context.db.sessions() as session:
@@ -48,7 +48,7 @@ def tools() -> list[Tool]:
         Tool(
             "session_search",
             "Search your past conversations, work threads, groups and recorded decisions, and "
-            "those of agents you supervise. query: ranked full-text search of all history (all "
+            "(Lonora) every team agent's. query: ranked full-text search of all history (all "
             "words or a symbol/id; else any word or symbol substring in recent messages). "
             "thread_id with around_seq: messages around a hit. "
             "thread_id alone: read a page after after_seq. No arguments: recent threads. "

@@ -294,7 +294,6 @@ const toolLabels: Readonly<Record<string, Label>> = {
   agent_create: { en: "Creating an agent", ar: "ينشئ وكيلًا" },
   agent_inspect: { en: "Reviewing an agent's work", ar: "يراجع عمل وكيل" },
   agent_control: { en: "Steering an agent's work", ar: "يوجّه عمل وكيل" },
-  supervision_change: { en: "Setting supervision", ar: "يضبط الإشراف" },
   news_feed_subscribe: { en: "Subscribing to a news feed", ar: "يشترك في موجز أخبار" },
   capabilities_list: { en: "Checking capabilities", ar: "يراجع القدرات" },
   watch_cancel: WATCH_STEER,

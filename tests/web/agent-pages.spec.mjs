@@ -1,10 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
-/* The agent page, its identity form,
-   supervision, the trades page with the owner's own close through the executor, the chart
-   sheet with real candles, the group page and «مجموعة جديدة», on a real database. Nothing in
-   the UI may delete an agent or a group (Q1, Q44). */
+/* The agent page, its identity form, the trades page with the owner's own close through
+   the executor, the chart sheet with real candles, the group page and «مجموعة جديدة», on a
+   real database. Nothing in the UI may delete an agent or a group (Q1, Q44). */
 function fixture(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/agent_pages_browser.py"], {
@@ -102,48 +101,12 @@ test("Lonora's page has no on/off button (Q38); a research agent has no level ba
   await page.goto(`/app/agent/${lonora.id}`);
   const main = page.locator("main");
   await expect(main.locator(".hero h2")).toHaveText(lonora.name);
-  await expect(main).toContainText("Supervises");
   await expect(main.getByRole("button", { name: "Stop the agent" })).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Turn the agent on" })).toHaveCount(0);
   await page.goto(`/app/agent/${data.research.id}`);
   await expect(main.locator(".hero h2")).toHaveText(data.research.name);
   await expect(main.locator(".hero .badge")).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Stop the agent", exact: true })).toBeVisible();
-});
-
-test("supervision: add from the picker, remove from the row; never money authority", async ({
-  page,
-}) => {
-  await page.goto(`/app/agent/${data.research.id}`);
-  const main = page.locator("main");
-  await expect(main).toContainText("It does not supervise any agent now.");
-  await main.getByRole("button", { name: "Add agents to supervise", exact: true }).click();
-  const sheet = page.locator("#dialog");
-  await expect(sheet).toContainText("This gives it no execution authority.");
-  await sheet.getByRole("checkbox", { name: new RegExp(data.trader.name) }).click();
-  const grant = page.waitForRequest(
-    (request) =>
-      request.method() === "POST" && new URL(request.url()).pathname === "/api/supervision",
-  );
-  await sheet.getByRole("button", { name: "Add", exact: true }).click();
-  expect((await grant).postDataJSON()).toEqual({
-    supervisor_id: data.research.id,
-    supervised_id: data.trader.id,
-  });
-  await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
-  // The supervised agent's page names its supervisor.
-  await page.goto(`/app/agent/${data.trader.id}`);
-  await expect(main.locator(".sup-line")).toContainText(data.research.name);
-  await page.goto(`/app/agent/${data.research.id}`);
-  const revoke = page.waitForRequest((request) =>
-    /\/api\/supervision\/[^/]+\/revoke$/.test(new URL(request.url()).pathname),
-  );
-  await main
-    .locator(".row", { hasText: data.trader.name })
-    .getByRole("button", { name: "Remove" })
-    .click();
-  await revoke;
-  await expect(main).toContainText("It does not supervise any agent now.");
 });
 
 test("the call button follows Q58 when no voice provider is configured", async ({ page }) => {
