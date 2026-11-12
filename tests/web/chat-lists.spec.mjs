@@ -172,16 +172,11 @@ test("mute silences a chat's heads-up and badge; critical attention always shows
   await desktopRow(page, key(personal)).click({ button: "right" });
   await toolbar(page).getByRole("button", { name: "Mute notifications" }).click();
   await expect(desktopRow(page, key(personal)).getByRole("img", { name: "Muted" })).toBeVisible();
-  const controls = await (await context.request.get("/api/trading/controls")).json();
   try {
     const alert = seed({ action: "attention" });
     expect(alert.importance).toBe("critical");
     await expect(page.locator("#headsup")).toContainText(personal.name, { timeout: 15_000 });
   } finally {
-    seed({
-      action: "restore",
-      controls: { enabled: controls.enabled, emergency_stop: controls.emergency_stop },
-    });
     const inbox = await (await context.request.get("/api/threads/inbox")).json();
     await context.request.post("/api/threads/prefs", {
       headers,

@@ -48,7 +48,9 @@ test("durable notification is shared across views and stays read after reload", 
   release();
   await expect(main.locator(".sk-page")).toHaveCount(0);
   const alert = page.locator(`[data-attention-id="${fixture.notification.id}"]`);
-  await expect(alert.getByText("New trading stopped", { exact: true })).toBeVisible();
+  await expect(
+    alert.getByText("Work stopped after repeated interruptions", { exact: true }),
+  ).toBeVisible();
   await expect(alert.locator(".dot")).toHaveCount(1);
   // The watchdog's aging-operation item: owner text and the symbol, never a raw id.
   const uncertain = page.locator(`[data-attention-id="${fixture.uncertain.id}"]`);
@@ -65,7 +67,7 @@ test("durable notification is shared across views and stays read after reload", 
   await expect(page).toHaveURL(new RegExp(`/app/${fixture.agent.id}\\?thread=`));
   await page.goto("/app/updates");
   await expect(uncertain.locator(".dot")).toHaveCount(0);
-  // «تحديد الكل كمقروء»: the plain update is read, the critical stop stays unread (Q4).
+  // «تحديد الكل كمقروء»: the plain update is read, the critical item stays unread (Q4).
   const info = page.locator(`[data-attention-id="${fixture.informational.id}"]`);
   await expect(info.locator(".dot")).toHaveCount(1);
   const seenAll = page.waitForResponse((response) =>
@@ -80,6 +82,4 @@ test("durable notification is shared across views and stays read after reload", 
   expect(open).not.toContain(fixture.informational.id);
   await page.reload();
   await expect(uncertain.locator(".dot")).toHaveCount(0);
-  const controls = await (await context.request.get("/api/trading/controls")).json();
-  expect(controls).toMatchObject({ enabled: false, emergency_stop: true });
 });

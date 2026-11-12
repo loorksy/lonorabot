@@ -53,7 +53,7 @@ test("quiet hours in the change log read as the settings page names them, and of
 test("profile and memory errors explain what to do in the owner's language", () => {
   assert.match(ownerProfileError("memory_user_section_moved", "en") ?? "", /profile/);
   assert.ok(arabic.test(ownerProfileError("owner_profile_too_large", "ar") ?? ""));
-  assert.equal(ownerProfileError("trading_disabled", "en"), null);
+  assert.equal(ownerProfileError("broker_disabled", "en"), null);
 });
 
 test("the notify choice promises only what happens until agents can raise alerts", () => {

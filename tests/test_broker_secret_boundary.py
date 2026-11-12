@@ -22,6 +22,12 @@ BROKER_READERS = {
     "packages/trading/src/lonora_trading/connections.py",
     "packages/gateway/src/lonora_gateway/runtime.py",
     "apps/api/src/lonora_api/routes/trading.py",
+    # Connect from chat: the card's save and the gateway's provisioning step.
+    "apps/api/src/lonora_api/routes/secret_cards.py",
+    "packages/trading/src/lonora_trading/broker_provisioning.py",
+    "packages/gateway/src/lonora_gateway/service.py",
+    # Rotating a password and replacing the token (9.3), run by that gateway step.
+    "packages/trading/src/lonora_trading/broker_manage.py",
 }
 
 
@@ -66,12 +72,26 @@ def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
 def test_the_workspace_bridge_has_no_broker_reader() -> None:
     from lonora_agent import workspace, workspace_access, workspace_host
 
-    # The workspace layer may hold the general store (to scan output for stored values),
-    # which refuses scope broker; never the broker reader or a raw decrypt.
+    # The workspace layer may hold the general store (to scan output for workspace
+    # values), which refuses scope broker; never the broker reader or a raw decrypt.
     for module in (workspace, workspace_access, workspace_host):
         source = inspect.getsource(module)
         for name in ("BrokerSecrets", "SecretRow", "SecretCipher", "ciphertext"):
             assert name not in source
+
+
+def test_the_token_has_one_fixed_name() -> None:
+    import importlib.util
+
+    from lonora_db.secrets import METAAPI_TOKEN, require_scope
+
+    path = ROOT / "packages/db/migrations/versions/0145_metaapi_token.py"
+    spec = importlib.util.spec_from_file_location("metaapi_token_migration", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.TOKEN == METAAPI_TOKEN == "metaapi_token"
+    require_scope(METAAPI_TOKEN, "broker")
 
 
 def database() -> None:
@@ -145,3 +165,11 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
         assert (await fixture.client.delete("/api/secrets/" + workspace_id)).status_code == 200
     finally:
         await fixture.close()
+
+
+def test_forgetting_a_broker_value_takes_the_provisioning_lock() -> None:
+    from lonora_adapters.storage import broker_secrets
+    from lonora_trading.broker_provisioning import provisioning_key
+
+    assert provisioning_key("o") == "broker-provision:o"
+    assert '"broker-provision:" + self._owner_id' in inspect.getsource(broker_secrets)
