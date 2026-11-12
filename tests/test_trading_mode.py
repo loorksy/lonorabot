@@ -293,6 +293,60 @@ async def test_an_opening_order_deep_in_the_history_still_names_its_agent(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tagged", [True, False])
+async def test_an_opening_order_behind_a_thousand_older_entries_still_names_its_agent(
+    task_db: Fixture, tagged: bool
+):
+    """3.3.4: a thousand entries on the same account and symbol (the owner's own orders) are
+    older than the agent's opening entry, so the oldest-first read meets them first; no cap
+    cuts the journal short and the position is still the agent's."""
+    db, owner, _, _ = task_db
+    a, _ = await two_agents(db, owner)
+    start = utcnow() - timedelta(days=30)
+    async with db.sessions() as session, session.begin():
+        session.add_all(
+            entry(owner, f"own-{i}", None, start + timedelta(minutes=i), position=f"Q{i}")
+            for i in range(1000)
+        )
+        opened = start + timedelta(minutes=1000)
+        session.add(entry(owner, "open-a", a, opened, position="P1", order="O1"))
+    ticket = TICKET.model_copy(
+        update={"id": "P1", "operation_id": broker_operation_tag("open-a") if tagged else None}
+    )
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P1"), ticket) == a
+        await closes(session, owner, a, ticket)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tagged", [True, False])
+async def test_the_operation_the_broker_names_outranks_an_older_entry_on_the_ticket(
+    task_db: Fixture, tagged: bool
+):
+    """3.3.4: A sent first but B's order filled first and opened the position; A's fill
+    netted into it, so A's older entry carries the same position id. The broker reports B's
+    operation (its tag, or its raw id) on the ticket, and that decides before any entry that
+    only carries the ticket id: B owns it, and A's close is ticket_not_owned."""
+    db, owner, _, _ = task_db
+    a, b = await two_agents(db, owner)
+    now = utcnow()
+    async with db.sessions() as session, session.begin():
+        session.add_all(
+            [
+                entry(owner, "fill-a", a, now - timedelta(minutes=5), position="P1", order="O1"),
+                entry(owner, "open-b", b, now, position="P1", order="O2"),
+            ]
+        )
+    operation = broker_operation_tag("open-b") if tagged else "open-b"
+    ticket = TICKET.model_copy(update={"id": "P1", "operation_id": operation})
+    async with db.sessions() as session:
+        assert await ticket_agent(session, owner, closing("P1"), ticket) == b
+        await closes(session, owner, b, ticket)
+        with pytest.raises(LonoraError, match="ticket_not_owned"):
+            await closes(session, owner, a, ticket)
+
+
+@pytest.mark.asyncio
 async def test_lonora_asks_for_new_risk_on_an_ask_agents_ticket_even_in_full(
     monkeypatch: pytest.MonkeyPatch,
 ):
