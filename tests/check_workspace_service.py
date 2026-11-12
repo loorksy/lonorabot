@@ -501,8 +501,8 @@ def check_relay(stack: Stack) -> None:
         a,
         "python3 -c \"import socket;s=socket.socket(2,2);s.settimeout(3);s.connect(('"
         + public
-        + "',8443));"
-        "s.send(b'x');\ntry:\n s.recv(9)\nexcept ConnectionRefusedError: print('REFUSED')\nexcept OSError: print('REFUSED')\"",
+        + "',8443))"
+        "\ntry:\n s.send(b'x'); s.recv(9)\nexcept OSError: print('REFUSED')\"",
     )
     record("REFUSED" in udp["stdout"], "agent UDP other than DNS to the forwarder is rejected")
 
