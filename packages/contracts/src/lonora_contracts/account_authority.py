@@ -37,8 +37,8 @@ AUTHORITY_CAPS = (
 def full_delegation(envelope: Mapping[str, Any]) -> bool:
     """Whether a grant (an envelope, or its stored JSON) is Full delegation: full
     management of every pair on its account, every action and the owner's own
-    positions, with no expiry and no cap of its own. The account's money limits, the
-    owner's pauses and Stop new trading still bind it; nothing here is authority."""
+    positions, with no expiry and no cap of its own. The account's money limits and the
+    owner's pauses still bind it; nothing here is authority."""
     return (
         envelope.get("management_mode") == "full"
         and envelope.get("symbol_scope") == "account"

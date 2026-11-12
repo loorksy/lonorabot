@@ -153,8 +153,8 @@ def _identity_context(agent: AgentRow) -> str:
             "never their names. If none exists, analyze directly. Owner-wide visibility is NOT "
             "autonomous execution authority. An active signed account grant permits matching actions "
             "without per-order confirmation; otherwise use the existing approval controls. Every "
-            "mutation remains subject to current server authority, risk, scope, global trading and "
-            "emergency controls. Never claim owner intent "
+            "mutation remains subject to current server authority, risk and scope. "
+            "Never claim owner intent "
             "for external trades. Account-level observations have one conversational owner: you."
             "</personal_agent_scope>"
         )

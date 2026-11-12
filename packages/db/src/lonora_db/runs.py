@@ -122,7 +122,7 @@ def inherited_authority(starter: RunRow | None) -> dict[str, Any]:
     neither it nor anything it delegates can send a broker mutation. Watches,
     routines are the Agent's own later work and are not narrowed.
     A Task or ticket a generated card's send started carries that send's taint, so it
-    can never spend a signed grant (GENUI_PLAN §8.5).
+    can never spend a signed grant (docs/genui.md).
     """
     if starter is None:
         return {}
@@ -228,7 +228,7 @@ async def claim_next(
     eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
     # Rule Q: a card submission's Run starts only after every earlier Run of its agent in
     # the thread has ended, so it never overtakes work in retry backoff, an open question
-    # or an approved trade waiting for its execution (GENUI_PLAN §8.2).
+    # or an approved trade waiting for its execution (docs/genui.md).
     earlier = aliased(RunRow)
     behind = exists(
         select(earlier.id).where(

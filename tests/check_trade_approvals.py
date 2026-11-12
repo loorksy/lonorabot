@@ -15,24 +15,21 @@ from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_agent.executor import execute_run
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import Capability, ModelSelection
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import ToolRefusal
 from lonora_db.schema import TradingAccountRow
 from lonora_providers.router import GlobalModelRouter
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 
 
 async def main():
     fixture = await Fixture().open()
-    controls = await read_controls(fixture.runtime.db)
     connection_id = None
     try:
         agent = await fixture.agent("Financial approval", supervised=True)
         thread = await fixture.conversation(agent)
         context = await fixture.lease(await fixture.run(agent, thread))
         registry = load_tools()
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         connection = await fixture.request(
             "POST",
             "/trading/connections",
@@ -587,7 +584,6 @@ async def main():
         )
 
     finally:
-        await save_controls(fixture.runtime.db, controls)
         if connection_id:
             await fixture.request("DELETE", "/trading/connections/" + connection_id)
         await fixture.close()

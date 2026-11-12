@@ -1,8 +1,16 @@
-/** Fail-closed validation of compiled v2 cards on the client (GENUI_PLAN §2.3, §9.1).
+/** Fail-closed validation of compiled v2 cards on the client (docs/genui.md).
  * The server compiles and checks every card; this guards the render path against anything
  * malformed: own properties only, no getters, no prototype keys, bounded sizes, and only
- * the node types and actions this release renders. */
-import type { UiDocument, UiPart } from "@lonora/contracts";
+ * the node types and actions of the catalog (`@lonora/contracts` genui-catalog). */
+import {
+  UI_ACTIONS,
+  UI_NODE_TYPES,
+  UI_SERVER_NODE_TYPES,
+  UI_SLOT_CARDS,
+  type UiDocument,
+  type UiPart,
+  type UiSlotCard,
+} from "@lonora/contracts";
 import { parse } from "./expr";
 
 const KINDS = new Set([
@@ -17,19 +25,14 @@ const KINDS = new Set([
   "diagram",
   "receipt",
 ]);
-/** The S-A01 node set plus the server's delivery row. */
-export const UI_NODES = new Set([
-  "Segmented",
-  "Number",
-  "Text",
-  "Note",
-  "KeyValue",
-  "Button",
-  "Row",
-  "More",
-  "Divider",
-  "Delivery",
+/** The catalog's node set plus the server's delivery row (mandate 10.1.5). */
+export const UI_NODES: ReadonlySet<string> = new Set<string>([
+  ...UI_NODE_TYPES,
+  ...UI_SERVER_NODE_TYPES,
 ]);
+const ACTIONS: ReadonlySet<string> = new Set<string>(UI_ACTIONS);
+const SLOT_CARDS: ReadonlySet<string> = new Set<string>(UI_SLOT_CARDS);
+const RECORD_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/;
 const BLOCKED = new Set(["__proto__", "prototype", "constructor"]);
 const MAX_BYTES = 64000;
 
@@ -69,6 +72,16 @@ function expression(value: unknown): boolean {
 function block(value: unknown, depth = 0): boolean {
   if (!plain(value) || typeof value.type !== "string" || !UI_NODES.has(value.type)) return false;
   if (depth > 4 || !expression(value.when)) return false;
+  if (value.type === "Slot") {
+    // A trusted slot (mandate 10.2): top level only, its card and record and nothing else.
+    return (
+      depth === 0 &&
+      Object.keys(value).every((key) => key === "type" || key === "card" || key === "record") &&
+      SLOT_CARDS.has(String(value.card)) &&
+      typeof value.record === "string" &&
+      RECORD_ID.test(value.record)
+    );
+  }
   if (value.type === "Delivery") {
     return (
       Array.isArray(value.channels) &&
@@ -81,10 +94,7 @@ function block(value: unknown, depth = 0): boolean {
   }
   if ("action" in value && value.action !== undefined) {
     const action = value.action;
-    if (
-      !plain(action) ||
-      !["send", "go", "set", "toggle", "reset", "copy", "open"].includes(String(action.do))
-    ) {
+    if (!plain(action) || !ACTIONS.has(String(action.do))) {
       return false;
     }
     if (
@@ -143,3 +153,6 @@ export function isUiPart(part: { type: string; document?: unknown }): part is Ui
     part.type === "ui" && plain(part.document) && (part.document as Record<string, unknown>).v === 2
   );
 }
+
+/** A trusted slot's card and record (mandate 10.2). */
+export type UiSlotRef = { card: UiSlotCard; record: string };
