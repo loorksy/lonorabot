@@ -77,7 +77,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
 
 
 def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
-    """What a client may see of a card submission (GENUI_PLAN §8.2 step 4)."""
+    """What a client may see of a card submission (docs/genui.md step 4)."""
     if not submit:
         return None
     keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")

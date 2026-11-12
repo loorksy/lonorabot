@@ -1,4 +1,4 @@
-"""Generated-card sends (GENUI_PLAN §8.2, §8.4, §8.5, §10.2): the server-composed bubble,
+"""Generated-card sends (docs/genui.md): the server-composed bubble,
 the queued submission and its rules Q, W, V, N, T and L, provenance and the taint.
 
 Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).

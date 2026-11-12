@@ -1,5 +1,5 @@
 """The v2 projector and compiler: line streaming, facts, the card's account, option checks,
-the delivery row, budget and deterministic repair (GENUI_PLAN §9.2, §9.4, §10.1)."""
+the delivery row, budget and deterministic repair (docs/genui.md)."""
 
 import json
 import re

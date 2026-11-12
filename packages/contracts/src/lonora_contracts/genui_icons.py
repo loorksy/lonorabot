@@ -1,4 +1,4 @@
-"""Icon names a card may use (GENUI_PLAN §5.3): the reference's 104 (Desktop-37 `P`, the
+"""Icon names a card may use (docs/genui.md): the reference's 104 (Desktop-37 `P`, the
 keys of `packages/ui-tokens/src/icons.ts`). The 52 curated lucide extras join in the R1
 widening. Kebab, snake and spaced forms normalise to the camelCase key; an unknown name is
 None (the prop is dropped with `icon_unknown`, nothing is drawn)."""

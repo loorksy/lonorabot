@@ -1,4 +1,4 @@
-"""The server's own names for instruments (GENUI_PLAN §8.3, Identity values).
+"""The server's own names for instruments (docs/genui.md, Identity values).
 
 Seeded from the reference's ``SYM_AR`` (Desktop-37 8007), with ``SYM_SHORT`` (8170) as the
 accepted short forms. A broker spelling maps to its entry by the rule ``symbol_candidates``

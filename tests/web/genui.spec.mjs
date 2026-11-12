@@ -1,4 +1,4 @@
-// The canonical alert card end to end on web (GENUI_PLAN §10.5, S-A01 acceptance), from a
+// The canonical alert card end to end on web (docs/genui.md, S-A01 acceptance), from a
 // recorded stream replay of A01 through a real Run, a real card submission, the receipt,
 // reload and «تعديل»; Stop on a queued submission; and §10.4's gate on the A01 card inside
 // the real conversation pane against Desktop-37's own alert recipe.
@@ -279,7 +279,7 @@ const PROPS = [
   "text-align",
   "stroke-width",
 ];
-// Intended differences, each with its reason (GENUI_PLAN §10.4 allow-list).
+// Intended differences, each with its reason (docs/genui.md allow-list).
 const ALLOWED = {
   // The delivery row shows only the real channels, read-only (Q39, Q59): one row where the
   // reference shows three, so the row, the body and the card are 84 px shorter.

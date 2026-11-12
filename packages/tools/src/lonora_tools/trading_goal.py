@@ -68,7 +68,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         run, _ = await locked_run_thread(session, context.lease)
         goal = await create_goal(session, context.owner_id, body, context.resource_id)
         await require_goal_agent(session, goal, run)
-        # A goal tainted work created or changed wakes tainted (GENUI_PLAN §8.5).
+        # A goal tainted work created or changed wakes tainted (docs/genui.md).
         await taint_row_from(session, run, "goal", goal.id)
         run.model_metadata = {
             **run.model_metadata,

@@ -1,4 +1,4 @@
-"""Compile a lonora-ui v2 card against this request's evidence (GENUI_PLAN §9.2, §9.4, §9.6).
+"""Compile a lonora-ui v2 card against this request's evidence (docs/genui.md).
 
 Deterministic repair only (no second model call): facts resolve from this request's
 successful tool results; the card has one account, the account of its first
@@ -360,7 +360,7 @@ def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, An
 
 def owner_words(messages: list[ModelMessage]) -> str:
     """The owner's latest typed message; a card's send is card words, never the owner's
-    (its projection starts ``[owner_via_card``, GENUI_PLAN §8.4)."""
+    (its projection starts ``[owner_via_card``, docs/genui.md)."""
     return next(
         (
             m.content

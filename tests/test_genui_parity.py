@@ -24,8 +24,9 @@ from lonora_contracts.genui import ACTIONS, COMMON, NODES, SERVER_NODES, walk
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 from test_genui_projector import messages, project, reply  # noqa: E402
+
+from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()

@@ -95,7 +95,7 @@ manual and manifest under `share/lonora/system`.
 the real installed-layout fallback; this is also part of `scripts/build.sh`.
 No new runtime, permission engine, memory system or procedure registry exists.
 The generated-interface vocabulary is a separate bounded instruction block. See
-[generated interfaces](native-visual-responses.md).
+[generated interfaces](genui.md).
 
 ## Verification limits
 

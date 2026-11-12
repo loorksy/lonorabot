@@ -1,5 +1,5 @@
 /* lonora-ui v2 cards: the reference's aa_genui look (Desktop-37 1311-1539, 2230-2237), ported
-   verbatim for the S-A01 node set (GENUI_PLAN §2.4, §5.1). Unlayered on purpose: it beats
+   verbatim for the S-A01 node set (docs/genui.md). Unlayered on purpose: it beats
    Tailwind's preflight (a cascade layer) and every zero-specificity legacy and shell element
    rule, and loses to every class rule. */
 

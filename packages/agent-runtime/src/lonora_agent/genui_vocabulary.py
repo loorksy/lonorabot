@@ -1,4 +1,4 @@
-"""The generated vocabulary of the v2 prompt block (GENUI_PLAN §9.5), built from the live
+"""The generated vocabulary of the v2 prompt block (docs/genui.md), built from the live
 registries so it can never drift from what the compiler accepts: the whole node set of the
 contract (mandate 10.1.5) and its props, the functions, the actions, the intents with their
 data, the icon names and the instrument name table. Deterministic, so the block stays in the

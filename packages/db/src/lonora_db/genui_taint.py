@@ -1,4 +1,4 @@
-"""The card-send taint (GENUI_PLAN §0 #12, §8.5).
+"""The card-send taint (docs/genui.md #12, §8.5).
 
 Two different facts, never one key:
 

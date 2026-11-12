@@ -5,7 +5,7 @@ repairs and acceptance status are tracked in [chat runtime repair](chat-runtime-
 
 Verified 2026-10-26. Runtime release:
 `10dfdf7af72a4253762871ea07708623ac123c43`.
-Implementation and limits: [native visual responses](native-visual-responses.md).
+Implementation and limits: [generated interfaces](genui.md).
 Later history-consolidation and documentation commits do not change this runtime.
 
 ## Delivered behavior

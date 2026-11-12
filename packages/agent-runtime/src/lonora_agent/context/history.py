@@ -186,7 +186,7 @@ async def history_context(
     for row in reversed(rows):
         peer = bool(agent_id and row.agent_id and row.agent_id != agent_id)
         if row.origin == "ui_submit" and await submit_hidden(session, row, run):
-            # Rules V and N (GENUI_PLAN §8.2): a submission another Run has not finished is
+            # Rules V and N (docs/genui.md): a submission another Run has not finished is
             # not shown at all; one whose Run never started leaves only a note, never its
             # bubble, intent, data or values.
             if never_ran(row.ui_submit, await submit_status(session, row)):

@@ -158,7 +158,7 @@ remain outside generated presentation.
 
 The v1 model guidance, its generator and the `lonora-design` skill are removed: lonora-ui v2 is
 the only generated interface (mandate 10.1.3). The v2 guidance is generated from the contract;
-see [generated interfaces](native-visual-responses.md).
+see [generated interfaces](genui.md).
 
 ## Performance evidence
 

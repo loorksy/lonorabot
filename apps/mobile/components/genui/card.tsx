@@ -39,7 +39,7 @@ const STALE_MS = 120_000;
 
 type Values = Record<string, unknown>;
 
-/** Android only: iOS plays a full system buzz for every duration (GENUI_PLAN §5.2). */
+/** Android only: iOS plays a full system buzz for every duration (docs/genui.md). */
 function tick(ms: number) {
   if (Platform.OS === "android") Vibration.vibrate(ms);
 }

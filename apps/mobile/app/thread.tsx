@@ -723,7 +723,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
   };
   // Stop cancels every cancellable Run of the thread, a queued card submission included,
-  // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
+  // as web does (docs/genui.md rule L, §9.7 M-a).
   const stopActive = async () => {
     if (!id) return;
     const active = stopTargets(runs, id);
