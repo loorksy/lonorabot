@@ -186,7 +186,10 @@ class Stack:
     ) -> tuple[int, Any]:
         connection = Unix(self.socket_path(), timeout)
         connection.request(
-            method, path, json.dumps(body) if body else None, {"content-type": "application/json"}
+            method,
+            path,
+            json.dumps(body) if body is not None else None,
+            {"content-type": "application/json"},
         )
         response = connection.getresponse()
         return response.status, json.loads(response.read() or b"null")
@@ -238,8 +241,10 @@ class Stack:
 
 def host_addresses() -> list[str]:
     """The same list `lonora` hands the guard: every global address of this host."""
-    found = sh("ip", "-o", "addr", "show", "scope", "global", check=False).stdout.split("\n")
-    return sorted({line.split()[3].split("/")[0] for line in found if len(line.split()) > 3})
+    if shutil.which("ip"):
+        lines = sh("ip", "-o", "addr", "show", "scope", "global", check=False).stdout.split("\n")
+        return sorted({ln.split()[3].split("/")[0] for ln in lines if len(ln.split()) > 3})
+    return sorted(set(sh("hostname", "-I", check=False).stdout.split()))
 
 
 def free_port() -> int:
@@ -553,14 +558,18 @@ def check_limits(stack: Stack) -> None:
     for agent in (a, stack.agent_b):
         stack.run(agent, "sleep 900", background=True)
         stack.run(agent, "nohup setsid sleep 901 >/dev/null 2>&1 &")
-    stack.call("POST", "/v1/processes/stop-all", {})
+    status, _ = stack.call("POST", "/v1/processes/stop-all", {})
+    record(status == 200, "stop-all is accepted")
     left: list[Any] = []
     for _ in range(10):
         left = stack.call("GET", "/v1/processes")[1]["processes"]
         if not left:
             break
         time.sleep(0.5)
-    record(not left, f"all processes of every agent can be stopped ({len(left)} left)")
+    record(
+        not left,
+        f"all processes of every agent can be stopped ({len(left)} left: {[(p['pid'], p['state'], p['command'][:40]) for p in left]})",
+    )
     status, refused = stack.call("POST", "/v1/processes/stop", {"pid": 1})
     record(
         status == 422 or not refused.get("stopped"),
