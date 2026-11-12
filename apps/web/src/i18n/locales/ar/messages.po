@@ -1027,6 +1027,7 @@ msgstr "يمكن أن ينضم وكيلان آخران على الأكثر إل�
 #~ msgstr "إرفاق ملف"
 
 #: src/conversation/Composer.tsx:408
+#: src/conversation/Conversation.tsx:536
 msgid "Attached files"
 msgstr "ملفات مرفقة"
 
@@ -2181,7 +2182,7 @@ msgstr "المحتوى"
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
-#: src/conversation/Conversation.tsx:1076
+#: src/conversation/Conversation.tsx:1082
 #: src/shell/settings/ModelsPage.tsx:14
 msgid "Conversation"
 msgstr "المحادثة"
@@ -2232,8 +2233,8 @@ msgstr "نسخ الرسالة"
 msgid "Copy table"
 msgstr "نسخ الجدول"
 
-#: src/conversation/Conversation.tsx:546
-#: src/conversation/Conversation.tsx:568
+#: src/conversation/Conversation.tsx:552
+#: src/conversation/Conversation.tsx:574
 msgid "Copy text"
 msgstr "نسخ النص"
 
@@ -2510,7 +2511,7 @@ msgstr "تغيّر التفويض"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:547
+#: src/conversation/Conversation.tsx:553
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2793,7 +2794,7 @@ msgstr "مصدر التقويم الاقتصادي"
 msgid "Edit"
 msgstr "تعديل"
 
-#: src/conversation/Conversation.tsx:569
+#: src/conversation/Conversation.tsx:575
 msgid "Edit and resend"
 msgstr "تعديل وإعادة الإرسال"
 
@@ -3412,11 +3413,11 @@ msgstr "التوجيه العالمي"
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
-#: src/conversation/Conversation.tsx:1151
+#: src/conversation/Conversation.tsx:1157
 msgid "Go to the latest messages"
 msgstr "الانتقال إلى آخر الرسائل"
 
-#: src/conversation/Conversation.tsx:1151
+#: src/conversation/Conversation.tsx:1157
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
@@ -3501,7 +3502,7 @@ msgstr "سعيد"
 #~ msgid "Headings, lists, tables and code with a copy button"
 #~ msgstr "عناوين وقوائم وجداول وكود مع زر نسخ"
 
-#: src/conversation/Conversation.tsx:1239
+#: src/conversation/Conversation.tsx:1245
 msgid "Hello {ownerName}"
 msgstr "مرحبًا {ownerName}"
 
@@ -4052,7 +4053,7 @@ msgstr "جارٍ تحميل الشارت…"
 #~ msgid "Loading group…"
 #~ msgstr "جارٍ تحميل المجموعة…"
 
-#: src/conversation/Conversation.tsx:1110
+#: src/conversation/Conversation.tsx:1116
 msgid "Loading older messages"
 msgstr "جارٍ تحميل الرسائل الأقدم"
 
@@ -4308,8 +4309,8 @@ msgstr "راسل {name}"
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/conversation/Conversation.tsx:549
-#: src/conversation/Conversation.tsx:575
+#: src/conversation/Conversation.tsx:555
+#: src/conversation/Conversation.tsx:581
 #: src/conversation/Message.tsx:640
 msgid "Message options"
 msgstr "خيارات الرسالة"
@@ -5782,7 +5783,7 @@ msgid "Queued"
 msgstr "في الانتظار"
 
 #: src/conversation/Conversation.tsx:433
-#: src/conversation/Conversation.tsx:581
+#: src/conversation/Conversation.tsx:587
 msgid "Quick reaction"
 msgstr "تفاعل سريع"
 
@@ -5814,8 +5815,8 @@ msgstr "تفاعل {emoji}"
 msgid "React to the message"
 msgstr "تفاعل مع الرسالة"
 
-#: src/conversation/Conversation.tsx:592
-#: src/conversation/Conversation.tsx:626
+#: src/conversation/Conversation.tsx:598
+#: src/conversation/Conversation.tsx:632
 msgid "Reactions"
 msgstr "التفاعلات"
 
@@ -6065,7 +6066,7 @@ msgstr "التكرار"
 msgid "Replies"
 msgstr "الردود"
 
-#: src/conversation/Conversation.tsx:567
+#: src/conversation/Conversation.tsx:573
 #: src/shell/lists/HeadsUp.tsx:254
 msgid "Reply"
 msgstr "رد"
@@ -6237,7 +6238,7 @@ msgid "Retried. The state updates when the broker answers."
 msgstr "أُعيدت المحاولة. تتحدّث الحالة عندما يستجيب الوسيط."
 
 #: src/conversation/Cards.tsx:127
-#: src/conversation/Conversation.tsx:542
+#: src/conversation/Conversation.tsx:549
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -7330,7 +7331,7 @@ msgstr "اضغط للإملاء"
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
-#: src/conversation/Conversation.tsx:612
+#: src/conversation/Conversation.tsx:618
 msgid "Tap to remove"
 msgstr "اضغط للإزالة"
 
@@ -7704,7 +7705,7 @@ msgstr "السوق"
 msgid "The message is no longer available."
 msgstr "لم تعد الرسالة متاحة."
 
-#: src/conversation/Conversation.tsx:535
+#: src/conversation/Conversation.tsx:542
 #: src/conversation/Message.tsx:678
 msgid "The message was not sent"
 msgstr "لم تُرسل الرسالة"
@@ -8290,7 +8291,7 @@ msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/conversation/Conversation.tsx:913
+#: src/conversation/Conversation.tsx:919
 msgid "Trade order"
 msgstr "أمر تداول"
 
@@ -8421,7 +8422,7 @@ msgstr "موثوق"
 msgid "Try again"
 msgstr "إعادة المحاولة"
 
-#: src/conversation/Conversation.tsx:573
+#: src/conversation/Conversation.tsx:579
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
@@ -8988,7 +8989,7 @@ msgstr "ما الذي حدث لدى الوسيط"
 msgid "What is needed"
 msgstr "المطلوب"
 
-#: src/conversation/Conversation.tsx:1245
+#: src/conversation/Conversation.tsx:1251
 msgid "What shall we do today with {name}?"
 msgstr "ماذا سنفعل اليوم مع {name}؟"
 
@@ -9073,7 +9074,7 @@ msgstr "اكتب شرط التنبيه."
 msgid "Write the task title after {slash}"
 msgstr "اكتب عنوان المهمة بعد الأمر {slash}"
 
-#: src/conversation/Conversation.tsx:1243
+#: src/conversation/Conversation.tsx:1249
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
@@ -9113,7 +9114,7 @@ msgid "Yesterday"
 msgstr "أمس"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:609
+#: src/conversation/Conversation.tsx:615
 #: src/conversation/Message.tsx:132
 #: src/conversation/Message.tsx:151
 #: src/shell/lists/UnifiedSearch.tsx:153

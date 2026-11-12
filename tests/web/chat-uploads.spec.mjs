@@ -162,3 +162,27 @@ test("a message whose file fails to upload keeps the owner's words: «Copy text�
   await expect(page.locator("#toast")).toHaveText("Copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("Words worth keeping");
 });
+
+test("a files-only message whose upload fails offers no «Copy text»: nothing was typed", async ({
+  page,
+}) => {
+  await page.goto(`/app/${data.research.id}`);
+  let fail = () => {};
+  const held = new Promise((resolve) => {
+    fail = resolve;
+  });
+  await page.route("**/api/artifacts/upload", async (route) => {
+    await held;
+    await route.fulfill({ status: 500, body: "upload failed" }).catch(() => {});
+  });
+  const mine = page.locator(".msg.mine");
+  await page.locator('form input[type="file"]').setInputFiles(report);
+  await page.getByRole("combobox").press("Enter");
+  await expect(mine.last().locator(".file-chip.uploading")).toBeVisible();
+  fail();
+  await expect(mine.last().locator(".fail-note")).toHaveText("The message was not sent");
+  await mine.last().getByRole("button", { name: "The message was not sent. Options" }).click();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  // The body is the «Attached files» placeholder, not the owner's words.
+  await expect(page.getByRole("menuitem", { name: "Copy text" })).toHaveCount(0);
+});

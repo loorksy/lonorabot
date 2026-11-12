@@ -528,6 +528,13 @@ export function Conversation({
       const outgoing = isOutgoingMessage(message) ? message : undefined;
       setSelected(message.id);
       if (outgoing?.delivery === "failed") {
+        // A message sent with files and no words carries the composer's «Attached files».
+        const typed =
+          outgoing.content.trim() &&
+          !(
+            (outgoing.uploading?.length || outgoing.attachment_ids.length) &&
+            outgoing.content === t`Attached files`
+          );
         popover.open(
           anchor,
           <>
@@ -542,8 +549,7 @@ export function Conversation({
                 t`Retry`,
                 () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
               )}
-            {outgoing.content.trim() &&
-              item("copy", t`Copy text`, () => void copy(outgoing.content))}
+            {typed && item("copy", t`Copy text`, () => void copy(outgoing.content))}
             {item("trash", t`Delete`, () => thread.drop(outgoing.retry_nonce), true)}
           </>,
           t`Message options`,
