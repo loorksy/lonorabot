@@ -107,18 +107,18 @@ def test_a_reconciled_operation_gets_no_line() -> None:
     assert not lined(state, messages)
 
 
-def test_a_goal_steps_nested_and_deduplicated_results_count() -> None:
+def test_nested_and_deduplicated_results_count() -> None:
     nested = {"decision_id": "d1", "operation_id": "op-9", "result": {"status": "ambiguous"}}
-    state, messages = request(AR, exchange("goal_step_execute", "g1", nested, goal_id="g"))
+    state, messages = request(AR, exchange("trade_execute", "g1", nested, action="buy"))
     assert lined(state, messages)
     replay = {**nested, "deduplicated": True}
-    state, messages = request(AR, exchange("goal_step_execute", "g1", replay, goal_id="g"))
+    state, messages = request(AR, exchange("trade_execute", "g1", replay, action="buy"))
     assert lined(state, messages)
     settled = {"decision_id": "d1", "operation_id": "op-9", "result": {"status": "confirmed"}}
     state, messages = request(
         AR,
-        exchange("goal_step_execute", "g1", nested, goal_id="g"),
-        exchange("goal_step_execute", "g2", settled, goal_id="g"),
+        exchange("trade_execute", "g1", nested, action="buy"),
+        exchange("trade_execute", "g2", settled, action="buy"),
     )
     assert not lined(state, messages)
 

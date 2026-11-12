@@ -267,14 +267,15 @@ async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> N
     from .skill_controls import delete_skill_controls
 
     await authority_lock(session, agent_id)
+    from .management_task import end_management_task
+
+    # Before the agent's row lock: the task's Runs are locked first, as their own work does.
+    await end_management_task(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     if agent.role == "personal":
         raise LonoraError("personal_agent_cannot_delete", 409)
     await prepare_delete(session, owner_id, agent_id=agent_id)
     await delete_skill_controls(session, owner_id, agent_id)
-    from .management_task import end_management_task
-
-    await end_management_task(session, owner_id, agent_id)
     origin = await session.get(SettingRow, origin_key(owner_id, agent_id))
     if origin is not None:
         await session.delete(origin)
@@ -292,14 +293,15 @@ async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> Ag
     from .supervision import owner_takes_over
 
     await authority_lock(session, agent_id)
+    # A paused agent's Full-mode task ends (4.5.2), before the agent's row lock: the
+    # task's Runs are locked first, as their own work does.
+    await end_management_task(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id, lock=True)
     # The owner's pause: a supervisor's hold on this agent becomes the owner's pause.
     await owner_takes_over(session, owner_id, "agent", agent_id, paused=True, agent_id=agent_id)
     if not agent.paused:
         agent.paused = True
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
-    # A paused agent's Full-mode task ends (4.5.2).
-    await end_management_task(session, owner_id, agent_id)
     return agent
 
 

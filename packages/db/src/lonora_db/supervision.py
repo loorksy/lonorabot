@@ -596,15 +596,13 @@ async def _apply(
     (holds are settled by the caller, so the item's own hold checks pass)."""
     if kind == "agent":
         from .agents import agent_data
-        from .management_task import end_management_task, ensure_management_task
+        from .management_task import ensure_management_task
 
         agent = await owned_agent(session, owner_id, agent_id, lock=True)
         agent.paused = action == "pause"
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
-        # Pausing ends the Full-mode task (4.5.2); resuming a Full agent starts it again.
-        if action == "pause":
-            await end_management_task(session, owner_id, agent_id)
-        else:
+        # Pausing ended the Full-mode task in control_work; resuming starts it again.
+        if action == "resume":
             await session.flush()
             await ensure_management_task(session, owner_id, agent_id)
     elif kind == "routine":
@@ -661,6 +659,13 @@ async def control_work(
 
         # Taken before the agent's row lock, in the order a mode change takes them.
         await authority_lock(session, agent_id)
+        if action == "pause":
+            from .management_task import end_management_task
+
+            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
+            # task's Runs are locked first, as their own work does. A refusal below rolls
+            # the whole transaction back.
+            await end_management_task(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)

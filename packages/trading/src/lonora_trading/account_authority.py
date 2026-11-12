@@ -41,9 +41,11 @@ GRANT_TERM_REFUSALS = frozenset(
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
     """Whether this Run answers a provisional voice handoff or a generated card's send
-    (6.10). Such input is the agent's own judgment's input; on a signed grant's old path
-    (until grants are deleted) it cannot spend the grant, so its trades ask. The mark is
-    this Run's alone: it never spreads to the agent's later watches, routines or wakes."""
+    (6.10). Such input is the agent's own judgment's input. In Full, trade_execute and
+    trade_close_positions in this Run send like any other; in Ask its risk-increasing
+    trades ask, even where a signed grant would cover them: it never spends a grant
+    (until grants are deleted). The mark is this Run's alone: it never spreads to the
+    agent's later watches, routines or wakes."""
     from lonora_db.owner_words import ui_submit_origin
 
     if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
@@ -186,25 +188,6 @@ async def grant_covers(
             return False
         raise
     return True
-
-
-async def covering_authority(
-    session: AsyncSession,
-    owner_id: str,
-    run: RunRow,
-    request: TradeRequest,
-    snapshot: ExecutionSnapshot,
-) -> str | None:
-    """``available_authority`` whose every term admits the request (``grant_covers``).
-
-    None never refuses the trade: the owner approves it with an approval card instead.
-    """
-    identifier = await available_authority(session, owner_id, run, request)
-    if identifier is None:
-        return None
-    if await grant_covers(session, owner_id, run, request, identifier, snapshot):
-        return identifier
-    return None
 
 
 def management_target(
