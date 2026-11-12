@@ -209,7 +209,10 @@ async def assigned_market(
         )
     elif params.account_id is not None:
         async with context.db.sessions() as session:
-            row = await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
+            found = await BrokerSessionRepository().get(
+                session, context.owner_id, params.account_id
+            )
+            row = cast(BrokerSessionRow, found)
             spec.update(
                 account_id=row.id,
                 account_label=account_facts(row, row.id)["label"] or row.id,

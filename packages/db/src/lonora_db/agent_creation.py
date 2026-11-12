@@ -26,7 +26,7 @@ from lonora_core.user_error import LonoraError
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .agents import create_agent
+from .agents import agent_data, create_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .schema import (
@@ -283,6 +283,24 @@ async def delete_agent(session: AsyncSession, owner_id: str, agent_id: str) -> N
     # Every pause it holds on other agents' work stays, as the owner's; nothing resumes.
     await owner_holds_for(session, owner_id, agent_id)
     await session.delete(agent)
+
+
+async def pause_agent(session: AsyncSession, owner_id: str, agent_id: str) -> AgentRow:
+    """Stop its runs, routines and watches; nothing it did is removed."""
+    from .authority_lock import authority_lock
+    from .management_task import end_management_task
+    from .supervision import owner_takes_over
+
+    await authority_lock(session, agent_id)
+    agent = await owned_agent(session, owner_id, agent_id, lock=True)
+    # The owner's pause: a supervisor's hold on this agent becomes the owner's pause.
+    await owner_takes_over(session, owner_id, "agent", agent_id, paused=True, agent_id=agent_id)
+    if not agent.paused:
+        agent.paused = True
+        emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
+    # A paused agent's Full-mode task ends (4.5.2).
+    await end_management_task(session, owner_id, agent_id)
+    return agent
 
 
 def report_targets(origin: dict[str, Any]) -> list[str]:

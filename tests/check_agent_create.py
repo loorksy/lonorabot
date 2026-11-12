@@ -159,13 +159,6 @@ async def main() -> None:
                 return error.code
             raise AssertionError("Expected a refusal from " + name)
 
-        async def decide(card_id: str, decision: str) -> dict[str, Any]:
-            response = await fixture.client.post(
-                f"/api/owner-actions/{card_id}/decision", json={"decision": decision}
-            )
-            assert response.is_success, response.text
-            return cast(dict[str, Any], response.json())
-
         async def cards(thread: str) -> list[dict[str, Any]]:
             response = await fixture.client.get("/api/owner-actions", params={"thread_id": thread})
             assert response.is_success, response.text
