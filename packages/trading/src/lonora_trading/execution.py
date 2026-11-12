@@ -12,6 +12,7 @@ from lonora_contracts.tasks import TaskState
 from lonora_contracts.trading import (
     IN_PROGRESS_STATUSES,
     TERMINAL_STATUSES,
+    TradeAnnotation,
     TradeRequest,
     TradeResult,
 )
@@ -156,6 +157,7 @@ class ExecutionService:
         account_authority_id: str | None = None,
         expected_target: dict[str, Any] | None = None,
         owner_message_id: str | None = None,
+        annotation: TradeAnnotation | None = None,
     ) -> TradeResult:
         async with self.db.sessions() as session:
             if lease:
@@ -253,6 +255,9 @@ class ExecutionService:
             )
             if not fresh:
                 return receipt(journal)
+            if annotation is not None:
+                # Beside the request, never inside it: the fingerprint stays the request's.
+                journal.annotation = annotation.model_dump(mode="json")
             if leased_run:
                 await anchor_operation(session, journal, leased_run)
             # Reserved is durable identity only. The send boundary below atomically

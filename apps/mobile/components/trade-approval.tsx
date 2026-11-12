@@ -67,6 +67,18 @@ export function TradeApprovalCard({
           )}
         </View>
       ))}
+      {row.tolerance ? (
+        <Text style={{ color: colors.secondary }}>
+          {t("validWithin")}{" "}
+          {row.reference_price ? `${row.reference_price} ± ${row.tolerance}` : `± ${row.tolerance}`}
+        </Text>
+      ) : null}
+      {row.reason ? (
+        <View testID="trade-approval-reason">
+          <Text style={{ color: colors.secondary }}>{t("agentWords")}</Text>
+          <Text style={{ color: colors.foreground, writingDirection: "auto" }}>{row.reason}</Text>
+        </View>
+      ) : null}
       {row.status === "pending" ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 8 }}>
           <Button label={t("approve")} disabled={busy} onPress={() => void decide("approve")} />
