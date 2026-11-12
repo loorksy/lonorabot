@@ -339,8 +339,8 @@ class ChatListRow(Base):
 class AgentDeliveryRulesRow(Base):
     """Per-agent delivery rules (Q47): in-app alerts, calls and a daily alert limit.
 
-    No row = the defaults (messages, no calls, 5 a day). The rules only narrow delivery;
-    urgent items always show and nothing here grants authority."""
+    No row = the owner-wide policy alone. The rules only narrow delivery; urgent items
+    always show and nothing here grants authority."""
 
     __tablename__ = "ln_agent_delivery_rules"
     __table_args__ = (

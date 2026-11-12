@@ -37,14 +37,7 @@ async def set_delivery_rules(
     await owned_agent(session, owner_id, agent_id)
     row = await session.get(AgentDeliveryRulesRow, (owner_id, agent_id), with_for_update=True)
     if row is None:
-        defaults = AgentDeliveryRules()
-        row = AgentDeliveryRulesRow(
-            owner_id=owner_id,
-            agent_id=agent_id,
-            in_app=defaults.in_app,
-            calls=defaults.calls,
-            daily_limit=defaults.daily_limit,
-        )
+        row = AgentDeliveryRulesRow(owner_id=owner_id, agent_id=agent_id, in_app=True, calls=True)
         session.add(row)
     for field in ("in_app", "calls"):
         value = getattr(change, field)

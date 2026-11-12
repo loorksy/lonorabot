@@ -16,9 +16,9 @@ if TYPE_CHECKING:
     from lonora_contracts.attention import NotifyImportance
 
 
-def test_rules_default_to_messages_without_calls_and_a_limit_of_five():
+def test_rules_default_to_the_owner_wide_policy():
     rules = AgentDeliveryRules()
-    assert rules.in_app and not rules.calls and rules.daily_limit == 5
+    assert rules.in_app and rules.calls and rules.daily_limit is None
     with pytest.raises(ValidationError):
         AgentDeliveryRules(daily_limit=0)
     with pytest.raises(ValidationError):
@@ -61,7 +61,7 @@ async def test_route_reads_and_saves_rules_and_refuses_another_owners_agent():
         agent = await fixture.agent("Rules " + uuid4().hex[:6])
         read = await fixture.client.get(f"/api/agents/{agent['id']}/notifications")
         assert read.status_code == 200, read.text
-        assert read.json() == {"in_app": True, "calls": False, "daily_limit": 5}
+        assert read.json() == {"in_app": True, "calls": True, "daily_limit": None}
         saved = await fixture.client.put(
             f"/api/agents/{agent['id']}/notifications",
             json={"in_app": True, "calls": False, "daily_limit": 5},
@@ -72,17 +72,6 @@ async def test_route_reads_and_saves_rules_and_refuses_another_owners_agent():
         listed = await fixture.client.get("/api/agents/notifications")
         assert listed.status_code == 200
         assert listed.json()[agent["id"]] == {"in_app": True, "calls": False, "daily_limit": 5}
-        # A first save of one field keeps the defaults for the others.
-        other = await fixture.agent("Rules other " + uuid4().hex[:6])
-        partial = await fixture.client.put(
-            f"/api/agents/{other['id']}/notifications", json={"in_app": False}
-        )
-        assert partial.json() == {"in_app": False, "calls": False, "daily_limit": 5}
-        # The owner may still clear the limit on purpose.
-        cleared = await fixture.client.put(
-            f"/api/agents/{other['id']}/notifications", json={"daily_limit": None}
-        )
-        assert cleared.json() == {"in_app": False, "calls": False, "daily_limit": None}
         missing = await fixture.client.put(
             f"/api/agents/{uuid4()}/notifications", json={"in_app": False}
         )
@@ -182,7 +171,6 @@ async def test_calls_off_means_the_agent_never_rings():
                 )
             )
         # With calls on, the invitation rings.
-        await fixture.client.put(f"/api/agents/{agent['id']}/notifications", json={"calls": True})
         async with fixture.runtime.db.sessions() as session, session.begin():
             ringing = await request_call(
                 session,
