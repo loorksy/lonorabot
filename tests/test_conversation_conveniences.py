@@ -172,7 +172,7 @@ async def test_no_suggestion_with_tool_calls_or_a_generated_interface(
         + "\n".join(
             json.dumps(line)
             for line in (
-                {"v": 2, "kind": "receipt", "title": "Hello", "icon": "info"},
+                {"v": 2, "kind": "summary", "title": "Hello", "icon": "info"},
                 {"type": "Text", "text": "Hello"},
                 {"why": "A short note.", "fallback": "Hello."},
             )

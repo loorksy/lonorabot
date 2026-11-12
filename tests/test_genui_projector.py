@@ -240,7 +240,7 @@ async def test_missing_why_and_fallback_get_defaults() -> None:
 
 @pytest.mark.asyncio
 async def test_second_card_is_dropped_with_its_fallback_as_text() -> None:
-    second = '{"v":2,"kind":"receipt","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
+    second = '{"v":2,"kind":"summary","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
     text = reply() + "\n```lonora-ui\n" + second + "\n```\n"
     projection, projector = await project(text)
     parts = cast(dict[str, Any], projection.rich_until())["parts"]
@@ -286,7 +286,7 @@ def test_v2_prompt_block_is_bounded_generated_and_the_only_one() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_receipt_with_a_literal_watch_id_compiles() -> None:
+async def test_a_summary_with_a_literal_watch_id_compiles() -> None:
     history = messages()
     history.insert(
         2,
@@ -304,7 +304,7 @@ async def test_a_receipt_with_a_literal_watch_id_compiles() -> None:
     )
     body = "\n".join(
         [
-            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
+            '{"v":2,"kind":"summary","title":"Alert active","icon":"check"}',
             '{"type":"KeyValue","rows":[["Asset","Gold"]]}',
             '{"type":"Button","label":"Stop alert","action":{"do":"send","intent":"alert.off","data":{"watch_id":"47a32ccd-c721-5382-b3b1-9ba4d335db1e"}}}',
             '{"why":"w","fallback":"f"}',
@@ -537,7 +537,7 @@ async def test_a_fixed_market_agents_card_on_another_account_falls_back() -> Non
 async def test_a_second_card_after_a_fallback_is_still_dropped() -> None:
     """One card per reply even when the first fell back to text (review)."""
     first = A01.replace('"alert.create"', '"trade.execute"')  # falls back
-    second = '{"v":2,"kind":"receipt","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
+    second = '{"v":2,"kind":"summary","title":"x","icon":"check"}\n{"type":"Text","text":"y"}\n{"why":"w","fallback":"الثانية"}'
     text = reply(first) + "\n```lonora-ui\n" + second + "\n```\n"
     projection, projector = await project(text)
     parts = (projection.rich_until() or {"parts": []})["parts"]
@@ -719,3 +719,78 @@ async def test_the_generated_fallback_reads_stat_markdown_and_badge() -> None:
     document = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
     fallback = document["fallback"]
     assert "**Risk:** 1 %" in fallback and "- one" in fallback and "Estimate" in fallback
+
+
+def trade_history(status: str) -> list[ModelMessage]:
+    """A request in which trade_execute answered with an operation in ``status``."""
+    history = messages()
+    history.insert(
+        2,
+        ModelMessage(
+            role="assistant",
+            content="",
+            tool_calls=[ToolCall(id="t1", name="trade_execute", arguments={"symbol": "XAUUSD"})],
+        ),
+    )
+    history.insert(
+        3,
+        ModelMessage(
+            role="tool",
+            tool_call_id="t1",
+            content=json.dumps(
+                {
+                    "results": [{"operation_id": "op-1", "status": status, "broker_id": "50071"}],
+                    "operation_id": "op-1",
+                    "status": status,
+                    "broker_id": "50071",
+                }
+            ),
+        ),
+    )
+    return history
+
+
+def trade_card(path: str) -> str:
+    return "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Order","icon":"check","mode":"observed"}',
+            '{"facts":{"ticket":{"call":"t1","path":"' + path + '"}}}',
+            '{"type":"KeyValue","rows":[["Ticket","@Fact(ticket)"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["ambiguous", "submitted", "reserved", "resolved"])
+@pytest.mark.parametrize("path", ["/broker_id", "/results/0/broker_id"])
+async def test_an_agent_cannot_draw_an_unconfirmed_operation_as_done(
+    status: str, path: str
+) -> None:
+    """10.3 "The agent can never draw 'confirmed' itself" and 6.10: a fact bound to an
+    operation the broker has not confirmed resolves to nothing, so the card falls back."""
+    projection, projector = await project(
+        "Done.\n```lonora-ui\n" + trade_card(path) + "\n```\n", history=trade_history(status)
+    )
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+    assert any(d["code"].startswith("card_fallback") for d in projector.diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_operation_can_be_cited() -> None:
+    projection, _ = await project(
+        "Done.\n```lonora-ui\n" + trade_card("/broker_id") + "\n```\n",
+        history=trade_history("confirmed"),
+    )
+    card = cast(dict[str, Any], projection.rich_until())["parts"][1]["document"]
+    assert card["facts"]["ticket"]["value"] == 50071 and card["kind"] == "summary"
+
+
+@pytest.mark.asyncio
+async def test_the_old_receipt_kind_is_not_a_card_kind() -> None:
+    """The generic kind no longer bears the fixed Execution Receipt's name (10.3)."""
+    body = (
+        '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}\n{"why":"w","fallback":"f"}'
+    )
+    projection, _ = await project("Done.\n```lonora-ui\n" + body + "\n```\n")
+    assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])

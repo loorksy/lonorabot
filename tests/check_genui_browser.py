@@ -203,7 +203,7 @@ async def receipt(data: dict[str, Any]) -> dict[str, Any]:
             result = next(m for m in messages if m.role == "tool" and m.tool_call_id == "w1")
             watch = json.loads(result.content)["id"]
             lines = [
-                '{"v":2,"kind":"receipt","title":"تنبيه فعّال","sub":"الذهب فوق 2,400","icon":"check"}',
+                '{"v":2,"kind":"summary","title":"تنبيه فعّال","sub":"الذهب فوق 2,400","icon":"check"}',
                 '{"type":"KeyValue","rows":[["الأصل","الذهب"],["الشرط","يصعد فوق 2,400"],["الإشعار","داخل التطبيق"]]}',
                 '{"type":"Row","children":[{"type":"Button","label":"عرض التنبيهات","icon":"bell","action":{"do":"go","route":"market"}},'
                 '{"type":"Button","label":"إيقاف التنبيه","icon":"bellOff","action":{"do":"send","intent":"alert.off","data":{"watch_id":"'

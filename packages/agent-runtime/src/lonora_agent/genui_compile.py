@@ -64,7 +64,7 @@ DEFAULT_WHY = {
     "form": "نموذج قصير يجمع ما يحتاجه الطلب مرة واحدة ويمنع الأخطاء، بدل أسئلة متتالية.",
     "calculator": "حاسبة تفاعلية تجرّب فيها الأرقام بنفسك وترى النتيجة فورًا؛ أوضح من شرح نصي.",
     "diagram": "مستويات وأسهم تُظهر كيف تتصل الأجزاء في نظرة واحدة، أوضح من فقرات.",
-    "receipt": "تأكيد مختصر بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
+    "summary": "ملخص قصير بالتفاصيل مع زر للخطوة التالية؛ أوضح من فقرة وأسهل من البحث في القوائم.",
 }
 HEIGHTS = {
     "Segmented": 68,
@@ -122,14 +122,24 @@ def request_evidence(messages: list[ModelMessage]) -> dict[str, Evidence]:
     return evidence
 
 
-def _failed(data: Any) -> bool:
+# Lifecycle states of a journaled operation (lonora_contracts.trading.OperationStatus).
+OPERATION_STATUSES = frozenset(
+    {"reserved", "submitted", "confirmed", "failed", "ambiguous", "resolved"}
+)
+
+
+def unusable(data: Any) -> bool:
+    """Not usable as evidence: a failed result, or an operation the broker has not
+    confirmed. An agent can never draw an unconfirmed operation as done (10.3, 6.10)."""
     if not isinstance(data, dict):
         return False
     data = cast(dict[str, Any], data)
+    status = str(data.get("status", "")).lower()
     return (
         data.get("ok") is False
         or bool(data.get("error"))
-        or str(data.get("status", "")).lower() in FAILED
+        or status in FAILED
+        or ("operation_id" in data and status in OPERATION_STATUSES and status != "confirmed")
     )
 
 
@@ -157,7 +167,7 @@ def _bounded(value: Any, depth: int, count: list[int]) -> Any:
         for key, item in cast(dict[str, Any], value).items():
             if PRIVATE_KEY.search(key):
                 raise ValueError("genui_fact_private")
-            if _failed(item):
+            if unusable(item):
                 raise ValueError("genui_fact_failed")
             result[key] = _bounded(item, depth + 1, count)
         return result
@@ -178,7 +188,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
     if tokens.count("*") > 1:
         raise ValueError("genui_fact_path_invalid")
     for index, token in enumerate(tokens):
-        if _failed(data):
+        if unusable(data):
             raise ValueError("genui_fact_failed")
         if isinstance(data, dict):
             data = cast(dict[str, Any], data)
@@ -207,7 +217,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
             data = len(cast(list[Any], data))
         else:
             raise ValueError("genui_fact_path_unknown")
-    if _failed(data):
+    if unusable(data):
         raise ValueError("genui_fact_failed")
     if isinstance(data, dict | list):
         return _bounded(data, 0, [0]), observed
@@ -314,7 +324,7 @@ def typed_fact_numbers(
     action data, in any digits. Numbers the owner typed are theirs to show."""
     read: set[Decimal] = set()
     for item in evidence.values():
-        if FACT_TOOLS.match(item.name) and not _failed(item.result):
+        if FACT_TOOLS.match(item.name) and not unusable(item.result):
             read |= {n for n in _read_values(item.result) if _significant(n)}
     said = _numbers(owner)
     shown = {key: value for key, value in head.items() if key not in {"facts", "v"}}
@@ -456,7 +466,7 @@ def compile_card(
     account: str | None = None
     for key, reference in cast(dict[str, dict[str, str]], data.get("facts", {})).items():
         item = evidence.get(reference["call"])
-        if item is None or _failed(item.result):
+        if item is None or unusable(item.result):
             facts[key] = {"value": None, "source": item.name if item else "unknown"}
             continue
         call_account = _call_account(item, scope.bound_account)
@@ -519,7 +529,7 @@ def compile_card(
     # Symbols verified this turn on the card's account.
     verified: set[str] = set()
     for item in evidence.values():
-        if _failed(item.result) or not isinstance(item.result, dict):
+        if unusable(item.result) or not isinstance(item.result, dict):
             continue
         if account is not None and _call_account(item, scope.bound_account) != account:
             continue
@@ -531,7 +541,7 @@ def compile_card(
 
     watch_ids: set[str] = set()
     for item in evidence.values():
-        if item.name.startswith("watch_") and not _failed(item.result):
+        if item.name.startswith("watch_") and not unusable(item.result):
             if isinstance(item.record.get("id"), str):
                 watch_ids.add(item.record["id"])
             for watch in cast(list[Any], item.record.get("watches") or []):
