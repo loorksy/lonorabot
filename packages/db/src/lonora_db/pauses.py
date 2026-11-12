@@ -23,8 +23,9 @@ from .events import emit
 from .schema import AgentRow, MarketWatchRow, RoutineRow, RunRow, SupervisionHoldRow, TicketRow
 from .transactions import owned_agent
 
-# The owner's message, in the agent's own conversation or naming it in a group (3.2.5).
-OWNER_MESSAGE_TRIGGERS = frozenset({"user", "group"})
+# A group run the owner addressed to this agent (a mention, a reply, its card), not the
+# group's fallback answerer.
+OWNER_ADDRESSED = "owner_addressed"
 
 
 def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
@@ -34,14 +35,17 @@ def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
     routines, watches, timers, Tasks, peers and wakes are held."""
     if trigger == "broker_event":
         return metadata.get("authority") != "observe_only"
-    return trigger in OWNER_MESSAGE_TRIGGERS
+    if trigger == "group":
+        return metadata.get(OWNER_ADDRESSED) is True
+    return trigger == "user"
 
 
 def claimable_while_paused() -> ColumnElement[bool]:
     """``runs_while_paused`` as a claim condition on ``RunRow``."""
     authority = RunRow.model_metadata["authority"].as_string()
     return or_(
-        RunRow.trigger.in_(OWNER_MESSAGE_TRIGGERS),
+        RunRow.trigger == "user",
+        and_(RunRow.trigger == "group", RunRow.model_metadata[OWNER_ADDRESSED].as_boolean()),
         and_(
             RunRow.trigger == "broker_event",
             or_(authority.is_(None), authority != "observe_only"),

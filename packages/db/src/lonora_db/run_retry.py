@@ -19,7 +19,7 @@ from sqlalchemy.orm import aliased
 
 from .agent_on_its_own import agents_on_their_own
 from .events import emit
-from .pauses import runs_while_paused
+from .pauses import OWNER_ADDRESSED, runs_while_paused
 from .runs import aware, failure_data, run_data
 from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
 from .transactions import owned_agent, owned_thread
@@ -136,7 +136,10 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         trigger=row.trigger,
         prompt=row.prompt,
         input_seq=row.input_seq,
-        model_metadata={"retry_of": row.id},
+        model_metadata={
+            "retry_of": row.id,
+            **({OWNER_ADDRESSED: True} if row.model_metadata.get(OWNER_ADDRESSED) else {}),
+        },
     )
     # A spoken request stays provisional in its retry (it needs its own approval card), and a
     # later spoken correction withdraws the retry's approvals too.

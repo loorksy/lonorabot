@@ -20,7 +20,10 @@ from test_proactive_wakes import call, database, retire, simulation
 def test_only_the_owners_message_and_its_own_broker_events_run_while_paused() -> None:
     from lonora_db.pauses import runs_while_paused
 
-    assert runs_while_paused("user", {}) and runs_while_paused("group", {})
+    assert runs_while_paused("user", {})
+    # In a group, only a run the owner addressed to it; never the group's fallback.
+    assert runs_while_paused("group", {"owner_addressed": True})
+    assert not runs_while_paused("group", {})
     assert runs_while_paused("broker_event", {})
     # Activity on tickets it does not own is an observe-only wake: not its own.
     assert not runs_while_paused("broker_event", {"authority": "observe_only"})
@@ -154,15 +157,104 @@ async def test_a_paused_agent_wakes_for_its_ticket_closes_it_and_adds_no_risk(mo
             )
         assert cards == 0
 
-        # The owner's direct message still starts a run of the paused agent.
+        # The door itself refuses the paused agent's new risk, whatever the tool did first.
+        from decimal import Decimal
+
+        from lonora_contracts.trading import TradeRequest
+        from lonora_trading.agent_permission import require_operation_permission
+
+        async with fixture.runtime.db.sessions() as session:
+            woken = await session.get(RunRow, woke.id)
+            assert woken is not None
+            for reducing in (None, False):
+                with pytest.raises(LonoraError, match="agent_paused"):
+                    await require_operation_permission(
+                        session,
+                        fixture.owner,
+                        woken,
+                        TradeRequest(
+                            account_id=connection,
+                            action="buy",
+                            symbol="XAUUSD",
+                            volume=Decimal("0.1"),
+                        ),
+                        None,
+                        reducing=reducing,
+                    )
+
+        # The owner's direct message starts a new run of the paused agent; a held run
+        # in the conversation never takes the owner's words.
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            for run_id in (context.lease.run_id, woke.id):
+                row = await session.get(RunRow, run_id)
+                assert row is not None
+                row.status = "completed"
+            held = RunRow(
+                thread_id=thread["id"],
+                agent_id=gold["id"],
+                trigger="follow_up",
+                input_seq=0,
+            )
+            session.add(held)
+            await session.flush()
+            held_id = held.id
         sent = await fixture.request(
             "POST", f"/threads/{thread['id']}/messages", {"content": "How is gold?"}
         )
-        assert sent["run_ids"], sent
+        assert len(sent["run_ids"]) == 1 and held_id not in sent["run_ids"], sent
         async with fixture.runtime.db.sessions() as session:
             run = await session.get(RunRow, sent["run_ids"][0])
             assert run is not None and run.agent_id == gold["id"] and run.trigger == "user"
+            assert run.status == "queued"
+            assert await session.scalar(
+                select(RunRow.id).where(RunRow.id == run.id, claimable_while_paused())
+            )
+            assert not await session.scalar(
+                select(RunRow.id).where(RunRow.id == held_id, claimable_while_paused())
+            )
+            # Settle both, so no later test claims them.
+            for run_id in (run.id, held_id):
+                row = await session.get(RunRow, run_id)
+                assert row is not None
+                row.status = "cancelled"
+            await session.commit()
     finally:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_card_ending_notice_waits_for_the_resume_instead_of_failing() -> None:
+    """A Trade Approval card of a paused agent can still be withdrawn or drift: the notice
+    run is queued and held until the agent is resumed, so the mode change or the drift
+    that ended the card is never rolled back."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.pauses import claimable_while_paused
+    from lonora_db.runs import create_run
+    from lonora_db.schema import RunRow
+    from lonora_db.trade_approvals import WITHDRAWN_TRIGGER
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        gold = await fixture.agent("Paused card")
+        thread = await fixture.conversation(gold)
+        await fixture.request("PATCH", f"/agents/{gold['id']}", {"paused": True})
+        request = RunRequest(
+            thread_id=thread["id"], agent_id=gold["id"], trigger=WITHDRAWN_TRIGGER, prompt="x"
+        )
+        with pytest.raises(LonoraError, match="agent_paused"):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await create_run(session, fixture.owner, request)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await create_run(session, fixture.owner, request, held_while_paused=True)
+            assert run.status == "queued"
+            assert not await session.scalar(
+                select(RunRow.id).where(RunRow.id == run.id, claimable_while_paused())
+            )
+            run.status = "cancelled"
+    finally:
         await fixture.close()
