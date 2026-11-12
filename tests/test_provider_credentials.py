@@ -63,7 +63,9 @@ async def closed(fixture: Any, saved: dict[str, dict[str, Any]]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_an_unused_provider_key_is_removed_with_its_catalog(caplog):
+async def test_an_unused_provider_key_is_removed_with_its_catalog(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     database()
     from lonora_db.schema import SettingRow
 
