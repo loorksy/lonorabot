@@ -6,13 +6,14 @@ from lonora_db.genui_taint import taint_row_from
 from lonora_db.runs import require_lease
 from lonora_db.schema import TicketRow
 from lonora_db.tasks import control_task, create_task, get_task, snapshot
+from lonora_db.threads import report_thread
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool, eager_for
 from .context import ToolContext
+from .provenance import owner_message_id
 from .resolve import Option, resolve, stating
-from .restrictions import owner_message_id
 
 
 async def step_update(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -32,7 +33,11 @@ async def start(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             session,
             context.owner_id,
             context.agent_id,
-            context.thread_id,
+            # A wake's Task reports where the wake reports: its Agent's conversation. A
+            # Task's own sub-Task stays with the Task's work.
+            context.thread_id
+            if run.model_metadata.get("task_id")
+            else await report_thread(session, run),
             TaskCreate.model_validate(args),
             context.resource_id,
             starter=run,
@@ -106,7 +111,7 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
-        # Tainted work that resumes or revises a Task taints it (GENUI_PLAN §8.5).
+        # Tainted work that resumes or revises a Task taints it (docs/genui.md).
         await taint_row_from(session, run, "ticket", row.id)
         return await snapshot(session, row)
 

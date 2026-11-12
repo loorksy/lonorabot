@@ -20,11 +20,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ComposerUpload } from "../lib/composer-uploads";
+import { fill } from "../lib/i18n";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
 import { NativeSymbol } from "./native-symbol";
+import { UploadRing } from "./upload-ring";
 export function ThreadComposer({
   draft,
   onChange,
@@ -35,6 +38,8 @@ export function ThreadComposer({
   onStop,
   busy,
   uploading,
+  uploads = [],
+  onCancelUpload,
   disabled,
   working = false,
   members = [],
@@ -44,6 +49,8 @@ export function ThreadComposer({
   collaborationSessionId,
   reply,
   onCancelReply,
+  editing,
+  onCancelEdit,
   permissionControl,
 }: {
   draft: string;
@@ -54,18 +61,25 @@ export function ThreadComposer({
   onSend: (mentions?: MentionAddress) => void;
   onStop?: () => void;
   busy: boolean;
+  /** The picker is open or files are being read: the «+» waits. */
   uploading: boolean;
+  /** Files uploading into this draft, each with its ring and cancel. */
+  uploads?: ComposerUpload[];
+  onCancelUpload?: (id: string) => void;
   disabled: boolean;
   working?: boolean;
   members?: Agent[];
   mentionAll?: boolean;
-  /** A direct chat: at most two guest agents per message (MAX_DIRECT_GUESTS). */
+  /** A direct chat: other agents join as guests. */
   direct?: boolean;
-  /** A direct chat's own agent: never offered as a guest, never counted toward the cap. */
+  /** A direct chat's own agent: never offered as a guest. */
   self?: string | null;
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** Edit and resend (Q21): the owner's message this send replaces. */
+  editing?: Message | null;
+  onCancelEdit?: () => void;
   permissionControl?: ReactNode;
 }) {
   const { rtl, t } = useSession();
@@ -90,7 +104,12 @@ export function ThreadComposer({
       setCursor(0);
     }
   }, [draft]);
-  const canSend = Boolean(draft.trim() || attachments.length) && !disabled && !busy && !uploading;
+  // A message may be sent while its files upload: it goes out once they are up (as on Web).
+  const canSend =
+    Boolean(draft.trim() || attachments.length || uploads.length) &&
+    !disabled &&
+    !busy &&
+    !uploading;
   return (
     <View
       style={{
@@ -101,7 +120,11 @@ export function ThreadComposer({
         backgroundColor: shell.background,
       }}
     >
-      {reply ? <ComposerReplyPreview message={reply} onClose={onCancelReply} /> : null}
+      {editing ? (
+        <ComposerReplyPreview message={editing} onClose={onCancelEdit} editing />
+      ) : reply ? (
+        <ComposerReplyPreview message={reply} onClose={onCancelReply} />
+      ) : null}
       {candidates.length ? (
         <View style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (
@@ -152,7 +175,7 @@ export function ThreadComposer({
           ))}
         </View>
       ) : null}
-      {attachments.length ? (
+      {attachments.length || uploads.length ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -190,6 +213,39 @@ export function ThreadComposer({
               <NativeSymbol name="close" size={14} color={shell.secondary} />
             </Pressable>
           ))}
+          {uploads.map((file) => (
+            <View
+              key={file.id}
+              testID="composer-upload"
+              style={{
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                backgroundColor: shell.muted,
+                maxWidth: 220,
+              }}
+            >
+              <UploadRing
+                p={file.p}
+                label={fill(t("uploadingFile"), file.name)}
+                onCancel={onCancelUpload ? () => onCancelUpload(file.id) : undefined}
+              />
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: shell.foreground,
+                  fontSize: 13,
+                  flexShrink: 1,
+                  writingDirection: "auto",
+                }}
+              >
+                {file.name}
+              </Text>
+            </View>
+          ))}
         </ScrollView>
       ) : null}
       <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "flex-end", gap: 10 }}>
@@ -220,7 +276,7 @@ export function ThreadComposer({
               hitSlop={6}
               style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
               onPress={onAttach}
-              disabled={busy || uploading || disabled || attachments.length >= 10}
+              disabled={busy || uploading || disabled || attachments.length + uploads.length >= 10}
             >
               {uploading ? (
                 <ActivityIndicator color={shell.secondary} size="small" />

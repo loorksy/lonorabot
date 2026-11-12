@@ -47,6 +47,16 @@
   max-width: 84%;
   min-width: 0;
 }
+@media (min-width: 900px) {
+  .msg-line {
+    max-width: 68%;
+  }
+}
+@media (max-width: 430px) {
+  .msg-line {
+    max-width: 88%;
+  }
+}
 .msg.mine .msg-line {
   flex-direction: row-reverse;
 }
@@ -475,6 +485,12 @@
 .chat-empty .arcs {
   z-index: 0;
 }
+.chat-empty > .lonora-agent-avatar,
+.chat-empty > .group-av {
+  display: inline-flex;
+  width: 88px;
+  height: 88px;
+}
 .chat-empty h2 {
   margin: 14px 0 0;
 }
@@ -785,9 +801,6 @@
 .react-pop {
   min-width: 0;
   padding: 6px;
-}
-.mode-pop {
-  width: min(330px, calc(100vw - 20px));
 }
 
 /* ---- reference 770-845 */
@@ -1495,6 +1508,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   color: var(--faint);
 }
 .as-row {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1502,6 +1516,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   padding: 7px 10px;
   border-radius: 15px;
   color: var(--text);
+  text-align: start;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.12s;
@@ -1837,6 +1852,7 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   object-fit: cover;
   filter: brightness(0.62) saturate(0.8);
 }
+.att.image .up,
 .img-msg.busy .up,
 .img-msg.busy .up-retry {
   position: absolute;
@@ -1849,9 +1865,14 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
+.att.image .up-x,
 .img-msg.busy .up-x,
 .img-msg.busy .up-retry {
   color: #fff;
+}
+.att.image .up {
+  width: 44px;
+  height: 44px;
 }
 .img-msg.busy .up-retry {
   display: grid;
@@ -2247,6 +2268,17 @@ html[dir="ltr"] .bubble.voice-bubble .meta {
 .att-x svg {
   width: 12px;
   height: 12px;
+}
+/* a file still uploading: its ring and cancel in place of the icon, or over the picture */
+.att.file.uploading {
+  padding-inline-end: 12px;
+}
+.att.file .up {
+  width: 36px;
+  height: 36px;
+}
+.att.image.uploading img {
+  filter: brightness(0.62) saturate(0.8);
 }
 /* ↓ to the newest message */
 .jump {
@@ -4756,6 +4788,15 @@ span.no-trade {
   pointer-events: none;
   opacity: var(--wa, 0.1);
   contain: strict;
+}
+/* reference 850-851: the layer fades in with the page that opens the chat, never on a change */
+main.page-enter > .chat-wall {
+  animation: wall-in 0.3s var(--ease) both;
+}
+@keyframes wall-in {
+  from {
+    opacity: 0;
+  }
 }
 /* reference 603-604: the desktop composer */
 @media (min-width: 900px) {

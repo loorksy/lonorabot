@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import Contract
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import EventRow
@@ -66,11 +67,16 @@ async def list_accounts(context: ToolContext, args: dict[str, Any]) -> dict[str,
         }
 
 
-async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+async def read_account(brokers: BrokerManager, owner_id: str, account_id: str) -> dict[str, Any]:
+    """Account, positions and orders: the account_read tool and `lonora account`,
+    `lonora positions` and `lonora orders`."""
     return await account_snapshot(
-        await context.brokers.get(context.owner_id, args["account_id"]),
-        await context.brokers.account(context.owner_id, args["account_id"]),
+        await brokers.get(owner_id, account_id), await brokers.account(owner_id, account_id)
     )
+
+
+async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    return await read_account(context.brokers, context.owner_id, args["account_id"])
 
 
 class ActivityInput(AccountInput):

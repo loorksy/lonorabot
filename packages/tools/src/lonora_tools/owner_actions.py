@@ -28,13 +28,12 @@ from lonora_db.schema import (
     ThreadRow,
 )
 from lonora_db.transactions import owned_thread
-from lonora_session.idempotency import stable_id
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .restrictions import owner_message_id
+from .provenance import owner_message_id
 from .symbols import canonical_broker_symbol
 
 # The daily loss limit a grant card suggests when the owner named none (owner decision D1).
@@ -238,37 +237,8 @@ async def card_scope(context: ToolContext, session: AsyncSession) -> tuple[RunRo
     return run, thread
 
 
-async def propose_capability_card(
-    context: ToolContext, kind: str, subject: str, payload: dict[str, Any], *, key: str = ""
-) -> dict[str, Any]:
-    """A trust or credential card on this agent's behalf, its effect built on the server
-    (``key`` separates the cards one call may raise)."""
-    from lonora_db.owner_actions import propose_capability
-
-    async with context.db.sessions() as session, session.begin():
-        run, thread = await card_scope(context, session)
-        row, created = await propose_capability(
-            session,
-            context.owner_id,
-            kind,
-            subject,
-            payload,
-            card_id=stable_id(context.resource_id, "capability-card:" + key),
-            agent_id=context.agent_id,
-            thread_id=thread.id,
-            run_id=run.id,
-        )
-        await require_lease(session, context.lease, lock=True)
-        return card_summary(row, created, thread.id, False)
-
-
 async def propose_card(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     proposal = OwnerActionProposal.model_validate(args)
-    if proposal.kind == "trust_source" and proposal.source_kind == "mcp_server":
-        from .mcp import propose_review
-
-        assert proposal.connection_id is not None
-        return await propose_review(context, proposal.connection_id)
     grant = await grant_draft(context, proposal) if proposal.kind == "grant_authority" else None
     async with context.db.sessions() as session, session.begin():
         run, thread = await card_scope(context, session)
@@ -315,10 +285,8 @@ def tools() -> list[Tool]:
         Tool(
             "owner_action_propose",
             "Put a one-tap owner action card in this conversation for an action only the "
-            "owner may take; nothing changes until the owner taps it. Kinds: resume_trading "
-            "(only when the owner asks to resume: Stop is the owner's brake), "
-            "lift_restriction (restriction_id of an active or scheduled pause the owner asks "
-            "to lift), resolve_operation (operation_id of an ambiguous operation; the owner "
+            "owner may take; nothing changes until the owner taps it. Kinds: "
+            "resolve_operation (operation_id of an ambiguous operation; the owner "
             "answers executed / not executed / unknown, and any answer releases its hold), "
             "set_account_limits (account_id with set_limits amounts in the account "
             "currency or percentages, and/or remove_limits; currency when setting an amount "
@@ -333,12 +301,13 @@ def tools() -> list[Tool]:
             "from the card) and the owner still chooses Custom or Full and signs; a daily "
             "loss the owner named is then not on the card "
             "(requested_daily_loss_needs_limits_card): propose set_account_limits for it "
-            "or tell the owner Custom carries it), trust_source (source_kind mcp_server "
-            "with connection_id: "
-            "the card lists its tools for the owner to trust; github_owner, github_repo or "
-            "feed_domain with identifier) and connect_credential (target mcp_server, "
+            "or tell the owner Custom carries it) and connect_credential (target mcp_server, "
             "news_feed, brave_search, economic_calendar or broker; service x for an X MCP "
-            "server): a secure form whose value goes straight to the server, never to you. "
+            "server): a secure form whose value goes straight to the server, never to you; "
+            "secret (any other credential: label and secret_fields, each a key, the name its "
+            "value is saved under, a label, and secret false only for a value safe to show "
+            "while typed; ask non-secret details in chat): the owner's values are saved "
+            "encrypted as workspace secrets and you learn only which keys were saved. "
             "Lowering or adding a limit is one tap; a grant, raising or removing a limit, or "
             "moving the currency or trading day of set limits needs the owner's passkey. The "
             "card shows only server facts; say in one line what it does. A repeated proposal "
