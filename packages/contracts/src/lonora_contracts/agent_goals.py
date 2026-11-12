@@ -1,8 +1,7 @@
 """Light goals of an agent that does not trade (owner decision Q41).
 
 A light goal is a note the owner keeps for an agent: a title, a description and whether
-it is done. It schedules nothing and grants no autonomy or authority (W15-9); trading
-agents keep their trading goals (plans under the agent's grant) instead.
+it is done. It schedules nothing and grants no autonomy or authority (W15-9).
 """
 
 from pydantic import Field

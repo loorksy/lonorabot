@@ -21,8 +21,6 @@ class RoutineService:
             row = await owned_routine(session, owner_id, routine_id)
             sent = update.model_dump(include=update.model_fields_set)
             merged = {
-                "goal_id": row.goal_id,
-                "step_id": row.step_id,
                 "title": row.title,
                 "prompt": row.prompt,
                 "interval_seconds": row.interval_seconds,

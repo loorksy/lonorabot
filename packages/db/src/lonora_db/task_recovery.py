@@ -47,7 +47,7 @@ OWNER_CODES = frozenset(
         "run_recovery_limit",
     }
 )
-FINANCIAL_REPLAY_TOOLS = frozenset({"trade_execute", "trade_close_positions", "goal_step_execute"})
+FINANCIAL_REPLAY_TOOLS = frozenset({"trade_execute", "trade_close_positions"})
 CHECKPOINT_TOOLS = frozenset({"task_step_update"})
 
 
