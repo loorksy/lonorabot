@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import dotenv_values
@@ -8,6 +9,8 @@ from lonora_db.client import Database
 from lonora_db.model_credentials import credential_id
 
 from .registry import OWNER_ENDPOINT
+
+log = logging.getLogger("lonora.model_router")
 
 
 def _deployment(name: str) -> str | None:
@@ -32,11 +35,21 @@ class ProviderCredentials:
         raise LonoraError("model_not_configured", 409)
 
     async def endpoint(self, provider: str) -> str | None:
-        """The owner's base URL for a provider that has one, else ``None``."""
+        """The owner's base URL for a provider that has one, else ``None``.
+
+        A URL that fails the check connects nothing, so the router passes over the
+        provider as unconfigured instead of failing every route that lists it.
+        """
         if provider not in OWNER_ENDPOINT:
             return None
         value = _deployment("LONORA_" + provider.upper() + "_BASE_URL")
-        return compatible_endpoint(value) if value else None
+        if not value:
+            return None
+        try:
+            return compatible_endpoint(value)
+        except LonoraError:
+            log.warning("model_endpoint_unsafe provider=%s", provider)
+            return None
 
     async def configured(self, provider: str) -> bool:
         try:

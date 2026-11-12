@@ -4,10 +4,12 @@ The owner's API key goes to the owner's URL and nowhere else. The URL is checked
 before any request: http(s) only, no credentials, query or fragment in it, and plain
 http only to a host on the owner's own machine or network (loopback, a private
 address, or a one-label name such as a Compose service), so a key never crosses
-the internet unencrypted.
+the internet unencrypted. A one-label name starts with a letter: ``134744072`` and
+``0x8080808`` are 8.8.8.8 to the resolver, not names.
 """
 
 import ipaddress
+import re
 from urllib.parse import urlsplit
 
 import httpx
@@ -15,9 +17,11 @@ from lonora_core.user_error import LonoraError
 
 from .openai_compatible import OpenAICompatibleAdapter
 
+SERVICE_NAME = re.compile(r"[a-z][a-z0-9-]*")
+
 
 def _local_host(host: str) -> bool:
-    if host == "localhost" or ("." not in host and ":" not in host):
+    if host == "localhost" or SERVICE_NAME.fullmatch(host):
         return True
     try:
         address = ipaddress.ip_address(host)

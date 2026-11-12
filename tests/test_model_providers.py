@@ -150,6 +150,9 @@ def test_an_owner_endpoint_is_accepted_over_https_or_on_the_owners_network(url: 
     [
         "http://llm.example.test/v1",
         "http://8.8.8.8/v1",
+        "http://134744072/v1",  # 8.8.8.8 as one integer
+        "http://0x8080808/v1",  # and in hex
+        "http://0/v1",
         "ftp://llm.example.test/v1",
         "https://user:pass@llm.example.test/v1",
         "https://llm.example.test/v1?key=x",
@@ -194,6 +197,13 @@ async def test_an_owner_endpoint_connects_from_the_deployment_and_answers_throug
     assert await credentials.configured("openai_compatible")
     assert await credentials.endpoint("openai_compatible") == ENDPOINT
     assert await credentials.endpoint("openai") is None
+    # A URL that fails the check connects nothing; routing passes over it.
+    monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", "http://134744072/v1")
+    assert await credentials.endpoint("openai_compatible") is None
+    with pytest.raises(LonoraError) as caught:
+        await credentials.resolve("openai_compatible")
+    assert caught.value.code == "model_not_configured"
+    monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", ENDPOINT)
 
     client, seen = recording()
 
