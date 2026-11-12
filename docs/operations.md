@@ -332,7 +332,6 @@ undo something that must not be undone: an owner's "stop trading", a new restric
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_supervision_holds` (every pause of an agent, routine, watch or Task, and who may lift it),
 `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the trading switch and emergency stop
 in `ln_settings`, and the owner's own messages in `ln_messages` (including Telegram and voice). If any of them
 changed, or cannot be read, it does **not** restore. It stops API and Gateway, keeps maintenance on
