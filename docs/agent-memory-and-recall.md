@@ -122,7 +122,12 @@ line's origin is the revision that added it (`lonora_db/owner_knowledge.py`,
 `profile_lines`): the `owner_preferences` section gives the owner's words and
 earlier lines (no revision, or 0039's system merge of the old owner-only USER.md
 sections) as `profile`, and Lonora's observations as `lonora_observations`, its
-inference, ranked below his words. A team Agent's profile write needs a
+inference, ranked below his words. «ما أعرفه عنك» (`GET/POST /owner/profile/lines`,
+web and mobile) shows each line as said, observed or earlier (a revert keeps the
+origin from before the reverted change); the owner's correction or deletion is his
+word. An Agent's `patch` or `remove` that touches a line of his word or an earlier
+line, without his message, gets `owner_profile_line_is_owners_word` and nothing is
+saved (8.4). A team Agent's profile write needs a
 Run that answers the owner's message (`owner_message_id`, the same rule restrictions
 use): a wake, peer or task Run, or an `observed` write, gets
 `owner_profile_requires_owner_message` and nothing is saved; it keeps the

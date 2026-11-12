@@ -51,6 +51,12 @@ export default function Settings() {
           </Text>
         </View>
         <SettingsGroup>
+          <SettingsRow
+            title={t("whatIKnow")}
+            icon="eye"
+            testID="what-i-know"
+            onPress={() => router.push("/owner")}
+          />
           <SettingsRow title={t("account")} icon="agent" onPress={() => router.push("/account")} />
           <SettingsRow title={t("models")} icon="settings" onPress={() => router.push("/models")} />
           <SettingsRow
