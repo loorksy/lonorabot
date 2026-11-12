@@ -25,7 +25,7 @@ broken routine can no longer stop broker reconciliation.
 | `reconcile`, `verifications`, `account_recovery` | 10 s | 300 s | yes |
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
-| `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
+| `morning_brief`, `weekly_reports` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
