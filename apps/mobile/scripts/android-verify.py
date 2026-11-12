@@ -25,6 +25,11 @@ parser.add_argument(
     help="Reject missing native microphone/audio/wake-lock declarations in new releases.",
 )
 parser.add_argument(
+    "--require-push",
+    action="store_true",
+    help="Reject a release built with push inputs that cannot post notifications.",
+)
+parser.add_argument(
     "--device", help="Optional adb serial; inspect an existing install without uninstalling it."
 )
 args = parser.parse_args()
@@ -58,7 +63,7 @@ if package_id != "ai.lonora.mobile":
     raise SystemExit("Unexpected Android application ID.")
 if "application-debuggable" in badging:
     raise SystemExit("The APK is debuggable; release build rejected.")
-if args.require_minimal_permissions or args.require_call_permissions:
+if args.require_minimal_permissions or args.require_call_permissions or args.require_push:
     permissions = run([str(tools / "aapt"), "dump", "permissions", str(apk)])
     declared = set(re.findall(r"uses-permission: name='([^']+)'", permissions))
     missing = {
@@ -67,6 +72,8 @@ if args.require_minimal_permissions or args.require_call_permissions:
     } - declared
     if args.require_call_permissions and missing:
         raise SystemExit("Required native call permissions missing: " + ", ".join(sorted(missing)))
+    if args.require_push and "android.permission.POST_NOTIFICATIONS" not in declared:
+        raise SystemExit("Push was configured but POST_NOTIFICATIONS is not declared.")
     forbidden = declared.intersection(
         f"android.permission.{name}"
         for name in (

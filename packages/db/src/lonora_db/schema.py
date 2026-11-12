@@ -46,6 +46,30 @@ class SessionRow(Base):
     revoked: Mapped[bool] = mapped_column(default=False)
 
 
+class PushDeviceRow(Base):
+    """One phone that receives push. Bound to the sign-in session that registered it, so
+    signing out (or an expired or revoked session) ends delivery to that phone."""
+
+    __tablename__ = "ln_push_devices"
+    __table_args__ = (UniqueConstraint("owner_id", "device_id", name="uq_push_device"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64))
+    session_hash: Mapped[str] = mapped_column(
+        ForeignKey("ln_sessions.token_hash", ondelete="CASCADE"), index=True
+    )
+    platform: Mapped[str] = mapped_column(String(16))
+    # The token is encrypted at rest; its SHA-256 keeps one row per token.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    token_ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class DeviceCredentialRow(Base):
     __tablename__ = "ln_device_credentials"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
