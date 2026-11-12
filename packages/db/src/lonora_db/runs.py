@@ -173,6 +173,8 @@ async def create_run(
                 "skill_authority",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
+                # Only ``retry_run`` marks a card send's retry (provenance only, 6.10).
+                "ui_submit_retry_of",
             }
         },
     )

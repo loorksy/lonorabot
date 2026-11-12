@@ -166,7 +166,10 @@ permission. Bounded-mode autonomous management cannot remove or widen an existin
 Only the run answering a provisional voice handoff, or a generated card's send,
 cannot spend standing authority, and so does a retry or a «طلب جديد» renewal that
 re-asks the same request and therefore carries its `voice_handoff`
-(`carry_voice_handoff`). Runs it starts (peers, follow-ups, subagents) and the
+(`carry_voice_handoff`), or a card send's retry or renewal, which carries a provenance-only
+mark (`ui_submit_retry_of`, set by `retry_run` and `renew_approval`, read by
+`owner_words.ui_submit_provenance`),
+not the send's queue rules (genui.md §7). Runs it starts (peers, follow-ups, subagents) and the
 agent's later watches, routines and wakes are ordinary runs (mandate 6.10). In Ask
 such a run's risk-increasing trades, even where a grant would cover them, take the
 exact immutable approve/reject confirmation; in Full its trade_execute and
