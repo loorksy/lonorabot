@@ -58,10 +58,9 @@ function IdentityForm({ agent }: { agent: Agent }) {
   const [error, setError] = useState<unknown>();
   const [tried, setTried] = useState(false);
   const accounts = (connections.value ?? []).filter((row) => row.payload.enabled !== false);
-  const savedModel =
-    model.value?.record.mode === "fixed" && model.value.record.preference.primary
-      ? modelKey(model.value.record.preference.primary)
-      : "";
+  const savedModel = model.value?.record.preference.primary
+    ? modelKey(model.value.record.preference.primary)
+    : "";
   const modelValue = choice ?? savedModel;
   useEffect(() => {
     if (!trader || !account) return;
@@ -124,9 +123,7 @@ function IdentityForm({ agent }: { agent: Agent }) {
       if (modelValue !== savedModel && model.value) {
         const picked = model.value.available.find((item) => modelKey(item) === modelValue);
         await api.put(`/agents/${agent.id}/model`, {
-          ...(picked
-            ? { mode: "fixed", primary: { provider: picked.provider, model: picked.model } }
-            : { mode: "automatic" }),
+          primary: picked ? { provider: picked.provider, model: picked.model } : null,
           expected_revision: model.value.record.revision,
         });
       }
@@ -200,7 +197,7 @@ function IdentityForm({ agent }: { agent: Agent }) {
           disabled={!model.value}
           onChange={(event) => setChoice(event.target.value)}
         >
-          <option value="">{t({ message: "Automatic", context: "model" })}</option>
+          <option value="">{t({ message: "Your default model", context: "model" })}</option>
           {(model.value?.available ?? []).map((item) => (
             <option key={modelKey(item)} value={modelKey(item)}>
               {item.name}

@@ -2,19 +2,21 @@ import type { Agent, Artifact, Message } from "@lonora/contracts";
 import { callPart, peerOutcome, validateRichContent, voicePart } from "@lonora/core";
 import { type ReactNode, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { isOutgoingMessage } from "../lib/outgoing-messages";
+import { isOutgoingMessage, outgoingUploads } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
 import { useShellColors } from "../lib/theme";
 import { ArtifactFileCard } from "./artifact-file-card";
 import { BotAvatar } from "./bot-avatar";
 import { ComposerReplyPreview } from "./composer-reply-preview";
 import { Markdown } from "./markdown";
+import { ReactionChips } from "./message-menu";
 import {
   NativeRichResponse,
   type NativeVisualAction,
   nativeRichImageIds,
 } from "./native-rich-response";
 import { NativeSymbol } from "./native-symbol";
+import { UploadRing } from "./upload-ring";
 export function MessageBubble({
   message,
   body,
@@ -28,9 +30,21 @@ export function MessageBubble({
   grouped = false,
   reply,
   onReply,
+  onMenu,
+  onReactions,
+  onQuote,
+  onCancelUploads,
   mark = null,
 }: {
-  /** Rule N on a card's send that never ran (GENUI_PLAN §8.2), from core `submitMark`. */
+  /** ✕ on a sent message's upload ring: the message, never posted, is removed. */
+  onCancelUploads?: (nonce: string) => void;
+  /** Long press: the message menu (reactions and actions). */
+  onMenu?: (message: Message) => void;
+  /** A tap on the reactions under the bubble: who reacted. */
+  onReactions?: (message: Message) => void;
+  /** A tap on the quoted message: jump to it. */
+  onQuote?: (message: Message) => void;
+  /** Rule N on a card's send that never ran (docs/genui.md §7), from core `submitMark`. */
   mark?: "superseded" | "not_run" | null;
   message: Message;
   body?: ReactNode;
@@ -71,10 +85,14 @@ export function MessageBubble({
       : null;
   return (
     <Pressable
-      onLongPress={() => onReply?.(message)}
-      accessibilityActions={[{ name: "reply", label: t("reply") }]}
+      onLongPress={() => (onMenu ? onMenu(message) : onReply?.(message))}
+      accessibilityActions={[
+        ...(onReply ? [{ name: "reply", label: t("reply") }] : []),
+        ...(onMenu ? [{ name: "menu", label: t("messageOptions") }] : []),
+      ]}
       onAccessibilityAction={(event) => {
         if (event.nativeEvent.actionName === "reply") onReply?.(message);
+        if (event.nativeEvent.actionName === "menu") onMenu?.(message);
       }}
       style={{
         alignSelf: isOwner ? (rtl ? "flex-start" : "flex-end") : "stretch",
@@ -107,7 +125,19 @@ export function MessageBubble({
           </Text>
         </View>
       ) : null}
-      {reply ? <ComposerReplyPreview message={reply} /> : null}
+      {reply ? (
+        onQuote ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t("reply")}: ${reply.content}`}
+            onPress={() => onQuote(reply)}
+          >
+            <ComposerReplyPreview message={reply} />
+          </Pressable>
+        ) : (
+          <ComposerReplyPreview message={reply} />
+        )
+      ) : null}
       {tool ? (
         <View
           style={{
@@ -172,13 +202,41 @@ export function MessageBubble({
         <Text testID="ui-submit-mark" style={{ color: shell.secondary, fontSize: 12 }}>
           {t(mark === "superseded" ? "uiSubmitEdited" : "uiSubmitNotRun")}
         </Text>
+      ) : message.superseded_by ? (
+        // Edit and resend (Q21): the replaced message says so.
+        <Text testID="message-edited" style={{ color: shell.secondary, fontSize: 12 }}>
+          {t("uiSubmitEdited")}
+        </Text>
       ) : null}
-      {isOutgoingMessage(message) ? (
+      {onReactions ? (
+        <ReactionChips message={message} onPress={() => onReactions(message)} />
+      ) : null}
+      {isOutgoingMessage(message) && message.uploading?.length && message.delivery !== "failed" ? (
+        <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
+          <UploadRing
+            p={(() => {
+              const running = outgoingUploads(message.retry_nonce);
+              return running.length
+                ? running.reduce((sum, file) => sum + file.p, 0) / running.length
+                : 0;
+            })()}
+            label={t("uploadingNow")}
+            onCancel={onCancelUploads ? () => onCancelUploads(message.retry_nonce) : undefined}
+          />
+          <Text style={{ color: shell.secondary, fontSize: 12 }}>{t("uploadingNow")}</Text>
+        </View>
+      ) : isOutgoingMessage(message) ? (
         <View style={{ flexDirection: rtl ? "row-reverse" : "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: shell.secondary, fontSize: 12 }}>
-            {t(message.delivery === "failed" ? "sendFailed" : "sending")}
+            {t(
+              message.delivery === "failed"
+                ? "sendFailed"
+                : message.delivery === "queued"
+                  ? "sh_waitingNetwork"
+                  : "sending",
+            )}
           </Text>
-          {message.delivery === "failed" && onRetry ? (
+          {message.delivery === "failed" && onRetry && !message.uploading?.length ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("retry")}

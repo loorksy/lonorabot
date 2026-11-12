@@ -1,4 +1,4 @@
-"""Intent registry v1 of generated-UI sends (GENUI_PLAN §8.3): closed and non-financial.
+"""Intent registry v1 of generated-UI sends (docs/genui.md): closed and non-financial.
 
 A card's ``send {intent, data, lock}`` asks the card's agent to act with its own tools; it
 grants nothing. The server composes the owner's bubble from the intent's template filled
@@ -60,7 +60,7 @@ REGISTRY: dict[str, Intent] = {
         ),
     )
 }
-# Listed in the capability block in this order once their tool path exists (§3.6).
+# Listed in the capability block in this order once their tool path exists (docs/genui.md §3).
 S_A01_INTENTS = ("ask", "alert.create", "alert.off")
 
 DENIED = re.compile(

@@ -1,12 +1,11 @@
-// The thread header's safety pill and its sheet, the same projection and text as Web.
-import type { Agent, Resource, TradingControls, TradingReadiness } from "@lonora/contracts";
+// The thread header's status pill and its sheet, the same projection and text as Web.
+import type { Agent, Resource, TradingReadiness } from "@lonora/contracts";
 import {
   isolate,
   moneyLimitsLine,
   operationStatusText,
   pauseClassLabel,
   readinessTime,
-  tradingBrake,
   tradingReadinessLine,
   tradingReadinessTone,
   tradingSafetyText,
@@ -19,14 +18,9 @@ import { useSession } from "../lib/session";
 import { NativeSymbol } from "./native-symbol";
 import { Button, colors, ErrorNotice } from "./ui";
 
-/** One brake for every agent and the owner's manual orders; exits stay allowed. */
-export const stopNewTrading: TradingControls = { enabled: false, emergency_stop: true };
-/** One tap, no passkey: it widens no authority. */
-export const resumeTrading: TradingControls = { enabled: true, emergency_stop: false };
-
 /**
- * The header's one safety pill and its sheet. The thread screen reads the agent's live
- * state once (``useAgentLiveState``) and passes its readiness here; a brake change
+ * The header's one status pill and its sheet. The thread screen reads the agent's live
+ * state once (``useAgentLiveState``) and passes its readiness here; lifting a pause
  * refreshes that one read.
  */
 export function SafetyPill({
@@ -83,20 +77,17 @@ export function SafetyPill({
   const tone = tradingReadinessTone(readiness);
   const tint =
     tone === "ready" ? colors.success : tone === "held" ? colors.warning : colors.secondary;
-  const brake = tradingBrake(readiness.global_trading, locale);
   const align = rtl ? "right" : "left";
   const body = { color: colors.foreground, fontSize: 14, textAlign: align } as const;
   const muted = { ...body, color: colors.secondary, fontSize: 13 } as const;
   const heading = { ...body, fontWeight: "600", fontSize: 15 } as const;
-  const change = async (controls: TradingControls | { lift: string }) => {
+  const change = async (controls: { lift: string }) => {
     setBusy(true);
     try {
-      if ("lift" in controls)
-        // Lifting a pause: one tap, owner session only (no agent can lift one).
-        await api.post(`/trading/restrictions/${encodeURIComponent(controls.lift)}/revoke`, {
-          reason: "",
-        });
-      else await api.put<TradingControls>("/trading/controls", controls);
+      // Lifting a pause: one tap, owner session only (no agent can lift one).
+      await api.post(`/trading/restrictions/${encodeURIComponent(controls.lift)}/revoke`, {
+        reason: "",
+      });
       setError(null);
       await onChanged();
     } catch (caught) {
@@ -186,19 +177,6 @@ export function SafetyPill({
                 </Pressable>
               </View>
               <Text style={body}>{line}</Text>
-              <Text style={heading} testID="safety-trading-state">
-                {brake.status}
-                {readiness.global_trading.since
-                  ? ` · ${text.since} ${readinessTime(readiness.global_trading.since, locale)}`
-                  : ""}
-              </Text>
-              <Text style={muted}>{brake.hint}</Text>
-              <Button
-                label={brake.action}
-                secondary={!brake.stopped}
-                disabled={busy}
-                onPress={() => void change(brake.stopped ? resumeTrading : stopNewTrading)}
-              />
               <ErrorNotice text={error} />
               <Text style={heading}>{text.level}</Text>
               <Text style={body}>{text[readiness.level]}</Text>

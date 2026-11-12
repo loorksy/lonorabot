@@ -95,6 +95,14 @@ export function useTradeApprovals(threadId: string, watching = false) {
         );
     } catch (caught) {
       if (currentThread.current === threadId) setError(caught);
+      // Decided elsewhere (its row, its slot, another device): a second tap shows the
+      // record as the server holds it now (mandate 10.2.3).
+      await api
+        .get<Approval[]>(`/trading/approvals?thread_id=${encodeURIComponent(threadId)}`)
+        .then((data) => {
+          if (currentThread.current === threadId) setRows((old) => merge(old, data));
+        })
+        .catch(() => undefined);
     } finally {
       pending.current = false;
       setBusy(undefined);

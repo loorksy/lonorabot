@@ -160,7 +160,6 @@ export type ExecutionReceipt = {
   /** Broker-confirmed; "pending" until the resulting account state is read back. */
   verification: "pending" | "verified" | "unverified" | null;
 };
-export type TradingControls = { enabled: boolean; emergency_stop: boolean };
 /** The agent's one trading switch: Full executes on its own, Ask asks for new risk. */
 export type TradingMode = "full" | "ask";
 export type TradeApproval = {
@@ -215,16 +214,9 @@ export type MoneyLimits = {
   trading_day_timezone?: string;
 };
 export type RestrictionActionClass = "no_new_entries" | "no_risk_increase" | "all_mutations";
-/** Stop new trading / Resume, for every agent and the owner's manual orders. */
-export type GlobalTrading = {
-  state: "running" | "stopped";
-  since: string | null;
-  changed_by: "owner" | "default";
-};
 export type TradingReadinessState =
   | "no_trading"
   | "agent_paused"
-  | "stopped"
   | "paused"
   | "uncertain"
   | "ask_me"
@@ -238,7 +230,6 @@ export type TradingReadiness = {
   observed_at: string;
   state: TradingReadinessState;
   params: {
-    since?: string | null;
     action_class?: RestrictionActionClass;
     valid_until?: string | null;
     symbol?: string | null;
@@ -267,10 +258,9 @@ export type TradingReadiness = {
     actions: string[];
     allow_manual_positions: boolean;
     valid_until: string | null;
-    /** Every pair on the account, every action and the owner's own positions, until stopped. */
+    /** Every pair on the account, every action and the owner's own positions, until revoked. */
     full_delegation?: boolean;
   }>;
-  global_trading: GlobalTrading;
   restrictions: Array<{
     id: string;
     account_id: string;
