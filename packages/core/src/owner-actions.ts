@@ -50,7 +50,8 @@ export const ownerActionLabels = {
       "Every trade that adds risk waits for your approval; closing and tightening a stop do not.",
     mandateToFull: "Full lets it trade on its own. You can switch it back here at any time.",
     mandateToAsk: "Ask makes every trade that adds risk wait for your approval.",
-    mandateGrantStays: "Its signed grant still lets it trade within the grant's terms until you revoke it.",
+    mandateGrantStays:
+      "Its signed grant still lets it trade within the grant's terms until you revoke it.",
     mandateGone: "This agent no longer exists.",
     resumeTitle: "Resume trading",
     resumeStopped: "New trading is stopped",
