@@ -16,8 +16,10 @@ from lonora_db.item_failures import failure_code
 from lonora_db.owner import get_owner
 from lonora_db.task_recovery import retry_due_tasks
 from lonora_db.task_wait import resume_ready_waits
+from lonora_security.secrets import SecretScan
 from lonora_tools.loader import load_tools
 from lonora_trading.reconciliation import recheck_verifications, reconcile_ambiguous
+from lonora_workspace.client import with_guard
 
 from .connection_manager import close_connections, maintain_voice
 from .event_dispatch import dispatch_channels
@@ -69,6 +71,8 @@ STEPS = (
     StepSpec("thread_prefs", 2, 60, critical=False),
     # Which background workspace processes ended, for each agent's next wake (7.1.2).
     StepSpec("workspace", 10, 60, critical=False),
+    # The owner's stop and stop-all taps in What is running (7.1.5).
+    StepSpec("workspace_stops", 2, 60, critical=False),
     # The morning brief: once per local date for each owner (VISION 11.1).
     StepSpec("morning_brief", 30, 120),
     StepSpec("watchdog", 30, 120),
@@ -299,7 +303,6 @@ class Gateway:
         from datetime import UTC, datetime
 
         from lonora_db.workspace_processes import reconcile
-        from lonora_security.secrets import SecretScan
 
         from .runtime import WORKSPACE
 
@@ -311,6 +314,56 @@ class Gateway:
         listing = await WORKSPACE.processes(SecretScan({}))
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
+        await self.for_each_owner(self.record_running)
+
+    async def workspace_scan(self, service: OwnerServices) -> SecretScan:
+        """The owner's scan of what the workspace returns (7.2.6), as the tools use it."""
+        values = await service.secrets.scanned_values()
+        given = await service.given.values() if service.given else []
+        return with_guard(SecretScan(values), [[name, value] for name, value in given])
+
+    async def record_running(self, service: OwnerServices) -> None:
+        """What is running (7.1.5): the owner's agents' processes, scanned for the owner."""
+        from lonora_db.workspace_running import record_listing
+
+        from .runtime import WORKSPACE
+
+        listing = await WORKSPACE.processes(await self.workspace_scan(service))
+        async with self.db.sessions() as session, session.begin():
+            await record_listing(session, service.owner_id, listing["processes"])
+
+    async def workspace_stops(self) -> None:
+        from .runtime import WORKSPACE
+
+        if WORKSPACE.present():
+            await self.for_each_owner(self.carry_out_stops)
+
+    async def carry_out_stops(self, service: OwnerServices) -> None:
+        """Each stop the owner asked for, once: one process as the agent it runs as (the
+        supervisor checks the pid still belongs to that agent), or every agent's processes."""
+        from lonora_db.schema import WorkspaceStopRow
+        from lonora_db.workspace_running import owner_agents, pending_stops
+
+        from .runtime import WORKSPACE
+
+        async with self.db.sessions() as session:
+            pending = await pending_stops(session, service.owner_id)
+            stops = [(stop.id, stop.pid, stop.agent_id) for stop in pending]
+            agents = list(await owner_agents(session, service.owner_id)) if stops else []
+        if not stops:
+            return
+        scan = await self.workspace_scan(service)
+        for stop_id, pid, agent_id in stops:
+            if pid is None or agent_id is None:
+                for each in agents:
+                    await WORKSPACE.stop_all(scan, each)
+            else:
+                await WORKSPACE.stop(scan, pid, agent_id)
+            async with self.db.sessions() as session, session.begin():
+                row = await session.get(WorkspaceStopRow, stop_id, with_for_update=True)
+                if row is not None and row.done_at is None:
+                    row.done_at = utcnow()
+        await self.record_running(service)
 
     async def morning_brief(self) -> None:
         from lonora_trading.morning_brief import brief_tick
@@ -344,6 +397,7 @@ class Gateway:
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
             "workspace": self.workspace,
+            "workspace_stops": self.workspace_stops,
             "morning_brief": self.morning_brief,
             "watchdog": self.watchdog.tick,
         }
