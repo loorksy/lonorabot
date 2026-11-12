@@ -429,8 +429,6 @@ async def main() -> None:
             "PASS concurrent revision conflicts reject stale writes; downgrade before broker send prevents financial mutation"
         )
 
-        # Stop blocks new risk even while a signed Agent account grant is in force.
-        await sign(await propose())
         print(
             "Unified permissions acceptance complete: simulation and scripted authenticator only; no real-money trading or physical signing claim"
         )
