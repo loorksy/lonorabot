@@ -17,7 +17,7 @@ from lonora_db.schema import EffectReceiptRow, MemoryRevisionRow, MemoryRow
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .edits import new_authority_claim
+from .edits import new_disclosure_claim
 from .profile import OPERATING_VIEW
 
 EXCERPT_CHARS = 240
@@ -134,8 +134,8 @@ async def restore_method(
                 # only the layout.
                 return current, {"restored_version": version}
             restored = with_operating(current, text)
-            if new_authority_claim(current, restored, profile=False):
-                raise LonoraError("memory_authority_claim_refused", 409)
+            if new_disclosure_claim(current, restored, profile=False):
+                raise LonoraError("memory_disclosure_refused", 409)
             return restored, {"restored_version": version}
 
         return await commit_memory(

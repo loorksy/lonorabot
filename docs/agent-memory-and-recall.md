@@ -112,20 +112,25 @@ language, quiet hours and timezone under the same rule. A whole-document write
 replaces only the Agent's own document and may not contain a `# USER.md` heading
 (`memory_user_section_moved`); the owner API refuses one too.
 
-**Authority statements.** `OPERATING.md` and the owner profile are followed as
-guidance, so a write that adds an authority statement to them is refused whole
-(`memory_authority_claim_refused`, `lonora_memory/guard.py`): phrases that skip
-or bypass approval, claim authorization to trade, say the owner approved, ignore
-or override limits, policies, pauses or instructions, or claim full or unlimited
-authority, in English and Arabic. The same guard refuses standing instructions to hand
-private data elsewhere: send or forward memory, `MEMORY.md`, `OPERATING.md`, the owner
-profile, notes or secrets anywhere, fetch an address built from data
-(`https://…?d=<summary>`), or name `peer_send`. A profile write or preference change
-from a Run that has read third-party content is no longer the owner's word
-(`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A statement that is already present (an owner
-edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
-is untrusted data. This is defence in depth only; the executor never reads memory
-and authority comes from the signed grant alone.
+**Disclosure lines.** `OPERATING.md` (the Agent's method) and the owner profile are
+followed as guidance, so a write that adds a standing instruction to hand private data
+elsewhere is refused whole (`memory_disclosure_refused`, `lonora_memory/guard.py`): send
+or forward memory, `MEMORY.md`, `OPERATING.md`, the owner profile, notes or secrets
+anywhere, fetch an address built from data (`https://…?d=<summary>`), or name
+`peer_send`, in English and Arabic. A method may state any trading rule, approvals and
+confirmation included: an owner's strategy becomes the Agent's method (VISION.md 5.6),
+and the execution door reads grants and approvals, never memory. A profile write or
+preference change from a Run that has read third-party content is no longer the owner's
+word (`owner_profile_requires_owner_message`, see `agents-from-chat.md`). A line that is
+already present (an owner edit) does not block unrelated edits. `MEMORY.md` keeps its
+earlier contract: it is untrusted data.
+
+**Uploaded PDFs.** On upload the server extracts a PDF's text layer into a file beside it
+(`text_key`) and keeps the images of scanned pages (`page_image_keys`); the owner's
+message context and `artifact_read` read them. Text past 24,000 characters, pages past 100 and
+scans past 8 are named, never cut silently. A text file, a PDF's text layer or its scanned
+pages on the owner's message mark the Run as having read third-party content (6.10), so
+owner-only settings refuse a request written in a file; the owner's own photos do not.
 
 **Method and skill versions (VISION.md 5.5.5).** An Agent's method is its `OPERATING.md`.
 Every write that changes it is a method version, kept past the 100-revision window;
