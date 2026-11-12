@@ -160,6 +160,7 @@ class MethodHistoryInput(Contract):
 
 class MethodRestoreInput(Contract):
     version: int = Field(ge=1)
+    memory_version: int = Field(ge=1)
 
 
 async def method_versions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -177,6 +178,7 @@ async def method_restore(context: ToolContext, args: dict[str, Any]) -> dict[str
         context.owner_id,
         context.agent_id,
         params.version,
+        params.memory_version,
         lease=context.lease,
         effect_key=context.effect_key,
         source_message_id=await _owner_message(context),
@@ -329,8 +331,8 @@ def tools() -> list[Tool]:
         Tool(
             "method_restore",
             "Restore your method (OPERATING.md) to a version from method_history, when you or "
-            "the owner decide an earlier version was better. It saves a new version with that "
-            "text; MEMORY.md stays as it is.",
+            "the owner decide an earlier version was better; memory_version is the one "
+            "method_history returned. It saves a new version with that text; MEMORY.md stays.",
             MethodRestoreInput,
             method_restore,
             replay_safe=True,

@@ -1,8 +1,9 @@
 """Instruction-only Skills an Agent saves in one call, with versions it can restore.
 
 Every save writes the Skill resource's next version (``SkillVersionRow``), like an owner
-edit. Restoring version N saves that version's instructions as the next version, under
-a new semantic version, so a pinned run snapshot never meets two texts with one number.
+edit. Restoring version N saves that version's instructions as the next version, under a new
+semantic version above every number the Skill ever had, so one number never names two
+texts; the text of a version the owner revoked cannot be saved or restored.
 Packages from the workspace or GitHub keep their own lifecycle (skill_package_control).
 """
 
@@ -11,41 +12,80 @@ from typing import Any
 from lonora_contracts.domain import utcnow
 from lonora_contracts.skills import AgentSkill
 from lonora_core.user_error import LonoraError
-from lonora_db.schema import EffectReceiptRow, SkillRow
+from lonora_db.schema import EffectReceiptRow, SkillRow, SkillVersionRow
 from lonora_db.skill_controls import read_skill_controls
 from lonora_db.skills import SkillRepository, record_version, skill_versions, version_payload
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..workspace_access import scoped_run
 from .lifecycle import owned_skill, validate_graph
 from .registry import built_in_skills
 
 
-def next_semver(payload: dict[str, Any] | None) -> str:
-    """The next patch version; a first save, or a skill saved without one, is 1.0.0."""
-    manifest: dict[str, Any] = (payload or {}).get("manifest") or {}
-    if "version" not in manifest:
+def semver(value: Any) -> tuple[int, int, int] | None:
+    parts = str(value).split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return None
+    major, minor, patch = (int(part) for part in parts)
+    return major, minor, patch
+
+
+async def history_rows(session: AsyncSession, row: SkillRow | None) -> list[SkillVersionRow]:
+    if row is None:
+        return []
+    return list(
+        await session.scalars(select(SkillVersionRow).where(SkillVersionRow.skill_id == row.id))
+    )
+
+
+async def guard_versions(
+    session: AsyncSession, context: ToolContext, skill_id: str, row: SkillRow | None, content: str
+) -> str:
+    """The next semantic version, above every version this Skill ever had or the owner
+    revoked, so one number never names two texts. Text of a revoked version is refused."""
+    controls = await read_skill_controls(session, context.owner_id, context.agent_id)
+    revoked = {item.version for item in controls.revoked if item.skill_id == skill_id}
+    saved = await history_rows(session, row)
+    labels: list[Any] = list(revoked)
+    for item in saved:
+        manifest: dict[str, Any] = item.payload.get("manifest") or {}
+        labels.append(manifest.get("version"))
+        if manifest.get("version") in revoked and item.payload.get("content") == content:
+            raise LonoraError("skill_version_revoked", 409)
+    numbers = [number for value in labels if (number := semver(value)) is not None]
+    if not numbers:
         return "1.0.0"
-    major, minor, patch = (int(part) for part in manifest["version"].split("."))
+    major, minor, patch = max(numbers)
     return f"{major}.{minor}.{patch + 1}"
 
 
 def instruction_payload(
-    skill_id: str, title: str, description: str, content: str, version: str
+    base: dict[str, Any] | None,
+    skill_id: str,
+    title: str,
+    description: str,
+    content: str,
+    version: str,
 ) -> dict[str, Any]:
+    """The owner's settings of an existing Skill (enabled, activation, tools, budget) stay;
+    the text, title and description are the Agent's, labelled as Agent-authored."""
+    manifest: dict[str, Any] = dict((base or {}).get("manifest") or {})
+    manifest.setdefault("activation", {"mode": "explicit"})
     return AgentSkill.model_validate(
         {
             "name": skill_id,
             "content": content,
-            "enabled": True,
+            "enabled": (base or {}).get("enabled", True),
             "manifest": {
+                **manifest,
                 "id": skill_id,
                 "version": version,
                 "title": title,
                 "description": description,
                 "source": "installed",
-                "activation": {"mode": "explicit"},
             },
         }
     ).model_dump(mode="json")
@@ -55,6 +95,7 @@ def summary(row: SkillRow, status: str, **extra: Any) -> dict[str, Any]:
     manifest: dict[str, Any] = row.payload.get("manifest") or {}
     return {
         "skill_id": row.payload["name"],
+        "resource_id": row.id,
         "resource_version": row.version,
         "version": manifest.get("version"),
         "enabled": row.payload.get("enabled", True),
@@ -85,11 +126,12 @@ async def save_skill(
         if row is not None:
             editable(row)
         payload = instruction_payload(
+            row.payload if row else None,
             skill_id,
             arguments["title"],
             arguments["description"],
             arguments["content"],
-            next_semver(row.payload if row else None),
+            await guard_versions(session, context, skill_id, row, arguments["content"]),
         )
         await validate_graph(session, context, registry, payload, row.id if row else None)
         if row is None:
@@ -136,16 +178,14 @@ async def restore_skill(
         editable(row)
         target = await version_payload(session, context.owner_id, row.id, arguments["version"])
         manifest: dict[str, Any] = target.get("manifest") or {}
-        controls = await read_skill_controls(session, context.owner_id, context.agent_id)
-        if any(
-            item.skill_id == skill_id and item.version == manifest.get("version")
-            for item in controls.revoked
-        ):
-            raise LonoraError("skill_version_revoked", 409)
+        version = await guard_versions(session, context, skill_id, row, target["content"])
+        # The restored text keeps the Skill's current on/off state: a restore never
+        # switches on a Skill the owner switched off.
         payload = AgentSkill.model_validate(
             {
                 **target,
-                "manifest": {**manifest, "version": next_semver(row.payload)} if manifest else None,
+                "enabled": row.payload.get("enabled", True),
+                "manifest": {**manifest, "version": version} if manifest else None,
             }
         ).model_dump(mode="json")
         await validate_graph(session, context, registry, payload, row.id)

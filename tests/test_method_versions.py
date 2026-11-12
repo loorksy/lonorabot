@@ -41,6 +41,19 @@ def test_restore_merges_split_method_sections_into_one():
     assert restored == "# OPERATING.md\n- c\n\n# MEMORY.md\n- fact\n"
 
 
+def test_restore_leaves_every_other_byte_of_the_document_as_it_was():
+    memory = "  indented first line\n\n\n\n```\na\n\n\n\nb\n```\n"
+    document = memory + "\n# OPERATING.md\n- old\n\n# MEMORY.md\n- fact\n"
+    restored = with_operating(document, "- new")
+    assert restored == memory + "\n# OPERATING.md\n- new\n\n# MEMORY.md\n- fact\n"
+
+
+def test_a_method_heading_at_the_end_without_a_newline_is_recognised():
+    assert with_operating("# MEMORY.md\n- fact\n\n# OPERATING.md", "- new") == (
+        "# MEMORY.md\n- fact\n\n# OPERATING.md\n- new\n"
+    )
+
+
 # --- PostgreSQL -------------------------------------------------------------------------
 
 
@@ -117,15 +130,24 @@ async def test_write_write_restore_version_one():
         ]["text"]
         assert text_one == "- Buy pullbacks to the H4 50 EMA"
         # Knowledge written after version 1 stays when the method goes back.
-        latest = await call(registry, context, "memory_read")
+        stale = (await call(registry, context, "method_history"))["memory_version"]
         await call(
             registry,
             context,
             "memory_write",
-            version=latest["version"],
+            version=stale,
             operations=[{"action": "add", "content": "- NFP days run wide"}],
         )
-        restored = await call(registry, context, "method_restore", version=version_one)
+        # A version read before a later write is a conflict, never a silent overwrite.
+        with pytest.raises(LonoraError) as conflict:
+            await call(
+                registry, context, "method_restore", version=version_one, memory_version=stale
+            )
+        assert conflict.value.code == "version_conflict"
+        current = (await call(registry, context, "method_history"))["memory_version"]
+        restored = await call(
+            registry, context, "method_restore", version=version_one, memory_version=current
+        )
         assert restored["changed"] is True and restored["restored_version"] == version_one
         now = await call(registry, context, "memory_read")
         documents = profile_documents(now["content"])
@@ -137,8 +159,23 @@ async def test_write_write_restore_version_one():
         assert history["versions"][0]["change"] == "restore"
         assert history["versions"][0]["current"] is True
         assert history["versions"][0]["author"] == "agent"
+        # Restoring the version that is already current saves nothing.
+        again = await call(
+            registry,
+            context,
+            "method_restore",
+            version=version_one,
+            memory_version=history["memory_version"],
+        )
+        assert again["changed"] is False
         with pytest.raises(LonoraError) as missing:
-            await call(registry, context, "method_restore", version=9999)
+            await call(
+                registry,
+                context,
+                "method_restore",
+                version=9999,
+                memory_version=history["memory_version"],
+            )
         assert missing.value.code == "method_version_not_found"
     finally:
         await fixture.close()
@@ -169,7 +206,10 @@ async def test_a_restore_the_owner_asked_for_is_attributed_to_his_message():
             version=first["version"],
             operations=[method_add("- Only trade the London break")],
         )
-        await call(registry, owner, "method_restore", version=first["version"])
+        current = (await call(registry, owner, "method_history"))["memory_version"]
+        await call(
+            registry, owner, "method_restore", version=first["version"], memory_version=current
+        )
         latest = (await call(registry, owner, "method_history"))["versions"][0]
         assert latest["change"] == "restore" and latest["from_owner_message"] is True
     finally:
@@ -238,5 +278,183 @@ async def test_an_instruction_skill_saves_in_one_call_and_restores():
                 expected_version=0,
             )
         assert builtin.value.code == "skill_builtin_override_denied"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_method_versions_survive_revision_pruning():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.memory_revisions import REVISIONS_KEPT
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        agent = await fixture.agent("Pruning " + uuid4().hex[:6])
+        context = await turn(fixture, agent)
+        memory = await call(registry, context, "memory_read")
+        method = await call(
+            registry,
+            context,
+            "memory_write",
+            version=memory["version"],
+            operations=[method_add("- Sell rallies into the daily pivot")],
+        )
+        version = method["version"]
+        for index in range(REVISIONS_KEPT + 3):
+            await call(
+                registry,
+                context,
+                "memory_write",
+                version=version + index,
+                operations=[{"action": "add", "content": f"- observation {index}"}],
+            )
+        history = await call(registry, context, "method_history")
+        assert [item["version"] for item in history["versions"]] == [version]
+        assert history["versions"][0]["current"] is True
+        overwrite = await call(
+            registry,
+            context,
+            "memory_write",
+            version=history["memory_version"],
+            operations=[method_add("- Buy dips instead")],
+        )
+        restored = await call(
+            registry,
+            context,
+            "method_restore",
+            version=version,
+            memory_version=overwrite["version"],
+        )
+        assert restored["changed"] is True
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_skill_numbers_never_repeat_and_revoked_text_stays_out():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        agent = await fixture.agent("Skill numbers " + uuid4().hex[:6])
+        context = await turn(fixture, agent)
+        skill = "asian-fade"
+        arguments = {
+            "skill_id": skill,
+            "title": "Asian fade",
+            "description": "Fade the edges of the Asian range.",
+        }
+        one = await call(
+            registry, context, "skill_save", **arguments, content="Text A", expected_version=0
+        )
+        two = await call(
+            registry,
+            context,
+            "skill_save",
+            **arguments,
+            content="Text B",
+            expected_version=one["resource_version"],
+        )
+        # The owner's restore copies version 1 exactly, number included.
+        await fixture.request(
+            "POST",
+            f"/skills/{two['resource_id']}/restore",
+            {"version": one["resource_version"], "expected_version": two["resource_version"]},
+        )
+        current = (await call(registry, context, "skill_history", skill_id=skill))[
+            "resource_version"
+        ]
+        three = await call(
+            registry, context, "skill_save", **arguments, content="Text C", expected_version=current
+        )
+        assert three["version"] == "1.0.2"
+        revoked = await fixture.request("GET", f"/agents/{agent['id']}/skills/revocations")
+        await fixture.request(
+            "POST",
+            f"/agents/{agent['id']}/skills/revocations",
+            {"skill_id": skill, "version": "1.0.1", "expected_revision": revoked["revision"]},
+        )
+        with pytest.raises(LonoraError) as refused:
+            await call(
+                registry,
+                context,
+                "skill_save",
+                **arguments,
+                content="Text B",
+                expected_version=three["resource_version"],
+            )
+        assert refused.value.code == "skill_version_revoked"
+        with pytest.raises(LonoraError) as restore_refused:
+            await call(
+                registry,
+                context,
+                "skill_restore",
+                skill_id=skill,
+                version=two["resource_version"],
+                expected_version=three["resource_version"],
+            )
+        assert restore_refused.value.code == "skill_version_revoked"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_agent_refining_an_owner_skill_keeps_his_settings():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    registry = load_tools()
+    try:
+        agent = await fixture.agent("Owner skill " + uuid4().hex[:6])
+        name = "owner-swing"
+        saved = await fixture.request(
+            "POST",
+            "/skills",
+            {
+                "agent_id": agent["id"],
+                "payload": {
+                    "name": name,
+                    "content": "Hold swings for three days.",
+                    "enabled": False,
+                    "manifest": {
+                        "id": name,
+                        "version": "2.0.0",
+                        "title": "Owner swing",
+                        "description": "The owner's swing rules.",
+                        "source": "owner",
+                        "activation": {"mode": "explicit"},
+                        "priority": 80,
+                    },
+                },
+            },
+        )
+        context = await turn(fixture, agent)
+        refined = await call(
+            registry,
+            context,
+            "skill_save",
+            skill_id=name,
+            title="Owner swing",
+            description="The owner's swing rules, refined from results.",
+            content="Hold swings for two days.",
+            expected_version=saved["version"],
+        )
+        assert refined["enabled"] is False and refined["version"] == "2.0.1"
+        restored = await call(
+            registry,
+            context,
+            "skill_restore",
+            skill_id=name,
+            version=saved["version"],
+            expected_version=refined["resource_version"],
+        )
+        assert restored["enabled"] is False and restored["version"] == "2.0.2"
+        stored = await fixture.request("GET", f"/skills/{saved['id']}")
+        assert stored["payload"]["manifest"]["priority"] == 80
     finally:
         await fixture.close()
