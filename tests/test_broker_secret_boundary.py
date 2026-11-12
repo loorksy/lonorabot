@@ -165,3 +165,11 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
         assert (await fixture.client.delete("/api/secrets/" + workspace_id)).status_code == 200
     finally:
         await fixture.close()
+
+
+def test_forgetting_a_broker_value_takes_the_provisioning_lock() -> None:
+    from lonora_adapters.storage import broker_secrets
+    from lonora_trading.broker_provisioning import provisioning_key
+
+    assert provisioning_key("o") == "broker-provision:o"
+    assert '"broker-provision:" + self._owner_id' in inspect.getsource(broker_secrets)
