@@ -94,11 +94,11 @@ from lonora_db.owner_actions import (
     thread_cards,
     widens,
 )
+from lonora_db.pauses import owner_resumes
 from lonora_db.schema import AgentRow, McpConnectionRow, OwnerActionRow, TradingJournalRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
-    owner_resumes,
     revoke_supervision,
 )
 from lonora_db.threads import conversation_thread

@@ -45,6 +45,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .pauses import live_hold, release_hold, work_paused
 from .schema import (
     AgentRow,
     MarketWatchRow,
@@ -314,135 +315,8 @@ async def supervision_view(session: AsyncSession, owner_id: str, agent_id: str) 
     }
 
 
-# Holds: pauses a supervisor put on another agent's work.
-
-
-async def live_hold(
-    session: AsyncSession, kind: str, target_id: str, *, lock: bool = False
-) -> SupervisionHoldRow | None:
-    query = select(SupervisionHoldRow).where(
-        SupervisionHoldRow.target_kind == kind,
-        SupervisionHoldRow.target_id == target_id,
-        SupervisionHoldRow.released_at.is_(None),
-    )
-    if lock:
-        query = query.with_for_update().execution_options(populate_existing=True)
-    return await session.scalar(query)
-
-
-async def work_paused(session: AsyncSession, kind: str, target_id: str) -> bool:
-    """Whether the work a hold names is paused right now (a missing item is not)."""
-    if kind == "agent":
-        agent = await session.get(AgentRow, target_id)
-        return agent is not None and agent.paused
-    if kind == "routine":
-        routine = await session.get(RoutineRow, target_id)
-        return routine is not None and not routine.enabled
-    if kind == "watch":
-        watch = await session.get(MarketWatchRow, target_id)
-        return watch is not None and not watch.payload.get("enabled", True)
-    from .tasks import task_state
-
-    task = await session.get(TicketRow, target_id)
-    if task is None or not task.state.get("task"):
-        return False
-    state = task_state(task)
-    # A pause asked of a working Task takes effect at its next safe boundary.
-    return state.status == "paused" or state.control_requested == "pause"
-
-
-async def release_hold(session: AsyncSession, hold: SupervisionHoldRow, by: str) -> None:
-    """The hold ends; its card reads the hold, so it stops offering Resume by itself."""
-    hold.released_at, hold.released_by = utcnow(), by
-    await session.flush()
-
-
-async def owner_takes_over(
-    session: AsyncSession,
-    owner_id: str,
-    kind: str,
-    target_id: str,
-    *,
-    paused: bool,
-    agent_id: str | None,
-) -> None:
-    """The owner itself paused or cancelled (``paused``), or resumed, this work of
-    ``agent_id``. The owner's pause is a hold of its own (``source='owner'``, no holder),
-    so the paused agent never lifts it on its own initiative, and a supervisor's hold on
-    it becomes the owner's, never a weaker one: the supervisor stays named, but only the
-    owner lifts it. The owner's resume releases it."""
-    hold = await live_hold(session, kind, target_id, lock=True)
-    if hold is not None and hold.owner_id != owner_id:
-        return
-    if not paused:
-        if hold is not None:
-            await release_hold(session, hold, "owner")
-        return
-    if hold is None:
-        if agent_id is None:
-            return  # Work of no agent: there is nobody who could lift it.
-        session.add(
-            SupervisionHoldRow(
-                owner_id=owner_id,
-                holder_agent_id=None,
-                agent_id=agent_id,
-                target_kind=kind,
-                target_id=target_id,
-                source="owner",
-                created_at=utcnow(),
-            )
-        )
-        await session.flush()
-    elif hold.source != "owner":
-        hold.source = "owner"
-        await session.flush()
-
-
-async def owner_holds_for(session: AsyncSession, owner_id: str, holder_id: str) -> None:
-    """A supervisor is being deleted: every pause it holds stays in force as the
-    owner's (its card keeps offering Resume), so nothing it paused is resumed, and no
-    pause becomes one the paused agent could lift. The row loses its holder when the
-    agent row goes (``ON DELETE SET NULL``)."""
-    holds = await session.scalars(
-        select(SupervisionHoldRow)
-        .where(
-            SupervisionHoldRow.owner_id == owner_id,
-            SupervisionHoldRow.holder_agent_id == holder_id,
-            SupervisionHoldRow.released_at.is_(None),
-        )
-        .with_for_update()
-    )
-    for hold in holds:
-        hold.source = "owner"
-    await session.flush()
-
-
-async def refuse_held(
-    session: AsyncSession,
-    owner_id: str,
-    kind: str,
-    target_id: str,
-    agent_id: str,
-    *,
-    owner_message: bool = False,
-) -> None:
-    """The paused agent never resumes held work on its own initiative: it asks the
-    supervisor or the owner. In a run that answers the owner's message it resumes a
-    supervisor's hold (released as the owner's); a pause the owner holds is lifted only
-    by the owner. A hold on work that is no longer paused is stale and released."""
-    hold = await live_hold(session, kind, target_id, lock=True)
-    if hold is None or hold.owner_id != owner_id:
-        return
-    if not await work_paused(session, kind, target_id):
-        await release_hold(session, hold, "stale")
-        return
-    if hold.source == "owner":
-        raise LonoraError("work_paused_by_owner", 409)
-    if hold.holder_agent_id == agent_id:
-        return
-    if not owner_message:
-        raise LonoraError("work_paused_by_supervisor", 409)
-    await release_hold(session, hold, "owner")
+# Holds: pauses a supervisor put on another agent's work (the hold primitives are in
+# ``pauses.py``).
 
 
 async def holds_over(session: AsyncSession, owner_id: str, holder_id: str, agent_id: str) -> bool:
@@ -738,46 +612,3 @@ async def control_work(
         run_id=run_id,
     )
     return {**result, "changed": True, "paused": action == "pause"}
-
-
-async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> str:
-    """The owner's Resume on a pause card: the owner's own resume of that work, which
-    releases the hold whoever holds it. Returns what was resumed."""
-    hold = await session.get(SupervisionHoldRow, hold_id)
-    if hold is None or hold.owner_id != owner_id:
-        raise LonoraError("supervision_hold_not_found", 404)
-    kind, target_id = hold.target_kind, hold.target_id
-    if kind == "agent":
-        from .agents import agent_data
-
-        agent = await owned_agent(session, owner_id, target_id, lock=True)
-        await owner_takes_over(
-            session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
-        )
-        if agent.paused:
-            agent.paused = False
-            emit(session, owner_id, "agent.updated", agent_id=agent.id, payload=agent_data(agent))
-    elif kind == "routine":
-        from .routines import owned_routine
-
-        routine = await owned_routine(session, owner_id, target_id)
-        await owner_takes_over(
-            session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
-        )
-        routine.enabled = True
-    elif kind == "watch":
-        from .market_watches import control_watch
-
-        await control_watch(session, owner_id, target_id, "resume")
-    else:
-        from lonora_contracts.tasks import TaskControl
-
-        from .tasks import control_task, get_task
-
-        task = await get_task(session, owner_id, target_id)
-        await control_task(
-            session,
-            owner_id,
-            TaskControl(task_id=target_id, action="resume", expected_version=task.version),
-        )
-    return kind

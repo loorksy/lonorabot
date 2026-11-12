@@ -564,7 +564,7 @@ async def _live_pause(
     session: AsyncSession, owner_id: str, payload: dict[str, Any]
 ) -> SupervisionHoldRow | None:
     """The hold a pause card names while it still holds paused work."""
-    from .supervision import work_paused
+    from .pauses import work_paused
 
     hold = await session.get(SupervisionHoldRow, payload["hold_id"])
     if hold is None or hold.owner_id != owner_id or hold.released_at is not None:
