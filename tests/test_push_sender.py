@@ -543,3 +543,22 @@ async def test_the_adapter_reports_a_connection_that_was_never_made() -> None:
     with pytest.raises(LonoraError) as failed:
         await ExpoPushTransport(None, httpx.MockTransport(refuse)).send([message])
     assert failed.value.code == "push_not_sent"
+
+
+@pytest.mark.asyncio
+async def test_a_retry_is_dropped_once_its_card_has_ended(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    down = FakeExpo(db, LonoraError("push_not_sent", 502))
+    await started(db, owner_id, down)
+    approval = await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, down)
+    async with db.sessions() as session, session.begin():
+        row = await session.get(TradeApprovalRow, approval)
+        assert row
+        row.status = "rejected"
+    await make_due(db)
+    up = FakeExpo(db)
+    assert await dispatch_push(db, owner_id, CIPHER, up) == 0 and up.sent == []
+    [receipt] = await receipts(db)
+    assert receipt["status"] == "withdrawn"

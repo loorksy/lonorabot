@@ -149,6 +149,7 @@ async def item_deliveries(
                     "code": code,
                     "record_id": record,
                     "device_id": device.device_id,
+                    "attention_id": item.id,
                     "message": message,
                     "attempts": 0,
                 },
@@ -188,6 +189,11 @@ async def due_retries(
         if len(deliveries) >= room:
             break
         if datetime.fromisoformat(str(row.result.get("retry_at"))) > now:
+            continue
+        item = await session.get(AttentionRow, str(row.result.get("attention_id", "")))
+        if item is None or not await mandatory_current(session, item):
+            # The card ended (approved, rejected, settled) while the push waited: none.
+            row.result = {**row.result, "status": "withdrawn", "code": "push_card_ended"}
             continue
         device = by_device.get(str(row.result.get("device_id")))
         if device is None:
