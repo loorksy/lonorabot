@@ -853,10 +853,6 @@ class BrokerSessionRow(ResourceRow):
     __tablename__ = "ln_broker_sessions"
 
 
-class BrokerSubscriptionRow(ResourceRow):
-    __tablename__ = "ln_broker_subscriptions"
-
-
 class MarketWatchRow(ResourceRow):
     __tablename__ = "ln_market_watches"
 
@@ -867,10 +863,6 @@ class MarketWakeReceiptRow(ResourceRow):
 
 class CloudChartRow(ResourceRow):
     __tablename__ = "ln_cloud_charts"
-
-
-class ChartIndicatorRow(ResourceRow):
-    __tablename__ = "ln_chart_indicators"
 
 
 class TradingAccountRow(ResourceRow):
