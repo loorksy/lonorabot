@@ -300,9 +300,7 @@ test("a failed background run stays out of the banner (11.5); a failed peer run 
     background: false,
     error_code: "model_provider_unavailable",
   };
-  await page.route("**/api/runs?thread_id=*", (route) =>
-    route.fulfill({ json: [failed, peer] }),
-  );
+  await page.route("**/api/runs?thread_id=*", (route) => route.fulfill({ json: [failed, peer] }));
   try {
     await page.goto(`/thread?id=${data.thread.id}`);
     await expect(page.getByText(/The model provider is unavailable right now/)).toBeVisible();

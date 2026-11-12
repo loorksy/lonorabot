@@ -107,9 +107,7 @@ async def silence(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     async with context.db.sessions() as session:
         run = await require_lease(session, context.lease)
         # Background work with nothing new may end silent until the owner writes to it.
-        quiet = may_end_silent(
-            is_background(run.trigger, run.model_metadata), run.execution_state
-        )
+        quiet = may_end_silent(is_background(run.trigger, run.model_metadata), run.execution_state)
         thread = await session.get(ThreadRow, context.thread_id)
         if thread is None or (not thread.group_id and not quiet):
             return {

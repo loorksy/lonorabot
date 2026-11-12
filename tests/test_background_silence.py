@@ -337,7 +337,8 @@ async def test_a_failed_background_run_leaves_nothing_in_the_conversation():
         )
         failed = next(item for item in listed if item["id"] == watch.id)
         assert failed["background"] is True
-        assert (failed["stream"] or {}).get("text", "") == ""
+        stream = cast(dict[str, Any], failed["stream"] or {})
+        assert stream.get("text", "") == ""
         assert await contents(fixture, conversation) == []
         # A routine that fails in its work thread copies nothing to the conversation.
         work = await work_thread(fixture, agent)
