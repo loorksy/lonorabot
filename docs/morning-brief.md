@@ -6,11 +6,11 @@ owner in `ln_morning_briefs`.
 
 ## When
 
-- **Time zone:** `reach_me.timezone` when the owner stored it, else the latest device
-  zone from the app-open record, else UTC. The step only reads reach-me.
-- **Time:** 07:00 until the owner has opened the app on at least 3 days. After that it
-  is the median of the owner's first open per day over the last recorded days (at most
-  14), 15 minutes earlier. The time moves at most one hour per local date.
+- **Time zone:** `reach_me.timezone` when the owner stored one, else UTC. The step only
+  reads reach-me.
+- **Time:** 07:00 in that zone. VISION 11.1 keeps 07:00 until Lonora has seen the owner
+  open the app on 3 days; app opens are not recorded yet, so the learned time is not
+  built.
 - **Once per local date.** The effect receipt `morning-brief:<owner>:<date>` claims a
   date's brief in the transaction that starts it, under the record's row lock. After
   downtime the step sends only today's brief: missed dates are not sent.
@@ -41,9 +41,11 @@ from an agent's sentence:
 - open positions and pending orders, each with the agent whose journaled order opened
   it (else the owner);
 - pending Trade Approval cards;
-- the number of operations of unknown outcome waiting for the owner;
-- `nothing_else_needs_you`, true when no approval or unsettled operation is waiting and
-  every account is connected.
+- what else waits for the owner, whatever its date: operations of unknown outcome, other
+  pending owner cards, runs waiting for the owner's answer, and action-required alerts
+  the owner has not seen;
+- `nothing_else_needs_you`, true when none of these is waiting, no approval is pending
+  and every account is connected.
 
 Upcoming events are not in the facts. Lonora reads them with its calendar tool when the
 owner configured one. The brief sends no push (11.4).

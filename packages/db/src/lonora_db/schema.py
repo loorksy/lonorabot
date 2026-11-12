@@ -551,8 +551,8 @@ class SettingRow(Base):
 class MorningBriefRow(Base):
     """One per owner: when the morning brief is due and what the last one saw (11.1).
 
-    ``brief_minute`` is minutes after local midnight in the owner's time zone, moved at
-    most one hour per local date; ``baseline`` holds balance and equity per account at the
+    ``brief_minute`` is minutes after local midnight in the owner's time zone (07:00 until
+    app opens are recorded); ``baseline``  holds balance and equity per account at the
     last brief; ``pending`` is the brief of ``local_date`` that Lonora is writing now.
     """
 
@@ -561,7 +561,6 @@ class MorningBriefRow(Base):
         ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
     )
     brief_minute: Mapped[int] = mapped_column(Integer, default=420)
-    planned_date: Mapped[str | None] = mapped_column(String(10))
     last_local_date: Mapped[str | None] = mapped_column(String(10))
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
