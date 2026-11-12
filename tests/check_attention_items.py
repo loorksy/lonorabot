@@ -279,6 +279,22 @@ async def broker_health(fixture: Fixture) -> None:
             assert await withdraw_ended(session, fixture.owner) == 0
     print("PASS a raised lost connection is not withdrawn by a gateway whose clock is behind")
 
+    # One outage whose reason flaps between polls (a 401, then a timeout) is one item.
+    flapping = utcnow() - timedelta(minutes=10)
+    for poll in range(8):
+        reason = "broker_credentials_rejected" if poll % 2 == 0 else "broker_connection_timeout"
+        await set_recovery(fixture, account, "disconnected", reason, flapping)
+        await tick(fixture)
+    episode = [
+        row
+        for code in ("broker_token_rejected", "broker_connection_lost")
+        for row in await items(fixture, code)
+        if row.parameters["since"] == flapping.isoformat()
+    ]
+    assert [(row.code, row.status) for row in episode] == [("broker_token_rejected", "ready")]
+    assert await ready_events(fixture, episode[0].id) == 1
+    print("PASS an outage whose reason flaps between polls is one item and one ready event")
+
 
 async def settle_card(fixture: Fixture) -> None:
     """The uncertain-operation item stands for its Settle card: it ends with the card."""

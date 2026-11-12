@@ -120,12 +120,16 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
         )
     if row.code in BROKER_HEALTH_CODES:
         broker = await session.get(BrokerSessionRow, row.parameters.get("account_id", ""))
-        return (
-            broker is not None
-            and broker.owner_id == row.owner_id
-            and bool(broker.payload.get("enabled"))
-            and current_outage(broker.state.get("broker_recovery", {}))
-            == (row.code, row.parameters.get("since"))
+        if broker is None or broker.owner_id != row.owner_id or not broker.payload.get("enabled"):
+            return False
+        found = current_outage(broker.state.get("broker_recovery", {}))
+        if found is None or found[1] != row.parameters.get("since"):
+            return False
+        # Within one outage the adapter's reason flaps between polls (a 401, then a
+        # timeout): a rejected token or an undeployed account stays the outage's problem
+        # while later polls show only a generic lost connection.
+        return found[0] == row.code or (
+            row.code != "broker_connection_lost" and found[0] == "broker_connection_lost"
         )
     if row.code == "secret_requested":
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
@@ -765,10 +769,11 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
 
     The problem is read from the account's stored recovery state, so a lost connection
     becomes an item only once it has lasted the grace period. An item names its outage
-    (the time the account became disconnected): while the same outage shows the same
-    problem, its item stays the only one, and if the problem comes back after its item
-    was withdrawn (the reason flapped, the connection was disabled and enabled again),
-    it is raised again. An outage with open positions or unresolved operations is
+    (the time the account became disconnected), and an outage has at most one open
+    item: while it stands, a flapping reason raises nothing. A rejected token or an
+    undeployed account replaces a lost-connection item once ``withdraw_ended`` has
+    withdrawn it; after the connection is disabled and enabled again, the outage's
+    problem is raised again. An outage with open positions or unresolved operations is
     critical. Returns how many items were raised; ``withdraw_ended`` withdraws them.
     """
     await lock_attention(session, owner_id)
@@ -798,14 +803,16 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
             await session.scalars(
                 select(AttentionRow).where(
                     AttentionRow.owner_id == owner_id,
-                    AttentionRow.code == code,
+                    AttentionRow.code.in_(BROKER_HEALTH_CODES),
                     AttentionRow.parameters["account_id"].as_string() == account_id,
                     AttentionRow.parameters["since"].as_string() == since,
                 )
             )
         )
+        # One open item per outage: while it stands, a flapping reason raises nothing.
         if any(row.status != "suppressed" for row in raised):
             continue
+        raised = [row for row in raised if row.code == code]
         broker = await session.get(BrokerSessionRow, account_id)
         assert broker is not None
         state = broker.state["broker_recovery"]
