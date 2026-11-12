@@ -193,7 +193,12 @@ class ExecutionService:
                 origin = await require_lease(session, lease)
                 await authority_lock(session, origin.agent_id)
                 await require_operation_permission(
-                    session, owner_id, origin, request, account_authority_id
+                    session,
+                    owner_id,
+                    origin,
+                    request,
+                    account_authority_id,
+                    reducing=planned_reducing,
                 )
             connection = await BrokerSessionRepository().get(
                 session, owner_id, request.account_id, lock=True
@@ -406,7 +411,12 @@ class ExecutionService:
                     origin = await require_lease(session, lease)
                     await authority_lock(session, origin.agent_id)
                     await require_operation_permission(
-                        session, owner_id, origin, request, account_authority_id
+                        session,
+                        owner_id,
+                        origin,
+                        request,
+                        account_authority_id,
+                        reducing=reducing,
                     )
                 connection = await BrokerSessionRepository().get(
                     session, owner_id, request.account_id

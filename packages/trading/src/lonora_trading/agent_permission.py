@@ -1,18 +1,21 @@
-"""Current approval behavior at the existing financial executor boundary.
+"""The agent's trading mode at the execution door (mandate 4.1, 4.2.3, 6.7).
 
-This is a projection/check over existing grants and operation approvals, never
-a second financial authorization engine. Read-only analysis has no dependency
-on this gate. Broker reconciliation and committed receipts do not pass through it.
+Full sends on its own. Ask lets a risk-reducing request through and sends a
+risk-increasing one only when it is the exact request of an approved Trade Approval
+(``operation_id`` plus ``trade_fingerprint``). Read-only analysis has no dependency on this
+gate. Broker reconciliation and committed receipts do not pass through it.
 """
 
 from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.schema import RunRow, TradeApprovalRow
+from lonora_db.trading_mode import trading_mode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import provisional_voice
+from .admission import may_reduce_risk
 from .idempotency import trade_fingerprint
 
 
@@ -22,14 +25,19 @@ async def require_operation_permission(
     run: RunRow,
     request: TradeRequest,
     account_authority_id: str | None,
+    *,
+    reducing: bool | None = None,
 ) -> None:
-    """Recheck the current Agent selection and actual stored approval.
+    """Recheck the agent's current mode and the actual stored approval.
 
-    The caller takes the existing per-Agent authority lock before the final
-    send check. An authorization callback or old Goal grant alone is not proof.
-    AccountAuthority scope, device and budgets are validated by the executor's
-    existing require_account_execution immediately beside this check.
+    The caller takes the per-agent authority lock before the final send check, the lock
+    every mode change takes. ``reducing`` is the door's own classification of the request
+    against the broker's current ticket (``lonora_trading.admission.risk_reducing``);
+    None before the ticket is read, when the decisive check at send still follows.
     """
+    if await trading_mode(session, owner_id, run.agent_id) == "full":
+        return
+    # Until the permission ladder is removed, "No trading" still refuses an agent in Ask.
     level = await effective_permission(session, owner_id, run.agent_id)
     if level == "analysis":
         raise LonoraError("agent_analysis_only", 403)
@@ -40,8 +48,9 @@ async def require_operation_permission(
             return
         # Provisional speech retains the existing exact-operation confirmation
         # boundary as well as the current signed account scope.
-    # Without a covering grant, "On its own" asks like "Ask me": the ladder is
-    # monotonic, so an out-of-grant trade needs the owner's exact approval.
+    elif reducing or (reducing is None and may_reduce_risk(request)):
+        # Ask: a risk-reducing request needs no approval (4.1).
+        return
     approvals = await session.scalars(
         select(TradeApprovalRow)
         .where(
