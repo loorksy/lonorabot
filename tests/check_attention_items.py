@@ -348,7 +348,7 @@ async def fallbacks(fixture: Fixture) -> None:
     agent = await fixture.agent("Rotation")
     thread = await fixture.conversation(agent)
     context = await fixture.lease(await fixture.run(agent, thread))
-    cards = []
+    cards: list[str] = []
     for target in ("mcp_server", "brave_search"):
         arguments: dict[str, str] = {"kind": "connect_credential", "target": target}
         if target == "mcp_server":
