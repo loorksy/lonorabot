@@ -3,7 +3,7 @@
 ``--live`` runs each scenario as the owner's Personal Agent through Lonora's own path
 (prompt assembly, model router, provider adapter, tool loop: ``execute_run`` with the worker's
 production lease and round limits) on a real model, each on its own copy of a disposable
-PostgreSQL database. It follows genui_eval and reuses its runner machinery, but every tool
+PostgreSQL database. Its runner machinery is scripts/agent_eval/runner.py; every tool
 handler is the real one, so a scenario's effects are real rows and real calls on the fake
 MetaApi terminal of broker.py. No broker is reached and no order exists outside this
 process. The provider key is never read here: the stored credential is the placeholder
@@ -54,14 +54,18 @@ from sqlalchemy.engine import URL
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from scripts.agent_eval import bank, broker, score  # noqa: E402
-from scripts.genui_eval import run as genui  # noqa: E402
+from scripts.agent_eval import (  # noqa: E402
+    bank,
+    broker,
+    runner,  # noqa: E402
+    score,
+)
 
 OUT = ROOT / ".runtime/agent_eval"
 RECORDINGS = bank.FIXTURES / "recordings"
 RESULT_CHARS = 6000
 WORKER_PICKUPS = 3
-MODEL = "openai/gpt-5.4-mini"  # the cheap model genui_eval uses
+MODEL = "openai/gpt-5.4-mini"  # a cheap model
 
 
 class RecordingRegistry(ToolRegistry):
@@ -160,7 +164,7 @@ async def send(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> str:
         return run.id
 
 
-class AnyModel(genui.RecordingAdapter):
+class AnyModel(runner.RecordingAdapter):
     """The recording adapter for a turn whose model the product chooses itself."""
 
     async def complete(self, model: str, *args: Any, **kwargs: Any) -> Any:
@@ -170,7 +174,7 @@ class AnyModel(genui.RecordingAdapter):
 
 def recording_factory(model: str | None, log: list[dict[str, Any]], origin: float) -> Any:
     if model is not None:
-        return genui.recording_factory(model, log, origin)
+        return runner.recording_factory(model, log, origin)
 
     def factory(provider: str, secret: str) -> Any:
         return AnyModel(model_adapter(provider, secret), "", log, origin)
@@ -204,7 +208,7 @@ async def run_case(
 ) -> dict[str, Any]:
     """One scenario on its own copy of the template; ``model`` None runs its probe instead."""
     clone = base.set(database=f"aerun_{uuid4().hex[:12]}_test")
-    await genui.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
+    await runner.admin(base, f'CREATE DATABASE "{clone.database}" TEMPLATE "{base.database}"')
     log: list[dict[str, Any]] = []
     calls: list[dict[str, Any]] = []
     fake = bank.terminal(scenario)
@@ -214,7 +218,7 @@ async def run_case(
     rich: list[Any] = []
     after: dict[str, Any] = {}
     with broker.installed(fake):
-        api = genui.Api(clone)
+        api = runner.Api(clone)
         started = time.monotonic()
         try:
             await api.login()
@@ -228,7 +232,7 @@ async def run_case(
                 return api.runtime.services(api.owner).tool_context(
                     ids["lonora_id"],
                     ids["thread_id"],
-                    await genui.lease(api, run_id),
+                    await runner.lease(api, run_id),
                     api.settings.artifact_root,
                 )
 
@@ -247,13 +251,13 @@ async def run_case(
                 # With no routing saved the product picks the model: record whichever it is.
                 chosen = None if scenario["state"].get("model_routing") == "unset" else model
                 factory = recording_factory(chosen, log, started)
-                async with asyncio.timeout(genui.CASE_SECONDS):
+                async with asyncio.timeout(runner.CASE_SECONDS):
                     # The loop requeues a turn for a read retry; the worker picks it up again.
                     for _ in range(WORKER_PICKUPS):
                         context = await leased()
                         context.router.factory = factory
                         await execute_run(
-                            context, registry, genui.LEASE_SECONDS, genui.MAXIMUM_ROUNDS
+                            context, registry, runner.LEASE_SECONDS, runner.MAXIMUM_ROUNDS
                         )
                         async with api.runtime.db.sessions() as session:
                             if (
@@ -268,7 +272,7 @@ async def run_case(
                 assert row is not None
                 if model is not None:
                     status, error_code = row.status, row.error_code
-                transcript = genui.current_request(row.execution_state.get("messages", []))
+                transcript = runner.current_request(row.execution_state.get("messages", []))
                 thread = list(
                     await session.scalars(
                         select(MessageRow)
@@ -288,7 +292,7 @@ async def run_case(
             fake.faults.clear()
             after = await bank.state_after(api, ids, fake)
             await api.close()
-            await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
+            await runner.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
     record = {
         "scenario": scenario["id"],
         "model": model,
@@ -314,22 +318,22 @@ async def run_case(
         "latency_ms": turn_ms,
     }
     identities = {**ids, "owner_id": api.owner, "run_id": run_id}
-    return genui.scrub(record, {role: value for role, value in identities.items() if value})
+    return runner.scrub(record, {role: value for role, value in identities.items() if value})
 
 
 async def template(base: URL, model: str) -> dict[str, str]:
     """The seeded template database every scenario is copied from."""
-    await genui.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
-    await genui.admin(base, f'CREATE DATABASE "{base.database}"')
+    await runner.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+    await runner.admin(base, f'CREATE DATABASE "{base.database}"')
     environment = {**os.environ, "LONORA_DATABASE_URL": base.render_as_string(hide_password=False)}
     migrate = await asyncio.create_subprocess_exec(
         str(ROOT / "scripts/migrate.sh"), env=environment
     )
     if await migrate.wait():
         raise SystemExit("Migration of the seed database failed.")
-    os.environ["LONORA_UI_TEST_PASSWORD"] = genui.OWNER["password"]
+    os.environ["LONORA_UI_TEST_PASSWORD"] = runner.OWNER["password"]
     with broker.installed(broker.FakeTerminal(account_id=bank.ACCOUNT)):
-        api = genui.Api(base)
+        api = runner.Api(base)
         try:
             await api.login()
             return await bank.seed(api, model)
@@ -347,11 +351,11 @@ async def probes(base: URL) -> list[dict[str, Any]]:
             if "probe" in scenario
         ]
     finally:
-        await genui.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+        await runner.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
 
 
 async def main(arguments: argparse.Namespace) -> int:
-    base = genui.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
+    base = runner.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
     scenarios = bank.load()
     if arguments.probe:
         records = await probes(base)
@@ -396,7 +400,7 @@ async def main(arguments: argparse.Namespace) -> int:
                 flush=True,
             )
     finally:
-        await genui.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
+        await runner.admin(base, f'DROP DATABASE IF EXISTS "{base.database}" WITH (FORCE)')
     total = {
         key: sum(record["usage"][key] for record in records)
         for key in ("input_tokens", "cached_tokens", "output_tokens")

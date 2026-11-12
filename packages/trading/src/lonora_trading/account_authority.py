@@ -43,7 +43,7 @@ async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
     """A provisional handoff and its descendants cannot spend standing authority, and
     neither can a tainted Run: one a generated card's send started, anything that descends
     from it or that it started, or the wake of a durable row it created or changed
-    (GENUI_PLAN §8.5, ``lonora_db.genui_taint``): their trades become approval cards."""
+    (docs/genui.md, ``lonora_db.genui_taint``): their trades become approval cards."""
     from lonora_db.genui_taint import is_tainted
 
     seen: set[str] = set()
@@ -110,7 +110,14 @@ async def available_authority(
 async def lonora_opened(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> bool:
-    """Whether the journal attributes this ticket to an agent's entry (not the owner's own).
+    """Whether the journal attributes this ticket to an agent's entry (not the owner's own)."""
+    return await ticket_agent(session, owner_id, request, target) is not None
+
+
+async def ticket_agent(
+    session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
+) -> str | None:
+    """The agent whose journaled entry opened or placed this ticket; None for the owner's own.
 
     Attribute by the existing journal and broker identity, never ticket format. Only an
     entry an Agent's leased Run sent counts (``journal_agent``, the same rule the broker
@@ -139,8 +146,8 @@ async def lonora_opened(
             entry.operation_id,
             broker_operation_tag(entry.operation_id),
         } or target.id in {details.get(kind), safe_id}:
-            return journal_agent(entry) is not None
-    return False
+            return journal_agent(entry)
+    return None
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:

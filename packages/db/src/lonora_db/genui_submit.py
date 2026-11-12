@@ -1,4 +1,4 @@
-"""A generated card's send (GENUI_PLAN §8.2): checked, composed and queued by the server.
+"""A generated card's send (docs/genui.md): checked, composed and queued by the server.
 
 The client posts only the card message, its part, the button's node path and the card's
 values. Everything else is the server's: the intent comes from the stored card's node; the
@@ -55,7 +55,7 @@ from .transactions import owned_agent
 SUBMIT_LIFETIME = timedelta(minutes=30)
 WAITING = ("waiting_input", "waiting_takeover")
 NEVER_RAN_NOTE = "طلب من بطاقة لم يُنفَّذ"
-# Intents the S-A01 slice lists (the capability block, §3.6); a submit is checked again.
+# The intents the capability block lists; a submit is checked again.
 LISTED_INTENTS = ("ask", "alert.create", "alert.off")
 
 

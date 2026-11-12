@@ -1,4 +1,4 @@
-"""lonora-ui v2 documents (GENUI_PLAN §2.2, §7.1, §9.1).
+"""lonora-ui v2 documents (docs/genui.md).
 
 The model writes one card per reply inside the ``lonora-ui`` fence, one JSON object per
 line: a head line (``{"v":2,…}``), an optional data line (facts, state, calc), one line per
@@ -67,6 +67,12 @@ Kind = Literal[
 TONES = ("info", "good", "warn", "bad", "muted", "accent")
 CHANNELS = ("app", "push", "call")
 TEXT_CAPS = {"title": 32, "sub": 48, "label": 24, "option": 16, "button": 24}
+# Trusted slots (mandate 10.2): the fixed cards an agent may place inside its card, each a
+# reference to a real server record. The card kind names the record's table and kind
+# (``lonora_db.genui_slots``); the clients draw everything inside from the live record.
+SLOT = "Slot"
+SLOT_CARDS = ("trade_approval", "settle", "mandate")
+RECORD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$")
 
 
 @dataclass
@@ -167,6 +173,10 @@ def _short(cap: int) -> Check:
 Spec = dict[str, tuple[bool, Check | None]]
 
 TEXT_TONE: Check = _enum(*TONES)
+
+
+def _record(value: Any) -> bool:
+    return isinstance(value, str) and bool(RECORD_ID.match(value))
 
 
 def _options(value: Any) -> bool:
@@ -309,14 +319,24 @@ NODES: dict[str, Spec] = {
     "Grid": {"children": (True, None), "cols": (False, _enum(1, 2, 3))},
     "Card": {"children": (True, None), "title": (False, _text(32)), "icon": (False, _icon)},
     "More": {"children": (True, None), "label": (False, _text(24))},
+    # Only where it sits is the agent's: no ``when``, no text, no style (mandate 10.2.2).
+    SLOT: {"card": (True, _enum(*SLOT_CARDS)), "record": (True, _record)},
 }
 CONTAINERS = frozenset({"Row", "Col", "Grid", "Card", "More"})
 INPUTS = frozenset({"Segmented", "Select", "Number", "Slider"})
 ICON_PROPS = frozenset({"icon"})
-# The S-A01 slice renders these on web; the rest of R1's nodes follow in the widening.
-SLICE_NODES = frozenset(
-    {"Segmented", "Number", "Text", "Note", "Button", "Row", "KeyValue", "More", "Divider"}
-)
+# Rows only the compiler writes (the read-only delivery row); never taught to the model.
+SERVER_NODES = ("Delivery",)
+
+
+def node_props(kind: str) -> Spec:
+    """A node's props with the common ones; a slot takes none (it can never be hidden)."""
+    return NODES[kind] if kind == SLOT else NODES[kind] | COMMON
+
+
+# NODES, SERVER_NODES and ACTIONS are the one v2 component set (mandate 10.1.5): the model
+# is taught it (``lonora_agent.genui_vocabulary``), and the clients type against the
+# catalog generated from it (``scripts/export_genui_catalog.py``).
 
 
 def repair_node(
@@ -332,11 +352,15 @@ def repair_node(
     if spec is None or depth > MAX_DEPTH:
         diagnostics.add("block_dropped", block, kind if spec else None, path)
         return None
+    if kind == SLOT and depth:
+        # A slot sits at the top level only: no container can hide or fold it (10.2.2).
+        diagnostics.add("slot_nested", block, kind, path)
+        return None
     node: dict[str, Any] = {"type": kind}
     for name, value in raw.items():
         if name == "type":
             continue
-        required, check = (spec | COMMON).get(name, (None, None))
+        required, check = node_props(kind).get(name, (None, None))
         if required is None:
             diagnostics.add("prop_dropped", block, kind, f"{path}{name}".lower()[:48])
             continue
@@ -423,10 +447,6 @@ class ParsedCard:
     dropped_binds: set[str] = field(default_factory=lambda: set[str]())
     lines: int = 0
     diagnostics: Diagnostics = field(default_factory=Diagnostics)
-
-
-def is_v2_start(first_line: str) -> bool:
-    return re.match(r'^\s*\{\s*"v"\s*:\s*2\s*[,}]', first_line) is not None
 
 
 def _head(raw: Any, diagnostics: Diagnostics) -> dict[str, Any]:

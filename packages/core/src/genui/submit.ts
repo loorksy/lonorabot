@@ -1,5 +1,5 @@
 /** Card locks, never-run marks and send availability, shared by web and mobile
- * (GENUI_PLAN §8.1, §8.2 rules N and T, §9.3). Derived from the messages and Runs the client
+ * (docs/genui.md rules N and T, §9.3). Derived from the messages and Runs the client
  * already follows; the server applies the same rules on write and on read. */
 import type { Message, Run } from "@lonora/contracts";
 

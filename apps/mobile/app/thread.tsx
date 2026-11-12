@@ -22,6 +22,7 @@ import {
   needsTimeSeparator,
   projectRunEvents,
   runStatusText,
+  SLOT_OWNER_ACTION_KINDS,
   seedStream,
   stopTargets,
   streamForRun,
@@ -47,6 +48,7 @@ import { AgentPermissions } from "../components/agent-permissions";
 import { BotAvatar } from "../components/bot-avatar";
 import { useChartSheet } from "../components/chart-sheet";
 import { ConversationQuestion } from "../components/conversation-question";
+import { CardHost, type CardHostValue } from "../components/genui/host";
 import { GroupAvatar } from "../components/group-avatar";
 import { MessageBubble } from "../components/message-bubble";
 import { NativeSymbol } from "../components/native-symbol";
@@ -241,6 +243,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                 approved: 1,
                 rejected: 1,
                 expired: 1,
+                withdrawn: 1,
                 completed: 2,
                 cancelled: 2,
               };
@@ -471,6 +474,75 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     runs,
     streams,
   );
+  // A card's submission is sent at once, never through the auto-flushed outbox (§8.2): the
+  // server writes its bubble, and a retry after a failure is the owner's tap, not ours.
+  /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
+     one live record, one set of server actions. */
+  const ownerActionCard = (action: OwnerAction) => (
+    <OwnerActionCard
+      row={action}
+      onChange={(updated) => {
+        setOwnerActions((old) =>
+          old.map((row) => (row.id === updated.id ? mergeOwnerAction(row, updated) : row)),
+        );
+        // A decided card changes what the header pill says (a lifted pause,
+        // Resume, a signed grant): read it now, not at the next poll.
+        void liveState.refresh();
+      }}
+    />
+  );
+  const approvalCard = (approval: TradeApproval) => (
+    <TradeApprovalCard
+      row={approval}
+      onChange={(updated) => {
+        setApprovals((old) => old.map((row) => (row.id === updated.id ? updated : row)));
+        void liveState.refresh();
+      }}
+    />
+  );
+  const cardHost: CardHostValue = {
+    slot: ({ card, record }) => {
+      if (card === "trade_approval") {
+        const approval = approvals.find((row) => row.id === record && row.thread_id === id);
+        return approval ? approvalCard(approval) : null;
+      }
+      const action = ownerActions.find(
+        (row) =>
+          row.id === record && row.thread_id === id && row.kind === SLOT_OWNER_ACTION_KINDS[card],
+      );
+      return action ? ownerActionCard(action) : null;
+    },
+    threadId: id,
+    messages,
+    runs,
+    agents,
+    submit: async (body) => {
+      const accepted = await api.post<{ message: Message; runs?: Run[] }>(
+        `/threads/${encodeURIComponent(id)}/messages`,
+        body,
+      );
+      const cached = conversationCache.get<ConversationSnapshot>(scope, `thread:${id}`);
+      if (cached)
+        conversationCache.set(scope, `thread:${id}`, {
+          ...cached,
+          messages: mergeMessages(cached.messages, [accepted.message]),
+        });
+      if (selected.current.id !== id || selected.current.scope !== scope) return;
+      setMessages((old) => mergeMessages(old, [accepted.message]));
+      if (accepted.runs?.length)
+        setRuns((old) => {
+          const projected = new Map(old.map((run) => [run.id, run]));
+          for (const run of accepted.runs ?? []) {
+            // A Run event that arrived before this response is newer: keep it.
+            const prior = projected.get(run.id);
+            if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
+              projected.set(run.id, run);
+          }
+          return [...projected.values()];
+        });
+      void snapshotRef.current();
+    },
+  };
   const deliver = async (intent: OutgoingIntent, targetKey: string, targetId: string) => {
     if (!conversationCache.current(scope) || deliveries.current.has(intent.nonce)) return;
     deliveries.current.add(intent.nonce);
@@ -688,7 +760,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
   };
   // Stop cancels every cancellable Run of the thread, a queued card submission included,
-  // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
+  // as web does (docs/genui.md rule L, §9.7 M-a).
   const stopActive = async () => {
     if (!id) return;
     const active = stopTargets(runs, id);
@@ -884,187 +956,165 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           {!loaded || !thread ? (
             <Loading />
           ) : (
-            <FlatList
-              ref={list}
-              testID="conversation-transcript"
-              inverted
-              data={conversationTimeline(
-                visibleMessages,
-                approvals.filter((row) => row.thread_id === id),
-                ownerActions.filter((row) => row.thread_id === id),
-              ).reverse()}
-              keyExtractor={(item) => item.id}
-              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              scrollEventThrottle={16}
-              onScroll={(event) => {
-                const near = event.nativeEvent.contentOffset.y <= 80;
-                following.current = near;
-                setAtEnd(near);
-              }}
-              onContentSizeChange={() => {
-                if (following.current) list.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              onScrollToIndexFailed={(info) => {
-                list.current?.scrollToOffset({
-                  offset: info.averageItemLength * info.index,
-                  animated: false,
-                });
-              }}
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                flexGrow: 1,
-                gap: 12,
-              }}
-              ListFooterComponent={
-                messages.length >= 100 && hasOlder ? (
-                  <Button
-                    label={t("older")}
-                    secondary
-                    disabled={busy}
-                    onPress={() => void older()}
-                  />
-                ) : null
-              }
-              ListEmptyComponent={
-                <Text style={{ color: shell.secondary, textAlign: "center", padding: 24 }}>
-                  {t("waitingMessage")}
-                </Text>
-              }
-              renderItem={({ item }) => {
-                if (item.kind === "owner_action")
-                  return (
-                    <OwnerActionCard
-                      row={item.action}
-                      onChange={(updated) => {
-                        setOwnerActions((old) =>
-                          old.map((row) =>
-                            row.id === updated.id ? mergeOwnerAction(row, updated) : row,
-                          ),
-                        );
-                        // A decided card changes what the header pill says (a lifted pause,
-                        // Resume, a signed grant): read it now, not at the next poll.
-                        void liveState.refresh();
-                      }}
+            <CardHost value={cardHost}>
+              <FlatList
+                ref={list}
+                testID="conversation-transcript"
+                inverted
+                data={conversationTimeline(
+                  visibleMessages,
+                  approvals.filter((row) => row.thread_id === id),
+                  ownerActions.filter((row) => row.thread_id === id),
+                ).reverse()}
+                keyExtractor={(item) => item.id}
+                maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  const near = event.nativeEvent.contentOffset.y <= 80;
+                  following.current = near;
+                  setAtEnd(near);
+                }}
+                onContentSizeChange={() => {
+                  if (following.current)
+                    list.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
+                onScrollToIndexFailed={(info) => {
+                  list.current?.scrollToOffset({
+                    offset: info.averageItemLength * info.index,
+                    animated: false,
+                  });
+                }}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  flexGrow: 1,
+                  gap: 12,
+                }}
+                ListFooterComponent={
+                  messages.length >= 100 && hasOlder ? (
+                    <Button
+                      label={t("older")}
+                      secondary
+                      disabled={busy}
+                      onPress={() => void older()}
                     />
-                  );
-                if (item.kind === "approval")
-                  return (
-                    <TradeApprovalCard
-                      row={item.approval}
-                      onChange={(updated) => {
-                        setApprovals((old) =>
-                          old.map((row) => (row.id === updated.id ? updated : row)),
-                        );
-                        void liveState.refresh();
-                      }}
-                    />
-                  );
-                const message = item.message;
-                const question = questions.get(message.id);
-                const previous =
-                  visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
-                const responseRun = message.id.startsWith("preview:")
-                  ? runs.find((run) => `preview:${run.id}` === message.id)
-                  : undefined;
-                return (
-                  <View testID={item.seq === around ? "around-message" : undefined}>
-                    {needsTimeSeparator(message.created_at, previous?.created_at) ? (
-                      <TimeSeparator createdAt={message.created_at} />
-                    ) : null}
-                    {responseRun ? (
-                      <TurnActivity
-                        run={{
-                          ...responseRun,
-                          stream: streamForRun(responseRun, streams[responseRun.id]),
-                        }}
-                        events={events}
-                        connection={connection}
-                        agent={agents.find((value) => value.id === responseRun.agent_id)}
-                      />
-                    ) : null}
-                    <MessageBubble
-                      mark={submitMark(message)}
-                      onChartLink={(value) => {
-                        try {
-                          const url = new URL(value, server);
-                          if (url.origin !== new URL(server).origin || url.pathname !== "/charts")
-                            return false;
-                          chartSheet.open({
-                            threadId: id,
-                            ...(agent ? { botId: agent.id } : {}),
-                            chartId: url.searchParams.get("chartId") ?? undefined,
-                          });
-                          return true;
-                        } catch {
-                          return false;
-                        }
-                      }}
-                      onVisualAction={async (action) => {
-                        if (action.kind === "follow_up") await send(undefined, action.text);
-                        else if (action.kind === "open_chart")
-                          chartSheet.open({
-                            threadId: id,
-                            ...(agent ? { botId: agent.id } : {}),
-                            chartId: action.resource_id,
-                          });
-                        else
-                          router.push({
-                            pathname: "/artifact",
-                            params: { artifactId: action.resource_id },
-                          });
-                      }}
-                      message={message}
-                      body={
-                        question?.choices.length ? (
-                          <ConversationQuestion request={question} onAnswer={answerQuestion} />
-                        ) : undefined
-                      }
-                      reply={messages.find((row) => row.id === message.reply_to)}
-                      onReply={
-                        message.id.startsWith("preview:")
-                          ? undefined
-                          : (value) => updateDraft({ reply: value })
-                      }
-                      onRetry={(nonce) => void retryOutgoing(nonce)}
-                      previousVisualMessageId={(() => {
-                        const settled = runs.find(
-                          (run) =>
-                            (streams[run.id]?.message_id ?? run.stream?.message_id) === message.id,
-                        );
-                        return settled ? `preview:${settled.id}` : undefined;
-                      })()}
-                      grouped={Boolean(
-                        responseRun ||
-                          (previous &&
-                            previous.role === message.role &&
-                            previous.agent_id === message.agent_id &&
-                            new Date(message.created_at).getTime() -
-                              new Date(previous.created_at).getTime() <
-                              180000),
-                      )}
-                      agent={agents.find((value) => value.id === message.agent_id)}
-                      files={files}
-                      onArtifact={(fileId) =>
-                        router.push({ pathname: "/artifact", params: { artifactId: fileId } })
-                      }
-                    />
-                  </View>
-                );
-              }}
-              ListHeaderComponent={
-                outgoing.some((row) => row.message.delivery === "sending") ? (
-                  <Text
-                    accessibilityLiveRegion="polite"
-                    style={{ color: shell.secondary, padding: 8 }}
-                  >
-                    {t("sending")}
+                  ) : null
+                }
+                ListEmptyComponent={
+                  <Text style={{ color: shell.secondary, textAlign: "center", padding: 24 }}>
+                    {t("waitingMessage")}
                   </Text>
-                ) : null
-              }
-            />
+                }
+                renderItem={({ item }) => {
+                  if (item.kind === "owner_action") return ownerActionCard(item.action);
+                  if (item.kind === "approval") return approvalCard(item.approval);
+                  const message = item.message;
+                  const question = questions.get(message.id);
+                  const previous =
+                    visibleMessages[visibleMessages.findIndex((row) => row.id === message.id) - 1];
+                  const responseRun = message.id.startsWith("preview:")
+                    ? runs.find((run) => `preview:${run.id}` === message.id)
+                    : undefined;
+                  return (
+                    <View testID={item.seq === around ? "around-message" : undefined}>
+                      {needsTimeSeparator(message.created_at, previous?.created_at) ? (
+                        <TimeSeparator createdAt={message.created_at} />
+                      ) : null}
+                      {responseRun ? (
+                        <TurnActivity
+                          run={{
+                            ...responseRun,
+                            stream: streamForRun(responseRun, streams[responseRun.id]),
+                          }}
+                          events={events}
+                          connection={connection}
+                          agent={agents.find((value) => value.id === responseRun.agent_id)}
+                        />
+                      ) : null}
+                      <MessageBubble
+                        mark={submitMark(message)}
+                        onChartLink={(value) => {
+                          try {
+                            const url = new URL(value, server);
+                            if (url.origin !== new URL(server).origin || url.pathname !== "/charts")
+                              return false;
+                            chartSheet.open({
+                              threadId: id,
+                              ...(agent ? { botId: agent.id } : {}),
+                              chartId: url.searchParams.get("chartId") ?? undefined,
+                            });
+                            return true;
+                          } catch {
+                            return false;
+                          }
+                        }}
+                        onVisualAction={async (action) => {
+                          if (action.kind === "follow_up") await send(undefined, action.text);
+                          else if (action.kind === "open_chart")
+                            chartSheet.open({
+                              threadId: id,
+                              ...(agent ? { botId: agent.id } : {}),
+                              chartId: action.resource_id,
+                            });
+                          else
+                            router.push({
+                              pathname: "/artifact",
+                              params: { artifactId: action.resource_id },
+                            });
+                        }}
+                        message={message}
+                        body={
+                          question?.choices.length ? (
+                            <ConversationQuestion request={question} onAnswer={answerQuestion} />
+                          ) : undefined
+                        }
+                        reply={messages.find((row) => row.id === message.reply_to)}
+                        onReply={
+                          message.id.startsWith("preview:")
+                            ? undefined
+                            : (value) => updateDraft({ reply: value })
+                        }
+                        onRetry={(nonce) => void retryOutgoing(nonce)}
+                        previousVisualMessageId={(() => {
+                          const settled = runs.find(
+                            (run) =>
+                              (streams[run.id]?.message_id ?? run.stream?.message_id) ===
+                              message.id,
+                          );
+                          return settled ? `preview:${settled.id}` : undefined;
+                        })()}
+                        grouped={Boolean(
+                          responseRun ||
+                            (previous &&
+                              previous.role === message.role &&
+                              previous.agent_id === message.agent_id &&
+                              new Date(message.created_at).getTime() -
+                                new Date(previous.created_at).getTime() <
+                                180000),
+                        )}
+                        agent={agents.find((value) => value.id === message.agent_id)}
+                        files={files}
+                        onArtifact={(fileId) =>
+                          router.push({ pathname: "/artifact", params: { artifactId: fileId } })
+                        }
+                      />
+                    </View>
+                  );
+                }}
+                ListHeaderComponent={
+                  outgoing.some((row) => row.message.delivery === "sending") ? (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={{ color: shell.secondary, padding: 8 }}
+                    >
+                      {t("sending")}
+                    </Text>
+                  ) : null
+                }
+              />
+            </CardHost>
           )}
           {!atEnd && (
             <Pressable

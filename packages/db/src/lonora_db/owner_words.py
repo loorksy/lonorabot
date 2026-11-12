@@ -1,4 +1,4 @@
-"""The owner's own words, and nothing a card composed (GENUI_PLAN §8.4).
+"""The owner's own words, and nothing a card composed (docs/genui.md).
 
 Every owner-words check (supervision, agent creation and control, the owner profile and
 reach-me, model switches, full delegation, a rejected trade card) reads the owner's typed
@@ -44,7 +44,7 @@ def visible_to_recall() -> ColumnElement[bool]:
 
 
 async def submit_hidden(session: AsyncSession, message: MessageRow, run: RunRow | None) -> bool:
-    """Whether a card submission is invisible to ``run`` (GENUI_PLAN §8.2 rules V and N):
+    """Whether a card submission is invisible to ``run`` (docs/genui.md rules V and N):
     until its own Run has ended it is visible only to that Run, and a submission whose Run
     ended without ever starting stays invisible to every Run for good."""
     if message.origin != "ui_submit":

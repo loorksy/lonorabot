@@ -14,6 +14,7 @@ const rank: Record<string, number> = {
   approved: 1,
   rejected: 1,
   expired: 1,
+  withdrawn: 1,
   completed: 2,
   cancelled: 2,
 };
@@ -93,6 +94,14 @@ export function useTradeApprovals(threadId: string, watching = false) {
         );
     } catch (caught) {
       if (currentThread.current === threadId) setError(caught);
+      // Decided elsewhere (its row, its slot, another device): a second tap shows the
+      // record as the server holds it now (mandate 10.2.3).
+      await api
+        .get<Approval[]>(`/trading/approvals?thread_id=${encodeURIComponent(threadId)}`)
+        .then((data) => {
+          if (currentThread.current === threadId) setRows((old) => merge(old, data));
+        })
+        .catch(() => undefined);
     } finally {
       pending.current = false;
       setBusy(undefined);
@@ -135,7 +144,11 @@ export function TradeApprovalCard({
   const symbol = row.requests.find((request) => request.symbol)?.symbol;
   const status = row.status as Approval["status"] | "expired";
   if (status !== "pending") {
-    const bad = status === "rejected" || status === "cancelled" || status === "expired";
+    const bad =
+      status === "rejected" ||
+      status === "cancelled" ||
+      status === "expired" ||
+      status === "withdrawn";
     return (
       <div className="mcard is-done" data-trade-approval={row.id} data-trade-status={status}>
         <div className={`oa-line ${bad ? "st-cancelled" : "st-confirmed"}`}>

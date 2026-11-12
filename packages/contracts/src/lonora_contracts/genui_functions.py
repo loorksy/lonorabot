@@ -1,4 +1,4 @@
-"""The v2 card functions, values only (GENUI_PLAN §7.3), mirroring
+"""The v2 card functions, values only (docs/genui.md), mirroring
 ``packages/core/src/genui/functions.ts``.
 
 A bad argument returns None. The formatters (Fmt, Money, Pct, Signed, DayLabel, Plural)

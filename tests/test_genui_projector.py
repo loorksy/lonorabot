@@ -1,5 +1,5 @@
 """The v2 projector and compiler: line streaming, facts, the card's account, option checks,
-the delivery row, budget and deterministic repair (GENUI_PLAN §9.2, §9.4, §10.1)."""
+the delivery row, budget and deterministic repair (docs/genui.md)."""
 
 import json
 import re
@@ -48,7 +48,13 @@ class _Db:
 def context(agent: _Agent | None = None) -> ToolContext:
     return cast(
         ToolContext,
-        SimpleNamespace(db=_Db(agent), owner_id="o", agent_id="agent-1", thread_id="t"),
+        SimpleNamespace(
+            db=_Db(agent),
+            owner_id="o",
+            agent_id="agent-1",
+            thread_id="t",
+            lease=SimpleNamespace(run_id="run-1"),
+        ),
     )
 
 
@@ -259,9 +265,7 @@ async def test_over_budget_blocks_fold_but_the_send_stays_last() -> None:
     assert any(d["code"] == "budget_folded" for d in projector.diagnostics)
 
 
-def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_v2_prompt_block_is_bounded_generated_and_the_only_one() -> None:
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.skills.visual_policy import (
         MAX_GENUI_GUIDANCE_CHARS,
@@ -270,9 +274,6 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
         native_visual_policy,
     )
 
-    monkeypatch.delenv("LONORA_GENUI_V2", raising=False)
-    assert "<lonora_generative_ui>" not in native_visual_policy()
-    monkeypatch.setenv("LONORA_GENUI_V2", "1")
     block = native_visual_policy()
     assert block.startswith(VISUAL_MARKER) and block.endswith(VISUAL_END)
     assert len(block) <= MAX_GENUI_GUIDANCE_CHARS
@@ -282,12 +283,7 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
     names = block.index("Instrument names")
     rest = block[:names] + block[block.index("\n", names) :]
     assert not re.search("[\u0600-\u06ff]", rest)
-    monkeypatch.setenv("LONORA_GENUI_PROMPT", "O")
-    other = native_visual_policy()
-    assert other != block and len(other) <= MAX_GENUI_GUIDANCE_CHARS and "<!--" not in other
-    assert not re.search("[\u0600-\u06ff]", other[: other.index("Instrument names")])
-    monkeypatch.setenv("LONORA_GENUI_PROMPT", "P")
-    assert "{vocabulary}" not in block and native_visual_policy() == block
+    assert "{vocabulary}" not in block and "{teaching}" not in block and "<!--" not in block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
         "go: market, tasks, usage, files, agents\n"

@@ -1,4 +1,4 @@
-"""Compile a lonora-ui v2 card against this request's evidence (GENUI_PLAN §9.2, §9.4, §9.6).
+"""Compile a lonora-ui v2 card against this request's evidence (docs/genui.md).
 
 Deterministic repair only (no second model call): facts resolve from this request's
 successful tool results; the card has one account, the account of its first
@@ -20,6 +20,7 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage
 from lonora_contracts.genui import (
     INPUTS,
+    SLOT,
     TEXT_CAPS,
     CardError,
     Diagnostics,
@@ -41,6 +42,7 @@ PRIVATE_KEY = re.compile(
 )
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
 DECIMAL = re.compile(r"^-?\d+(?:\.\d+)?$")
+UNBOUND = re.compile(r"\{\{\s*[A-Za-z_][\w.]*\s*\}\}")
 MAX_COLUMN = 100
 MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
@@ -68,6 +70,38 @@ HEIGHTS = {
     "Badge": 24,
     "More": 40,
 }
+# A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
+# journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
+# counts toward the 560 px budget like any block, and is never folded).
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 300}
+# What only the fixed cards and their trust frame say (the clients' own strings, both
+# languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
+FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
+FIXED_LABELS = (
+    "Approval request",
+    "طلب موافقة",
+    "Trading request",
+    "طلب تداول",
+    "Approve",
+    "موافقة",
+    "Reject",
+    "رفض",
+    "The broker did not confirm this trade",
+    "الوسيط لم يؤكد هذه الصفقة",
+    "It executed",
+    "نُفذت",
+    "It did not execute",
+    "لم تُنفذ",
+    "Unknown: release the hold",
+    "غير معروفة — ارفع التعليق",
+    "Trading mode",
+    "التفويض",
+    "وكّله",
+    "يستأذن",
+)
+# Fixed-card words that are also everyday words: refused only as a whole label, never as the
+# start of one ("Full report", "Ask about gold").
+FIXED_WHOLE = ("Full", "Ask")
 
 
 @dataclass
@@ -338,6 +372,90 @@ class AgentScope:
     # The accounts this request read that the server can name (owner-checked, read
     # directly, never from a bounded list).
     named_accounts: frozenset[str] = frozenset()
+    # ``(card, record id)`` of the records this card's slots name that exist, belong to
+    # this owner and sit in this conversation (``lonora_db.genui_slots``).
+    slot_records: frozenset[tuple[str, str]] = frozenset()
+
+
+def _plain(text: str) -> str:
+    # Folded first: Arabic diacritics go before punctuation becomes space.
+    return " ".join(re.sub(r"[^\w\s]", " ", fold(text)).split())
+
+
+FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+WHOLE_PLAIN = frozenset(_plain(label) for label in FIXED_WHOLE)
+MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
+# The frame's own icon: an agent's node never wears it.
+FRAME_ICON = "shield"
+LITERAL = re.compile(r"'([^']*)'")
+
+
+def shows_frame_mark(text: str) -> bool:
+    """Text that says what only the trust frame says."""
+    plain = f" {_plain(text)} "
+    return any(f" {mark} " in plain for mark in MARKS_PLAIN)
+
+
+def imitates_fixed_card(text: str) -> bool:
+    """A heading or control label an agent's node shows that starts with, or is, what only a
+    fixed card or its trust frame says («موافقة», «Approve trade», «طلب موافقة · XAUUSD»)."""
+    plain = _plain(text)
+    return (
+        shows_frame_mark(text)
+        or plain in WHOLE_PLAIN
+        or any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
+    )
+
+
+# Props whose text heads or labels something, the way a fixed card's title and buttons do.
+LABEL_PROPS = ("label", "title", "show")
+LABEL_TEXT_NODES = frozenset({"Badge", "Title"})
+BODY_PROPS = ("text", "hint", "sub", "value", "suffix", "prefix")
+
+
+def imitation(
+    head: dict[str, Any],
+    blocks: list[dict[str, Any]],
+    envs: list[Any],
+    why: str | None,
+    fallback: str | None,
+) -> bool:
+    """Whether the agent's own card looks like a fixed card (mandate 10.2.2): the frame's icon,
+    a heading or control label a fixed card shows, or the frame's words anywhere shown. Each
+    template is read as written, at each sampled state and by every quoted literal in it."""
+    if head.get("icon") == FRAME_ICON:
+        return True
+    labels: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+    body: list[str] = [why or "", fallback or ""]
+    for _path, node in walk(blocks):
+        if node.get("icon") == FRAME_ICON:
+            return True
+        for name in LABEL_PROPS:
+            if isinstance(node.get(name), str):
+                labels.append(node[name])
+        for name in BODY_PROPS:
+            if isinstance(node.get(name), str):
+                (labels if node["type"] in LABEL_TEXT_NODES else body).append(node[name])
+        for option in cast(list[Any], node.get("options", [])):
+            shown = cast(dict[str, Any], option).get("label") if isinstance(option, dict) else None
+            shown = (
+                (cast(dict[str, Any], option).get("value") if shown is None else shown)
+                if isinstance(option, dict)
+                else option
+            )
+            if shown is not None:
+                labels.append(show(shown))
+        for row in node.get("rows", []):
+            body.extend(cell for cell in row if isinstance(cell, str))
+
+    def readings(text: str) -> list[str]:
+        found = [text, *LITERAL.findall(text)]
+        found.extend(render_template(text, env) for env in envs)
+        return found
+
+    return any(imitates_fixed_card(t) for text in labels for t in readings(text)) or any(
+        shows_frame_mark(t) for text in body for t in readings(text)
+    )
 
 
 def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, Any]) -> set[str]:
@@ -359,7 +477,7 @@ def _data_keys(action: dict[str, Any], state: dict[str, Any], calc: dict[str, An
 
 def owner_words(messages: list[ModelMessage]) -> str:
     """The owner's latest typed message; a card's send is card words, never the owner's
-    (its projection starts ``[owner_via_card``, GENUI_PLAN §8.4)."""
+    (its projection starts ``[owner_via_card``, docs/genui.md)."""
     return next(
         (
             m.content
@@ -406,6 +524,8 @@ def _node_height(node: dict[str, Any]) -> int:
         return 37 * len(node["rows"])
     if kind == "Text":
         return 20 * max(1, min(3, math.ceil(len(str(node.get("text", ""))) / 48)))
+    if kind == SLOT:
+        return SLOT_HEIGHTS[node["card"]]
     if kind == "Row":
         return max((_node_height(child) for child in node["children"]), default=0)
     if kind in {"Col", "Card", "Grid"}:
@@ -457,6 +577,9 @@ def compile_card(
             value, observed = None, None
         if isinstance(value, str):
             value = redact_private_reply(value, public_ids=public_ids)
+        if observed is not None:
+            # Source metadata is shown too (the why panel's time): filtered like values.
+            observed = redact_private_reply(observed, public_ids=public_ids)
         facts[key] = {
             "value": value,
             "source": item.name[:80],
@@ -521,7 +644,18 @@ def compile_card(
                 entry = cast(dict[str, Any], watch) if isinstance(watch, dict) else {}
                 if isinstance(entry.get("id"), str):
                     watch_ids.add(entry["id"])
-    blocks = [dict(block) for block in card.blocks]
+    blocks: list[dict[str, Any]] = []
+    for index, block in enumerate(card.blocks):
+        if block["type"] == SLOT:
+            # A slot shows a real record of this owner and conversation, of its own kind,
+            # once (mandate 10.2.1); anything else is refused and the card falls back.
+            if (block["card"], block["record"]) not in scope.slot_records:
+                diagnostics.add("slot_refused", index, SLOT)
+                raise CardError("card_fallback_slot")
+            if any(b["type"] == SLOT and b["record"] == block["record"] for b in blocks):
+                diagnostics.add("block_dropped", index, SLOT)
+                continue
+        blocks.append(dict(block))
     sends: list[dict[str, Any]] = []
     urls = _owner_urls(messages, evidence) if final else set[str]()
 
@@ -729,13 +863,20 @@ def compile_card(
             extra = cast(dict[str, Any], also) if isinstance(also, dict) else {}
             states.append({**state, bind: item.get("value"), **extra})
     strings: list[str] = []
-    for at in states[:24]:
-        strings.extend(rendered(environment(at, calc, fact_values)))
+    envs = [environment(at, calc, fact_values) for at in states[:24]]
+    for at_env in envs:
+        strings.extend(rendered(at_env))
     strings.extend(raw())
     strings.extend(str(v) for v in state.values() if isinstance(v, str))
     for text in strings:
         if public_reply_violation(text, public_ids=public_ids):
             raise CardError("card_fallback_private")
+        if UNBOUND.search(text):
+            # A placeholder the card computes but never fills is never shown (review).
+            raise CardError("card_fallback_binding")
+    if imitation(head, blocks, envs, card.why, card.fallback):
+        # Only a slot shows a fixed card; the agent's own nodes never look like one.
+        raise CardError("card_fallback_imitation")
     if not final:
         from .public_stream import EFFECT_CLAIM
 
@@ -749,7 +890,7 @@ def compile_card(
 
     def protected(block: dict[str, Any]) -> bool:
         for _p, n in walk([block]):
-            if n["type"] in {"Delivery"} or (
+            if n["type"] in {"Delivery", SLOT} or (
                 n["type"] == "Button" and n.get("action", {}).get("do") == "send"
             ):
                 return True
