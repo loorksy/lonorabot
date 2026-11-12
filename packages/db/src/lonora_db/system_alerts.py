@@ -8,6 +8,7 @@ keeps Lonora's normal authority: it is not observe-only. A paused Lonora is not 
 (4.7: a paused agent takes no new work); the owner still has the attention item.
 """
 
+import logging
 from typing import Any
 
 from lonora_contracts.domain import ThreadCreate
@@ -18,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .personal_agent import ensure_personal_agent
 from .schema import AttentionRow, RunRow
 from .threads import conversation_thread, create_thread
+
+logger = logging.getLogger(__name__)
 
 PROBLEMS = {
     "broker_token_rejected": "MetaApi rejected the access token",
@@ -56,10 +59,26 @@ def alert_prompt(item: AttentionRow) -> str | None:
 
 
 async def wake_lonora(session: AsyncSession, item: AttentionRow) -> RunRow | None:
-    """Wake Lonora once for a system alert item; None when there is nothing to wake."""
+    """Wake Lonora once for a system alert item; None when there is nothing to wake.
+
+    Only an item that is still open wakes Lonora (a later replay of an old fact does
+    not). The wake runs in a savepoint: if it fails, the owner's item still stands, and
+    the failure is logged rather than retried.
+    """
+    if item.status not in {"pending", "ready"}:
+        return None
     prompt = alert_prompt(item)
     if prompt is None:
         return None
+    try:
+        async with session.begin_nested():
+            return await start_wake(session, item, prompt)
+    except Exception:
+        logger.exception("system_alert_wake_failed code=%s", item.code)
+        return None
+
+
+async def start_wake(session: AsyncSession, item: AttentionRow, prompt: str) -> RunRow | None:
     run_id = stable_id(item.owner_id, "system-alert:" + item.id)
     if await session.get(RunRow, run_id) is not None:
         return None

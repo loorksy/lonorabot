@@ -326,6 +326,42 @@ async def broker_health(fixture: Fixture) -> None:
     print("PASS a raised lost connection is not withdrawn by a gateway whose clock is behind")
 
 
+async def failed_wake(fixture: Fixture) -> None:
+    """A wake that fails never costs the owner the item."""
+    operation_id = "op-" + uuid4().hex[:20]
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=operation_id,
+                owner_id=fixture.owner,
+                account_id="acc-" + uuid4().hex[:8],
+                request_hash="h",
+                request={"symbol": "EURUSD", "action": "buy"},
+                status="ambiguous",
+            )
+        )
+        await session.flush()
+        emit(
+            session,
+            fixture.owner,
+            "trading.operation_updated",
+            payload={"operation_id": operation_id, "status": "ambiguous"},
+        )
+
+    async def broken(*_: object, **__: object) -> None:
+        raise RuntimeError("scripted wake failure")
+
+    with patch("lonora_db.runs.create_run", broken):
+        await tick(fixture)
+    [item] = [
+        row
+        for row in await items(fixture, "operation_uncertain")
+        if row.parameters.get("operation_id") == operation_id
+    ]
+    assert item.status == "ready" and await alert_runs(fixture, item) == []
+    print("PASS a failed wake leaves the owner's item standing")
+
+
 async def settle_card(fixture: Fixture) -> None:
     """The uncertain-operation item stands for its Settle card: it ends with the card."""
     operation_id = "op-" + uuid4().hex[:20]
@@ -516,6 +552,7 @@ async def main() -> None:
         await secret_card(fixture)
         await broker_health(fixture)
         await settle_card(fixture)
+        await failed_wake(fixture)
         await fallbacks(fixture)
         await migration(fixture)
     finally:
