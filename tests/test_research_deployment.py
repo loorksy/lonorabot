@@ -167,3 +167,8 @@ def test_a_rollback_gives_the_previous_release_its_overlays_back(tmp_path: Path)
     script = (ROOT / "infra/compose/lonora").read_text()
     assert 'local saved=(infra "$STATE/image.env" "$STATE/overlays.env")' in script
     assert script.count("restore_overlays") == 3
+    # Before each bundle is extracted, a line left by an earlier update is removed.
+    assert script.count('rm -f "$STATE/overlays.env"\n') == 2
+    for at in (script.index("back_to_hold() {"), script.index("rollback() {")):
+        body = script[at : script.index("\n}\n", at)]
+        assert body.index('rm -f "$STATE/overlays.env"') < body.index('tar -xzf "$ROLLBACK_BUNDLE"')

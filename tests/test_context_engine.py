@@ -1334,6 +1334,10 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "consult_model",
         "web_fetch",
         "mcp_execute",
+        # Removed tools whose results earlier Runs stored stay untrusted evidence.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
     ):
         assert is_external(name), name
 

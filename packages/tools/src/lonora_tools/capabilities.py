@@ -288,7 +288,9 @@ async def listing(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         **report,
         "guidance": "Use any ready capability without asking. not_connected: offer one "
         "connect_credential card. A source outside trusted_sources needs one trust_source "
-        "card.",
+        "card. Workspace commands run only in an ordinary run, never in a helper or an "
+        "observe-only wake. A ready capability your inventory lists as unavailable_now has "
+        "a service that is not answering at the moment; say so plainly.",
     }
 
 

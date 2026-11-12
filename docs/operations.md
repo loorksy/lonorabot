@@ -318,7 +318,8 @@ The new installation does not use `lonora-analysis.service` or the analysis over
 workspace (above, "The workspace") replaced the analytical workspace. On an update, `lonora` removes
 `infra/analysis/compose.workspace.yml` from `LONORA_COMPOSE_OVERLAYS` and says so. Each agent's files
 from the analytical workspace are copied once into `old-workspace/` in its home when the workspace is
-reachable; skill packages were moved into their own store by migration 0138. An update saves the
+reachable (a snapshot that cannot be read is logged once per Gateway start and stays in the
+database); skill packages were moved into their own store by migration 0138. An update saves the
 overlays line in its rollback bundle, so a rollback to an earlier release gives it back.
 
 The old stack still uses the service, so leave it running while the old stack runs. Once the old
