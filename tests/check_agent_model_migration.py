@@ -133,7 +133,7 @@ async def seed(connection: AsyncConnection, owner: str, ids: dict[str, str]) -> 
         "request": ("agent_model", "pending"),
         "undo": ("agent_model_changed", "pending"),
         "confirmed": ("agent_model", "confirmed"),
-        "other": ("resume_trading", "pending"),
+        "other": ("lift_restriction", "pending"),
     }
     for name, (kind, status) in cards.items():
         ids["card_" + name] = str(uuid4())
@@ -150,7 +150,9 @@ async def seed(connection: AsyncConnection, owner: str, ids: dict[str, str]) -> 
                 "agent": ids["self"],
                 "thread": ids["thread"],
                 "kind": kind,
-                "subject": "agent-model:" + ids["self"] if kind != "resume_trading" else "trading",
+                "subject": "agent-model:" + ids["self"]
+                if kind != "lift_restriction"
+                else "restriction:r1",
                 "payload": json.dumps({"agent_id": ids["self"], "mode": "fixed"}),
                 "hash": uuid4().hex,
                 "status": status,
@@ -211,7 +213,7 @@ async def main() -> None:
             assert read["named"].chosen_by_agent_id == ids["named"]
             assert await setting(connection, "model_allowed") is None
             live = await cards(connection, "ln_owner_actions", ids)
-            assert live == {ids["card_other"]: ("resume_trading", "pending", None)}, live
+            assert live == {ids["card_other"]: ("lift_restriction", "pending", None)}, live
             retired = await cards(connection, module.RETIRED, ids)
             assert retired == {
                 ids["card_request"]: ("agent_model", "superseded", "model_cards_removed"),

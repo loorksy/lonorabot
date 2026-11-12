@@ -69,6 +69,7 @@ DECISION_CARD_KINDS = frozenset(
         "supervise",
         "trust_source",
         "connect_credential",
+        "secret",
     }
 )
 

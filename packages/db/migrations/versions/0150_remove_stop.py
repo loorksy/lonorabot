@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0150_remove_stop"
-down_revision = "0131_agent_model_owner_only"
+down_revision = "0145_metaapi_token"
 branch_labels = None
 depends_on = None
 

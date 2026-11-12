@@ -15,6 +15,15 @@ when some tool may change something, and a credential card for an MCP server say
 whether the trust card follows (or why not, waking the agent that asked). An agent's
 model has no card: only the owner assigns it (`docs/provider-resilience.md`).
 
+The Secret card (`secret`, VISION.md 7.2 and 10.3) asks for any other credential. The
+agent chooses its label and fields (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the
+value is saved under, and a label; `secret: false` only unmasks a field while it is
+typed). The server sets the destination: an agent's card saves to the owner's
+`workspace` secrets. Its values never pass the decision route: the card's own route,
+`POST /owner-actions/{id}/secret`, stores them encrypted and settles the card in one
+transaction, and the card, its events, the conversation and the agent's next run keep
+only the keys. A second submit shows the card as it is and writes nothing.
+
 A card is never a second authority path. It stores one exact effect, and the owner's
 tap runs the existing owner function for that effect, in the owner's session.
 
@@ -24,7 +33,7 @@ tap runs the existing owner function for that effect, in the owner's session.
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source` or `connect_credential` |
+| `kind` | `lift_restriction`, `resolve_operation`, `set_account_limits`, `grant_authority`, `create_agent`, `agent_created`, `supervise`, `supervision_created`, `supervision_stopped`, `supervision_paused`, `trust_source`, `connect_credential` or `secret` |
 | `payload`, `payload_hash` | The exact, server-validated effect, and its hash. A passkey challenge is bound to the hash. |
 | `subject` | The record the card acts on: `restriction:<id>`, `operation:<id>`, `account:<id>`, `grant:<agent>:<account>` |
 | `source` | `agent` (proposed through the tool) or `system` (raised from a runtime event) |

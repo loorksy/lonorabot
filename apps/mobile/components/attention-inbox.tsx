@@ -14,7 +14,7 @@ import { textDirection } from "../lib/text-direction";
 import { SettingsGroup, SettingsSwitch } from "./settings-group";
 import { Button, colors, ErrorNotice } from "./ui";
 
-const labels: Record<AttentionCode, Label> = {
+export const attentionLabels: Record<AttentionCode, Label> = {
   approval_required: "attentionApproval",
   approval_resolved: "attentionRequestUpdated",
   broker_token_rejected: "attentionBrokerTokenRejected",
@@ -145,7 +145,7 @@ export function AttentionInbox({
           style={{ backgroundColor: colors.muted, padding: 14, borderRadius: 16, gap: 8 }}
         >
           <Text style={{ color: colors.foreground, textAlign: rtl ? "right" : "left" }}>
-            {t(labels[item.code])}
+            {t(attentionLabels[item.code])}
           </Text>
           <Text style={{ color: colors.secondary, textAlign: rtl ? "right" : "left" }}>
             {agents.find((agent) => agent.id === item.agent_id)?.name}

@@ -243,6 +243,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         # card for an MCP server whose tools changed; neither settles a card.
         "propose_capability",
         "raise_review_card",
+        # broker_connect raises the server-built broker Secret card (9.2); it settles nothing.
+        "propose_effect",
     }
     for path in (ROOT / "packages/tools/src/lonora_tools").glob("*.py"):
         for node in ast.walk(ast.parse(path.read_text())):

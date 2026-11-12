@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "f44b0246b158be05a2a67e717128f9fad3278c0887dcb1505ae824f7ae799491",
+  "manual_sha256": "bc6a35e8f3f1f79937e1213c3d3de29fed936c7fe3a307db1b125e5ce58f8444",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"
@@ -12,10 +12,15 @@
     "message_react": "collaboration",
     "memory_read": "memory",
     "memory_write": "memory",
+    "method_history": "memory",
+    "method_restore": "memory",
     "owner_preferences_update": "memory",
     "session_search": "memory",
     "scratchpad_read": "memory",
     "scratchpad_write": "memory",
+    "skill_save": "memory",
+    "skill_history": "memory",
+    "skill_restore": "memory",
     "skill_package_create": "memory",
     "skill_package_import": "memory",
     "skill_package_validate": "memory",
@@ -94,6 +99,8 @@
     "account_history": "account",
     "list_accounts": "account",
     "account_read": "account",
+    "broker_manage": "account",
+    "broker_connect": "account",
     "trade_record_history": "trading",
     "trade_record_read": "trading",
     "trade_execute": "trading",
