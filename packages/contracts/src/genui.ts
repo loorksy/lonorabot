@@ -10,7 +10,7 @@ export type UiKind =
   | "quiz"
   | "timer"
   | "diagram"
-  | "receipt";
+  | "summary";
 export type UiScalar = string | number | boolean | null;
 export type UiOption =
   | UiScalar

@@ -52,7 +52,6 @@ from lonora_trading.exposure import direction
 from lonora_trading.idempotency import operation_id, trade_fingerprint
 from lonora_trading.journal import record_excerpt
 from lonora_trading.manual_activity import material_state
-from lonora_trading.restrictions import require_unrestricted
 from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -188,8 +187,7 @@ async def reviewed_approval(
     A repeated request in another call of the same Run (identical operation ids and
     fingerprints) answers from that card instead of asking the owner again: it waits on
     the same card, or returns the owner's rejection. A result that never reached the
-    broker (a pause that has since been lifted), or a rejection the owner has spoken
-    after in the conversation, asks again.
+    broker, or a rejection the owner has spoken after in the conversation, asks again.
     """
     expected = [trade_fingerprint(request) for request in requests]
     rows = await session.scalars(
@@ -297,7 +295,7 @@ async def unjournaled(context: ToolContext, requests: list[TradeRequest]) -> lis
 
 async def run_owner_message(context: ToolContext) -> str | None:
     """The owner's typed message this run answers (None once others' content reached it)."""
-    from .restrictions import owner_message_id
+    from .provenance import owner_message_id
 
     async with context.db.sessions() as session:
         return await owner_message_id(session, await require_lease(session, context.lease))
@@ -359,29 +357,6 @@ class ModeChangedToFull(Exception):
 class ReusedCardEnded(Exception):
     """The card this run's same request reused ended (drifted, withdrawn) before the
     locked read: the request is decided from the start, tolerance included."""
-
-
-async def refuse_braked_entries(
-    session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
-) -> None:
-    """Never ask the owner to approve new risk a brake in force would refuse at send.
-
-    A pause (``no_new_entries`` and stronger) holds every entry, so an approval card for
-    one could only fail after the owner's tap. The boundary's own code
-    (``trading_restriction_active``) comes back instead, and the agent offers the owner's
-    Lift card. ``requests`` are the
-    ones that add risk on the broker's current facts (``new_risk_requests``); a close,
-    cancel or tightening is still asked and decided by the executor against the fresh
-    broker target, which repeats every check at the moment of sending. This only
-    refuses earlier.
-    """
-    entries = requests
-    if not entries:
-        return
-    for request in entries:
-        await require_unrestricted(
-            session, context.owner_id, request, agent_id=context.agent_id, reducing=False
-        )
 
 
 def independent_exits(requests: list[TradeRequest]) -> bool:
@@ -496,10 +471,6 @@ async def approved_execution(
     if previous is None and not gate_only and adding:
         # Every card for new risk carries a tolerance; its reference is read now (10.3.1).
         annotation = annotation or TradeAnnotation()
-        if annotation.tolerance is None or not annotation.reason.strip():
-            async with context.db.sessions() as reader:
-                # A brake in force answers first: no card could be raised anyway.
-                await refuse_braked_entries(reader, context, adding)
         if annotation.tolerance is None:
             raise ToolRefusal(
                 "tolerance_required",
@@ -554,8 +525,6 @@ async def approved_execution(
                     and await trading_mode(session, context.owner_id, context.agent_id) == "full"
                 ):
                     raise ModeChangedToFull
-                if not gate_only:
-                    await refuse_braked_entries(session, context, adding)
                 created = utcnow()
                 row = TradeApprovalRow(
                     id=approval_id,
@@ -1081,7 +1050,7 @@ async def manage_all_positions(context: ToolContext, args: dict[str, Any]) -> di
     this run set or revoke it."""
     enabled = ManageAllPositions.model_validate(args).enabled
     async with context.db.sessions() as session, session.begin():
-        from .restrictions import owner_message_id
+        from .provenance import owner_message_id
 
         run = await require_lease(session, context.lease)
         if await owner_message_id(session, run) is None:
