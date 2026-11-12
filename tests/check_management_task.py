@@ -15,7 +15,7 @@ from lonora_contracts.account import Position
 from lonora_contracts.agent_permissions import PermissionChange
 from lonora_contracts.domain import AgentUpdate, utcnow
 from lonora_contracts.runs import Lease
-from lonora_contracts.tasks import TaskCreate
+from lonora_contracts.tasks import TaskCreate, TaskFailure
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import revoke
@@ -23,7 +23,9 @@ from lonora_db.agent_creation import delete_agent, pause_agent
 from lonora_db.agent_permissions import change_permission
 from lonora_db.agents import update_agent
 from lonora_db.broker_sessions import BrokerSessionRepository
-from lonora_db.management_task import MARKER, live_management_task
+from lonora_db.management_task import MARKER, live_management_task, open_management_tasks
+from lonora_db.obligations import prepare_delete
+from lonora_db.routines import due_query
 from lonora_db.schema import (
     AccountAuthorityRow,
     AgentRow,
@@ -47,7 +49,7 @@ from lonora_db.trading_journal import persist_result, reserve_operation
 from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
 from lonora_trading.controls import save_controls
-from lonora_trading.execution import ExecutionService
+from lonora_trading.execution import ExecutionService, require_task_authority
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
 from sqlalchemy import func, select
@@ -256,19 +258,28 @@ async def checks() -> None:
         assert kickoff.model_metadata["account_management_id"] == agent_id
     print("PASS a restart resumes the same task Run through the kept recovery path")
 
-    # 4.5.2: switching to Ask ends it. 4.5.3: watches and routines stay.
+    # 4.5.2: switching to Ask ends it. 4.5.3: watches and routines stay; the Run woken
+    # by its timer goes on outside the task, under Ask.
     await tap("ask", by="agent")
     assert await live() is None
     async with db.sessions() as session:
         row = await session.get(TicketRow, task_id)
         kickoff = await session.get(RunRow, task.payload["run_id"])
         assert row is not None and kickoff is not None
-        assert task_state(row).status == "cancelled" and kickoff.status == "cancelled"
+        assert task_state(row).status == "cancelled"
+        assert kickoff.status == "queued" and "task_id" not in kickoff.model_metadata
         kept = await session.get(MarketWatchRow, watch_id)
         assert kept is not None and kept.payload.get("enabled") is True
         assert "task_id" not in kept.state and kept.thread_id == conversation_id
         assert (await session.get(RoutineRow, routine_id)).enabled  # type: ignore[union-attr]
-    print("PASS Ask ends the task; the agent's watch moves to its conversation, routines stay")
+        # Outside the task, the Run passes the door's task check (6.9) like any Run.
+        await require_task_authority(session, kickoff)
+        kickoff_id = kickoff.id
+    async with db.sessions() as session, session.begin():
+        woken = await session.get(RunRow, kickoff_id)
+        assert woken is not None
+        woken.status = "completed"
+    print("PASS Ask ends the task; its woken Run goes on outside it, watches and routines stay")
 
     # In Ask the agent still manages its own position: a partial close sends, no card.
     close = TradeRequest(
@@ -292,21 +303,55 @@ async def checks() -> None:
         assert cards == 0
     print("PASS in Ask the agent closes its own position without a card")
 
-    # Full again starts a new task; a pause ends it, the owner's resume starts it again.
-    await tap("full")
-    restarted_task = await live()
-    assert restarted_task is not None and restarted_task.id != task_id
-    # Its Run waits on the owner's card when the agent is paused: the Run and the card
-    # end with the task (a paused agent may not add risk), nothing is left decidable.
+    async def started_task() -> tuple[TicketRow, str]:
+        await tap("full")
+        row = await live()
+        assert row is not None
+        return row, str(row.payload["run_id"])
+
+    async def set_run(run_id: str, **changes: Any) -> None:
+        async with db.sessions() as session, session.begin():
+            run = await session.get(RunRow, run_id)
+            assert run is not None
+            for key, value in changes.items():
+                setattr(run, key, value)
+
+    # 4.5.3: ending never cancels the agent's own timer. The task's pending timer becomes
+    # a one-shot routine in the agent's conversation at the same time.
+    _, timer_run = await started_task()
+    due = utcnow() + timedelta(hours=2)
+    await set_run(
+        timer_run,
+        status="waiting_takeover",
+        execution_state={
+            "environment": {"wait": {"kind": "timer", "call_id": "t", "due_at": due.isoformat()}}
+        },
+    )
+    await tap("ask", by="agent")
+    async with db.sessions() as session:
+        timers = list(
+            await session.scalars(
+                select(RoutineRow).where(
+                    RoutineRow.agent_id == agent_id, RoutineRow.run_at.is_not(None)
+                )
+            )
+        )
+        assert len(timers) == 1 and timers[0].run_at == due and timers[0].enabled
+        assert timers[0].thread_id == conversation_id
+        ended = await session.get(RunRow, timer_run)
+        assert ended is not None and ended.status == "cancelled"
+    print("PASS ending the task keeps its pending timer as a wake in the conversation")
+
+    # A pause ends the task; the Run waiting on the owner's card leaves it with the card
+    # still decidable (10.3.1.3), held while the agent is paused; the timer is held too.
+    paused_task, card_run = await started_task()
+    await set_run(card_run, status="waiting_input", execution_state={"messages": [{"x": 1}]})
     async with db.sessions() as session, session.begin():
-        waiting = await session.get(RunRow, restarted_task.payload["run_id"])
-        assert waiting is not None
-        waiting.status = "waiting_input"
         card = TradeApprovalRow(
             id=str(uuid4()),
             owner_id=owner_id,
-            run_id=waiting.id,
-            thread_id=waiting.thread_id,
+            run_id=card_run,
+            thread_id=paused_task.thread_id,
             agent_id=agent_id,
             call_id="card-call",
             requests=[],
@@ -318,21 +363,120 @@ async def checks() -> None:
         await pause_agent(session, owner_id, agent_id)
     assert await live() is None
     async with db.sessions() as session:
-        ended_run = await session.get(RunRow, restarted_task.payload["run_id"])
-        ended_card = await session.get(TradeApprovalRow, card_id)
-        assert ended_run is not None and ended_run.status == "cancelled"
-        assert ended_card is not None and ended_card.status == "cancelled"
+        held_run = await session.get(RunRow, card_run)
+        held_card = await session.get(TradeApprovalRow, card_id)
+        assert held_run is not None and held_run.status == "waiting_input"
+        assert "task_id" not in held_run.model_metadata
+        assert held_card is not None and held_card.status == "pending"
+        # Due routines of a paused agent are not enqueued.
+        assert await session.scalar(due_query(due + timedelta(minutes=1)).limit(1)) is None
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
-    resumed = await live()
-    assert resumed is not None
+    assert await live() is not None
+    async with db.sessions() as session:
+        assert (await session.get(TradeApprovalRow, card_id)).status == "pending"  # type: ignore[union-attr]
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=True))
     assert await live() is None
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
     assert await live() is not None
-    print("PASS a pause ends the task and the owner's resume of a Full agent starts it again")
+    await set_run(card_run, status="completed")
+    print("PASS a pause ends the task, keeps its card decidable; the owner's resume restarts it")
+
+    # A failed task that can still be resumed is ended by Ask, and is the agent's one task
+    # for a Full tap; one that failed for good is closed before a new one starts.
+    retrying = await live()
+    assert retrying is not None
+
+    async def fail(task_row: TicketRow, retry: bool) -> None:
+        async with db.sessions() as session, session.begin():
+            row = await session.get(TicketRow, task_row.id)
+            assert row is not None
+            state = task_state(row)
+            state.status, state.phase = "failed", "failed"
+            state.failure = TaskFailure(
+                run_id=str(row.payload["run_id"]),
+                lease_fence=1,
+                attempt=1,
+                code="model_provider_unavailable",
+                recovery="automatic" if retry else "terminal",
+                next_retry_at=(utcnow() + timedelta(minutes=5)).isoformat() if retry else None,
+            )
+            save_task(session, row, state)
+        await set_run(str(task_row.payload["run_id"]), status="failed")
+
+    await fail(retrying, retry=True)
+    await tap("full")
+    async with db.sessions() as session:
+        assert await live() is not None and (await live()).id == retrying.id  # type: ignore[union-attr]
+        assert len(await open_management_tasks(session, owner_id, agent_id)) == 1
+    await tap("ask", by="agent")
+    async with db.sessions() as session:
+        row = await session.get(TicketRow, retrying.id)
+        assert row is not None and task_state(row).status == "cancelled"
+        failure = task_state(row).failure
+        assert failure is not None and failure.next_retry_at is None
+    for_good, _ = await started_task()
+    await fail(for_good, retry=False)
+    await tap("full")
+    replacement = await live()
+    assert replacement is not None and replacement.id != for_good.id
+    async with db.sessions() as session:
+        assert len(await open_management_tasks(session, owner_id, agent_id)) == 1
+    async with db.sessions() as session, session.begin():
+        await pause_agent(session, owner_id, agent_id)
+    async with db.sessions() as session, session.begin():
+        await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
+    async with db.sessions() as session:
+        assert len(await open_management_tasks(session, owner_id, agent_id)) == 1
+    print("PASS failed tasks are ended by Ask and pause and never stand beside a new one")
+
+    # A Run working when the task ends goes on outside it: an in-flight exit passes the
+    # door's task check, and what it creates from now on is the agent's, not the task's.
+    working = await live()
+    assert working is not None
+    await set_run(str(working.payload["run_id"]), status="running")
+    await tap("ask", by="agent")
+    async with db.sessions() as session:
+        run = await session.get(RunRow, working.payload["run_id"])
+        assert run is not None and run.status == "running"
+        assert "task_id" not in run.model_metadata
+        await require_task_authority(session, run)
+    await set_run(str(working.payload["run_id"]), status="completed")
+    print("PASS a working Run leaves the task and keeps its exits")
+
+    # Lock order: a pause waits for a tool transaction of the task's Run that holds the
+    # Run and then needs the agent (an FK key share); it never deadlocks with it.
+    locked, _ = await started_task()
+    holding, release = asyncio.Event(), asyncio.Event()
+
+    async def tool_transaction() -> None:
+        async with db.sessions() as session, session.begin():
+            await session.execute(
+                select(RunRow).where(RunRow.id == locked.payload["run_id"]).with_for_update()
+            )
+            holding.set()
+            await release.wait()
+            await session.execute(
+                select(AgentRow).where(AgentRow.id == agent_id).with_for_update(key_share=True)
+            )
+
+    async def pause() -> None:
+        async with db.sessions() as session, session.begin():
+            await pause_agent(session, owner_id, agent_id)
+
+    tool = asyncio.create_task(tool_transaction())
+    await holding.wait()
+    pausing = asyncio.create_task(pause())
+    await asyncio.sleep(0.3)
+    assert not pausing.done(), "the pause did not wait for the task's Run"
+    release.set()
+    await asyncio.wait_for(asyncio.gather(tool, pausing), timeout=20)
+    assert await live() is None
+    async with db.sessions() as session, session.begin():
+        await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
+    print("PASS a pause takes the task's Run before the agent row: no deadlock")
 
     # An active signed grant's own Task drives the account until the grant is revoked.
     await tap("ask", by="agent")
@@ -367,6 +511,43 @@ async def checks() -> None:
         grant_task = await session.get(TicketRow, stable_id(grant_id, "account-management-task"))
         assert grant_task is not None and task_state(grant_task).status == "cancelled"
     print("PASS the grant's task drives while its grant is active; revoking hands over")
+
+    # Deleting a broker connection revokes its grants and hands a Full agent over to its
+    # own task; a deleted agent or conversation gets none.
+    await tap("ask", by="agent")
+    async with db.sessions() as session, session.begin():
+        other = await BrokerSessionRepository().create(
+            session,
+            owner_id,
+            {"provider": "simulation", "account_id": "deleted-fixture", "enabled": True},
+        )
+        other_id = other.id
+        grant = AccountAuthorityRow(
+            owner_id=owner_id,
+            agent_id=agent_id,
+            thread_id=conversation_id,
+            account_id=other_id,
+            status="active",
+            envelope={},
+            envelope_hash="0" * 64,
+            activation_expires_at=utcnow() + timedelta(minutes=5),
+        )
+        session.add(grant)
+        await session.flush()
+        await create_task(
+            session,
+            owner_id,
+            agent_id,
+            conversation_id,
+            TaskCreate(title="grant management", completion_mode="continuous"),
+            task_id=stable_id(grant.id, "account-management-task"),
+        )
+    await tap("full")
+    assert await live() is None
+    async with db.sessions() as session, session.begin():
+        await prepare_delete(session, owner_id, account_id=other_id)
+    assert await live() is not None, "deleting the connection left the Full agent without a task"
+    print("PASS deleting a connection hands a Full agent over to its own task")
 
     # Deleting the agent ends the task before the agent row goes.
     ending = await live()

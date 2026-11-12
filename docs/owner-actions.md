@@ -334,15 +334,31 @@ ends with it.
 An agent in Full that is not paused has one continuous account-management Task
 (`lonora_db.management_task`). The tap that sets Full starts it in the same transaction;
 switching to Ask, pausing the agent or deleting it ends it, and resuming a paused agent
-in Full starts it again. A second Full tap finds the running Task and adds none. The
-Task is bound to no account: each wake reads the accounts connected at that moment, so
-an account connected later joins it and a disconnected one leaves it. Its Runs are
-ordinary Runs of the agent under its mode (the kickoff Run's `account_management_id` is
-the agent's id). Ending it never removes the agent's watches (they move from the Task's
-work lane to the agent's conversation and keep watching), routines or Trade Approval
-cards; the agent keeps managing its own positions and orders in Ask. While an active
-signed grant's own management Task runs for the agent, that Task drives the account and
-the Full-mode Task does not start; revoking the grant starts it.
+in Full starts it again. A second Full tap finds the running Task and adds none; a
+mode Task that failed for good is closed before a new one starts, and one that failed
+with a retry due is the agent's Task. The Task is bound to no account: each wake reads
+the accounts connected at that moment, so an account connected later joins it and a
+disconnected one leaves it. Its Runs are ordinary Runs of the agent under its mode (the
+kickoff Run's `account_management_id` is the agent's id).
+
+Ending the Task (`close_task`) keeps what the agent set up:
+
+- A Run of the Task that is working, waiting for the owner (a question or a Trade
+  Approval card), queued after a wake, or failed leaves the Task and goes on as an
+  ordinary Run of the agent. Its cards stay decidable and end only as 10.3.1.3 says; a
+  request it is sending is decided under the agent's mode; a watch it creates afterwards
+  belongs to the agent's conversation. A paused agent's Runs wait for the owner's resume.
+- The kickoff Run that never started is cancelled. A Run suspended on its own
+  `task_wait` (or held by the owner's pause of the Task) is cancelled; a pending timer
+  becomes a one-shot routine in the agent's conversation at the same time, held while the
+  agent is paused.
+- The Task's watches move to the agent's conversation and keep watching. Routines are
+  untouched. The agent keeps managing its own positions and orders in Ask.
+- A Task the owner already asked to cancel or complete ends that way.
+
+While an active signed grant's own management Task runs for the agent, that Task drives
+the account and the Full-mode Task does not start; revoking the grant starts it, also
+when a broker connection is deleted. Deleting the agent or a conversation starts none.
 
 ## Model cards (W15-10)
 
