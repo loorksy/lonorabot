@@ -48,6 +48,8 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # The closed-trade ledger from broker deal history (mandate 5.5.1).
+    StepSpec("closed_trades", 10, 300, critical=False),
     StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
@@ -192,6 +194,13 @@ class Gateway:
             lambda service: maintenance_account_recovery(self.db, service.brokers, service.owner_id)
         )
 
+    async def closed_trades(self) -> None:
+        from lonora_trading.closed_trades import maintenance_closed_trades
+
+        await self.for_each_owner(
+            lambda service: maintenance_closed_trades(self.db, service.brokers, service.owner_id)
+        )
+
     async def goals(self) -> None:
         from lonora_trading.goals import recover_goals
 
@@ -278,6 +287,7 @@ class Gateway:
             "reconcile": self.reconcile,
             "verifications": self.verifications,
             "account_recovery": self.account_recovery,
+            "closed_trades": self.closed_trades,
             "goals": self.goals,
             "opportunities": self.opportunities,
             "market": self.market,
