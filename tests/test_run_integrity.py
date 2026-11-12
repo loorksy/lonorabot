@@ -208,3 +208,113 @@ async def test_a_paused_tasks_run_tightens_a_stop_but_never_widens_it() -> None:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
+
+
+class FakeSession:
+    """``session.get`` over in-memory rows: enough for the door's run-integrity walk."""
+
+    def __init__(self, *rows: Any) -> None:
+        self.rows = {(type(row), row.id): row for row in rows}
+
+    async def get(self, model: Any, identifier: str, **_: Any) -> Any:
+        return self.rows.get((model, identifier))
+
+
+def task_rows(status: str, control: str | None, *, run_id: str = "run", parent: str | None = None):
+    from lonora_contracts.tasks import TaskState
+    from lonora_db.schema import RunRow, TicketRow
+
+    state = TaskState(
+        origin_thread_id="thread",
+        status=status,  # type: ignore[arg-type]
+        control_requested=control,  # type: ignore[arg-type]
+    )
+    task = TicketRow(
+        id="task-" + run_id,
+        agent_id="agent",
+        thread_id="thread",
+        state={"task": state.model_dump()},
+    )
+    run = RunRow(
+        id=run_id,
+        agent_id="agent",
+        thread_id="thread",
+        trigger="user",
+        parent_run_id=parent,
+        model_metadata={"task_id": task.id},
+    )
+    return run, task
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "control", "reducing_passes"),
+    [
+        ("paused", None, True),
+        ("running", "pause", True),
+        ("queued", None, True),
+        ("cancelled", "pause", False),
+        ("completed", "pause", False),
+        ("failed", "pause", False),
+        ("paused", "cancel", False),
+        ("paused", "complete", False),
+        ("cancelled", None, False),
+    ],
+)
+async def test_only_paused_work_lets_a_risk_reducing_request_through(
+    status: str, control: str | None, reducing_passes: bool
+) -> None:
+    """6.9: paused work reduces its risk; cancelled, completed or failed work, or work
+    asked to cancel or complete, sends nothing at all."""
+    from lonora_trading.execution import require_task_authority
+
+    run, task = task_rows(status, control)
+    session: Any = FakeSession(run, task)
+    running = status in {"queued", "running"} and control is None
+    if not running:
+        with pytest.raises(LonoraError, match="task_execution_stopped"):
+            await require_task_authority(session, run)
+    if reducing_passes:
+        await require_task_authority(session, run, reducing=True)
+    else:
+        with pytest.raises(LonoraError, match="task_execution_stopped"):
+            await require_task_authority(session, run, reducing=True)
+
+
+@pytest.mark.asyncio
+async def test_the_ancestry_walk_checks_every_ancestors_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """6.9: a parent run's paused Task refuses new risk and lets risk reduction through;
+    a cancelled parent Task refuses both; a missing parent is refused."""
+    from unittest.mock import AsyncMock
+
+    from lonora_trading import execution
+
+    child_task = task_rows("running", None, run_id="child")[1]
+    for status, reducing, refused in (
+        ("paused", False, "task_execution_stopped"),
+        ("paused", True, None),
+        ("cancelled", True, "task_execution_stopped"),
+    ):
+        parent, parent_task = task_rows(status, None, run_id="parent")
+        child, _ = task_rows("running", None, run_id="child", parent="parent")
+        session: Any = FakeSession(child, child_task, parent, parent_task)
+        monkeypatch.setattr(execution, "require_lease", AsyncMock(return_value=child))
+        for check in ("acting_agent", "require_financial_agent"):
+            if hasattr(execution, check):  # The agent's ownership check, here a no-op.
+                monkeypatch.setattr(execution, check, AsyncMock())
+        lease = Lease(run_id="child", owner="worker", fence=1)
+        if refused is None:
+            await execution.require_goal_lineage(session, lease, "owner", reducing=reducing)
+        else:
+            with pytest.raises(LonoraError, match=refused):
+                await execution.require_goal_lineage(session, lease, "owner", reducing=reducing)
+    orphan, _ = task_rows("running", None, run_id="child", parent="gone")
+    monkeypatch.setattr(execution, "require_lease", AsyncMock(return_value=orphan))
+    with pytest.raises(LonoraError, match="goal_run_ancestry_invalid"):
+        await execution.require_goal_lineage(
+            FakeSession(orphan, child_task),  # type: ignore[arg-type]
+            Lease(run_id="child", owner="worker", fence=1),
+            "owner",
+        )
