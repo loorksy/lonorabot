@@ -39,6 +39,9 @@ RESOLV = Path("/etc/resolv.conf")
 LISTEN = ("127.0.0.1", 53)
 UPSTREAM = (DOCKER_RESOLVER, 53)
 IN_FLIGHT = 128
+# Addresses of a chain into a denied domain stay blocked this long (the most kept).
+DENIED_SECONDS = 86400
+DENIED_LIMIT = 4096
 log = logging.getLogger("lonora.workspace.netguard")
 
 
@@ -110,7 +113,7 @@ class Answers:
         self.domains = domains
         self.seconds = seconds
         self.names: OrderedDict[str, tuple[float, set[str]]] = OrderedDict()
-        self.denied: set[str] = set()
+        self.denied: OrderedDict[str, float] = OrderedDict()
         self.changed = asyncio.Event()
 
     def record(self, query: bytes, answer: bytes) -> None:
@@ -130,16 +133,30 @@ class Answers:
         for kind in (dns.A, dns.AAAA):
             try:
                 answer = await forward_udp(dns.query(name, kind))
-                addresses = set(dns.addresses(answer))
                 if any(name_denied(n, self.domains) for n in dns.names(answer)):
-                    if not addresses <= self.denied:
-                        self.denied |= addresses
+                    # Block only the addresses a denied name itself owns; a shared
+                    # address named by something else stays reachable.
+                    owned = {
+                        address
+                        for owner, address in dns.owned_addresses(answer)
+                        if name_denied(owner, self.domains)
+                    }
+                    if owned - set(self.denied):
+                        until = time.monotonic() + DENIED_SECONDS
+                        for address in owned:
+                            self.denied[address] = until
+                        while len(self.denied) > DENIED_LIMIT:
+                            self.denied.popitem(last=False)
                         self.changed.set()
                     return set()
-                found |= addresses
+                found |= set(dns.addresses(answer))
             except (TimeoutError, OSError, dns.DnsError):
                 continue
         return found
+
+    def blocked(self) -> set[str]:
+        now = time.monotonic()
+        return {address for address, until in self.denied.items() if until > now}
 
     async def of(self, name: str) -> set[str]:
         key = name.lower().rstrip(".")
@@ -150,36 +167,7 @@ class Answers:
         return fresh | (cached if expiry > time.monotonic() else set())
 
 
-class Rate:
-    """At most PER_SECOND lookups per agent uid per second (a flood of unique names must
-    not stall the loop that serves every DNS answer and relayed connection)."""
-
-    PER_SECOND = 200
-
-    def __init__(self) -> None:
-        self.window = 0
-        self.counts: dict[int | None, int] = {}
-
-    def allow(self, uid: int | None) -> bool:
-        now = int(time.monotonic())
-        if now != self.window:
-            self.window, self.counts = now, {}
-        self.counts[uid] = self.counts.get(uid, 0) + 1
-        return uid == 0 or self.counts[uid] <= self.PER_SECOND
-
-
-def udp_uid(host: str, port: int) -> int | None:
-    wanted = f"{socket.inet_aton(host)[::-1].hex().upper()}:{port:04X}"
-    with contextlib.suppress(OSError):
-        for line in Path("/proc/net/udp").read_text().splitlines()[1:]:
-            fields = line.split()
-            if fields[1] == wanted:
-                return int(fields[7])
-    return None
-
-
 ANSWERS = Answers()
-RATE = Rate()
 
 
 def screened(query: bytes, answer: bytes, domains: tuple[str, ...]) -> bytes:
@@ -202,8 +190,6 @@ class Udp(asyncio.DatagramProtocol):
         self.transport = transport  # type: ignore[assignment]
 
     def datagram_received(self, data: bytes, addr: tuple[str | int, int]) -> None:
-        if not RATE.allow(udp_uid(str(addr[0]), int(addr[1]))):
-            return
         if len(self.pending) >= IN_FLIGHT:
             return  # a flood is dropped; the guard and other lookups keep working
         task = asyncio.get_running_loop().create_task(self.answer(data, addr))
@@ -273,8 +259,7 @@ async def serve(
         try:
             # Grow only: a failed or empty lookup never removes an address already blocked.
             learned.update(await resolve(known))
-            learned.update(ANSWERS.denied)
-            await asyncio.to_thread(apply, [*extra, *sorted(learned)])
+            await asyncio.to_thread(apply, [*extra, *sorted(learned | ANSWERS.blocked())])
         except (subprocess.SubprocessError, OSError) as error:
             log.warning("workspace_netguard_refresh_failed type=%s", type(error).__name__)
 
