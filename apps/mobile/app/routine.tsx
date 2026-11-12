@@ -108,6 +108,7 @@ export default function RoutineScreen() {
                     .then((thread) =>
                       router.push({ pathname: "/thread", params: { id: thread.id } }),
                     )
+                    .catch((cause) => setError(errorText(cause)))
                 }
               />
             </View>

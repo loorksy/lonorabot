@@ -166,7 +166,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
         if (
             # A wake that works in a hidden work thread reports to its origin conversation;
             # a routine's or watch's origin is its Agent's own conversation (VISION 11.6).
-            child.trigger in {"broker_event", "activation", "routine", "watch"}
+            child.trigger in {"broker_event", "activation", "routine", "watch", "follow_up"}
             and child.model_metadata.get("origin_thread_id")
             and not quiet_activation
         ):
@@ -270,6 +270,12 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         metadata={
                             "depth": parent.model_metadata.get("depth", 0),
                             **inherited_authority(parent),
+                            # A wake's follow-up reports where the wake reports.
+                            **(
+                                {"origin_thread_id": parent.model_metadata["origin_thread_id"]}
+                                if parent.model_metadata.get("origin_thread_id")
+                                else {}
+                            ),
                         },
                     ),
                 )

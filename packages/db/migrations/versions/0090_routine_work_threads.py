@@ -3,8 +3,11 @@
 A routine, or a watch set up outside any chat, used to post into a chat of its own. Its
 thread becomes its hidden work thread (its memory), and its results go to its Agent's
 own conversation. A thread the owner wrote in, or that other work used, stays a
-conversation; a routine on such a thread moves to a new work thread of its own. An
-Agent's earliest conversation is never converted: it is the Agent's own conversation.
+conversation, as does a thread that holds a record the owner reads there (an approval,
+a card, a journal row, a Goal, an opportunity, an artifact, a peer message, a
+collaboration, a Task, or a place in a chat list); a routine on such a thread moves to a
+new work thread of its own. An Agent's earliest conversation is never converted: it is
+the Agent's own conversation.
 """
 
 from alembic import op
@@ -25,6 +28,19 @@ AND (
     )
 )
 AND NOT EXISTS (SELECT 1 FROM ln_messages m WHERE m.thread_id = t.id AND m.role = 'user')
+AND NOT EXISTS (SELECT 1 FROM ln_trade_approvals a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_owner_actions a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_trading_journal a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_trading_goals a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_trading_opportunities a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_artifacts a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_peer_messages a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_collaboration_sessions a WHERE a.thread_id = t.id)
+AND NOT EXISTS (SELECT 1 FROM ln_chat_list_members a WHERE a.thread_id = t.id)
+AND NOT EXISTS (
+    SELECT 1 FROM ln_tickets k
+    WHERE k.thread_id = t.id OR (k.state::jsonb -> 'task' ->> 'origin_thread_id') = t.id
+)
 AND NOT EXISTS (
     SELECT 1 FROM ln_runs x
     WHERE x.thread_id = t.id AND x.trigger NOT IN ('routine', 'watch', 'follow_up')
