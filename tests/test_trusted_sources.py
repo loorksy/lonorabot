@@ -1308,6 +1308,46 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
 
 
 @pytest.mark.asyncio
+async def test_a_read_of_every_feed_reaches_each_subscribed_feed():
+    """Mandate P1, 13.1: no cap on what an agent reads. Reading every feed used to stop at
+    the ten oldest subscriptions, so the eleventh feed and later never reached the agent."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    domain = "many-" + uuid4().hex[:8] + ".analyst.example"
+
+    async def public(url: str, method: str = "GET", *, maximum_bytes: int = 0) -> Any:
+        from lonora_security.public_http import PublicResponse
+
+        return PublicResponse(200, {"content-type": "application/rss+xml"}, RSS)
+
+    try:
+        agent = await fixture.agent("Wide reader")
+        thread = await fixture.conversation(agent)
+        context = await owner_says(fixture, agent, thread["id"], "Subscribe to " + domain)
+        with patch.object(news_feed, "public_get", public):
+            for index in range(12):
+                added = await call(
+                    context,
+                    "news_feed_subscribe",
+                    url=f"https://{domain}/rss/{index}",
+                    name=f"Feed {index}",
+                )
+                assert added["status"] == "subscribed", added
+            read = await call(context, "news_feed_read")
+        mine = [feed for feed in read["feeds"] if feed["domain"] == domain]
+        assert sorted(feed["name"] for feed in mine) == sorted(f"Feed {i}" for i in range(12))
+        assert all(feed["status"] == "ok" for feed in mine)
+    finally:
+        report = await fixture.request("GET", "/capabilities")
+        for item in report["integrations"]:
+            if item.get("domain") == domain:
+                await fixture.request("DELETE", "/integrations/" + item["id"])
+        await fixture.close()
+
+
+@pytest.mark.asyncio
 async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values():
     database()
     from check_streaming import Fixture

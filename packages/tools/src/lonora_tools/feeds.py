@@ -29,7 +29,8 @@ from .base import Tool
 from .context import ToolContext
 from .source_trust import owner_named, refusal
 
-MAXIMUM_FEEDS = 10
+# Feeds fetched at once in a read of every feed. It paces requests; every feed is read.
+FEED_CONCURRENCY = 10
 FEED_TIMEOUT_SECONDS = 20
 
 
@@ -100,10 +101,13 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         rows = [row for row in rows if row.id == params.feed_id]
         if not rows:
             raise LonoraError("news_feed_not_found", 404)
-    rows = rows[:MAXIMUM_FEEDS]
-    results = await asyncio.gather(
-        *(one_feed(str(row.payload["url"]), params.limit) for row in rows)
-    )
+    pace = asyncio.Semaphore(FEED_CONCURRENCY)
+
+    async def paced(url: str) -> dict[str, Any]:
+        async with pace:
+            return await one_feed(url, params.limit)
+
+    results = await asyncio.gather(*(paced(str(row.payload["url"])) for row in rows))
     return {
         "feeds": [
             {
