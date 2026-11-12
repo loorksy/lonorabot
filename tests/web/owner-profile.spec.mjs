@@ -155,3 +155,41 @@ test("the Knowledge panel's profile link closes the chat menu and opens the prof
   await expect(page.locator("#dialog[open]")).toHaveCount(0);
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
 });
+
+/* «ما أعرفه عنك» (8.4): every profile line shows its origin; the owner corrects or deletes one,
+   and the server records the change as his own word. */
+test("what I know about you lists each line with its origin, corrected or deleted", async ({
+  page,
+  context,
+  owner,
+}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("lonora.locale", "en");
+    localStorage.setItem("lonora.auth.intro-seen", "1");
+  });
+  const tag = randomUUID().slice(0, 8);
+  const profile = await (await context.request.get("/api/owner/profile")).json();
+  const written = await context.request.put("/api/owner/profile", {
+    data: { content: `- Trades gold ${tag}\n- Short reports ${tag}\n`, version: profile.version },
+    headers: owner.headers,
+  });
+  expect(written.ok()).toBeTruthy();
+  await page.goto("/app/owner");
+  await expect(page.getByText("What I know about you")).toBeVisible();
+  const known = page.locator(".pf-known .row");
+  const gold = known.filter({ hasText: `Trades gold ${tag}` });
+  await expect(gold).toContainText("You said");
+  await gold.getByRole("button", { name: "Correct the fact", exact: true }).click();
+  await page.getByLabel("Correct the fact", { exact: true }).fill(`- Trades silver ${tag}`);
+  await page.getByRole("button", { name: "Save", exact: true }).last().click();
+  await expect(known.filter({ hasText: `Trades silver ${tag}` })).toContainText("You said");
+  await known
+    .filter({ hasText: `Short reports ${tag}` })
+    .getByRole("button", { name: "Delete the fact", exact: true })
+    .click();
+  await expect(known.filter({ hasText: `Short reports ${tag}` })).toHaveCount(0);
+  const lines = await (await context.request.get("/api/owner/profile/lines")).json();
+  expect(lines.lines.map((line) => line.text)).toEqual([`- Trades silver ${tag}`]);
+  const revisions = await (await context.request.get("/api/owner/profile/revisions")).json();
+  expect(revisions[0]).toMatchObject({ author: "owner", change: "correction" });
+});

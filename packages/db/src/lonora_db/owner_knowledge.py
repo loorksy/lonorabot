@@ -5,15 +5,17 @@ Agent's write that answered the owner's typed message, "observed" when Lonora wr
 it without that message, and "earlier" when no revision added it or a system merge
 did (0039 moved the old USER.md sections in, written under the owner's-words-only
 rule). Agents read observations apart: they are Lonora's inference, not his word.
+The owner corrects or deletes one line in «ما أعرفه عنك»; that is recorded as his word.
 """
 
 import difflib
 from typing import Any, Literal
 
+from lonora_core.user_error import LonoraError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .owner_profile import read_owner_profile
+from .owner_profile import commit_owner_profile, read_owner_profile
 from .schema import AgentRow, MemoryRevisionRow
 
 Origin = Literal["you_said", "observed", "earlier"]
@@ -81,3 +83,30 @@ async def profile_lines(session: AsyncSession, owner_id: str) -> dict[str, Any]:
             }
         )
     return {"version": profile.version if profile else 1, "lines": lines}
+
+
+async def correct_line(
+    session: AsyncSession, owner_id: str, version: int, text: str, replacement: str | None
+) -> dict[str, Any]:
+    """Replace (or, with no replacement, delete) every copy of one line, as the owner."""
+    target = text.strip()
+    new = (replacement or "").strip()
+
+    def correct(current: str, _version: int) -> tuple[str, dict[str, Any]]:
+        kept: list[str] = []
+        hit = False
+        for line in current.splitlines():
+            if line.strip() == target:
+                hit = True
+                if new:
+                    kept.append(new)
+                continue
+            kept.append(line)
+        if not hit:
+            raise LonoraError("owner_profile_line_not_found", 409)
+        result = "\n".join(kept).strip()
+        return (result + "\n" if result else ""), {}
+
+    return await commit_owner_profile(
+        session, owner_id, "", version, author="owner", transform=correct, change="correction"
+    )

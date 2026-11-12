@@ -42,7 +42,7 @@ msgid "{0} B"
 msgstr "{0} بايت"
 
 #. placeholder {0}: Math.round(minutes / 1440)
-#: src/shell/settings/OwnerPage.tsx:37
+#: src/shell/settings/OwnerPage.tsx:45
 msgid "{0} days ago"
 msgstr "قبل {0} أيام"
 
@@ -57,7 +57,7 @@ msgid "{0} follows the work of the chosen agents and answers you about it with e
 msgstr "يتابع {0} عمل الوكلاء المحددين ويجيبك عنه بأدلة. لا يمنحه ذلك أي صلاحية تنفيذ."
 
 #. placeholder {0}: Math.round(minutes / 60)
-#: src/shell/settings/OwnerPage.tsx:35
+#: src/shell/settings/OwnerPage.tsx:43
 msgid "{0} h ago"
 msgstr "قبل {0} ساعة"
 
@@ -152,7 +152,7 @@ msgstr "{label}. اضغط لمعاودة الاتصال"
 msgid "{linked} linked"
 msgstr "{linked} مرتبطة"
 
-#: src/shell/settings/OwnerPage.tsx:34
+#: src/shell/settings/OwnerPage.tsx:42
 msgid "{minutes} min ago"
 msgstr "قبل {minutes} دقيقة"
 
@@ -298,7 +298,7 @@ msgstr "يتوفر إصدار جديد"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "لا تزال عملية سابقة على هذا السوق بانتظار تحقق الوسيط، لذا لم يُرسل هذا الأمر الجديد. يبقى إغلاق المراكز وإلغاء الأوامر المعلقة وتضييق وقف الخسارة متاحًا."
 
-#: src/shell/settings/OwnerPage.tsx:106
+#: src/shell/settings/OwnerPage.tsx:108
 msgid "A removed agent"
 msgstr "وكيل محذوف"
 
@@ -1396,6 +1396,7 @@ msgstr "الكاميرا غير مسموحة"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
+#: src/shell/settings/OwnerPage.tsx:289
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "إلغاء"
@@ -1466,7 +1467,7 @@ msgstr "عرض البطاقات"
 msgid "Change a value to save it."
 msgstr "عدّل قيمة لحفظها."
 
-#: src/shell/settings/OwnerPage.tsx:279
+#: src/shell/settings/OwnerPage.tsx:333
 msgid "Change log"
 msgstr "سجل التغييرات"
 
@@ -2107,6 +2108,11 @@ msgstr "نسخ الجدول"
 msgid "Copy text"
 msgstr "نسخ النص"
 
+#: src/shell/settings/OwnerPage.tsx:275
+#: src/shell/settings/OwnerPage.tsx:309
+msgid "Correct the fact"
+msgstr "صحّح المعلومة"
+
 #: src/shell/settings/UsagePage.tsx:289
 msgid "Cost"
 msgstr "التكلفة"
@@ -2407,7 +2413,7 @@ msgstr "حذف الجدول"
 msgid "Delete the chats?"
 msgstr "حذف المحادثات؟"
 
-#: src/shell/settings/OwnerPage.tsx:265
+#: src/shell/settings/OwnerPage.tsx:317
 msgid "Delete the fact"
 msgstr "حذف المعلومة"
 
@@ -3133,7 +3139,7 @@ msgstr "للأمور العاجلة: يتصل بك الوكيل"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "لأمان حسابك، سجّل الدخول مجددًا. محادثاتك ومسوداتك محفوظة."
 
-#: src/shell/settings/OwnerPage.tsx:199
+#: src/shell/settings/OwnerPage.tsx:210
 msgid "Form of address"
 msgstr "طريقة المخاطبة"
 
@@ -4238,7 +4244,7 @@ msgstr "مكتومة"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:167
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:187
+#: src/shell/settings/OwnerPage.tsx:198
 msgid "Name"
 msgstr "الاسم"
 
@@ -4733,7 +4739,7 @@ msgstr "ملاحظة.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "لا يُفعَّل شيء قبل توقيعك بمفتاح المرور؛ تعرض الخطوة التالية ما ستوقّعه بالضبط."
 
-#: src/shell/settings/OwnerPage.tsx:274
+#: src/shell/settings/OwnerPage.tsx:328
 msgid "Nothing yet."
 msgstr "لا شيء بعد."
 
@@ -4788,13 +4794,22 @@ msgid "now"
 msgstr "الآن"
 
 #: src/pages/ActivityList.tsx:180
-#: src/shell/settings/OwnerPage.tsx:33
+#: src/shell/settings/OwnerPage.tsx:41
 msgid "Now"
 msgstr "الآن"
 
 #: src/shell/lists/EmojiPanel.tsx:19
 msgid "Objects"
 msgstr "أشياء"
+
+#: src/shell/settings/OwnerPage.tsx:182
+msgid "Observed"
+msgstr "ملاحظة"
+
+#. placeholder {0}: fact.author_agent_name
+#: src/shell/settings/OwnerPage.tsx:181
+msgid "Observed by {0}"
+msgstr "لاحظه {0}"
 
 #. placeholder {0}: bytes(cap)
 #: src/shell/settings/DevicePages.tsx:151
@@ -4850,7 +4865,7 @@ msgstr "نموذج واحد للمهام النصية"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "الملف الشخصي الذي يقرؤه جميع وكلائك، مع سجل تغييراته، في الإعدادات."
 
-#: src/shell/settings/OwnerPage.tsx:338
+#: src/shell/settings/OwnerPage.tsx:392
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "ملف واحد يقرؤه جميع وكلائك. يُسجَّل كل تعديل مع كاتبه، ويمكنك استعادة أي قيمة سابقة."
 
@@ -5339,8 +5354,8 @@ msgstr "معرّف الصفقة"
 msgid "Positions"
 msgstr "الصفقات"
 
-#: src/shell/settings/OwnerPage.tsx:226
-#: src/shell/settings/OwnerPage.tsx:287
+#: src/shell/settings/OwnerPage.tsx:237
+#: src/shell/settings/OwnerPage.tsx:341
 msgid "Preferences"
 msgstr "التفضيلات"
 
@@ -5880,11 +5895,11 @@ msgstr "الوكيل المسؤول"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:330
+#: src/shell/settings/OwnerPage.tsx:384
 msgid "Restore"
 msgstr "استعادة"
 
-#: src/shell/settings/OwnerPage.tsx:326
+#: src/shell/settings/OwnerPage.tsx:380
 msgid "Restored"
 msgstr "استُعيدت"
 
@@ -6045,7 +6060,8 @@ msgstr "يعمل الآن على «{0}» · يختار التوجيه الأنس
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:442
 #: src/shell/settings/NotifyPages.tsx:382
-#: src/shell/settings/OwnerPage.tsx:238
+#: src/shell/settings/OwnerPage.tsx:249
+#: src/shell/settings/OwnerPage.tsx:282
 msgid "Save"
 msgstr "حفظ"
 
@@ -6103,7 +6119,7 @@ msgstr "الحفظ بمفتاح المرور"
 #: src/shell/agent/IdentityPage.tsx:135
 #: src/shell/settings/ConnectionPages.tsx:639
 #: src/shell/settings/NotifyPages.tsx:329
-#: src/shell/settings/OwnerPage.tsx:136
+#: src/shell/settings/OwnerPage.tsx:138
 msgid "Saved"
 msgstr "تم الحفظ"
 
@@ -7255,7 +7271,11 @@ msgstr "لم يؤكّد الجهاز. حاول مرة أخرى."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "يبقى السوق الثابت الحالي دون تغيير حتى تختار نطاقًا جديدًا."
 
-#: src/shell/settings/OwnerPage.tsx:167
+#: src/shell/settings/OwnerPage.tsx:170
+msgid "The fact is corrected"
+msgstr "صُحّحت المعلومة"
+
+#: src/shell/settings/OwnerPage.tsx:170
 msgid "The fact is removed"
 msgstr "حُذفت المعلومة"
 
@@ -7398,7 +7418,7 @@ msgstr "الأيام السبعة السابقة"
 msgid "the previous thirty days"
 msgstr "الثلاثين يومًا السابقة"
 
-#: src/shell/settings/OwnerPage.tsx:151
+#: src/shell/settings/OwnerPage.tsx:153
 msgid "The previous value is restored"
 msgstr "استُعيدت القيمة السابقة"
 
@@ -7767,7 +7787,7 @@ msgstr "التشديد يُحفَظ مباشرةً."
 msgid "Time"
 msgstr "الوقت"
 
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:221
 msgid "Time zone"
 msgstr "المنطقة الزمنية"
 
@@ -8492,6 +8512,10 @@ msgstr "مرحبًا بك في Lonora"
 msgid "What happened at the broker"
 msgstr "ما الذي حدث لدى الوسيط"
 
+#: src/shell/settings/OwnerPage.tsx:254
+msgid "What I know about you"
+msgstr "ما أعرفه عنك"
+
 #: src/shell/domain/TasksPages.tsx:304
 msgid "What is needed"
 msgstr "المطلوب"
@@ -8513,8 +8537,8 @@ msgstr "ما الذي يجب أن يعرفه هذا الوكيل عن عمله؟
 #~ msgstr "ما مهمة هذا الوكيل؟"
 
 #: src/shell/settings/OwnerPage.tsx:243
-msgid "What your agents know about you"
-msgstr "ما يعرفه وكلاؤك عنك"
+#~ msgid "What your agents know about you"
+#~ msgstr "ما يعرفه وكلاؤك عنك"
 
 #: src/shell/domain/SchedulesPages.tsx:346
 #: src/shell/domain/SchedulesPages.tsx:409
@@ -8586,8 +8610,8 @@ msgstr "يكتب"
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
 #: src/shell/settings/OwnerPage.tsx:257
-msgid "Written by {0} · {1}"
-msgstr "كتبها {0} · {1}"
+#~ msgid "Written by {0} · {1}"
+#~ msgstr "كتبها {0} · {1}"
 
 #: src/shell/settings/AppLock.tsx:138
 msgid "Wrong code"
@@ -8599,7 +8623,7 @@ msgid "Wrong code. {0} tries left"
 msgstr "رمز غير صحيح. بقيت {0} محاولات"
 
 #: src/conversation/Conversation.tsx:89
-#: src/shell/settings/OwnerPage.tsx:36
+#: src/shell/settings/OwnerPage.tsx:44
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "أمس"
@@ -8609,7 +8633,7 @@ msgstr "أمس"
 #: src/conversation/Message.tsx:121
 #: src/conversation/Message.tsx:140
 #: src/shell/lists/UnifiedSearch.tsx:152
-#: src/shell/settings/OwnerPage.tsx:103
+#: src/shell/settings/OwnerPage.tsx:105
 msgid "You"
 msgstr "أنت"
 
@@ -8649,6 +8673,10 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #: src/shell/domain/UpdatesPages.tsx:44
 msgid "You rejected a request"
 msgstr "رفضتَ طلبًا"
+
+#: src/shell/settings/OwnerPage.tsx:179
+msgid "You said"
+msgstr "قلتَه"
 
 #: src/conversation/sheets/MandateSheet.tsx:140
 msgid "You set the markets, actions, duration and money limit"

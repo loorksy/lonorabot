@@ -42,7 +42,7 @@ msgid "{0} B"
 msgstr "{0} B"
 
 #. placeholder {0}: Math.round(minutes / 1440)
-#: src/shell/settings/OwnerPage.tsx:37
+#: src/shell/settings/OwnerPage.tsx:45
 msgid "{0} days ago"
 msgstr "{0} days ago"
 
@@ -57,7 +57,7 @@ msgid "{0} follows the work of the chosen agents and answers you about it with e
 msgstr "{0} follows the work of the chosen agents and answers you about it with evidence. This gives it no execution authority."
 
 #. placeholder {0}: Math.round(minutes / 60)
-#: src/shell/settings/OwnerPage.tsx:35
+#: src/shell/settings/OwnerPage.tsx:43
 msgid "{0} h ago"
 msgstr "{0} h ago"
 
@@ -152,7 +152,7 @@ msgstr "{label}. Tap to call back"
 msgid "{linked} linked"
 msgstr "{linked} linked"
 
-#: src/shell/settings/OwnerPage.tsx:34
+#: src/shell/settings/OwnerPage.tsx:42
 msgid "{minutes} min ago"
 msgstr "{minutes} min ago"
 
@@ -298,7 +298,7 @@ msgstr "A new version is available"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 
-#: src/shell/settings/OwnerPage.tsx:106
+#: src/shell/settings/OwnerPage.tsx:108
 msgid "A removed agent"
 msgstr "A removed agent"
 
@@ -1396,6 +1396,7 @@ msgstr "Camera not allowed"
 #: src/shell/lists/Selection.tsx:78
 #: src/shell/settings/AppLock.tsx:266
 #: src/shell/settings/ConnectionPages.tsx:280
+#: src/shell/settings/OwnerPage.tsx:289
 #: src/shell/settings/SettingsRoot.tsx:284
 msgid "Cancel"
 msgstr "Cancel"
@@ -1466,7 +1467,7 @@ msgstr "Card view"
 msgid "Change a value to save it."
 msgstr "Change a value to save it."
 
-#: src/shell/settings/OwnerPage.tsx:279
+#: src/shell/settings/OwnerPage.tsx:333
 msgid "Change log"
 msgstr "Change log"
 
@@ -2107,6 +2108,11 @@ msgstr "Copy table"
 msgid "Copy text"
 msgstr "Copy text"
 
+#: src/shell/settings/OwnerPage.tsx:275
+#: src/shell/settings/OwnerPage.tsx:309
+msgid "Correct the fact"
+msgstr "Correct the fact"
+
 #: src/shell/settings/UsagePage.tsx:289
 msgid "Cost"
 msgstr "Cost"
@@ -2407,7 +2413,7 @@ msgstr "Delete schedule"
 msgid "Delete the chats?"
 msgstr "Delete the chats?"
 
-#: src/shell/settings/OwnerPage.tsx:265
+#: src/shell/settings/OwnerPage.tsx:317
 msgid "Delete the fact"
 msgstr "Delete the fact"
 
@@ -3139,7 +3145,7 @@ msgstr "For urgent matters: the agent calls you"
 msgid "For your account's safety, sign in again. Your conversations and drafts are saved."
 msgstr "For your account's safety, sign in again. Your conversations and drafts are saved."
 
-#: src/shell/settings/OwnerPage.tsx:199
+#: src/shell/settings/OwnerPage.tsx:210
 msgid "Form of address"
 msgstr "Form of address"
 
@@ -4244,7 +4250,7 @@ msgstr "Muted"
 #: src/pages/shell/bot-settings.tsx:99
 #: src/shell/agent/IdentityPage.tsx:167
 #: src/shell/domain/SkillsPages.tsx:309
-#: src/shell/settings/OwnerPage.tsx:187
+#: src/shell/settings/OwnerPage.tsx:198
 msgid "Name"
 msgstr "Name"
 
@@ -4739,7 +4745,7 @@ msgstr "note.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
-#: src/shell/settings/OwnerPage.tsx:274
+#: src/shell/settings/OwnerPage.tsx:328
 msgid "Nothing yet."
 msgstr "Nothing yet."
 
@@ -4794,13 +4800,22 @@ msgid "now"
 msgstr "now"
 
 #: src/pages/ActivityList.tsx:180
-#: src/shell/settings/OwnerPage.tsx:33
+#: src/shell/settings/OwnerPage.tsx:41
 msgid "Now"
 msgstr "Now"
 
 #: src/shell/lists/EmojiPanel.tsx:19
 msgid "Objects"
 msgstr "Objects"
+
+#: src/shell/settings/OwnerPage.tsx:182
+msgid "Observed"
+msgstr "Observed"
+
+#. placeholder {0}: fact.author_agent_name
+#: src/shell/settings/OwnerPage.tsx:181
+msgid "Observed by {0}"
+msgstr "Observed by {0}"
 
 #. placeholder {0}: bytes(cap)
 #: src/shell/settings/DevicePages.tsx:151
@@ -4856,7 +4871,7 @@ msgstr "One model for text work"
 msgid "One profile all your agents read, with its change log, is in Settings."
 msgstr "One profile all your agents read, with its change log, is in Settings."
 
-#: src/shell/settings/OwnerPage.tsx:338
+#: src/shell/settings/OwnerPage.tsx:392
 msgid "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 msgstr "One profile all your agents read. Every change is logged with its author, and you can restore any earlier value."
 
@@ -5345,8 +5360,8 @@ msgstr "Position ID"
 msgid "Positions"
 msgstr "Positions"
 
-#: src/shell/settings/OwnerPage.tsx:226
-#: src/shell/settings/OwnerPage.tsx:287
+#: src/shell/settings/OwnerPage.tsx:237
+#: src/shell/settings/OwnerPage.tsx:341
 msgid "Preferences"
 msgstr "Preferences"
 
@@ -5886,11 +5901,11 @@ msgstr "Responsible agent"
 
 #: src/conversation/sheets/LimitsSheet.tsx:194
 #: src/shell/domain/SkillsPages.tsx:231
-#: src/shell/settings/OwnerPage.tsx:330
+#: src/shell/settings/OwnerPage.tsx:384
 msgid "Restore"
 msgstr "Restore"
 
-#: src/shell/settings/OwnerPage.tsx:326
+#: src/shell/settings/OwnerPage.tsx:380
 msgid "Restored"
 msgstr "Restored"
 
@@ -6051,7 +6066,8 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 #: src/shell/domain/GoalsKnowledgePages.tsx:181
 #: src/shell/settings/IntegrationsPage.tsx:442
 #: src/shell/settings/NotifyPages.tsx:382
-#: src/shell/settings/OwnerPage.tsx:238
+#: src/shell/settings/OwnerPage.tsx:249
+#: src/shell/settings/OwnerPage.tsx:282
 msgid "Save"
 msgstr "Save"
 
@@ -6109,7 +6125,7 @@ msgstr "Save with the passkey"
 #: src/shell/agent/IdentityPage.tsx:135
 #: src/shell/settings/ConnectionPages.tsx:639
 #: src/shell/settings/NotifyPages.tsx:329
-#: src/shell/settings/OwnerPage.tsx:136
+#: src/shell/settings/OwnerPage.tsx:138
 msgid "Saved"
 msgstr "Saved"
 
@@ -7261,7 +7277,11 @@ msgstr "The device did not confirm. Try again."
 msgid "The existing fixed market stays unchanged until you choose a new scope."
 msgstr "The existing fixed market stays unchanged until you choose a new scope."
 
-#: src/shell/settings/OwnerPage.tsx:167
+#: src/shell/settings/OwnerPage.tsx:170
+msgid "The fact is corrected"
+msgstr "The fact is corrected"
+
+#: src/shell/settings/OwnerPage.tsx:170
 msgid "The fact is removed"
 msgstr "The fact is removed"
 
@@ -7404,7 +7424,7 @@ msgstr "the previous seven days"
 msgid "the previous thirty days"
 msgstr "the previous thirty days"
 
-#: src/shell/settings/OwnerPage.tsx:151
+#: src/shell/settings/OwnerPage.tsx:153
 msgid "The previous value is restored"
 msgstr "The previous value is restored"
 
@@ -7773,7 +7793,7 @@ msgstr "Tightening is saved at once."
 msgid "Time"
 msgstr "Time"
 
-#: src/shell/settings/OwnerPage.tsx:210
+#: src/shell/settings/OwnerPage.tsx:221
 msgid "Time zone"
 msgstr "Time zone"
 
@@ -8498,6 +8518,10 @@ msgstr "Welcome to Lonora"
 msgid "What happened at the broker"
 msgstr "What happened at the broker"
 
+#: src/shell/settings/OwnerPage.tsx:254
+msgid "What I know about you"
+msgstr "What I know about you"
+
 #: src/shell/domain/TasksPages.tsx:304
 msgid "What is needed"
 msgstr "What is needed"
@@ -8519,8 +8543,8 @@ msgstr "What should this agent know about its work?"
 #~ msgstr "What this agent is for"
 
 #: src/shell/settings/OwnerPage.tsx:243
-msgid "What your agents know about you"
-msgstr "What your agents know about you"
+#~ msgid "What your agents know about you"
+#~ msgstr "What your agents know about you"
 
 #: src/shell/domain/SchedulesPages.tsx:346
 #: src/shell/domain/SchedulesPages.tsx:409
@@ -8592,8 +8616,8 @@ msgstr "Writing"
 #. placeholder {0}: who(fact.row)
 #. placeholder {1}: ago(fact.row.created_at)
 #: src/shell/settings/OwnerPage.tsx:257
-msgid "Written by {0} · {1}"
-msgstr "Written by {0} · {1}"
+#~ msgid "Written by {0} · {1}"
+#~ msgstr "Written by {0} · {1}"
 
 #: src/shell/settings/AppLock.tsx:138
 msgid "Wrong code"
@@ -8605,7 +8629,7 @@ msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
 #: src/conversation/Conversation.tsx:89
-#: src/shell/settings/OwnerPage.tsx:36
+#: src/shell/settings/OwnerPage.tsx:44
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "Yesterday"
@@ -8615,7 +8639,7 @@ msgstr "Yesterday"
 #: src/conversation/Message.tsx:121
 #: src/conversation/Message.tsx:140
 #: src/shell/lists/UnifiedSearch.tsx:152
-#: src/shell/settings/OwnerPage.tsx:103
+#: src/shell/settings/OwnerPage.tsx:105
 msgid "You"
 msgstr "You"
 
@@ -8655,6 +8679,10 @@ msgstr "You reached the name's maximum length"
 #: src/shell/domain/UpdatesPages.tsx:44
 msgid "You rejected a request"
 msgstr "You rejected a request"
+
+#: src/shell/settings/OwnerPage.tsx:179
+msgid "You said"
+msgstr "You said"
 
 #: src/conversation/sheets/MandateSheet.tsx:140
 msgid "You set the markets, actions, duration and money limit"

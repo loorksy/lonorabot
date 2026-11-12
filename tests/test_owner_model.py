@@ -311,3 +311,79 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
         assert "owner_signals" not in [section.name for section in theirs]
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_word():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import MemoryRevisionRow
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        await reset_profile(fixture)
+        registry = load_tools()
+        lead = await lonora(fixture)
+        observed = await call(
+            registry,
+            await routine_run(fixture, lead["id"]),
+            "memory_write",
+            version=1,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Reads at 07:30"}],
+        )
+        assert observed.get("owner_profile", observed).get("changed") is True, observed
+        said, _ = await owner_turn(fixture, lead, "I prefer short reports")
+        await call(
+            registry,
+            said,
+            "memory_write",
+            version=1,
+            operations=[{"action": "add", "section": "USER.md", "content": "- Short reports"}],
+        )
+        known = await fixture.request("GET", "/owner/profile/lines")
+        origins = {line["text"]: line["origin"] for line in known["lines"]}
+        assert origins == {"- Reads at 07:30": "observed", "- Short reports": "you_said"}
+        # The owner corrects the observed line: it becomes his own word.
+        corrected = await fixture.request(
+            "POST",
+            "/owner/profile/lines",
+            {
+                "version": known["version"],
+                "text": "- Reads at 07:30",
+                "replacement": "- Reads at 08:00",
+            },
+        )
+        origins = {line["text"]: line["origin"] for line in corrected["lines"]}
+        assert origins == {"- Reads at 08:00": "you_said", "- Short reports": "you_said"}
+        async with fixture.runtime.db.sessions() as session:
+            latest = await session.scalar(
+                select(MemoryRevisionRow)
+                .where(
+                    MemoryRevisionRow.owner_id == fixture.owner,
+                    MemoryRevisionRow.document == "owner_profile",
+                )
+                .order_by(MemoryRevisionRow.created_at.desc())
+            )
+            assert latest is not None and latest.author == "owner"
+            assert latest.change == "correction"
+        # Deleting a line; a stale version or a line that is gone is refused.
+        deleted = await fixture.request(
+            "POST",
+            "/owner/profile/lines",
+            {"version": corrected["version"], "text": "- Short reports", "replacement": None},
+        )
+        assert [line["text"] for line in deleted["lines"]] == ["- Reads at 08:00"]
+        stale = await fixture.client.post(
+            "/api/owner/profile/lines",
+            json={"version": corrected["version"], "text": "- Reads at 08:00"},
+        )
+        assert stale.status_code == 409
+        gone = await fixture.client.post(
+            "/api/owner/profile/lines",
+            json={"version": deleted["version"], "text": "- Short reports"},
+        )
+        assert gone.status_code == 409 and gone.json()["code"] == "owner_profile_line_not_found"
+    finally:
+        await reset_profile(fixture)
+        await fixture.close()
