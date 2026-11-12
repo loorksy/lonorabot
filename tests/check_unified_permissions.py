@@ -106,7 +106,14 @@ async def main() -> None:
             return ToolCall(
                 id=uuid4().hex,
                 name="trade_execute",
-                arguments={"account_id": account, "symbol": symbol, "action": action, **params},
+                arguments={
+                    "account_id": account,
+                    "symbol": symbol,
+                    "action": action,
+                    "tolerance": "5",
+                    "reason": "Fixture entry",
+                    **params,
+                },
             )
 
         async def execute(intent: ToolCall) -> dict[str, Any]:
@@ -365,8 +372,11 @@ async def main() -> None:
             "code"
         ) == "agent_analysis_only"
         async with f.runtime.db.sessions() as session:
-            task = await session.get(TicketRow, stable_id(grant["id"], "account-management-task"))
-            assert task and task.state["task"]["status"] == "cancelled"
+            # A grant starts no task (4.5.1); nothing of the grant's is left running.
+            assert (
+                await session.get(TicketRow, stable_id(grant["id"], "account-management-task"))
+                is None
+            )
             assert (
                 await session.scalar(select(func.count()).select_from(TradingJournalRow))
                 == journal_count

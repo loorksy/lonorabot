@@ -45,6 +45,14 @@ shows Custom.
 
 ## The ladder: No trading / Ask me / On its own
 
+Migration 0063 (mandate 14.3.18) moved every existing agent to Ask at the stored level
+Ask me, and revoked every grant that was active or pending, stopping its management Task,
+its Run and any activation review, and superseding pending grant cards. The Task's watches
+stay the agent's own, without the Task (4.5.3), so a pause on one can still lift; a paused
+Task's live watches stay paused under the Task's hold, and a Task the owner had already
+ended keeps its watches as they were. A grant signed after it follows the rules below until
+grants are deleted.
+
 Each agent has one level, in the same words on Web and Mobile, in English and
 Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask me
 (`supervised`), On its own (`autonomous`, an active signed grant). The ladder is
@@ -57,11 +65,22 @@ monotonic:
   protection rules, its action budget and the owner's own positions. The tool
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
-  (`grant_covers`, `GRANT_TERM_REFUSALS`). The executor admits an operation without a grant only
-  with the owner's approval of that exact operation
-  (`require_operation_permission`), and repeats the grant check at send for every
-  operation sent under one. A grant's management Task is held to its own grant;
-  outside it, it asks too. Provisional speech never spends a grant: its
+  (`grant_covers`, `GRANT_TERM_REFUSALS`). Without a grant, the executor decides by the agent's
+  trading mode, read under the authority lock at send
+  (`require_operation_permission`). Full sends on its own. Ask sends a
+  risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a
+  request that adds risk only with the owner's approval of that exact operation.
+  A ticket the agent's own journaled order did not open is refused
+  (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
+  typed message asking for it, or the agent has the owner's standing instruction
+  (`manages_all_positions`). A close or modify sent without a grant is refused
+  with `broker_state_changed` when the ticket changed after the agent read it, or
+  when nothing records what it read. The executor repeats the grant check at send
+  for every operation sent under one; a grant decides within its own terms in
+  either mode until it is revoked. A grant starts no Task: the agent's one
+  account-management Task comes with Full mode (`lonora_db.management_task`,
+  docs/owner-actions.md), and its Runs are ordinary Runs of the agent under its mode.
+  Provisional speech never spends a grant: its
   operations are sent under the owner's exact approval only.
 - The owner's own positions are the tickets the journal does not connect to an
   agent's entry: a position opened outside Lonora, and also one the owner opened
@@ -86,12 +105,10 @@ monotonic:
   stores an explicit level for every agent that existed before: No trading, and
   Ask me for the Personal Agent. Delegated helpers can still never trade.
 
-Activation atomically creates one existing durable Task and its work Run. Signed
-proof replay cannot create another kickoff. It inspects actual state and may
-create/reuse watches, choose trades and manage positions without per-order
-approval. The task is bound to this exact grant; replacement or revocation cannot
-silently let stale kickoff work spend a newer grant. Revocation, replacement and
-device removal cancel the corresponding Task using the existing lifecycle. An activation is not an
+Activation starts no Task (4.5.1): the agent's one continuous account-management
+Task comes with Full mode and is bound to no grant (docs/owner-actions.md). A Run
+that still carries a replaced grant's id (`account_management_id`, from before 4.5.1)
+never spends a newer grant. An activation is not an
 entry signal or proof a broker is ready. The owner's pauses
 remain authoritative and are never silently switched by activation.
 
@@ -154,9 +171,16 @@ the grant (see `financial-execution-recovery.md`); nothing produces a blind rese
 Management requires a fresh material target snapshot and rejects owner changes
 between observation and submission. Manual-origin positions need explicit signed
 permission. Bounded-mode autonomous management cannot remove or widen an existing stop; explicit full-management mode permits discretionary stop decisions.
-Provisional voice input and its descendants cannot spend standing authority;
-exact immutable approve/reject confirmation remains available through the existing
-financial approval path. Read-only voice work is unaffected.
+Only the run answering a provisional voice handoff, or a generated card's send,
+cannot spend standing authority, and so does a retry or a «طلب جديد» renewal that
+re-asks the same request and therefore carries its `voice_handoff`
+(`carry_voice_handoff`), or a card send's retry, which carries a provenance-only mark
+(`ui_submit_retry_of`, set by `retry_run`, read by `owner_words.ui_submit_provenance`),
+not the send's queue rules (genui.md §7). Runs it starts (peers, follow-ups, subagents) and the
+agent's later watches, routines and wakes are ordinary runs (mandate 6.10). In Ask
+such a run's risk-increasing trades, even where a grant would cover them, take the
+exact immutable approve/reject confirmation; in Full its trade_execute and
+trade_close_positions send. Read-only voice work is unaffected.
 
 ## Grant limits and accounting
 
@@ -269,9 +293,9 @@ cannot guarantee a maximum loss, and the new order's own margin is not modeled.
 `test_full_account_management.py` verifies explicit mode/version, absent versus
 null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
-WebAuthn, durable kickoff Task/Run, repeat signatures, grant replacement, stale
-work, four symbol classes, market/pending orders, manual position management,
-partial close, discretionary stops, broker constraints and
+WebAuthn, the Full-mode Task started by the owner's tap, repeat signatures, grant
+replacement, a Run held to a replaced grant, four symbol classes, market/pending orders,
+manual position management, partial close, discretionary stops, broker constraints and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
 actual EN/AR owner surfaces, full and bounded signatures, and unchanged global

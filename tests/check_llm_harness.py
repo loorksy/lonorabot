@@ -20,6 +20,7 @@ from lonora_agent.tool_loop import persist as original_persist
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import ModelSelection
 from lonora_core.user_error import LonoraError
+from lonora_db.management_task import live_management_task
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     MessageRow,
@@ -32,6 +33,7 @@ from lonora_db.schema import (
 )
 from lonora_db.task_wait import resume_ready_waits
 from lonora_db.trading_decisions import decision_history
+from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
@@ -287,11 +289,19 @@ async def managed_task(f: Fixture, account: str) -> tuple[dict[str, Any], ToolCo
         "/account-authorities/verify",
         device.assertion(challenge, f.settings.allowed_origin),
     )
+    # A grant starts no task; the owner's Full tap starts the agent's one continuous task.
     async with f.runtime.db.sessions() as session:
-        task = await session.get(TicketRow, stable_id(grant["id"], "account-management-task"))
+        assert (
+            await session.get(TicketRow, stable_id(grant["id"], "account-management-task")) is None
+        )
+    async with f.runtime.db.sessions() as session, session.begin():
+        await set_trading_mode(session, f.owner, agent["id"], "full", by="owner_tap")
+    async with f.runtime.db.sessions() as session:
+        task = await live_management_task(session, f.owner, agent["id"])
         assert task and task.state["task"]["completion_mode"] == "continuous"
+        assert task.state["task"]["origin_thread_id"] == thread["id"]
         run = await session.get(RunRow, task.payload["run_id"])
-        assert run and run.model_metadata["account_management_id"] == grant["id"]
+        assert run and run.model_metadata["account_management_id"] == agent["id"]
         origin = await session.get(ThreadRow, thread["id"])
         assert origin
         data = {
@@ -569,8 +579,9 @@ async def conditional_mission(f: Fixture, valid: bool) -> None:
             .where(TradingJournalRow.account_id == account)
         ) == int(valid)
     assert len(await broker.positions()) == int(valid) and verified is valid
-    # Revocation stops the ongoing work without erasing or repeating a broker effect.
-    await f.request("POST", f"/account-authorities/{run['grant_id']}/revoke", {})
+    # Switching to Ask ends the ongoing work without erasing or repeating a broker effect.
+    async with f.runtime.db.sessions() as session, session.begin():
+        await set_trading_mode(session, f.owner, run["agent_id"], "ask", by="agent")
     async with f.runtime.db.sessions() as session:
         task = await session.get(TicketRow, run["task_id"])
         row = await session.get(RunRow, run["id"])

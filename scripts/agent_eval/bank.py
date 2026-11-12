@@ -28,6 +28,7 @@ from lonora_db.schema import (
 )
 from lonora_db.tasks import finish_task, request_task_attention
 from lonora_db.threads import create_thread
+from lonora_db.trading_mode import set_trading_mode
 from sqlalchemy import delete, select
 
 from . import broker
@@ -168,6 +169,10 @@ async def seed(api: Any, model: str) -> dict[str, str]:
         },
     )
     grant = await device.sign_grant(api, proposal)
+    # A grant starts no task: the owner's Full tap starts Lonora's continuous
+    # account-management Task (4.5.1), as on production.
+    async with api.runtime.db.sessions() as session, session.begin():
+        await set_trading_mode(session, api.owner, lonora["id"], "full", by="owner_tap")
     return {
         "account_id": account["id"],
         "lonora_id": lonora["id"],
@@ -186,11 +191,13 @@ async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> di
     state = scenario["state"]
     if state.get("mandate", "full") == "none":
         await api.request("POST", f"/account-authorities/{ids['grant_id']}/revoke", {})
+        async with api.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, api.owner, ids["lonora_id"], "ask", by="agent")
     async with api.runtime.db.sessions() as session, session.begin():
         if state.get("model_routing") == "unset":
             # A fresh install: a provider credential is saved and no model was chosen.
             await session.execute(delete(SettingRow).where(SettingRow.key == "model_routing"))
-        # The account-management Task the signed mandate started (production: «إدارة حساب
+        # The account-management Task Full mode started (production: «إدارة حساب
         # التداول»), with its own conversation.
         task = await session.scalar(
             select(TicketRow).where(TicketRow.owner_id == api.owner).with_for_update()

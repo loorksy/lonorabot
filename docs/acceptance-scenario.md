@@ -83,7 +83,7 @@ unset LONORA_ACCEPT_PROVIDER_KEY
 | Step | State | Note |
 |---|---|---|
 | 4a, the news agent tells the others | pass, partial | The speech is given in the news agent's routine; no calendar source is fed. The gold agent is Lonora under the template's signed grant. |
-| 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
+| 4c, a connection drop during a close | pass | Fake terminal. The actor is the gold agent, a team agent set to Full by the owner's tap, whose opening order is journaled as its own (3.3.4); a check names it. A close is risk-reducing, so its mode does not decide it (4.1). |
 | 3, the strategy PDF | not written | The feature (owner methods from files, #116) is on main; the step's runner is not written yet. |
 | 5, the morning brief | known defect, partial | One defect: the brief shows a position an agent opened as opened by the owner. It belongs to W-BRIEF, and the scenario file names it. Not asserted: the pending approval with its reason, which comes with Ask mode (W-AUTH); and the day's events, because the brief's facts carry none and no calendar source is fed. The brief Lonora posts is checked to be posted once; its words are the model's. The gold agent is Lonora under the template's grant. |
 | 6 | void | Amendment 1. |

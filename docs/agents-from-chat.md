@@ -160,14 +160,15 @@ finds the agent gone ("This agent was already removed"). The confirmation line i
   its Task) drops `evaluation_status` and `next_check` from its state, so nothing stored
   reads as a live evaluation. A stopped watch is not polled, and a Task waiting on it is
   not woken by a trigger from before the stop.
-- Cancelling or completing a Task (from the Task controls, `task_control`, «تحديد
-  كمكتملة», or revoking the grant behind an account-management Task) stops the watches
+- Cancelling or completing a Task (from the Task controls, `task_control` or «تحديد
+  كمكتملة») stops the watches
   that Task's Runs created (`state.task_id`): `enabled` false, state code `task_terminal`,
   with a `market_watches.updated` event. The owner's request counts at once, also while
   a worker still holds the Run. A watch that was already paused or cancelled is settled
   too, and resuming a watch of an ended Task is refused (`watch_task_ended`): it could
-  only poll and stop itself when it fired. A paused or failed Task keeps its watches;
-  revoking the grant ends its management Task even when that Task had failed. A stopped
+  only poll and stop itself when it fired. A paused or failed Task keeps its watches.
+  Ending the Full-mode account-management Task moves its watches to the agent's
+  conversation instead (docs/owner-actions.md). A stopped
   watch is also not evidence for an opportunity thesis (`thesis_watch_unconfirmed`).
 - The owner cancels, pauses or resumes any watch with `POST /api/watches/{id}/control`
   (`{"action": "cancel" | "pause" | "resume"}`), from the status line's watch list.

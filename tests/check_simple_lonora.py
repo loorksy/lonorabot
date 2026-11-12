@@ -40,9 +40,11 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
+from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_contracts.runs import Lease
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_db.events import emit
+from lonora_db.owner_actions import raise_system_card
 from lonora_db.personal_agent import ensure_personal_agent
 from lonora_db.runs import run_data
 from lonora_db.schema import (
@@ -716,14 +718,37 @@ class Acceptance:
         # Lonora confirms in one Arabic line in the conversation where the owner asked.
         line = (await self.lines(self.lonora_thread))[-1]
         assert any("؀" <= char <= "ۿ" for char in line), line
-        # The agent starts its responsibility: one management Task in its conversation.
-        management = [
+        # A grant starts no task (4.5.1); the owner's tap on the gold agent's Mandate card
+        # sets Full, and that starts its one continuous management Task.
+        assert not [
             row
             for row in await self.runs(gold.id)
             if row.model_metadata.get("account_management_id") == active[0].id
         ]
+        # The agent shows its Mandate card (owner_action_propose kind=trading_mode, here
+        # raised directly); the owner taps Full on it.
+        async with self.db.sessions() as session, session.begin():
+            mandate = await raise_system_card(
+                session,
+                self.owner,
+                OwnerActionProposal(kind="trading_mode", agent_id=gold.id),
+                agent_id=gold.id,
+                thread_id=None,
+                run_id=None,
+            )
+            assert mandate is not None
+            mandate_id = mandate.id
+        tapped = await self.decide(
+            name, mandate_id, {"decision": "confirm", "trading_mode": "full"}
+        )
+        assert tapped["status"] == "confirmed", tapped
+        management = [
+            row
+            for row in await self.runs(gold.id)
+            if row.model_metadata.get("account_management_id") == gold.id
+        ]
         assert len(management) == 1 and management[0].status == "queued", management
-        self.journey(name, 1)
+        self.journey(name, 2, "the signed grant and the Mandate card's Full tap")
 
         # The management Task: the agent buys gold on its own (no tap); the worker dies
         # after the broker took the order and before it heard back.
@@ -737,9 +762,11 @@ class Acceptance:
             "symbol": GOLD,
             "volume": "0.1",
             "stop_loss": "1990",
+            "tolerance": "50",
+            "reason": "Fixture entry",
         }
         script = self.model.script(
-            "The owner has authenticated automatic management of account",
+            "You are in Full mode: you manage every connected trading account",
             lambda t: call("j1-buy", "trade_execute", order),
             # After the restart the model sees its order as uncertain and, careless, asks
             # for the same order again under a new call: it must not reach the broker.
@@ -839,6 +866,8 @@ class Acceptance:
             "symbol": EURO,
             "volume": "0.1",
             "stop_loss": "1.0900",
+            "tolerance": "0.05",
+            "reason": "Fixture entry",
         }
         self.model.script(
             words,
@@ -973,6 +1002,8 @@ class Acceptance:
                     "symbol": EURO,
                     "volume": "0.1",
                     "stop_loss": "1.0900",
+                    "tolerance": "0.05",
+                    "reason": "Fixture entry",
                 },
             ),
             "فتحت الصفقة.",
@@ -1102,6 +1133,8 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.1",
                     "stop_loss": "1990",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "لم يؤكد الوسيط الأمر بعد، ولن أرسله مرة أخرى.",
@@ -1789,6 +1822,8 @@ class Acceptance:
                     "symbol": SILVER,
                     "volume": "0.1",
                     "stop_loss": "23",
+                    "tolerance": "1",
+                    "reason": "Fixture entry",
                 },
             ),
             "قرأت عمل وكيل الفضة؛ لا أتداول عنه.",
@@ -2021,6 +2056,8 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     "symbol": symbol,
                     "volume": "0.1",
                     "stop_loss": "150",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "نُفّذ الشراء بعد موافقتك.",

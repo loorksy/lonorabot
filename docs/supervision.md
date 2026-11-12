@@ -18,6 +18,12 @@ recorded it, `created_at`, and `revoked_at` / `revoked_via`. At most one grant p
 active; a revoked grant stays as the record of what was allowed. Rows cascade with
 either agent.
 
+Migration 0063 (mandate 14.3.18.4 and .6) revoked every grant whose supervisor is not
+Lonora (`revoked_via` empty) and made delegated, child and supervisor-template agents
+ordinary team agents. A pause such an agent set on its own (`source='agent'`) ended and
+its work resumed; a pause the owner asked for (`owner_message`) became the owner's
+(`owner`); the owner's pauses and Lonora's stayed.
+
 - **Default.** The migration gives each owner's Personal Agent a `default` grant over
   every other agent. A Personal Agent created later supervises every agent that already
   exists (`ensure_personal_agent`), and every agent created afterwards is supervised by
