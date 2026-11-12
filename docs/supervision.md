@@ -108,7 +108,9 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 - On its own initiative only the supervisor that set a hold lifts it, while it still
   supervises. A hold set from the owner's message is the owner's (`source='owner'`,
   the agent kept as holder; migration `0155_owner_message_pauses_are_owners`): only
-  the owner lifts it (mandate 4.7.2). A Run that answers the owner's message lifts
+  the owner lifts it (mandate 4.7.2), by a control or by asking in chat (a Run answering
+  the owner's untainted message). Only an untainted owner message makes a pause the
+  owner's: a Run that read others' content never speaks for the owner (6.10). A Run that answers the owner's message lifts
   another supervisor's hold (the paused agent itself through `routine_toggle`,
   `watch_resume` or `task_control`, or a supervisor through `agent_control`); it is
   released as the owner's (`released_by='owner'`). Lonora lifts only the pauses it
