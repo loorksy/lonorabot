@@ -26,12 +26,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import IntegrationRow, OwnerActionRow, SecretRow
-from .secrets import WORKSPACE, WORKSPACE_NAME, secret_in_use
+from .secrets import BROKER, WORKSPACE, WORKSPACE_NAME, secret_in_use
 
 # Writes one value to the encrypted store in the caller's transaction; returns its id.
 SecretWriter = Callable[[AsyncSession, str, str, str], Awaitable[str]]
 
-BROKER = "broker"
 # What a connecting card asks for: its fields (key, role, required, masked while typed:
 # an address is shown, though it is stored encrypted) and where the values go.
 CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
@@ -212,8 +211,13 @@ async def free_names(
     )
     part, number = name_part(name), 1
     while True:
-        named = part if number == 1 else f"{part[:36].rstrip('_')}_{number}"
-        names = {key: form.format(name=named) for key, form in SAVED_AS[target].items()}
+        # The number goes into the name part, or at the end of a name without one.
+        suffix = "" if number == 1 else f"_{number}"
+        named = part if number == 1 else part[:36].rstrip("_") + suffix
+        names = {
+            key: form.format(name=named) if "{name}" in form else form + suffix
+            for key, form in SAVED_AS[target].items()
+        }
         if not taken.intersection(names.values()):
             assert all(WORKSPACE_NAME.fullmatch(item) for item in names.values())
             return names

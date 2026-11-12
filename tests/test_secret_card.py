@@ -81,6 +81,42 @@ def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
 
 
 @pytest.mark.asyncio
+async def test_saved_names_are_free_and_numbered_per_card() -> None:
+    """A connecting card's values never take a saved name: one card's names share their
+    number, and a name with no part from chat (BRAVE_API_KEY) is numbered at its end."""
+    from lonora_db.secret_cards import free_names
+
+    class Taken:
+        def __init__(self, names: list[str]) -> None:
+            self.names = names
+
+        def all(self) -> list[str]:
+            return self.names
+
+    class Session:
+        def __init__(self, names: list[str]) -> None:
+            self.names = names
+
+        async def scalars(self, _: object) -> Taken:
+            return Taken(self.names)
+
+    async def names(target: str, name: str, taken: list[str]) -> dict[str, str]:
+        return await free_names(cast(Any, Session(taken)), "owner", target, name)
+
+    assert await names("mcp_server", "Desk feed", []) == {
+        "URL": "MCP_DESK_FEED_URL",
+        "TOKEN": "MCP_DESK_FEED_TOKEN",
+    }
+    assert await names("mcp_server", "Desk", ["MCP_DESK_TOKEN"]) == {
+        "URL": "MCP_DESK_2_URL",
+        "TOKEN": "MCP_DESK_2_TOKEN",
+    }
+    taken = ["BRAVE_API_KEY", "BRAVE_API_KEY_2"]
+    assert await names("brave_search", "Brave Search", taken) == {"API_KEY": "BRAVE_API_KEY_3"}
+    assert await names("news_feed", "رويترز", []) == {"URL": "FEED_SOURCE_URL"}
+
+
+@pytest.mark.asyncio
 async def test_a_stored_address_is_read_only_on_the_host_it_was_saved_with() -> None:
     """A feed's or calendar's address saved from a Secret card is used only while it is
     on the host the row (and the owner's trust) names."""
