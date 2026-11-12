@@ -8,6 +8,7 @@ import {
   type QuietHours,
   rowKey,
 } from "@lonora/core";
+import { isBrokerHealth } from "@lonora/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
 import { api, isRequestCancelled } from "../../lib/api";
@@ -188,14 +189,14 @@ export function HeadsUp({ currentThreadId }: { currentThreadId?: string }) {
       // An account-level outage has no chat of its own: Lonora's row carries it.
       const row =
         rows.find((candidate) => candidate.key === key) ??
-        (item.code === "broker_degraded"
+        (isBrokerHealth(item.code)
           ? rows.find((candidate) => candidate.agent?.role === "personal")
           : undefined);
       if (row)
         show(
           row,
           item.parameters.summary || labels[item.code],
-          item.code === "broker_degraded" ? recoveryPath(item.parameters.account_id) : undefined,
+          isBrokerHealth(item.code) ? recoveryPath(item.parameters.account_id) : undefined,
         );
     }
   }, [attention.items, show]);

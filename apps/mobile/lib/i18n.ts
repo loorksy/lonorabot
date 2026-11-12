@@ -310,8 +310,13 @@ export const labels = {
   attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
   attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
-  attentionBrokerDegraded: ["اتصال الوسيط يحتاج مراجعة", "Broker connection needs review"],
-  attentionBrokerRecovered: ["استُعيد اتصال الوسيط", "Broker connection recovered"],
+  attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
+  attentionBrokerUndeployed: [
+    "الحساب غير منشور على MetaApi",
+    "The account is not deployed on MetaApi",
+  ],
+  attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
+  attentionSecretRequested: ["وكيلك ينتظر سرًّا", "Your agent is waiting on a secret"],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [
     "تأكد شرط المراقبة — راجع الأدلة الحالية",
