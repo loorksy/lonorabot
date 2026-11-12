@@ -149,7 +149,10 @@ export {
   ownerActionLabels,
   ownerActionText,
   rereadOwnerAction,
+  type SecretForm,
+  type SecretFormField,
   submitCredential,
+  submitSecret,
 } from "./owner-actions";
 export {
   type OwnerProfileLabel,

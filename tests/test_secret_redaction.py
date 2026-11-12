@@ -195,11 +195,9 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
     value, late_value = ("live-" + uuid4().hex for _ in range(2))
     saved: list[str] = []
     try:
-        saved.append(
-            (await fixture.request("POST", "/secrets", {"name": name, "value": value}))["id"]
-        )
-        # Another scope's value is not the workspace's to scan (VISION.md 7.2.3).
         services = fixture.runtime.services(fixture.owner)
+        saved.append(await services.secrets.write(name, value, "workspace"))
+        # Another scope's value is not the workspace's to scan (VISION.md 7.2.3).
         other = "integration-" + uuid4().hex
         saved.append(await services.secrets.write("feed-" + other[-6:], other, "integration"))
         agent = await fixture.agent("Redaction")
@@ -250,9 +248,7 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         # A result stored before its value became a secret is scanned when replayed.
         said = await run("late", 4, "say " + late_value)
         assert said["stdout"] == late_value + "\n"
-        saved.append(
-            (await fixture.request("POST", "/secrets", {"name": late, "value": late_value}))["id"]
-        )
+        saved.append(await services.secrets.write(late, late_value, "workspace"))
         replayed = await run("late", 4, "say " + late_value)
         assert replayed["stdout"] == f"[secret:{late}]\n"
 
