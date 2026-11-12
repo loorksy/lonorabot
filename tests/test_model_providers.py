@@ -227,3 +227,42 @@ async def test_an_owner_endpoint_connects_from_the_deployment_and_answers_throug
     assert reply.text == "أهلاً"
     assert selection == chosen
     assert all(str(request.url).startswith(ENDPOINT + "/") for request in seen)
+
+
+@pytest.mark.asyncio
+async def test_the_legacy_settings_routes_stay_as_they_were(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The settings screens outside chat are removed (P5) and are not extended (0.4):
+    their routes neither list nor take the owner's endpoint, so no screen shows its raw
+    id or a page that cannot open it. The router and the agent's tools still see it."""
+    import os
+
+    if not os.environ.get("LONORA_DATABASE_URL"):
+        pytest.skip("The settings routes are exercised through the owner API.")
+    from check_streaming import Fixture
+
+    monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_BASE_URL", ENDPOINT)
+    monkeypatch.setenv("LONORA_OPENAI_COMPATIBLE_API_KEY", KEY)
+    fixture = await Fixture().open()
+    try:
+        listed = await fixture.client.get("/api/providers")
+        assert listed.status_code == 200
+        assert [item["id"] for item in listed.json()] == [
+            "openai",
+            "anthropic",
+            "deepseek",
+            "zai",
+            "openrouter",
+        ]
+        for method, path, body in (
+            ("PUT", "/api/providers/openai_compatible/credential", {"api_key": KEY}),
+            ("GET", "/api/providers/openai_compatible/models", None),
+            ("POST", "/api/providers/openai_compatible/discover", None),
+            ("POST", "/api/providers/openai_compatible/test", {"api_key": KEY}),
+        ):
+            answer = await fixture.client.request(method, path, json=body)
+            assert answer.status_code == 404, path
+            assert answer.json()["code"] == "provider_not_supported", path
+    finally:
+        await fixture.close()
