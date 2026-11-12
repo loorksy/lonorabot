@@ -18,7 +18,7 @@ from lonora_contracts.runs import Lease
 from lonora_contracts.tasks import TaskCreate
 from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import stop_management_task
+from lonora_db.account_authority import revoke
 from lonora_db.agent_creation import delete_agent, pause_agent
 from lonora_db.agent_permissions import change_permission
 from lonora_db.agents import update_agent
@@ -296,9 +296,32 @@ async def checks() -> None:
     await tap("full")
     restarted_task = await live()
     assert restarted_task is not None and restarted_task.id != task_id
+    # Its Run waits on the owner's card when the agent is paused: the Run and the card
+    # end with the task (a paused agent may not add risk), nothing is left decidable.
+    async with db.sessions() as session, session.begin():
+        waiting = await session.get(RunRow, restarted_task.payload["run_id"])
+        assert waiting is not None
+        waiting.status = "waiting_input"
+        card = TradeApprovalRow(
+            id=str(uuid4()),
+            owner_id=owner_id,
+            run_id=waiting.id,
+            thread_id=waiting.thread_id,
+            agent_id=agent_id,
+            call_id="card-call",
+            requests=[],
+        )
+        session.add(card)
+        await session.flush()
+        card_id = card.id
     async with db.sessions() as session, session.begin():
         await pause_agent(session, owner_id, agent_id)
     assert await live() is None
+    async with db.sessions() as session:
+        ended_run = await session.get(RunRow, restarted_task.payload["run_id"])
+        ended_card = await session.get(TradeApprovalRow, card_id)
+        assert ended_run is not None and ended_run.status == "cancelled"
+        assert ended_card is not None and ended_card.status == "cancelled"
     async with db.sessions() as session, session.begin():
         await update_agent(session, owner_id, agent_id, AgentUpdate(paused=False))
     resumed = await live()
@@ -338,10 +361,7 @@ async def checks() -> None:
     await tap("full")
     assert await live() is None, "a Full-mode task ran beside the grant's own task"
     async with db.sessions() as session, session.begin():
-        row = await session.get(AccountAuthorityRow, grant_id)
-        assert row is not None
-        row.status = "revoked"
-        await stop_management_task(session, row)
+        await revoke(session, owner_id, grant_id)
     assert await live() is not None, "revoking the grant did not hand over to the mode task"
     async with db.sessions() as session:
         grant_task = await session.get(TicketRow, stable_id(grant_id, "account-management-task"))

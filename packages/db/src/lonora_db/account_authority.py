@@ -200,8 +200,13 @@ async def require_authority(
     return row, envelope
 
 
-async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> AccountAuthorityRow:
+async def revoke(
+    session: AsyncSession, owner_id: str, identifier: str, *, handover: bool = True
+) -> AccountAuthorityRow:
+    """``handover``: an agent in Full then runs its own continuous task (4.5); a delete
+    passes False, because the agent or conversation the task would start from is going."""
     from .agent_permissions import bump_permission
+    from .management_task import ensure_management_task
 
     candidate = await owned_authority(session, owner_id, identifier)
     await authority_lock(session, candidate.agent_id)
@@ -210,6 +215,8 @@ async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> Accou
     await stop_management_task(session, row)
     changed(session, row)
     await bump_permission(session, owner_id, row.agent_id)
+    if handover:
+        await ensure_management_task(session, owner_id, row.agent_id)
     return row
 
 
@@ -232,7 +239,3 @@ async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) 
             state.status, state.phase = "cancelled", "cancelled"
             save_task(session, task, state)
         await settle_task_watches(session, task)
-    from .management_task import ensure_management_task
-
-    # Without the grant's Task, an agent in Full runs its own continuous task (4.5).
-    await ensure_management_task(session, row.owner_id, row.agent_id)
