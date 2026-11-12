@@ -22,6 +22,10 @@ BROKER_READERS = {
     "packages/trading/src/lonora_trading/connections.py",
     "packages/gateway/src/lonora_gateway/runtime.py",
     "apps/api/src/lonora_api/routes/trading.py",
+    # Connect from chat: the card's save and the gateway's provisioning step.
+    "apps/api/src/lonora_api/routes/secret_cards.py",
+    "packages/trading/src/lonora_trading/broker_provisioning.py",
+    "packages/gateway/src/lonora_gateway/service.py",
 }
 
 
@@ -42,12 +46,14 @@ def test_only_the_broker_layer_constructs_the_broker_reader() -> None:
     assert not hasattr(manager, "secrets")  # the reader is private to the adapter layer
 
 
-def test_the_workspace_bridge_has_no_secret_reader() -> None:
+def test_the_workspace_bridge_has_no_broker_reader() -> None:
     from lonora_agent import workspace, workspace_access, workspace_host
 
+    # The workspace layer may hold the general store (to scan output for workspace
+    # values), which refuses scope broker; never the broker reader or a raw decrypt.
     for module in (workspace, workspace_access, workspace_host):
         source = inspect.getsource(module)
-        for name in ("EncryptedSecretStore", "BrokerSecrets", "SecretStore", ".secrets"):
+        for name in ("BrokerSecrets", "SecretRow", "SecretCipher", "ciphertext"):
             assert name not in source
 
 
@@ -87,7 +93,8 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
         services = fixture.runtime.services(fixture.owner)
         value = "fixture.metaapi." + uuid4().hex
         async with fixture.runtime.db.sessions() as session, session.begin():
-            token_id = await broker.write_in_session(session, METAAPI_TOKEN, value)
+            # A name of its own: the owner's real token may be in use by a connection.
+            token_id = await broker.write_in_session(session, "fixture_" + uuid4().hex, value)
         assert await broker.read(token_id) == value
 
         # The general store, which every tool context carries, refuses the scope.
@@ -104,6 +111,7 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
             assert refused.value.code == "secret_scope_forbidden"
             with pytest.raises(LonoraError) as overwrite:
                 await store.write(METAAPI_TOKEN, "attacker.chosen.token", "broker")
+            assert await broker.named(METAAPI_TOKEN) != token_id
             assert overwrite.value.code == "secret_scope_forbidden"
         assert await broker.read(token_id) == value
 

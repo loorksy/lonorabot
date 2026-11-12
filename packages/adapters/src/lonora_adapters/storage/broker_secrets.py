@@ -11,6 +11,7 @@ from lonora_db.client import Database
 from lonora_db.schema import SecretRow
 from lonora_db.secrets import BROKER
 from lonora_security.secrets import SecretCipher
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .secret_store import _store_in_session
@@ -28,6 +29,28 @@ class BrokerSecrets:
             if row.scope != BROKER:
                 raise LonoraError("secret_scope_forbidden", 403)
             return self._cipher.decrypt(row.ciphertext)
+
+    async def named(self, name: str) -> str | None:
+        """The id of the owner's broker secret with this name, if one is saved."""
+        async with self._db.sessions() as session:
+            return await session.scalar(
+                select(SecretRow.id).where(
+                    SecretRow.owner_id == self._owner_id,
+                    SecretRow.scope == BROKER,
+                    SecretRow.name == name,
+                )
+            )
+
+    async def delete_unused(self, secret_id: str) -> None:
+        """Forget a broker value that turned out wrong, unless a connection uses it."""
+        from lonora_db.secrets import secret_in_use
+
+        async with self._db.sessions() as session, session.begin():
+            row = await session.get(SecretRow, secret_id, with_for_update=True)
+            if row is None or row.owner_id != self._owner_id or row.scope != BROKER:
+                return
+            if not await secret_in_use(session, self._owner_id, secret_id):
+                await session.delete(row)
 
     async def write_in_session(self, session: AsyncSession, name: str, value: str) -> str:
         """Commit a broker value with its connection; a rejected connection writes nothing."""

@@ -48,6 +48,8 @@ STEPS = (
     StepSpec("reconcile", 10, 300),
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
+    # Accounts the owner connected from chat: provision, deploy, connect, report.
+    StepSpec("broker_provisioning", 10, 900),
     StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
@@ -188,6 +190,19 @@ class Gateway:
 
         await self.for_each_owner(
             lambda service: maintenance_account_recovery(self.db, service.brokers, service.owner_id)
+        )
+
+    async def broker_provisioning(self) -> None:
+        from lonora_adapters.storage.broker_secrets import BrokerSecrets
+        from lonora_trading.broker_provisioning import maintain_broker_provisioning
+
+        await self.for_each_owner(
+            lambda service: maintain_broker_provisioning(
+                self.db,
+                service.brokers,
+                BrokerSecrets(self.db, self.key, service.owner_id),
+                service.owner_id,
+            )
         )
 
     async def goals(self) -> None:

@@ -244,6 +244,8 @@ export type OwnerAction = {
       fields: SecretField[];
       destination: SecretDestination;
       agent_name: string | null;
+      /** A broker card (raised only by the connect tool): the account the password is for. */
+      account?: { login: string; server: string; platform: "mt4" | "mt5" };
     };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
     watch?: {

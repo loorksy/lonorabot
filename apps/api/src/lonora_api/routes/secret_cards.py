@@ -7,6 +7,7 @@ transaction. The card, its events, the conversation and the agent keep only the 
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from lonora_adapters.storage.broker_secrets import BrokerSecrets
 from lonora_adapters.storage.secret_store import EncryptedSecretStore
 from lonora_auth.identity import OwnerIdentity
 from lonora_contracts.owner_actions import SecretCardSave
@@ -22,6 +23,8 @@ from lonora_db.owner_actions import (
     supersede_subject,
 )
 from lonora_db.secret_cards import save_values
+from lonora_db.secrets import BROKER
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import require_owner, runtime
 
@@ -36,7 +39,16 @@ async def save_secret(
     owner: OwnerIdentity = Depends(require_owner),
 ) -> dict[str, Any]:
     rt = runtime(request)
-    store = EncryptedSecretStore(rt.db, rt.settings.encryption_key.get_secret_value(), owner.id)
+    key = rt.settings.encryption_key.get_secret_value()
+    store = EncryptedSecretStore(rt.db, key, owner.id)
+    broker = BrokerSecrets(rt.db, key, owner.id)
+
+    async def write(session: AsyncSession, name: str, value: str, scope: str) -> str:
+        # A broker-destination card's values go only to the broker layer (7.2.3).
+        if scope == BROKER:
+            return await broker.write_in_session(session, name, value)
+        return await store.write_in_session(session, name, value, scope)
+
     async with rt.db.sessions() as session, session.begin():
         await lock_owner_actions(session, owner.id)
         row = await owned_card(session, owner.id, card_id, lock=True)
@@ -48,7 +60,7 @@ async def save_secret(
         if status != "pending":
             # A second tap shows the card as it is; nothing is written again.
             return await owner_action_data(session, row)
-        result = await save_values(session, row, body.values, store.write_in_session)
+        result = await save_values(session, row, body.values, write)
         await settle(session, row, "confirmed", None, via="tap", result=result)
         await supersede_subject(
             session,
@@ -60,6 +72,8 @@ async def save_secret(
             effect=row.payload_hash,
         )
         await confirm_in_thread(session, row)
-        # The agent that asked continues the work that needed the secret.
-        await continue_after_card(session, row)
+        # The agent that asked continues the work that needed the secret. A broker card's
+        # agent continues once the gateway has provisioned the account.
+        if row.payload["destination"] != BROKER:
+            await continue_after_card(session, row)
         return await owner_action_data(session, row)

@@ -298,6 +298,11 @@ export const ownerActionLabels = {
       "Saved encrypted for your broker connection only; it never enters the workspace or reaches an agent.",
     secretSave: "Save",
     secretSaved: "Saved encrypted. No agent sees the values.",
+    brokerConnectTitle: "Connect trading account",
+    brokerAccount: "Account {login} on server {server} ({platform})",
+    brokerPassword: "Trading (master) password",
+    brokerToken: "MetaApi API token (asked once)",
+    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
@@ -577,6 +582,11 @@ export const ownerActionLabels = {
     secretBroker: "تُحفظ مشفّرة لاتصال الوسيط فقط، ولا تدخل مساحة العمل ولا تصل إلى أي وكيل.",
     secretSave: "حفظ",
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
+    brokerConnectTitle: "ربط حساب التداول",
+    brokerAccount: "الحساب {login} على الخادم {server} ({platform})",
+    brokerPassword: "كلمة مرور التداول (الرئيسية)",
+    brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
+    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
@@ -736,7 +746,7 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
       case "connect_credential":
         return text.connected;
       case "secret":
-        return text.secretSaved;
+        return card.facts.secret?.destination === "broker" ? text.brokerSaved : text.secretSaved;
       case "watch_changed":
         return text.watchUndone;
       case "stop_tightened":
@@ -1683,7 +1693,29 @@ export function ownerActionCard(
     case "secret": {
       const secret = facts.secret;
       title = text.secretTitle;
-      if (secret) {
+      if (secret?.destination === "broker" && secret.account) {
+        // Raised only by the connect tool: every word is ours, the account is server fact.
+        const account = secret.account;
+        title = text.brokerConnectTitle;
+        lines.push(
+          fill(text.brokerAccount, {
+            login: isolate(account.login),
+            server: isolate(account.server),
+            platform: account.platform.toUpperCase(),
+          }),
+        );
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = text.secretBroker;
+        secretForm = {
+          fields: secret.fields.map((field) => ({
+            key: field.key,
+            label: field.key === "METAAPI_TOKEN" ? text.brokerToken : text.brokerPassword,
+            type: "password",
+          })),
+          submit: text.secretSave,
+        };
+      } else if (secret) {
         // The label and field labels are the agent's words; every other word is ours.
         lines.push(isolate(secret.label));
         if (secret.agent_name)

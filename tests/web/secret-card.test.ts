@@ -102,3 +102,43 @@ test("the values go only to the card's own route", async () => {
   ]);
   assert.deepEqual(answer, { id: "card/1", status: "confirmed" });
 });
+
+test("a broker connect card shows the account as server facts and only our own words", () => {
+  const broker: OwnerAction = {
+    ...card,
+    id: "card/broker",
+    facts: {
+      several_accounts: false,
+      secret: {
+        label: "70000001 @ Exness-MT5Trial16",
+        fields: [
+          { key: "PASSWORD", label: "Trading password", secret: true },
+          { key: "METAAPI_TOKEN", label: "MetaApi API token", secret: true },
+        ],
+        destination: "broker",
+        agent_name: "Lonora",
+        account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+      },
+    },
+  };
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const spec = ownerActionCard(broker, locale);
+    assert.equal(spec.title, text.brokerConnectTitle);
+    assert.equal(
+      spec.lines[0],
+      text.brokerAccount
+        .replace("{login}", isolated("70000001"))
+        .replace("{server}", isolated("Exness-MT5Trial16"))
+        .replace("{platform}", "MT5"),
+    );
+    // Field labels are ours by key, never the stored English label; both are masked.
+    assert.deepEqual(spec.secret?.fields, [
+      { key: "PASSWORD", label: text.brokerPassword, type: "password" },
+      { key: "METAAPI_TOKEN", label: text.brokerToken, type: "password" },
+    ]);
+    assert.equal(spec.hint, text.secretBroker);
+    const saved = ownerActionCard({ ...broker, status: "confirmed", result: {} }, locale);
+    assert.equal(saved.outcome, text.brokerSaved);
+  }
+});
