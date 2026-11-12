@@ -282,6 +282,10 @@ msgstr "A different answer was already recorded."
 msgid "A list named «{name}» already exists"
 msgstr "A list named «{name}» already exists"
 
+#: src/components/ai/AttentionInbox.tsx:44
+msgid "A Mandate card is waiting for your tap"
+msgstr "A Mandate card is waiting for your tap"
+
 #: src/shell/settings/NotifyPages.tsx:22
 msgid "A message in the agent's conversation with an alert"
 msgstr "A message in the agent's conversation with an alert"
@@ -894,8 +898,8 @@ msgstr "App space in this browser"
 msgid "Applies to every agent of this account"
 msgstr "Applies to every agent of this account"
 
-#: src/components/trading/TradeApprovals.tsx:147
-#: src/components/trading/TradeApprovals.tsx:212
+#: src/components/trading/TradeApprovals.tsx:152
+#: src/components/trading/TradeApprovals.tsx:217
 msgid "Approval request"
 msgstr "Approval request"
 
@@ -903,7 +907,7 @@ msgstr "Approval request"
 msgid "Approval request · {what}"
 msgstr "Approval request · {what}"
 
-#: src/components/trading/TradeApprovals.tsx:288
+#: src/components/trading/TradeApprovals.tsx:293
 msgid "Approve"
 msgstr "Approve"
 
@@ -1268,7 +1272,7 @@ msgstr "Broker server"
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
-#: src/components/trading/TradeApprovals.tsx:273
+#: src/components/trading/TradeApprovals.tsx:278
 #: src/conversation/Cards.tsx:467
 msgid "Broker ticket"
 msgstr "Broker ticket"
@@ -2954,7 +2958,7 @@ msgstr "Existing tasks keep pinned instructions. Disabling a skill prevents its 
 #~ msgid "Expand chart"
 #~ msgstr "Expand chart"
 
-#: src/components/trading/TradeApprovals.tsx:150
+#: src/components/trading/TradeApprovals.tsx:155
 msgid "Expired"
 msgstr "Expired"
 
@@ -3965,7 +3969,7 @@ msgstr "Mark all as read"
 msgid "Mark as completed"
 msgstr "Mark as completed"
 
-#: src/components/ai/AttentionInbox.tsx:153
+#: src/components/ai/AttentionInbox.tsx:154
 msgid "Mark as read"
 msgstr "Mark as read"
 
@@ -4299,7 +4303,7 @@ msgstr "New message"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 
-#: src/components/trading/TradeApprovals.tsx:168
+#: src/components/trading/TradeApprovals.tsx:173
 msgid "New request"
 msgstr "New request"
 
@@ -4520,7 +4524,7 @@ msgstr "No model is set up yet"
 msgid "No money limit"
 msgstr "No money limit"
 
-#: src/components/ai/AttentionInbox.tsx:114
+#: src/components/ai/AttentionInbox.tsx:115
 msgid "No new notifications"
 msgstr "No new notifications"
 
@@ -4755,8 +4759,8 @@ msgstr "Notification"
 msgid "Notification method"
 msgstr "Notification method"
 
-#: src/components/ai/AttentionInbox.tsx:76
-#: src/components/ai/AttentionInbox.tsx:78
+#: src/components/ai/AttentionInbox.tsx:77
+#: src/components/ai/AttentionInbox.tsx:79
 #: src/shell/settings/DevicePages.tsx:293
 #: src/shell/settings/NotifyPages.tsx:126
 msgid "Notifications"
@@ -4788,7 +4792,7 @@ msgstr "Notifications on"
 msgid "Notifications restored"
 msgstr "Notifications restored"
 
-#: src/components/ai/AttentionInbox.tsx:109
+#: src/components/ai/AttentionInbox.tsx:110
 #: src/shell/settings/NotifyPages.tsx:145
 msgid "Notify me about confirmed opportunities"
 msgstr "Notify me about confirmed opportunities"
@@ -4905,7 +4909,7 @@ msgstr "Open active call"
 msgid "Open chart"
 msgstr "Open chart"
 
-#: src/components/ai/AttentionInbox.tsx:144
+#: src/components/ai/AttentionInbox.tsx:145
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
 msgid "Open conversation"
@@ -5042,7 +5046,7 @@ msgstr "Order price"
 #~ msgid "Organic"
 #~ msgstr "Organic"
 
-#: src/components/ai/AttentionInbox.tsx:142
+#: src/components/ai/AttentionInbox.tsx:143
 #: src/shell/lists/HeadsUp.tsx:254
 #: src/shell/pages.tsx:99
 msgid "Outage and recovery"
@@ -5400,7 +5404,7 @@ msgstr "Previous / next chat"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:229
+#: src/components/trading/TradeApprovals.tsx:234
 msgid "Price"
 msgstr "Price"
 
@@ -5692,7 +5696,7 @@ msgstr "Register a passkey before activating this request."
 msgid "Regression"
 msgstr "Regression"
 
-#: src/components/trading/TradeApprovals.tsx:296
+#: src/components/trading/TradeApprovals.tsx:301
 msgid "Reject"
 msgstr "Reject"
 
@@ -5748,11 +5752,11 @@ msgstr "Remove from favourites"
 #~ msgid "Remove reply"
 #~ msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:256
+#: src/components/trading/TradeApprovals.tsx:261
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:266
+#: src/components/trading/TradeApprovals.tsx:271
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -6793,8 +6797,8 @@ msgctxt "chart"
 msgid "Stop"
 msgstr "Stop"
 
-#: src/components/trading/TradeApprovals.tsx:237
-#: src/components/trading/TradeApprovals.tsx:253
+#: src/components/trading/TradeApprovals.tsx:242
+#: src/components/trading/TradeApprovals.tsx:258
 #: src/shell/agent/TradesPage.tsx:371
 #: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
@@ -6952,8 +6956,8 @@ msgstr "Symbol"
 msgid "Symbols"
 msgstr "Symbols"
 
-#: src/components/trading/TradeApprovals.tsx:245
-#: src/components/trading/TradeApprovals.tsx:263
+#: src/components/trading/TradeApprovals.tsx:250
+#: src/components/trading/TradeApprovals.tsx:268
 #: src/shell/agent/TradesPage.tsx:372
 #: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"

@@ -139,6 +139,7 @@ def test_the_owner_events_have_one_code_set() -> None:
         "trade_approval",
         "settle_operation",
         "secret_request",
+        "mandate_card",
         "broker_health",
     }
     assert "owner_action.updated" in ATTENTION_KINDS

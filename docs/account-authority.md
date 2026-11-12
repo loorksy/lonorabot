@@ -57,10 +57,19 @@ monotonic:
   protection rules, its action budget and the owner's own positions. The tool
   runs the executor's own grant check read-only against the broker's current
   account, positions and orders before anything is asked or sent
-  (`grant_covers`, `GRANT_TERM_REFUSALS`). The executor admits an operation without a grant only
-  with the owner's approval of that exact operation
-  (`require_operation_permission`), and repeats the grant check at send for every
-  operation sent under one. A grant's management Task is held to its own grant;
+  (`grant_covers`, `GRANT_TERM_REFUSALS`). Without a grant, the executor decides by the agent's
+  trading mode, read under the authority lock at send
+  (`require_operation_permission`). Full sends on its own. Ask sends a
+  risk-reducing request (`admission.risk_reducing` on the fresh ticket), and a
+  request that adds risk only with the owner's approval of that exact operation.
+  A ticket the agent's own journaled order did not open is refused
+  (`ticket_not_owned`) unless the agent is Lonora, the run answers the owner's
+  typed message asking for it, or the agent has the owner's standing instruction
+  (`manages_all_positions`). A close or modify sent without a grant is refused
+  with `broker_state_changed` when the ticket changed after the agent read it, or
+  when nothing records what it read. The executor repeats the grant check at send
+  for every operation sent under one; a grant decides within its own terms in
+  either mode until it is revoked. A grant's management Task is held to its own grant;
   outside it, it asks too. Provisional speech never spends a grant: its
   operations are sent under the owner's exact approval only.
 - The owner's own positions are the tickets the journal does not connect to an

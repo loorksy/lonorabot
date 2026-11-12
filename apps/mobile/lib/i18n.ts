@@ -313,6 +313,10 @@ export const labels = {
   ],
   attentionBrokerConnectionLost: ["انقطع الاتصال بالحساب", "The account connection has been lost"],
   attentionSecretRequested: ["وكيلك ينتظر منك بيانات سرّية", "Your agent needs a secret from you"],
+  attentionMandateProposed: [
+    "بطاقة التفويض بانتظار لمستك",
+    "A Mandate card is waiting for your tap",
+  ],
   attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
   attentionSetupConfirmed: [
     "تأكد شرط المراقبة — راجع الأدلة الحالية",

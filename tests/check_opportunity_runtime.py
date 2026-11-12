@@ -244,15 +244,10 @@ async def main() -> None:
             "volume": "0.04",
             "thesis_id": thesis["id"],
         }
+        # In Ask a partial close of the agent's own position executes without a card.
         partial = await call("trade_execute", partial_args, "partial-close")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + partial["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
-        assert (await call("trade_execute", partial_args, "partial-close"))["results"][0][
-            "status"
-        ] == "confirmed"
+        assert "approval_id" not in partial, partial
+        assert partial["results"][0]["status"] == "confirmed"
         partial_state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert (
             partial_state["status"] == "acted_on"
@@ -265,13 +260,8 @@ async def main() -> None:
             "position_id": target,
             "thesis_id": thesis["id"],
         }
-        close_card = await call("trade_execute", close_args, "close-real-ticket")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + close_card["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
         close_result = await call("trade_execute", close_args, "close-real-ticket")
+        assert "approval_id" not in close_result, close_result
         assert close_result["results"][0]["status"] == "confirmed", close_result
         assert [p.id for p in await broker.positions()] == [first_position]
         finished = await f.request("GET", "/trading/opportunities/" + thesis["id"])

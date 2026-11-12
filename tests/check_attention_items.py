@@ -121,6 +121,90 @@ async def secret_card(fixture: Fixture) -> None:
     print("PASS a seen Secret item is withdrawn when the card's lifetime runs out")
 
 
+async def mandate_card(fixture: Fixture) -> None:
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        lonora = await ensure_personal_agent(session, fixture.owner)
+        lonora_thread = (await conversation_thread(session, fixture.owner, lonora.id)).id
+        onboarding = await session.scalar(
+            select(OwnerActionRow).where(
+                OwnerActionRow.owner_id == fixture.owner,
+                OwnerActionRow.kind == "trading_mode",
+                OwnerActionRow.subject == "trading_mode:" + lonora.id,
+            )
+        )
+        assert onboarding is not None and onboarding.status == "pending"
+    await tick(fixture)
+    await tick(fixture)
+    [item] = await items(fixture, "mandate_proposed")
+    assert item.status == "ready" and item.importance == "action_required"
+    assert (item.agent_id, item.thread_id) == (lonora.id, lonora_thread)
+    assert item.parameters["owner_action_id"] == onboarding.id
+    assert await ready_events(fixture, item.id) == 1
+    print("PASS Lonora's onboarding Mandate card is one ready item in Lonora's conversation")
+
+    await fixture.request(
+        "POST",
+        f"/owner-actions/{onboarding.id}/decision",
+        {"decision": "confirm", "trading_mode": "ask"},
+    )
+    await tick(fixture)
+    [item] = await items(fixture, "mandate_proposed")
+    assert item.status == "suppressed"
+    print("PASS the Mandate item is withdrawn when the owner taps the card")
+
+    agent = await fixture.agent("Mandate asker")
+    thread = await fixture.conversation(agent)
+    context = await fixture.lease(await fixture.run(agent, thread))
+    card = await load_tools().execute(
+        ToolCall(
+            id="call-" + uuid4().hex,
+            name="owner_action_propose",
+            arguments={"kind": "trading_mode"},
+        ),
+        context,
+    )
+    await tick(fixture)
+    proposed = (await items(fixture, "mandate_proposed"))[-1]
+    assert proposed.status == "ready" and proposed.agent_id == agent["id"]
+    assert proposed.parameters["owner_action_id"] == card["owner_action"]["id"]
+    print("PASS a Mandate card an agent proposes is one ready item in its conversation")
+
+    # Lonora raises a second card for the same agent: the owner still has one item, and
+    # one tap on the agent's own card answers both.
+    lonora_agent = {"id": lonora.id}
+    lonora_context = await fixture.lease(
+        await fixture.run(lonora_agent, await fixture.conversation(lonora_agent))
+    )
+    second = await load_tools().execute(
+        ToolCall(
+            id="call-" + uuid4().hex,
+            name="owner_action_propose",
+            arguments={"kind": "trading_mode", "agent_id": agent["id"]},
+        ),
+        lonora_context,
+    )
+    assert second["owner_action"]["id"] != card["owner_action"]["id"]
+    await tick(fixture)
+    open_items = [
+        row
+        for row in await items(fixture, "mandate_proposed")
+        if row.agent_id == agent["id"] and row.status == "ready"
+    ]
+    assert [row.id for row in open_items] == [proposed.id]
+    await fixture.request(
+        "POST",
+        f"/owner-actions/{card['owner_action']['id']}/decision",
+        {"decision": "confirm", "trading_mode": "ask"},
+    )
+    await tick(fixture)
+    assert not [
+        row
+        for row in await items(fixture, "mandate_proposed")
+        if row.agent_id == agent["id"] and row.status != "suppressed"
+    ]
+    print("PASS two Mandate cards for one agent are one item, and one tap ends it")
+
+
 async def set_recovery(
     fixture: Fixture,
     account: str,
@@ -424,7 +508,33 @@ async def migration(fixture: Fixture) -> None:
     async with fixture.runtime.db.sessions() as session, session.begin():
         lonora = await ensure_personal_agent(session, fixture.owner)
         thread = (await conversation_thread(session, fixture.owner, lonora.id)).id
+        unknown = {
+            code: (
+                await session.scalars(
+                    select(AttentionRow.id).where(
+                        AttentionRow.owner_id == fixture.owner, AttentionRow.code == code
+                    )
+                )
+            ).all()
+            for code in ("mandate_proposed", "secret_requested")
+        }
+        assert all(unknown.values())
+
+    async def remaining(code: str) -> list[str]:
+        async with fixture.runtime.db.sessions() as session:
+            return list(
+                await session.scalars(
+                    select(AttentionRow.id).where(AttentionRow.id.in_(unknown[code]))
+                )
+            )
+
+    # The code before 0172 does not know mandate_proposed: its downgrade removes those
+    # rows, and 0170's removes secret_requested ones.
+    await asyncio.to_thread(alembic, "downgrade", "0060_agent_trading_mode")
+    assert await remaining("mandate_proposed") == []
+    assert await remaining("secret_requested")
     await asyncio.to_thread(alembic, "downgrade", "0068_end_trading_goals")
+    assert await remaining("secret_requested") == []
     rows = {
         code + status: uuid4().hex[:32]
         for code in ("broker_degraded", "broker_recovered")
@@ -477,6 +587,7 @@ async def migration(fixture: Fixture) -> None:
 async def main() -> None:
     fixture = await Fixture().open()
     try:
+        await mandate_card(fixture)
         await secret_card(fixture)
         await broker_health(fixture)
         await settle_card(fixture)

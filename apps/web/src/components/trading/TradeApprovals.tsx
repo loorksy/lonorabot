@@ -14,6 +14,7 @@ const rank: Record<string, number> = {
   approved: 1,
   rejected: 1,
   expired: 1,
+  withdrawn: 1,
   completed: 2,
   cancelled: 2,
 };
@@ -135,7 +136,11 @@ export function TradeApprovalCard({
   const symbol = row.requests.find((request) => request.symbol)?.symbol;
   const status = row.status as Approval["status"] | "expired";
   if (status !== "pending") {
-    const bad = status === "rejected" || status === "cancelled" || status === "expired";
+    const bad =
+      status === "rejected" ||
+      status === "cancelled" ||
+      status === "expired" ||
+      status === "withdrawn";
     return (
       <div className="mcard is-done" data-trade-approval={row.id} data-trade-status={status}>
         <div className={`oa-line ${bad ? "st-cancelled" : "st-confirmed"}`}>

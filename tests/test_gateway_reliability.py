@@ -23,6 +23,7 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_automation.runner import dispatch_routines
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import Lease, RunRequest
+from lonora_core.attention import ATTENTION_KINDS
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.agent_permissions import permission_state
@@ -998,7 +999,18 @@ async def test_a_hanging_attention_event_times_out_into_the_ledger_and_never_hol
     monkeypatch.setattr(item_failures, "ITEM_TIMEOUT_SECONDS", 0.2)
     await asyncio.wait_for(attention.attention_tick(db, NO_BROKERS, owner), 10)
     cursor, positions, decided = await state()
-    assert cursor == max(positions.values()) and decided["after"] and not decided["hang"]
+    # Every attention event of the owner is decided (onboarding's own card events too).
+    async with db.sessions() as session:
+        newest = max(
+            int(event.payload["_ln_public_cursor"])
+            for event in await session.scalars(
+                select(EventRow).where(
+                    EventRow.owner_id == owner, EventRow.kind.in_(ATTENTION_KINDS)
+                )
+            )
+        )
+    assert newest >= max(positions.values())
+    assert cursor == newest and decided["after"] and not decided["hang"]
     recorded = await failure(db, "attention_event", str(await event_cursor(db, owner, "hang")))
     assert recorded and recorded.code == "timeout" and recorded.quarantined_at is None
 

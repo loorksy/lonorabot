@@ -340,8 +340,10 @@ async def main():
 
         with patch("lonora_gateway.event_dispatch.WebhookAdapter.send", scripted_send):
             # The previously queued emergency has ended: do not send obsolete safety state.
+            # (Lonora's onboarding Mandate card is a real pending owner event: it is sent.)
+            stopped = "التداول الجديد متوقف"
             await dispatch_channels(f.runtime.db, services)
-            assert not sent
+            assert not [content for content in sent if stopped in content]
             await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": True})
             await attention_tick(f.runtime.db, context.brokers, f.owner)
             await asyncio.gather(
@@ -349,15 +351,24 @@ async def main():
                 dispatch_channels(f.runtime.db, services),
             )
             await dispatch_channels(f.runtime.db, services)
-            assert len(sent) == 1 and "التداول الجديد متوقف" in sent[0]
+            assert len([content for content in sent if stopped in content]) == 1
         async with f.runtime.db.sessions() as session:
-            receipts = list(
+            others = set(
                 await session.scalars(
+                    select(AttentionRow.id).where(
+                        AttentionRow.owner_id == f.owner, AttentionRow.code != "emergency_stop"
+                    )
+                )
+            )
+            receipts = [
+                receipt
+                for receipt in await session.scalars(
                     select(EffectReceiptRow).where(
                         EffectReceiptRow.key.startswith("channel:" + channel_id + ":attention:")
                     )
                 )
-            )
+                if receipt.key.split(":")[3] not in others
+            ]
             assert len(receipts) == 1
             skipped = await session.get(
                 EffectReceiptRow,
