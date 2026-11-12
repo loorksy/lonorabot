@@ -4,12 +4,12 @@ A card shows the agent's reason (labelled as the agent's words) and a tolerance;
 risk-increasing request in Ask without a tolerance is refused (`tolerance_required`). The
 reference price is the executable side when the card is created; the first quote outside
 reference ± tolerance marks the card `drifted` and wakes the agent with fixed text. A card
-has no time limit. Reason, tolerance and judgment label are stored beside the request and
+has no time limit. Reason and tolerance are stored beside the request and
 never change the operation id or the fingerprint. Runs on the real migrated PostgreSQL
 schema and the simulation broker (skipped without ``LONORA_DATABASE_URL``).
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lonora_adapter_kit.types import ToolCall
@@ -46,6 +46,14 @@ async def set_quote(fixture: Any, connection: str, bid: str, ask: str) -> None:
         }
 
 
+async def shown_card(fixture: Any, thread_id: str, approval_id: str) -> dict[str, Any]:
+    shown = cast(
+        list[dict[str, Any]],
+        await fixture.request("GET", f"/trading/approvals?thread_id={thread_id}"),
+    )
+    return next(row for row in shown if row["id"] == approval_id)
+
+
 ENTRY = {"action": "buy", "symbol": "XAUUSD", "volume": "0.1", "stop_loss": "95"}
 
 
@@ -77,14 +85,13 @@ async def test_a_card_carries_reason_and_tolerance_and_drifts_once_outside() -> 
             tolerance="1.5",
         )
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
-        shown = await fixture.request("GET", f"/trading/approvals?thread_id={context.thread_id}")
-        card = next(row for row in shown if row["id"] == asked["approval_id"])  # type: ignore[union-attr]
+        card = await shown_card(fixture, context.thread_id, asked["approval_id"])
         assert card["reason"] == "Breakout above 100"
         assert card["tolerance"] == "1.5"
         # The executable side of a buy when the card was made: the ask.
         assert card["reference_price"] == "101"
         assert card["expires_at"] is None, "A card has no time limit"
-        # Reason, tolerance and label are not part of the request or its identity.
+        # Reason and tolerance are not part of the request or its identity.
         assert set(card["requests"][0]) >= {"operation_id", "symbol"}
         assert "reason" not in card["requests"][0] and "tolerance" not in card["requests"][0]
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -147,8 +154,7 @@ async def test_approve_reads_the_quote_and_refuses_a_card_outside_its_band() -> 
             context, "band", **ENTRY, account_id=connection, reason="Retest", tolerance="10"
         )
         assert asked.get("approval_id"), asked
-        shown = await fixture.request("GET", f"/trading/approvals?thread_id={context.thread_id}")
-        card = next(row for row in shown if row["id"] == asked["approval_id"])  # type: ignore[union-attr]
+        card = await shown_card(fixture, context.thread_id, asked["approval_id"])
         # Plain decimals, never an exponent ("1E+1").
         assert card["tolerance"] == "10", card
         async with fixture.runtime.db.sessions() as session, session.begin():
@@ -231,7 +237,7 @@ async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it()
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(TradingJournalRow, first["operation_id"])
             assert row is not None
-            assert row.annotation == {"reason": "First", "label": None, "tolerance": None}
+            assert row.annotation == {"reason": "First", "tolerance": None}
             assert "reason" not in row.request
     finally:
         await save_controls(fixture.runtime.db, original)
@@ -244,8 +250,8 @@ async def test_the_agent_withdraws_its_own_card() -> None:
     database()
     from check_streaming import Fixture
     from lonora_db.schema import RunRow, TradeApprovalRow
-    from sqlalchemy import func, select
     from lonora_trading.controls import read_controls, save_controls
+    from sqlalchemy import func, select
 
     fixture = await Fixture().open()
     original = await read_controls(fixture.runtime.db)

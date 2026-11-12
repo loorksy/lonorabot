@@ -105,17 +105,12 @@ class TradeAnnotation(Contract):
     reason are the same operation."""
 
     reason: str = Field(default="", max_length=500)
-    # The judgment the agent chose (for example scale_in or secure_then_add).
-    label: str | None = Field(
-        default=None, min_length=1, max_length=40, pattern=r"^[a-z][a-z0-9_]*$"
-    )
     # A price distance in the symbol's price units: a card drifts outside reference ± it.
     tolerance: Decimal | None = Field(default=None, gt=0)
 
 
 class AnnotatedTradeRequest(TradeRequest):
-    """trade_execute's input: the request and, beside it, the agent's reason and tolerance.
-    The judgment label joins with the learning loop (mandate 5.5.3)."""
+    """trade_execute's input: the request and, beside it, the agent's reason and tolerance."""
 
     reason: str = Field(default="", max_length=500, description="Your one-line why.")
     tolerance: Decimal | None = Field(

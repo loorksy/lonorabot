@@ -690,7 +690,7 @@ class TradingJournalRow(Base):
     account_id: Mapped[str] = mapped_column(String(120), index=True)
     request_hash: Mapped[str] = mapped_column(String(64))
     request: Mapped[dict[str, Any]] = mapped_column(JSON)
-    # The agent's reason, judgment label and tolerance: beside the request, never part of
+    # The agent's reason and tolerance: beside the request, never part of
     # its fingerprint or operation id (mandate 14.3.9).
     annotation: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(24), default="created", index=True)
@@ -892,9 +892,8 @@ class TradeApprovalRow(Base):
     # Past it a pending approval can no longer be approved (Q32): kept on stored rows only;
     # a new card has no time limit (mandate 10.3.1).
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The agent's own words and judgment label, beside the requests (never inside them).
+    # The agent's own words, beside the requests (never inside them).
     reason: Mapped[str] = mapped_column(Text, default="", server_default="")
-    label: Mapped[str | None] = mapped_column(String(40))
     # {"tolerance", "reference": {"account_id", "symbol", "side", "price"}}: the
     # executable side read when the card was made; outside price ± tolerance it drifts.
     validity: Mapped[dict[str, Any]] = mapped_column(

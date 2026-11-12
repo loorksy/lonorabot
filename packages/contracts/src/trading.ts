@@ -163,7 +163,6 @@ export type TradeApproval = {
   expires_at?: string | null;
   /** The agent's own words: shown labelled as the agent's, never as the owner's. */
   reason?: string;
-  label?: string | null;
   /** Price distance; the card drifts outside reference_price ± tolerance. */
   tolerance?: string | null;
   reference_price?: string | null;

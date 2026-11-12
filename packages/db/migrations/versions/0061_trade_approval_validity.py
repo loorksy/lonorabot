@@ -1,7 +1,7 @@
-"""Trade Approval validity: the agent's reason, tolerance and judgment label.
+"""Trade Approval validity: the agent's reason and tolerance.
 
 They are stored beside the request, never inside it (mandate 14.3.9): a Trade Approval
-row gains ``reason``, ``label`` and ``validity`` (the tolerance and the reference price
+row gains ``reason`` and ``validity`` (the tolerance and the reference price
 the server read when the card was made), and a journal row gains ``annotation``. The
 stored requests, their fingerprints and operation ids are untouched, so an unresolved
 journal row reconciles after this migration exactly as before. Existing approval rows
@@ -22,7 +22,6 @@ def upgrade() -> None:
         "ln_trade_approvals",
         sa.Column("reason", sa.Text(), nullable=False, server_default=""),
     )
-    op.add_column("ln_trade_approvals", sa.Column("label", sa.String(length=40)))
     op.add_column(
         "ln_trade_approvals",
         sa.Column("validity", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
@@ -33,5 +32,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("ln_trading_journal", "annotation")
     op.drop_column("ln_trade_approvals", "validity")
-    op.drop_column("ln_trade_approvals", "label")
     op.drop_column("ln_trade_approvals", "reason")

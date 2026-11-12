@@ -475,7 +475,7 @@ async def approved_execution(
 ) -> dict[str, Any]:
     """``named_ticket``: the call itself named the ticket it manages (``trade_execute``).
     A batch built from the account's own list never is: its exits are never held back.
-    ``annotation``: the agent's reason, label and tolerance, stored beside the requests."""
+    ``annotation``: the agent's reason and tolerance, stored beside the requests."""
     approval_id = stable_id(context.lease.run_id, "approval:" + context.call_id)
     level = "analysis"
     provisional = False
@@ -616,7 +616,6 @@ async def approved_execution(
                     # No time limit (10.3.1): drift, a decision or a withdrawal ends it.
                     expires_at=None,
                     reason=annotation.reason if annotation else "",
-                    label=annotation.label if annotation else None,
                     validity=validity,
                 )
                 session.add(row)
@@ -673,7 +672,6 @@ async def approved_execution(
             frozen = [TradeRequest.model_validate(item) for item in row.requests]
             card_annotation = TradeAnnotation(
                 reason=row.reason,
-                label=row.label,
                 tolerance=row.validity.get("tolerance"),
             )
             expected_snapshot = row.broker_snapshot
@@ -957,7 +955,6 @@ async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     # Beside the request, never inside it: the operation id is the request's alone.
     annotation = TradeAnnotation(
         reason=str(args.pop("reason", "") or ""),
-        label=args.pop("label", None),
         tolerance=args.pop("tolerance", None),
     )
     if args.get("thesis_id") is None:

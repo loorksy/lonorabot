@@ -44,7 +44,6 @@ def approval_data(row: TradeApprovalRow) -> dict[str, Any]:
         "results": row.results,
         # The agent's own words, shown labelled as the agent's; never the owner's.
         "reason": row.reason,
-        "label": row.label,
         "tolerance": row.validity.get("tolerance"),
         "reference_price": row.validity.get("reference", {}).get("price"),
         "expires_at": row.expires_at.isoformat() if row.expires_at else None,
