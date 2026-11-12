@@ -426,10 +426,6 @@ class ParsedCard:
     diagnostics: Diagnostics = field(default_factory=Diagnostics)
 
 
-def is_v2_start(first_line: str) -> bool:
-    return re.match(r'^\s*\{\s*"v"\s*:\s*2\s*[,}]', first_line) is not None
-
-
 def _head(raw: Any, diagnostics: Diagnostics) -> dict[str, Any]:
     if not isinstance(raw, dict) or cast(dict[str, Any], raw).get("v") != 2:
         raise CardError("card_fallback")

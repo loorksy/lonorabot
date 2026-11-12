@@ -3,7 +3,7 @@
 ``--live`` runs each scenario as the owner's Personal Agent through Lonora's own path
 (prompt assembly, model router, provider adapter, tool loop: ``execute_run`` with the worker's
 production lease and round limits) on a real model, each on its own copy of a disposable
-PostgreSQL database. It follows genui_eval and reuses its runner machinery, but every tool
+PostgreSQL database. Its runner machinery is scripts/agent_eval/runner.py; every tool
 handler is the real one, so a scenario's effects are real rows and real calls on the fake
 MetaApi terminal of broker.py. No broker is reached and no order exists outside this
 process. The provider key is never read here: the stored credential is the placeholder
@@ -55,13 +55,13 @@ from sqlalchemy.engine import URL
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.agent_eval import bank, broker, score  # noqa: E402
-from scripts.genui_eval import run as genui  # noqa: E402
+from scripts.agent_eval import runner as genui  # noqa: E402
 
 OUT = ROOT / ".runtime/agent_eval"
 RECORDINGS = bank.FIXTURES / "recordings"
 RESULT_CHARS = 6000
 WORKER_PICKUPS = 3
-MODEL = "openai/gpt-5.4-mini"  # the cheap model genui_eval uses
+MODEL = "openai/gpt-5.4-mini"  # a cheap model
 
 
 class RecordingRegistry(ToolRegistry):

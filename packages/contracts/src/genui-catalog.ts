@@ -40,8 +40,11 @@ export const UI_ROUTES = [
   "agents",
 ] as const;
 export type UiRoute = (typeof UI_ROUTES)[number];
-/** Each node's props: true when required. */
-export const UI_NODE_PROPS: Record<UiNodeType, Readonly<Record<string, boolean>>> = {
+export const UI_TONES = ["info", "good", "warn", "bad", "muted", "accent"] as const;
+export type UiTone = (typeof UI_TONES)[number];
+/** Each node's props: true when required. Each renderer declares that it draws every
+ * one (`UiNodeProps`), so a prop the contract gains fails `pnpm check`. */
+export const UI_NODE_PROPS = {
   Segmented: { bind: true, label: true, options: true, when: false },
   Select: { bind: true, label: true, options: true, when: false },
   Number: {
@@ -92,4 +95,8 @@ export const UI_NODE_PROPS: Record<UiNodeType, Readonly<Record<string, boolean>>
   Grid: { children: true, cols: false, when: false },
   Card: { children: true, title: false, icon: false, when: false },
   More: { children: true, label: false, when: false },
+} as const satisfies Record<UiNodeType, Readonly<Record<string, boolean>>>;
+/** Every prop of every node, each marked as drawn by a renderer. */
+export type UiNodeProps = {
+  [Node in UiNodeType]: { [Prop in keyof (typeof UI_NODE_PROPS)[Node]]: true };
 };

@@ -100,7 +100,6 @@ export const labels = {
     "You stopped the reply before the interface was complete",
   ],
   uiWhy: ["لماذا هذه الواجهة؟", "Why this interface?"],
-  uiSources: ["المصادر", "Sources"],
   uiLastUpdated: ["آخر تحديث", "Last updated"],
   uiCopied: ["تم النسخ", "Copied"],
   visualObservedAt: ["وقت الملاحظة", "Observed at"],

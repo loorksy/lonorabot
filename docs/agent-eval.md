@@ -24,13 +24,12 @@ credential: the broker is a test double.
 | `scripts/agent_eval/bank.py` | Loads the bank and builds a scenario's state in a disposable database. |
 | `scripts/agent_eval/score.py` | The deterministic scorer. |
 | `scripts/agent_eval/run.py` | The live run (a real model) and the structural probes (no model). |
+| `scripts/agent_eval/runner.py` | The run machinery: the in-process API, the disposable database, the recording model adapter, the lease and the scrubber. |
 | `tests/test_agent_eval.py` | The deterministic layer. |
 
-It follows `scripts/genui_eval` (bank, run, score) and reuses its runner machinery: the
-in-process API, the template database copied per case, the recording model adapter and the
-scrubber. The difference is the tools. genui_eval answers every tool from a fixture; here
-every tool handler is the real one, so a scenario's effects are real rows in the test
-database and real calls on the fake terminal.
+The run machinery (`runner.py`) is the in-process API, the template database copied per
+case, the recording model adapter and the scrubber. Every tool handler is the real one, so a
+scenario's effects are real rows in the test database and real calls on the fake terminal.
 
 ## The fake broker
 
@@ -162,7 +161,7 @@ export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:...@127.0.0.1:5432/agent_
 .venv/bin/python scripts/agent_eval/score.py <results>.jsonl [--json]        # score offline
 ```
 
-Options: `--model` (default `openai/gpt-5.4-mini`, the model genui_eval uses),
+Options: `--model` (default `openai/gpt-5.4-mini`),
 `--scenarios M09,M34,...` and `--baseline`.
 
 - **The database** must be a disposable PostgreSQL `*_test` database. The script recreates it
