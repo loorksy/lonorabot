@@ -7,6 +7,7 @@ from lonora_contracts.incoming_calls import IncomingCallPolicy
 from lonora_core.user_error import LonoraError
 from lonora_db.memory import commit_memory, memory_data, read_memory
 from lonora_db.memory_revisions import list_revisions, revision_data
+from lonora_db.owner_knowledge import correct_line, profile_lines
 from lonora_db.owner_profile import (
     OWNER_PROFILE_CHAR_LIMIT,
     commit_owner_profile,
@@ -49,6 +50,14 @@ class OwnerPreferencesUpdate(Contract):
     reach_me: IncomingCallPolicy | None = None
     name: str | None = Field(default=None, max_length=80)
     address: str | None = Field(default=None, max_length=80)
+
+
+class ProfileLineCorrection(Contract):
+    """One line of «ما أعرفه عنك» corrected (replacement) or deleted (no replacement)."""
+
+    version: int = Field(ge=1)
+    text: str = Field(min_length=1, max_length=2000)
+    replacement: str | None = Field(default=None, max_length=2000, pattern=r"^[^\n\r]*$")
 
 
 class RevisionRevert(Contract):
@@ -123,6 +132,26 @@ async def write_profile(
             session, owner.id, normalize_memory(body.content), body.version, author="owner"
         )
     return await profile_payload(request, owner.id)
+
+
+@router.get("/owner/profile/lines")
+async def read_profile_lines(
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    """Every profile line with its origin: what the owner said, or what Lonora observed."""
+    async with runtime(request).db.sessions() as session:
+        return await profile_lines(session, owner.id)
+
+
+@router.post("/owner/profile/lines")
+async def correct_profile_line(
+    request: Request, body: ProfileLineCorrection, owner: OwnerIdentity = Depends(require_owner)
+) -> dict[str, Any]:
+    """The owner's correction of one line, recorded as his own word."""
+    async with runtime(request).db.sessions() as session, session.begin():
+        await correct_line(session, owner.id, body.version, body.text, body.replacement)
+    async with runtime(request).db.sessions() as session:
+        return await profile_lines(session, owner.id)
 
 
 @router.put("/owner/preferences")

@@ -214,6 +214,9 @@ async def _retrieve_evidence(
                 func.substr(note_text, 1, NOTE_CHARS + 1).label("text"),
                 func.substr(SemanticMemoryRow.payload["model"].as_string(), 1, 200).label("model"),
                 func.substr(
+                    SemanticMemoryRow.payload[("written_by", "agent_id")].as_string(), 1, 64
+                ).label("written_by"),
+                func.substr(
                     SemanticMemoryRow.payload["embedding"].as_string(), 1, VECTOR_JSON_CHARS + 1
                 ).label("vector"),
             )
@@ -258,7 +261,13 @@ async def _retrieve_evidence(
                     version=int(row["version"]),
                     recorded_at=row["updated_at"].isoformat(),
                     provenance={
-                        "source": "legacy_unknown",
+                        # A note an agent wrote from chat names that agent; the owner's own
+                        # notes (and older ones) keep the legacy label.
+                        **(
+                            {"source": "agent_note", "agent_id": row["written_by"]}
+                            if row["written_by"]
+                            else {"source": "legacy_unknown"}
+                        ),
                         "authority": "untrusted_memory_content",
                     },
                     truncated=len(text) > NOTE_CHARS,

@@ -36,8 +36,6 @@ LINKS = {
     ("ln_trade_approvals", "agent_id"),
     ("ln_trade_approvals", "run_id"),
     ("ln_trade_approvals", "thread_id"),
-    ("ln_trading_restrictions", "account_id"),
-    ("ln_trading_restrictions", "agent_id"),
 }
 
 

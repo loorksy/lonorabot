@@ -3,25 +3,6 @@
    Tailwind's preflight (a cascade layer) and every zero-specificity legacy and shell element
    rule, and loses to every class rule. */
 
-/* The three names `.legacy-surface` overrides (tokens.css:83-94), re-declared with the
-   reference values (Desktop-37:19-27) while cards still sit inside the legacy wrapper. */
-.ux {
-  --primary: #f7f5ef;
-  --accent: #22e3a8;
-  --muted: #8b919e;
-}
-[data-theme="light"] .ux {
-  --primary: #0b0c10;
-  --accent: #22e3a8;
-  --muted: #5d6270;
-}
-[data-contrast="high"] .ux {
-  --muted: #c9cdd5;
-}
-[data-theme="light"][data-contrast="high"] .ux {
-  --muted: #3b3f48;
-}
-
 /* The card's own element reset at one element's specificity (docs/genui.md §8): the reference's element
    defaults (Desktop-37:62-72, 147-151), plus explicit values for every property the legacy
    rules set (styles.css:87-200), so a card looks the same wherever it is mounted. */
