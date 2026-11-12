@@ -61,6 +61,7 @@ def alert_prompt(item: AttentionRow) -> str | None:
 
 
 ALERT_CODES = (*PROBLEMS, "operation_uncertain")
+ALERT_PAGE = 50
 
 
 def alert_key(item: AttentionRow) -> str | None:
@@ -87,21 +88,30 @@ async def wake_for_alerts(session: AsyncSession, owner_id: str) -> int:
     from .attention import lock_attention, mandatory_current
 
     await lock_attention(session, owner_id)
-    items = await session.scalars(
+    query = (
         select(AttentionRow)
         .where(
             AttentionRow.owner_id == owner_id,
             AttentionRow.code.in_(ALERT_CODES),
             AttentionRow.status.in_(["pending", "ready"]),
         )
-        .order_by(AttentionRow.created_at)
-        .limit(50)
+        .order_by(AttentionRow.created_at, AttentionRow.id)
     )
+    # Every open alert is looked at, page by page: alerts Lonora was already woken for
+    # stay open, so a fixed window of the oldest would starve the newer ones.
     count = 0
-    for item in items:
-        if await mandatory_current(session, item):
-            count += await wake_lonora(session, item) is not None
-    return count
+    offset = 0
+    while True:
+        page = list(await session.scalars(query.offset(offset).limit(ALERT_PAGE)))
+        for item in page:
+            key = alert_key(item)
+            if key is None or await session.get(RunRow, stable_id(owner_id, "system-alert:" + key)):
+                continue
+            if await mandatory_current(session, item):
+                count += await wake_lonora(session, item) is not None
+        if len(page) < ALERT_PAGE:
+            return count
+        offset += ALERT_PAGE
 
 
 async def wake_lonora(session: AsyncSession, item: AttentionRow) -> RunRow | None:

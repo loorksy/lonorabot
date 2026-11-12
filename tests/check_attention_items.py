@@ -392,6 +392,41 @@ async def failed_wake(fixture: Fixture) -> None:
     print("PASS a failed wake is tried again on a later tick, once")
 
 
+async def every_alert_wakes(fixture: Fixture) -> None:
+    """Alerts Lonora was woken for stay open; they never keep a newer one from waking."""
+    operations = ["op-" + uuid4().hex[:20] for _ in range(2)]
+    with patch("lonora_db.system_alerts.ALERT_PAGE", 1):
+        for operation_id in operations:
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                session.add(
+                    TradingJournalRow(
+                        operation_id=operation_id,
+                        owner_id=fixture.owner,
+                        account_id="acc-" + uuid4().hex[:8],
+                        request_hash="h",
+                        request={"symbol": "EURUSD", "action": "buy"},
+                        status="ambiguous",
+                    )
+                )
+                await session.flush()
+                emit(
+                    session,
+                    fixture.owner,
+                    "trading.operation_updated",
+                    payload={"operation_id": operation_id, "status": "ambiguous"},
+                )
+            await tick(fixture)
+    woken = [
+        row
+        for row in await items(fixture, "operation_uncertain")
+        if row.parameters.get("operation_id") in operations
+    ]
+    assert len(woken) == 2
+    for item in woken:
+        assert len(await alert_runs(fixture, item)) == 1
+    print("PASS every open alert wakes Lonora, however many it was already woken for")
+
+
 async def settle_card(fixture: Fixture) -> None:
     """The uncertain-operation item stands for its Settle card: it ends with the card."""
     operation_id = "op-" + uuid4().hex[:20]
@@ -582,6 +617,7 @@ async def main() -> None:
         await secret_card(fixture)
         await broker_health(fixture)
         await settle_card(fixture)
+        await every_alert_wakes(fixture)
         await failed_wake(fixture)
         await fallbacks(fixture)
         await migration(fixture)
