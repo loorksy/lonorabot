@@ -62,8 +62,9 @@ async def scoped_run(
 
 async def output_scan(context: ToolContext) -> SecretScan:
     """The scan every byte from the workspace passes before it reaches the model, chat,
-    logs or memory: each workspace secret and its encoded forms become [secret:NAME]."""
-    return SecretScan(await context.secrets.workspace_values())
+    logs or memory: each stored value outside the broker scope, and its encoded forms,
+    become [secret:NAME]."""
+    return SecretScan(await context.secrets.scanned_values())
 
 
 def manifest(revision: int, files: dict[str, bytes], scan: SecretScan) -> dict[str, Any]:

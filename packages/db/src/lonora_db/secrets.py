@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, SecretRow
 
 WORKSPACE = "workspace"
-SCOPES = ("broker", "provider", "integration", WORKSPACE)
+BROKER = "broker"
+SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 CONNECTIONS = (BrokerSessionRow, IntegrationRow, McpConnectionRow)
 

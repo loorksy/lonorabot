@@ -383,7 +383,7 @@ async def create_package(
                     },
                 )
             )
-        # A skill's files and paths reach the model: a package carrying a workspace
+        # A skill's files and paths reach the model: a package carrying a stored
         # secret is refused, also on a retry of one prepared before the secret existed.
         if any(
             scan.found(name.encode()) or scan.found(body.encode()) for name, body in files.items()
