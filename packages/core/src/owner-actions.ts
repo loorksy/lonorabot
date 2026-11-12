@@ -287,8 +287,6 @@ export const ownerActionLabels = {
     fieldFeedUrl: "Feed URL",
     fieldToken: "Access token (optional)",
     fieldApiKey: "API key",
-    fieldAccount: "Account ID",
-    fieldBrokerToken: "MetaApi token",
     connect: "Connect",
     connected: "Connected. No agent sees what you typed.",
     alreadyConnected: "This is already connected. Nothing changed.",
@@ -303,6 +301,16 @@ export const ownerActionLabels = {
     secretSaved: "Saved encrypted. No agent sees the values.",
     secretSavesAs: "Saved as {names}",
     secretReplaces: "Replaces the value saved as {names}",
+    brokerConnectTitle: "Connect trading account",
+    brokerRotateTitle: "New trading password",
+    brokerTokenNew: "New MetaApi API token",
+    brokerTokenTitle: "New MetaApi API token",
+    brokerAccountLine: "Account {login} on server {server} ({platform})",
+    brokerPassword: "Trading (master) password",
+    brokerToken: "MetaApi API token (asked once)",
+    brokerSaved: "Saved encrypted. Lonora is connecting the account and will report its balance.",
+    brokerConnected: "Connected. Lonora reported its balance in the conversation.",
+    brokerFailed: "Could not connect. Lonora said why in the conversation.",
     pauseNewToday: "Stop new trades today",
     pauseNewTodayHint: "Closing stays allowed",
     optional: "optional",
@@ -573,8 +581,6 @@ export const ownerActionLabels = {
     fieldFeedUrl: "عنوان الموجز",
     fieldToken: "رمز الوصول (اختياري)",
     fieldApiKey: "مفتاح API",
-    fieldAccount: "معرّف الحساب",
-    fieldBrokerToken: "رمز MetaApi",
     connect: "ربط",
     connected: "تم الربط. لا يرى أي وكيل ما كتبته.",
     alreadyConnected: "هذا مربوط مسبقًا. لم يتغير شيء.",
@@ -588,6 +594,16 @@ export const ownerActionLabels = {
     secretSaved: "حُفظت مشفّرة. لا يرى أي وكيل القيم.",
     secretSavesAs: "تُحفظ باسم {names}",
     secretReplaces: "تحلّ محل القيمة المحفوظة باسم {names}",
+    brokerConnectTitle: "ربط حساب التداول",
+    brokerRotateTitle: "كلمة مرور تداول جديدة",
+    brokerTokenNew: "رمز MetaApi API الجديد",
+    brokerTokenTitle: "رمز MetaApi API جديد",
+    brokerAccountLine: "الحساب {login} على الخادم {server} ({platform})",
+    brokerPassword: "كلمة مرور التداول (الرئيسية)",
+    brokerToken: "رمز MetaApi API (يُطلب مرة واحدة)",
+    brokerSaved: "حُفظت مشفّرة. تربط لونورا الحساب الآن وستبلغك برصيده.",
+    brokerConnected: "تم الربط. أبلغتك لونورا برصيده في المحادثة.",
+    brokerFailed: "تعذّر الربط. أوضحت لونورا السبب في المحادثة.",
     pauseNewToday: "أوقف الصفقات الجديدة اليوم",
     pauseNewTodayHint: "الإغلاق مسموح",
     optional: "اختياري",
@@ -733,6 +749,14 @@ function settledLine(card: OwnerAction, text: OwnerActionText, lang: Language): 
             ? text.trustedRead
             : text.trusted;
       case "secret":
+        if (card.facts.secret?.destination === "broker" && !card.facts.secret.connect)
+          // A broker card: the card's own record of how provisioning ended, read on the
+          // server. A credential card converted by 0071 says what it connected.
+          return card.result.provisioning === "failed"
+            ? text.brokerFailed
+            : card.result.provisioning === "connected"
+              ? text.brokerConnected
+              : text.brokerSaved;
         return card.facts.secret?.connect ? text.connected : text.secretSaved;
       case "watch_changed":
         return text.watchUndone;
@@ -1246,7 +1270,6 @@ function secretForm(
     api_key: text.fieldApiKey,
     server_url: text.fieldServerUrl,
     feed_url: text.fieldFeedUrl,
-    metaapi_token: text.fieldBrokerToken,
   };
   return {
     fields: secret.fields.map((field) => ({
@@ -1572,14 +1595,45 @@ export function ownerActionCard(
       title = secret?.connect
         ? connectTitle(secret.connect, secret.service, text)
         : text.secretTitle;
-      if (secret) {
+      if (secret?.destination === "broker" && secret.account) {
+        // Raised only by the broker tools: every word is ours, the account is server fact.
+        const account = secret.account;
+        title =
+          secret.purpose === "rotate_password"
+            ? text.brokerRotateTitle
+            : secret.purpose === "replace_token"
+              ? text.brokerTokenTitle
+              : text.brokerConnectTitle;
+        lines.push(
+          fill(text.brokerAccountLine, {
+            login: isolate(account.login),
+            server: isolate(account.server),
+            platform: account.platform.toUpperCase(),
+          }),
+        );
+        if (secret.agent_name)
+          lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
+        hint = text.secretBroker;
+        form = {
+          fields: secret.fields.map((field) => ({
+            key: field.key,
+            label:
+              field.key !== "METAAPI_TOKEN"
+                ? text.brokerPassword
+                : secret.purpose === "replace_token"
+                  ? text.brokerTokenNew
+                  : text.brokerToken,
+            type: "password",
+            required: true,
+          })),
+          submit: text.secretSave,
+        };
+      } else if (secret) {
         // The label, field labels and details are the agent's words; every other word is ours.
         if (secret.label) lines.push(isolate(secret.label));
         const details = secret.details ?? {};
         if (details.name && secret.connect !== "brave_search")
           lines.push(`${text.fieldName}: ${isolate(details.name)}`);
-        if (details.metaapi_account_id)
-          lines.push(`${text.fieldAccount}: ${isolate(details.metaapi_account_id)}`);
         if (secret.agent_name)
           lines.push(fill(text.secretAskedBy, { agent: isolate(secret.agent_name) }));
         // Where each value goes, and the saved values it would replace: never silently.

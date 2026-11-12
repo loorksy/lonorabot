@@ -39,6 +39,7 @@ MODULES = {
     "chart_indicator": "charts",
     "chart_snapshot": "charts",
     "account": "account",
+    "broker_connect": "account",
     "trade": "trading",
     "restrictions": "trading",
     "owner_actions": "trading",

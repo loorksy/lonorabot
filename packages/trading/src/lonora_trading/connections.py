@@ -1,6 +1,5 @@
 """Read-only broker identity verification and atomic connection/credential creation."""
 
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from lonora_adapters.brokers.metaapi import MetaApiBroker
@@ -17,7 +16,6 @@ from lonora_db.client import Database
 from lonora_db.schema import BrokerSessionRow
 from lonora_db.transactions import resource_data
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def verified_identity(config: BrokerConnection, token: str) -> dict[str, Any]:
@@ -37,11 +35,7 @@ async def connect_account(
     owner_id: str,
     config: BrokerConnection,
     api_key: str | None,
-    *,
-    within: Callable[[AsyncSession], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
-    """``within`` runs first in the transaction that stores the credential and creates
-    the connection (a Secret card settles there): both commit or neither does."""
     repository = BrokerSessionRepository()
     # A repeated click on an existing provider ID should not contact the provider
     # or replace the working credential with the newly submitted value.
@@ -54,8 +48,6 @@ async def connect_account(
             raise LonoraError("broker_secret_required", 409)
         identity = await verified_identity(config, token)
     async with db.sessions() as session, session.begin():
-        if within is not None:
-            await within(session)
         await repository.lock_owner(session, owner_id)
         await repository.assert_unique(
             session, owner_id, config.model_dump(mode="json"), identity=identity

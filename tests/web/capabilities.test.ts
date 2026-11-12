@@ -234,25 +234,21 @@ test("a connecting Secret card shows the agent's details and asks for the addres
       ["cancel"],
     );
   }
-  const broker = ownerActionCard(
+  // A credential card converted by migration 0071 still reads as what it connected; a
+  // trading account is now connected with broker_connect's own card.
+  const converted = ownerActionCard(
     {
       ...card,
+      status: "confirmed",
+      result: { target: "broker", configured: true },
       facts: {
         several_accounts: false,
         secret: {
           label: null,
           connect: "broker",
           service: null,
-          details: { metaapi_account_id: "acct-1" },
-          fields: [
-            {
-              key: "METAAPI_TOKEN",
-              label: null,
-              secret: true,
-              role: "metaapi_token",
-              required: true,
-            },
-          ],
+          details: {},
+          fields: [{ key: "METAAPI_TOKEN", label: null, secret: true, role: null }],
           destination: "broker",
           agent_name: null,
         },
@@ -260,13 +256,9 @@ test("a connecting Secret card shows the agent's details and asks for the addres
     },
     "en",
   );
-  assert.equal(broker.title, ownerActionLabels.en.connectBroker);
-  assert.equal(broker.hint, ownerActionLabels.en.secretBroker);
-  assert.ok(broker.lines.includes(`${ownerActionLabels.en.fieldAccount}: ⁨acct-1⁩`));
-  assert.deepEqual(
-    broker.secret?.fields.map((field) => [field.key, field.label, field.required]),
-    [["METAAPI_TOKEN", ownerActionLabels.en.fieldBrokerToken, true]],
-  );
+  assert.equal(converted.title, ownerActionLabels.en.connectBroker);
+  assert.equal(converted.outcome, ownerActionLabels.en.connected);
+  assert.equal(converted.secret, null);
   const feed = ownerActionCard(
     {
       ...card,

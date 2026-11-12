@@ -44,10 +44,11 @@ GrantDelegation = Literal["custom", "full"]
 # advertises now, a GitHub owner or repository, or a news feed's domain).
 TrustSourceKind = Literal["mcp_server", "github_owner", "github_repo", "feed_domain"]
 # A Secret card that connects something: the server sets its fields and destination, and
-# saving it creates the connection. "x" names an X MCP server.
-# "model_provider" takes the provider's id as its name.
+# saving it creates the connection. "x" names an X MCP server. A trading account is
+# connected with broker_connect's card instead. "model_provider" takes the provider's id
+# as its name.
 CredentialTarget = Literal[
-    "mcp_server", "news_feed", "brave_search", "economic_calendar", "broker", "model_provider"
+    "mcp_server", "news_feed", "brave_search", "economic_calendar", "model_provider"
 ]
 OwnerActionStatus = Literal["pending", "confirmed", "cancelled", "expired", "superseded"]
 MoneyLimitName = Literal[
@@ -125,15 +126,14 @@ class OwnerActionProposal(Contract):
     # saved under its field's key, the name agents use for it.
     label: str | None = Field(default=None, min_length=1, max_length=80)
     secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
-    # secret with target: a card that connects it. The non-secret details come from the
-    # owner's words in chat: a name, a MetaApi account id. The card asks for the secret
-    # and for an address (an MCP server's, a feed's), which may carry a key.
+    # secret with target: a card that connects it. The non-secret detail comes from the
+    # owner's words in chat: a name. The card asks for the secret and for an address (an
+    # MCP server's, a feed's), which may carry a key.
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
     name: str | None = Field(default=None, min_length=1, max_length=80)
-    metaapi_account_id: str | None = Field(default=None, min_length=1, max_length=120)
 
-    @field_validator("name", "metaapi_account_id")
+    @field_validator("name")
     @classmethod
     def detail_text(cls, value: str | None) -> str | None:
         # A detail from chat, without the spaces around it; blank is no detail.
@@ -153,7 +153,6 @@ class OwnerActionProposal(Contract):
                 self.target,
                 self.service,
                 self.name,
-                self.metaapi_account_id,
             )
         ):
             raise ValueError("owner_action_fields_invalid")
@@ -167,7 +166,7 @@ class OwnerActionProposal(Contract):
 
     def secret_card_fields(self) -> "OwnerActionProposal":
         own = {"kind", "label", "secret_fields", "target", "service", "name"}
-        if self.model_dump(exclude=own | {"metaapi_account_id"}, exclude_defaults=True):
+        if self.model_dump(exclude=own, exclude_defaults=True):
             raise ValueError("owner_action_fields_invalid")
         if self.target is None:
             # The agent's own card: its label and fields, nothing else.
@@ -175,7 +174,6 @@ class OwnerActionProposal(Contract):
                 self.label is None
                 or self.secret_fields is None
                 or any(v is not None for v in (self.service, self.name))
-                or self.metaapi_account_id is not None
             ):
                 raise ValueError("owner_action_fields_invalid")
             keys = [field.key for field in self.secret_fields]
@@ -191,12 +189,11 @@ class OwnerActionProposal(Contract):
             "brave_search": set[str](),
             "news_feed": {"name"},
             "economic_calendar": {"name"},
-            "broker": {"metaapi_account_id"},
             "model_provider": {"name"},
         }[self.target]
         optional = {"name"} if self.target in {"mcp_server", "brave_search"} else set[str]()
         allowed = needs | optional
-        given = {key for key in ("name", "metaapi_account_id") if getattr(self, key) is not None}
+        given = {"name"} if self.name is not None else set[str]()
         if (
             self.label is not None
             or self.secret_fields is not None

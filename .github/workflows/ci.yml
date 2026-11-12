@@ -806,6 +806,7 @@ jobs:
           .venv/bin/python tests/check_chart_history.py
           .venv/bin/python tests/check_generated_artifacts.py
           .venv/bin/python tests/check_trading.py
+          .venv/bin/python tests/check_attention_items.py
           .venv/bin/python tests/check_metaapi_adapter.py
           .venv/bin/python tests/check_broker_history.py
           .venv/bin/python tests/check_broker_recovery.py

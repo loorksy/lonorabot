@@ -5,14 +5,18 @@ use, and a label the owner reads), and the values are saved as the owner's works
 secrets under those keys.
 
 A connecting card (``connect``): the server sets its fields and its destination, and
-saving it creates the connection. The non-secret details (a name, a MetaApi account id)
-come from the owner's words in chat through the agent's call and are shown on the card
-as facts. An address (an MCP server's, a feed's or a calendar's) may carry a key, so the
-owner types it into the card. A broker's MetaApi token goes to the broker scope, read
-only by the execution door and provisioning; every other value is a workspace secret.
-A model provider's key is saved under the provider's usual name (``ANTHROPIC_API_KEY``)
-and recorded for the router, with an OpenAI-compatible endpoint's base URL, which the
-owner types beside it (``lonora_db.model_credentials``).
+saving it creates the connection. The non-secret details (a name) come from the
+owner's words in chat through the agent's call and are shown on the card as facts. An
+address (an MCP server's, a feed's or a calendar's) may carry a key, so the owner types
+it into the card. Its values are workspace secrets. A model provider's key is saved under
+the provider's usual name (``ANTHROPIC_API_KEY``) and recorded for the router, with an
+OpenAI-compatible endpoint's base URL, which the owner types beside it
+(``lonora_db.model_credentials``).
+
+A broker card (``broker_card_payload``): raised only by the broker tools, with fields the
+server fixes (the trading password, the MetaApi API token). Its values go to the broker
+scope, read only by the execution door and provisioning (7.2.3); the gateway provisions
+the account and wakes the agent with the result.
 
 The owner's values go straight to the encrypted store in the transaction that settles
 the card; the card, its events and the conversation keep only the saved names.
@@ -23,6 +27,7 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import PROVIDER_KEY_NAMES
 from lonora_contracts.owner_actions import OwnerActionProposal
 from lonora_core.user_error import LonoraError
@@ -30,7 +35,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import IntegrationRow, OwnerActionRow, SecretRow
-from .secrets import BROKER, WORKSPACE, WORKSPACE_NAME, secret_in_use
+from .secrets import (
+    BROKER,
+    METAAPI_TOKEN,
+    WORKSPACE,
+    WORKSPACE_NAME,
+    metaapi_password_name,
+    secret_in_use,
+)
 
 # Writes one value to the encrypted store in the caller's transaction; returns its id.
 SecretWriter = Callable[[AsyncSession, str, str, str], Awaitable[str]]
@@ -45,7 +57,6 @@ CONNECTING: dict[str, tuple[tuple[tuple[str, str, bool, bool], ...], str]] = {
     "brave_search": ((("API_KEY", "api_key", True, True),), WORKSPACE),
     "news_feed": ((("URL", "feed_url", True, False),), WORKSPACE),
     "economic_calendar": ((("URL", "feed_url", True, False),), WORKSPACE),
-    "broker": ((("METAAPI_TOKEN", "metaapi_token", True, True),), BROKER),
     "model_provider": ((("API_KEY", "api_key", True, True),), WORKSPACE),
 }
 # An OpenAI-compatible endpoint's card also asks for its base URL, typed with the key.
@@ -92,10 +103,7 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
         }
     target = proposal.target
     asked, destination = CONNECTING[target]
-    if target == "broker":
-        assert proposal.metaapi_account_id is not None
-        details = {"metaapi_account_id": proposal.metaapi_account_id}
-    elif target == "model_provider":
+    if target == "model_provider":
         # The provider's key, saved under its usual name and recorded for the router;
         # an endpoint's base URL is typed into the card with it.
         provider = proposal.name
@@ -116,16 +124,13 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
             ],
             "destination": destination,
         }
-    else:
-        name = proposal.name or DEFAULT_NAME.get(target)
-        assert name is not None
-        details = {"name": name}
-    (named,) = details.values()
-    return subject_of(target, named), {
+    name = proposal.name or DEFAULT_NAME.get(target)
+    assert name is not None
+    return subject_of(target, name), {
         "label": None,
         "connect": target,
         "service": proposal.service,
-        "details": details,
+        "details": {"name": name},
         "fields": [
             {"key": key, "label": None, "secret": masked, "role": role, "required": required}
             for key, role, required, masked in asked
@@ -134,12 +139,53 @@ def secret_card_payload(proposal: OwnerActionProposal) -> tuple[str, dict[str, A
     }
 
 
+# A broker-destination card (7.2.3) is raised only by the connect tool, which fixes its
+# fields: the trading password, and the MetaApi API token while none is saved.
+PASSWORD_FIELD = "PASSWORD"
+TOKEN_FIELD = "METAAPI_TOKEN"
+
+
+# What a broker card is for: connect an account, store its new password at MetaApi, or
+# replace the owner's MetaApi token under every connection (9.2, 9.3).
+CONNECT, ROTATE_PASSWORD, REPLACE_TOKEN = "connect", "rotate_password", "replace_token"
+
+
+def broker_card_payload(
+    *,
+    login: str,
+    server: str,
+    platform: str,
+    token_needed: bool,
+    purpose: str = CONNECT,
+    connection_id: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """A broker card for one trading account (the token card names the account it was
+    asked from). The login and server are shown as server facts, so the owner sees which
+    account a password is for."""
+    fields: list[dict[str, Any]] = []
+    if purpose != REPLACE_TOKEN:
+        fields.append({"key": PASSWORD_FIELD, "label": "Trading password", "secret": True})
+    if token_needed or purpose == REPLACE_TOKEN:
+        fields.append({"key": TOKEN_FIELD, "label": "MetaApi API token", "secret": True})
+    payload: dict[str, Any] = {
+        "label": login + " @ " + server,
+        "fields": fields,
+        "destination": BROKER,
+        "account": {"login": login, "server": server, "platform": platform},
+    }
+    if purpose != CONNECT:
+        payload["purpose"], payload["connection_id"] = purpose, connection_id
+    return "secret:broker:" + purpose + ":" + server.casefold() + ":" + login, payload
+
+
 async def secret_stale_reason(
     session: AsyncSession, owner_id: str, payload: dict[str, Any]
 ) -> str | None:
     """Checked when the card is raised and again when the owner saves it: web search
     needs one Brave key, and an agent's own card never replaces a value a connection
     uses (a feed's address saved under that name would then read another site)."""
+    if payload["destination"] == BROKER:
+        return None  # Provisioning checks a broker card's values with MetaApi.
     if payload.get("connect") is None:
         keys = [str(field["key"]) for field in payload["fields"]]
         if set(keys) & set(PROVIDER_KEY_NAMES.values()):
@@ -188,6 +234,12 @@ async def secret_facts(
         "saves_as": [],
         "replaces": [],
     }
+    if payload.get("account") is not None:
+        # A broker card: the account its values are for. They go to the broker layer,
+        # never under a workspace name.
+        facts["account"] = payload["account"]
+        facts["purpose"] = payload.get("purpose", CONNECT)
+        return facts
     if row.status != "pending":
         facts["saves_as"] = [str(name) for name in row.result.get("saved", [])]
         return facts
@@ -228,7 +280,7 @@ async def secret_facts(
 
 
 # A connecting card's key or token is sent in an HTTP header: visible ASCII only.
-HEADER_ROLES = {"token", "api_key", "metaapi_token"}
+HEADER_ROLES = {"token", "api_key"}
 
 
 def card_values(row: OwnerActionRow, values: dict[str, str]) -> dict[str, str]:
@@ -255,9 +307,39 @@ def card_values(row: OwnerActionRow, values: dict[str, str]) -> dict[str, str]:
 async def save_values(
     session: AsyncSession, row: OwnerActionRow, values: dict[str, str], write: SecretWriter
 ) -> dict[str, Any]:
-    """An agent's own card: each value under its key; the result keeps the keys only."""
+    """An agent's own card: each value under its key; a broker card: its values in the
+    broker scope. The result keeps the keys only."""
     values = card_values(row, values)
     keys = [field["key"] for field in row.payload["fields"]]
+    if row.payload["destination"] == BROKER:
+        # The broker layer's own writer; the account is provisioned by the gateway, which
+        # wakes the agent with the result (``lonora_trading.broker_provisioning``).
+        replacing = row.payload.get("purpose") == REPLACE_TOKEN
+        names = {
+            PASSWORD_FIELD: metaapi_password_name(row.id),
+            # A new token waits under its own name until the gateway checked it sees
+            # every connected account; only then does it replace the owner's token.
+            TOKEN_FIELD: "metaapi_token_next:" + row.id if replacing else METAAPI_TOKEN,
+        }
+        token_saved = await session.scalar(
+            select(SecretRow.id).where(
+                SecretRow.owner_id == row.owner_id,
+                SecretRow.scope == BROKER,
+                SecretRow.name == METAAPI_TOKEN,
+            )
+        )
+        for key in keys:
+            if key == TOKEN_FIELD and token_saved is not None and not replacing:
+                # A card raised before the token was saved never replaces it: live
+                # connections use it. Replacing the token is its own action (9.3).
+                continue
+            await write(session, names[key], values[key], BROKER)
+        return {
+            "saved": keys,
+            "destination": BROKER,
+            "provisioning": "pending",
+            "started_at": utcnow().isoformat(),
+        }
     for key in keys:
         await write(session, key, values[key], row.payload["destination"])
     return {"saved": keys, "destination": row.payload["destination"]}
@@ -303,6 +385,8 @@ def saved_prompt(row: OwnerActionRow) -> str:
     """The agent's next run after the owner saved: never a value, and never a name the
     agent's words shaped (its keys, its label, or a saved name built from a name it
     gave): this text has system role."""
+    if row.payload["destination"] == BROKER:
+        return broker_prompt(row)
     target = row.payload.get("connect")
     if target is None:
         # Not the keys: they are the agent's own choice and this text has system role.
@@ -341,4 +425,68 @@ def saved_prompt(row: OwnerActionRow) -> str:
         f"The owner connected {target} on your Secret card; it is configured on the server "
         "and you never see its value. Continue the work that needed it now, then tell the "
         "owner in one line what you did."
+    )
+
+
+def broker_prompt(row: OwnerActionRow) -> str:
+    """Fixed text and broker-observed facts only, after provisioning finished."""
+    result = row.result
+    purpose = row.payload.get("purpose", CONNECT)
+    if purpose != CONNECT:
+        done = {
+            ROTATE_PASSWORD: "The new trading password is stored at MetaApi and the terminal "
+            "is redeploying with it.",
+            REPLACE_TOKEN: "The new MetaApi token now serves every connected account.",
+        }[purpose]
+        if result.get("provisioning") == "connected":
+            return done + " You never see it. Tell the owner in one line."
+        if result.get("code") == "broker_rotation_incomplete":
+            return (
+                "MetaApi may already hold the new trading password, but Lonora could not record "
+                "it. Rotate again with broker_manage. You never see it. Tell the owner in one "
+                "line."
+            )
+        if result.get("code") == "broker_redeploy_failed":
+            return (
+                "The new trading password is stored at MetaApi and recorded, but redeploying "
+                "the terminal with it failed; it reconnects on MetaApi's next deploy. You "
+                "never see it. Tell the owner in one line."
+            )
+        return (
+            f"Changing the broker credential failed: {result.get('code')}. Nothing changed. "
+            "You never see the values. Tell the owner in one line what went wrong."
+        )
+    if result.get("provisioning") != "connected":
+        # The login was checked as digits; the failure code is the server's own word.
+        token = ""
+        if result.get("code") == "broker_token_rejected":
+            token = (
+                " The saved MetaApi API token itself was refused. Live connections still use"
+                " it: ask the owner for a new one with broker_manage (action replace_token),"
+                " never in chat."
+                if result.get("token_kept")
+                else " The MetaApi API token was refused and is forgotten: call broker_connect"
+                " again, and its card asks the owner for a new token. Never ask in chat."
+            )
+        return (
+            f"Connecting the owner's account {row.payload['account']['login']} failed: "
+            f"{result.get('code')}.{token} You never see "
+            "the password or token. Tell the owner in one line what went wrong and what you "
+            "need; to try again, call broker_connect, which shows a new card."
+        )
+    facts: dict[str, Any] = result.get("account") or {}
+    if facts.get("balance") is None:
+        state = "Its balance is not readable yet; read it with account_read shortly."
+    else:
+        trading = (
+            "trading is allowed"
+            if facts.get("trade_allowed") and not facts.get("investor_mode")
+            else "trading is NOT allowed (an investor password or a read-only account)"
+        )
+        state = f"Balance {facts['balance']} {facts.get('currency')}; {trading}."
+    observed: dict[str, Any] = result.get("observed") or {}
+    named = f"account {observed.get('login')} on {observed.get('server')}"
+    return (
+        f"The owner's {named} is connected and deployed at MetaApi as connection "
+        f"{result.get('connection_id')}. {state} Report this to the owner in one line."
     )
