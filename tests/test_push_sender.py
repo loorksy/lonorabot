@@ -7,14 +7,19 @@ the published event order and two gateways race on an advisory lock.
 """
 
 import asyncio
+import json
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 import httpx
 import pytest
-from lonora_adapters.channels.expo_push import EXPO_PUSH_URL, ExpoPushTransport
+from lonora_adapters.channels.expo_push import (
+    EXPO_PUSH_URL,
+    EXPO_RECEIPTS_URL,
+    ExpoPushTransport,
+)
 from lonora_auth.sessions import issue_session, token_hash
 from lonora_bus.attention import attention_text
 from lonora_contracts.domain import utcnow
@@ -59,6 +64,9 @@ class FakeExpo:
         self.db, self.answer, self.sent = db, answer, list[dict[str, Any]]()
         self.before = before
         self.receipts_before_send: list[list[str]] = []
+        # Delivery receipts: ticket id -> Expo's receipt; asked records each lookup.
+        self.delivery: dict[str, dict[str, Any]] = {}
+        self.asked: list[list[str]] = []
 
     async def send(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         async with self.db.sessions() as session:
@@ -74,7 +82,11 @@ class FakeExpo:
         if callable(self.answer):
             reply: Any = self.answer
             return [reply(message) for message in messages]
-        return [{"status": "ok", "id": "ticket-" + str(index)} for index in range(len(messages))]
+        return [{"status": "ok", "id": "ticket-" + uuid4().hex} for _ in messages]
+
+    async def receipts(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+        self.asked.append(ids)
+        return {ticket: self.delivery[ticket] for ticket in ids if ticket in self.delivery}
 
 
 async def phone(db: Database, owner_id: str, device: str, token: str) -> str:
@@ -675,3 +687,79 @@ async def test_a_broker_problem_pushes_once_per_account_and_outage(task_db: Fixt
         broker.state = {"broker_recovery": {"status": "connected"}}
     await outage(db, owner_id, agent_id, thread_id, account, "broker_connection_lost")
     assert await dispatch_push(db, owner_id, CIPHER, expo) == 1
+
+
+async def age_confirmations(db: Database, by: timedelta) -> None:
+    async with db.sessions() as session, session.begin():
+        for row in await session.scalars(select(EffectReceiptRow)):
+            if row.result.get("confirmed_at"):
+                when = datetime.fromisoformat(row.result["confirmed_at"]) - by
+                row.result = {**row.result, "confirmed_at": when.isoformat()}
+
+
+@pytest.mark.asyncio
+async def test_a_delivery_receipt_reporting_the_app_gone_removes_that_phone(
+    task_db: Fixture,
+) -> None:
+    # R-SEC L2 on #142: Apple and Google report a gone app in Expo's delivery receipt, after
+    # the push was accepted. The receipt is read 15 minutes later; the phone is deleted only
+    # if it still holds that token.
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    await phone(db, owner_id, TABLET, "ExponentPushToken[tablet00000000002]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert expo.asked == []  # Too early: Apple and Google have not answered yet.
+    stored = await receipts(db)
+    tickets = {row["device_id"]: row["ticket_id"] for row in stored}
+    assert all("ExponentPushToken" not in str(row) for row in stored)
+    expo.delivery = {
+        tickets[PHONE]: {"status": "ok"},
+        tickets[TABLET]: {"status": "error", "details": {"error": "DeviceNotRegistered"}},
+    }
+    await age_confirmations(db, timedelta(minutes=16))
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert sorted(expo.asked[0]) == sorted(tickets.values())
+    by_device = {row["device_id"]: row["delivery"] for row in await receipts(db)}
+    assert by_device == {PHONE: "delivered", TABLET: "DeviceNotRegistered"}
+    async with db.sessions() as session:
+        left = [row.device_id for row in await session.scalars(select(PushDeviceRow))]
+    assert left == [PHONE]
+    # Each receipt is read once.
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert len(expo.asked) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_receipt_expo_no_longer_keeps_is_closed_as_unknown(task_db: Fixture) -> None:
+    db, owner_id, agent_id, thread_id = task_db
+    await phone(db, owner_id, PHONE, "ExponentPushToken[phone000000000001]")
+    expo = FakeExpo(db)
+    await started(db, owner_id, expo)
+    await card(db, owner_id, agent_id, thread_id, "approval_required")
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    await age_confirmations(db, timedelta(minutes=16))
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert [row.get("delivery") for row in await receipts(db)] == [None]
+    await age_confirmations(db, timedelta(hours=25))
+    await dispatch_push(db, owner_id, CIPHER, expo)
+    assert [row["delivery"] for row in await receipts(db)] == ["unknown"]
+    async with db.sessions() as session:
+        assert len(list(await session.scalars(select(PushDeviceRow)))) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_adapter_reads_delivery_receipts() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"data": {"a": {"status": "ok"}, "b": "junk"}})
+
+    found = await ExpoPushTransport("access", httpx.MockTransport(handler)).receipts(["a", "b"])
+    assert found == {"a": {"status": "ok"}}
+    assert str(seen[0].url) == EXPO_RECEIPTS_URL
+    assert seen[0].headers["authorization"] == "Bearer access"
+    assert json.loads(seen[0].content) == {"ids": ["a", "b"]}

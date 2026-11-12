@@ -72,12 +72,18 @@ PUSHES_PER_TICK = 4
 # many times in all, after 30 s, 60 s, 120 s and 240 s.
 NOT_SENT = frozenset({"push_not_sent", "push_rate_limited"})
 MAX_ATTEMPTS = 5
+# Expo's delivery receipts: read 15 minutes after acceptance, kept by Expo for a day.
+RECEIPT_DELAY = timedelta(minutes=15)
+RECEIPT_KEPT = timedelta(hours=24)
+RECEIPTS_PER_TICK = 100
 RETRY_BASE_SECONDS = 30
 SEND_TIMEOUT_SECONDS = 20
 
 
 class PushTransport(Protocol):
     async def send(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
+
+    async def receipts(self, ids: list[str]) -> dict[str, dict[str, Any]]: ...
 
 
 @dataclass(frozen=True)
@@ -296,7 +302,68 @@ async def dispatch_push(
             await settings.put(session, cursor_key(owner_id), {"last": cursor})
     for delivery in deliveries:
         await send_one(db, transport, delivery)
+    await check_receipts(db, owner_id, transport)
     return len(deliveries)
+
+
+async def check_receipts(db: Database, owner_id: str, transport: PushTransport) -> None:
+    """Read Expo's delivery receipts for accepted pushes once Apple or Google had time to
+    answer: a phone they report gone (``DeviceNotRegistered``) is deleted, if it still holds
+    that token. A receipt Expo no longer keeps (after a day) is closed as unknown."""
+    now = utcnow()
+    async with db.sessions() as session:
+        rows = (
+            await session.scalars(
+                select(EffectReceiptRow)
+                .where(
+                    EffectReceiptRow.key.like("push:%"),
+                    EffectReceiptRow.result["owner_id"].as_string() == owner_id,
+                    EffectReceiptRow.result["status"].as_string() == "confirmed",
+                    EffectReceiptRow.result["delivery"].as_string().is_(None),
+                )
+                .order_by(EffectReceiptRow.created_at)
+                .limit(RECEIPTS_PER_TICK)
+            )
+        ).all()
+    due = {
+        str(row.result["ticket_id"]): row.key
+        for row in rows
+        if row.result.get("ticket_id")
+        and datetime.fromisoformat(str(row.result.get("confirmed_at", now.isoformat())))
+        <= now - RECEIPT_DELAY
+    }
+    if not due:
+        return
+    try:
+        async with asyncio.timeout(SEND_TIMEOUT_SECONDS):
+            answers = await transport.receipts(list(due))
+    except Exception:
+        # Tried again on the next tick; a receipt is only a check, never a send.
+        return
+    async with db.sessions() as session, session.begin():
+        for ticket, key in due.items():
+            row = await session.get(EffectReceiptRow, key, with_for_update=True)
+            if row is None:
+                continue
+            answer = answers.get(ticket)
+            if answer is None:
+                confirmed = datetime.fromisoformat(str(row.result.get("confirmed_at")))
+                if now - confirmed > RECEIPT_KEPT:
+                    row.result = {**row.result, "delivery": "unknown"}
+                continue
+            outcome = ticket_outcome(answer)
+            row.result = {
+                **row.result,
+                "delivery": "delivered" if outcome["status"] == "confirmed" else outcome["code"],
+            }
+            if outcome.get("code") == "DeviceNotRegistered":
+                await session.execute(
+                    delete(PushDeviceRow).where(
+                        PushDeviceRow.owner_id == owner_id,
+                        PushDeviceRow.device_id == str(row.result.get("device_id")),
+                        PushDeviceRow.token_hash == str(row.result.get("token_hash")),
+                    )
+                )
 
 
 async def send_one(db: Database, transport: PushTransport, delivery: Delivery) -> None:
@@ -331,6 +398,13 @@ async def send_one(db: Database, transport: PushTransport, delivery: Delivery) -
                         "attempts": attempts,
                         "retry_at": (utcnow() + timedelta(seconds=delay)).isoformat(),
                     }
+            if outcome["status"] == "confirmed":
+                # What the delivery receipt check needs later (the token's hash, not it).
+                outcome = {
+                    **outcome,
+                    "confirmed_at": utcnow().isoformat(),
+                    "token_hash": delivery.token_hash,
+                }
             row.result = {**row.result, **outcome}
         if outcome.get("code") == "DeviceNotRegistered":
             # Expo says the app is gone from that phone. Only that token: a phone that has
