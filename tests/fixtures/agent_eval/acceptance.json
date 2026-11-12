@@ -47,8 +47,8 @@
     {"code": "lonora_agent.context.routine:PEER_WAKE"}
    ],
    "partial": {
-    "note": "the speech is given in the news agent's routine (no calendar source is fed); the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
-    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}]
+    "note": "the speech is given in the news agent's routine (no calendar source is fed)",
+    "until": [{"pending": "a calendar source fed to the news agent (high-impact events, 5.4)"}]
    },
    "given": {
     "team": {"news": "وكيل الأخبار", "euro": "وكيل اليورو"},
@@ -196,7 +196,7 @@
     {"code": "lonora_trading.weekly_report:wake_agents"}
    ],
    "partial": {
-    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words and is not asserted; the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
+    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words and is not asserted",
     "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}, {"pending": "W-LEDGER: per-label statistics given on wake (5.5.4)"}]
    },
    "given": {
@@ -219,6 +219,11 @@
     "news@weekly_report": [
      [
       {"text": "تقرير الأسبوع: رصدت خطاب البنك المركزي وأبلغت الفريق، وتعلمت أن أرسل التنبيه قبل الخطاب بساعة."}
+     ]
+    ],
+    "gold@weekly_report": [
+     [
+      {"text": "تقرير الأسبوع: فتحت صفقة ذهب واحدة وأمّنتها عند التعادل ثم جنيت جزءًا من الربح؛ تعلمت أن أؤمّن الصفقة قبل الإضافة إليها."}
      ]
     ],
     "euro@weekly_report": [
