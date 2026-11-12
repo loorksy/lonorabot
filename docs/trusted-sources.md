@@ -180,8 +180,10 @@ thing: the trusted sources, the Skills agents installed or wrote with their orig
 saved MCP servers with their trusted tools and tier, the integrations and feeds (domain
 only), and the built-in capabilities with an honest state: `ready`, `not_connected` (one
 card connects it). Web search, the browser, the workspace and the chart renderer are part
-of every installation's stack, so they are always ready; a tool whose service does not
-answer says so when it runs. Web shows it under Settings ← «التكاملات»
+of every installation's stack, so they are always ready. A service that is not answering
+(the workspace and the research services are started but never waited on) shows in the
+agents' tool inventory as `unavailable_now`, and the tool says so when it runs; the guidance
+tells the agent to say so plainly. Web shows it under Settings ← «التكاملات»
 (`/app/integrations`: news domains with undo, RSS feeds, MCP servers and their review,
 skills with their undo); Mobile under Settings, Capabilities. Each entry has its Undo: remove or restore a source,
 revoke an installed Skill version, remove an integration, remove an MCP server's trust.

@@ -1263,6 +1263,7 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
         assert "id" not in listed["trusted_sources"][0]
         # Workspace execution is listed ready; a helper or observe-only wake is told it is not its.
         assert "never in a helper or an observe-only wake" in listed["guidance"]
+        assert "unavailable_now" in listed["guidance"]
         # The value never reaches a message, an event, a card or a Run.
         async with fixture.runtime.db.sessions() as session:
             for model in (MessageRow, EventRow, OwnerActionRow, RunRow):
