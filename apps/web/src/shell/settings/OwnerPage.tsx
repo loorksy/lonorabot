@@ -61,6 +61,12 @@ function zones(): string[] {
 
 // A profile line's leading markdown bullet ("- " or "* "), if it has one.
 const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
+// The words the owner typed, without a bullet of his own: the line's bullet is added once.
+const words = (text: string) =>
+  text
+    .trim()
+    .replace(/^[-*]\s+/, "")
+    .trim();
 
 /* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما أعرفه عنك» (8.4:
    every profile line with its origin, "you said" or "observed", corrected or deleted as the owner's word) and «سجل التغييرات» (who · field,
@@ -267,7 +273,7 @@ export function OwnerPage() {
                   className="body"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    const value = editing.value.trim();
+                    const value = words(editing.value);
                     // The line keeps its markdown bullet; the field shows only the words.
                     if (value) void correctFact(fact.text, (bullet(fact.text) ?? "") + value);
                   }}

@@ -19,6 +19,12 @@ type ProfileLines = { version: number; lines: ProfileLine[] };
 
 // A profile line's leading markdown bullet ("- " or "* "), kept when it is corrected.
 const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
+// The words the owner typed, without a bullet of his own: the line's bullet is added once.
+const words = (text: string) =>
+  text
+    .trim()
+    .replace(/^[-*]\s+/, "")
+    .trim();
 
 /* «ما أعرفه عنك» (8.4): every line of the owner profile with its origin, what the owner said or
    what was observed. The owner corrects or deletes a line; the server records it as his word. */
@@ -103,9 +109,9 @@ export default function OwnerKnowledge() {
                     <View style={{ flexDirection: rtl ? "row-reverse" : "row", gap: 10 }}>
                       <Button
                         label={t("saveCorrection")}
-                        disabled={busy || !editing.value.trim()}
+                        disabled={busy || !words(editing.value)}
                         onPress={() =>
-                          correct(line.text, (bullet(line.text) ?? "") + editing.value.trim())
+                          correct(line.text, (bullet(line.text) ?? "") + words(editing.value))
                         }
                       />
                       <Button

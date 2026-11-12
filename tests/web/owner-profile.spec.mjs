@@ -1,4 +1,5 @@
 // biome-ignore-all lint/suspicious/noUndeclaredEnvVars: Playwright runs directly without Turborepo caching.
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { test as base, expect } from "@playwright/test";
 
@@ -156,6 +157,25 @@ test("the Knowledge panel's profile link closes the chat menu and opens the prof
   await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
 });
 
+/* A profile line from before origins were recorded: written to the row directly, with no
+   revision, so «ما أعرفه عنك» shows it as earlier. The row is found by the test's tag. */
+function seedEarlier(tag, line) {
+  execFileSync(".venv/bin/python", [
+    "-c",
+    `import asyncio, os, sys
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+async def main():
+    engine = create_async_engine(os.environ["LONORA_DATABASE_URL"])
+    async with engine.begin() as connection:
+        await connection.execute(text("UPDATE ln_owner_profile SET content = content || :line WHERE content LIKE :tag"), {"line": sys.argv[2] + "\\n", "tag": "%" + sys.argv[1] + "%"})
+    await engine.dispose()
+asyncio.run(main())`,
+    tag,
+    line,
+  ]);
+}
+
 /* «ما أعرفه عنك» (8.4): every profile line shows its origin; the owner corrects or deletes one,
    and the server records the change as his own word. */
 test("what I know about you lists each line with its origin, corrected or deleted", async ({
@@ -174,24 +194,38 @@ test("what I know about you lists each line with its origin, corrected or delete
     headers: owner.headers,
   });
   expect(written.ok()).toBeTruthy();
+  seedEarlier(tag, `- Old note ${tag}`);
   await page.goto("/app/owner");
   await expect(page.getByText("What I know about you")).toBeVisible();
   const known = page.locator(".pf-known .row");
+  await expect(known.filter({ hasText: `Old note ${tag}` })).toContainText("Earlier");
   const gold = known.filter({ hasText: `Trades gold ${tag}` });
   await expect(gold).toContainText("You said");
+  // Typed with its own bullet: the stored line keeps exactly one.
   await gold.getByRole("button", { name: "Correct the fact", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Correct the fact", exact: true })
-    .fill(`- Trades silver ${tag}`);
+  const field = page.getByRole("textbox", { name: "Correct the fact", exact: true });
+  await expect(field).toHaveValue(`Trades gold ${tag}`);
+  await field.fill(`- Trades silver ${tag}`);
   await page.getByRole("button", { name: "Save", exact: true }).last().click();
   await expect(known.filter({ hasText: `Trades silver ${tag}` })).toContainText("You said");
+  // Typed without one: the line's bullet is kept.
+  await known
+    .filter({ hasText: `Old note ${tag}` })
+    .getByRole("button", { name: "Correct the fact", exact: true })
+    .click();
+  await field.fill(`New note ${tag}`);
+  await page.getByRole("button", { name: "Save", exact: true }).last().click();
+  await expect(known.filter({ hasText: `New note ${tag}` })).toContainText("You said");
   await known
     .filter({ hasText: `Short reports ${tag}` })
     .getByRole("button", { name: "Delete the fact", exact: true })
     .click();
   await expect(known.filter({ hasText: `Short reports ${tag}` })).toHaveCount(0);
   const lines = await (await context.request.get("/api/owner/profile/lines")).json();
-  expect(lines.lines.map((line) => line.text)).toEqual([`- Trades silver ${tag}`]);
+  expect(lines.lines.map((line) => line.text)).toEqual([
+    `- Trades silver ${tag}`,
+    `- New note ${tag}`,
+  ]);
   const revisions = await (await context.request.get("/api/owner/profile/revisions")).json();
   expect(revisions[0]).toMatchObject({ author: "owner", change: "correction" });
 });

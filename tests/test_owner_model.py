@@ -317,7 +317,7 @@ async def test_reads_and_outside_closes_are_signals_only_lonora_sees():
 async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_word():
     database()
     from check_streaming import Fixture
-    from lonora_db.schema import MemoryRevisionRow, OwnerProfileRow
+    from lonora_db.schema import MemoryRevisionRow
     from sqlalchemy import select
 
     fixture = await Fixture().open()
@@ -438,17 +438,26 @@ async def test_what_i_know_lists_origins_and_records_corrections_as_the_owners_w
         await fixture.request(
             "POST", f"/memory/revisions/{correction_id}/revert", {"version": cut["version"]}
         )
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            profile = await session.get(OwnerProfileRow, fixture.owner)
-            assert profile is not None
-            profile.content += "- Legacy line\n"
+        await seed_earlier(fixture, "- Legacy line", system=False)
+        await seed_earlier(fixture, "- Merged old line", system=True)
         known = await fixture.request("GET", "/owner/profile/lines")
         origins = {line["text"]: line["origin"] for line in known["lines"]}
         assert origins == {
             "- Reads at 07:30": "you_said",
             "- Sleeps late": "observed",
             "- Legacy line": "earlier",
+            "- Merged old line": "earlier",
         }
+        # An earlier line is protected like his word.
+        for old_text in ("Legacy line", "Merged old line"):
+            refused = await call(
+                registry,
+                await routine_run(fixture, lead["id"]),
+                "memory_write",
+                version=1,
+                operations=[{"action": "remove", "section": "USER.md", "old_text": old_text}],
+            )
+            assert refused["code"] == "owner_profile_line_is_owners_word", refused
     finally:
         await reset_profile(fixture)
         await fixture.close()
