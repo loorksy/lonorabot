@@ -63,12 +63,14 @@ def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
                 assert not re.search(r"\._secrets\b", text), name
 
 
-def test_the_workspace_bridge_has_no_secret_reader() -> None:
+def test_the_workspace_bridge_has_no_broker_reader() -> None:
     from lonora_agent import workspace, workspace_access, workspace_host
 
+    # The workspace layer may hold the general store (to scan output for stored values),
+    # which refuses scope broker; never the broker reader or a raw decrypt.
     for module in (workspace, workspace_access, workspace_host):
         source = inspect.getsource(module)
-        for name in ("EncryptedSecretStore", "BrokerSecrets", "SecretStore", ".secrets"):
+        for name in ("BrokerSecrets", "SecretRow", "SecretCipher", "ciphertext"):
             assert name not in source
 
 
@@ -113,7 +115,7 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
 
         # The broker reader reads nothing else.
         workspace_id = await services.secrets.write(
-            "FIXTURE_" + uuid4().hex[:6].upper(), "w", "workspace"
+            "FIXTURE_" + uuid4().hex[:6].upper(), "fixture-workspace", "workspace"
         )
         with pytest.raises(LonoraError) as other:
             await broker.read(workspace_id)

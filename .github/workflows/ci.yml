@@ -817,7 +817,6 @@ jobs:
           .venv/bin/python tests/check_broker_orders.py
           .venv/bin/python tests/check_pending_orders.py
           .venv/bin/python tests/check_chart_streaming.py
-          .venv/bin/python tests/check_goals.py
           .venv/bin/python tests/check_agent_market.py
           .venv/bin/python tests/check_agent_create.py
           .venv/bin/python tests/check_supervision.py
@@ -841,7 +840,10 @@ jobs:
       - name: Verify signed mobile OTA service and safe client update lifecycle
         run: |
           .venv/bin/python -m pytest tests/test_mobile_updates.py -q
-          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts tests/mobile/reach-me.test.ts tests/mobile/text-direction.test.ts tests/mobile/search-feed.test.ts tests/mobile/routine-title.test.ts
+          pnpm exec tsx --test tests/mobile/ota-checker.test.ts tests/mobile/voice-transport.test.ts tests/mobile/voice-readiness.test.ts tests/mobile/conversation-timeline.test.ts tests/mobile/mention-session.test.ts tests/mobile/reach-me.test.ts tests/mobile/text-direction.test.ts tests/mobile/search-feed.test.ts tests/mobile/routine-title.test.ts tests/mobile/offline-queue.test.ts tests/mobile/message-actions.test.ts tests/mobile/arabic-labels.test.ts tests/mobile/run-retry.test.ts
+
+      - name: Guard model access, API keys only and one engine (mandate 12.2, P4)
+        run: .venv/bin/python -m pytest tests/test_model_access_guard.py -q
 
       - name: Verify GPT-Live admission and delegation with explicit API fixtures
         run: .venv/bin/python -m pytest tests/voice -q

@@ -26,7 +26,7 @@ async def require_operation_permission(
     """Recheck the current Agent selection and actual stored approval.
 
     The caller takes the existing per-Agent authority lock before the final
-    send check. An authorization callback or old Goal grant alone is not proof.
+    send check. An authorization callback alone is not proof.
     AccountAuthority scope, device and budgets are validated by the executor's
     existing require_account_execution immediately beside this check.
     """

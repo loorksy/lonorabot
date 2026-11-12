@@ -26,8 +26,8 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 | Context, work and steering | `lonora_agent.context`, `tool_loop` ([tool execution](tool-execution-runtime.md)), `lonora_db.tasks`, `task_wait` |
 | Market, watches and charts | `lonora_tools.market`, `market_watch`, `chart_state`, `chart_snapshot`; `lonora_market`, `lonora_charts` |
 | Broker identity/history | `lonora_tools.account`, `lonora_adapters.brokers.metaapi` |
-| Financial commands and consent | `lonora_tools.trade`, `trading_goal`, `lonora_trading.execution`, `lonora_db.trade_approvals` |
-| Goals and device authorization | `lonora_trading.goals`, `lonora_auth.devices`, `lonora_auth.account_authority` |
+| Financial commands and consent | `lonora_tools.trade`, `lonora_trading.execution`, `lonora_db.trade_approvals` |
+| Device authorization | `lonora_auth.devices`, `lonora_auth.account_authority` |
 | Evidence and performance | `lonora_tools.trading_decision`, `relationships`, `opportunity`, `performance` |
 | Memory and procedures | `lonora_memory`, `lonora_agent.skills`, `lonora_tools.memory`, `scratchpad`, `skills` |
 | Collaboration and groups | `lonora_agent.collaboration`, `lonora_tools.collaboration`, `message`, `subagent` |
@@ -39,7 +39,7 @@ trade confirmation, journal/reconciliation and Web/Mobile result presentation.
 1. `load_constitution()` prepends the concise mandatory core before the six
    existing mandatory policy documents.
 2. `build_context()` retains the existing scoped memory, procedure snapshots,
-   bounded history, binding, task/goal evidence and routing context.
+   bounded history, binding, task evidence and routing context.
 3. `model_turn()` projects at most three domain chapters selected by actual
    recent tool calls that are still permitted, including calls made through
    the `tool_call` bridge (they are recorded under the real tool name). It
