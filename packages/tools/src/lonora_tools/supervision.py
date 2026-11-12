@@ -10,8 +10,8 @@ the reader, never its instructions.
 ``agent_control`` pauses or resumes an agent you supervise, or one of its Tasks,
 routines or watches, and messages it. It never grants, raises a limit, lifts a
 restriction, trades or edits the agent's memory or instructions; its trading is
-narrowed with ``trade_restriction_create``. A whole agent with money standing is paused
-only from the owner's message, and the Personal Agent only by the owner. The hold
+narrowed with ``trade_restriction_create``. A paused agent still reduces the risk of its
+own positions and orders; the Personal Agent is paused only by the owner. The hold
 rules and the cycle rule are in ``lonora_db.supervision``.
 
 ``supervision_change`` sets who supervises whom when the owner asks: from the owner's
@@ -646,9 +646,8 @@ def tools() -> list[Tool]:
             "routines or watches (target, target_id), or message it. resume lifts only a "
             "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
             "stay. You cannot pause an agent that holds a pause over you unless the owner "
-            "asks. A whole trading agent is paused only when the owner asks (its exits "
-            "would stop too): narrow it with trade_restriction_create (no_new_entries) and "
-            "pause its routines, watches or Tasks. Only the owner pauses Lonora itself. It "
+            "asks. A paused agent still wakes for its own positions and orders and only "
+            "reduces their risk. Only the owner pauses Lonora itself. It "
             "never trades, grants, raises limits, lifts restrictions or edits its memory "
             "or instructions.",
             AgentControlInput,

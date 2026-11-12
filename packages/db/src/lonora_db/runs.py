@@ -12,6 +12,7 @@ from sqlalchemy.orm import aliased
 
 from .events import emit
 from .generated_artifacts import link_generated_artifacts, resolve_reply_artifacts
+from .pauses import claimable_while_paused, runs_while_paused
 from .rich_response import validated_rich_content
 from .schema import AgentRow, GroupRow, MessageRow, RunRow, SteeringRow, ThreadRow
 from .streaming import STREAM_KEY, settle_stream, stream_data, stream_identity
@@ -146,7 +147,7 @@ async def create_run(
         if parent is None:
             raise LonoraError("parent_run_not_found", 404)
         await owned_thread(session, owner_id, parent.thread_id)
-    if agent.paused:
+    if agent.paused and not runs_while_paused(request.trigger, request.metadata):
         raise LonoraError("agent_paused", 409)
     from .trading_goals import bind_goal_run
 
@@ -251,7 +252,11 @@ async def claim_next(
     pending = exists(
         select(RunRow.id)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == ThreadRow.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == ThreadRow.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
     )
     # Claim the thread lock first so two queued turns cannot be claimed simultaneously.
     thread = await session.scalar(
@@ -266,7 +271,11 @@ async def claim_next(
     row = await session.scalar(
         select(RunRow)
         .join(AgentRow, AgentRow.id == RunRow.agent_id)
-        .where(RunRow.thread_id == thread.id, eligible, AgentRow.paused.is_(False))
+        .where(
+            RunRow.thread_id == thread.id,
+            eligible,
+            or_(AgentRow.paused.is_(False), claimable_while_paused()),
+        )
         .order_by(RunRow.created_at)
         .limit(1)
         .with_for_update(skip_locked=True)

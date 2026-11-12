@@ -24,12 +24,9 @@ The owner resuming the work releases it. The paused agent never resumes held wor
 its own initiative. Each pause raises a card in the paused agent's conversation that
 names the supervisor, with one-tap Resume.
 
-Pausing a whole agent stops its runs, so it could no longer close a position, cancel an
-order or run an exit the owner approves. On its own initiative a supervisor therefore
-never pauses an agent with money standing (bound to an account, trading with the
-owner's approval or under a grant, or with operations the executor recorded for it); it
-narrows that agent with ``trade_restriction_create`` and pauses its routines, watches or
-Tasks instead. Only the owner pauses the Personal Agent, the owner's entry point.
+Pausing a whole agent never stops its exits: a paused agent still wakes for its own
+positions and pending orders and sends risk-reducing requests (4.7.1). Only the owner
+pauses the Personal Agent, the owner's entry point.
 
 The cycle rule: an agent cannot pause or narrow an agent that holds an active pause over
 it, unless the owner's message asks for it. Every intervention is an event recorded for
@@ -402,15 +399,10 @@ WorkAction = Literal["pause", "resume"]
 
 
 async def money_standing(session: AsyncSession, owner_id: str, agent: AgentRow) -> bool:
-    """Whether a paused agent could leave money unattended: it is bound to an account,
-    trades with the owner's approval or under a signed grant, or the executor recorded
-    live operations for it (positions it opened may still be open). Pausing it would
-    stop the runs that close, cancel, tighten a stop or run an approved exit."""
+    """Whether an agent may have money standing: it is bound to an account, or the
+    executor recorded operations for it (positions and orders it opened may still be
+    open). Paused, it still wakes for them and reduces their risk (4.7.1)."""
     if agent.trading_account_id:
-        return True
-    from .agent_permissions import effective_permission
-
-    if await effective_permission(session, owner_id, agent.id) != "analysis":
         return True
     producer = TradingJournalRow.result["details"]["execution"]["agent_id"].as_string()
     operation = await session.scalar(
@@ -515,9 +507,10 @@ async def control_work(
     routine or a watch). Repeating either changes nothing.
 
     Pausing and resuming need the grant (Lonora also acts on the owner's message without
-    one), and pausing passes the cycle rule. Without the owner's message it never pauses a whole agent with money
-    standing, and no agent ever pauses the Personal Agent itself. Each pause raises a
-    card in the paused agent's conversation naming the supervisor, with Resume.
+    one), and pausing passes the cycle rule. No agent ever pauses the Personal Agent
+    itself. A paused agent with money standing still reduces its risk, which the result
+    says (``still_reduces_risk``). Each pause raises a card in the paused agent's
+    conversation naming the supervisor, with Resume.
 
     Resuming on its own initiative lifts only a hold this agent set on its own. With the
     owner's message it lifts any supervisor's hold. A pause the owner holds, the owner's
@@ -559,10 +552,6 @@ async def control_work(
         if kind == "agent" and agent.role == "personal":
             # The owner's entry point: only the owner pauses it, from its profile.
             raise LonoraError("supervision_personal_agent", 403)
-        if kind == "agent" and not owner_message and await money_standing(session, owner_id, agent):
-            # Its exits would stop too: narrow it with trade_restriction_create and pause
-            # its routines, watches or Tasks; the whole agent only when the owner asks.
-            raise LonoraError("supervision_pause_trading_agent", 403)
         await check_cycle(session, owner_id, actor_id, [agent.id], owner_message=owner_message)
         await _apply(session, owner_id, agent.id, kind, item, "pause")
         hold = SupervisionHoldRow(
@@ -611,4 +600,7 @@ async def control_work(
         },
         run_id=run_id,
     )
+    if action == "pause" and kind == "agent" and await money_standing(session, owner_id, agent):
+        # Paused, it still wakes for its own positions and orders and reduces their risk.
+        result["still_reduces_risk"] = True
     return {**result, "changed": True, "paused": action == "pause"}

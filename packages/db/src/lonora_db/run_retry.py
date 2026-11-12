@@ -19,6 +19,7 @@ from sqlalchemy.orm import aliased
 
 from .agent_on_its_own import agents_on_their_own
 from .events import emit
+from .pauses import runs_while_paused
 from .runs import aware, failure_data, run_data
 from .schema import MessageRow, RunRow, ThreadRow, TradeApprovalRow, TradingJournalRow
 from .transactions import owned_agent, owned_thread
@@ -126,7 +127,7 @@ async def retry_run(session: AsyncSession, owner_id: str, run_id: str) -> RunRow
         if remaining > 0:
             raise RunRetryTooEarly(ceil(remaining))
     agent = await owned_agent(session, owner_id, row.agent_id)
-    if agent.paused:
+    if agent.paused and not runs_while_paused(row.trigger, row.model_metadata):
         raise LonoraError("agent_paused", 409)
     retry = RunRow(
         id=retry_id,

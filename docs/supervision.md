@@ -93,16 +93,10 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
 
 - Pausing needs the grant, or the owner's message in the actor's Run. Repeating it
   changes nothing and says who holds the pause (`you`, `another_agent`, `owner`).
-- **Never a trading agent's exits.** A paused agent's runs are never claimed, so it
-  could no longer close a position, cancel an order, tighten a stop or run an exit the
-  owner approves (`docs/account-authority.md`: an agent-recorded narrowing never traps
-  a position). Without the owner's message in the Run, a supervisor therefore never
-  pauses a whole agent with money standing: bound to an account, at Ask me or On its
-  own (a signed grant), or with live operations the executor recorded for it
-  (`supervision_pause_trading_agent`, 403). It narrows that agent with
-  `trade_restriction_create` (`no_new_entries`) and pauses its routines, watches or
-  Tasks instead. From the owner's message the whole-agent pause stands, like an
-  `all_mutations` restriction on another agent.
+- **A paused agent keeps its exits.** A paused agent still wakes for broker events on
+  its own positions and pending orders, and for the owner's direct message, and the door
+  sends only its risk-reducing requests (mandate 4.7.1). A supervisor may therefore pause
+  a whole trading agent; the result says `still_reduces_risk` when it has money standing.
 - **Never Lonora.** No agent pauses the Personal Agent itself, not even from the
   owner's message (`supervision_personal_agent`, 403): it is the owner's entry point,
   and a paused Lonora would leave the owner's chat without a reply. Only the owner

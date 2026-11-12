@@ -332,10 +332,10 @@ async def held(fixture: Any, target_id: str) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
-    """A paused agent's runs stop, so its exits would too: on its own initiative a
-    supervisor never pauses a whole agent with money standing, and nobody but the owner
-    pauses Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
+async def test_a_supervisor_pauses_a_trading_agent_whose_exits_continue_but_never_lonora():
+    """A paused agent still reduces the risk of its own positions (4.7.1, 14.3.7), so a
+    supervisor may pause a whole agent with money standing; nobody but the owner pauses
+    Lonora. Its routines, watches and Tasks stay pausable, each with a card."""
     database()
     from check_streaming import Fixture
     from lonora_contracts.routines import RoutineCreate
@@ -380,10 +380,14 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
         lead_thread = await fixture.conversation(lead)
         woke = await wake(fixture, lead, lead_thread)
         for target in (gold, asker):
-            assert (
-                await refused(woke, "agent_control", agent_id=target["id"], action="pause")
-                == "supervision_pause_trading_agent"
-            )
+            paused = await call(woke, "agent_control", agent_id=target["id"], action="pause")
+            assert paused["changed"] is True and paused["paused"] is True
+            resumed = await call(woke, "agent_control", agent_id=target["id"], action="resume")
+            assert resumed["changed"] is True and resumed["paused"] is False
+        assert (await call(woke, "agent_control", agent_id=gold["id"], action="pause"))[
+            "still_reduces_risk"
+        ] is True
+        await call(woke, "agent_control", agent_id=gold["id"], action="resume")
         # Its work stays pausable, and the owner's conversation with Gold names who did it.
         paused = await call(
             woke,
@@ -399,6 +403,7 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
             item
             for item in await card_list(fixture, gold_thread["id"])
             if item["kind"] == "supervision_paused"
+            and item["facts"]["supervision"]["target"] == "routine"
         )
         assert card["status"] == "pending" and card["requires_passkey"] is False
         assert card["facts"]["supervision"] == {
@@ -431,7 +436,9 @@ async def test_a_supervisor_never_pauses_a_trading_agent_or_lonora_on_its_own():
         cards = [
             item
             for item in await card_list(fixture, gold_thread["id"])
-            if item["kind"] == "supervision_paused" and item["status"] == "pending"
+            if item["kind"] == "supervision_paused"
+            and item["status"] == "pending"
+            and item["facts"]["supervision"]["from_owner_message"]
         ]
         assert [item["facts"]["supervision"]["target"] for item in cards] == ["agent"]
         assert cards[0]["facts"]["supervision"]["from_owner_message"] is True

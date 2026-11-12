@@ -12,14 +12,41 @@ a Task's control takes the hold, then the Run, then the Task. Callers keep both
 orders, so a pause or resume never deadlocks with message admission.
 """
 
+from typing import Any
+
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .schema import AgentRow, MarketWatchRow, RoutineRow, SupervisionHoldRow, TicketRow
+from .schema import AgentRow, MarketWatchRow, RoutineRow, RunRow, SupervisionHoldRow, TicketRow
 from .transactions import owned_agent
+
+# The owner's message, in the agent's own conversation or naming it in a group (3.2.5).
+OWNER_MESSAGE_TRIGGERS = frozenset({"user", "group"})
+
+
+def runs_while_paused(trigger: str, metadata: dict[str, Any]) -> bool:
+    """What a paused agent still runs (4.7.1): the owner's direct message, and a broker
+    event on its own open positions and pending orders (an observe-only wake is activity
+    on tickets it does not own). Every other run of it waits until it is resumed, so its
+    routines, watches, timers, Tasks, peers and wakes are held."""
+    if trigger == "broker_event":
+        return metadata.get("authority") != "observe_only"
+    return trigger in OWNER_MESSAGE_TRIGGERS
+
+
+def claimable_while_paused() -> ColumnElement[bool]:
+    """``runs_while_paused`` as a claim condition on ``RunRow``."""
+    authority = RunRow.model_metadata["authority"].as_string()
+    return or_(
+        RunRow.trigger.in_(OWNER_MESSAGE_TRIGGERS),
+        and_(
+            RunRow.trigger == "broker_event",
+            or_(authority.is_(None), authority != "observe_only"),
+        ),
+    )
 
 
 async def live_hold(
