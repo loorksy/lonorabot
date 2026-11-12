@@ -1,6 +1,6 @@
 // The canonical alert card end to end on web (docs/genui.md, S-A01 acceptance), from a
 // recorded stream replay of A01 through a real Run, a real card submission, the receipt,
-// reload and «تعديل»; Stop on a queued submission; and §10.4's gate on the A01 card inside
+// reload and «تعديل»; Stop on a queued submission; and the side-by-side gate on the A01 card inside
 // the real conversation pane against Desktop-37's own alert recipe.
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -70,7 +70,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
   const fixture = await open(page, context);
   const forbidden = [];
   page.on("request", (request) => {
-    // No card control may decide an approval, an owner action or a restriction (§10.2).
+    // No card control may decide an approval, an owner action or a restriction (mandate 6.10).
     const path = new URL(request.url()).pathname;
     if (
       request.method() !== "GET" &&
@@ -134,7 +134,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     expect(body.content).toBe("");
     expect(body.ui_submit.values).toMatchObject({ symbol: "XAUUSD", dir: "above", price: 2400 });
     // The server's bubble, quoting the card; the card locks.
-    // With several accounts in the database the server appends « · <account>» (§8.3).
+    // With several accounts in the database the server appends « · <account>» (docs/genui.md §7).
     await expect(
       page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/),
     ).toBeVisible();
@@ -218,7 +218,7 @@ test("A01: «تعديل» on a queued send marks it «مُعدّلة» and colla
   }
 });
 
-// §10.4 inside the conversation pane: the A01 card as the owner sees it against the
+// The side-by-side gate inside the conversation pane: the A01 card as the owner sees it against the
 // reference's alert recipe opened in its own conversation («جرّب في محادثة»).
 const CLASSES = [
   ".ux",
@@ -473,6 +473,8 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
   page,
   context,
 }) => {
+  // Three replies, a stale tap, Enter, two decisions and two reloads: more than the default.
+  test.setTimeout(60_000);
   const fixture = await open(page, context);
   const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
   try {
@@ -484,7 +486,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     await expect(page.locator(".ux-slot")).toHaveCount(0);
-    python("slots", { ...fixture.input, record: ids.approval });
+    python("slots", { ...fixture.input, record: ids.approval, number: true });
     python("slots", { ...fixture.input, card: "settle", record: ids.settle });
     python("slots", { ...fixture.input, card: "mandate", record: ids.mandate });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
@@ -502,6 +504,15 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
       for (const forged of ["صفقة مضمونة", "0.50 لوت"])
         await expect(frame).not.toContainText(forged);
     }
+    // Enter in the agent's own Number field never reaches the fixed card's buttons: the
+    // approval is still pending on the server afterwards.
+    const lots = page.getByLabel("الحجم المقترح");
+    await lots.fill("0.2");
+    await lots.press("Enter");
+    const after = await context.request.get(
+      `/api/trading/approvals?thread_id=${encodeURIComponent(fixture.thread.id)}`,
+    );
+    expect((await after.json()).find((row) => row.id === ids.approval).status).toBe("pending");
     // The slots are the records' places now: no standalone rows.
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);

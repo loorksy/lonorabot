@@ -6,7 +6,7 @@ data is computed from the stored card and the validated values (server-set field
 card's compile record); the owner's bubble is the button label (``ask``) or the intent's
 registry template filled with the server's own names. The submission is stored with
 ``origin='ui_submit'`` and always gets its own queued Run carrying ``ui_submit_origin``
-(the taint, §8.5): it never steers or answers an active Run. Its Run is claimed only after
+(the taint, ``genui_taint``): it never steers or answers an active Run. Its Run is claimed only after
 every earlier Run of its agent in the thread has ended (rule Q), reads the thread up to
 its claim (rule W), stays invisible to every other Run until it ends and for good if it
 never started (rules V and N), takes its ticks from its own Run (rule T) and is cancelled
@@ -203,7 +203,7 @@ async def identity_names(
     data: dict[str, Any],
     language: str = "ar",
 ) -> dict[str, str]:
-    """The server's own names for identity fields (§8.3, Identity values), in the
+    """The server's own names for identity fields (docs/genui.md §7), in the
     conversation's language."""
     names: dict[str, str] = {}
     if intent == "alert.off":
@@ -221,7 +221,7 @@ async def identity_names(
             # Read the card's own account directly: the list above is bounded.
             label = await account_label(session, str(data.get("account_id")), owner_id)
             if not label:
-                # The bubble must name the account and cannot (§8.3, account).
+                # The bubble must name the account and cannot (docs/genui.md §7).
                 raise LonoraError("ui_submit_account_unnamed", 409)
             names["account_id"] = str(label)
     return names
@@ -347,7 +347,7 @@ async def submit_card(
     except IntentDataError as error:
         raise LonoraError(str(error), 422) from error
     if intent_name == "alert.create":
-        # The symbol must be one of the card's own checked options (§8.3).
+        # The symbol must be one of the card's own checked options (docs/genui.md §7).
         offered = {
             value
             for _p, n in walk(document.get("blocks", []))
@@ -428,7 +428,7 @@ async def submission_seq(session: AsyncSession, run: RunRow) -> int | None:
 async def decorate(
     session: AsyncSession, thread_id: str, rows: list[MessageRow], items: list[dict[str, Any]]
 ) -> None:
-    """Embed the derived card locks and the never-run marks in a history page (§9.3)."""
+    """Embed the derived card locks and the never-run marks in a history page (docs/genui.md §7)."""
     cards = [row for row in rows if row.role == "assistant" and row.rich_content]
     locks = await card_locks(session, thread_id, cards)
     by_id = {row.id: row for row in rows}

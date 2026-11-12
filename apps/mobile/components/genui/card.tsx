@@ -133,7 +133,7 @@ export function NativeUiCard({
   const clock = (at: number) =>
     new Date(at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const stale = (text: string) => {
-    // «الآن» over a fact older than 120 s becomes «آخر تحديث HH:MM» (§9.6).
+    // «الآن» over a fact older than 120 s becomes «آخر تحديث HH:MM» (docs/genui.md §8).
     if (!Number.isFinite(oldest) || Date.now() - oldest <= STALE_MS) return text;
     return text.replace(/^(الآن|now)(?=[\s:،,.]|$)/iu, `${t("uiLastUpdated")} ${clock(oldest)}`);
   };
@@ -161,7 +161,7 @@ export function NativeUiCard({
         ui_submit: { source_message_id: messageId, part: index, path, values },
       });
       const action = block.action as { lock?: boolean } | undefined;
-      // Locked at once; the submission's own message then carries the lock (§8.2).
+      // Locked at once; the submission's own message then carries the lock (docs/genui.md §7).
       if (action?.lock !== false) setSentHere(id);
     } catch (error) {
       setNotice(errorText(error));
@@ -269,6 +269,8 @@ export function NativeUiCard({
   async function unlock() {
     try {
       await api.post(`/threads/${threadId}/messages/${messageId}/ui-state/${index}/unlock`, {});
+      // The card's own new state (its unlock mark), even when it is not in the newest page.
+      if (host && message) await host.reread(message);
       setSentHere(null);
       setNotice(t("uiEditThenSend"));
     } catch (error) {
@@ -348,13 +350,19 @@ export function NativeUiCard({
           paddingTop: 10,
           paddingHorizontal: 12,
           paddingBottom: 12,
-          opacity: locked ? 0.82 : 1,
         }}
       >
         {doc.blocks.map((block, position) =>
           part.cut !== undefined && position >= part.cut ? null : (
-            // biome-ignore lint/suspicious/noArrayIndexKey: blocks are positional and append-only
-            <Node key={position} block={block} path={String(position)} ctx={ctx} />
+            // A sent card dims its own blocks; a trusted slot is the live fixed card and
+            // never dims.
+            <View
+              // biome-ignore lint/suspicious/noArrayIndexKey: blocks are positional and append-only
+              key={position}
+              style={{ opacity: locked && block.type !== "Slot" ? 0.82 : 1 }}
+            >
+              <Node block={block} path={String(position)} ctx={ctx} />
+            </View>
           ),
         )}
         {building ? (

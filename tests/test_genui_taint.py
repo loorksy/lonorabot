@@ -1,4 +1,4 @@
-"""The card-send taint (docs/genui.md #12, §8.5; PR #50 review M1-M6).
+"""The card-send taint (docs/genui.md §7; PR #50 review M1-M6).
 
 Every durable thing tainted work creates or changes stores the taint, every wake or start
 from it is tainted, and the taint is never the submission marker the queue rules read.

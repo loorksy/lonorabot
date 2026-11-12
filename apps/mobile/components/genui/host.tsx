@@ -18,6 +18,9 @@ export type CardHostValue = {
   /** The live fixed card a trusted slot names, with its own server actions; null when this
    * conversation has no such record (mandate 10.2). */
   slot?: (ref: UiSlotRef) => ReactNode | null;
+  /** Reads one message again by its place in the thread (after «تعديل»: its card state),
+   * wherever it sits in the history, and merges it. */
+  reread: (message: Message) => Promise<void>;
 };
 
 const Host = createContext<CardHostValue | null>(null);

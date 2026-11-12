@@ -360,8 +360,8 @@ function NumberField({ block, ctx }: NodeProps) {
           accessibilityLabel={label}
           aria-required={block.required ? true : undefined}
           aria-invalid={invalid || undefined}
-          inputMode="decimal"
-          // iOS's decimal pad has no return key: Enter must reach the card's send.
+          // iOS's decimal pad has no return key: Enter must reach the card's send. (No
+          // inputMode: React Native lets it override keyboardType.)
           keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "decimal-pad"}
           returnKeyType="send"
           autoComplete="off"
@@ -757,24 +757,24 @@ function Col(props: NodeProps) {
 
 function Grid({ block, path, ctx }: NodeProps) {
   const cols = block.cols === 1 || block.cols === 3 ? block.cols : 2;
-  // A hidden cell leaves the grid, as `display: none` does on web; paths keep their index.
-  const children = ((block.children as UiBlock[]) ?? [])
-    .map((child, at) => ({ child, at }))
-    .filter(({ child }) => visible(child, ctx));
-  const rows: (typeof children)[] = [];
-  for (let at = 0; at < children.length; at += cols) rows.push(children.slice(at, at + cols));
+  // One wrapping row keyed by each child's own index: a cell keeps its identity (a focused
+  // field keeps its keyboard and draft) when a sibling's `when` changes, and a hidden cell
+  // leaves the flow, as `display: none` does on web.
   return (
-    <View style={{ gap: 8 }}>
-      {rows.map((cells, index) => (
-        <View key={index} style={{ flexDirection: row(ctx.rtl), gap: 8 }}>
-          {Array.from({ length: cols }, (_, column) => {
-            const cell = cells[column];
-            return (
-              <View key={column} style={{ flex: 1, minWidth: 0 }}>
-                {cell ? <Node block={cell.child} path={`${path}.${cell.at}`} ctx={ctx} /> : null}
-              </View>
-            );
-          })}
+    <View
+      style={{ flexDirection: row(ctx.rtl), flexWrap: "wrap", rowGap: 8, marginHorizontal: -4 }}
+    >
+      {((block.children as UiBlock[]) ?? []).map((child, at) => (
+        <View
+          key={at}
+          style={{
+            width: `${100 / cols}%`,
+            paddingHorizontal: 4,
+            minWidth: 0,
+            display: visible(child, ctx) ? "flex" : "none",
+          }}
+        >
+          <Node block={child} path={`${path}.${at}`} ctx={ctx} />
         </View>
       ))}
     </View>

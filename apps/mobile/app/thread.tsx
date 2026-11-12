@@ -474,7 +474,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     runs,
     streams,
   );
-  // A card's submission is sent at once, never through the auto-flushed outbox (§8.2): the
+  // A card's submission is sent at once, never through the auto-flushed outbox (docs/genui.md §7): the
   // server writes its bubble, and a retry after a failure is the owner's tap, not ours.
   /* A fixed card, drawn the same in its own row and in a trusted slot (mandate 10.2.3):
      one live record, one set of server actions. */
@@ -516,6 +516,14 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     messages,
     runs,
     agents,
+    reread: async (message) => {
+      const rows = await api.get<Message[]>(
+        `/threads/${encodeURIComponent(id)}/messages?around=${message.seq}&limit=1`,
+      );
+      const fresh = rows.filter((row) => row.id === message.id);
+      if (!fresh.length || selected.current.id !== id || selected.current.scope !== scope) return;
+      setMessages((old) => mergeMessages(old, fresh));
+    },
     submit: async (body) => {
       const accepted = await api.post<{ message: Message; runs?: Run[] }>(
         `/threads/${encodeURIComponent(id)}/messages`,
@@ -634,12 +642,25 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       live = false;
     };
   }, [around, id]);
+  // Messages drawn as a question's card instead of their rich content (MessageBubble
+  // `body`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set(
+        runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ),
+    [runs],
+  );
   useEffect(() => {
     if (around == null || !loaded || jumped.current === around) return;
     const index = conversationTimeline(
       visibleMessages,
       approvals.filter((row) => row.thread_id === id),
       ownerActions.filter((row) => row.thread_id === id),
+      undrawn,
     )
       .reverse()
       .findIndex((item) => item.kind === "message" && item.seq === around);
@@ -649,7 +670,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     requestAnimationFrame(() => {
       list.current?.scrollToIndex({ index, viewPosition: 0.3, animated: false });
     });
-  }, [around, loaded, visibleMessages, approvals, ownerActions, id]);
+  }, [around, loaded, visibleMessages, approvals, ownerActions, id, undrawn]);
 
   if (!ready) return <Loading />;
   if (!owner) return <Redirect href="/sign-in" />;
@@ -760,7 +781,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
   };
   // Stop cancels every cancellable Run of the thread, a queued card submission included,
-  // as web does (docs/genui.md rule L, §9.7 M-a).
+  // as web does (docs/genui.md §7, rule L).
   const stopActive = async () => {
     if (!id) return;
     const active = stopTargets(runs, id);
@@ -965,6 +986,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                   visibleMessages,
                   approvals.filter((row) => row.thread_id === id),
                   ownerActions.filter((row) => row.thread_id === id),
+                  undrawn,
                 ).reverse()}
                 keyExtractor={(item) => item.id}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}

@@ -20,10 +20,13 @@ import { validateRichContent } from "./visual-response";
  * `card:record`. A message counts only as the renderers draw it: an assistant message whose
  * whole rich content validates, each card up to its cut. A fixed card's standalone row is
  * shown only while none of them embeds its record (mandate 10.2.3). */
-export function embeddedSlots(messages: readonly Message[]): ReadonlySet<string> {
+export function embeddedSlots(
+  messages: readonly Message[],
+  undrawn: ReadonlySet<string> = new Set(),
+): ReadonlySet<string> {
   const found = new Set<string>();
   for (const message of messages) {
-    if (message.role !== "assistant") continue;
+    if (message.role !== "assistant" || undrawn.has(message.id)) continue;
     for (const part of validateRichContent(message.rich_content)?.parts ?? []) {
       if (!isUiPart(part)) continue;
       part.document.blocks.forEach((block, position) => {
@@ -47,6 +50,9 @@ export function conversationTimeline(
   messages: Message[],
   approvals: TradeApproval[],
   ownerActions: OwnerAction[] = [],
+  /** Messages the client draws as another card (a question, a peer's message) instead of
+   * their rich content: a slot in them is not drawn, so it never hides a row. */
+  undrawn: ReadonlySet<string> = new Set(),
 ): ConversationItem[] {
   const ordered = [...new Map(messages.map((message) => [message.id, message])).values()].sort(
     (a, b) => a.seq - b.seq,
@@ -57,7 +63,7 @@ export function conversationTimeline(
     seq: message.seq,
     message,
   }));
-  const slots = embeddedSlots(ordered);
+  const slots = embeddedSlots(ordered, undrawn);
   for (const approval of new Map(approvals.map((row) => [row.id, row])).values()) {
     if (slots.has(`trade_approval:${approval.id}`)) continue;
     // Legacy rows retain their persisted request timestamp, never client arrival time.

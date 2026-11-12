@@ -17,8 +17,8 @@ HISTORY_WINDOW = 100
 
 
 def card_words(row: MessageRow, run: RunRow | None) -> str:
-    """Card words are labelled as such, never as the owner's own (§8.4); the submission a
-    Run answers carries its validated data as ``<ui_submit>``, marked as data (§3.7)."""
+    """Card words are labelled as such, never as the owner's own (docs/genui.md §7); the submission a
+    Run answers carries its validated data as ``<ui_submit>``, marked as data (docs/genui.md §7)."""
     if row.origin == "ui_follow_up":
         return "[owner_via_card]\n" + row.content
     if row.origin != "ui_submit":

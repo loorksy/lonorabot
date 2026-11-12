@@ -170,7 +170,7 @@ def recording_factory(
 
 
 def scrub(record: dict[str, Any], identities: Mapping[str, str]) -> dict[str, Any]:
-    """The record without the ids that differ per run, and never with a key (§10.6).
+    """The record without the ids that differ per run, and never with a key.
 
     Seeded rows (owner, agents, thread, account, run) become fixed UUIDs named after their role
     and provider call ids become call_1, call_2, ... in order of appearance. Each is replaced

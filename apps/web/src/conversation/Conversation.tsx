@@ -303,8 +303,21 @@ export function Conversation({
   }, [runs]);
 
   /* ---- the rows: messages, approvals, owner cards and order lines in server order */
+  // Messages drawn as a peer's or a question's card instead of their rich content (Message
+  // `card`): a slot in them is not drawn, so it never hides a fixed card's row (10.2.3).
+  const undrawn = useMemo(
+    () =>
+      new Set([
+        ...peerCards.keys(),
+        ...runs
+          .flatMap((run) => run.input_requests ?? [])
+          .filter((request) => request.choices.length)
+          .map((request) => request.message_id),
+      ]),
+    [peerCards, runs],
+  );
   const rows: Row[] = useMemo(() => {
-    const items = conversationTimeline(messages, approvals.rows, ownerActions.rows);
+    const items = conversationTimeline(messages, approvals.rows, ownerActions.rows, undrawn);
     const out: Row[] = items.map((item) =>
       item.kind === "message"
         ? { kind: "message", id: item.id, message: item.message as ConversationMessage }
@@ -328,7 +341,7 @@ export function Conversation({
       else out.splice(index, 0, line);
     }
     return out;
-  }, [messages, approvals.rows, ownerActions.rows, journal]);
+  }, [messages, approvals.rows, ownerActions.rows, journal, undrawn]);
 
   /* ---- actions */
   const send: ComposerSend = useCallback(

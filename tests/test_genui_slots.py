@@ -272,11 +272,23 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("«موافقة»") and imitates_fixed_card("APPROVE")
     assert imitates_fixed_card("الوسيط لم يؤكد هذه الصفقة")
     assert imitates_fixed_card("نُفذت") and imitates_fixed_card("نفذت")
+    # Invisible format characters and look-alike letters change nothing (zero-width
+    # non-joiner, zero-width space, a Cyrillic А, a right-to-left mark).
+    assert imitates_fixed_card("موا\u200cفقة") and imitates_fixed_card("رف\u200bض")
+    assert imitates_fixed_card("\u0410pprove") and imitates_fixed_card("\u200fرفض")
     assert not imitates_fixed_card("الموافقة على الخطة")
     assert not imitates_fixed_card("Approved plans")
-    # Everyday words a fixed card also says are refused only as a whole label.
-    assert imitates_fixed_card("Full") and imitates_fixed_card("ask")
-    assert not imitates_fixed_card("Full report") and not imitates_fixed_card("Ask about gold")
+    # A heading is held to the whole words or a separated segment; a control to its start.
+    assert imitates_fixed_card("طلب موافقة · XAUUSD") and imitates_fixed_card("XAUUSD | رفض")
+    assert not imitates_fixed_card("Approve the plan's timing")
+    assert not imitates_fixed_card("موافقة الشريك على الخطة")
+    assert imitates_fixed_card("Approve trade", control=True)
+    assert imitates_fixed_card("موافقة على الصفقة", control=True)
+    # Everyday words a fixed card also says («Full», «Ask») are refused only as a whole
+    # Button label: a Bid/Ask quote or a «Full» close size is an ordinary card.
+    assert imitates_fixed_card("Full", control=True) and imitates_fixed_card("ask", control=True)
+    assert not imitates_fixed_card("Full report", control=True)
+    assert not imitates_fixed_card("Ask") and not imitates_fixed_card("Full")
 
 
 @pytest.mark.asyncio

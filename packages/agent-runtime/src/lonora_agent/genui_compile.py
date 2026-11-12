@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
@@ -43,6 +44,19 @@ PRIVATE_KEY = re.compile(
 FAILED = {"error", "failed", "denied", "unavailable", "rejected"}
 DECIMAL = re.compile(r"^-?\d+(?:\.\d+)?$")
 UNBOUND = re.compile(r"\{\{\s*[A-Za-z_][\w.]*\s*\}\}")
+# Every node prop a client displays (a Slider's readout too); a copy action's text is read the
+# same way, since it reaches the clipboard and, when that fails, the card's notice.
+DISPLAYED = ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix", "show")
+
+
+def copy_text(node: dict[str, Any]) -> str | None:
+    action = node.get("action")
+    if isinstance(action, dict) and cast(dict[str, Any], action).get("do") == "copy":
+        text = cast(dict[str, Any], action).get("text")
+        return text if isinstance(text, str) else None
+    return None
+
+
 MAX_COLUMN = 100
 MAX_OBJECT_SCALARS = 300
 SYMBOL_TOOLS = {"market_quote", "market_instrument"}
@@ -366,7 +380,7 @@ class AgentScope:
     agent_id: str = ""
     bound_account: str | None = None
     bound_symbol: str | None = None
-    # More than one enabled account: an alert's bubble must name its account (§8.3), so
+    # More than one enabled account: an alert's bubble must name its account (docs/genui.md §7), so
     # an account without a verified broker label is listed here as unnamed.
     several_accounts: bool = False
     # The accounts this request read that the server can name (owner-checked, read
@@ -377,9 +391,21 @@ class AgentScope:
     slot_records: frozenset[tuple[str, str]] = frozenset()
 
 
+# Look-alike letters read as the letter they imitate: Cyrillic and Greek for Latin
+# ("Аpprove"), Persian yeh and keheh for Arabic.
+CONFUSABLES = str.maketrans(
+    "аАвВеЕкКмМнНоОрРсСтТуУхХіІјЈѕЅԁαΑβΒεΕηΗιΙκΚμΜνΝοΟρΡτΤυΥχΧیک",
+    "aAbBeEkKmMhHoOpPcCtTyYxXiIjJsSdaAbBeEnHiIkKmMvNoOpPtTuYxXيك",
+)
+
+
 def _plain(text: str) -> str:
-    # Folded first: Arabic diacritics go before punctuation becomes space.
-    return " ".join(re.sub(r"[^\w\s]", " ", fold(text)).split())
+    """The comparable form: compatibility forms unified, invisible format characters (zero
+    width joiners and spaces, direction marks) removed, look-alike letters read as Latin, then
+    folded before punctuation becomes space, so Arabic diacritics never split a word."""
+    text = unicodedata.normalize("NFKC", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    return " ".join(re.sub(r"[^\w\s]", " ", fold(text.translate(CONFUSABLES))).split())
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
@@ -396,14 +422,25 @@ def shows_frame_mark(text: str) -> bool:
     return any(f" {mark} " in plain for mark in MARKS_PLAIN)
 
 
-def imitates_fixed_card(text: str) -> bool:
-    """A heading or control label an agent's node shows that starts with, or is, what only a
-    fixed card or its trust frame says («موافقة», «Approve trade», «طلب موافقة · XAUUSD»)."""
+# What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).
+SEGMENTS = re.compile(r"\s*[·•:|/\u2013\u2014-]\s*")
+
+
+def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
+    """A label an agent's node shows that says what only a fixed card or its trust frame says.
+    A heading is refused when it, or one of its separated segments, is a fixed card's words
+    («طلب موافقة · XAUUSD»), never for a sentence that starts with them («يستأذن قبل كل صفقة»).
+    A Button's label is refused when it even starts with them («Approve trade»): a control is
+    what a fixed card's buttons are."""
+    if shows_frame_mark(text):
+        return True
     plain = _plain(text)
-    return (
-        shows_frame_mark(text)
-        or plain in WHOLE_PLAIN
-        or any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
+    if control:
+        return plain in WHOLE_PLAIN or any(
+            plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN
+        )
+    return plain in FIXED_PLAIN or any(
+        _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
     )
 
 
@@ -426,13 +463,14 @@ def imitation(
     if head.get("icon") == FRAME_ICON:
         return True
     labels: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+    controls: list[str] = []
     body: list[str] = [why or "", fallback or ""]
     for _path, node in walk(blocks):
         if node.get("icon") == FRAME_ICON:
             return True
         for name in LABEL_PROPS:
             if isinstance(node.get(name), str):
-                labels.append(node[name])
+                (controls if node["type"] == "Button" else labels).append(node[name])
         for name in BODY_PROPS:
             if isinstance(node.get(name), str):
                 (labels if node["type"] in LABEL_TEXT_NODES else body).append(node[name])
@@ -453,8 +491,10 @@ def imitation(
         found.extend(render_template(text, env) for env in envs)
         return found
 
-    return any(imitates_fixed_card(t) for text in labels for t in readings(text)) or any(
-        shows_frame_mark(t) for text in body for t in readings(text)
+    return (
+        any(imitates_fixed_card(t) for text in labels for t in readings(text))
+        or any(imitates_fixed_card(t, control=True) for text in controls for t in readings(text))
+        or any(shows_frame_mark(t) for text in body for t in readings(text))
     )
 
 
@@ -594,7 +634,7 @@ def compile_card(
         raise CardError("card_fallback")
     if head.get("mode") == "observed" and not facts:
         # No fact declared: the card shows no market or account number, so it is never
-        # labelled observed (§9.4, mode_checked).
+        # labelled observed (mode_checked).
         head.pop("mode")
         diagnostics.add("mode_checked", None, "head")
     elif head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):
@@ -814,7 +854,7 @@ def compile_card(
     def rendered(at: Any) -> list[str]:
         out = [render_template(head["title"], at), render_template(head.get("sub") or "", at)]
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     out.append(render_template(node[name], at))
             for option in cast(list[Any], node.get("options", [])):
@@ -829,6 +869,9 @@ def compile_card(
                     out.append(show(option))  # a plain option is shown raw
             for row in node.get("rows", []):
                 out.extend(render_template(c, at) for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                out.append(render_template(copied, at))
         return out
 
     def raw() -> list[str]:
@@ -837,7 +880,7 @@ def compile_card(
         found: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
         found.extend(str(v) for v in calc.values() if isinstance(v, str))
         for _path, node in walk(blocks):
-            for name in ("label", "text", "hint", "sub", "value", "title", "suffix", "prefix"):
+            for name in DISPLAYED:
                 if isinstance(node.get(name), str):
                     found.append(node[name])
             for option in cast(list[Any], node.get("options", [])):
@@ -850,6 +893,9 @@ def compile_card(
                     found.append(show(option))
             for row in node.get("rows", []):
                 found.extend(c for c in row if isinstance(c, str))
+            copied = copy_text(node)
+            if copied is not None:
+                found.append(copied)
         return found
 
     states: list[dict[str, Any]] = [state]
@@ -963,11 +1009,15 @@ def compile_card(
 
 
 def generated_fallback(head: dict[str, Any], blocks: list[dict[str, Any]], env: Any) -> str:
-    """Headings, labels, KeyValue rows and list items as Markdown."""
+    """Headings, text, KeyValue rows, Stats and inputs as Markdown."""
     lines = [f"**{head['title']}**"]
     for _path, node in walk(blocks):
-        if node["type"] in {"Text", "Note", "Title"}:
+        if node["type"] in {"Text", "Note", "Title", "Markdown", "Badge"}:
             lines.append(render_template(node["text"], env))
+        elif node["type"] == "Stat":
+            lines.append(
+                f"- **{render_template(node['label'], env)}:** {render_template(node['value'], env)}"
+            )
         elif node["type"] == "KeyValue":
             lines.extend(
                 f"- **{render_template(str(k), env)}:** {render_template(str(v), env)}"

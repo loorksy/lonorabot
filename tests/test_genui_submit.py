@@ -153,7 +153,7 @@ async def test_submit_stores_the_server_bubble_and_its_own_tainted_queued_run() 
         result = response.json()
         message = result["message"]
         # The bubble is the registry's template with the server's own name, never the
-        # client's text or a card label (§10.2 item 8).
+        # client's text or a card label (docs/genui.md §7).
         assert message["content"] == "أنشئ تنبيهًا: الذهب فوق 2,400.00"
         assert message["origin"] == "ui_submit" and message["reply_to"] == card.message_id
         assert message["ui_submit"]["intent"] == "alert.create"
@@ -525,7 +525,7 @@ async def test_a_watch_created_by_a_submission_wakes_tainted() -> None:
 
 
 def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
-    """§8.4: every query of user messages either goes through ``owner_words``, reads
+    """docs/genui.md §7: every query of user messages either goes through ``owner_words``, reads
     ``origin`` or sits on this reviewed allowlist with its reason."""
     root = Path(__file__).parent.parent
     allowed = {
