@@ -2,7 +2,7 @@ from typing import Any, cast
 
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
-from lonora_core.run_state import TERMINAL, is_background
+from lonora_core.run_state import TERMINAL, is_background, may_end_silent
 from lonora_db.client import Database
 from lonora_db.events import emit
 from lonora_db.item_failures import ItemGuard, blocked
@@ -173,7 +173,9 @@ async def return_outcome(db: Database, run_id: str) -> None:
             and thread
             and thread.purpose != "work"
             and parent.status in TERMINAL
-            and is_background(parent.trigger, parent.model_metadata)
+            and may_end_silent(
+                is_background(parent.trigger, parent.model_metadata), parent.execution_state
+            )
             and not child.model_metadata.get("collaboration_session_id")
             and (parent.status != "completed" or not (child.result or rich_content))
         )
@@ -231,7 +233,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
                         parent_run_id=parent.id,
                         prompt="Use the returned peer outcome to finish the background work "
                         "that asked for it."
-                        if is_background(parent.trigger, parent.model_metadata)
+                        if may_end_silent(
+                            is_background(parent.trigger, parent.model_metadata),
+                            parent.execution_state,
+                        )
                         else "Use the returned peer outcome to complete the owner's request.",
                         # A follow-up keeps an observe-only requester's narrowing, so it
                         # never asks the owner to approve a trade the executor refuses.

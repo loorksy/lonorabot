@@ -44,14 +44,19 @@ BACKGROUND_TRIGGERS = frozenset(
 )
 # Set by ``create_run`` alone, on a follow-up of background work; a caller never can.
 BACKGROUND_KEY = "background"
-# Set in a Run's execution state when an owner message is merged into it.
+# Set when the owner's words reach a Run: by admission in its metadata (server-only),
+# and in its execution state when they are merged into its transcript.
 OWNER_SPOKE = "owner_spoke"
 
 
 def is_background(trigger: str, metadata: Mapping[str, Any] | None) -> bool:
-    """A background run: its reply may be empty, and an empty one posts nothing."""
+    """A background run: its reply may be empty, and an empty one posts nothing. A run the
+    owner's words were given to answers them: it is not background."""
+    data = metadata or {}
+    if data.get(OWNER_SPOKE) is True:
+        return False
     return trigger in BACKGROUND_TRIGGERS or (
-        trigger == "follow_up" and (metadata or {}).get(BACKGROUND_KEY) is True
+        trigger == "follow_up" and data.get(BACKGROUND_KEY) is True
     )
 
 

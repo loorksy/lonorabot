@@ -49,6 +49,9 @@ def test_who_is_background():
     assert not is_background("follow_up", None)
     assert is_background("follow_up", {"background": True})
     assert not is_background("follow_up", {"background": "true"})
+    # Background work the owner's words were given to answers them.
+    assert not is_background("routine", {"owner_spoke": True})
+    assert not is_background("follow_up", {"background": True, "owner_spoke": True})
     # A subagent's run owes its parent an answer; every other work trigger is background.
     assert BACKGROUND_TRIGGERS == WORK_TRIGGERS - {"subagent"}
     assert may_end_silent(True, {})
@@ -1032,7 +1035,6 @@ async def test_at_the_limit_only_the_model_chooses_silence(final: str):
     from check_streaming import Fixture
     from lonora_adapter_kit.types import ModelReply, ToolCall
     from lonora_agent.executor import execute_run
-    from lonora_agent.runtime_notices import limit_fallback
     from lonora_contracts.model_routing import ModelSelection
     from lonora_core.user_error import LonoraError
 
@@ -1057,17 +1059,17 @@ async def test_at_the_limit_only_the_model_chooses_silence(final: str):
             await execute_run(context, trade_and_silence(), 120, 2)
         row = await reload(fixture, run.id)
         assert row.model_metadata["exit_reason"] == "tool_round_limit"
-        # The model never chose silence: the run says it stopped, as before.
-        assert row.result, row.result
-        assert row.result == limit_fallback(False) or row.result == UNVERIFIED_EN
+        # The model never chose silence; the order nothing verified is the report (5.3.3).
+        assert row.result == UNVERIFIED_EN, row.result
     finally:
         await fixture.close()
 
 
 @pytest.mark.asyncio
-async def test_the_owners_message_gets_its_own_run_beside_background_work():
+async def test_an_owner_message_taken_by_background_work_is_answered():
     database()
     from check_streaming import Fixture
+    from lonora_agent.runtime_notices import NO_ANSWER
     from test_background_questions import send
 
     fixture = await Fixture().open()
@@ -1081,11 +1083,17 @@ async def test_the_owners_message_gets_its_own_run_beside_background_work():
         [follow_up] = await follow_ups(fixture, watch.id)
         status, body = await send(fixture, conversation, "And silver?")
         assert status < 300, body
-        # The owner's words are not folded into background work that may end silent.
-        assert follow_up.id not in body["run_ids"] and len(body["run_ids"]) == 1
-        assert (await reload(fixture, follow_up.id)).input_seq == follow_up.input_seq
-        owner_run = await reload(fixture, body["run_ids"][0])
-        assert owner_run.trigger == "user"
+        # The follow-up takes the owner's words (they can still steer it) ...
+        assert body["run_ids"] == [follow_up.id]
+        # ... and from then on it answers them: no silence, and it streams.
+        complete, requests = router(" ", "Silver is at 31.")
+        await execute(fixture, follow_up, complete)
+        assert len(requests) == 2 and said(requests[1:], NO_ANSWER)
+        row = await reload(fixture, follow_up.id)
+        assert row.result == "Silver is at 31." and row.model_metadata["owner_spoke"] is True
+        assert "Silver is at 31." in await contents(fixture, conversation)
+        listed = await fixture.request("GET", "/runs/" + follow_up.id)
+        assert listed["background"] is False
     finally:
         await fixture.close()
 
@@ -1368,5 +1376,31 @@ async def test_a_failed_wake_returns_exactly_the_sources_it_stood_for():
         source = await projected(fixture.runtime.db, await failed_wake(fixture, broker))
         assert source.kind == "broker.external_activity"
         assert source.payload["account_id"] == "acc" and source.payload["symbol"] is None
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_helper_of_work_the_owner_spoke_to_is_still_reported():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Answered desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        watch = await make_run(fixture, agent, conversation, "watch")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, watch.id, with_for_update=True)
+            assert row is not None
+            row.status, row.result = "completed", "Kept the position."
+            row.execution_state = {"owner_spoke": True}
+        failed = await returned_helper(fixture, agent, watch, "failed", None)
+        # The owner is waiting on this work: its helper's failure reaches them.
+        assert any(failed.id in text for text in await contents(fixture, conversation))
+        [follow_up] = await follow_ups(fixture, watch.id)
+        assert "background" not in follow_up.model_metadata
+        assert follow_up.prompt == "Use the returned peer outcome to complete the owner's request."
     finally:
         await fixture.close()

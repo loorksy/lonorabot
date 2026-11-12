@@ -3,7 +3,7 @@ from typing import Any, cast
 from lonora_contracts.domain import MessageCreate
 from lonora_core.group_mentions import mentions
 from lonora_core.message_replies import require_same_thread
-from lonora_core.run_state import TERMINAL, is_background, is_conversational
+from lonora_core.run_state import OWNER_SPOKE, TERMINAL, is_background, is_conversational
 from lonora_core.user_error import LonoraError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -224,14 +224,11 @@ async def answerable_run(session: AsyncSession, run_id: str, thread_id: str) -> 
 
 def takes_message(run: RunRow) -> bool:
     """Whether an active run of a thread takes the owner's next message there: a
-    conversational run is steered, and a run waiting on its own question is answered.
-    Background work that may end silent (11.5) never absorbs the owner's words: they get
-    a run of their own that answers them."""
+    conversational run is steered, and a run waiting on its own question is answered."""
     pending = any(
         item.get("status") == "pending" for item in run.execution_state.get("input_requests", [])
     )
-    steered = is_conversational(run.trigger) and not is_background(run.trigger, run.model_metadata)
-    return steered or (run.status == "waiting_input" and pending)
+    return is_conversational(run.trigger) or (run.status == "waiting_input" and pending)
 
 
 async def asking_run(
@@ -663,6 +660,10 @@ async def admit_runs(
             None,
         )
         if active and takes_message(active):
+            if message.origin == "owner" and is_background(active.trigger, active.model_metadata):
+                # Background work the owner writes to answers them from now on (11.5),
+                # even a queued run that will read the words only from its history.
+                active.model_metadata = {**active.model_metadata, OWNER_SPOKE: True}
             if pending_question and active.status == "waiting_input":
                 updated = [
                     {

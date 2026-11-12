@@ -5,6 +5,7 @@ from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import WORK_TRIGGERS, Lease, RunFailure, RunRequest
 from lonora_core.run_state import (
     BACKGROUND_KEY,
+    OWNER_SPOKE,
     assert_transition,
     is_background,
     may_end_silent,
@@ -111,7 +112,9 @@ def run_data(row: RunRow) -> dict[str, Any]:
         "trigger": row.trigger,
         # VISION 11.5: no one waits on a background run's reply; clients leave its
         # failure out of the conversation.
-        "background": is_background(row.trigger, row.model_metadata),
+        "background": may_end_silent(
+            is_background(row.trigger, row.model_metadata), row.execution_state
+        ),
         "input_seq": row.input_seq,
         "error_code": row.error_code,
         "failure": failure_data(row),
@@ -190,8 +193,10 @@ async def create_run(
                 "skill_execution_image",
                 # Only ``submit_card`` marks a card submission's own Run.
                 "ui_submit_origin",
-                # Only the follow-up stamp below marks a Run as background work.
+                # Only the follow-up stamp below marks a Run as background work, and
+                # only admission marks the owner's words reaching it.
                 BACKGROUND_KEY,
+                OWNER_SPOKE,
             }
         },
     )

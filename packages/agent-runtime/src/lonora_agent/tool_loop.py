@@ -52,6 +52,7 @@ from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
 
 from .cancellation import cancellation_checkpoint
+from .context.financial_result import unverified_financial_result
 from .context.skills import assert_skill_authority, refresh_skill_context
 from .context_engine import (
     FENCE_CODES,
@@ -294,8 +295,9 @@ async def finish_turn(
         )
         if not text and not chose_silence:
             # Only the model chooses silence, by an empty answer: a failed final call, a
-            # turn of calls or a card without text leaves the fixed report as before.
-            text = limit_fallback(prefers_arabic(messages))
+            # turn of calls or a card without text leaves the fixed report, and an order
+            # nothing verified is that report (5.3.3).
+            text = unverified_financial_result(messages) or limit_fallback(prefers_arabic(messages))
         if reply.rich_content is None or not reply.text.strip():
             state.pop("rich_content", None)
         else:
