@@ -11,6 +11,7 @@ from lonora_core.user_error import LonoraError
 from lonora_db.runs import aware, require_lease
 from lonora_db.schema import AnalyticalWorkspaceRow, RunRow, ThreadRow, WorkspaceOperationRow
 from lonora_db.transactions import owned_agent
+from lonora_security.secrets import SecretScan
 from lonora_session.idempotency import request_hash
 from lonora_tools.base import run_scope
 from lonora_tools.context import ToolContext
@@ -59,11 +60,17 @@ async def scoped_run(
     return run
 
 
-def manifest(revision: int, files: dict[str, bytes]) -> dict[str, Any]:
+async def output_scan(context: ToolContext) -> SecretScan:
+    """The scan every byte from the workspace passes before it reaches the model, chat,
+    logs or memory: each workspace secret and its encoded forms become [secret:NAME]."""
+    return SecretScan(await context.secrets.workspace_values())
+
+
+def manifest(revision: int, files: dict[str, bytes], scan: SecretScan) -> dict[str, Any]:
     return {
         "revision": revision,
         "files": [
-            {"path": name, "size": len(body), "sha256": hashlib.sha256(body).hexdigest()}
+            {"path": scan.text(name), "size": len(body), "sha256": hashlib.sha256(body).hexdigest()}
             for name, body in sorted(files.items())
         ],
     }
@@ -166,6 +173,7 @@ class RunWorkspaceAccess:
         return await export_file(context, path, revision, name)
 
     async def inspect(self, context: ToolContext) -> dict[str, Any]:
+        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
             row = await session.get(AnalyticalWorkspaceRow, context.agent_id)
@@ -185,7 +193,9 @@ class RunWorkspaceAccess:
                 and aware(active_run.lease_expires_at) > utcnow()
             )
             return {
-                **manifest(row.revision if row else 0, read_snapshot(row.snapshot) if row else {}),
+                **manifest(
+                    row.revision if row else 0, read_snapshot(row.snapshot) if row else {}, scan
+                ),
                 "execution_configured": self.executor is not None,
                 "active_operation_id": row.active_operation_id if row and running else None,
                 "recovery_required": bool(row and row.active_operation_id and not running),
@@ -197,6 +207,7 @@ class RunWorkspaceAccess:
         encode_snapshot({path: b""})
         if not 0 <= offset <= 2097152 or not 1 <= limit <= 16000:
             raise LonoraError("workspace_read_invalid", 422)
+        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)
             row = await session.get(AnalyticalWorkspaceRow, context.agent_id)
@@ -212,7 +223,7 @@ class RunWorkspaceAccess:
             return {
                 "revision": revision,
                 "path": path,
-                "content": content[offset : offset + limit],
+                "content": scan.text(content[offset : offset + limit]),
                 "offset": offset,
                 "next_offset": offset + limit if len(content) > offset + limit else None,
                 "sha256": hashlib.sha256(files[path]).hexdigest(),
@@ -234,6 +245,7 @@ class RunWorkspaceAccess:
                 "delete": sorted(set(delete)),
             }
         )
+        scan = await output_scan(context)
         async with context.db.sessions() as session, session.begin():
             row = await locked_workspace(session, context)
             prior = await receipt(session, context, digest)
@@ -247,7 +259,10 @@ class RunWorkspaceAccess:
             row.snapshot = encode_snapshot(snapshot)
             row.revision += 1
             row.updated_at = utcnow()
-            result = {"operation_id": context.resource_id, **manifest(row.revision, snapshot)}
+            result = {
+                "operation_id": context.resource_id,
+                **manifest(row.revision, snapshot, scan),
+            }
             session.add(
                 WorkspaceOperationRow(
                     id=context.resource_id,
@@ -380,6 +395,7 @@ class RunWorkspaceAccess:
             )
             if expected_image is not None and outcome.image != expected_image:
                 raise LonoraError("workspace_profile_changed", 409)
+            scan = await output_scan(context)
             encoded = encode_snapshot(outcome.files)
             async with context.db.sessions() as session, session.begin():
                 row = await locked_workspace(session, context, helper=True)
@@ -398,10 +414,10 @@ class RunWorkspaceAccess:
                 result = {
                     "operation_id": context.resource_id,
                     "exit_code": outcome.exit_code,
-                    "stdout": outcome.stdout,
-                    "stderr": outcome.stderr,
+                    "stdout": scan.text(outcome.stdout),
+                    "stderr": scan.text(outcome.stderr),
                     "image": outcome.image,
-                    **manifest(row.revision, outcome.files),
+                    **manifest(row.revision, outcome.files, scan),
                 }
                 operation.status, operation.result, operation.updated_at = (
                     "completed",

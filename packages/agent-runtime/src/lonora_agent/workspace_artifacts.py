@@ -16,7 +16,7 @@ from lonora_tools.artifacts import raster_dimensions, store_artifact
 from lonora_tools.context import ToolContext
 
 from .workspace import MAX_FILE_BYTES, encode_snapshot, read_snapshot
-from .workspace_access import scoped_run
+from .workspace_access import output_scan, scoped_run
 
 TEXT_TYPES = {
     ".txt": "text/plain",
@@ -117,6 +117,14 @@ async def export_file(
             await scoped_run(session, context, mutate=True)
         return original
     media = await asyncio.to_thread(export_media, path, content)
+    # Exported bytes reach the chat: text is scanned like any workspace output, and an
+    # image that carries a workspace secret is not exported.
+    scan = await output_scan(context)
+    source_sha256 = hashlib.sha256(content).hexdigest()
+    if media in TEXT_TYPES.values():
+        content = scan.text(content.decode("utf-8")).encode("utf-8")
+    elif scan.found(content):
+        raise LonoraError("workspace_export_contains_secret", 422)
     return await store_artifact(
         context,
         destination,
@@ -127,7 +135,7 @@ async def export_file(
             "workspace_source": {
                 "path": path,
                 "revision": revision,
-                "sha256": hashlib.sha256(content).hexdigest(),
+                "sha256": source_sha256,
             },
         },
     )

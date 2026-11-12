@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..workspace import read_snapshot
-from ..workspace_access import scoped_run
+from ..workspace_access import output_scan, scoped_run
 from .packages import (
     AdaptationReview,
     PackageState,
@@ -333,6 +333,7 @@ async def create_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-create-v1", **arguments})
+    scan = await output_scan(context)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -360,6 +361,9 @@ async def create_package(
                 adapted_content=arguments["adapted_content"],
                 review=AdaptationReview.model_validate(arguments["review"]),
             )
+            # A skill's files reach the model: one carrying a workspace secret is refused.
+            if any(scan.found(body.encode()) for body in files.values()):
+                raise LonoraError("skill_package_contains_secret", 422)
             row = await owned_skill(session, context, entry.payload.name)
             await admit_version(session, context, row, entry, arguments["expected_version"])
             await validate_graph(
