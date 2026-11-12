@@ -8,11 +8,17 @@ const copy = {
   ar: {
     words: "بكلمات الوكيل",
     band: "صالحة ما دام السعر ضمن",
+    price: "السعر",
+    stopLoss: "وقف الخسارة",
+    takeProfit: "جني الربح",
     drifted: "خرج السعر عن الهامش — لم يُرسل شيء",
   },
   en: {
     words: "In the agent's words",
     band: "Valid while the price stays within",
+    price: "Price",
+    stopLoss: "Stop loss",
+    takeProfit: "Take profit",
     drifted: "Price moved outside the tolerance — nothing was sent",
   },
 };
@@ -58,7 +64,16 @@ for (const locale of ["ar", "en"])
       agent_id: agent.id,
       run_id: "run",
       created_at: "2026-11-12T12:00:00Z",
-      requests: [{ action: "buy", symbol: "XAUUSD", volume: "0.1", stop_loss: "95" }],
+      requests: [
+        {
+          action: "buy_limit",
+          symbol: "XAUUSD",
+          volume: "0.1",
+          price: "99",
+          stop_loss: "95",
+          take_profit: "110",
+        },
+      ],
       results: [],
       expires_at: null,
       tolerance: "1.5",
@@ -83,6 +98,13 @@ for (const locale of ["ar", "en"])
       await expect(page.getByText(pending.reason, { exact: true })).toBeVisible();
       await expect(page.getByText(`${text.band} 101 ± 1.5`, { exact: true }).first()).toBeVisible();
       await expect(page.getByText(text.drifted, { exact: true })).toBeVisible();
+      // 10.3: entry, stop loss and take profit are labelled, never bare numbers.
+      for (const [label, value] of [
+        [text.price, "99"],
+        [text.stopLoss, "95"],
+        [text.takeProfit, "110"],
+      ])
+        await expect(page.getByText(`${label}: ${value}`, { exact: true }).first()).toBeVisible();
       if (locale === "ar")
         await page.screenshot({
           path: test.info().outputPath("trade-approval-validity-native-ar.png"),
