@@ -218,7 +218,9 @@ test("a connecting Secret card shows the agent's details and asks for the addres
     assert.ok(spec.hint?.includes(text.connectXHint));
     // The address may carry a key: the owner types it into the card, never into chat.
     assert.ok(!spec.lines.some((line) => line.includes("https://")));
-    assert.ok(spec.lines.some((line) => line.includes("MCP_X_URL") && line.includes("MCP_X_TOKEN")));
+    assert.ok(
+      spec.lines.some((line) => line.includes("MCP_X_URL") && line.includes("MCP_X_TOKEN")),
+    );
     assert.deepEqual(spec.secret, {
       fields: [
         { key: "URL", label: text.fieldServerUrl, type: "url", required: true },
