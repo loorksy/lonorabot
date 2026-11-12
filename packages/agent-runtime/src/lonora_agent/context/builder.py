@@ -33,7 +33,7 @@ from .governance import govern_context
 from .history import history_context, history_gap
 from .memory import read_memory_context
 from .reply import reply_context
-from .routine import wake_context
+from .routine import wake_context, workspace_wake_section
 from .run_evidence import recent_tool_evidence
 from .scratchpad import scratchpad_context
 from .skills import read_skill_context
@@ -267,6 +267,7 @@ async def build_context(
             ContextSection(
                 "attachments", "owner_attachments", "owner_supplied_untrusted", attachments, 92
             ),
+            *[section for section in [workspace_wake_section(run)] if section is not None],
         ]
         data = context_message(sections)
         if data is not None:

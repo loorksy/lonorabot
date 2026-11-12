@@ -1,36 +1,28 @@
 from fastapi import APIRouter, Depends, Request
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.agent_secrets import SecretCreate
-from lonora_db.secrets import secret_metadata
-from lonora_db.transactions import owned_agent
+from lonora_contracts.agent_secrets import WorkspaceSecretCreate
+from lonora_db.secrets import WORKSPACE, secret_metadata
 
 from ..middleware.auth import require_owner, runtime
 
 router = APIRouter()
 
 
-@router.get("/agents/{agent_id}/secrets")
+@router.get("/secrets")
 async def list_secrets(
-    request: Request, agent_id: str, owner: OwnerIdentity = Depends(require_owner)
+    request: Request, owner: OwnerIdentity = Depends(require_owner)
 ) -> list[dict[str, str]]:
+    """The owner's workspace secrets by name; values never leave the store."""
     async with runtime(request).db.sessions() as session:
-        await owned_agent(session, owner.id, agent_id)
-        return await secret_metadata(session, owner.id, "agent:" + agent_id)
+        return await secret_metadata(session, owner.id, WORKSPACE)
 
 
-@router.post("/agents/{agent_id}/secrets", status_code=201)
+@router.post("/secrets", status_code=201)
 async def store_secret(
-    request: Request,
-    agent_id: str,
-    body: SecretCreate,
-    owner: OwnerIdentity = Depends(require_owner),
+    request: Request, body: WorkspaceSecretCreate, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, str]:
-    async with runtime(request).db.sessions() as session:
-        await owned_agent(session, owner.id, agent_id)
     secret_id = (
-        await runtime(request)
-        .services(owner.id)
-        .secrets.write(body.name, body.value, "agent:" + agent_id)
+        await runtime(request).services(owner.id).secrets.write(body.name, body.value, WORKSPACE)
     )
     return {"id": secret_id, "name": body.name}
 
@@ -39,5 +31,6 @@ async def store_secret(
 async def delete_secret(
     request: Request, secret_id: str, owner: OwnerIdentity = Depends(require_owner)
 ) -> dict[str, bool]:
+    """The only route that deletes a stored secret; one a connection uses is refused."""
     await runtime(request).services(owner.id).secrets.delete(secret_id)
     return {"deleted": True}
