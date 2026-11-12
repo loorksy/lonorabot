@@ -45,7 +45,7 @@ from lonora_db.threads import conversation_thread
 from lonora_db.transactions import SettingsRepository
 from lonora_market.sessions import fx_week
 from lonora_session.idempotency import stable_id
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -268,6 +268,12 @@ async def brief_facts(
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > now,
             OwnerActionRow.kind != "resolve_operation",
+            # A Mandate card waits only when an agent's run proposed it (11.4); the one
+            # Lonora offers at onboarding (4.3.1) is the owner's switch.
+            or_(
+                OwnerActionRow.kind != "trading_mode",
+                and_(OwnerActionRow.source == "agent", OwnerActionRow.run_id.is_not(None)),
+            ),
         ),
     )
     questions = await _count(

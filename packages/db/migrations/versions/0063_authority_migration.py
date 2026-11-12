@@ -16,10 +16,11 @@
    grant into authority after this step). Each revocation is the live one:
    ``account_authority.updated`` with reason ``mandate_migration``, the grant's
    account-management Task stopped (a failed Task becomes cancelled, a Task the owner
-   asked to complete becomes completed) with its own watches settled, its waiting Run
+   asked to complete becomes completed), its waiting Run
    and any waiting activation review of the grant cancelled with their pending and
    approved Trade Approval cards (as the owner's cancel of a Task), and pending grant
-   cards superseded.
+   cards superseded. Ending a Task never cancels its watches (4.5.3): each stays the
+   agent's own, without the Task, and a pause on it (the owner's too) can still lift.
 4. Delegated, child and supervisor agents become ordinary team agents: no parent, role
    ``general``, flexible, no binding, template ``supervisor`` becomes ``general``. A bound
    account and symbol become one line of the agent's method (its OPERATING.md), with a
@@ -503,7 +504,7 @@ class Migration:
 
     def stop_management_task(self, grant: Any) -> None:
         """Frozen stop_management_task (finish_task(..., 'cancelled'), a failed Task
-        cancelled, settle_task_watches), written once."""
+        cancelled), written once; its watches are kept (keep_task_watches)."""
         task_id = stable_id(grant.id, "account-management-task")
         rows = self.rows(
             "SELECT owner_id, agent_id, payload, state FROM ln_tickets WHERE id = :id FOR UPDATE",
@@ -547,32 +548,37 @@ class Migration:
                 agent_id=grant.agent_id,
                 thread_id=task.get("origin_thread_id"),
             )
-        if task["status"] in {"cancelled", "completed"}:
-            self.settle_task_watches(grant.owner_id, task_id)
+        if status not in {"cancelled", "completed"}:
+            self.keep_task_watches(grant.owner_id, task_id)
 
-    def settle_task_watches(self, owner_id: str, task_id: str) -> None:
-        """Frozen settle_task_watches + stop_watch + _changed(by='task')."""
+    def keep_task_watches(self, owner_id: str, task_id: str) -> None:
+        """Ending the Task never cancels its watches (4.5.3): each stays the agent's own,
+        without the Task, so it wakes the agent and a pause on it can still be lifted."""
         for watch in self.rows(
-            "SELECT id, agent_id, thread_id, payload, state FROM ln_market_watches"
+            "SELECT id, agent_id, thread_id, state FROM ln_market_watches"
             " WHERE owner_id = :owner AND CAST(state AS JSONB) ->> 'task_id' = :task"
             " ORDER BY id FOR UPDATE",
             owner=owner_id,
             task=task_id,
         ):
-            payload, state = payload_of(watch.payload), payload_of(watch.state)
-            if not payload.get("enabled", True) and state.get("code") == "task_terminal":
-                continue
             state = {
                 key: value
-                for key, value in state.items()
-                if key not in {"evaluation_status", "next_check"}
+                for key, value in payload_of(watch.state).items()
+                if key not in {"task_id", "task_run_id"}
             }
-            self.changed_watch(
+            version = self.rows(
+                "UPDATE ln_market_watches SET state = CAST(:state AS JSON),"
+                " version = version + 1, updated_at = :now WHERE id = :id RETURNING version",
+                id=watch.id,
+                state=dump(state),
+                now=self.now,
+            )[0].version
+            self.emit(
                 owner_id,
-                watch,
-                {**payload, "enabled": False},
-                {**state, "code": "task_terminal"},
-                "task",
+                "market_watches.updated",
+                {"id": watch.id, "version": version},
+                agent_id=watch.agent_id,
+                thread_id=watch.thread_id,
             )
 
     def changed_watch(
