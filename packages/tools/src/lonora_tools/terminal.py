@@ -110,7 +110,11 @@ async def run(context: ToolContext, arguments: dict[str, Any]) -> dict[str, Any]
     if context.workspace_given is not None:
         # Before the command can print them: a later rotation keeps them in the scan.
         await context.workspace_given.record(injected)
-    token = await context.cli_tokens.for_run(context.lease.run_id) if context.cli_tokens else None
+    token = (
+        await context.cli_tokens.for_run(context.lease.run_id, context.agent_id)
+        if context.cli_tokens
+        else None
+    )
     result = await client(context).run(
         await scan(context),
         context.agent_id,

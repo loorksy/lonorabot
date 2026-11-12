@@ -31,7 +31,7 @@ class Tokens:
         self.token = token
         self.asked: list[str] = []
 
-    async def for_run(self, run_id: str) -> str | None:
+    async def for_run(self, run_id: str, agent_id: str) -> str | None:
         self.asked.append(run_id)
         return self.token
 
@@ -201,9 +201,11 @@ async def test_command_tokens_issue_the_runs_token_and_list_every_agents() -> No
             await session.flush()
             ids = full.id, helper.id
         tokens = CommandTokens(runtime.db, key, setup.fixture.owner)
-        issued = await tokens.for_run(ids[0])
+        issued = await tokens.for_run(ids[0], setup.agent)
         assert issued is not None and issued == await setup.token()
-        assert await tokens.for_run(ids[1]) is None
+        assert await tokens.for_run(ids[1], setup.agent) is None
+        # A command run as another agent's user never gets this run's token.
+        assert await tokens.for_run(ids[0], (await setup.fixture.agent("x"))["id"]) is None
         assert issued in await tokens.values()
         # The endpoint knows the injected token as this agent's.
         assert (await setup.call("orders", issued))[0] != 77

@@ -41,9 +41,15 @@ async def full_ancestry(session: AsyncSession, run: RunRow) -> bool:
     return False
 
 
-async def token_for_command(session: AsyncSession, key: str, run_id: str) -> str | None:
+async def token_for_command(
+    session: AsyncSession, key: str, run_id: str, agent_id: str | None = None
+) -> str | None:
+    """``agent_id``: the agent whose Unix user runs the command; a run of another agent
+    gets no token, so one agent's token never lands in another agent's process."""
     run = await session.get(RunRow, run_id)
-    if run is None or not await full_ancestry(session, run):
+    if run is None or (agent_id is not None and run.agent_id != agent_id):
+        return None
+    if not await full_ancestry(session, run):
         return None
     agent = await session.get(AgentRow, run.agent_id)
     if agent is None:
@@ -59,9 +65,9 @@ class CommandTokens:
     key: str
     owner_id: str
 
-    async def for_run(self, run_id: str) -> str | None:
+    async def for_run(self, run_id: str, agent_id: str) -> str | None:
         async with self.db.sessions() as session, session.begin():
-            return await token_for_command(session, self.key, run_id)
+            return await token_for_command(session, self.key, run_id, agent_id)
 
     async def values(self) -> list[str]:
         async with self.db.sessions() as session:
