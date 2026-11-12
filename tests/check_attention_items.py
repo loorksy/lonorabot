@@ -392,6 +392,55 @@ async def fallbacks(fixture: Fixture) -> None:
         assert row is not None and row.status == "ready"
     print("PASS a quarantined approval alert is not withdrawn for lack of its record")
 
+    # The sweep rotates: with one item per sweep, an item that stays current at the
+    # lowest id never keeps an ended one at the highest id from being withdrawn.
+    agent = await fixture.agent("Rotation")
+    thread = await fixture.conversation(agent)
+    context = await fixture.lease(await fixture.run(agent, thread))
+    cards = []
+    for target in ("mcp_server", "brave_search"):
+        arguments: dict[str, str] = {"kind": "connect_credential", "target": target}
+        if target == "mcp_server":
+            arguments["service"] = "x"
+        card = await load_tools().execute(
+            ToolCall(id="call-" + uuid4().hex, name="owner_action_propose", arguments=arguments),
+            context,
+        )
+        cards.append(str(card["owner_action"]["id"]))
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        for identifier, card_id in zip(("0" * 32, "f" * 32), cards, strict=True):
+            session.add(
+                AttentionRow(
+                    id=identifier,
+                    owner_id=fixture.owner,
+                    agent_id=agent["id"],
+                    thread_id=thread["id"],
+                    logical_key=identifier,
+                    coalesce_key=identifier,
+                    importance="action_required",
+                    code="secret_requested",
+                    status="ready",
+                    parameters={"owner_action_id": card_id},
+                    source_events=[],
+                    due_at=utcnow(),
+                )
+            )
+        row = await session.get(OwnerActionRow, cards[1])
+        assert row is not None
+        row.expires_at = utcnow() - timedelta(seconds=1)
+    with patch("lonora_db.attention.SWEEP_BATCH", 1):
+        for _ in range(40):
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await withdraw_ended(session, fixture.owner)
+    async with fixture.runtime.db.sessions() as session:
+        first, last = (
+            await session.get(AttentionRow, "0" * 32),
+            await session.get(AttentionRow, "f" * 32),
+        )
+        assert first is not None and last is not None
+        assert (first.status, last.status) == ("ready", "suppressed")
+    print("PASS the sweep rotates, so current items never starve an ended one")
+
 
 async def migration(fixture: Fixture) -> None:
     environment = {**os.environ}

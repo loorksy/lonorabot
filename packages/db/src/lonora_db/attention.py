@@ -822,6 +822,9 @@ async def follow_broker_health(session: AsyncSession, owner_id: str) -> int:
     return count
 
 
+SWEEP_BATCH = 200
+
+
 async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
     """Withdraw every open item of the 11.4 owner events whose card ended or whose
     problem cleared, including one the owner has already seen (which keeps its
@@ -832,17 +835,31 @@ async def withdraw_ended(session: AsyncSession, owner_id: str) -> int:
     state is checked rather than waited for.
     """
     await lock_attention(session, owner_id)
-    rows = await session.scalars(
-        select(AttentionRow)
-        .where(
-            AttentionRow.owner_id == owner_id,
-            AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
-            AttentionRow.status.in_(["pending", "ready", "seen"]),
+    # The sweep rotates through the open items in id order, SWEEP_BATCH at a time, so
+    # items that stay current never keep later ones from being checked.
+    key = "attention-sweep:" + owner_id
+    position = await session.get(SettingRow, key, with_for_update=True)
+    after = str(position.payload.get("after", "")) if position else ""
+    rows = list(
+        await session.scalars(
+            select(AttentionRow)
+            .where(
+                AttentionRow.owner_id == owner_id,
+                AttentionRow.code.in_(sorted(ATTENTION_EVENTS)),
+                AttentionRow.status.in_(["pending", "ready", "seen"]),
+                AttentionRow.id > after,
+            )
+            .order_by(AttentionRow.id)
+            .limit(SWEEP_BATCH)
+            .with_for_update()
         )
-        .order_by(AttentionRow.created_at)
-        .limit(200)
-        .with_for_update()
     )
+    # A short batch reached the end: the next sweep starts from the first item again.
+    following = rows[-1].id if len(rows) == SWEEP_BATCH else ""
+    if position is None:
+        session.add(SettingRow(key=key, payload={"after": following}))
+    else:
+        position.payload = {"after": following}
     count = 0
     for row in rows:
         # An urgent event whose projection kept failing is delivered without its record
