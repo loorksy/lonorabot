@@ -738,7 +738,6 @@ async def update_task_step(
                     if names.get(identifier) in {
                         "trade_execute",
                         "trade_close_positions",
-                        "goal_step_execute",
                     }:
                         outcomes = result.get("results")
                         if result.get("status") != "confirmed" and (

@@ -897,7 +897,7 @@ def tools() -> list[Tool]:
             "Reconcile ambiguous execution before retrying. When an immutable "
             "trading market is bound, omit account_id and symbol or pass that bound pair; never ask "
             "which pair or ask the owner to retype the symbol. Read broker positions/orders first, "
-            "including manually opened tickets. Saved goals use goal_step_execute instead.",
+            "including manually opened tickets.",
             TradeRequest,
             execute,
             financial=True,

@@ -276,9 +276,11 @@ async def verify_upgraded(connection: AsyncConnection, ids: dict[str, str]) -> N
         state = goals[ids[name]]
         assert state["status"] == "cancelled" and state["code"] == "shadow_trading_removed", state
     assert goals[ids["goal_shadow_done"]]["status"] == "completed"
-    assert goals[ids["goal_live_active"]] == {"status": "active", "execution_mode": "live"}
-    assert goals[ids["goal_legacy_live"]]["status"] == "paused"
-    print("PASS Shadow goals are cancelled (finished ones stay history); live goals are untouched")
+    # Trading goals are removed later (0068): every goal still open ends, as history.
+    for name in ("goal_live_active", "goal_legacy_live"):
+        state = goals[ids[name]]
+        assert state["status"] == "cancelled" and state["code"] == "goal_removed", state
+    print("PASS Shadow goals are cancelled (finished ones stay history); open goals end at 0068")
 
     journal = set(
         (

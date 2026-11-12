@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0067_decouple_goal_wakes"
-down_revision = "0058_skill_versions"
+down_revision = "0050_genui_state_and_origin"
 branch_labels = None
 depends_on = None
 
@@ -60,9 +60,7 @@ def upgrade() -> None:
             ),
             {"id": identifier, "payload": json.dumps(payload), "state": json.dumps(state)},
         )
-    connection.execute(
-        sa.text("UPDATE ln_routines SET enabled = false WHERE goal_id IS NOT NULL")
-    )
+    connection.execute(sa.text("UPDATE ln_routines SET enabled = false WHERE goal_id IS NOT NULL"))
     op.drop_column("ln_routines", "step_id")
     op.drop_column("ln_routines", "goal_id")
 

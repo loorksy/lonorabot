@@ -829,32 +829,6 @@ class MarketSnapshotRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
-class TradingGoalRow(ResourceRow):
-    __tablename__ = "ln_trading_goals"
-    # Durable record: deleting the agent or conversation never deletes a goal's history.
-    agent_id: Mapped[str | None] = mapped_column(String(36))
-    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
-
-
-class GoalDecisionRow(Base):
-    __tablename__ = "ln_goal_decisions"
-    __table_args__ = (UniqueConstraint("goal_id", "step_id", "attempt", name="goal_step_attempt"),)
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    # Durable record: the goal id is kept as a value, never cascaded away.
-    goal_id: Mapped[str] = mapped_column(String(36), index=True)
-    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
-    step_id: Mapped[str] = mapped_column(String(64))
-    attempt: Mapped[int] = mapped_column(Integer, default=1)
-    run_id: Mapped[str | None] = mapped_column(ForeignKey("ln_runs.id", ondelete="SET NULL"))
-    operation_id: Mapped[str] = mapped_column(String(80), unique=True)
-    status: Mapped[str] = mapped_column(String(24), default="planned")
-    request: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
 class TradeApprovalRow(Base):
     __tablename__ = "ln_trade_approvals"
     broker_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
