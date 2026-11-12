@@ -520,13 +520,16 @@ export function Conversation({
             <div className="pop-title">
               <Trans>The message was not sent</Trans>
             </div>
-            {/* Files that never arrived cannot be sent again: only «حذف» is left. */}
+            {/* Files that never arrived cannot be sent again: the owner's words can still be
+                copied before «حذف», so nothing typed is lost. */}
             {!outgoing.uploading?.length &&
               item(
                 "refresh",
                 t`Retry`,
                 () => void thread.retry(outgoing.retry_nonce).catch(() => undefined),
               )}
+            {outgoing.content.trim() &&
+              item("copy", t`Copy text`, () => void copy(outgoing.content))}
             {item("trash", t`Delete`, () => thread.drop(outgoing.retry_nonce), true)}
           </>,
           t`Message options`,
