@@ -127,7 +127,7 @@ async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
             and current_outage(broker.state.get("broker_recovery", {}))
             == (row.code, row.parameters.get("since"))
         )
-    if row.code == "secret_requested":
+    if row.code in {"secret_requested", "mandate_proposed"}:
         card = await session.get(OwnerActionRow, row.parameters.get("owner_action_id", ""))
         return (
             card is not None

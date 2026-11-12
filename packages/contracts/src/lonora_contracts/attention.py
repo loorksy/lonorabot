@@ -35,16 +35,20 @@ AttentionCode = Literal[
     "gateway_degraded",
     "agent_notification",
     "secret_requested",
+    "mandate_proposed",
 ]
 AttentionStatus = Literal["pending", "ready", "seen", "suppressed"]
 
 # The events of mandate 11.4 that need the owner, by code: each is one item, ready at
 # once and withdrawn when its card ends or its problem clears.
-AttentionEvent = Literal["trade_approval", "settle_operation", "secret_request", "broker_health"]
+AttentionEvent = Literal[
+    "trade_approval", "settle_operation", "secret_request", "mandate_card", "broker_health"
+]
 ATTENTION_EVENTS: dict[AttentionCode, AttentionEvent] = {
     "approval_required": "trade_approval",
     "operation_uncertain": "settle_operation",
     "secret_requested": "secret_request",
+    "mandate_proposed": "mandate_card",
     "broker_token_rejected": "broker_health",
     "broker_account_undeployed": "broker_health",
     "broker_connection_lost": "broker_health",

@@ -28,12 +28,17 @@ ATTENTION_KINDS = frozenset(
         "task.degraded",
         "task.retry_scheduled",
         "task.updated",
-        # Cards that wait for the owner (the Secret card) and their end.
+        # Cards that wait for the owner (the Secret and Mandate cards) and their end.
         "owner_action.updated",
     }
 )
 # Owner-action card kinds whose pending card is an attention item, by code.
-CARD_ATTENTION: dict[str, AttentionCode] = {"connect_credential": "secret_requested"}
+CARD_ATTENTION: dict[str, AttentionCode] = {
+    "connect_credential": "secret_requested",
+    # The Mandate card while it waits for the owner's tap (an agent proposed it, Lonora
+    # offered its own at onboarding); after a tap it stays the switch but needs nothing.
+    "trading_mode": "mandate_proposed",
+}
 
 
 def classify_attention(kind: str, payload: dict[str, Any]) -> AttentionClassification:

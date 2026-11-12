@@ -29,7 +29,8 @@ export type AttentionCode =
   | "operation_uncertain"
   | "gateway_degraded"
   | "agent_notification"
-  | "secret_requested";
+  | "secret_requested"
+  | "mandate_proposed";
 /**
  * The events of mandate 11.4 that need the owner, by code: each is one item, ready at
  * once and withdrawn when its card ends or its problem clears. Mirrors ATTENTION_EVENTS
@@ -39,11 +40,13 @@ export type AttentionEvent =
   | "trade_approval"
   | "settle_operation"
   | "secret_request"
+  | "mandate_card"
   | "broker_health";
 export const ATTENTION_EVENTS: Partial<Record<AttentionCode, AttentionEvent>> = {
   approval_required: "trade_approval",
   operation_uncertain: "settle_operation",
   secret_requested: "secret_request",
+  mandate_proposed: "mandate_card",
   broker_token_rejected: "broker_health",
   broker_account_undeployed: "broker_health",
   broker_connection_lost: "broker_health",
@@ -69,7 +72,7 @@ export interface AttentionNotification {
     /** Broker health: when the problem started and the adapter's reason code. */
     since?: string;
     reason_code?: string;
-    /** The Secret card the item is about. */
+    /** The Secret or Mandate card the item is about. */
     owner_action_id?: string;
     /** An Agent's own alert (agent_notification): its plain summary for the owner. */
     summary?: string;

@@ -50,7 +50,8 @@
     "owner_action_connect_credential_mcp_unread": "تم الربط. يبقى السرّ على الخادم، لكن تعذّرت قراءة أدواته حتى الآن؛ سيتحقق وكيلك مجددًا ويخبرك.",
     "owner_action_connect_credential_mcp_blocked": "تم الربط. يبقى السرّ على الخادم، لكن لا يمكن الوثوق بأي من أدواته: الأدوات التي تتداول أو تحرّك المال لا تعمل هنا أبدًا. سيخبرك وكيلك بما يقدّمه.",
     "owner_action_trust_source_mcp_read": "صار موثوقًا للقراءة: يستخدم الوكلاء أدواته التي تقرأ فقط. تنتظر الأدوات التي قد تغيّر شيئًا حتى تثق به للكتابة غير المالية، وتبقى الأدوات التي تتداول أو تحرّك المال محظورة.",
-    "secret_requested": "وكيلك ينتظر منك تعبئة بطاقة السرّ في المحادثة. تُحفظ القيمة مباشرةً في المخزن المشفّر."
+    "secret_requested": "وكيلك ينتظر منك تعبئة بطاقة السرّ في المحادثة. تُحفظ القيمة مباشرةً في المخزن المشفّر.",
+    "mandate_proposed": "بطاقة التفويض بانتظار لمستك في المحادثة: تختار بها هل يتداول وكيلك بنفسه أم يستأذنك."
   },
   "en": {
     "super_bot_authorization": "An older authorization request was retired and granted nothing. Trading on its own needs a grant you sign for each agent.",
@@ -103,6 +104,7 @@
     "owner_action_connect_credential_mcp_unread": "Connected. The secret stays on the server, but its tools could not be read yet; your agent will check again and tell you.",
     "owner_action_connect_credential_mcp_blocked": "Connected. The secret stays on the server, but none of its tools can be trusted: tools that can trade or move money never run here. Your agent will tell you what it offers.",
     "owner_action_trust_source_mcp_read": "Trusted for reading: agents use its tools that only read. Tools that may change something wait until you trust it for non-financial writes; tools that can trade or move money stay blocked.",
-    "secret_requested": "Your agent is waiting for you to fill in the secret card in the conversation. The value goes straight to the encrypted store."
+    "secret_requested": "Your agent is waiting for you to fill in the secret card in the conversation. The value goes straight to the encrypted store.",
+    "mandate_proposed": "A Mandate card is waiting for your tap in the conversation: it sets whether your agent trades on its own or asks you first."
   }
 }
