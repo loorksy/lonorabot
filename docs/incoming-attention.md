@@ -56,6 +56,9 @@ with the channel to use and creates no invitation (it and the call gate read the
 channel afresh under the same owner lock a change takes, so a call never rings
 against a newer "message me instead"); the device choice is kept for
 a later "call me". Delivery is in-app only: none of this proves a device rang.
+A call rings only a device enrolled with the owner's passkey, so both settings screens
+register this device («سجّل هذا الجهاز» / "Register this device"): the account password
+(`POST /api/auth/devices/enrollment`), then the passkey (`POST /api/auth/devices/enrollment/verify`).
 
 ## Agent alerts (`owner_notify`)
 

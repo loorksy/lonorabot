@@ -68,8 +68,8 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
         if device is None:
             raise LonoraError("device_not_found", 404)
         from lonora_db.account_authority import changed as authority_changed
-        from lonora_db.account_authority import stop_management_task
         from lonora_db.agent_permissions import bump_permission
+        from lonora_db.tasks import stop_management_task
 
         authorities = list(
             await session.scalars(
@@ -92,7 +92,9 @@ async def revoke(request: Request, device_id: str, owner: OwnerIdentity = Depend
             if authority.status != "active":
                 continue
             authority.status = "revoked"
-            await stop_management_task(session, authority)
+            await stop_management_task(
+                session, authority.owner_id, authority.agent_id, authority.id
+            )
             authority_changed(session, authority)
             changed_agents.add(authority.agent_id)
         for agent_id in sorted(changed_agents):

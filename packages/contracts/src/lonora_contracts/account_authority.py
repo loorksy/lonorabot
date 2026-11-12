@@ -8,19 +8,8 @@ from typing import Any, Literal, get_args
 from pydantic import Field, model_validator
 
 from .domain import Contract, utcnow
+from .trading import AuthorityAction
 
-AuthorityAction = Literal[
-    "buy",
-    "sell",
-    "buy_limit",
-    "sell_limit",
-    "buy_stop",
-    "sell_stop",
-    "close_position",
-    "modify_position",
-    "cancel_order",
-    "modify_order",
-]
 # Every action a grant can allow: open, close fully or partly, pending orders, changing
 # stop loss and take profit, cancelling and modifying orders.
 ALL_AUTHORITY_ACTIONS: tuple[AuthorityAction, ...] = get_args(AuthorityAction)

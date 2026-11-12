@@ -204,7 +204,8 @@ async def permission_state(session: AsyncSession, owner_id: str, agent_id: str) 
 async def change_permission(
     session: AsyncSession, owner_id: str, agent_id: str, body: PermissionChange
 ) -> dict[str, Any]:
-    from .account_authority import changed, stop_management_task
+    from .account_authority import changed
+    from .tasks import stop_management_task
 
     await authority_lock(session, agent_id)
     agent = await owned_agent(session, owner_id, agent_id)
@@ -226,7 +227,7 @@ async def change_permission(
     )
     for row in grants:
         row.status = "revoked"
-        await stop_management_task(session, row)
+        await stop_management_task(session, row.owner_id, row.agent_id, row.id)
         changed(session, row)
     await _write(
         session,

@@ -221,6 +221,7 @@ test("Arabic owner text names equity with one term", () => {
     "packages/core/src/trading-readiness.ts",
     "packages/core/src/agent-status.ts",
     "packages/core/src/account-authority-labels.ts",
+    "packages/core/src/trade-action-labels.ts",
     "apps/web/src/components/permissions/permission-labels.ts",
     "apps/web/src/i18n/locales/ar/messages.po",
     "apps/mobile/lib/i18n.ts",

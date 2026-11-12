@@ -18,6 +18,7 @@ from .schema import AgentRow, EventRow, SkillRow, TicketRow
 DIRECT: dict[str, str] = {
     "agent.created": "agent_created",
     "account_authority.updated": "authority_changed",
+    "agent.trading_mode.updated": "authority_changed",
     "trading.execution_policy_updated": "limits_changed",
     "trading.restriction_created": "restriction_set",
     "trading.restriction_revoked": "restriction_lifted",

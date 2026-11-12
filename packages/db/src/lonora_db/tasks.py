@@ -7,6 +7,7 @@ from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.runs import Lease, RunRequest
 from lonora_contracts.tasks import TaskControl, TaskCreate, TaskState, TaskStatus, TaskStepUpdate
 from lonora_core.user_error import LonoraError
+from lonora_session.idempotency import stable_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,6 +139,27 @@ def finish_task(session: AsyncSession, row: TicketRow, status: TaskStatus) -> No
     state.status, state.phase, state.control_requested = status, status, None
     state.waiting_reason = None
     save_task(session, row, state)
+
+
+async def stop_management_task(
+    session: AsyncSession, owner_id: str, agent_id: str, key: str
+) -> None:
+    """Stop only the account-management Task keyed by ``key``; preserve all broker
+    journal effects."""
+    task = await session.get(
+        TicketRow,
+        stable_id(key, "account-management-task"),
+        with_for_update=True,
+        populate_existing=True,
+    )
+    if task and task.owner_id == owner_id and task.agent_id == agent_id:
+        finish_task(session, task, "cancelled")
+        state = task_state(task)
+        if state.status == "failed":
+            # A failed Task could be resumed: without its grant it is over.
+            state.status, state.phase = "cancelled", "cancelled"
+            save_task(session, task, state)
+        await settle_task_watches(session, task)
 
 
 async def create_task(

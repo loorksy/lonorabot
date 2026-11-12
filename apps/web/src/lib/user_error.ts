@@ -73,6 +73,8 @@ export function userError(error: unknown) {
       return t`This needs a new grant you sign with your passkey.`;
     case "device_authorization_cancelled":
       return t`Device authentication was cancelled. No authority was granted.`;
+    case "device_already_registered":
+      return t`This device is already registered.`;
     case "device_not_supported":
       return t`Secure device authentication is unavailable on this device.`;
     case "device_proof_invalid":

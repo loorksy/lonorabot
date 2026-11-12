@@ -13,13 +13,12 @@ from lonora_db.account_authority import (
     changed,
     owned_authority,
     require_authority,
-    stop_management_task,
     validate_scope,
 )
 from lonora_db.authority_lock import authority_lock
 from lonora_db.conversation_locale import conversation_locale
 from lonora_db.schema import AccountAuthorityRow, RunRow
-from lonora_db.tasks import create_task
+from lonora_db.tasks import create_task, stop_management_task
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -123,7 +122,7 @@ async def finish_activation(
     )
     for prior in previous:
         prior.status = "revoked"
-        await stop_management_task(session, prior)
+        await stop_management_task(session, prior.owner_id, prior.agent_id, prior.id)
         changed(session, prior)
     await session.flush()
     device.sign_count, challenge.status = sign_count, "used"

@@ -8,24 +8,27 @@ from .domain import Contract, new_id
 # The agent's one trading switch (mandate 4.1): "full" executes on its own and reports
 # afterwards; "ask" raises a Trade Approval card for every risk-increasing request.
 TradingMode = Literal["full", "ask"]
+# Every action a trade request names: open, close fully or partly, pending orders,
+# changing stop loss and take profit, cancelling and modifying orders.
+AuthorityAction = Literal[
+    "buy",
+    "sell",
+    "buy_limit",
+    "sell_limit",
+    "buy_stop",
+    "sell_stop",
+    "close_position",
+    "modify_position",
+    "cancel_order",
+    "modify_order",
+]
 
 
 class TradeRequest(Contract):
     thesis_id: str | None = Field(default=None, max_length=36)
     account_id: str = Field(min_length=1, max_length=120)
     operation_id: str = Field(default_factory=new_id, min_length=1, max_length=80)
-    action: Literal[
-        "buy",
-        "sell",
-        "buy_limit",
-        "sell_limit",
-        "buy_stop",
-        "sell_stop",
-        "close_position",
-        "modify_position",
-        "cancel_order",
-        "modify_order",
-    ]
+    action: AuthorityAction
     symbol: str = Field(min_length=1, max_length=80)
     volume: Decimal | None = Field(default=None, gt=0)
     price: Decimal | None = Field(default=None, gt=0)

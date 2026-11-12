@@ -161,6 +161,7 @@ export function AgentCreatePanel({ onCreated }: { onCreated: (agent: Agent) => v
               color,
               instructions: "",
               paused: false,
+              trading_mode: "ask",
               parent_id: null,
               created_at: "",
             }}

@@ -105,7 +105,11 @@ export function ToggleRow({
   );
 }
 
-export const Note = ({ children }: { children: ReactNode }) => <p className="note">{children}</p>;
+export const Note = ({ children, id }: { children: ReactNode; id?: string }) => (
+  <p id={id} className="note">
+    {children}
+  </p>
+);
 
 export function Empty({ children }: { children: ReactNode }) {
   return (

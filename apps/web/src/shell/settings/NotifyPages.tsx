@@ -1,9 +1,15 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
-import type { AgentDeliveryRules, IncomingCallPolicy } from "@lonora/contracts";
+import type { AgentDeliveryRules, DeviceChallenge, IncomingCallPolicy } from "@lonora/contracts";
+import {
+  ownerActionText,
+  ownerProfileLabel,
+  webDeviceProof,
+  webDeviceSupported,
+} from "@lonora/core";
 import { Icon, type IconName } from "@lonora/ui-web";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
@@ -55,6 +61,10 @@ export function NotifyPage() {
     [],
   );
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const supported = webDeviceSupported();
+  const text = ownerActionText(i18n.locale);
+  const passwordNote = useId();
   const policy = profile?.reach_me;
   const save = async (patch: Partial<IncomingCallPolicy>) => {
     if (!policy || busy) return;
@@ -64,6 +74,26 @@ export function NotifyPage() {
       setProfile(
         await api.put<OwnerProfile>("/owner/preferences", { reach_me: { ...current, ...patch } }),
       );
+    } catch (error) {
+      toast(userError(error), { type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  // A call rings only a device registered with the owner's passkey (the account password first).
+  const register = async () => {
+    if (busy) return;
+    setBusy(true);
+    const secret = password;
+    setPassword("");
+    try {
+      const challenge = await api.post<DeviceChallenge>("/auth/devices/enrollment", {
+        password: secret,
+        name: text.deviceName,
+      });
+      await api.post("/auth/devices/enrollment/verify", await webDeviceProof(challenge, true));
+      setProfile(await api.get<OwnerProfile>("/owner/profile"));
+      toast(ownerProfileLabel("deviceRegistered", i18n.locale), { type: "success" });
     } catch (error) {
       toast(userError(error), { type: "error" });
     } finally {
@@ -236,45 +266,83 @@ export function NotifyPage() {
           </>
         )}
       </div>
-      {profile && profile.devices.length > 0 && (
+      {profile && (
         <>
           <h3>
             <Trans>Device</Trans>
           </h3>
-          <div className="group" role="radiogroup" aria-label={t`Device`}>
-            {profile.devices.map((device) => {
-              const on = policy?.device_id === device.id;
-              return (
-                // biome-ignore lint/a11y/useSemanticElements: the reference's own role on its row
-                <button
-                  key={device.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  disabled={busy}
-                  className={`row reach-opt${on ? " on" : ""}`}
-                  onClick={() => save({ device_id: device.id })}
-                >
-                  <span className="row-icon">
-                    <Icon name="device" />
-                  </span>
-                  <span className="body">
-                    <strong>
-                      <bdi>{device.name}</bdi>
-                    </strong>
-                    <small>
-                      <Trans>A call rings this device · registered for the passkey</Trans>
-                    </small>
-                  </span>
-                  {on && (
-                    <span className="reach-check">
-                      <Icon name="check" />
+          {profile.devices.length > 0 && (
+            <div className="group" role="radiogroup" aria-label={t`Device`}>
+              {profile.devices.map((device) => {
+                const on = policy?.device_id === device.id;
+                return (
+                  // biome-ignore lint/a11y/useSemanticElements: the reference's own role on its row
+                  <button
+                    key={device.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    disabled={busy}
+                    className={`row reach-opt${on ? " on" : ""}`}
+                    onClick={() => save({ device_id: device.id })}
+                  >
+                    <span className="row-icon">
+                      <Icon name="device" />
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    <span className="body">
+                      <strong>
+                        <bdi>{device.name}</bdi>
+                      </strong>
+                      <small>
+                        <Trans>A call rings this device · registered for the passkey</Trans>
+                      </small>
+                    </span>
+                    {on && (
+                      <span className="reach-check">
+                        <Icon name="check" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void register();
+            }}
+          >
+            <label className="field">
+              <span>{text.password}</span>
+              <input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                disabled={busy || !supported}
+                aria-describedby={passwordNote}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <Note id={passwordNote}>
+              {supported ? (
+                <Trans>Then your passkey confirms this device, so a call can ring it.</Trans>
+              ) : (
+                text.passkeyUnsupported
+              )}
+            </Note>
+            <div className="actions">
+              <button
+                type="submit"
+                className="btn primary"
+                disabled={!password || busy || !supported}
+              >
+                {ownerProfileLabel("registerThisDevice", i18n.locale)}
+              </button>
+            </div>
+          </form>
         </>
       )}
       <h3>

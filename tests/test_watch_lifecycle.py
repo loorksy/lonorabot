@@ -15,12 +15,18 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.domain import utcnow
 from lonora_contracts.tasks import TaskControl, TaskCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.account_authority import stop_management_task
 from lonora_db.client import Database
 from lonora_db.market_watches import control_watch
-from lonora_db.schema import AccountAuthorityRow, EventRow, MarketWatchRow, RunRow, TicketRow
+from lonora_db.schema import EventRow, MarketWatchRow, RunRow, TicketRow
 from lonora_db.task_wait import resume_ready_waits
-from lonora_db.tasks import complete_task, control_task, create_task, save_task, task_state
+from lonora_db.tasks import (
+    complete_task,
+    control_task,
+    create_task,
+    save_task,
+    stop_management_task,
+    task_state,
+)
 from lonora_market import watchers
 from lonora_session.idempotency import stable_id
 from lonora_tools.context import ToolContext
@@ -163,7 +169,7 @@ async def test_revoking_the_grant_settles_the_watches_of_its_management_task(
         db, owner, agent, thread, stable_id(grant.id, "account-management-task")
     )
     async with db.sessions() as session, session.begin():
-        await stop_management_task(session, cast(AccountAuthorityRow, grant))
+        await stop_management_task(session, grant.owner_id, grant.agent_id, grant.id)
     async with db.sessions() as session:
         row = await session.get(TicketRow, task.id)
         assert row is not None and task_state(row).status == "cancelled"
@@ -344,7 +350,7 @@ async def test_revoking_the_grant_ends_a_failed_management_task_and_its_watches(
         state.status, state.phase = "failed", "failed"
         save_task(session, row, state)
     async with db.sessions() as session, session.begin():
-        await stop_management_task(session, cast(AccountAuthorityRow, grant))
+        await stop_management_task(session, grant.owner_id, grant.agent_id, grant.id)
     async with db.sessions() as session:
         row = await session.get(TicketRow, task.id)
         watch = await session.get(MarketWatchRow, owned)

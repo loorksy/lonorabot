@@ -302,6 +302,7 @@ export const labels = {
     "أُلغيت المصادقة ولم تُمنح أي صلاحيات.",
     "Authentication was cancelled. No authority was granted.",
   ],
+  device_already_registered: ["هذا الجهاز مسجّل من قبل.", "This device is already registered."],
   stopLoss: ["وقف الخسارة", "Stop loss"],
   takeProfit: ["جني الربح", "Take profit"],
   device_challenge_not_found: [

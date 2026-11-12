@@ -64,6 +64,8 @@ const labels = {
     en: "Register a device with your passkey before choosing calls.",
     ar: "سجّل جهازًا بمفتاح المرور قبل اختيار الاتصال.",
   },
+  registerThisDevice: { en: "Register this device", ar: "سجّل هذا الجهاز" },
+  deviceRegistered: { en: "This device is registered.", ar: "تم تسجيل هذا الجهاز." },
   quietHours: { en: "Quiet hours", ar: "أوقات الهدوء" },
   quietStart: { en: "From (hour 0–23)", ar: "من (الساعة 0–23)" },
   quietEnd: { en: "Until (hour 0–23)", ar: "حتى (الساعة 0–23)" },

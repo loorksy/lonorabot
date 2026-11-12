@@ -1,3 +1,5 @@
+import { tradeActionLabels } from "./trade-action-labels";
+
 /** The same bounded owner controls and risk wording on Web and Mobile. */
 export const accountAuthorityLabels = {
   en: {
@@ -48,16 +50,7 @@ export const accountAuthorityLabels = {
     maximum_actions: "Maximum executions during this permission",
     minimum_equity: "Equity floor (account currency; new entries only)",
     valid_until: "Expires at (ISO date with timezone, within 30 days)",
-    buy: "Market buy",
-    sell: "Market sell",
-    buy_limit: "Buy limit",
-    sell_limit: "Sell limit",
-    buy_stop: "Buy stop",
-    sell_stop: "Sell stop",
-    close_position: "Close position",
-    modify_position: "Modify position",
-    cancel_order: "Cancel pending order",
-    modify_order: "Modify pending order",
+    ...tradeActionLabels.en,
   },
   ar: {
     title: "إدارة الحساب تلقائيًا",
@@ -104,15 +97,6 @@ export const accountAuthorityLabels = {
     maximum_actions: "أقصى عدد للتنفيذات خلال التفويض",
     minimum_equity: "الحد الأدنى لحقوق الملكية بعملة الحساب، للدخول الجديد فقط",
     valid_until: "ينتهي في: تاريخ ISO مع المنطقة الزمنية خلال ٣٠ يوماً",
-    buy: "شراء سوقي",
-    sell: "بيع سوقي",
-    buy_limit: "شراء محدد",
-    sell_limit: "بيع محدد",
-    buy_stop: "شراء إيقاف",
-    sell_stop: "بيع إيقاف",
-    close_position: "إغلاق صفقة",
-    modify_position: "تعديل صفقة",
-    cancel_order: "إلغاء أمر معلّق",
-    modify_order: "تعديل أمر معلّق",
+    ...tradeActionLabels.ar,
   },
 } as const;

@@ -31,6 +31,17 @@ async def mode_of(fixture: Any, agent_id: str) -> str:
         return await trading_mode(session, fixture.owner, agent_id)
 
 
+async def roster_modes(fixture: Any) -> dict[str, str]:
+    rows = cast(list[dict[str, Any]], await fixture.request("GET", "/agents"))
+    return {row["id"]: row["trading_mode"] for row in rows}
+
+
+async def logged(fixture: Any, agent_id: str) -> list[tuple[str, str]]:
+    """The agent's lines in the owner's activity log, newest first."""
+    feed = await fixture.request("GET", "/activity?limit=20")
+    return [(row["code"], row["subject"]) for row in feed["items"] if row["agent_id"] == agent_id]
+
+
 @pytest.mark.asyncio
 async def test_the_mandate_card_switches_the_mode_the_button_showed() -> None:
     database()
@@ -409,5 +420,28 @@ async def test_lonora_offers_its_own_mandate_card_at_onboarding() -> None:
         tapped = await tap(fixture, cards[0].id, "full")
         assert tapped.status_code == 200, tapped.text
         assert await mode_of(fixture, lonora.id) == "full"
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_the_roster_carries_each_mode_and_a_switch_is_logged_as_authority() -> None:
+    """GET /agents gives every agent its mode (Ask unless the owner tapped Full), and the
+    owner's activity log lists the switch as an authority change."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.trading_mode import set_trading_mode
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Roster")
+        modes = await roster_modes(fixture)
+        assert set(modes.values()) <= {"ask", "full"}, modes
+        assert modes[agent["id"]] == "ask"
+        assert ("authority_changed", agent["name"]) not in await logged(fixture, agent["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
+        assert (await roster_modes(fixture))[agent["id"]] == "full"
+        assert (await logged(fixture, agent["id"]))[0] == ("authority_changed", agent["name"])
     finally:
         await fixture.close()

@@ -1,5 +1,7 @@
+import type { DeviceChallenge } from "@lonora/contracts";
 import {
   type OwnerProfileLabel,
+  ownerActionText,
   ownerProfileLabel,
   type ReplyLanguage,
   reachMeChannels,
@@ -11,6 +13,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Switch, Text, View } from "react-native";
 import { api } from "../lib/api";
+import { deviceProof, deviceSupported } from "../lib/device-proof";
 import { type IncomingPolicy, reachMePayload } from "../lib/incoming-call";
 import { useSession } from "../lib/session";
 import { Button, colors, ErrorNotice, Field } from "./ui";
@@ -31,6 +34,7 @@ const row = {
 export function IncomingCallSettings() {
   const { locale, errorText } = useSession();
   const label = (key: OwnerProfileLabel) => ownerProfileLabel(key, locale);
+  const text = ownerActionText(locale);
   const [policy, setPolicy] = useState<IncomingPolicy | null>(null);
   const [devices, setDevices] = useState<{ id: string; name: string }[]>([]);
   const [language, setLanguage] = useState<ReplyLanguage>("auto");
@@ -39,6 +43,9 @@ export function IncomingCallSettings() {
   const [saved, setSaved] = useState(false);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [password, setPassword] = useState("");
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const [registered, setRegistered] = useState(false);
   const apply = useCallback((value: OwnerProfile) => {
     setPolicy(value.reach_me);
     setDevices(value.devices);
@@ -60,6 +67,37 @@ export function IncomingCallSettings() {
       disposed = true;
     };
   }, [errorText, apply]);
+  useEffect(() => {
+    let disposed = false;
+    void Promise.resolve(deviceSupported()).then((value) => {
+      if (!disposed) setSupported(value);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+  // A call rings only a device registered with the owner's passkey (the account password first).
+  const register = async () => {
+    setSaving(true);
+    setError(null);
+    setRegistered(false);
+    const secret = password;
+    setPassword("");
+    try {
+      const challenge = await api.post<DeviceChallenge>("/auth/devices/enrollment", {
+        password: secret,
+        name: text.deviceName,
+      });
+      await api.post("/auth/devices/enrollment/verify", await deviceProof(challenge, true));
+      // Only the device list is refreshed: unsaved choices on this screen stay.
+      setDevices((await api.get<OwnerProfile>("/owner/profile")).devices);
+      setRegistered(true);
+    } catch (cause) {
+      setError(errorText(cause));
+    } finally {
+      setSaving(false);
+    }
+  };
   const save = async () => {
     if (!policy) return;
     setSaving(true);
@@ -113,6 +151,32 @@ export function IncomingCallSettings() {
           {devices.length === 0 ? (
             <Text style={{ color: colors.secondary }}>{label("noDevice")}</Text>
           ) : null}
+          <Field
+            label={text.password}
+            secureTextEntry
+            autoComplete="current-password"
+            value={password}
+            onChangeText={setPassword}
+            editable={!saving && supported !== false}
+          />
+          {supported === false ? (
+            <Text style={{ color: colors.secondary }}>{text.passkeyUnsupported}</Text>
+          ) : null}
+          {registered ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+              style={{ color: colors.secondary }}
+            >
+              {label("deviceRegistered")}
+            </Text>
+          ) : null}
+          <Button
+            label={label("registerThisDevice")}
+            secondary
+            disabled={saving || !password || supported !== true}
+            onPress={() => void register()}
+          />
           {policy.channel === "call" && devices.length > 0 ? (
             <>
               <Text style={{ color: colors.secondary }}>{label("device")}</Text>

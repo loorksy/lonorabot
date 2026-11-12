@@ -22,6 +22,7 @@ def agent_data(row: AgentRow, *, trades_on_its_own: bool = False) -> dict[str, A
         "color": row.color,
         "instructions": row.instructions,
         "paused": row.paused,
+        "trading_mode": row.trading_mode,
         "trades_on_its_own": trades_on_its_own,
         "role": row.role,
         "template": row.template,

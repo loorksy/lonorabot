@@ -1,5 +1,6 @@
 import type { UiLock, UiState, UiSubmitInput, UiSubmitRecord } from "./genui";
 import type { AgentTemplate } from "./owner-actions";
+import type { TradingMode } from "./trading";
 import type { RichContent } from "./visual-response";
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -23,6 +24,8 @@ export type Agent = {
   color: string;
   instructions: string;
   paused: boolean;
+  /** The agent's one trading switch (mandate 4.1): Full or Ask. */
+  trading_mode: TradingMode;
   parent_id: string | null;
   trading_account_id?: string | null;
   trading_symbol?: string | null;

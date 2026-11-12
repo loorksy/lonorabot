@@ -6,7 +6,7 @@ from typing import Any
 from lonora_contracts.account_authority import AccountAuthorityEnvelope, AccountAuthorityProposal
 from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
-from lonora_session.idempotency import request_hash, stable_id
+from lonora_session.idempotency import request_hash
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ from .agent_binding import account_wide_scope, assert_market_binding, require_fi
 from .authority_lock import authority_lock
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
-from .schema import AccountAuthorityRow, DeviceCredentialRow, TicketRow
+from .schema import AccountAuthorityRow, DeviceCredentialRow
 from .transactions import owned_thread
 
 
@@ -202,33 +202,13 @@ async def require_authority(
 
 async def revoke(session: AsyncSession, owner_id: str, identifier: str) -> AccountAuthorityRow:
     from .agent_permissions import bump_permission
+    from .tasks import stop_management_task
 
     candidate = await owned_authority(session, owner_id, identifier)
     await authority_lock(session, candidate.agent_id)
     row = await owned_authority(session, owner_id, identifier, lock=True)
     row.status = "revoked"
-    await stop_management_task(session, row)
+    await stop_management_task(session, row.owner_id, row.agent_id, row.id)
     changed(session, row)
     await bump_permission(session, owner_id, row.agent_id)
     return row
-
-
-async def stop_management_task(session: AsyncSession, row: AccountAuthorityRow) -> None:
-    """Stop only this grant's existing Task; preserve all broker journal effects."""
-    from .market_watches import settle_task_watches
-    from .tasks import finish_task, save_task, task_state
-
-    task = await session.get(
-        TicketRow,
-        stable_id(row.id, "account-management-task"),
-        with_for_update=True,
-        populate_existing=True,
-    )
-    if task and task.owner_id == row.owner_id and task.agent_id == row.agent_id:
-        finish_task(session, task, "cancelled")
-        state = task_state(task)
-        if state.status == "failed":
-            # A failed Task could be resumed: without its grant it is over.
-            state.status, state.phase = "cancelled", "cancelled"
-            save_task(session, task, state)
-        await settle_task_watches(session, task)

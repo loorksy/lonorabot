@@ -220,6 +220,7 @@ export {
   unsupervisedAgents,
 } from "./supervision";
 export { formatTimeSeparator, needsTimeSeparator, timeSeparatorIds } from "./time-separators";
+export { tradeActionLabels } from "./trade-action-labels";
 export * from "./trading-avatar-motion";
 export {
   isolate,
