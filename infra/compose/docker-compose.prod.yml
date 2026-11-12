@@ -7,8 +7,8 @@
 # overridable in .env; the defaults fit the stack in about 3.4 GB on a 2-vCPU host.
 # Web search (SearXNG) and the research browser are part of the stack. Only the gateway
 # joins their bridge; they have no database network, application secrets, application
-# volumes or published host ports. The gateway does not wait for them: a search or a
-# browse while they are down is a tool error, never a gateway that does not start.
+# volumes or published host ports. Neither the gateway nor `lonora` waits for them: a search
+# or a browse while they are down is a tool error, never a gateway, update or start that fails.
 # See docs/operations.md.
 name: ${LONORA_PROJECT:-lonora}
 services:
@@ -74,8 +74,9 @@ services:
     env_file: ../../.env
     environment:
       <<: *runtime
-      LONORA_SEARXNG_URL: http://searxng:8080
-      LONORA_BROWSER_URL: http://browser:8090
+      # Overridable in .env, e.g. to use an existing SearXNG elsewhere.
+      LONORA_SEARXNG_URL: ${LONORA_SEARXNG_URL:-http://searxng:8080}
+      LONORA_BROWSER_URL: ${LONORA_BROWSER_URL:-http://browser:8090}
     networks: [default, research]
     command: ["gateway"]
     volumes: ["artifacts:/app/.runtime/artifacts"]
