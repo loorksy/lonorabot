@@ -748,6 +748,8 @@ async def update_task_step(
                     if names.get(identifier) in {
                         "trade_execute",
                         "trade_close_positions",
+                        # Removed with trading goals; runs stored before keep its results.
+                        "goal_step_execute",
                     } or carries_operation(result):
                         outcomes = result.get("results")
                         if result.get("status") != "confirmed" and (
