@@ -414,12 +414,23 @@ def shows_frame_mark(text: str) -> bool:
     return any(f" {mark} " in plain for mark in MARKS_PLAIN)
 
 
-def imitates_fixed_card(text: str) -> bool:
-    """A heading or control label an agent's node shows that starts with, or is, what only a
-    fixed card or its trust frame says («موافقة», «Approve trade», «طلب موافقة · XAUUSD»)."""
+# What separates a fixed card's title from what follows it («طلب موافقة · XAUUSD»).
+SEGMENTS = re.compile(r"\s*[·•:|/\u2013\u2014-]\s*")
+
+
+def imitates_fixed_card(text: str, *, control: bool = False) -> bool:
+    """A label an agent's node shows that says what only a fixed card or its trust frame says.
+    A heading is refused when it, or one of its separated segments, is a fixed card's words
+    («طلب موافقة · XAUUSD»), never for a sentence that starts with them («يستأذن قبل كل صفقة»).
+    A Button's label is refused when it even starts with them («Approve trade»): a control is
+    what a fixed card's buttons are."""
+    if shows_frame_mark(text):
+        return True
     plain = _plain(text)
-    return shows_frame_mark(text) or any(
-        plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN
+    if control:
+        return any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
+    return plain in FIXED_PLAIN or any(
+        _plain(part) in FIXED_PLAIN for part in SEGMENTS.split(text) if part.strip()
     )
 
 
@@ -442,13 +453,14 @@ def imitation(
     if head.get("icon") == FRAME_ICON:
         return True
     labels: list[str] = [str(head.get("title") or ""), str(head.get("sub") or "")]
+    controls: list[str] = []
     body: list[str] = [why or "", fallback or ""]
     for _path, node in walk(blocks):
         if node.get("icon") == FRAME_ICON:
             return True
         for name in LABEL_PROPS:
             if isinstance(node.get(name), str):
-                labels.append(node[name])
+                (controls if node["type"] == "Button" else labels).append(node[name])
         for name in BODY_PROPS:
             if isinstance(node.get(name), str):
                 (labels if node["type"] in LABEL_TEXT_NODES else body).append(node[name])
@@ -469,8 +481,10 @@ def imitation(
         found.extend(render_template(text, env) for env in envs)
         return found
 
-    return any(imitates_fixed_card(t) for text in labels for t in readings(text)) or any(
-        shows_frame_mark(t) for text in body for t in readings(text)
+    return (
+        any(imitates_fixed_card(t) for text in labels for t in readings(text))
+        or any(imitates_fixed_card(t, control=True) for text in controls for t in readings(text))
+        or any(shows_frame_mark(t) for text in body for t in readings(text))
     )
 
 

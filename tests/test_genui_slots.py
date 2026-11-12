@@ -259,6 +259,12 @@ def test_only_what_a_fixed_card_says_counts_as_imitation() -> None:
     assert imitates_fixed_card("\u0410pprove") and imitates_fixed_card("\u200fرفض")
     assert not imitates_fixed_card("الموافقة على الخطة")
     assert not imitates_fixed_card("Approved plans")
+    # A heading is held to the whole words or a separated segment; a control to its start.
+    assert imitates_fixed_card("طلب موافقة · XAUUSD") and imitates_fixed_card("XAUUSD | رفض")
+    assert not imitates_fixed_card("Approve the plan's timing")
+    assert not imitates_fixed_card("موافقة الشريك على الخطة")
+    assert imitates_fixed_card("Approve trade", control=True)
+    assert imitates_fixed_card("موافقة على الصفقة", control=True)
 
 
 @pytest.mark.asyncio
