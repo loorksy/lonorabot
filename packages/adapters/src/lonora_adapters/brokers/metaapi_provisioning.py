@@ -14,7 +14,7 @@ inside one call stays on. A create whose answer is lost is found again by ``find
 import importlib
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, cast
 
@@ -30,14 +30,42 @@ PAGE = 1000
 RELIABILITY = "regular"
 ACCOUNT_TYPE = "cloud-g2"
 MAGIC = 0
+# Fields of MetaApi's account update (a PUT): each is sent again with its current value,
+# so a password update never resets an owner-linked account's other settings.
+UPDATE_FIELDS = (
+    "name",
+    "server",
+    "magic",
+    "manualTrades",
+    "slippage",
+    "quoteStreamingIntervalInSeconds",
+    "tags",
+    "metadata",
+    "resourceSlots",
+    "copyFactoryResourceSlots",
+)
+# The only entity calls this client makes; none opens a terminal connection.
+ENTITY_CALLS = frozenset({"deploy", "undeploy", "redeploy", "remove"})
+# Failures after which MetaApi certainly did not create the account.
+REFUSALS = frozenset(
+    {
+        "broker_password_rejected",
+        "broker_server_not_found",
+        "broker_provisioning_rejected",
+        "broker_token_rejected",
+        "broker_provisioning_conflict",
+        "broker_rate_limited",
+    }
+)
 
 
 @dataclass(frozen=True)
 class ProvisionedAccount:
-    """What MetaApi says about one account entity. No credential is ever kept here."""
+    """What MetaApi says about one account entity. No password or token is kept here,
+    and the login is left out of its printed form so it never reaches a log."""
 
     account_id: str
-    login: str | None
+    login: str | None = field(repr=False)
     server: str | None
     platform: str | None
     region: str | None
@@ -76,13 +104,15 @@ def describe(entity: Any) -> ProvisionedAccount:
 
 
 def _detail_codes(error: Exception) -> set[str]:
+    # MetaApi's shape is not pinned here: a code string, a dict with ``code``, or a list
+    # of either. Only codes are read; any other detail can echo a request field.
     details: Any = getattr(error, "details", None)
     items: list[Any] = cast(list[Any], details) if isinstance(details, list) else [details]
     codes: set[str] = set()
     for item in items:
-        code = cast(dict[str, Any], item).get("code") if isinstance(item, dict) else None
-        if code:
-            codes.add(str(code))
+        code = cast(dict[str, Any], item).get("code") if isinstance(item, dict) else item
+        if isinstance(code, str) and code:
+            codes.add(code)
     return codes
 
 
@@ -183,6 +213,7 @@ class MetaApiProvisioning:
 
     async def find(self, login: str, server: str) -> ProvisionedAccount | None:
         """The token's account with this exact login and server, deployed one first."""
+        login = login.strip()
         matches = sorted(
             (
                 account
@@ -209,6 +240,7 @@ class MetaApiProvisioning:
         """
         if platform not in {"mt4", "mt5"}:
             raise LonoraError("broker_platform_required", 422)
+        login, server = login.strip(), server.strip()
         secrets = (login, password)
         existing = await self.find(login, server)
         if existing is not None:
@@ -217,30 +249,38 @@ class MetaApiProvisioning:
         account: dict[str, Any] = {
             "login": login,
             "password": password,
-            "server": server.strip(),
+            "server": server,
             "platform": platform,
-            "name": "Lonora " + server.strip(),
+            "name": "Lonora " + server,
             "magic": MAGIC,
             "reliability": RELIABILITY,
             "type": ACCOUNT_TYPE,
         }
         if region:
             account["region"] = region
-        entity = await self._call(
-            "create", secrets, lambda: self.api.metatrader_account_api.create_account(account)
-        )
+        try:
+            entity = await self._call(
+                "create", secrets, lambda: self.api.metatrader_account_api.create_account(account)
+            )
+        except LonoraError as failure:
+            if failure.code in REFUSALS:
+                raise
+            # The answer was lost (a read timeout, a dropped link, or the SDK's own read
+            # after the create): the account may exist. Look once; a later call looks again.
+            created = await self.find(login, server)
+            if created is None:
+                raise
+            return created, True
         return describe(entity), True
 
     async def state(self, account_id: str) -> ProvisionedAccount:
         return describe(await self._entity(account_id))
 
-    async def _act(
-        self, account_id: str, method: str, *arguments: Any, secrets: Iterable[str] = ()
-    ) -> ProvisionedAccount:
-        entity = await self._entity(account_id, secrets)
-        await self._call(
-            method, (account_id, *secrets), lambda: getattr(entity, method)(*arguments)
-        )
+    async def _act(self, account_id: str, method: str) -> ProvisionedAccount:
+        if method not in ENTITY_CALLS:
+            raise LonoraError("broker_provisioning_call_forbidden", 500)
+        entity = await self._entity(account_id)
+        await self._call(method, (account_id,), lambda: getattr(entity, method)())
         return describe(entity)
 
     async def deploy(self, account_id: str) -> ProvisionedAccount:
@@ -255,9 +295,14 @@ class MetaApiProvisioning:
     async def update_password(self, account_id: str, password: str) -> ProvisionedAccount:
         """Store a new password at MetaApi. It takes effect after a redeploy."""
         entity = await self._entity(account_id, (password,))
-        # MetaApi's update replaces name and server too, so the current ones are sent.
-        current = {key: _field(entity, key) for key in ("name", "server")}
-        update = {**{key: value for key, value in current.items() if value}, "password": password}
+        # The entity's own payload, by MetaApi's field names: the SDK's properties turn a
+        # missing ``slippage`` or ``manualTrades`` into False, which is not the stored value.
+        data: Any = getattr(entity, "_data", None)
+        stored = cast(dict[str, Any], data) if isinstance(data, dict) else {}
+        update = {
+            **{key: stored[key] for key in UPDATE_FIELDS if stored.get(key) is not None},
+            "password": password,
+        }
         await self._call("update", (account_id, password), lambda: entity.update(update))
         return describe(entity)
 

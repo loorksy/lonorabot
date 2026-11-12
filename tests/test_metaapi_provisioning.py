@@ -72,18 +72,32 @@ async def test_a_new_account_takes_the_region_of_the_tokens_existing_account() -
 
 
 @pytest.mark.asyncio
-async def test_a_lost_create_answer_is_found_again_without_a_second_account() -> None:
-    api = FakeProvisioningApi(lose_create_answer=True)
+async def test_a_lost_create_answer_finds_the_account_instead_of_a_second_one() -> None:
+    api = FakeProvisioningApi(lose_create_answer="after_commit")
+    account, created = await client(api).find_or_create(
+        login=" " + LOGIN + " ", server=SERVER, platform="mt5", password=PASSWORD
+    )
+    assert created and list(api.accounts) == [account.account_id]
+    assert api.calls.count("create_account") == 1 and api.creates[0]["login"] == LOGIN
+    again, created_again = await client(api).find_or_create(
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+    )
+    assert not created_again and again.account_id == account.account_id
+
+
+@pytest.mark.asyncio
+async def test_a_create_lost_before_metaapi_saw_it_fails_and_the_retry_creates_one() -> None:
+    api = FakeProvisioningApi(lose_create_answer="before_commit")
     with pytest.raises(LonoraError) as lost:
         await client(api).find_or_create(
             login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
         )
-    assert lost.value.code == "broker_provisioning_timeout"
+    assert lost.value.code == "broker_provisioning_unavailable" and api.accounts == {}
     account, created = await client(api).find_or_create(
         login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
     )
-    assert not created and list(api.accounts) == [account.account_id]
-    assert api.calls.count("create_account") == 1
+    assert created and list(api.accounts) == [account.account_id]
+    assert "login" not in repr(account) and LOGIN not in repr(account)
 
 
 @pytest.mark.asyncio
@@ -145,11 +159,11 @@ async def test_lifecycle_reports_state_and_broker_connection_status() -> None:
     )
     deployed = await provisioning.deploy(account.account_id)
     assert deployed.deployed and deployed.connected
-    rotated = await provisioning.update_password(account.account_id, "wrong-fixture-password")
-    assert api.updates == [
-        {"name": "Lonora " + SERVER, "server": SERVER, "password": "wrong-fixture-password"}
-    ]
-    assert rotated.connection_status == "DISCONNECTED_FROM_BROKER"
+    stored = await provisioning.update_password(account.account_id, "wrong-fixture-password")
+    assert api.updates == [{"name": "Lonora " + SERVER, "server": SERVER, "magic": 0}]
+    assert stored.connected  # the terminal uses a new password only after a redeploy
+    rotated = await provisioning.redeploy(account.account_id)
+    assert rotated.deployed and rotated.connection_status == "DISCONNECTED_FROM_BROKER"
     await provisioning.update_password(account.account_id, PASSWORD)
     assert (await provisioning.redeploy(account.account_id)).connected
     undeployed = await provisioning.undeploy(account.account_id)
@@ -162,17 +176,41 @@ async def test_lifecycle_reports_state_and_broker_connection_status() -> None:
     assert missing.value.code == "broker_account_not_found"
 
 
-def test_the_client_never_opens_a_terminal_connection_or_trades() -> None:
+@pytest.mark.asyncio
+async def test_a_password_update_keeps_an_owner_linked_accounts_settings() -> None:
+    api = FakeProvisioningApi()
+    linked = api.link(LOGIN, SERVER)
+    await client(api).update_password(linked, PASSWORD)
+    assert api.updates == [
+        {
+            "name": "owner linked",
+            "server": SERVER,
+            "magic": 123456,
+            "slippage": 2.5,
+            "tags": ["owner"],
+        }
+    ]
+    assert api.accounts[linked]["magic"] == 123456 and api.accounts[linked]["tags"] == ["owner"]
+
+
+@pytest.mark.asyncio
+async def test_the_client_never_opens_a_terminal_connection_or_trades() -> None:
+    api = FakeProvisioningApi()
+    account, _ = await client(api).find_or_create(
+        login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+    )
+    for forbidden in ("get_rpc_connection", "get_streaming_connection", "update"):
+        with pytest.raises(LonoraError) as refused:
+            await client(api)._act(account.account_id, forbidden)  # pyright: ignore[reportPrivateUsage]
+        assert refused.value.code == "broker_provisioning_call_forbidden"
     source = inspect.getsource(metaapi_provisioning)
-    for forbidden in (
+    for name in (
         "get_rpc_connection",
         "get_streaming_connection",
         "create_market",
-        "execute",
         "MetaApiBroker(",
-        'retries": 5',
     ):
-        assert forbidden not in source
+        assert name not in source
 
 
 class Scripted:
@@ -224,12 +262,13 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
     assert own is not trading_http and own._retries == 0
     caplog.set_level(logging.DEBUG)
 
-    # A wrong password: MetaApi's validation answer echoes a field; only the code is read.
-    echo = {"parameter": "password", "value": PASSWORD, "code": "E_AUTH"}
+    # A wrong password whose answer echoes the request; only the code is read.
+    echo = [{"parameter": "password", "value": PASSWORD, "code": "E_AUTH"}]
+    message = f"Login {LOGIN} with password {PASSWORD} failed, token={TOKEN}"
     transport = Scripted(
         httpx.Response(200, json=[]),
         httpx.Response(200, json=[]),
-        httpx.Response(400, json={"error": "ValidationError", "message": "Auth", "details": echo}),
+        httpx.Response(400, json={"error": "ValidationError", "message": message, "details": echo}),
     )
     scripted(provisioning, transport)
     with pytest.raises(LonoraError) as refused:
@@ -242,11 +281,32 @@ async def test_real_sdk_instance_keeps_trading_options_and_never_repeats_a_creat
     assert transport.requests[-1]["url"].startswith("https://mt-provisioning-api-v1.")
     no_credential(str(refused.value.diagnostic_message) + caplog.text)
 
+    # The code as a plain string, and as a dict.
+    for details, code in (
+        ("E_SRV_NOT_FOUND", "broker_server_not_found"),
+        ({"code": "E_AUTH"}, "broker_password_rejected"),
+        ("E_SERVER_TIMEZONE", "broker_provisioning_rejected"),
+    ):
+        scripted(
+            provisioning,
+            Scripted(
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json=[]),
+                httpx.Response(400, json={"message": "Refused", "details": details}),
+            ),
+        )
+        with pytest.raises(LonoraError) as mapped:
+            await provisioning.find_or_create(
+                login=LOGIN, server=SERVER, platform="mt5", password=PASSWORD
+            )
+        assert mapped.value.code == code
+
     # A server error on create is not retried: a retry would be a second account.
     transport = Scripted(
         httpx.Response(200, json=[]),
         httpx.Response(200, json=[]),
         httpx.Response(500, json={"error": "InternalError", "message": "boom"}),
+        httpx.Response(200, json=[]),
     )
     scripted(provisioning, transport)
     with pytest.raises(LonoraError) as failed:

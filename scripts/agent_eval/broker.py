@@ -583,6 +583,18 @@ def installed(*terminals: FakeTerminal) -> Generator[None]:
 
 # MetaApi provisioning (account entities, REST).
 
+UPDATE_FIELDS = (
+    "name",
+    "server",
+    "magic",
+    "manualTrades",
+    "slippage",
+    "quoteStreamingIntervalInSeconds",
+    "tags",
+    "metadata",
+    "resourceSlots",
+    "copyFactoryResourceSlots",
+)
 PROVISIONING_URL = (
     "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts"
 )
@@ -614,7 +626,7 @@ class FakeAccountEntity:
 
     async def deploy(self) -> None:
         self.api.called("deploy")
-        self.api.stored(self._data["_id"])["state"] = "DEPLOYING"
+        self.api.start(self._data["_id"])
         await self.reload()
 
     async def undeploy(self) -> None:
@@ -624,13 +636,18 @@ class FakeAccountEntity:
 
     async def redeploy(self) -> None:
         self.api.called("redeploy")
-        self.api.stored(self._data["_id"])["state"] = "DEPLOYING"
+        self.api.start(self._data["_id"])
         await self.reload()
 
     async def update(self, account: dict[str, Any]) -> None:
+        # A PUT: an update field left out is reset. A new password is used by the
+        # terminal only after the next deploy or redeploy.
         self.api.called("update")
-        self.api.updates.append(dict(account))
-        self.api.stored(self._data["_id"]).update(account)
+        self.api.updates.append({key: value for key, value in account.items() if key != "password"})
+        data = self.api.stored(self._data["_id"])
+        for key in UPDATE_FIELDS:
+            data.pop(key, None)
+        data.update(account)
         await self.reload()
 
     async def remove(self) -> None:
@@ -656,7 +673,9 @@ class FakeProvisioningApi:
     calls: list[str] = field(default_factory=list[str])
     creates: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     updates: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
-    lose_create_answer: bool = False
+    # "after_commit": MetaApi creates the account and the answer is lost on the way back;
+    # "before_commit": the request is lost before MetaApi saw it.
+    lose_create_answer: Literal["after_commit", "before_commit"] | None = None
     sequence: int = 0
 
     def called(self, method: str) -> None:
@@ -679,7 +698,11 @@ class FakeProvisioningApi:
             "version": 5,
             "region": region,
             "name": "owner linked",
+            "magic": 123456,
+            "slippage": 2.5,
+            "tags": ["owner"],
             "password": self.servers.get(server, {}).get(login, ""),
+            "terminal_password": self.servers.get(server, {}).get(login, ""),
             "state": "DEPLOYED" if deployed else "UNDEPLOYED",
             "connectionStatus": "CONNECTED" if deployed else "DISCONNECTED",
         }
@@ -695,13 +718,18 @@ class FakeProvisioningApi:
             )
         settle = {"DEPLOYING": "DEPLOYED", "UNDEPLOYING": "UNDEPLOYED"}
         data["state"] = settle.get(data["state"], data["state"])
-        right = self.servers.get(data["server"], {}).get(data["login"]) == data["password"]
+        expected = self.servers.get(data["server"], {}).get(data["login"])
+        right = expected == data["terminal_password"]
         data["connectionStatus"] = (
             ("CONNECTED" if right else "DISCONNECTED_FROM_BROKER")
             if data["state"] == "DEPLOYED"
             else "DISCONNECTED"
         )
         return data
+
+    def start(self, account_id: str) -> None:
+        data = self.stored(account_id)
+        data["state"], data["terminal_password"] = "DEPLOYING", data["password"]
 
     def entity(self, account_id: str) -> FakeAccountEntity:
         return FakeAccountEntity(self, dict(self.stored(account_id)))
@@ -743,20 +771,24 @@ class FakeProvisioningApi:
                 {"code": "E_AUTH"},
                 PROVISIONING_URL,
             )
+        lost = sdk_error("ApiException", None, None, PROVISIONING_URL)  # an httpx read timeout
+        if self.lose_create_answer == "before_commit":
+            self.lose_create_answer = None
+            raise lost
         self.sequence += 1
         account_id = f"fixture-metaapi-{self.sequence:04d}"
         self.accounts[account_id] = {
             "_id": account_id,
+            "terminal_password": account["password"],
             "version": 5 if account["platform"] == "mt5" else 4,
             "region": account.get("region", "new-york"),
             "state": "DEPLOYING",
             "connectionStatus": "DISCONNECTED",
-            **{key: account[key] for key in ("login", "server", "name", "password")},
+            **{key: account[key] for key in ("login", "server", "name", "password", "magic")},
         }
-        if self.lose_create_answer:
-            self.lose_create_answer = False
-            timeout: Any = importlib.import_module("metaapi_cloud_sdk.clients.timeout_exception")
-            raise timeout.TimeoutException("Timed out waiting for the response")
+        if self.lose_create_answer == "after_commit":
+            self.lose_create_answer = None
+            raise lost
         return FakeAccountEntity(self, dict(self.accounts[account_id]))
 
 
