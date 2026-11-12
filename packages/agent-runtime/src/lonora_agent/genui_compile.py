@@ -73,7 +73,7 @@ HEIGHTS = {
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
 # counts toward the 560 px budget like any block, and is never folded).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460}
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "mandate": 300}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -94,7 +94,14 @@ FIXED_LABELS = (
     "لم تُنفذ",
     "Unknown: release the hold",
     "غير معروفة — ارفع التعليق",
+    "Trading mode",
+    "التفويض",
+    "وكّله",
+    "يستأذن",
 )
+# Fixed-card words that are also everyday words: refused only as a whole label, never as the
+# start of one ("Full report", "Ask about gold").
+FIXED_WHOLE = ("Full", "Ask")
 
 
 @dataclass
@@ -376,6 +383,7 @@ def _plain(text: str) -> str:
 
 
 FIXED_PLAIN = frozenset(_plain(label) for label in FIXED_LABELS)
+WHOLE_PLAIN = frozenset(_plain(label) for label in FIXED_WHOLE)
 MARKS_PLAIN = tuple(_plain(mark) for mark in FRAME_MARKS)
 # The frame's own icon: an agent's node never wears it.
 FRAME_ICON = "shield"
@@ -392,8 +400,10 @@ def imitates_fixed_card(text: str) -> bool:
     """A heading or control label an agent's node shows that starts with, or is, what only a
     fixed card or its trust frame says («موافقة», «Approve trade», «طلب موافقة · XAUUSD»)."""
     plain = _plain(text)
-    return shows_frame_mark(text) or any(
-        plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN
+    return (
+        shows_frame_mark(text)
+        or plain in WHOLE_PLAIN
+        or any(plain == label or plain.startswith(label + " ") for label in FIXED_PLAIN)
     )
 
 

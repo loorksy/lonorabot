@@ -11,8 +11,8 @@ a scripted model, the simulation broker quoting the screenshot's prices.
 ``parity``  the parity calculator (tests/test_genui_parity.py): every catalog node and every
             local, copy, open and go action, streamed through the real compiler, so each
             client's journey checks that it draws every node type the server accepts.
-``records`` a pending Trade Approval and a resolve card for an uncertain operation in the
-            conversation, as their own paths raise them; prints their ids.
+``records`` a pending Trade Approval, a resolve card for an uncertain operation and the agent's
+            Mandate card in the conversation, as their own paths raise them; prints ids.
 ``slots``   the agent's reply that embeds a fixed card (``card``, default the approval) as a
             trusted slot (mandate 10.2), with words, a hide condition and a tone it tries
             to give the slot.
@@ -315,7 +315,19 @@ async def records(data: dict[str, Any]) -> dict[str, Any]:
                 subject="operation:" + operation,
                 payload={"operation_id": operation},
             )
-            return {"approval": approval.id, "settle": settle.id}
+            mandate = await create_card(
+                session,
+                thread.owner_id,
+                card_id=uuid4().hex,
+                agent_id=thread.agent_id,
+                thread=thread,
+                run_id=None,
+                source="agent",
+                kind="trading_mode",
+                subject="trading_mode:" + thread.agent_id,
+                payload={"agent_id": thread.agent_id},
+            )
+            return {"approval": approval.id, "settle": settle.id, "mandate": mandate.id}
     finally:
         await fixture.close(cleanup=False)
 

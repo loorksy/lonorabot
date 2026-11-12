@@ -7,6 +7,7 @@ import {
   type MentionAddress,
   nearConversationBottom,
   retriedRunIds,
+  SLOT_OWNER_ACTION_KINDS,
   stopTargets,
   turnActivity,
   type UiSlotRef,
@@ -808,7 +809,7 @@ export function Conversation({
       return approval ? approvalCard(approval) : null;
     }
     const action = ownerActions.rows.find(
-      (row) => row.id === record && row.kind === "resolve_operation",
+      (row) => row.id === record && row.kind === SLOT_OWNER_ACTION_KINDS[card],
     );
     return action ? ownerActionCard(action) : null;
   };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message, TradeApproval } from "@lonora/contracts";
+import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
 import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
 
 function message(id: string, seq: number, created_at: string): Message {
@@ -101,6 +101,26 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   assert.ok(ids(conversationTimeline(messages, [approval])).includes("approval:request"));
   const forged = [...messages, slotting(3, "trade_approval", "request", { when: "false" })];
   assert.ok(ids(conversationTimeline(forged, [approval])).includes("approval:request"));
+  // An owner-action fixed card steps aside for a slot of its own card only.
+  const mandate = {
+    id: "mode-card",
+    kind: "trading_mode",
+    thread_id: "thread",
+    created_at: "2026-10-15T10:00:01Z",
+    timeline_seq: 2,
+  } as unknown as OwnerAction;
+  const withMandate = (rows: Message[]) => ids(conversationTimeline(rows, [], [mandate]));
+  assert.ok(withMandate(messages).includes("owner_action:mode-card"));
+  assert.ok(
+    !withMandate([...messages, slotting(3, "mandate", "mode-card")]).includes(
+      "owner_action:mode-card",
+    ),
+  );
+  assert.ok(
+    withMandate([...messages, slotting(3, "settle", "mode-card")]).includes(
+      "owner_action:mode-card",
+    ),
+  );
   // A slot of another kind never hides the record.
   const other = [...messages, slotting(3, "settle", "request")];
   assert.ok(ids(conversationTimeline(other, [approval])).includes("approval:request"));

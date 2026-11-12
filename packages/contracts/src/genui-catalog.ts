@@ -36,7 +36,7 @@ export type UiRoute = (typeof UI_ROUTES)[number];
 export const UI_TONES = ["info", "good", "warn", "bad", "muted", "accent"] as const;
 /** The fixed cards a Slot may place (mandate 10.2); the client draws them from the
  * live record. */
-export const UI_SLOT_CARDS = ["trade_approval", "settle"] as const;
+export const UI_SLOT_CARDS = ["trade_approval", "settle", "mandate"] as const;
 export type UiSlotCard = (typeof UI_SLOT_CARDS)[number];
 export type UiTone = (typeof UI_TONES)[number];
 /** Each node's props: true when required. Each renderer declares that it draws every

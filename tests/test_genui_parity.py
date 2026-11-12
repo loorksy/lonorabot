@@ -32,7 +32,7 @@ from scripts.export_genui_catalog import TARGET, generated  # noqa: E402
 FIXTURES = Path(__file__).parent / "fixtures/genui"
 PARITY = (FIXTURES / "documents/valid/parity.lonora-ui").read_text()
 SLOTS = (FIXTURES / "documents/valid/slot.lonora-ui").read_text()
-# The other fixed card that exists today. A settle card is tall (SLOT_HEIGHTS), so its card
+# The settle card. A settle card is tall (SLOT_HEIGHTS), so its card
 # holds the head and the slot alone at rest; two slots would exceed 560 px.
 SETTLE = "\n".join(
     line
@@ -43,7 +43,14 @@ SETTLE = "\n".join(
 )
 # The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
 # conversation (tests/test_genui_slots.py checks the lookup against real rows).
-SLOT_RECORDS = {("trade_approval", "parity-approval"), ("settle", "parity-settle")}
+SLOT_RECORDS = {
+    ("trade_approval", "parity-approval"),
+    ("settle", "parity-settle"),
+    ("mandate", "parity-mandate"),
+}
+MANDATE = SLOTS.replace(
+    '"trade_approval","record":"parity-approval"', '"mandate","record":"parity-mandate"'
+)
 COMPILED = FIXTURES / "parity-compiled.json"
 OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 
@@ -62,6 +69,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
         (reply(), messages()),
         (reply(SLOTS), history),
         (reply(SETTLE), history),
+        (reply(MANDATE), history),
     ):
         with patch("lonora_agent.visual_response.slot_records", records):
             projection, projector = await project(text, history=past)

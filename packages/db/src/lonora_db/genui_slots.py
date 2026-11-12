@@ -43,4 +43,13 @@ async def slot_records(
         )
     )
     found |= {("settle", identity) for identity in settles}
+    mandates = await session.scalars(
+        select(OwnerActionRow.id).where(
+            OwnerActionRow.id.in_(wanted),
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.thread_id == thread_id,
+            OwnerActionRow.kind == "trading_mode",
+        )
+    )
+    found |= {("mandate", identity) for identity in mandates}
     return found

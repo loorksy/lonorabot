@@ -486,6 +486,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(page.locator(".ux-slot")).toHaveCount(0);
     python("slots", { ...fixture.input, record: ids.approval });
     python("slots", { ...fixture.input, card: "settle", record: ids.settle });
+    python("slots", { ...fixture.input, card: "mandate", record: ids.mandate });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
     const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
     await expect(slot).toBeVisible();
@@ -505,9 +506,17 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
     // Each slot fits the height the compiler counts for it at rest at 390 px (SLOT_HEIGHTS in
-    // genui_compile.py: trade approval 230 px, settle 460 px, frame included).
+    // genui_compile.py: trade approval 230 px, settle 460 px, mandate 300 px, frame included).
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
+    // The Mandate card in its slot: the agent's mode read live and one button for the other
+    // mode (mandate 10.3), which is the card's own action on the owner session.
+    const mandateSlot = page.locator('.ux .ux-slot[data-slot-card="mandate"]');
+    const mandate = page.locator(`[data-owner-action="${ids.mandate}"]`);
+    await expect(mandateSlot.locator(`[data-owner-action="${ids.mandate}"]`)).toBeVisible();
+    await expect(mandate).toHaveCount(1);
+    await expect(mandateSlot).toContainText("التفويض");
+    expect((await mandateSlot.boundingBox()).height).toBeLessThanOrEqual(300);
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());
@@ -540,6 +549,16 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(slot.locator('[data-trade-status="rejected"]')).toBeVisible();
     await expect(approval).toHaveCount(1);
     await expect(settle).toHaveCount(1);
+    // Last, as it withdraws the agent's pending approvals (4.2.3): the Mandate slot's button
+    // switches the mode, and the slot then offers the other mode.
+    const [switched] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/owner-actions/${ids.mandate}/decision`),
+      ),
+      mandateSlot.getByRole("button", { name: "وكّله", exact: true }).click(),
+    ]);
+    expect(switched.status()).toBe(200);
+    await expect(mandateSlot.getByRole("button", { name: "يستأذن", exact: true })).toBeVisible();
   } finally {
     await fixture.cleanup();
   }

@@ -43,7 +43,7 @@ The server contract `lonora_contracts.genui` is the single source of the set (ma
   both clients draw.
 
 - **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
-  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval` and `settle`); `record` is
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval`, `settle` and `mandate`); `record` is
   the record's id. The agent chooses only where the slot sits; section 4a says what the server
   and the clients do with it.
 
@@ -100,7 +100,8 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
 
 - **Placement (10.2.1).** The projector reads the records a card's slots name
   (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
-  `resolve_operation` owner-action card (`settle`) of this owner, in the reply's conversation
+  `resolve_operation` owner-action card (`settle`) or a `trading_mode` owner-action card, the
+  Mandate card (`mandate`), of this owner, in the reply's conversation
   (the Run's origin conversation when it works in its own thread, as broker-event and watch
   Runs do). A slot
   whose record is missing, of another kind, another owner's or another conversation's is
@@ -113,7 +114,8 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   class or colour, and the agent's own card falls back (`card_fallback_imitation`) when it wears
   the frame's `shield` icon, when a heading or control label (head title and sub, label, title,
   Badge, Title, option labels) is or starts with a fixed card's title or button
-  (`FIXED_LABELS`, the clients' own strings, checked by a test), or when anything it shows,
+  (`FIXED_LABELS`, the clients' own strings, checked by a test; the everyday words «Full» and
+  «Ask» in `FIXED_WHOLE` only as a whole label), or when anything it shows,
   why and fallback included, carries the frame's mark (`FRAME_MARKS`). Templates are read as
   written, at each sampled state and by their quoted literals. Sentences, values and state may
   use the same words.
@@ -121,8 +123,8 @@ dropped and its fallback kept as text. Diagnostics carry structural codes only, 
   from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
   actions; nothing comes from the agent's card. A generated element still never approves,
   settles or switches a mode (6.10): only the fixed card inside the slot does.
-- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, its
-  frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
+- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 460 px, mandate 300
+  px, its frame included, measured at 390 px by the web "Slots" journey) toward the 560 px resting
   height and is one of the 6 visible blocks. The agent's other blocks fold first; a slot is
   never folded, and a card over 720 px falls back, which brings the record's row back.
 - **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
