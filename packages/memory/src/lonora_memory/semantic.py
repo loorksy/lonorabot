@@ -139,4 +139,20 @@ async def index_note(
             if old is None or old.owner_id != owner_id or old.agent_id != agent_id:
                 raise LonoraError("knowledge_note_not_found", 404)
             await session.delete(old)
+            from lonora_db.events import emit
+
+            # The replaced note leaves a trace, even when the new text matched a note that
+            # already existed (then no created or updated event is written).
+            emit(
+                session,
+                owner_id,
+                "knowledge_notes.deleted",
+                agent_id=agent_id,
+                payload={
+                    "id": replaces,
+                    "text": str(old.payload.get("text", ""))[:8000],
+                    "replaced_by": document_id,
+                    **({"written_by": written_by} if written_by else {}),
+                },
+            )
         return {"id": document_id, "indexed": True}

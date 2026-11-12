@@ -152,3 +152,54 @@ async def test_a_peers_note_survives_and_every_write_and_removal_is_attributed(
     assert len(deleted) == 1 and deleted[0].agent_id == peer
     assert deleted[0].payload["text"] == "The peer's own rule"
     assert deleted[0].payload["written_by"] == {"agent_id": lonora}
+
+
+@pytest.mark.asyncio
+async def test_an_edit_records_the_note_it_replaced_even_onto_an_existing_text(
+    task_db: Fixture,
+) -> None:
+    from lonora_db.schema import EventRow
+
+    db, _, own, _ = task_db
+    tools = load_tools().tools
+    first = await tools["knowledge_note_add"].handler(context(task_db, own), {"content": "Rule A"})
+    second = await tools["knowledge_note_add"].handler(context(task_db, own), {"content": "Rule B"})
+    # Replacing A with text that already exists (B) writes no created event; the removal of
+    # A is still recorded.
+    merged = await tools["knowledge_note_add"].handler(
+        context(task_db, own), {"content": "Rule B", "replaces": first["id"]}
+    )
+    assert merged["id"] == second["id"]
+    async with db.sessions() as session:
+        rows = list(await session.scalars(select(SemanticMemoryRow)))
+        deleted = list(
+            await session.scalars(
+                select(EventRow).where(EventRow.kind == "knowledge_notes.deleted")
+            )
+        )
+    assert [row.payload["text"] for row in rows] == ["Rule B"]
+    assert [(event.payload["id"], event.payload["text"]) for event in deleted] == [
+        (first["id"], "Rule A")
+    ]
+    assert deleted[0].payload["replaced_by"] == second["id"]
+    assert deleted[0].payload["written_by"] == {"agent_id": own}
+    listed = await tools["knowledge_note_list"].handler(context(task_db, own), {})
+    assert listed["notes"][0]["written_by"] == {"agent_id": own}
+
+
+@pytest.mark.asyncio
+async def test_recall_names_the_agent_that_wrote_a_note(task_db: Fixture) -> None:
+    from lonora_memory.evidence import retrieve_evidence
+
+    db, owner, own, _ = task_db
+    tools = load_tools().tools
+    await tools["knowledge_note_add"].handler(
+        context(task_db, own), {"content": "Scale into silver after the New York open."}
+    )
+    recalled = await retrieve_evidence(db, cast(Any, None), owner, own, "silver new york open")
+    [note] = [item for item in recalled.items if item.source == "semantic_note"]
+    assert note.provenance == {
+        "source": "agent_note",
+        "agent_id": own,
+        "authority": "untrusted_memory_content",
+    }

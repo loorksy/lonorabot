@@ -140,7 +140,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "knowledge_note_delete",
-            "Remove one knowledge note by id when the owner asks.",
+            "Remove one knowledge note by id. The removal is recorded with who removed it.",
             NoteDelete,
             delete,
             search_terms="knowledge note delete remove forget معرفة ملاحظة احذف امسح انس أزل",
