@@ -348,6 +348,6 @@ def test_the_identity_and_voice_are_a_decisive_traders():
     ):
         assert hedge not in core, hedge
     # 5.2 (Q15): the judgment kinds are options, each one line.
-    assert "These are choices you may make, never rules you must follow:" in core
+    assert "these are choices you may make, never rules you must follow:" in core
     for kind in ("Scaling in", "Secure, then add", "Self-scheduling", "judging correlation"):
         assert kind in core, kind
