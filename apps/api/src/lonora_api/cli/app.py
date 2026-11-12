@@ -22,7 +22,9 @@ from lonora_contracts.domain import Contract
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.cli_tokens import agent_for_cli_token
+from lonora_db.messages import post_agent_message
 from lonora_db.schema import AgentRow
+from lonora_db.workspace_wakes import MAXIMUM_TEXT, wake_by_handle
 from lonora_tools.account import read_account
 from lonora_tools.market import CandlesInput, read_candles, read_quote
 from lonora_tools.market_binding import named_account
@@ -48,6 +50,14 @@ class PriceArgs(AccountArgs):
 class CandlesArgs(PriceArgs):
     timeframe: str = Field(min_length=1, max_length=8)
     count: int
+
+
+class NotifyArgs(Contract):
+    text: str = Field(min_length=1, max_length=MAXIMUM_TEXT)
+
+
+class WakeArgs(NotifyArgs):
+    handle: str = Field(min_length=1, max_length=81)
 
 
 def answer(code: int, output: dict[str, Any]) -> JSONResponse:
@@ -121,7 +131,25 @@ def snapshot_part(part: str) -> Command:
     return command
 
 
+async def notify(rt: ApiRuntime, agent: AgentRow, body: dict[str, Any]) -> JSONResponse:
+    """The text in the calling agent's own conversation, as its message (7.3.8)."""
+    args = NotifyArgs.model_validate(body)
+    async with rt.db.sessions() as session, session.begin():
+        message = await post_agent_message(session, agent.owner_id, agent.id, args.text)
+    return answer(EXECUTED, {"posted": True, "message_id": message.id})
+
+
+async def wake(rt: ApiRuntime, agent: AgentRow, body: dict[str, Any]) -> JSONResponse:
+    """A run of the agent with that @handle, naming the caller, the text as data (7.3.7)."""
+    args = WakeArgs.model_validate(body)
+    async with rt.db.sessions() as session, session.begin():
+        run = await wake_by_handle(session, agent, args.handle, args.text)
+    return answer(EXECUTED, {"woken": True, "run_id": run.id})
+
+
 COMMANDS: dict[str, Command] = {
+    "notify": notify,
+    "wake": wake,
     "price": price,
     "candles": candles,
     "account": snapshot_part("account"),
