@@ -17,7 +17,7 @@ from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, SecretRo
 
 WORKSPACE = "workspace"
 BROKER = "broker"
-# The owner's one MetaApi API token (scope ``broker``); every MetaApi connection names it.
+# The owner's one MetaApi API token (scope ``broker``); connections made from chat name it.
 METAAPI_TOKEN = "metaapi_token"
 SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")

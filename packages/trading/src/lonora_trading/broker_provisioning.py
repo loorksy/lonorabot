@@ -212,6 +212,8 @@ async def _provision(
                     server=account["server"],
                     platform=account["platform"],
                     password=await secrets.read(password_id),
+                    # Every create sent for this card is the same MetaApi transaction.
+                    request_key=card_id,
                 )
             except LonoraError as failure:
                 if failure.code in TRANSIENT and not _late(started):

@@ -3,9 +3,9 @@ are readable only by the broker adapter layer and provisioning, never by a tool 
 a workspace command or the general secret store; one a live connection uses is not deleted.
 """
 
-import importlib.util
 import inspect
 import os
+import re
 import sys
 from pathlib import Path
 from uuid import uuid4
@@ -46,6 +46,25 @@ def test_only_the_broker_layer_constructs_the_broker_reader() -> None:
     assert not hasattr(manager, "secrets")  # the reader is private to the adapter layer
 
 
+def test_nothing_else_decrypts_or_reaches_into_the_broker_layer() -> None:
+    """No module outside the stores and the cipher decrypts a stored value itself, and
+    nothing reaches into ``BrokerManager``'s private reader."""
+    stores = {
+        "packages/adapters/src/lonora_adapters/storage/secret_store.py",
+        "packages/adapters/src/lonora_adapters/storage/broker_secrets.py",
+    }
+    for top in ("packages", "apps"):
+        for path in (ROOT / top).rglob("*.py"):
+            name = str(path.relative_to(ROOT))
+            if name.startswith("packages/security/") or "/migrations/" in name:
+                continue
+            text = path.read_text(encoding="utf-8")
+            if name not in stores:
+                assert "SecretCipher(" not in text and ".decrypt(" not in text, name
+            if name != "packages/adapters/src/lonora_adapters/brokers/base.py":
+                assert not re.search(r"\._secrets\b", text), name
+
+
 def test_the_workspace_bridge_has_no_broker_reader() -> None:
     from lonora_agent import workspace, workspace_access, workspace_host
 
@@ -57,19 +76,17 @@ def test_the_workspace_bridge_has_no_broker_reader() -> None:
             assert name not in source
 
 
-def migration():
+def test_the_token_has_one_fixed_name() -> None:
+    import importlib.util
+
+    from lonora_db.secrets import METAAPI_TOKEN, require_scope
+
     path = ROOT / "packages/db/migrations/versions/0145_metaapi_token.py"
     spec = importlib.util.spec_from_file_location("metaapi_token_migration", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module
-
-
-def test_the_token_has_one_fixed_name() -> None:
-    from lonora_db.secrets import METAAPI_TOKEN, require_scope
-
-    assert migration().TOKEN == METAAPI_TOKEN == "metaapi_token"
+    assert module.TOKEN == METAAPI_TOKEN == "metaapi_token"
     require_scope(METAAPI_TOKEN, "broker")
 
 
@@ -84,7 +101,6 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
     from check_streaming import Fixture
     from lonora_adapters.storage.broker_secrets import BrokerSecrets
     from lonora_db.schema import BrokerSessionRow
-    from lonora_db.secrets import METAAPI_TOKEN
 
     fixture = await Fixture().open()
     try:
@@ -93,7 +109,6 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
         services = fixture.runtime.services(fixture.owner)
         value = "fixture.metaapi." + uuid4().hex
         async with fixture.runtime.db.sessions() as session, session.begin():
-            # A name of its own: the owner's real token may be in use by a connection.
             token_id = await broker.write_in_session(session, "fixture_" + uuid4().hex, value)
         assert await broker.read(token_id) == value
 
@@ -110,8 +125,7 @@ async def test_a_broker_value_never_leaves_the_broker_layer_and_a_used_one_is_ke
                 await store.read(token_id)
             assert refused.value.code == "secret_scope_forbidden"
             with pytest.raises(LonoraError) as overwrite:
-                await store.write(METAAPI_TOKEN, "attacker.chosen.token", "broker")
-            assert await broker.named(METAAPI_TOKEN) != token_id
+                await store.write("metaapi_token", "attacker.chosen.token", "broker")
             assert overwrite.value.code == "secret_scope_forbidden"
         assert await broker.read(token_id) == value
 
