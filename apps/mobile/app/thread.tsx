@@ -22,6 +22,7 @@ import {
   type MentionAddress,
   mergeOwnerAction,
   needsTimeSeparator,
+  parseCommand,
   projectRunEvents,
   retryableFailure,
   runStatusText,
@@ -71,6 +72,7 @@ import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
 import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
+import { type CommandRow, commandRows, type Skill, sentCommand } from "../lib/commands";
 import {
   type ComposerDraft,
   composerDraft,
@@ -93,6 +95,7 @@ import {
 import { projectConversation } from "../lib/conversation-projection";
 import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
+import { fill } from "../lib/i18n";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
@@ -150,6 +153,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [asking, setAsking] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
+  // The agent's enabled skills, loaded the first time «/» starts a message in its chat.
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const skillsOf = useRef<string | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
   const [editing, setEditing] = useState<Message | null>(null);
   // The owner's quick reactions as the server last answered them, until a snapshot carries them.
@@ -270,6 +276,19 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       }),
     [outboxKey, scope],
   );
+  useEffect(() => {
+    const agentId = thread?.group_id ? null : thread?.agent_id;
+    if (!agentId || skillsOf.current === agentId || !draft.trimStart().startsWith("/")) return;
+    skillsOf.current = agentId;
+    void api
+      .get<Skill[]>(`/skills?agent_id=${encodeURIComponent(agentId)}`)
+      .then((rows) => {
+        if (skillsOf.current === agentId) setSkills(rows);
+      })
+      .catch(() => {
+        skillsOf.current = null;
+      });
+  }, [draft, thread?.agent_id, thread?.group_id]);
   const reportError = useRef(errorText);
   reportError.current = errorText;
   const say = useRef(t);
@@ -855,7 +874,54 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const agent = agents.find((value) => value.id === thread?.agent_id);
   const group = groups.find((value) => value.id === thread?.group_id);
   const title = agent?.name ?? group?.payload.name ?? thread?.title ?? t("inbox");
-  const send = async (mentions?: MentionAddress, followUp?: string) => {
+  const commands = commandRows(
+    t,
+    {
+      group: Boolean(thread?.group_id),
+      symbol: agent?.trading_symbol,
+      trading: Boolean(agent?.trading_account_id),
+      name: title,
+      callable: Boolean(agent && !agent.paused),
+    },
+    thread?.group_id ? [] : skills,
+  );
+  /** A command that sends nothing opens what the chat already has; «ملخص» is sent at once. */
+  const runCommand = (row: CommandRow) => {
+    if (row.command === "summary")
+      void send(undefined, `/${row.name}`, { name: "summary", argument: "" });
+    else if (row.command === "chart")
+      chartSheet.open({ threadId: id, ...(agent ? { botId: agent.id } : {}) });
+    else if (row.command === "call") {
+      if (agent && thread) void voice.start(agent, thread.id);
+    } else if (row.command === "clear") confirmClear();
+  };
+  const confirmClear = () =>
+    sheets.open({
+      id: "clear-chat",
+      title: t("clearMessagesQ"),
+      body: (
+        <Row
+          lead={<Icon name="trash" size={22} color={shellTheme.red} />}
+          title={t("clearAction")}
+          last
+          onPress={() => {
+            sheets.close();
+            void api
+              .post(`/threads/${encodeURIComponent(id)}/clear`, {})
+              .then(() => {
+                setMessages([]);
+                void snapshot();
+              })
+              .catch((reason) => setError(errorText(reason)));
+          }}
+        />
+      ),
+    });
+  const send = async (
+    mentions?: MentionAddress,
+    followUp?: string,
+    asked?: ReturnType<typeof sentCommand>,
+  ) => {
     if (
       sendLocks.current.has(outboxKey) ||
       uploading ||
@@ -865,6 +931,30 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       (!followUp && editing && !draft.trim())
     )
       return;
+    // «/» commands: never in an edit or a message with files, as on Web.
+    let command = asked ?? null;
+    if (!followUp && !editing && !attachments.length && !uploads.length) {
+      const typed = parseCommand(draft, commands);
+      if (typed) {
+        const option = typed.option;
+        if (option.argument && option.command !== "skill" && !typed.argument) {
+          // An LRM keeps the «/» before the command's name inside Arabic text.
+          setError(
+            fill(
+              t(option.command === "task" ? "cmdTaskMissing" : "cmdSearchMissing"),
+              `\u200e/${option.name}`,
+            ),
+          );
+          return;
+        }
+        command = sentCommand(option, typed.argument);
+        if (!command) {
+          updateDraft({ text: "" });
+          runCommand(option);
+          return;
+        }
+      }
+    }
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
@@ -882,6 +972,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       mention_all: mentions?.all ?? false,
       collaboration_session_id: mentions?.collaboration_session_id,
       ...(edit ? { edited_from: edit.id } : {}),
+      ...(command ? { command } : {}),
     };
     const fingerprint = JSON.stringify([targetId, body, handed.map((file) => file.id)]);
     sendLocks.current.add(targetKey);
@@ -1520,6 +1611,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           reply={reply}
           onCancelReply={() => updateDraft({ reply: null })}
           editing={editing}
+          commands={commands}
+          onCommand={runCommand}
           onCancelEdit={endEdit}
           onChange={(text) => updateDraft({ text })}
           attachments={attachments}

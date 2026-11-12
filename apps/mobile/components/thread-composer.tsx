@@ -2,12 +2,14 @@
 
 import type { Agent, Artifact, Message } from "@lonora/contracts";
 import {
+  commandQuery,
   guestCandidates,
   type MentionAddress,
   type MentionRange,
   mentionAddress,
   mentionCandidates,
   mentionQuery,
+  rankCommands,
   rebaseMentions,
 } from "@lonora/core";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -20,6 +22,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { CommandRow } from "../lib/commands";
 import type { ComposerUpload } from "../lib/composer-uploads";
 import { fill } from "../lib/i18n";
 import { useSession } from "../lib/session";
@@ -51,6 +54,8 @@ export function ThreadComposer({
   onCancelReply,
   editing,
   onCancelEdit,
+  commands = [],
+  onCommand,
   permissionControl,
 }: {
   draft: string;
@@ -77,6 +82,9 @@ export function ThreadComposer({
   collaborationSessionId?: string;
   reply?: Message | null;
   onCancelReply?: () => void;
+  /** The / commands this chat offers (lib/commands), and what picking one does. */
+  commands?: CommandRow[];
+  onCommand?: (row: CommandRow) => void;
   /** Edit and resend (Q21): the owner's message this send replaces. */
   editing?: Message | null;
   onCancelEdit?: () => void;
@@ -97,6 +105,9 @@ export function ThreadComposer({
           6,
         );
   if (query !== null && mentionAll && "all".startsWith(query.toLowerCase())) candidates.push(null);
+  // «/» at the start of a message: the chat's commands, best match first (never in an edit).
+  const commandTyped = editing ? null : commandQuery(textBeforeCaret);
+  const ranked = commandTyped === null ? null : rankCommands(commands, commandTyped);
   useEffect(() => {
     if (!draft) {
       committed.current = [];
@@ -125,7 +136,58 @@ export function ThreadComposer({
       ) : reply ? (
         <ComposerReplyPreview message={reply} onClose={onCancelReply} />
       ) : null}
-      {candidates.length ? (
+      {ranked?.length ? (
+        <View
+          role="list"
+          accessibilityLabel={t("cmdList")}
+          style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}
+        >
+          {ranked.slice(0, 8).map((row) => (
+            <Pressable
+              key={row.id}
+              accessibilityRole="button"
+              accessibilityLabel={`/${row.name}`}
+              onPress={() => {
+                const rest = draft.slice(cursor).replace(/^\S*[ \t]*/, "");
+                if (row.argument) {
+                  const next = `/${row.name} ${rest}`;
+                  onChange(next);
+                  setCursor(row.name.length + 2);
+                } else {
+                  onChange(rest);
+                  setCursor(0);
+                  onCommand?.(row);
+                }
+              }}
+              style={({ pressed }) => ({
+                flexDirection: rtl ? "row-reverse" : "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                backgroundColor: pressed ? shell.accent : "transparent",
+              })}
+            >
+              <Text style={{ color: shell.foreground, fontSize: 15, fontWeight: "600" }}>
+                /{row.name}
+              </Text>
+              {row.sub ? (
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    color: shell.secondary,
+                    fontSize: 13,
+                    writingDirection: "auto",
+                  }}
+                >
+                  {row.sub}
+                </Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : candidates.length ? (
         <View style={{ backgroundColor: shell.muted, borderRadius: 14, overflow: "hidden" }}>
           {candidates.map((agent) => (
             <Pressable
