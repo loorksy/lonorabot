@@ -23,7 +23,7 @@ const KINDS = new Set([
   "quiz",
   "timer",
   "diagram",
-  "receipt",
+  "summary",
 ]);
 /** The catalog's node set plus the server's delivery row (mandate 10.1.5). */
 export const UI_NODES: ReadonlySet<string> = new Set<string>([

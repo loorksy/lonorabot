@@ -28,8 +28,10 @@ async def merge_steering(
         fresh = await consume_steering(session, context.lease)
         for row in fresh:
             notes, images = (
+                # The message's own thread: an answer may come from the conversation a
+                # background run reports to.
                 await attachment_context(
-                    session, context.owner_id, context.thread_id, row.seq, context.artifact_root
+                    session, context.owner_id, row.thread_id, row.seq, context.artifact_root
                 )
                 if row.attachment_ids
                 else ("", [])

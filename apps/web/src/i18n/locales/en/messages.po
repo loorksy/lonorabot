@@ -505,7 +505,7 @@ msgstr "Activity updated"
 #: src/components/skills/CreateSkill.tsx:129
 #: src/pages/ScratchpadSection.tsx:89
 #: src/shell/agent/AgentPage.tsx:638
-#: src/shell/agent/GroupPage.tsx:222
+#: src/shell/agent/GroupPage.tsx:221
 #: src/shell/settings/IntegrationsPage.tsx:261
 #: src/shell/settings/IntegrationsPage.tsx:349
 msgid "Add"
@@ -1019,8 +1019,8 @@ msgid "At market price"
 msgstr "At market price"
 
 #: src/lib/user_error.ts:33
-msgid "At most two other agents can join one message."
-msgstr "At most two other agents can join one message."
+#~ msgid "At most two other agents can join one message."
+#~ msgstr "At most two other agents can join one message."
 
 #: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
@@ -1028,7 +1028,7 @@ msgstr "At most two other agents can join one message."
 #~ msgstr "Attach file"
 
 #: src/conversation/Composer.tsx:408
-#: src/conversation/Conversation.tsx:536
+#: src/conversation/Conversation.tsx:535
 msgid "Attached files"
 msgstr "Attached files"
 
@@ -1792,7 +1792,7 @@ msgstr "Choose an option or write your reply"
 msgid "Choose at least one action"
 msgstr "Choose at least one action"
 
-#: src/shell/agent/GroupPage.tsx:261
+#: src/shell/agent/GroupPage.tsx:260
 msgid "Choose at least one member."
 msgstr "Choose at least one member."
 
@@ -2183,7 +2183,7 @@ msgstr "Content"
 msgid "Continue recording"
 msgstr "Continue recording"
 
-#: src/conversation/Conversation.tsx:1082
+#: src/conversation/Conversation.tsx:1081
 #: src/shell/settings/ModelsPage.tsx:21
 msgid "Conversation"
 msgstr "Conversation"
@@ -2206,14 +2206,14 @@ msgid "Conversations"
 msgstr "Conversations"
 
 #: src/shell/agent/GroupPage.tsx:100
-#: src/shell/agent/GroupPage.tsx:345
+#: src/shell/agent/GroupPage.tsx:343
 msgid "Coordinator"
 msgstr "Coordinator"
 
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
 #: src/components/genui/UiCard.tsx:867
-#: src/conversation/Conversation.tsx:407
+#: src/conversation/Conversation.tsx:406
 msgid "Copied"
 msgstr "Copied"
 
@@ -2234,8 +2234,8 @@ msgstr "Copy message"
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/conversation/Conversation.tsx:552
-#: src/conversation/Conversation.tsx:574
+#: src/conversation/Conversation.tsx:551
+#: src/conversation/Conversation.tsx:573
 msgid "Copy text"
 msgstr "Copy text"
 
@@ -2251,7 +2251,7 @@ msgstr "Cost · {window}"
 msgid "Cost per hour today"
 msgstr "Cost per hour today"
 
-#: src/conversation/Conversation.tsx:409
+#: src/conversation/Conversation.tsx:408
 msgid "Could not copy"
 msgstr "Could not copy"
 
@@ -2342,7 +2342,7 @@ msgstr "Create task"
 msgid "Create the agent"
 msgstr "Create the agent"
 
-#: src/shell/agent/GroupPage.tsx:358
+#: src/shell/agent/GroupPage.tsx:356
 msgid "Create the group"
 msgstr "Create the group"
 
@@ -2512,7 +2512,7 @@ msgstr "Delegation changed"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:553
+#: src/conversation/Conversation.tsx:552
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2795,7 +2795,7 @@ msgstr "Economic calendar feed"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/conversation/Conversation.tsx:575
+#: src/conversation/Conversation.tsx:574
 msgid "Edit and resend"
 msgstr "Edit and resend"
 
@@ -2988,7 +2988,7 @@ msgstr "Enter the API key"
 msgid "Enter the code again"
 msgstr "Enter the code again"
 
-#: src/shell/agent/GroupPage.tsx:257
+#: src/shell/agent/GroupPage.tsx:256
 msgid "Enter the group's name."
 msgstr "Enter the group's name."
 
@@ -3354,7 +3354,7 @@ msgstr "From 22:00 to 08:00"
 msgid "From the cache"
 msgstr "From the cache"
 
-#: src/conversation/Conversation.tsx:517
+#: src/conversation/Conversation.tsx:516
 msgid "From the conversation"
 msgstr "From the conversation"
 
@@ -3420,11 +3420,11 @@ msgstr "Global routing"
 msgid "Global trading settings"
 msgstr "Global trading settings"
 
-#: src/conversation/Conversation.tsx:1157
+#: src/conversation/Conversation.tsx:1156
 msgid "Go to the latest messages"
 msgstr "Go to the latest messages"
 
-#: src/conversation/Conversation.tsx:1157
+#: src/conversation/Conversation.tsx:1156
 msgid "Go to the latest messages, {fresh} new"
 msgstr "Go to the latest messages, {fresh} new"
 
@@ -3482,7 +3482,7 @@ msgstr "Group members"
 
 #: src/pages/GroupPanel.tsx:53
 #: src/pages/GroupPanel.tsx:128
-#: src/shell/agent/GroupPage.tsx:294
+#: src/shell/agent/GroupPage.tsx:293
 msgid "Group name"
 msgstr "Group name"
 
@@ -3509,7 +3509,7 @@ msgstr "Happy"
 #~ msgid "Headings, lists, tables and code with a copy button"
 #~ msgstr "Headings, lists, tables and code with a copy button"
 
-#: src/conversation/Conversation.tsx:1245
+#: src/conversation/Conversation.tsx:1244
 msgid "Hello {ownerName}"
 msgstr "Hello {ownerName}"
 
@@ -4060,7 +4060,7 @@ msgstr "Loading chart…"
 #~ msgid "Loading group…"
 #~ msgstr "Loading group…"
 
-#: src/conversation/Conversation.tsx:1116
+#: src/conversation/Conversation.tsx:1115
 msgid "Loading older messages"
 msgstr "Loading older messages"
 
@@ -4266,7 +4266,7 @@ msgstr "MCP servers are never given a financial tool; write tools are non-financ
 #: src/conversation/PermissionMenu.tsx:70
 #: src/pages/GroupPanel.tsx:63
 #: src/shell/agent/GroupPage.tsx:85
-#: src/shell/agent/GroupPage.tsx:318
+#: src/shell/agent/GroupPage.tsx:317
 msgid "Members"
 msgstr "Members"
 
@@ -4316,8 +4316,8 @@ msgstr "Message {name}"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/conversation/Conversation.tsx:555
-#: src/conversation/Conversation.tsx:581
+#: src/conversation/Conversation.tsx:554
+#: src/conversation/Conversation.tsx:580
 #: src/conversation/Message.tsx:640
 msgid "Message options"
 msgstr "Message options"
@@ -5573,7 +5573,7 @@ msgstr "Personal Agent"
 msgid "Phone notification"
 msgstr "Phone notification"
 
-#: src/conversation/Conversation.tsx:511
+#: src/conversation/Conversation.tsx:510
 msgid "Photo"
 msgstr "Photo"
 
@@ -5767,7 +5767,7 @@ msgid "Providers and official catalog"
 msgstr "Providers and official catalog"
 
 #: src/components/skills/CreateSkill.tsx:101
-#: src/shell/agent/GroupPage.tsx:308
+#: src/shell/agent/GroupPage.tsx:307
 msgid "Purpose"
 msgstr "Purpose"
 
@@ -5790,8 +5790,8 @@ msgctxt "task state"
 msgid "Queued"
 msgstr "Queued"
 
-#: src/conversation/Conversation.tsx:433
-#: src/conversation/Conversation.tsx:587
+#: src/conversation/Conversation.tsx:432
+#: src/conversation/Conversation.tsx:586
 msgid "Quick reaction"
 msgstr "Quick reaction"
 
@@ -5815,7 +5815,7 @@ msgstr "Raising or removing a limit needs the passkey."
 msgid "Ray"
 msgstr "Ray"
 
-#: src/conversation/Conversation.tsx:439
+#: src/conversation/Conversation.tsx:438
 msgid "React {emoji}"
 msgstr "React {emoji}"
 
@@ -5823,8 +5823,8 @@ msgstr "React {emoji}"
 msgid "React to the message"
 msgstr "React to the message"
 
-#: src/conversation/Conversation.tsx:598
-#: src/conversation/Conversation.tsx:632
+#: src/conversation/Conversation.tsx:597
+#: src/conversation/Conversation.tsx:631
 msgid "Reactions"
 msgstr "Reactions"
 
@@ -6074,7 +6074,7 @@ msgstr "Repeat"
 msgid "Replies"
 msgstr "Replies"
 
-#: src/conversation/Conversation.tsx:573
+#: src/conversation/Conversation.tsx:572
 #: src/shell/lists/HeadsUp.tsx:254
 msgid "Reply"
 msgstr "Reply"
@@ -6246,7 +6246,7 @@ msgid "Retried. The state updates when the broker answers."
 msgstr "Retried. The state updates when the broker answers."
 
 #: src/conversation/Cards.tsx:127
-#: src/conversation/Conversation.tsx:549
+#: src/conversation/Conversation.tsx:548
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -7340,7 +7340,7 @@ msgstr "Tap to dictate"
 msgid "Tap to dictate · hold for a voice message"
 msgstr "Tap to dictate · hold for a voice message"
 
-#: src/conversation/Conversation.tsx:618
+#: src/conversation/Conversation.tsx:617
 msgid "Tap to remove"
 msgstr "Tap to remove"
 
@@ -7354,7 +7354,7 @@ msgctxt "slash command"
 msgid "task"
 msgstr "task"
 
-#: src/conversation/Conversation.tsx:420
+#: src/conversation/Conversation.tsx:419
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/shell/domain/SchedulesPages.tsx:482
@@ -7376,7 +7376,7 @@ msgstr "Task cancelled"
 msgid "Task completed"
 msgstr "Task completed"
 
-#: src/conversation/Conversation.tsx:422
+#: src/conversation/Conversation.tsx:421
 #: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task created"
 msgstr "Task created"
@@ -7633,7 +7633,7 @@ msgctxt "summary command"
 msgid "the conversation"
 msgstr "the conversation"
 
-#: src/shell/agent/GroupPage.tsx:264
+#: src/shell/agent/GroupPage.tsx:263
 msgid "The coordinator must be one of the group's members."
 msgstr "The coordinator must be one of the group's members."
 
@@ -7709,12 +7709,12 @@ msgstr "The list of agents while you write"
 msgid "The market"
 msgstr "The market"
 
-#: src/conversation/Conversation.tsx:247
-#: src/conversation/Conversation.tsx:250
+#: src/conversation/Conversation.tsx:248
+#: src/conversation/Conversation.tsx:251
 msgid "The message is no longer available."
 msgstr "The message is no longer available."
 
-#: src/conversation/Conversation.tsx:542
+#: src/conversation/Conversation.tsx:541
 #: src/conversation/Message.tsx:678
 msgid "The message was not sent"
 msgstr "The message was not sent"
@@ -7784,7 +7784,7 @@ msgstr "The new schema is approved"
 msgid "The operation could not be completed"
 msgstr "The operation could not be completed"
 
-#: src/conversation/Conversation.tsx:505
+#: src/conversation/Conversation.tsx:504
 #: src/conversation/Message.tsx:137
 msgid "The original message is no longer available."
 msgstr "The original message is no longer available."
@@ -8038,6 +8038,10 @@ msgstr "This chat's messages are hidden for you. The agent and its record stay."
 msgid "This chat's messages are hidden for you. The group stays with its members."
 msgstr "This chat's messages are hidden for you. The group stays with its members."
 
+#: src/lib/user_error.ts:33
+msgid "This collaboration has used all its rounds. Mention the agents in a new message to start a new one."
+msgstr "This collaboration has used all its rounds. Mention the agents in a new message to start a new one."
+
 #: src/lib/user_error.ts:233
 #~ msgid "This conversation could not be resumed. Start a new conversation."
 #~ msgstr "This conversation could not be resumed. Start a new conversation."
@@ -8241,7 +8245,7 @@ msgstr "To do"
 #~ msgid "To:"
 #~ msgstr "To:"
 
-#: src/conversation/Conversation.tsx:92
+#: src/conversation/Conversation.tsx:93
 #: src/pages/Artifacts.tsx:235
 #: src/shell/settings/UsagePage.tsx:85
 #: src/shell/settings/UsagePage.tsx:234
@@ -8300,7 +8304,7 @@ msgstr "Tools that could move money are refused: {0}"
 msgid "Trade action"
 msgstr "Trade action"
 
-#: src/conversation/Conversation.tsx:919
+#: src/conversation/Conversation.tsx:918
 msgid "Trade order"
 msgstr "Trade order"
 
@@ -8431,7 +8435,7 @@ msgstr "Trusted"
 msgid "Try again"
 msgstr "Try again"
 
-#: src/conversation/Conversation.tsx:579
+#: src/conversation/Conversation.tsx:578
 msgid "Turn into a task"
 msgstr "Turn into a task"
 
@@ -8636,7 +8640,7 @@ msgid "Upload a file"
 msgstr "Upload a file"
 
 #: src/conversation/Composer.tsx:839
-#: src/conversation/Conversation.tsx:501
+#: src/conversation/Conversation.tsx:500
 msgid "Upload cancelled"
 msgstr "Upload cancelled"
 
@@ -8998,7 +9002,7 @@ msgstr "What happened at the broker"
 msgid "What is needed"
 msgstr "What is needed"
 
-#: src/conversation/Conversation.tsx:1251
+#: src/conversation/Conversation.tsx:1250
 msgid "What shall we do today with {name}?"
 msgstr "What shall we do today with {name}?"
 
@@ -9083,7 +9087,7 @@ msgstr "Write the alert condition."
 msgid "Write the task title after {slash}"
 msgstr "Write the task title after {slash}"
 
-#: src/conversation/Conversation.tsx:1249
+#: src/conversation/Conversation.tsx:1248
 msgid "Write to the group, or pick a suggestion below."
 msgstr "Write to the group, or pick a suggestion below."
 
@@ -9116,14 +9120,14 @@ msgstr "Wrong code"
 msgid "Wrong code. {0} tries left"
 msgstr "Wrong code. {0} tries left"
 
-#: src/conversation/Conversation.tsx:93
+#: src/conversation/Conversation.tsx:94
 #: src/shell/settings/OwnerPage.tsx:36
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "Yesterday"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:615
+#: src/conversation/Conversation.tsx:614
 #: src/conversation/Message.tsx:132
 #: src/conversation/Message.tsx:151
 #: src/shell/lists/UnifiedSearch.tsx:153

@@ -48,6 +48,8 @@ export function useThreads(
     () => readConversation<Message[]>(messageKey) ?? [],
   );
   const [runs, setRuns] = useState<Run[]>(() => readConversation<Run[]>(runKey) ?? []);
+  // Background runs working in a hidden thread that asked here: only their questions show.
+  const [asking, setAsking] = useState<Run[]>([]);
   const [error, setError] = useState<unknown>();
   const [runError, setRunError] = useState<unknown>();
   const [listingError, setListingError] = useState<unknown>();
@@ -80,6 +82,7 @@ export function useThreads(
     void threadId;
     setMessages(readConversation<Message[]>(messageKey) ?? []);
     setRuns(readConversation<Run[]>(runKey) ?? []);
+    setAsking([]);
     setError(undefined);
     setRunError(undefined);
   }, [threadId, messageKey, runKey]);
@@ -111,6 +114,7 @@ export function useThreads(
           setRuns((old) =>
             retainConversation(runKey, projectRunEvents([...old, ...r], [], threadId)),
           );
+          setAsking(r.filter((run) => run.thread_id !== threadId));
           setRunError(undefined);
         }
       })
@@ -292,6 +296,7 @@ export function useThreads(
     threads,
     messages: visibleMessages,
     runs: projectedRuns,
+    asking,
     error: error ?? runError ?? listingError,
     create: async (id: string) => {
       const thread = await api.post<Thread>("/threads", { agent_id: id, title: "" });

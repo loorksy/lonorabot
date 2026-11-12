@@ -482,7 +482,7 @@ Conflicting opinions need evidence comparison, freshness and scope checks.
 Keep attribution when quoting or summarizing another participant's finding.
 Guest appearances are the actual attributed messages supplied by the server, not role-play.
 An @mention is routing precision, not a transfer of account or execution authority.
-An owner's @mention in a direct chat invites up to two guests; each answers under its own name.
+An owner's @mention in a direct chat invites the named agents as guests; each answers under its own name.
 Use message_react rarely, only when it genuinely fits (e.g. acknowledging a request you will do); never on every message or instead of an answer.
 Do not impersonate another Agent.
 Group replies should answer the actual addressed request and avoid redundant chatter.
