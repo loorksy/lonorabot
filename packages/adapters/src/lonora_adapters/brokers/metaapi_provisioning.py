@@ -6,11 +6,13 @@ constructed only by ``BrokerManager`` and the connect check). It holds its own S
 instance, so the trading instance's options are never changed, and it reuses the
 process-wide transport patch as it is (every URL must still pass ``validate_sdk_url``).
 
-SDK retries are off here as well: a retried ``create_account`` carries a new random
-``transaction-id`` and would be a second account. MetaApi's long-running ``202`` wait
-inside one call stays on. A create whose answer is lost is found again by ``find``.
+SDK retries are off here as well, and a create is sent with a stable ``transaction-id``
+that the caller derives from its own request: the SDK's own ``create_account`` draws a
+random one per call, so a create sent again after a lost answer would be a second
+account. MetaApi's long-running ``202`` wait inside one call stays on.
 """
 
+import hashlib
 import importlib
 import logging
 from collections.abc import Iterable
@@ -46,7 +48,7 @@ UPDATE_FIELDS = (
 )
 # The only entity calls this client makes; none opens a terminal connection.
 ENTITY_CALLS = frozenset({"deploy", "undeploy", "redeploy", "remove"})
-# Failures after which MetaApi certainly did not create the account.
+# Answers to the create request itself after which MetaApi did not create the account.
 REFUSALS = frozenset(
     {
         "broker_password_rejected",
@@ -231,12 +233,14 @@ class MetaApiProvisioning:
         return regions[0] if regions else None
 
     async def find_or_create(
-        self, *, login: str, server: str, platform: str, password: str
+        self, *, login: str, server: str, platform: str, password: str, request_key: str
     ) -> tuple[ProvisionedAccount, bool]:
         """Reuse the token's account for this login and server, or create one.
 
-        Returns the account and whether it was created. The caller holds the owner's
-        connection lock and persists the MetaApi id before it deploys.
+        Returns the account and whether it was created. ``request_key`` names the caller's
+        one connect request: every create sent for it carries the same MetaApi
+        ``transaction-id``. Callers must hold the owner's connection lock and persist the
+        MetaApi id before they deploy.
         """
         if platform not in {"mt4", "mt5"}:
             raise LonoraError("broker_platform_required", 422)
@@ -258,20 +262,50 @@ class MetaApiProvisioning:
         }
         if region:
             account["region"] = region
+        # Refusals are read from the create's own answer only: once MetaApi answered with
+        # an id, any later failure means "created, look again".
         try:
-            entity = await self._call(
-                "create", secrets, lambda: self.api.metatrader_account_api.create_account(account)
+            answer = await self._call(
+                "create", secrets, lambda: self._post_create(account, request_key)
             )
         except LonoraError as failure:
             if failure.code in REFUSALS:
                 raise
-            # The answer was lost (a read timeout, a dropped link, or the SDK's own read
-            # after the create): the account may exist. Look once; a later call looks again.
+            # The answer was lost: the account may exist. Look once; a later call looks
+            # again, and a create sent again carries the same transaction id.
+            found = await self.find(login, server)
+            if found is None:
+                raise
+            return found, True
+        reply: dict[str, Any] = cast(dict[str, Any], answer) if isinstance(answer, dict) else {}
+        account_id = str(reply.get("id") or "")
+        try:
+            if not account_id:
+                raise LonoraError("broker_provisioning_unavailable", 502)
+            return describe(await self._entity(account_id, secrets)), True
+        except LonoraError:
             created = await self.find(login, server)
             if created is None:
-                raise
+                raise LonoraError("broker_provisioning_unavailable", 502) from None
             return created, True
-        return describe(entity), True
+
+    async def _post_create(self, account: dict[str, Any], request_key: str) -> Any:
+        """The SDK's own create request with a stable ``transaction-id`` (32 lowercase
+        letters, MetaApi's shape) instead of its random one."""
+        client: Any = self.api.metatrader_account_api._metatrader_account_client
+        if client._is_not_jwt_token():
+            client._handle_no_access_exception("create_account")
+        digest = hashlib.sha256(("lonora-create:" + request_key).encode()).hexdigest()
+        transaction = "".join(chr(97 + int(char, 16)) for char in digest[:32])
+        return await client._http_client.request(
+            {
+                "url": f"{client._host}/users/current/accounts",
+                "method": "POST",
+                "headers": {"auth-token": client._token, "transaction-id": transaction},
+                "body": account,
+            },
+            "create_account",
+        )
 
     async def state(self, account_id: str) -> ProvisionedAccount:
         return describe(await self._entity(account_id))
