@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0140_push_devices"
-down_revision = "0058_skill_versions"
+down_revision = "0050_genui_state_and_origin"
 branch_labels = None
 depends_on = None
 
