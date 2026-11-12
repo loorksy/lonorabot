@@ -153,6 +153,7 @@ async def main() -> None:
         async with f.runtime.db.sessions() as session:
             (team,) = picture_of(await account_picture(session, f.owner, euro["id"]))["team"]
         assert len(team["by_symbol"]) == MAX_TEAM_SYMBOLS and team["symbols_not_shown"] == 4
+        assert team["read_all_with"] == "account_read", team  # never a silent cut
         assert team["by_symbol"][0]["symbol"] == "US500", team["by_symbol"][0]
         # Every ticket is shown or counted, including those of symbols not listed.
         shown = sum(len(item["positions"]) for item in team["by_symbol"])
