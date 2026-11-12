@@ -83,9 +83,13 @@ async def refresh_context_head(
 ) -> None:
     """Replace the checkpoint's context head with one built now; keep the transcript.
 
-    The head is every system message (only ``build_context`` writes them into a
-    checkpoint) and the labelled context data that leads the transcript. Compaction
-    records index the transcript without either, so they stay valid. Skills the Run
+    The head is every system message (``build_context`` writes them; the routing frame is
+    also replaced on every turn by ``refresh_routing_context``), the labelled context
+    data that leads the transcript, and the notice that build-time admission left
+    guidance out, which follows that data. Compaction records index the transcript
+    without the system messages and the context data, so they stay valid; a notice that
+    appears or goes changes the transcript, and a record that no longer matches it is
+    ignored, never half applied. Skills the Run
     viewed stay in its procedures and its authority checks, as after owner steering.
 
     A head that cannot be built now (a resource, the skill catalog or the window
@@ -96,13 +100,10 @@ async def refresh_context_head(
     try:
         fresh = await build_context(context, registry)
         body = [message for message in messages if message.role != "system"]
-        while body and is_context_message(body[0]):
-            body.pop(0)
-        data = [message for message in fresh if message.role != "system"]
         rebuilt = (
             [message for message in fresh if message.role == "system"]
-            + [message for message in data[:1] if is_context_message(message)]
-            + body
+            + _leading_data([message for message in fresh if message.role != "system"])
+            + body[len(_leading_data(body)) :]
         )
         selected = await refresh_skill_context(context, registry, rebuilt, retained_ids=viewed)
         if selected is None:
@@ -114,6 +115,25 @@ async def refresh_context_head(
         return
     messages[:] = rebuilt
     state["instruction_skill_ids"] = sorted(set(selected) | set(viewed))
+
+
+def _leading_data(transcript: list[ModelMessage]) -> list[ModelMessage]:
+    """The context data that leads a transcript, with the guidance-omission notice after it."""
+    count = 0
+    while count < len(transcript) and is_context_message(transcript[count]):
+        count += 1
+    if count < len(transcript) and _guidance_notice(transcript[count]):
+        count += 1
+    return transcript[:count]
+
+
+def _guidance_notice(message: ModelMessage) -> bool:
+    return (
+        message.role == "user"
+        and message.context_origin == "runtime_context"
+        and message.content.startswith("<context_omitted>")
+        and '"omitted_guidance"' in message.content
+    )
 
 
 def resume_after_attention(
