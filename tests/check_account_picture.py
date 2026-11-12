@@ -165,10 +165,19 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
     print("PASS own book: only the agent's tickets, largest first, bounded, exposure and P&L")
 
     # Realized P&L from the closed-trade ledger (W-LEDGER's statistics), per label.
+    c = (await f.agent("Probe book"))["id"]
     async with f.runtime.db.sessions() as session, session.begin():
-        for index, (label, pnl, agent) in enumerate(
-            [("scale_in", "12.5", a), ("scale_in", "-2.5", a), (None, None, a), ("x", "99", b)]
-        ):
+        trades: list[tuple[str | None, str | None, str, str]] = [
+            ("scale_in", "12.5", a, "USD"),
+            ("scale_in", "-2.5", a, "USD"),
+            ("scale_in", None, a, "USD"),  # a priced net with one unpriced trade beside it
+            ("scale_in", "4", a, "EUR"),  # another account currency: never added to USD
+            (None, None, a, "USD"),
+            ("x", "99", b, "USD"),
+            # 21 labels of another agent: its block keeps the 20 most used rows.
+            *[(f"probe_{n:02d}", "1", c, "USD") for n in range(21)],
+        ]
+        for index, (label, pnl, agent, currency) in enumerate(trades):
             session.add(
                 ClosedTradeRow(
                     id=new_id(),
@@ -181,7 +190,7 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
                     volume=Decimal("0.1"),
                     agent_id=agent,
                     label=label,
-                    currency="USD",
+                    currency=currency,
                     realized_pnl=Decimal(pnl) if pnl else None,
                     closed_at=utcnow(),
                     deals=[],
@@ -189,9 +198,14 @@ async def own_book(f: Fixture, book: Book, a: str, b: str) -> None:
             )
     async with f.runtime.db.sessions() as session:
         results = picture_of(await account_picture(session, f.owner, a))["own_results"]
-    rows = {row["label"]: row for row in results["closed_trades"]}
-    assert rows["scale_in"]["count"] == 2 and rows["scale_in"]["net_realized_pnl"] == "10"
-    assert rows["unlabelled"]["net_realized_pnl"] is None and "x" not in rows, results
+    rows = {(row["label"], row["currency"]): row for row in results["closed_trades"]}
+    usd = rows[("scale_in", "USD")]
+    assert usd["count"] == 3 and usd["net_realized_pnl"] == "10" and usd["unpriced"] == 1, usd
+    assert rows[("scale_in", "EUR")]["net_realized_pnl"] == "4", results
+    async with f.runtime.db.sessions() as session:
+        probes = picture_of(await account_picture(session, f.owner, c))["own_results"]
+    assert len(probes["closed_trades"]) == 20, len(probes["closed_trades"])
+    assert all(label != "x" for label, _ in rows), results
     print("PASS own results: realized P&L per opening label from the closed-trade ledger")
 
     # A failed read keeps the last successful figures: they carry that read's time.

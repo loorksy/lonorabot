@@ -26,6 +26,8 @@ from .exposure import ENTRY_ACTIONS
 UNLABELLED = "unlabelled"
 # Bounded: the most used labels first.
 MAXIMUM_ROWS = 20
+# How many recent closed trades are read for netting adds.
+ADDS_SCANNED = 1000
 
 
 def _amount(value: Any) -> str | None:
@@ -40,9 +42,15 @@ async def netting_adds(
 
     A position id is the ticket of the order that opened it, so an entry deal with
     another order id added to the position: its order's label is a management label.
+    Only the ``ADDS_SCANNED`` most recent closed trades are read, so an add whose trade
+    closed before them no longer counts under its label.
     """
-    query = select(ClosedTradeRow.position_id, ClosedTradeRow.deals).where(
-        ClosedTradeRow.owner_id == owner_id
+    # Bounded: the most recent closed trades, newest first.
+    query = (
+        select(ClosedTradeRow.position_id, ClosedTradeRow.deals)
+        .where(ClosedTradeRow.owner_id == owner_id)
+        .order_by(ClosedTradeRow.closed_at.desc())
+        .limit(ADDS_SCANNED)
     )
     if account_id:
         query = query.where(ClosedTradeRow.account_id == account_id)
