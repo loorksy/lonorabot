@@ -35,3 +35,21 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 - Broker health items open in Lonora's conversation, with `account_id`, `since` and the
   adapter's `reason_code` in their parameters; the owner text names the problem
   (`lonora_bus/attention_messages.json`).
+
+## The attention view
+
+The owner's one "needs your attention" view across all agents (mandate 11.7) is a server
+projection with no model: `GET /attention/view` (`attention_view`, `AttentionViewRow`).
+
+- It lists, newest first:
+  - the open, still-current items of the owner's events above (Trade Approval, Settle,
+    Secret and Mandate cards, broker health problems);
+  - Tasks that need the owner's review (`task_review`);
+  - every run in a conversation that waits on the owner's answer to its question
+    (`waiting_input` with a pending input request), as `owner_question`;
+  - each agent's own unread alert (`owner_notify`, `agent_notification`), as
+    `agent_alert`, with its summary: an alert has no other place outside its chat.
+- Web and mobile show the same list as the «يحتاج انتباهك» tab. A row opens its
+  conversation, where the fixed card or the question stands; opening it decides
+  nothing. Opening an agent's alert marks it read, so it leaves the list.
+- The tab's dot shows while an item the view lists is unread (`inAttentionView`).
