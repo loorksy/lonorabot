@@ -64,6 +64,10 @@ def parser() -> Parser:
     command("account", "balance, equity and margin")
     command("positions", "open positions (volume in lots)")
     command("orders", "pending orders (volume in lots)")
+    wake = commands.add_parser("wake", help="start a run of another agent, naming you")
+    wake.add_argument("handle", help="@name of the agent to wake")
+    wake.add_argument("text")
+    commands.add_parser("notify", help="post in your own conversation").add_argument("text")
     return root
 
 

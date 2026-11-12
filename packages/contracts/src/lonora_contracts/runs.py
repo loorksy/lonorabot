@@ -5,7 +5,16 @@ from pydantic import Field
 from .domain import Contract
 
 WORK_TRIGGERS = frozenset(
-    {"tickets", "routine", "watch", "webhook", "subagent", "broker_event", "activation"}
+    {
+        "tickets",
+        "routine",
+        "watch",
+        "webhook",
+        "subagent",
+        "broker_event",
+        "activation",
+        "workspace_wake",
+    }
 )
 
 RunStatus = Literal[
