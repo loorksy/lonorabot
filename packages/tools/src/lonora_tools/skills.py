@@ -172,7 +172,7 @@ def tools() -> list[Tool]:
             "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking; a repository the owner's message this run names joins his trusted sources before it is read.",
             SkillRepositoryInput,
             inspect_repository,
-            read_only=True,
+            # Not read only: a repository the owner names joins his trusted sources.
             replay_safe=True,
             parallel_safe=False,
         ),

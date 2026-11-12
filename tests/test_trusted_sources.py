@@ -44,7 +44,7 @@ from lonora_db.schema import (
 from lonora_db.trusted_sources import write_tools as mcp_write_tools
 from lonora_tools import mcp
 from lonora_tools.loader import load_tools
-from lonora_tools.source_trust import asks_writes, names_source
+from lonora_tools.source_trust import asks_writes, names_source, trusts_source
 from pydantic import ValidationError
 from sqlalchemy import select
 
@@ -277,27 +277,74 @@ def test_owner_words_name_a_source_strictly() -> None:
     assert not named("trust mcp.notion.com.evil.io", "mcp.notion.com")
 
 
-def test_owner_words_ask_for_writing_only_in_so_many_words() -> None:
+def test_a_passing_mention_trusts_nothing_a_request_does() -> None:
+    feed = ("reuters.com", "www.reuters.com")
+    repo = ("acme/tools", "github.com/acme/tools")
+    server = ("notes",)
+    for text, names in (
+        ("what does reuters.com say", feed),
+        ("summarize www.reuters.com/markets for me", feed),
+        ("what is in acme/tools?", repo),
+        ("look at skills on github.com/acme/tools", repo),
+        ("Take notes on gold today", server),
+        ("ماذا يقول reuters.com", feed),
+    ):
+        assert names_source(text, names), text
+        assert not trusts_source(text, names), text
+    for text, names in (
+        ("subscribe to reuters.com", feed),
+        ("trust www.reuters.com and add its feed", feed),
+        ("اشترك في reuters.com", feed),
+        ("import the skills from acme/tools", repo),
+        ("install github.com/acme/tools", repo),
+        ("ثبّت acme/tools", repo),
+        ("Trust Notes", server),
+        ("Let Notes write as well", server),
+        ("use Notes as a source", server),
+        ("ثق بخادم Notes", server),
+        ("فعّل Notes", server),
+    ):
+        assert trusts_source(text, names), text
+
+
+def test_owner_words_give_the_server_writing_only_in_so_many_words() -> None:
+    server = ("notes",)
     for text in (
         "Trust Notes and let it write",
         "read and write",
+        "Trust Notes for read/write",
         "Trust Notes: writes are fine",
+        "Allow Notes to write",
+        "Trust Notes; Notes can write too",
+        "Trust Notes with write access",
         "ثق بخادم Notes واسمح له بالكتابة",
+        "اسمح لNotes بالكتابة",
+        "ثق بـ Notes وأعطه صلاحية الكتابة",
+        "ثق بـ Notes للقراءة والكتابة",
         "خلّه يكتب في الملاحظات",
     ):
-        assert asks_writes(text), text
+        assert asks_writes(text, server), text
     for text in (
         "Trust Notes",
         "Trust Notes, read only",
+        "Trust Notes read-only, write nothing",
+        "Trust Notes for reading only; I will write the notes myself",
+        "Use Notes to write me a summary",
+        "اكتب لي ملخصا من Notes",
+        "ثق بـ Notes للقراءة فقط",
+        "Trust Notes and let it write nothing",
+        "Trust Notes with no write access",
+        "Notes can't write",
         "do not let it write",
         "don't write anything",
         "never allow it to write",
+        "I don't want you to let Notes write",
         "trust it without writing",
         "ثق بخادم Notes بدون كتابة",
         "لا تسمح له بالكتابة",
         "written",
     ):
-        assert not asks_writes(text), text
+        assert not asks_writes(text, server), text
 
 
 def test_credential_cards_have_lifetimes_and_fixed_confirmations() -> None:
@@ -1283,7 +1330,7 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
 
         context = bare(
             await owner_says(
-                fixture, agent, thread["id"], f"look at skills on github.com/{publisher}"
+                fixture, agent, thread["id"], f"trust skills from github.com/{publisher}"
             )
         )
         with patch("lonora_agent.skills.repository.inspect_repository", inspected):
@@ -1345,7 +1392,7 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
             assert await subscriptions() == 0
             # (a) He names it: the site joins his list (no card) and the feed is added.
             context = await owner_says(
-                fixture, agent, thread["id"], "Follow the analyst feed at https://" + domain
+                fixture, agent, thread["id"], "Subscribe to the analyst feed at https://" + domain
             )
             added = await call(context, "news_feed_subscribe", **feed)
             assert added["status"] == "subscribed" and added["trusted_domain"] == domain, added

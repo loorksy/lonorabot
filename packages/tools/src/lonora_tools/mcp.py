@@ -359,7 +359,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         said = await owner_named(session, run, own, others=others)
         if said is None:
             return refusal(connection_id=connection_id)
-        writes = asks_writes(said)
+        writes = asks_writes(said, own)
         # A server that offers a tool that can trade or move money is read only.
         tier = "write_nonfinancial" if writes and not review.blocked else "read"
         row, changed = await trust_source(
