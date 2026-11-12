@@ -316,10 +316,11 @@ NODES: dict[str, Spec] = {
 CONTAINERS = frozenset({"Row", "Col", "Grid", "Card", "More"})
 INPUTS = frozenset({"Segmented", "Select", "Number", "Slider"})
 ICON_PROPS = frozenset({"icon"})
-# The S-A01 slice renders these on web; the rest of R1's nodes follow in the widening.
-SLICE_NODES = frozenset(
-    {"Segmented", "Number", "Text", "Note", "Button", "Row", "KeyValue", "More", "Divider"}
-)
+# Rows only the compiler writes (the read-only delivery row); never taught to the model.
+SERVER_NODES = ("Delivery",)
+# NODES, SERVER_NODES and ACTIONS are the one v2 component set (mandate 10.1.5): the model
+# is taught it (``lonora_agent.genui_vocabulary``), and the clients type against the
+# catalog generated from it (``scripts/export_genui_catalog.py``).
 
 
 def repair_node(
