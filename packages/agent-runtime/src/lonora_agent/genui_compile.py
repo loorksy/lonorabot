@@ -106,8 +106,8 @@ FIXED_LABELS = (
     "نُفذت",
     "It did not execute",
     "لم تُنفذ",
-    "Unknown: release the hold",
-    "غير معروفة — ارفع التعليق",
+    "Unknown",
+    "غير معروفة",
 )
 
 
