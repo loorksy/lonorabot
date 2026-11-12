@@ -50,7 +50,7 @@ def rename(old: str, new: str) -> None:
                 sa.text(
                     "UPDATE ln_messages SET rich_content = CAST(:content AS JSON) WHERE id = :id"
                 ),
-                {"content": json.dumps(content), "id": identifier},
+                {"content": json.dumps(content, ensure_ascii=False), "id": identifier},
             )
 
 

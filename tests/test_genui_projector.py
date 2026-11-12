@@ -794,3 +794,78 @@ async def test_the_old_receipt_kind_is_not_a_card_kind() -> None:
     )
     projection, _ = await project("Done.\n```lonora-ui\n" + body + "\n```\n")
     assert all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+
+
+def history_with(name: str, result: dict[str, Any]) -> list[ModelMessage]:
+    history = messages()
+    history.insert(
+        2,
+        ModelMessage(
+            role="assistant", content="", tool_calls=[ToolCall(id="t1", name=name, arguments={})]
+        ),
+    )
+    history.insert(3, ModelMessage(role="tool", tool_call_id="t1", content=json.dumps(result)))
+    return history
+
+
+async def falls_back(body: str, history: list[ModelMessage]) -> bool:
+    projection, _ = await project("Done.\n```lonora-ui\n" + body + "\n```\n", history=history)
+    return all(p["type"] == "text" for p in (projection.rich_until() or {"parts": []})["parts"])
+
+
+TWO_RESULTS = {
+    "results": [
+        {"operation_id": "op-1", "status": "confirmed", "broker_id": "50071"},
+        {"operation_id": "op-2", "status": "ambiguous", "broker_id": "50072"},
+    ]
+}
+
+
+@pytest.mark.asyncio
+async def test_a_whole_list_with_an_unconfirmed_operation_is_never_shown() -> None:
+    body = trade_card("/results")
+    assert await falls_back(body, history_with("trade_close_positions", TWO_RESULTS))
+
+
+@pytest.mark.asyncio
+async def test_a_journal_excerpt_of_an_unconfirmed_operation_shows_nothing() -> None:
+    excerpt = {
+        "operation_id": "op-9",
+        "request": {"action": "buy", "price": "2401.35", "volume": "0.1"},
+        "result": {"operation_id": "op-9", "status": "ambiguous"},
+        "submitted_at": "2026-11-12T09:00:00Z",
+    }
+    for path in ("/request/price", "/submitted_at", "/request"):
+        assert await falls_back(trade_card(path), history_with("trade_record_read", excerpt))
+
+
+@pytest.mark.asyncio
+async def test_one_unconfirmed_fact_makes_the_whole_card_fall_back() -> None:
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Orders","icon":"check","mode":"observed"}',
+            '{"facts":{"a":{"call":"t1","path":"/results/0/broker_id"},'
+            '"b":{"call":"t1","path":"/results/1/broker_id"}}}',
+            '{"type":"KeyValue","rows":[["A","@Fact(a)"],["B","@Fact(b)"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    assert await falls_back(body, history_with("trade_close_positions", TWO_RESULTS))
+
+
+@pytest.mark.asyncio
+async def test_a_trades_ticket_and_price_are_cited_never_typed() -> None:
+    result: dict[str, Any] = {
+        "operation_id": "op-1",
+        "status": "ambiguous",
+        "broker_id": "50071",
+        "details": {"price": "2401.35", "volume": "0.10"},
+    }
+    body = "\n".join(
+        [
+            '{"v":2,"kind":"summary","title":"Order","icon":"check"}',
+            '{"type":"KeyValue","rows":[["Ticket","50071"],["Price","2,401.35"]]}',
+            '{"why":"w","fallback":"f"}',
+        ]
+    )
+    assert await falls_back(body, history_with("trade_execute", result))

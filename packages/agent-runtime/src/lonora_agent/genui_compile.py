@@ -128,19 +128,41 @@ OPERATION_STATUSES = frozenset(
 )
 
 
-def unusable(data: Any) -> bool:
-    """Not usable as evidence: a failed result, or an operation the broker has not
-    confirmed. An agent can never draw an unconfirmed operation as done (10.3, 6.10)."""
+def failed(data: Any) -> bool:
     if not isinstance(data, dict):
         return False
     data = cast(dict[str, Any], data)
-    status = str(data.get("status", "")).lower()
     return (
         data.get("ok") is False
         or bool(data.get("error"))
-        or status in FAILED
-        or ("operation_id" in data and status in OPERATION_STATUSES and status != "confirmed")
+        or str(data.get("status", "")).lower() in FAILED
     )
+
+
+def unconfirmed(data: Any) -> bool:
+    """A journaled operation the broker has not confirmed: an object naming an
+    ``operation_id`` whose own status (or its ``result``'s, as in a journal excerpt) is not
+    ``confirmed``. An agent can never draw such an operation as done (10.3, 6.10)."""
+    if not isinstance(data, dict) or "operation_id" not in data:
+        return False
+    data = cast(dict[str, Any], data)
+    status = data.get("status")
+    nested = data.get("result")
+    if status is None and isinstance(nested, dict):
+        status = cast(dict[str, Any], nested).get("status")
+    return str(status).lower() != "confirmed"
+
+
+def unusable(data: Any) -> bool:
+    """Not usable as card evidence: a failed result or an unconfirmed operation."""
+    return failed(data) or unconfirmed(data)
+
+
+def _refuse(data: Any) -> None:
+    if unconfirmed(data):
+        raise ValueError("genui_fact_unconfirmed")
+    if failed(data):
+        raise ValueError("genui_fact_failed")
 
 
 def _scalar(value: Any) -> Any:
@@ -167,13 +189,14 @@ def _bounded(value: Any, depth: int, count: list[int]) -> Any:
         for key, item in cast(dict[str, Any], value).items():
             if PRIVATE_KEY.search(key):
                 raise ValueError("genui_fact_private")
-            if unusable(item):
-                raise ValueError("genui_fact_failed")
+            _refuse(item)
             result[key] = _bounded(item, depth + 1, count)
         return result
     if isinstance(value, list):
         if depth >= 3:
             raise ValueError("genui_fact_too_deep")
+        for item in cast(list[Any], value):
+            _refuse(item)
         return [_bounded(item, depth + 1, count) for item in cast(list[Any], value)]
     count[0] += 1
     if count[0] > MAX_OBJECT_SCALARS:
@@ -188,8 +211,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
     if tokens.count("*") > 1:
         raise ValueError("genui_fact_path_invalid")
     for index, token in enumerate(tokens):
-        if unusable(data):
-            raise ValueError("genui_fact_failed")
+        _refuse(data)
         if isinstance(data, dict):
             data = cast(dict[str, Any], data)
             for key in ("observed_at", "timestamp", "updated_at", "as_of"):
@@ -217,8 +239,7 @@ def resolve_pointer(data: Any, path: str) -> tuple[Any, str | None]:
             data = len(cast(list[Any], data))
         else:
             raise ValueError("genui_fact_path_unknown")
-    if unusable(data):
-        raise ValueError("genui_fact_failed")
+    _refuse(data)
     if isinstance(data, dict | list):
         return _bounded(data, 0, [0]), observed
     return _scalar(data), observed
@@ -291,18 +312,24 @@ def _numbers(value: Any) -> set[Decimal]:
     return found
 
 
-def _read_values(value: Any) -> set[Decimal]:
-    """Price-like values only: the PRICE_KEYS fields of a quote or account result."""
+# A trade result's own numbers, beside its prices: tickets and volumes.
+TRADE_KEYS = frozenset({"broker_id", "position_id", "order_id", "deal_id", "ticket", "volume"})
+
+
+def _read_values(value: Any, extra: frozenset[str] = frozenset()) -> set[Decimal]:
+    """Price-like values only: the PRICE_KEYS fields of a quote or account result (and
+    ``extra`` fields, for a trade result)."""
     found: set[Decimal] = set()
     if isinstance(value, dict):
         for key, item in cast(dict[str, Any], value).items():
-            if (key in PRICE_KEYS or PRICE_KEY.search(key)) and not isinstance(item, dict | list):
+            listed = key in PRICE_KEYS or key in extra or PRICE_KEY.search(key)
+            if listed and not isinstance(item, dict | list):
                 found |= _numbers(item)
             else:
-                found |= _read_values(item)
+                found |= _read_values(item, extra)
     elif isinstance(value, list):
         for item in cast(list[Any], value):
-            found |= _read_values(item)
+            found |= _read_values(item, extra)
     return found
 
 
@@ -324,8 +351,12 @@ def typed_fact_numbers(
     action data, in any digits. Numbers the owner typed are theirs to show."""
     read: set[Decimal] = set()
     for item in evidence.values():
-        if FACT_TOOLS.match(item.name) and not unusable(item.result):
+        if FACT_TOOLS.match(item.name) and not failed(item.result):
             read |= {n for n in _read_values(item.result) if _significant(n)}
+        elif item.name.startswith("trade_") and not failed(item.result):
+            # A trade's ticket, volume and prices are cited, never typed: typed, they
+            # could state an operation the broker has not confirmed as done (10.3).
+            read |= {n for n in _read_values(item.result, TRADE_KEYS) if _significant(n)}
     said = _numbers(owner)
     shown = {key: value for key, value in head.items() if key not in {"facts", "v"}}
     literals: list[Any] = [shown, state, calc, blocks]
@@ -466,7 +497,10 @@ def compile_card(
     account: str | None = None
     for key, reference in cast(dict[str, dict[str, str]], data.get("facts", {})).items():
         item = evidence.get(reference["call"])
-        if item is None or unusable(item.result):
+        if item is not None and unconfirmed(item.result):
+            # No part of a card may present an operation the broker has not confirmed.
+            raise CardError("card_fallback_unconfirmed")
+        if item is None or failed(item.result):
             facts[key] = {"value": None, "source": item.name if item else "unknown"}
             continue
         call_account = _call_account(item, scope.bound_account)
@@ -477,7 +511,11 @@ def compile_card(
                 raise CardError("card_fallback_account")
         try:
             value, observed = resolve_pointer(item.result, reference["path"])
-        except (ValueError, RecursionError):
+        except ValueError as error:
+            if str(error) == "genui_fact_unconfirmed":
+                raise CardError("card_fallback_unconfirmed") from None
+            value, observed = None, None
+        except RecursionError:
             value, observed = None, None
         if isinstance(value, str):
             value = redact_private_reply(value, public_ids=public_ids)
