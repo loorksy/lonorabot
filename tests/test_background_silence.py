@@ -414,6 +414,24 @@ async def returned_helper(
     return child
 
 
+async def steered_text(fixture: Any, run_id: str) -> str:
+    """What reaches ``run_id`` by steering, and the purpose of the threads it is in."""
+    from lonora_db.schema import MessageRow, SteeringRow, ThreadRow
+    from sqlalchemy import select
+
+    async with fixture.runtime.db.sessions() as session:
+        rows = list(
+            await session.execute(
+                select(MessageRow.content, ThreadRow.purpose)
+                .join(SteeringRow, SteeringRow.message_id == MessageRow.id)
+                .join(ThreadRow, ThreadRow.id == MessageRow.thread_id)
+                .where(SteeringRow.run_id == run_id)
+            )
+        )
+    assert all(purpose == "work" for _, purpose in rows), rows
+    return "\n".join(content for content, _ in rows)
+
+
 async def follow_ups(fixture: Any, parent_id: str) -> list[Any]:
     from lonora_db.schema import RunRow
     from sqlalchemy import select
@@ -606,16 +624,19 @@ async def test_an_empty_or_failed_helper_of_ended_background_work_posts_no_card(
         await returned_helper(fixture, agent, watch, "completed", "")
         assert await contents(fixture, conversation) == []
         assert await follow_ups(fixture, watch.id) == []
-        # A helper that brought something back is shown, and its follow-up is background.
+        # A helper that brought something back reaches the work, not the chat: its
+        # background follow-up reads it and decides whether anything is new.
         helped = await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
-        chat = await contents(fixture, conversation)
-        assert len(chat) == 1 and helped.id in chat[0] and "Gold held 2,400." in chat[0]
+        assert await contents(fixture, conversation) == []
         [follow_up] = await follow_ups(fixture, watch.id)
         assert follow_up.model_metadata["background"] is True
-        # A watch still running is still told its helper failed: it may be waiting for it.
+        assert helped.id in await steered_text(fixture, follow_up.id)
+        # A watch still running is still told its helper failed (it may wait for it), out
+        # of the owner's sight.
         running = await make_run(fixture, agent, conversation, "watch")
         failed = await returned_helper(fixture, agent, running, "failed", None)
-        assert any(failed.id in text for text in await contents(fixture, conversation))
+        assert await contents(fixture, conversation) == []
+        assert failed.id in await steered_text(fixture, running.id)
         # In a work thread every outcome stays: it is the work's memory.
         work = await work_thread(fixture, agent)
         routine = await make_run(
@@ -1423,3 +1444,34 @@ def test_a_task_owned_confirmation_is_a_wake_only_for_a_task_waiting_on_it():
     assert not resumes_task(task_run("waiting_takeover", {"kind": "timer", "due_at": "x"}), "w2")
     assert not resumes_task(task_run("running", waiting), "w2")
     assert not resumes_task(task_run("waiting_input", None), "w2")
+
+
+@pytest.mark.asyncio
+async def test_background_work_in_a_chat_reads_its_helper_out_of_sight():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import AgentRow
+    from lonora_db.workspace_wakes import wake_by_handle
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Script desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            caller = await session.get(AgentRow, agent["id"])
+            assert caller is not None
+            wake = await wake_by_handle(session, caller, "@" + caller.name, "check the calendar")
+        assert wake.thread_id == conversation
+        # Its helper returns while the wake is still running.
+        await fixture.lease({"id": wake.id, "agent_id": wake.agent_id, "thread_id": wake.thread_id})
+        await returned_helper(fixture, agent, wake, "completed", "No events today.")
+        assert await contents(fixture, conversation) == []
+        # The wake reads the helper's result, finds nothing new and ends silent.
+        complete, requests = router("")
+        await execute(fixture, wake, complete)
+        assert said(requests, "No events today.")
+        row = await reload(fixture, wake.id)
+        assert row.status == "completed" and row.result == ""
+        assert await contents(fixture, conversation) == []
+    finally:
+        await fixture.close()

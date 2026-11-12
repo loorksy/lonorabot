@@ -97,10 +97,12 @@ or a channel.
 - **A failed run posts nothing in the conversation.** It has no result, so nothing is
   copied. A background run streams no preview (`run.delta`) while it may end silent, so no
   partial text remains where it ran, even in a chat. The mobile run strip leaves failed
-  background runs out (`run.background`). Once background work has ended in a
-  conversation, a helper's outcome is posted there only when the work completed and the
-  helper has something to show; a background run still running is still told, and a work
-  thread still gets every outcome, as that work's memory. A subagent of background work
+  background runs out (`run.background`). Background work that may end silent in a
+  conversation (a watch set in a chat, `lonora wake`, a webhook) reads its helpers'
+  outcomes out of the owner's sight: each goes to a hidden thread of that work
+  (`outcome_thread_id`) and reaches the run, or its follow-up, only by steering. Nothing
+  acts on the outcome once the work failed, was cancelled or got nothing back. In a work
+  thread every outcome stays, as that work's memory. A subagent of background work
   works in a hidden work thread of its own; its cards and questions go where its parent
   reports, and its outcome returns to its parent as any helper's does.
 - **Attention items.** A wake's source raises no item beside the woken run: a watch
