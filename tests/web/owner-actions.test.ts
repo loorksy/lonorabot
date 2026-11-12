@@ -19,7 +19,7 @@ import { readinessTime } from "../../packages/core/src/trading-readiness";
 const now = new Date("2026-11-08T10:00:00Z");
 const base: OwnerAction = {
   id: "card",
-  kind: "resume_trading",
+  kind: "lift_restriction",
   status: "pending",
   status_reason: null,
   source: "agent",
@@ -27,14 +27,7 @@ const base: OwnerAction = {
   thread_id: "thread",
   run_id: "run",
   timeline_seq: 2,
-  facts: {
-    several_accounts: false,
-    global_trading: {
-      state: "stopped",
-      since: "2026-11-08T09:00:00Z",
-      changed_by: "owner",
-    },
-  },
+  facts: { several_accounts: false },
   requires_passkey: false,
   result: {},
   expires_at: "2026-11-09T10:00:00Z",
@@ -107,17 +100,15 @@ const limits = (passkey: boolean): OwnerAction => ({
       limits: { max_daily_loss: passkey ? "900" : "200" },
       not_configured: [],
     },
-    changes: [
-      { name: "max_daily_loss", from: "300", to: passkey ? "900" : "200" },
-    ],
+    changes: [{ name: "max_daily_loss", from: "300", to: passkey ? "900" : "200" }],
   },
 });
 
 test("every pending card has its one-tap buttons in both languages", () => {
   for (const locale of ["en", "ar"]) {
-    const resume = ownerActionCard(base, locale, now);
+    const lifting = ownerActionCard(lift, locale, now);
     assert.deepEqual(
-      resume.buttons.map((button) => [button.key, button.decision]),
+      lifting.buttons.map((button) => [button.key, button.decision]),
       [
         ["confirm", "confirm"],
         ["cancel", "cancel"],
@@ -137,10 +128,7 @@ test("every pending card has its one-tap buttons in both languages", () => {
   }
   const en = ownerActionCard(resolve, "en", now);
   assert.equal(en.title, "The broker did not confirm this trade");
-  assert.match(
-    en.lines[0] ?? "",
-    /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/,
-  );
+  assert.match(en.lines[0] ?? "", /^Market buy ⁨0\.10⁩ ⁨XAUUSD⁩ · at .+ · by ⁨Gold agent⁩$/);
   assert.match(en.hint ?? "", /will not be sent again/);
   assert.match(en.hint ?? "", /not as broker confirmation/);
   const ar = ownerActionCard(resolve, "ar", now);
@@ -152,34 +140,22 @@ test("every pending card has its one-tap buttons in both languages", () => {
   // "Unknown" settles the card and releases the hold: the label and hint say so, so it
   // is never mistaken for "wait".
   assert.equal(en.buttons[2]?.label, "Unknown: release the hold");
-  assert.match(
-    en.hint ?? "",
-    /any answer, Unknown included, releases this trade's hold/,
-  );
-  assert.match(
-    ar.hint ?? "",
-    /وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة/,
-  );
+  assert.match(en.hint ?? "", /any answer, Unknown included, releases this trade's hold/);
+  assert.match(ar.hint ?? "", /وأي إجابة، ومنها «غير معروفة»، ترفع تعليق هذه الصفقة/);
   for (const locale of ["en", "ar"]) {
     const settled = ownerActionCard(
       { ...resolve, status: "confirmed", result: { outcome: "unknown" } },
       locale,
       now,
     );
-    assert.match(
-      settled.outcome ?? "",
-      /no longer holds new risk|لم تعد تعلّق المخاطرة الجديدة/,
-    );
+    assert.match(settled.outcome ?? "", /no longer holds new risk|لم تعد تعلّق المخاطرة الجديدة/);
   }
 });
 
 test("a lift card names scope and source from facts, with tickers isolated in Arabic", () => {
   const en = ownerActionCard(lift, "en", now);
   assert.equal(en.title, "New entries paused");
-  assert.equal(
-    en.lines[0],
-    "no new entries · ⁨XAUUSD⁩ · all agents · ⁨Broker · 1234 · Live⁩",
-  );
+  assert.equal(en.lines[0], "no new entries · ⁨XAUUSD⁩ · all agents · ⁨Broker · 1234 · Live⁩");
   assert.match(en.lines[1] ?? "", / · set by ⁨Gold agent⁩$/);
   assert.equal(en.hint, ownerActionLabels.en.exitsAllowed);
   const ar = ownerActionCard(lift, "ar", now);
@@ -226,11 +202,7 @@ test("a limits card shows a moved trading day and currency, in both languages", 
           ...limits(true).facts,
           changes: [
             ...extra,
-            {
-              name: "trading_day_timezone",
-              from: "UTC",
-              to: "Pacific/Kiritimati",
-            },
+            { name: "trading_day_timezone", from: "UTC", to: "Pacific/Kiritimati" },
           ],
         },
       },
@@ -238,18 +210,14 @@ test("a limits card shows a moved trading day and currency, in both languages", 
       now,
     );
   const en = moved("en");
-  assert.deepEqual(en.lines, [
-    "Trading day starts at midnight in: ⁨UTC⁩ → ⁨Pacific/Kiritimati⁩",
-  ]);
+  assert.deepEqual(en.lines, ["Trading day starts at midnight in: ⁨UTC⁩ → ⁨Pacific/Kiritimati⁩"]);
   assert.equal(en.passkey, true);
   assert.equal(en.hint, "This can allow more risk, so it needs your passkey.");
   assert.deepEqual(moved("ar").lines, [
     "يبدأ يوم التداول عند منتصف الليل بتوقيت: ⁨UTC⁩ ← ⁨Pacific/Kiritimati⁩",
   ]);
   // A lower limit bundled with a moved day shows both lines, never only the reduction.
-  const bundled = moved("en", [
-    { name: "max_daily_loss", from: "300", to: "290" },
-  ]);
+  const bundled = moved("en", [{ name: "max_daily_loss", from: "300", to: "290" }]);
   assert.deepEqual(bundled.lines, [
     "Daily loss: ⁨300 USD⁩ → ⁨290 USD⁩",
     "Trading day starts at midnight in: ⁨UTC⁩ → ⁨Pacific/Kiritimati⁩",
@@ -257,10 +225,7 @@ test("a limits card shows a moved trading day and currency, in both languages", 
   const currency = ownerActionCard(
     {
       ...limits(true),
-      facts: {
-        ...limits(true).facts,
-        changes: [{ name: "currency", from: "USD", to: "EUR" }],
-      },
+      facts: { ...limits(true).facts, changes: [{ name: "currency", from: "USD", to: "EUR" }] },
     },
     "ar",
     now,
@@ -270,11 +235,7 @@ test("a limits card shows a moved trading day and currency, in both languages", 
   const stale = ownerActionCard(
     {
       ...limits(false),
-      facts: {
-        ...limits(false).facts,
-        changes: undefined,
-        no_longer_applies: true,
-      },
+      facts: { ...limits(false).facts, changes: undefined, no_longer_applies: true },
     },
     "en",
     now,
@@ -289,23 +250,13 @@ test("a limits card shows a moved trading day and currency, in both languages", 
 
 test("settled cards show what happened and offer no buttons", () => {
   const settled: Array<[Partial<OwnerAction>, string]> = [
-    [{ status: "confirmed" }, "Trading resumed."],
+    [{ status: "confirmed" }, "Pause lifted."],
     [{ status: "cancelled" }, "Dismissed. Nothing changed."],
-    [
-      { status: "expired", status_reason: "expired" },
-      "This card expired. Nothing changed.",
-    ],
-    [
-      { status: "superseded", status_reason: "trading_already_running" },
-      "Trading is already running.",
-    ],
-    [
-      { status: "superseded", status_reason: "done_by_another_card" },
-      "Done from another card.",
-    ],
+    [{ status: "expired", status_reason: "expired" }, "This card expired. Nothing changed."],
+    [{ status: "superseded", status_reason: "done_by_another_card" }, "Done from another card."],
   ];
   for (const [change, line] of settled) {
-    const spec = ownerActionCard({ ...base, ...change }, "en", now);
+    const spec = ownerActionCard({ ...lift, ...change }, "en", now);
     assert.equal(spec.outcome, line);
     assert.deepEqual(spec.buttons, []);
     assert.equal(spec.hint, null);
@@ -315,10 +266,7 @@ test("settled cards show what happened and offer no buttons", () => {
     "en",
     now,
   );
-  assert.match(
-    answered.outcome ?? "",
-    /did not execute .*not broker confirmation/,
-  );
+  assert.match(answered.outcome ?? "", /did not execute .*not broker confirmation/);
   const ended = ownerActionCard(
     { ...lift, status: "expired", status_reason: "restriction_already_ended" },
     "ar",
@@ -374,10 +322,7 @@ test("Web and Mobile render the same shared spec and never show agent text", () 
     "apps/web/src/components/owner-actions/OwnerActionCard.tsx",
     "apps/mobile/components/owner-action-card.tsx",
   ]) {
-    const source = readFileSync(
-      new URL(`../../${path}`, import.meta.url),
-      "utf8",
-    );
+    const source = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
     assert.match(source, /ownerActionCard\(row, locale\)/, path);
     assert.match(source, /\/owner-actions\/\$\{row\.id\}\/decision/, path);
     assert.doesNotMatch(source, /\.reason\b/, path);
@@ -392,9 +337,7 @@ test("Web and Mobile render the same shared spec and never show agent text", () 
   );
 });
 
-const grantCard = (
-  overrides: Partial<OwnerAction["facts"]> = {},
-): OwnerAction => ({
+const grantCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction => ({
   ...base,
   kind: "grant_authority",
   requires_passkey: true,
@@ -438,7 +381,6 @@ const grantCard = (
         percent: "2",
       },
     },
-    global_trading: { state: "stopped", since: null, changed_by: "default" },
     conflicts: [
       {
         authority_id: "other-grant",
@@ -465,9 +407,7 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
     "Daily loss limit: ⁨200.00 USD⁩ (⁨2%⁩ of equity)",
   ]);
   // While pending the switch states the owner's own positions; no fixed line beside it.
-  assert.ok(
-    !en.lines.some((line) => line.startsWith("Positions you opened yourself")),
-  );
+  assert.ok(!en.lines.some((line) => line.startsWith("Positions you opened yourself")));
   assert.equal(
     en.options.find((option) => option.key === "no_money_limit")?.label,
     "No money limit (my choice)",
@@ -476,23 +416,15 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
     en.options.find((option) => option.key === "stop:other-grant")?.label,
     "Stop ⁨Silver agent⁩ trading on its own on this account",
   );
-  assert.ok(en.lines.includes("New trading is stopped"));
-  assert.ok(
-    en.lines.some((line) => line.startsWith("⁨Silver agent⁩ already trades")),
-  );
+  assert.ok(en.lines.some((line) => line.startsWith("⁨Silver agent⁩ already trades")));
   // The first grant card states the one rule; every grant card says what stays asked.
   assert.match(en.hint ?? "", /approval card/);
-  assert.match(
-    en.hint ?? "",
-    /no agent, skill or plugin can ever widen your money authority/,
-  );
+  assert.match(en.hint ?? "", /no agent, skill or plugin can ever widen your money authority/);
   assert.deepEqual(
     en.options.map((option) => [option.key, option.initial]),
     [
       ["manual", false],
       ["no_money_limit", false],
-      // Never started: Resume is pre-checked; after the owner's own Stop it is not.
-      ["resume", true],
       ["stop:other-grant", false],
     ],
   );
@@ -506,11 +438,7 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
   const ar = ownerActionCard(grantCard(), "ar", now);
   assert.equal(ar.title, "دع ⁨Gold agent⁩ يتداول بنفسه");
   assert.ok(ar.lines.includes("الأسواق: ⁨XAUUSD⁩"));
-  assert.ok(
-    ar.lines.includes(
-      "حد الخسارة اليومية: ⁨200.00 USD⁩ (⁨2%⁩ من حقوق الملكية)",
-    ),
-  );
+  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨200.00 USD⁩ (⁨2%⁩ من حقوق الملكية)"));
   // A deliberate choice, not "optional".
   assert.equal(
     ar.options.find((option) => option.key === "no_money_limit")?.label,
@@ -518,22 +446,11 @@ test("a grant card shows exactly what is signed, with the D1 defaults, in both l
   );
   assert.match(ar.hint ?? "", /بطاقة موافقة/);
   assert.equal(ar.buttons[0]?.label, "التفويض بمفتاح المرور");
-  const stopped = ownerActionCard(
-    grantCard({
-      global_trading: { state: "stopped", since: null, changed_by: "owner" },
-    }),
-    "en",
-    now,
-  );
-  assert.equal(
-    stopped.options.find((option) => option.key === "resume")?.initial,
-    false,
-  );
+  // Amendment 1: no grant card offers to resume trading.
+  assert.ok(!en.options.some((option) => option.key === "resume"));
 });
 
-const fullCard = (
-  overrides: Partial<OwnerAction["facts"]> = {},
-): OwnerAction => {
+const fullCard = (overrides: Partial<OwnerAction["facts"]> = {}): OwnerAction => {
   const custom = grantCard().facts.grant ?? (undefined as never);
   return grantCard({
     grant: {
@@ -582,12 +499,7 @@ test("a grant card offers Custom or Full delegation in the same list, Custom sel
       ["delegation:full", "Full delegation", false],
       ["manual", "Include positions I opened myself", false],
       ["no_money_limit", "No money limit (my choice)", false],
-      ["resume", "Resume trading too", true],
-      [
-        "stop:other-grant",
-        "Stop ⁨Silver agent⁩ trading on its own on this account",
-        false,
-      ],
+      ["stop:other-grant", "Stop ⁨Silver agent⁩ trading on its own on this account", false],
     ],
   );
   assert.deepEqual(
@@ -603,9 +515,7 @@ test("a grant card offers Custom or Full delegation in the same list, Custom sel
   });
   assert.equal(ownerActionChoose(en.options[2] as never), null);
   // Custom keeps the D1 card exactly: the 2% daily loss line and the own-positions switch.
-  assert.ok(
-    en.lines.includes("Daily loss limit: ⁨200.00 USD⁩ (⁨2%⁩ of equity)"),
-  );
+  assert.ok(en.lines.includes("Daily loss limit: ⁨200.00 USD⁩ (⁨2%⁩ of equity)"));
   // The challenge names the choice the card shows, so a changed card never signs it.
   assert.deepEqual(ownerActionChoices(card, {}).challenge, {
     delegation: "custom",
@@ -622,14 +532,9 @@ test("a grant card offers Custom or Full delegation in the same list, Custom sel
   assert.match(ar.options[0]?.detail ?? "", /^مخصص: /);
   // A fixed-market agent's grant never covers every pair: no choice is offered.
   const fixed = grantCard({
-    grant: {
-      ...(card.facts.grant ?? (undefined as never)),
-      full_available: false,
-    },
+    grant: { ...(card.facts.grant ?? (undefined as never)), full_available: false },
   });
-  assert.ok(
-    !ownerActionCard(fixed, "en", now).options.some((option) => option.choice),
-  );
+  assert.ok(!ownerActionCard(fixed, "en", now).options.some((option) => option.choice));
 });
 
 test("Full delegation states what it means and that the account's limits stay", () => {
@@ -641,10 +546,7 @@ test("Full delegation states what it means and that the account's limits stay", 
     full?.detail,
     "Full delegation: every pair on this account and every action (open, close fully or partly, pending orders, change stop loss and take profit, cancel), positions you opened yourself too, until you stop it. This card sets no daily loss limit. Money limits you set on this account elsewhere stay in force; removing them is a separate step with your passkey.",
   );
-  assert.equal(
-    en.options.find((option) => option.key === "delegation:custom")?.initial,
-    false,
-  );
+  assert.equal(en.options.find((option) => option.key === "delegation:custom")?.initial, false);
   // Full always includes the owner's own positions: a line, never a switch; and the card
   // sets no daily loss limit, so it offers no opt-out of one.
   assert.ok(!en.options.some((option) => option.key === "manual"));
@@ -654,19 +556,14 @@ test("Full delegation states what it means and that the account's limits stay", 
   assert.ok(en.lines.includes("Until you stop it"));
   assert.ok(en.lines.includes("Positions you opened yourself are included"));
   assert.ok(!en.lines.some((line) => line.startsWith("Daily loss limit")));
-  assert.ok(
-    en.lines.includes(`Account money limits: Total open risk ${"⁨400 USD⁩"}`),
-  );
+  assert.ok(en.lines.includes(`Account money limits: Total open risk ${"⁨400 USD⁩"}`));
   // The passkey still signs it; the challenge names Full and sends no own-positions switch.
   assert.equal(en.passkey, true);
   assert.equal(en.buttons[0]?.label, "Authorize with passkey");
-  assert.deepEqual(ownerActionChoices(card, { manual: false }).challenge, {
-    delegation: "full",
-  });
+  assert.deepEqual(ownerActionChoices(card, { manual: false }).challenge, { delegation: "full" });
   // A switch ticked under Custom says nothing once Full is chosen.
   assert.equal(
-    ownerActionChoices(card, { no_money_limit: true, keep_limit: true })
-      .decision.money_limit,
+    ownerActionChoices(card, { no_money_limit: true, keep_limit: true }).decision.money_limit,
     "apply",
   );
   const ar = ownerActionCard(card, "ar", now);
@@ -676,11 +573,7 @@ test("Full delegation states what it means and that the account's limits stay", 
   assert.ok(ar.lines.includes("يشمل المراكز التي فتحتها بنفسك"));
   // A signed Full delegation card says so in a line.
   const settled = ownerActionCard(
-    {
-      ...card,
-      status: "confirmed",
-      result: { delegation: "full", resumed: true },
-    },
+    { ...card, status: "confirmed", result: { delegation: "full", resumed: true } },
     "en",
     now,
   );
@@ -688,11 +581,7 @@ test("Full delegation states what it means and that the account's limits stay", 
   assert.deepEqual(settled.options, []);
   assert.equal(
     ownerActionCard(
-      {
-        ...card,
-        status: "superseded",
-        status_reason: "same_choice_on_another_card",
-      },
+      { ...card, status: "superseded", status_reason: "same_choice_on_another_card" },
       "ar",
       now,
     ).outcome,
@@ -722,11 +611,7 @@ test("a signed grant reads as Full delegation by its terms, as the readiness lin
   };
   const signed = (grant: typeof terms, status: OwnerAction["status"]) =>
     ownerActionCard(
-      {
-        ...grantCard({ grant }),
-        status,
-        result: { delegation: "custom", resumed: true },
-      },
+      { ...grantCard({ grant }), status, result: { delegation: "custom", resumed: true } },
       "en",
       now,
     ).lines;
@@ -739,10 +624,7 @@ test("a signed grant reads as Full delegation by its terms, as the readiness lin
     { ...terms, duration: "24h" as const },
     { ...terms, all_actions: false, actions: ["close_position" as const] },
   ])
-    assert.ok(
-      !signed(narrower, "confirmed").includes("Full delegation"),
-      JSON.stringify(narrower),
-    );
+    assert.ok(!signed(narrower, "confirmed").includes("Full delegation"), JSON.stringify(narrower));
   // A Custom card the owner dismissed signed nothing: no Full delegation line.
   assert.ok(!signed(terms, "cancelled").includes("Full delegation"));
 });
@@ -752,28 +634,18 @@ test("Web and Mobile send the delegation choice through the same decision route"
     "apps/web/src/components/owner-actions/OwnerActionCard.tsx",
     "apps/mobile/components/owner-action-card.tsx",
   ]) {
-    const source = readFileSync(
-      new URL(`../../${path}`, import.meta.url),
-      "utf8",
-    );
+    const source = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
     assert.match(source, /ownerActionChoose\(option\)/, path);
     assert.match(source, /option\.detail/, path);
     // A card changed on another screen is read again before the owner taps again.
-    assert.match(
-      source,
-      /code === OWNER_ACTION_CHANGED\) await reread\(\)/,
-      path,
-    );
+    assert.match(source, /code === OWNER_ACTION_CHANGED\) await reread\(\)/, path);
     assert.match(source, /rereadOwnerAction\(/, path);
   }
 });
 
 test("a card changed on another screen is read again from the conversation's cards", async () => {
   const stale = fullCard({
-    grant: {
-      ...(grantCard().facts.grant ?? (undefined as never)),
-      delegation: "custom",
-    },
+    grant: { ...(grantCard().facts.grant ?? (undefined as never)), delegation: "custom" },
   });
   const current = fullCard();
   const asked: string[] = [];
@@ -785,13 +657,7 @@ test("a card changed on another screen is read again from the conversation's car
   assert.equal(read?.facts.grant?.delegation, "full");
   assert.equal(await rereadOwnerAction(async () => [], stale), null);
   // A card outside any conversation has nothing to read again from.
-  assert.equal(
-    await rereadOwnerAction(async () => [current], {
-      ...stale,
-      thread_id: null,
-    }),
-    null,
-  );
+  assert.equal(await rereadOwnerAction(async () => [current], { ...stale, thread_id: null }), null);
   assert.equal(
     ownerActionError(OWNER_ACTION_CHANGED, "en"),
     "This card changed on another screen. It now shows the current choice; check it and tap again.",
@@ -827,7 +693,6 @@ test("Lonora's grant card preselects all pairs; an existing limit is shown, neve
         percent: "3",
       },
     },
-    global_trading: { state: "running", since: null, changed_by: "owner" },
     conflicts: [],
     first_grant: false,
   });
@@ -835,9 +700,7 @@ test("Lonora's grant card preselects all pairs; an existing limit is shown, neve
   assert.ok(en.lines.includes("Markets: All pairs on this account"));
   // The account's own limit is shown once, as it is; no other line repeats it.
   assert.ok(en.lines.includes("Daily loss limit: ⁨150 USD⁩"));
-  assert.ok(
-    !en.lines.some((line) => line.startsWith("Account money limits: ")),
-  );
+  assert.ok(!en.lines.some((line) => line.startsWith("Account money limits: ")));
   assert.deepEqual(
     en.options.map((option) => option.key),
     ["manual"],
@@ -848,51 +711,25 @@ test("Lonora's grant card preselects all pairs; an existing limit is shown, neve
 test("a grant card's switches map to the signed challenge and the decision", () => {
   const card = grantCard();
   const initial = ownerActionChoices(card, {});
-  assert.deepEqual(initial.challenge, {
-    delegation: "custom",
-    allow_manual_positions: false,
-  });
+  assert.deepEqual(initial.challenge, { delegation: "custom", allow_manual_positions: false });
   assert.deepEqual(initial.decision, {
     money_limit: "apply",
-    resume_trading: true,
     stop_authorities: [],
   });
   const chosen = ownerActionChoices(card, {
     manual: true,
     no_money_limit: true,
-    resume: false,
     "stop:other-grant": true,
   });
-  assert.deepEqual(chosen.challenge, {
-    delegation: "custom",
-    allow_manual_positions: true,
-  });
+  assert.deepEqual(chosen.challenge, { delegation: "custom", allow_manual_positions: true });
   assert.deepEqual(chosen.decision, {
     money_limit: "none",
-    resume_trading: false,
     stop_authorities: ["other-grant"],
   });
-  assert.deepEqual(ownerActionChoices(base, { resume: true }), {
-    challenge: {},
-    decision: {},
-  });
-  const settled = ownerActionCard(
-    { ...card, status: "confirmed", result: { resumed: true } },
-    "en",
-    now,
-  );
+  assert.deepEqual(ownerActionChoices(base, { manual: true }), { challenge: {}, decision: {} });
+  const settled = ownerActionCard({ ...card, status: "confirmed", result: {} }, "en", now);
   assert.deepEqual(settled.options, []);
-  assert.equal(
-    settled.outcome,
-    "Signed. It trades on its own inside this grant.",
-  );
-  // Signed without Resume while new trading is stopped: the line says it waits for Resume.
-  const waiting = ownerActionCard(
-    { ...card, status: "confirmed", result: {} },
-    "en",
-    now,
-  );
-  assert.equal(waiting.outcome, ownerActionLabels.en.signedStopped);
+  assert.equal(settled.outcome, "Signed. It trades on its own inside this grant.");
   const covered = ownerActionCard(
     { ...card, status: "expired", status_reason: "grant_already_active" },
     "ar",
@@ -938,14 +775,8 @@ test("an existing daily loss limit is kept unless the owner asks for less, in on
   // The owner's own 500 limit: no suggestion lowers it, the card shows it as it is.
   const kept = ownerActionCard(grantCard(money("500", {})), "en", now);
   assert.ok(kept.lines.includes("Daily loss limit: ⁨500 USD⁩"));
-  assert.ok(
-    !kept.lines.some((line) => line.startsWith("Account money limits")),
-  );
-  assert.ok(
-    !kept.options.some((option) =>
-      ["no_money_limit", "keep_limit"].includes(option.key),
-    ),
-  );
+  assert.ok(!kept.lines.some((line) => line.startsWith("Account money limits")));
+  assert.ok(!kept.options.some((option) => ["no_money_limit", "keep_limit"].includes(option.key)));
   // The owner's sentence asked for 300: one line from the current amount, and the
   // opt-out keeps the current limit.
   const lowered = grantCard(
@@ -956,34 +787,17 @@ test("an existing daily loss limit is kept unless the owner asks for less, in on
     ),
   );
   const en = ownerActionCard(lowered, "en", now);
-  assert.ok(
-    en.lines.includes(
-      "Daily loss limit: ⁨500⁩ → ⁨300.00 USD⁩ (⁨3%⁩ of equity)",
-    ),
-  );
-  assert.ok(
-    en.lines.includes("Account money limits: Risk per trade ⁨50 USD⁩"),
-    en.lines.join("|"),
-  );
+  assert.ok(en.lines.includes("Daily loss limit: ⁨500⁩ → ⁨300.00 USD⁩ (⁨3%⁩ of equity)"));
+  assert.ok(en.lines.includes("Account money limits: Risk per trade ⁨50 USD⁩"), en.lines.join("|"));
   assert.ok(!en.lines.some((line) => line.includes("Daily loss ⁨500")));
   assert.equal(
     en.options.find((option) => option.key === "keep_limit")?.label,
     "Keep my current limit",
   );
   const ar = ownerActionCard(lowered, "ar", now);
-  assert.ok(
-    ar.lines.includes(
-      "حد الخسارة اليومية: ⁨500⁩ ← ⁨300.00 USD⁩ (⁨3%⁩ من حقوق الملكية)",
-    ),
-  );
-  assert.equal(
-    ar.options.find((option) => option.key === "keep_limit")?.label,
-    "أبقِ حدي الحالي",
-  );
-  assert.equal(
-    ownerActionChoices(lowered, { keep_limit: true }).decision.money_limit,
-    "none",
-  );
+  assert.ok(ar.lines.includes("حد الخسارة اليومية: ⁨500⁩ ← ⁨300.00 USD⁩ (⁨3%⁩ من حقوق الملكية)"));
+  assert.equal(ar.options.find((option) => option.key === "keep_limit")?.label, "أبقِ حدي الحالي");
+  assert.equal(ownerActionChoices(lowered, { keep_limit: true }).decision.money_limit, "none");
   assert.equal(ownerActionChoices(lowered, {}).decision.money_limit, "apply");
   // More than the current limit: the card keeps it and says how to raise it.
   const above = ownerActionCard(
@@ -994,9 +808,7 @@ test("an existing daily loss limit is kept unless the owner asks for less, in on
   assert.ok(above.lines.includes("Daily loss limit: ⁨500 USD⁩"));
   assert.ok(
     above.lines.some((line) =>
-      line.startsWith(
-        "You asked for ⁨800.00 USD⁩: this card never raises the daily loss limit",
-      ),
+      line.startsWith("You asked for ⁨800.00 USD⁩: this card never raises the daily loss limit"),
     ),
   );
   const aboveAr = ownerActionCard(
@@ -1032,11 +844,7 @@ test("an existing daily loss limit is kept unless the owner asks for less, in on
     first.options.find((option) => option.key === "no_money_limit")?.label,
     "No daily loss limit (my choice)",
   );
-  assert.ok(
-    first.lines.includes(
-      "Daily loss limit: ⁨300.00 USD⁩ (suggested: ⁨3%⁩ of equity)",
-    ),
-  );
+  assert.ok(first.lines.includes("Daily loss limit: ⁨300.00 USD⁩ (suggested: ⁨3%⁩ of equity)"));
 });
 
 test("replacing a capped grant names every cap, protection and market that changes", () => {
@@ -1059,12 +867,8 @@ test("replacing a capped grant names every cap, protection and market that chang
     conflicts: [],
   });
   const en = ownerActionCard(card, "en", now);
-  const line =
-    en.lines.find((item) => item.startsWith("Replaces its current grant: ")) ??
-    "";
-  const [before, after] = line
-    .slice("Replaces its current grant: ".length)
-    .split(" → ");
+  const line = en.lines.find((item) => item.startsWith("Replaces its current grant: ")) ?? "";
+  const [before, after] = line.slice("Replaces its current grant: ".length).split(" → ");
   assert.equal(
     before,
     [
@@ -1094,8 +898,7 @@ test("replacing a capped grant names every cap, protection and market that chang
   // English lists use the English comma; Arabic keeps the Arabic comma.
   assert.ok(!line.includes("،"));
   const ar = ownerActionCard(card, "ar", now);
-  const arLine =
-    ar.lines.find((item) => item.startsWith("يحل محل تفويضه الحالي: ")) ?? "";
+  const arLine = ar.lines.find((item) => item.startsWith("يحل محل تفويضه الحالي: ")) ?? "";
   assert.ok(arLine.includes("⁨XAUUSD⁩، ⁨EURUSD⁩"), arLine);
   assert.ok(arLine.includes(" ← "), arLine);
   assert.ok(arLine.includes("دون حدود للحجم أو الصفقات أو النشاط"), arLine);
@@ -1107,10 +910,7 @@ test("a settled grant card names the agents it stopped and states the owner's ow
     {
       ...grantCard(),
       status: "confirmed",
-      result: {
-        stopped_agents: ["Silver agent", "Copper agent"],
-        resumed: true,
-      },
+      result: { stopped_agents: ["Silver agent", "Copper agent"] },
     },
     "en",
     now,
@@ -1119,9 +919,7 @@ test("a settled grant card names the agents it stopped and states the owner's ow
     settled.outcome,
     "Signed. It trades on its own inside this grant. Stopped on this account: ⁨Silver agent⁩, ⁨Copper agent⁩.",
   );
-  assert.ok(
-    settled.lines.includes("Positions you opened yourself are excluded"),
-  );
+  assert.ok(settled.lines.includes("Positions you opened yourself are excluded"));
   const ar = ownerActionCard(
     {
       ...grantCard(),
@@ -1134,64 +932,20 @@ test("a settled grant card names the agents it stopped and states the owner's ow
   assert.match(ar.outcome ?? "", /⁨Silver agent⁩، ⁨Copper agent⁩/);
 });
 
-test("on a never-started install the resume card is Start trading, and says so when settled", () => {
-  const first: OwnerAction = {
-    ...base,
-    facts: {
-      several_accounts: false,
-      global_trading: { state: "stopped", since: null, changed_by: "default" },
-    },
-  };
-  for (const locale of ["en", "ar"] as const) {
-    const text = ownerActionLabels[locale];
-    const spec = ownerActionCard(first, locale, now);
-    assert.equal(spec.title, text.startTitle);
-    assert.equal(spec.buttons[0]?.label, text.start);
-    assert.ok(spec.lines.includes(text.startStopped), spec.lines.join("|"));
-    assert.equal(spec.hint, text.startHint);
-    const done = ownerActionCard(
-      { ...first, status: "confirmed", result: { started: true } },
-      locale,
-      now,
-    );
-    assert.equal(done.outcome, text.started);
-  }
-  // After the owner's own Stop it stays Resume.
-  assert.equal(
-    ownerActionCard(base, "en", now).buttons[0]?.label,
-    ownerActionLabels.en.resume,
-  );
-  assert.ok(
-    financialBoundaryError("trading_not_started", "en")?.includes(
-      "Start trading",
-    ),
-  );
-  assert.ok(
-    financialBoundaryError("trading_not_started", "ar")?.includes(
-      "بدء التداول",
-    ),
-  );
+test("no card resumes or starts trading, and no refusal names a Stop (amendment 1)", () => {
+  for (const locale of ["en", "ar"] as const)
+    for (const key of ["resume", "resumeTitle", "start", "startTitle", "signedStopped"])
+      assert.ok(!(key in ownerActionLabels[locale]), key);
+  for (const code of ["trading_not_started", "trading_disabled", "emergency_stop"])
+    assert.equal(financialBoundaryError(code, "en"), null, code);
 });
 
 test("M5: a settled stop_tightened notice reads as applied, only an Undo reads as undone", async () => {
-  const { noticeUndone } =
-    await import("../../packages/core/src/owner-actions");
-  assert.equal(
-    noticeUndone({ kind: "stop_tightened", status: "confirmed" }),
-    false,
-  );
-  assert.equal(
-    noticeUndone({ kind: "watch_changed", status: "confirmed" }),
-    true,
-  );
-  assert.equal(
-    noticeUndone({ kind: "agent_created", status: "confirmed" }),
-    true,
-  );
-  assert.equal(
-    noticeUndone({ kind: "agent_created", status: "pending" }),
-    false,
-  );
+  const { noticeUndone } = await import("../../packages/core/src/owner-actions");
+  assert.equal(noticeUndone({ kind: "stop_tightened", status: "confirmed" }), false);
+  assert.equal(noticeUndone({ kind: "watch_changed", status: "confirmed" }), true);
+  assert.equal(noticeUndone({ kind: "agent_created", status: "confirmed" }), true);
+  assert.equal(noticeUndone({ kind: "agent_created", status: "pending" }), false);
 });
 
 test("the Mandate card says a signed grant still applies within its own terms", () => {
@@ -1208,16 +962,11 @@ test("the Mandate card says a signed grant still applies within its own terms", 
   assert.ok(!plain.lines.includes(ownerActionLabels.ar.mandateGrantStays));
   for (const locale of ["ar", "en"] as const) {
     const granted = ownerActionCard(
-      {
-        ...mandate,
-        facts: { ...mandate.facts, active_grant: true },
-      } as OwnerAction,
+      { ...mandate, facts: { ...mandate.facts, active_grant: true } } as OwnerAction,
       locale,
       now,
     );
-    assert.ok(
-      granted.lines.includes(ownerActionLabels[locale].mandateGrantStays),
-    );
+    assert.ok(granted.lines.includes(ownerActionLabels[locale].mandateGrantStays));
   }
 });
 
@@ -1249,12 +998,8 @@ test("the migration's Mandate card names the agent's old grant in one line (14.3
     return found[0] ?? "";
   };
   const without = ownerActionCard(mandate, "ar", now).lines;
-  const arPrefix =
-    ownerActionLabels.ar.mandatePreviousGrant.split("{grant}")[0] ?? "";
-  assert.ok(
-    !without.some((line) => line.startsWith(arPrefix)),
-    "no line without the fact",
-  );
+  const arPrefix = ownerActionLabels.ar.mandatePreviousGrant.split("{grant}")[0] ?? "";
+  assert.ok(!without.some((line) => line.startsWith(arPrefix)), "no line without the fact");
   for (const locale of ["ar", "en"] as const) {
     const text = ownerActionLabels[locale];
     const full = named(
@@ -1283,10 +1028,7 @@ test("the migration's Mandate card names the agent's old grant in one line (14.3
       },
       locale,
     );
-    assert.ok(
-      wide.includes(text.mandatePreviousAllPairs) && !wide.includes("()"),
-      wide,
-    );
+    assert.ok(wide.includes(text.mandatePreviousAllPairs) && !wide.includes("()"), wide);
     assert.ok(full.includes(text.mandatePreviousFull), full);
     assert.ok(!full.includes("IC Markets"), "one account: no account label");
     const markets = named(
@@ -1304,9 +1046,6 @@ test("the migration's Mandate card names the agent's old grant in one line (14.3
       locale,
     );
     assert.ok(markets.includes("⁨XAUUSD⁩") && markets.includes("⁨EURUSD⁩"));
-    assert.ok(
-      markets.includes("IC Markets · 5001") &&
-        !markets.includes(text.mandatePreviousFull),
-    );
+    assert.ok(markets.includes("IC Markets · 5001") && !markets.includes(text.mandatePreviousFull));
   }
 });

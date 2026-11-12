@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -44,6 +45,30 @@ class SessionRow(Base):
     csrf_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked: Mapped[bool] = mapped_column(default=False)
+
+
+class PushDeviceRow(Base):
+    """One phone registered for push, bound to the sign-in session that registered it:
+    signing out deletes it."""
+
+    __tablename__ = "ln_push_devices"
+    __table_args__ = (UniqueConstraint("owner_id", "device_id", name="uq_push_device"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64))
+    session_hash: Mapped[str] = mapped_column(
+        ForeignKey("ln_sessions.token_hash", ondelete="CASCADE"), index=True
+    )
+    platform: Mapped[str] = mapped_column(String(16))
+    # The token is encrypted at rest; its SHA-256 keeps one row per token.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    token_ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
 
 class DeviceCredentialRow(Base):
@@ -273,7 +298,7 @@ class MessageRow(Base):
     # Edit and resend (Q21): the original owner message this one replaces; both stay.
     edited_from: Mapped[str | None] = mapped_column(String(36), index=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    # Who wrote it (GENUI_PLAN §8.4): ``owner``, ``ui_submit`` (a card's send, text composed
+    # Who wrote it (docs/genui.md): ``owner``, ``ui_submit`` (a card's send, text composed
     # by the server) or ``ui_follow_up`` (a v1 follow-up tap). Only ``owner`` is the owner's
     # own words for any owner-words check.
     origin: Mapped[str] = mapped_column(String(16), default="owner", server_default="owner")
@@ -524,7 +549,7 @@ class MemoryRevisionRow(Base):
         ForeignKey("ln_messages.id", ondelete="SET NULL")
     )
     source_run_id: Mapped[str | None] = mapped_column(String(36))
-    # operations | document | revert | merge | preferences
+    # operations | document | revert | restore | merge | preferences
     change: Mapped[str] = mapped_column(String(16))
     reverted_revision_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -551,6 +576,28 @@ class SettingRow(Base):
     __tablename__ = "ln_settings"
     key: Mapped[str] = mapped_column(String(120), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MorningBriefRow(Base):
+    """One per owner: when the morning brief is due and what the last one saw (11.1).
+
+    ``brief_minute`` is minutes after local midnight in the owner's time zone (07:00 until
+    app opens are recorded); ``baseline``  holds balance and equity per account at the
+    last brief; ``pending`` is the brief of ``local_date`` that Lonora is writing now.
+    """
+
+    __tablename__ = "ln_morning_briefs"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    brief_minute: Mapped[int] = mapped_column(Integer, default=420)
+    last_local_date: Mapped[str | None] = mapped_column(String(10))
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    pending: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # The latest weekly close the agents were woken for, and whether a brief carried it.
+    weekly: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -585,13 +632,35 @@ class AttentionRow(Base):
 
 class SecretRow(Base):
     __tablename__ = "ln_secrets"
-    __table_args__ = (UniqueConstraint("scope", "name"),)
+    __table_args__ = (
+        UniqueConstraint("scope", "name"),
+        CheckConstraint(
+            "scope IN ('broker','provider','integration','workspace')", name="ln_secret_scope"
+        ),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
     scope: Mapped[str] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(80))
     ciphertext: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentCliTokenRow(Base):
+    """The agent's own `lonora` CLI token (7.3.3): one per agent, gone with the agent.
+
+    ``token_hash`` (SHA-256) is what the endpoint looks a call up by; ``ciphertext`` lets
+    the workspace inject the same token into every command the agent starts.
+    """
+
+    __tablename__ = "ln_agent_cli_tokens"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class GatewayRow(Base):
@@ -660,6 +729,21 @@ class WorkspaceOperationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WorkspaceGivenRow(Base):
+    """A secret value once given to a workspace command, encrypted (workspace_given.py)."""
+
+    __tablename__ = "ln_workspace_given"
+    __table_args__ = (UniqueConstraint("owner_id", "digest", name="ln_workspace_given_digest"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    given_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ResourceRow(Base):
     __abstract__ = True
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -708,14 +792,19 @@ class SkillRow(ResourceRow):
 
 
 class SkillVersionRow(Base):
-    """One saved version of a skill's validated payload (its «سجل الإصدارات»)."""
+    """One saved version of a skill's validated payload (its «سجل الإصدارات»).
+
+    Versions outlive the skill (5.5.5): deleting a skill keeps them, so it can be restored.
+    """
 
     __tablename__ = "ln_skill_versions"
-    skill_id: Mapped[str] = mapped_column(
-        ForeignKey("ln_skills.id", ondelete="CASCADE"), primary_key=True
-    )
+    __table_args__ = (Index("ix_ln_skill_versions_agent", "owner_id", "agent_id", "skill_id"),)
+    skill_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("ln_agents.id", ondelete="CASCADE"))
+    # A workspace or GitHub package version: only skill_package_control restores it.
+    package: Mapped[bool] = mapped_column(default=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -836,6 +925,84 @@ class MarketSnapshotRow(Base):
     connection_version: Mapped[int] = mapped_column(Integer)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BrokerDealRow(Base):
+    """A broker trade deal of a position that is still open, kept until its trade closes.
+
+    A copy of broker history (mandate 5.5.1), read from a stored cursor: the closed-trade
+    ledger sums a position's deals when its volume reaches zero at the broker.
+    """
+
+    __tablename__ = "ln_broker_deals"
+    __table_args__ = (Index("ln_broker_deals_position", "owner_id", "account_id", "position_id"),)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    deal_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    position_id: Mapped[str] = mapped_column(String(120))
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class ClosedTradeCursorRow(Base):
+    """How far broker deal history of one account has been read into the ledger."""
+
+    __tablename__ = "ln_closed_trade_cursors"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    account_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    # Deals up to here are read; ``complete`` is False while a full page is being paged.
+    read_to: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    complete: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ClosedTradeRow(Base):
+    """One closed trade: its position's volume reached zero at the broker (5.5.1).
+
+    Durable record: it survives the agent, the conversation and the connection. The
+    agent id is kept as a value; None means the owner's own ticket (3.3.4).
+    """
+
+    __tablename__ = "ln_closed_trades"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "account_id",
+            "position_id",
+            "closing_deal_id",
+            name="ln_closed_trade_closing_deal",
+        ),
+        Index("ln_closed_trades_agent", "owner_id", "agent_id", "closed_at"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
+    account_id: Mapped[str] = mapped_column(String(120))
+    position_id: Mapped[str] = mapped_column(String(120))
+    # The deal that closed the trade: the last exit, or a reversal that took a netting
+    # position through zero (one position can hold several trades).
+    closing_deal_id: Mapped[str] = mapped_column(String(120))
+    symbol: Mapped[str] = mapped_column(String(80))
+    side: Mapped[str] = mapped_column(String(8))
+    # What the trade opened; None when unknown (a reversal closed a trade the ledger
+    # never saw open).
+    volume: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # The journaled order that opened the position, when Lonora's door sent it.
+    opening_operation_id: Mapped[str | None] = mapped_column(String(80))
+    # Account currency; P&L is never summed across currencies.
+    currency: Mapped[str] = mapped_column(String(16))
+    # Profit + commission + swap of the trade's deals. None when an exit carried no
+    # broker-reported profit, or the ledger never read the opening deal: nothing is
+    # computed in its place.
+    realized_pnl: Mapped[Any | None] = mapped_column(Numeric(38, 10))
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deals: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class TradeApprovalRow(Base):

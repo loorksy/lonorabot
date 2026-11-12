@@ -9,7 +9,6 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import require_authority
 from lonora_db.management_task import live_management_task
@@ -17,13 +16,11 @@ from lonora_db.schema import RunRow, TicketRow, TradeApprovalRow, TradingAccount
 from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 
 async def main():
     f = await Fixture().open()
-    controls = await read_controls(f.runtime.db)
     try:
         # Use the real default Personal Agent; the fixture database is disposable.
         agents = (await f.client.get("/api/agents")).json()
@@ -159,8 +156,7 @@ async def main():
         assert proposal["envelope"]["schema_version"] == 2
         assert proposal["envelope"]["maximum_actions"] is None
         assert proposal["status"] == "pending"
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
-        pending = await trade(volume="0.1")
+        pending = await trade(volume="0.1", tolerance="5", reason="Fixture request")
         assert pending.get("_runtime_wait"), pending
         await f.request(
             "POST", f"/trading/approvals/{pending['approval_id']}/decision", {"decision": "reject"}
@@ -279,7 +275,7 @@ async def main():
             raise AssertionError("a Run held to a replaced grant spent replacement authority")
         # Over the signed cap the agent asks the owner (correction 6); nothing is sent.
         before = await broker.snapshot()
-        over = await trade(volume="0.3")
+        over = await trade(volume="0.3", tolerance="5", reason="Fixture request")
         assert over.get("_runtime_wait") and over.get("approval_id"), over
         assert await broker.snapshot() == before
         await f.request(
@@ -294,7 +290,7 @@ async def main():
                 is None
             )
         context = await f.lease(await f.run(agent, thread))
-        after_revoke = await trade(volume="0.1")
+        after_revoke = await trade(volume="0.1", tolerance="5", reason="Fixture request")
         assert after_revoke.get("_runtime_wait"), after_revoke
         await f.request(
             "POST",
@@ -306,10 +302,6 @@ async def main():
         )
 
         await sign(await propose())
-        await save_controls(f.runtime.db, TradingControl(enabled=False, emergency_stop=True))
-        blocked = await trade(volume="0.1")
-        assert blocked["status"] == "failed" and blocked["code"] == "emergency_stop", blocked
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
         # The broker's volume step is checked before anything is sent: a refusal the
         # agent reads and corrects.
         try:
@@ -318,7 +310,7 @@ async def main():
             assert error.code == "volume_step_mismatch", error.code
         else:
             raise AssertionError("an order off the broker's volume step was not refused")
-        print("PASS full management preserves emergency control and broker volume validity")
+        print("PASS full management preserves broker volume validity")
 
         specialist = await f.request(
             "POST",
@@ -363,7 +355,6 @@ async def main():
             )
         print("PASS device revocation leaves no grant task and deletes no broker history")
     finally:
-        await save_controls(f.runtime.db, controls)
         await f.close()
 
 

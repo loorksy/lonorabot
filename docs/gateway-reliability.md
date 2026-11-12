@@ -27,9 +27,11 @@ broken routine can no longer stop broker reconciliation.
 | `reconcile`, `verifications`, `account_recovery` | 10 s | 300 s | yes |
 | `market`, `watches`, `channels`, `attention` | 2 s | 120 s | yes |
 | `watchdog` | 30 s | 120 s | yes |
+| `morning_brief` ([morning-brief.md](morning-brief.md)) | 30 s | 120 s | yes |
 | `activation_reviews`, `opportunities` | 10 s | 120 s | no |
 | `charts` | 2 s | 120 s | no |
 | `history` | 10 s | 600 s | no |
+| `closed_trades` (the closed-trade ledger from broker deal history) | 30 s | 300 s | no |
 | `voice` | 0.5 s | 60 s | no |
 | `incoming` (incoming calls) | 2 s | 60 s | no |
 | `thread_prefs` (keep-archived off: a new message unarchives) | 2 s | 60 s | no |
@@ -41,7 +43,7 @@ watchdog report it while the supervisor restarts it. A step is stalled when its 
 iteration has run longer than `max(120 s, 12 × interval, timeout + interval)`, or when
 it has not succeeded for that long. The threshold is never shorter than one legitimate
 iteration, so a slow broker inside reconciliation's own timeout is a broker problem
-(`broker_degraded`), not a stalled service.
+(a broker health item, `docs/attention.md`), not a stalled service.
 Steps that serve several owners run each owner separately, so one owner's failure never
 skips another.
 
@@ -70,7 +72,7 @@ systematic fault cannot flood the inbox.
   (`attention_projection_failed`) and an attention item is suppressed; re-enabling a
   routine or watch starts fresh;
 - a critical or action-required notification is never lost to a projection bug: a
-  quarantined event still raises its own code (for example `emergency_stop`) straight
+  quarantined event still raises its own code (for example `approval_required`) straight
   to ready, without the details its failed projection would have added, and a
   quarantined pending item of that importance is delivered as it is;
 - an automatic task retry is turned into a Task failure that waits for the owner, which

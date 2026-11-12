@@ -16,19 +16,17 @@ from device_fixture import Device
 from lonora_adapter_kit.types import ToolCall
 from lonora_adapters.brokers.simulation import SimulationBroker
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_permissions import permission_key, permission_state
 from lonora_db.schema import SettingRow, TicketRow, TradingJournalRow
 from lonora_session.idempotency import stable_id
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 
 async def main() -> None:
     f = await Fixture().open()
-    controls = await read_controls(f.runtime.db)
     try:
         connection = await f.request(
             "POST",
@@ -192,7 +190,6 @@ async def main() -> None:
         )
         assert unsigned.status_code in {403, 409, 422}
         assert (await state())["effective_level"] == "analysis"
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
         before = await broker.snapshot()
         denied = await execute(call(volume="0.1", stop_loss="90"))
         assert denied.get("code") == "agent_analysis_only", denied
@@ -442,25 +439,10 @@ async def main() -> None:
             "PASS concurrent revision conflicts reject stale writes; downgrade before broker send prevents financial mutation"
         )
 
-        # Stop blocks new risk even while a signed Agent account grant is in force.
-        await sign(await propose())
-        count = len(await broker.positions())
-        for control, code, stop_loss in (
-            (TradingControl(enabled=False), "trading_disabled", "96"),
-            (TradingControl(enabled=True, emergency_stop=True), "emergency_stop", "97"),
-        ):
-            await save_controls(f.runtime.db, control)
-            blocked_control = await execute(call(volume="0.2", stop_loss=stop_loss))
-            assert blocked_control.get("code") == code, blocked_control
-            assert len(await broker.positions()) == count
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
-
-        print("PASS global trading OFF/emergency stop block signed autonomy")
         print(
             "Unified permissions acceptance complete: simulation and scripted authenticator only; no real-money trading or physical signing claim"
         )
     finally:
-        await save_controls(f.runtime.db, controls)
         await f.close()
 
 

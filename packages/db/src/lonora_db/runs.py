@@ -213,7 +213,7 @@ async def claim_next(
     eligible = and_(eligible, or_(retry_at.is_(None), retry_at <= now.isoformat()))
     # Rule Q: a card submission's Run starts only after every earlier Run of its agent in
     # the thread has ended, so it never overtakes work in retry backoff, an open question
-    # or an approved trade waiting for its execution (GENUI_PLAN §8.2).
+    # or an approved trade waiting for its execution (docs/genui.md).
     earlier = aliased(RunRow)
     behind = exists(
         select(earlier.id).where(

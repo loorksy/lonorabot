@@ -19,7 +19,6 @@ from lonora_agent.executor import execute_run
 from lonora_agent.tool_loop import persist as original_persist
 from lonora_contracts.domain import utcnow
 from lonora_contracts.model_routing import ModelSelection
-from lonora_contracts.trading import TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.management_task import live_management_task
 from lonora_db.runs import require_lease
@@ -38,7 +37,6 @@ from lonora_db.trading_mode import set_trading_mode
 from lonora_session.idempotency import stable_id
 from lonora_tools.context import ToolContext
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from sqlalchemy import func, select
 
 
@@ -711,15 +709,12 @@ async def wait_supersedes_proposed_mutation(f: Fixture) -> None:
 
 async def main() -> None:
     f = await Fixture().open()
-    original = await read_controls(f.runtime.db)
     try:
-        await save_controls(f.runtime.db, TradingControl(enabled=True))
         await discovery_and_context(f)
         await conditional_mission(f, True)
         await conditional_mission(f, False)
         await wait_supersedes_proposed_mutation(f)
     finally:
-        await save_controls(f.runtime.db, original)
         await f.close()
 
 

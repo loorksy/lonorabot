@@ -16,16 +16,20 @@
    grant into authority after this step). Each revocation is the live one:
    ``account_authority.updated`` with reason ``mandate_migration``, the grant's
    account-management Task stopped (a failed Task becomes cancelled, a Task the owner
-   asked to complete becomes completed) with its own watches settled, its waiting Run
-   and any waiting activation review of the grant cancelled, and pending grant cards
-   superseded.
+   asked to complete becomes completed), its waiting Run
+   and any waiting activation review of the grant cancelled with their pending and
+   approved Trade Approval cards (as the owner's cancel of a Task), and pending grant
+   cards superseded. Ending a Task never cancels its watches (4.5.3): each stays the
+   agent's own, without the Task, and a pause on it (the owner's too) can still lift. A
+   paused Task's live watches stay paused under the Task's hold (4.7.2); a Task the owner
+   had already ended keeps its watches as they were.
 4. Delegated, child and supervisor agents become ordinary team agents: no parent, role
    ``general``, flexible, no binding, template ``supervisor`` becomes ``general``. A bound
    account and symbol become one line of the agent's method (its OPERATING.md), with a
    memory revision; the server-written supervisor line leaves it. Supervision grants of
    any agent other than Lonora are revoked; Lonora's stay until the role check replaces
    them.
-5. Pending Trade Approval rows keep their stored expiry: nothing is written.
+5. Pending Trade Approval rows keep their stored expiry: no expiry is written.
 6. Active and scheduled restrictions end, each with the live ``trading.restriction_revoked``
    event (goals already ended in 0068). A pause a
    supervisor set on its own ends and the work resumes. A pause the owner holds or asked
@@ -36,7 +40,7 @@
 7. Positions are attributed from the journal per 3.3.4 when they are read
    (``ticket_agent``): nothing is written.
 
-The stored trading control is not read or written (item 8 is void).
+Item 8 is void under Amendment 1 (Stop is removed, 0150): nothing is written for it.
 
 The downgrade restores nothing and never raises: grants stay revoked, Tasks and Runs
 stay ended, levels stay "Ask me", cards stay (the owner may have tapped them), flattened
@@ -464,27 +468,45 @@ class Migration:
             )
             self.stop_management_task(grant)
         if revoked_ids:
-            # The grant's waiting management Run and activation review end with it, as
-            # the owner's cancel of a Task ends its Run (lonora_db.tasks.control_task);
-            # a Run a worker holds reads the stopped Task at its next checkpoint.
-            self.run(
+            # The grant's waiting management Run and activation review end with it, with
+            # their pending and approved cards, as the owner's cancel of a Task ends its
+            # Run (lonora_db.tasks.control_task); a Run a worker holds reads the stopped
+            # Task at its next checkpoint.
+            cancelled = self.rows(
                 "UPDATE ln_runs SET status = 'cancelled', error_code = :reason,"
                 " lease_owner = NULL, lease_expires_at = NULL, updated_at = :now"
                 " WHERE status IN ('queued','waiting_input','waiting_takeover') AND ("
                 " CAST(model_metadata AS JSONB) ->> 'account_management_id' = ANY(:ids)"
                 " OR (trigger = 'activation'"
-                " AND CAST(model_metadata AS JSONB) ->> 'account_authority_id' = ANY(:ids)))",
+                " AND CAST(model_metadata AS JSONB) ->> 'account_authority_id' = ANY(:ids)))"
+                " RETURNING id",
                 reason=REASON,
                 now=self.now,
                 ids=revoked_ids,
             )
+            if cancelled:
+                for approval in self.rows(
+                    "UPDATE ln_trade_approvals SET status = 'cancelled', updated_at = :now"
+                    " WHERE run_id = ANY(:runs) AND status IN ('pending','approved')"
+                    " RETURNING *",
+                    runs=[run.id for run in cancelled],
+                    now=self.now,
+                ):
+                    self.emit(
+                        approval.owner_id,
+                        "trading.approval.updated",
+                        approval_data(approval),
+                        agent_id=approval.agent_id,
+                        thread_id=approval.thread_id,
+                        run_id=approval.run_id,
+                    )
         # A pending grant card would sign a new grant after this step.
         self.settle_cards("kind = 'grant_authority'", REASON)
         return revoked_agents
 
     def stop_management_task(self, grant: Any) -> None:
         """Frozen stop_management_task (finish_task(..., 'cancelled'), a failed Task
-        cancelled, settle_task_watches), written once."""
+        cancelled), written once; its watches are kept (keep_task_watches)."""
         task_id = stable_id(grant.id, "account-management-task")
         rows = self.rows(
             "SELECT owner_id, agent_id, payload, state FROM ln_tickets WHERE id = :id FOR UPDATE",
@@ -498,6 +520,14 @@ class Migration:
             return
         payload = payload_of(rows[0].payload)
         status = task.get("status")
+        # Frozen task_ended: the owner's cancel or complete counts from the request.
+        ended_before = status in {"cancelled", "completed"} or task.get("control_requested") in {
+            "cancel",
+            "complete",
+        }
+        paused = not ended_before and (
+            status == "paused" or task.get("control_requested") == "pause"
+        )
         if status == "failed":
             task.update(status="cancelled", phase="cancelled")
         elif status not in TERMINAL_TASKS:
@@ -528,32 +558,79 @@ class Migration:
                 agent_id=grant.agent_id,
                 thread_id=task.get("origin_thread_id"),
             )
-        if task["status"] in {"cancelled", "completed"}:
-            self.settle_task_watches(grant.owner_id, task_id)
+        if not ended_before:
+            self.keep_task_watches(grant, task_id, self.task_hold(task_id) if paused else None)
 
-    def settle_task_watches(self, owner_id: str, task_id: str) -> None:
-        """Frozen settle_task_watches + stop_watch + _changed(by='task')."""
+    def task_hold(self, task_id: str) -> tuple[str | None, str]:
+        """Who holds a paused Task: its live hold's holder and source, else the owner."""
+        holds = self.rows(
+            "SELECT holder_agent_id, source FROM ln_supervision_holds"
+            " WHERE target_kind = 'task' AND target_id = :id AND released_at IS NULL",
+            id=task_id,
+        )
+        return (holds[0].holder_agent_id, holds[0].source) if holds else (None, "owner")
+
+    def keep_task_watches(
+        self, grant: Any, task_id: str, hold: tuple[str | None, str] | None
+    ) -> None:
+        """Ending the Task never cancels its watches (4.5.3): each stays the agent's own,
+        without the Task. A paused Task's live watches stay paused under the same hold
+        (frozen stop_watch 'watch_paused'), so only who paused it lifts the pause."""
         for watch in self.rows(
             "SELECT id, agent_id, thread_id, payload, state FROM ln_market_watches"
             " WHERE owner_id = :owner AND CAST(state AS JSONB) ->> 'task_id' = :task"
             " ORDER BY id FOR UPDATE",
-            owner=owner_id,
+            owner=grant.owner_id,
             task=task_id,
         ):
-            payload, state = payload_of(watch.payload), payload_of(watch.state)
-            if not payload.get("enabled", True) and state.get("code") == "task_terminal":
-                continue
+            payload = payload_of(watch.payload)
             state = {
                 key: value
-                for key, value in state.items()
-                if key not in {"evaluation_status", "next_check"}
+                for key, value in payload_of(watch.state).items()
+                if key not in {"task_id", "task_run_id"}
             }
-            self.changed_watch(
-                owner_id,
-                watch,
-                {**payload, "enabled": False},
-                {**state, "code": "task_terminal"},
-                "task",
+            if hold is not None and payload.get("enabled", True):
+                payload = {**payload, "enabled": False}
+                state = {
+                    **{
+                        key: value
+                        for key, value in state.items()
+                        if key not in {"evaluation_status", "next_check"}
+                    },
+                    "code": "watch_paused",
+                }
+                if not self.rows(
+                    "SELECT id FROM ln_supervision_holds WHERE target_kind = 'watch'"
+                    " AND target_id = :id AND released_at IS NULL",
+                    id=watch.id,
+                ):
+                    self.run(
+                        "INSERT INTO ln_supervision_holds (id, owner_id, holder_agent_id,"
+                        " agent_id, target_kind, target_id, source, created_at) VALUES"
+                        " (:id, :owner, :holder, :agent, 'watch', :target, :source, :now)",
+                        id=stable_id(task_id, "mandate-migration-hold:" + watch.id),
+                        owner=grant.owner_id,
+                        holder=hold[0],
+                        agent=watch.agent_id or grant.agent_id,
+                        target=watch.id,
+                        source=hold[1],
+                        now=self.now,
+                    )
+            version = self.rows(
+                "UPDATE ln_market_watches SET payload = CAST(:payload AS JSON),"
+                " state = CAST(:state AS JSON), version = version + 1, updated_at = :now"
+                " WHERE id = :id RETURNING version",
+                id=watch.id,
+                payload=dump(payload),
+                state=dump(state),
+                now=self.now,
+            )[0].version
+            self.emit(
+                grant.owner_id,
+                "market_watches.updated",
+                {"id": watch.id, "version": version},
+                agent_id=watch.agent_id,
+                thread_id=watch.thread_id,
             )
 
     def changed_watch(
@@ -812,6 +889,32 @@ class Migration:
             state.pop("lifecycle_reason", None)
         # The holder's resume goes through the agent's own control (by "agent").
         self.changed_watch(owner_id, watch, {**payload, "enabled": True}, state, "agent")
+
+
+def loaded(value: Any) -> Any:
+    return json.loads(value) if isinstance(value, str) else value
+
+
+def approval_data(row: Any) -> dict[str, Any]:
+    """Frozen copy of lonora_db.trade_approvals.approval_data for a cancelled card."""
+    validity = payload_of(row.validity)
+    reference = payload_of(validity.get("reference"))
+    return {
+        "id": row.id,
+        "run_id": row.run_id,
+        "thread_id": row.thread_id,
+        "agent_id": row.agent_id,
+        "timeline_seq": row.timeline_seq,
+        "requests": loaded(row.requests),
+        "contracts": payload_of(row.broker_snapshot).get("contracts", []),
+        "status": row.status,
+        "results": loaded(row.results),
+        "reason": row.reason,
+        "tolerance": validity.get("tolerance"),
+        "reference_price": reference.get("price"),
+        "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+        "created_at": row.created_at.isoformat(),
+    }
 
 
 def split_legacy(content: str) -> tuple[str, str]:

@@ -31,7 +31,7 @@ no numerical cap, and sets no daily loss limit from the card; the composer's ide
 proposal is the same pending envelope. It needs the same passkey ceremony, is offered
 only where account-wide scope is allowed (the Personal Agent and flexible root agents),
 and changes no limit: the account's money limits and execution caps (`ExecutionPolicy`),
-pauses and Stop new trading bind it like any grant, and removing a limit is a separate
+and pauses bind it like any grant, and removing a limit is a separate
 passkey step. Nothing in the envelope names the choice: a signed grant with exactly these
 terms is recognized as Full delegation (`full_delegation`) by the readiness projection
 (`full_delegation` on each grant and in the On its own params), the safety sheet and
@@ -46,9 +46,12 @@ shows Custom.
 ## The ladder: No trading / Ask me / On its own
 
 Migration 0063 (mandate 14.3.18) moved every existing agent to Ask at the stored level
-Ask me, and revoked every grant that was active or pending, stopping its management Task
-with its watches, its Run and any activation review, and superseding pending grant
-cards. A grant signed after it follows the rules below until grants are deleted.
+Ask me, and revoked every grant that was active or pending, stopping its management Task,
+its Run and any activation review, and superseding pending grant cards. The Task's watches
+stay the agent's own, without the Task (4.5.3), so a pause on one can still lift; a paused
+Task's live watches stay paused under the Task's hold, and a Task the owner had already
+ended keeps its watches as they were. A grant signed after it follows the rules below until
+grants are deleted.
 
 Each agent has one level, in the same words on Web and Mobile, in English and
 Arabic (`tradingSafetyLabels` in `packages/core`): No trading (`analysis`), Ask me
@@ -85,8 +88,8 @@ monotonic:
   agent). `lonora_opened` counts only an entry an agent's leased Run sent
   (`journal_agent`), the same rule broker wakes use (`attributed_agent`).
 - A request that adds risk on the broker's current facts (an entry, or a stop
-  moved further away) is refused with the brake's own code before any card while
-  Stop new trading or a pause holds it (`new_risk_requests`,
+  moved further away) is refused with the pause's own code before any card while
+  a pause holds it (`new_risk_requests`,
   `refuse_braked_entries`). The same exact request repeated in
   another call of the same Run answers from the card already raised for it
   (`reviewed_approval`, newest first): it waits on that card while it is pending,
@@ -110,7 +113,7 @@ Activation starts no Task (4.5.1): the agent's one continuous account-management
 Task comes with Full mode and is bound to no grant (docs/owner-actions.md). A Run
 that still carries a replaced grant's id (`account_management_id`, from before 4.5.1)
 never spends a newer grant. An activation is not an
-entry signal or proof a broker is ready. Stop new trading and the owner's pauses
+entry signal or proof a broker is ready. The owner's pauses
 remain authoritative and are never silently switched by activation.
 
 A grant is the only authority (W15-9). The former Super Bot requests and per-goal
@@ -161,7 +164,7 @@ itself authorize a symbol. Broker-discovered symbols are checked before proposal
 
 Each execution revalidates signature state, expiry, device, ownership, current
 broker snapshot and envelope limits inside the existing serialized financial
-boundary. Stop new trading, the owner's pauses, risk/preflight, execution quality,
+boundary. The owner's pauses, risk/preflight, execution quality,
 manual intervention, idempotency, durable journal and reconciliation still apply.
 Submitted, ambiguous, confirmed, owner-resolved and broker-rejected submitted
 attempts consume the lifetime budget. Known pre-submission failures and released
@@ -394,8 +397,8 @@ cannot guarantee a maximum loss, and the new order's own margin is not modeled.
 null legacy limits, exact symbols and optional limits. The signed simulation
 fixture `check_full_account_management.py` exercises the actual owner API,
 WebAuthn, the Full-mode Task started by the owner's tap, repeat signatures, grant
-replacement, a Run held to a replaced grant, four symbol classes, market/pending orders, manual position management,
-partial close, discretionary stops, broker constraints, Stop new trading and
+replacement, a Run held to a replaced grant, four symbol classes, market/pending orders,
+manual position management, partial close, discretionary stops, broker constraints and
 revocation. The older authority fixture signs the genuinely original v1 envelope
 shape so migration cannot reinterpret its absent fields. Browser checks exercise
 actual EN/AR owner surfaces, full and bounded signatures, and unchanged global
