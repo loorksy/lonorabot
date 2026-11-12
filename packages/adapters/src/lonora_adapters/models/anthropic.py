@@ -9,6 +9,7 @@ from lonora_contracts.usage import TokenUsage
 
 from .base import (
     BaseModelAdapter,
+    chosen_silence,
     interrupted_stream,
     invalid_response,
     stopped_reply,
@@ -106,6 +107,7 @@ class AnthropicAdapter(BaseModelAdapter):
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         system, wire = anthropic_messages(messages)
         payload: dict[str, Any] = {
@@ -124,7 +126,7 @@ class AnthropicAdapter(BaseModelAdapter):
                 for tool in tools
             ]
         if on_delta:
-            return await self.stream_complete(payload, on_delta)
+            return await self.stream_complete(payload, on_delta, allow_empty)
         value = await self.request("POST", "/messages", headers=self.headers(), json=payload)
         try:
             blocks = value["content"]
@@ -140,7 +142,7 @@ class AnthropicAdapter(BaseModelAdapter):
                 if block.get("type") == "tool_use"
             ]
             usage = value.get("usage", {})
-            if not text and not calls:
+            if not text and not calls and not chosen_silence(allow_empty, stop["stop_reason"]):
                 raise ValueError()
             return ModelReply(
                 text=text,
@@ -182,7 +184,10 @@ class AnthropicAdapter(BaseModelAdapter):
         return descriptors
 
     async def stream_complete(
-        self, payload: dict[str, Any], on_delta: Callable[[str], Awaitable[None]]
+        self,
+        payload: dict[str, Any],
+        on_delta: Callable[[str], Awaitable[None]],
+        allow_empty: bool = False,
     ) -> ModelReply:
         text = ""
         blocks: dict[int, dict[str, Any]] = {}
@@ -244,7 +249,7 @@ class AnthropicAdapter(BaseModelAdapter):
                 for block in blocks.values()
                 if block.get("type") == "tool_use"
             ]
-            if not text and not calls:
+            if not text and not calls and not chosen_silence(allow_empty, stop["stop_reason"]):
                 raise ValueError()
             return ModelReply(
                 text=text,

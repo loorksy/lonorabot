@@ -142,6 +142,7 @@ class ScriptedProvider:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         self.sent.append(list(messages))
         names = [tool.name for tool in tools]

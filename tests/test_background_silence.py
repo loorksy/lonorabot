@@ -57,7 +57,12 @@ def test_who_is_background():
 
 
 def router(*replies: str, delta: str = "", fail: bool = False) -> tuple[Any, list[list[Any]]]:
-    """A scripted model: each call takes the next reply; ``delta`` streams first."""
+    """A scripted model: each call takes the next reply; ``delta`` streams first.
+
+    Like the production adapters, a reply with no text at all is a broken response unless
+    the caller allowed an empty one (a background run that may end silent).
+    """
+    from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
     from lonora_adapter_kit.types import ModelReply
     from lonora_contracts.model_routing import ModelSelection
     from lonora_core.user_error import LonoraError
@@ -71,6 +76,7 @@ def router(*replies: str, delta: str = "", fail: bool = False) -> tuple[Any, lis
         *_: Any,
         on_delta: Any = None,
         on_attempt: Any = None,
+        allow_empty: bool = False,
         **__: Any,
     ) -> Any:
         requests.append(list(messages))
@@ -83,7 +89,10 @@ def router(*replies: str, delta: str = "", fail: bool = False) -> tuple[Any, lis
             await asyncio.sleep(0.3)
         if fail:
             raise LonoraError("scripted_provider_failure", 502)
-        return ModelReply(text=queue.pop(0) if queue else ""), selection
+        text = queue.pop(0) if queue else ""
+        if not text and not allow_empty:
+            raise ModelProviderError(FailureReason.INVALID_RESPONSE)
+        return ModelReply(text=text), selection
 
     return complete, requests
 
@@ -458,7 +467,8 @@ async def test_a_follow_up_is_background_when_its_parent_is():
         [answer] = await follow_ups(fixture, user_run.id)
         assert "background" not in answer.model_metadata
         assert answer.prompt == "Use the returned peer outcome to complete the owner's request."
-        complete, requests = router("", "CPI came in at 3.1%.")
+        # An owner run is never offered an empty reply; a blank one is nudged for an answer.
+        complete, requests = router(" ", "CPI came in at 3.1%.")
         await execute(fixture, answer, complete)
         assert len(requests) == 2 and said(requests[1:], NO_ANSWER)
         assert (await reload(fixture, answer.id)).result == "CPI came in at 3.1%."
@@ -515,7 +525,9 @@ async def test_the_owner_writing_to_a_background_run_ends_its_silence():
             fixture, conversation["id"], "أبقِها", reply_to=question["message_id"]
         )
         assert status < 300
-        complete, requests = router("", "أبقيت الصفقة.")
+        # Once the owner has spoken the run is not offered an empty reply; a blank one is
+        # nudged for an answer.
+        complete, requests = router(" ", "أبقيت الصفقة.")
         row = await reload(fixture, run["id"])
         await execute(fixture, row, complete)
         assert len(requests) == 2 and said(requests[1:], NO_ANSWER)
@@ -797,3 +809,90 @@ async def test_a_task_completed_empty_is_not_news():
                 assert event.payload["result_empty"] is (result == "")
     finally:
         await fixture.close()
+
+
+def empty_stop(provider: str, stream: bool, stop: str) -> Any:
+    """A provider response that ended with ``stop`` and carries no text and no call."""
+    import json
+
+    import httpx
+
+    def sse(*events: dict[str, Any], done: bool = False) -> str:
+        body = "".join("data: " + json.dumps(event) + "\n\n" for event in events)
+        return body + ("data: [DONE]\n\n" if done else "")
+
+    def handle(_: httpx.Request) -> httpx.Response:
+        if provider == "anthropic" and stream:
+            return httpx.Response(
+                200,
+                text=sse(
+                    {"type": "message_start", "message": {"id": "m", "usage": {}}},
+                    {"type": "message_delta", "delta": {"stop_reason": stop}, "usage": {}},
+                    {"type": "message_stop"},
+                ),
+            )
+        if provider == "anthropic":
+            return httpx.Response(
+                200, json={"id": "m", "content": [], "stop_reason": stop, "usage": {}}
+            )
+        if stream:
+            return httpx.Response(
+                200,
+                text=sse({"id": "c", "choices": [{"delta": {}, "finish_reason": stop}]}, done=True),
+            )
+        return httpx.Response(
+            200,
+            json={
+                "id": "c",
+                "choices": [{"message": {"content": None}, "finish_reason": stop}],
+                "usage": {},
+            },
+        )
+
+    return handle
+
+
+async def adapter_complete(provider: str, stream: bool, stop: str, **options: Any) -> Any:
+    import httpx
+    from lonora_adapter_kit.types import ModelMessage
+    from lonora_adapters.models.anthropic import AnthropicAdapter
+    from lonora_adapters.models.openai import OpenAIAdapter
+
+    adapter_type: Any = AnthropicAdapter if provider == "anthropic" else OpenAIAdapter
+
+    async def delta(_: str) -> None:
+        return None
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(empty_stop(provider, stream, stop))
+    ) as client:
+        adapter = adapter_type("fixture-key", client)
+        return await adapter.complete(
+            "fixture-model",
+            [ModelMessage(role="user", content="Anything new on gold?")],
+            [],
+            on_delta=delta if stream else None,
+            **options,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_an_empty_normal_stop_is_a_reply_only_where_silence_is_allowed(
+    provider: str, stream: bool
+):
+    from lonora_adapter_kit.model_errors import FailureReason, ModelProviderError
+
+    normal = "end_turn" if provider == "anthropic" else "stop"
+    cut = "max_tokens" if provider == "anthropic" else "length"
+    reply = await adapter_complete(provider, stream, normal, allow_empty=True)
+    assert reply.text == "" and reply.tool_calls == []
+    # Elsewhere an empty reply is still a broken response the router retries and falls back on.
+    with pytest.raises(ModelProviderError) as broken:
+        await adapter_complete(provider, stream, normal)
+    assert broken.value.reason is FailureReason.INVALID_RESPONSE
+    # A reply cut off at its output limit is never silence.
+    with pytest.raises(ModelProviderError) as truncated:
+        await adapter_complete(provider, stream, cut, allow_empty=True)
+    assert truncated.value.reason is FailureReason.TRUNCATED

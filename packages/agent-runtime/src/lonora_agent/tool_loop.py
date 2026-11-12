@@ -275,7 +275,7 @@ async def finish_turn(
                 turn_capability,
                 resolve_calls=registry.resolve_calls,
                 context_view=view,
-                live=not background,
+                quiet=quiet,
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:
@@ -526,7 +526,8 @@ async def execute_tool_loop(
                 policy_tools=policy_tools,
                 context_view=view,
                 input_scale=input_scale(state),
-                live=not background,
+                # Background work streams and answers once the owner writes to it.
+                quiet=may_end_silent(background, state),
             )
         except LonoraError as error:
             if error.code in FENCE_CODES:

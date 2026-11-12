@@ -55,6 +55,13 @@ def stopped_reply(stop_reason: Any, text: str, has_calls: bool) -> dict[str, Any
     return {"stop_reason": stop_reason}
 
 
+def chosen_silence(allow_empty: bool, stop_reason: Any) -> bool:
+    """A reply with no text and no call is the model's own choice only where the caller
+    allows one (a background run, VISION 11.5) and the provider ended the message
+    normally; a refusal or a cut-off reply has already raised in ``stopped_reply``."""
+    return allow_empty and bool(stop_reason)
+
+
 class BaseModelAdapter:
     def __init__(self, api_key: str, base_url: str, client: httpx.AsyncClient | None = None):
         self.api_key = api_key

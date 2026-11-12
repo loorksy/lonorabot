@@ -575,8 +575,10 @@ class FakeAdapter:
         *,
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
+        allow_empty: bool = False,
     ) -> ModelReply:
         self.router.calls.append((model, max_output_tokens))
+        self.router.allowances.append(allow_empty)
         script = self.router.scripts[model]
         outcome = script.pop(0) if len(script) > 1 else script[0]
         if callable(outcome):
@@ -598,6 +600,7 @@ class Scripted:
             key: list(value) for key, value in scripts.items()
         }
         self.calls: list[tuple[str, int | None]] = []
+        self.allowances: list[bool] = []
         self.sleeps: list[float] = []
         self.now = 1000.0
 
@@ -652,6 +655,19 @@ async def test_429_with_short_retry_after_waits_it_out_on_the_only_provider(
     assert selection == PRIMARY and reply.text == "Gold is range-bound."
     assert fake.sleeps == [3.0] and fake.models() == ["primary-model", "primary-model"]
     assert reply.provider_metadata["provider_recovery"] == ["retried_rate_limit"]
+
+
+@pytest.mark.asyncio
+async def test_the_router_passes_the_silence_allowance_to_the_adapter(
+    router_db: Database,
+) -> None:
+    # A background run may end with an empty reply (VISION 11.5); only it asks for one.
+    await configure(router_db)
+    fake = Scripted(**{"primary-model": [ok("")]})
+    router = fake.router(router_db)
+    await router.complete(Capability.BACKGROUND, USER, [], allow_empty=True)
+    await router.complete(Capability.BACKGROUND, USER, [])
+    assert fake.allowances == [True, False]
 
 
 @pytest.mark.asyncio
