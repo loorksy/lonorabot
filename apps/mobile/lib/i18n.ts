@@ -415,6 +415,7 @@ export const labels = {
   clearStopLoss: ["إزالة وقف الخسارة", "Remove stop loss"],
   clearTakeProfit: ["إزالة جني الربح", "Remove take profit"],
   reply: ["رد", "Reply"],
+  newMessage: ["رسالة جديدة", "New message"],
   cancelReply: ["إلغاء الرد", "Cancel reply"],
   activity: ["النشاط", "Activity"],
   actions: ["إجراءات الوكيل", "Agent actions"],
