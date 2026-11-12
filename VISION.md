@@ -715,3 +715,21 @@ Dormant features (section 13) are switched on or completed in the phase that tou
 - Each agent has one plain status line, built from what is really happening.
 - Runs are durable, with checkpoints, recovery after restarts, and model fallback.
 - Lonora is self-hosted for a single owner. Multi-user hosting is out of scope.
+
+---
+
+## Owner amendments
+
+### Amendment 1 (2026-11-12): no Stop control
+
+The owner decided that Lonora has no Stop control at all («لا داعي لزر إيقاف أبداً، بدون زر إيقاف»). Every clause about Stop is void:
+
+- P2 (the Stop item) and P5 (the Stop control);
+- 4.0 (Stop in its list), 4.5.2 ("Stop does not"), and 4.8 entirely;
+- 5.4 (whether Stop is in force) and 5.8.7 (the Stop state; the mode stays);
+- 6.7 (the ordering against Stop; the ordering against mode changes stays);
+- 10.3 ("The global Stop is a permanent control"), 10.3.1.3 (withdrawal by Stop) and 10.3.2 (`resume_trading` is deleted with its feature);
+- 13.4 (Stop), 14.3.10 and 14.3.18.8;
+- step 6 of section 16.
+
+`TradingControl` (`enabled` and `emergency_stop`), `require_trading`, the "trading not started" state, the `resume_trading` card and every Stop control on web and mobile are removed in phase 3, with their text, clients and assertions (14.1.3, 14.1.4). The owner's controls are the Mandate card (4.1, 4.2), the pause of an agent or a piece of work (4.6, 4.7) and the broker connection (9.3).
