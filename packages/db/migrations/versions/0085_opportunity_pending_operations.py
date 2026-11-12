@@ -11,7 +11,7 @@ each kind is kept, as the two keys can hold only one each).
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import sqlalchemy as sa
 from alembic import op
@@ -66,7 +66,7 @@ def downgrade() -> None:
     for identifier, raw in rows:
         state = _loaded(raw)
         restored: dict[str, Any] = dict.fromkeys(OLD)
-        for operation_id in state.pop(NEW, None) or []:
+        for operation_id in cast(list[str], state.pop(NEW, None) or []):
             request = connection.scalar(
                 sa.text("SELECT request FROM ln_trading_journal WHERE operation_id = :o"),
                 {"o": operation_id},

@@ -225,7 +225,8 @@ PENDING = "pending_operation_ids"
 
 
 def pending_operations(row: TradingOpportunityRow) -> list[str]:
-    return [str(item) for item in row.state.get(PENDING) or []]
+    stored = row.state.get(PENDING)
+    return [str(item) for item in cast(list[Any], stored)] if isinstance(stored, list) else []
 
 
 def same_market(row: TradingOpportunityRow, request: dict[str, Any]) -> bool:
