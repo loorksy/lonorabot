@@ -7,6 +7,7 @@ from lonora_contracts.account_authority import full_delegation
 from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import permission_state
 from lonora_db.schema import RunRow
+from lonora_db.trading_mode import trading_mode
 from lonora_db.trading_readiness import account_money_limits, global_trading
 from lonora_db.trading_restrictions import list_restrictions, relevant_to, restriction_data
 from lonora_tools.base import run_scope
@@ -66,9 +67,11 @@ def permission_guidance(
     restrictions: list[dict[str, Any]] | None = None,
     risk_limits: list[dict[str, Any]] | None = None,
     trading: dict[str, Any] | None = None,
+    mode: str = "ask",
 ) -> str:
     """Project only verified state; a pending envelope/draft is never authority."""
-    level = "analysis" if observe_only else state["effective_level"]
+    full = mode == "full" and not observe_only
+    level = "analysis" if observe_only else "full" if full else state["effective_level"]
     scopes: list[dict[str, Any]] = []
     authorities: list[dict[str, Any]] = (
         state.get("active_authorities", []) if not observe_only else []
@@ -99,6 +102,8 @@ def permission_guidance(
             }
         )
     snapshot = {
+        # Your one trading switch (Full or Ask); only the owner sets Full.
+        "trading_mode": "full" if full else "ask",
         "effective_level": level,
         "financial_mutations_prohibited": level == "analysis",
         "owner_approval_required": level == "supervised"
@@ -130,11 +135,21 @@ def permission_guidance(
             "Do not refuse permitted analysis merely because execution is unavailable."
         ),
         "supervised": (
-            "Reason and prepare independently; every broker mutation requires the owner's "
-            "existing exact-operation approval. Use the ordinary approval flow when an "
-            "action is ready. Keep useful analysis/monitoring moving while approval is "
-            "pending. A saved goal does not waive operation approval. To trade on your own, "
-            "the owner signs a grant_authority card."
+            "You are in Ask. Reason and prepare independently; every request that adds risk "
+            "needs the owner's exact-operation approval: trade_execute raises the Trade "
+            "Approval card. A full or partial close, cancelling an order that would add "
+            "exposure, adding a stop to an unprotected position or moving a stop toward the "
+            "market executes without a card. Keep useful analysis/monitoring moving while "
+            "approval is pending. A saved goal does not waive operation approval. To trade "
+            "on your own, the owner signs a grant_authority card."
+        ),
+        "full": (
+            "You are in Full: you trade on your own. Inspect fresh account/market facts, "
+            "decide whether and when to trade, size and manage positions; every request "
+            "executes without a card and you report the result afterwards. You may switch "
+            "yourself to Ask (trading_mode_ask) when you want the owner to approve each "
+            "request that adds risk. Owner restrictions, monetary limits and global_trading "
+            "still bind you."
         ),
         "autonomous": (
             "Independently inspect fresh account/market facts, decide whether/when to trade, "
@@ -199,6 +214,7 @@ async def permission_context(
     restrictions, risk_limits = await trading_limits(session, owner_id, agent_id, state)
     return permission_guidance(
         state,
+        mode=await trading_mode(session, owner_id, agent_id),
         observe_only=observe_only,
         provisional_approval_required=provisional,
         restrictions=restrictions,
