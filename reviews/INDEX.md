@@ -43,3 +43,6 @@
 #sweep/14-notes-tool d7c8cc61 CLEAN 0/0/0 2026-11-12T09:22Z
 #accept/2-brief-week 23b8aa1d CLEAN 0/0/0 2026-11-12T09:22Z
 #sweep/13-no-guest-cap b9a12c3a CLEAN 0/0/0 2026-11-12T09:29Z
+#sweep/12-replaced-helpers 1d24cee1 CLEAN 0/0/0 2026-11-12T09:45Z
+#sweep/13-no-guest-cap 13ec85fc CLEAN 0/0/0 2026-11-12T09:45Z
+#sweep/14-notes-tool e2f70c3b CLEAN 0/0/0 2026-11-12T09:45Z
