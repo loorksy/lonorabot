@@ -135,8 +135,10 @@ version, leaving `MEMORY.md` as it is. `skill_save` writes an instruction-only s
 its versions (migration 0120): `skill_restore` with `expected_version` 0 brings it back
 under its own id, except a removed package, which returns only through its own import or
 create. The owner restores a method or a skill, deleted or not, from chat by asking the
-agent; a method restore records the owner's typed message (skill versions carry no
-message). The owner's skill
+agent or Lonora; a method restore records the owner's typed message (skill versions carry
+no message). Lonora reads and restores any team agent's method and skills with
+`agent_id` (its built-in lead role); the revision names Lonora as its author, and reading
+another agent's text marks Lonora's run as having read third-party content. The owner's skill
 routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
 
 **Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`
