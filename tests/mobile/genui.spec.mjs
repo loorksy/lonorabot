@@ -149,7 +149,7 @@ for (const theme of ["dark", "light"]) {
       const slider = ux.getByRole("slider", { name: "المخاطرة %" });
       const box = await slider.boundingBox();
       await page.mouse.click(box.x + box.width * 0.05, box.y + box.height / 2);
-      await expect(ux.getByText("4.5%")).toBeVisible();
+      await expect(ux.getByText("5%", { exact: true })).toBeVisible();
       // open: the server-checked literal URL.
       await context.route("https://example.com/**", (route) =>
         route.fulfill({ status: 200, contentType: "text/html", body: "<p>ok</p>" }),
