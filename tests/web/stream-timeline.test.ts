@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Message, ReplyStreamSnapshot, Run } from "../../apps/web/src/lib/api";
-import { streamTimeline, streamVisible } from "../../apps/web/src/lib/stream-timeline";
+import {
+  stepsSeconds,
+  streamTimeline,
+  streamVisible,
+} from "../../apps/web/src/lib/stream-timeline";
 
 const message = (id: string, seq: number) =>
   ({ id, seq, role: "user", created_at: "2026-10-25T10:00:00Z" }) as Message;
@@ -69,4 +73,15 @@ test("actual queued activity stays after its own input instead of a detached foo
     activityTimeline([input], [{ ...queued, trigger: "routine" }], []).map((row) => row.id),
     ["input"],
   );
+});
+
+test("the steps time runs from the turn's start to its last finished step", () => {
+  const call = (id: string, completed_at?: string) =>
+    ({ id, name: "x", status: completed_at ? "completed" : "running", completed_at }) as const;
+  assert.equal(
+    stepsSeconds(run, [call("a", "2026-10-25T10:00:03Z"), call("b", "2026-10-25T10:00:05.4Z")]),
+    4,
+  );
+  assert.equal(stepsSeconds(run, [call("a", "2026-10-25T10:00:01.2Z")]), 1);
+  assert.equal(stepsSeconds(run, [call("a")]), 0);
 });

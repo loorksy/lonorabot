@@ -3,10 +3,11 @@ import { useLingui } from "@lingui/react";
 import { Trans } from "@lingui/react/macro";
 import { Icon } from "@lonora/ui-web";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useTheme } from "../../hooks/useTheme";
 import { activateLocale } from "../../i18n/config";
 import { api, isRequestCancelled } from "../../lib/api";
-import { useShellData } from "../data";
+import { ownerDisplayName, ownerInitial, useShellData } from "../data";
 import { LogoMark } from "../LogoMark";
 import { usePopover } from "../lists/Popover";
 import { reducedMotion, useDesktop } from "../motion";
@@ -15,7 +16,6 @@ import { useSheets } from "../sheets/SheetHost";
 import { useDevicePref } from "./device-prefs";
 import { LOCK_DEFAULTS, type LockPrefs } from "./lock-state";
 import { reachLabel } from "./NotifyPages";
-import { ownerName, useOwnerProfile } from "./owner";
 import { NavRow } from "./ui";
 
 const standalone = () =>
@@ -23,7 +23,7 @@ const standalone = () =>
   Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 
 /** The integrations count of the root row: linked accounts, configured providers, MCP servers. */
-function useLinkedCount() {
+export function useLinkedCount() {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
     let live = true;
@@ -47,14 +47,16 @@ function useLinkedCount() {
   return count;
 }
 
-/** The Lonora version under the sections (Q54: no «حول» page). */
+type Version = { version: string; build: string | null };
+
+/** The Lonora version and the served build under the sections (Q54: no «حول» page). */
 function useVersion() {
-  const [version, setVersion] = useState<string | null>(null);
+  const [version, setVersion] = useState<Version | null>(null);
   useEffect(() => {
     let live = true;
-    api.get<{ version: string; build: string | null }>("/version").then(
+    api.get<Version>("/version").then(
       (value) => {
-        if (live) setVersion(value.version);
+        if (live) setVersion(value);
       },
       (error) => {
         if (!isRequestCancelled(error)) console.warn("version_unavailable", error);
@@ -68,13 +70,16 @@ function useVersion() {
 }
 
 /* LanguageSelect + ThemeSwitch in one row (prefsRow, reference 4405-4440). The new theme grows in a
-   circle from the switch through a View Transition; reduced motion switches at once. */
+   circle from the switch through a View Transition (720 ms); where the browser has none, the
+   thumb slides and the theme follows after 280 ms; reduced motion switches at once. */
 function PrefsRow() {
   const { i18n } = useLingui();
   const { theme, setTheme } = useTheme();
   const pop = usePopover();
   const busy = useRef(false);
-  const dark = theme !== "light";
+  // The thumb's side while a switch without View Transitions waits for its theme.
+  const [sliding, setSliding] = useState<"dark" | "light" | null>(null);
+  const dark = (sliding ?? theme) !== "light";
   const languages = [
     { id: "ar" as const, name: "العربية", hint: "Arabic" },
     { id: "en" as const, name: "English", hint: "الإنجليزية" },
@@ -83,16 +88,29 @@ function PrefsRow() {
   const toggle = (button: HTMLElement) => {
     if (busy.current) return;
     const next = dark ? "light" : "dark";
+    if (reducedMotion()) return setTheme(next);
     const start = (
       document as Document & {
-        startViewTransition?: (update: () => void) => { finished: Promise<void> };
+        startViewTransition?: (update: () => void) => {
+          ready: Promise<void>;
+          finished: Promise<void>;
+        };
       }
     ).startViewTransition?.bind(document);
-    if (!start || reducedMotion()) return setTheme(next);
     busy.current = true;
+    if (!start) {
+      setSliding(next);
+      setTimeout(() => {
+        setTheme(next);
+        setSliding(null);
+        busy.current = false;
+      }, 280);
+      return;
+    }
     const box = button.getBoundingClientRect();
     const x = box.left + box.width / 2;
     const y = box.top + box.height / 2;
+    // Sized to the whole screen, so no corner is still uncovered when it ends.
     const radius =
       Math.hypot(
         Math.max(innerWidth, screen.width || 0),
@@ -100,19 +118,28 @@ function PrefsRow() {
       ) * 1.05;
     const root = document.documentElement;
     root.classList.add("theme-vt");
-    const transition = start(() => setTheme(next));
-    root.animate(
-      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-      {
-        duration: 640,
-        easing: "cubic-bezier(.4,0,.2,1)",
-        pseudoElement: "::view-transition-new(root)",
-      },
-    );
-    transition.finished.finally(() => {
-      root.classList.remove("theme-vt");
-      busy.current = false;
-    });
+    // The new theme must be on the page when the callback returns: that is what is captured.
+    const transition = start(() => flushSync(() => setTheme(next)));
+    transition.ready
+      .then(() =>
+        root.animate(
+          {
+            clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`],
+          },
+          {
+            duration: 720,
+            easing: "cubic-bezier(.4,0,.2,1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        ),
+      )
+      .catch(() => undefined);
+    transition.finished
+      .catch(() => undefined)
+      .finally(() => {
+        root.classList.remove("theme-vt");
+        busy.current = false;
+      });
   };
   return (
     <div className="row prefs-row">
@@ -150,6 +177,7 @@ function PrefsRow() {
               ))}
             </>,
             t`Interface language`,
+            { cls: "lang-pop", match: true },
           )
         }
       >
@@ -263,13 +291,15 @@ export function SettingsRoot() {
   const sheets = useSheets();
   const shortcuts = useShortcutsSheet();
   const install = useInstallSheet();
-  const [profile] = useOwnerProfile();
+  const profile = data.ownerProfile;
   const linked = useLinkedCount();
-  const version = useVersion();
+  const served = useVersion();
+  const version = served?.version;
+  const build = served?.build?.slice(0, 7);
   const [lock] = useDevicePref<LockPrefs>("lock", LOCK_DEFAULTS);
-  const name = ownerName(profile, data.owner.email);
+  const name = ownerDisplayName(profile, data.owner);
   const confirmSignOut = () => {
-    const title = t`Sign out`;
+    const title = t`Sign out?`;
     sheets.open({
       id: "sign-out",
       title,
@@ -302,7 +332,7 @@ export function SettingsRoot() {
     <>
       <div className="group">
         <NavRow
-          icon={<span className="avatar initial">{name.slice(0, 1)}</span>}
+          icon={<span className="avatar initial">{ownerInitial(name)}</span>}
           label={<bdi>{name}</bdi>}
           sub={t`Profile · shared by all your agents`}
           to="/app/owner"
@@ -393,7 +423,13 @@ export function SettingsRoot() {
       </div>
       {version && (
         <p className="note settings-version">
-          <Trans>Lonora · version {version}</Trans>
+          {build ? (
+            <Trans>
+              Lonora · version {version} · <span className="ltr">{build}</span>
+            </Trans>
+          ) : (
+            <Trans>Lonora · version {version}</Trans>
+          )}
         </p>
       )}
     </>
