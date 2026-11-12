@@ -2,6 +2,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.schema import SecretRow
+from lonora_db.secrets import require_scope, secret_in_use
 from lonora_security.secrets import SecretCipher
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,7 @@ class EncryptedSecretStore:
         self, session: AsyncSession, name: str, value: str, scope: str
     ) -> str:
         """Commit credentials with their resource; a rejected resource writes nothing."""
+        require_scope(name, scope)
         row = await session.scalar(
             select(SecretRow)
             .where(
@@ -54,4 +56,6 @@ class EncryptedSecretStore:
             row = await session.get(SecretRow, secret_id, with_for_update=True)
             if row is None or row.owner_id != self.owner_id:
                 raise LonoraError("secret_not_found", 404)
+            if await secret_in_use(session, self.owner_id, secret_id):
+                raise LonoraError("secret_in_use", 409)
             await session.delete(row)
