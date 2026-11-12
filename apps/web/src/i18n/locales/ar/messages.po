@@ -2053,7 +2053,7 @@ msgstr "المحتوى"
 msgid "Continue recording"
 msgstr "متابعة التسجيل"
 
-#: src/conversation/Conversation.tsx:1053
+#: src/conversation/Conversation.tsx:1052
 #: src/pages/ModelRoutingSettings.tsx:10
 msgid "Conversation"
 msgstr "المحادثة"
@@ -2083,7 +2083,7 @@ msgstr "المنسق"
 #: ../../packages/chat-ui/src/markdown-table.tsx:20
 #: ../../packages/chat-ui/src/markdown.web.tsx:40
 #: src/components/genui/UiCard.tsx:867
-#: src/conversation/Conversation.tsx:396
+#: src/conversation/Conversation.tsx:395
 msgid "Copied"
 msgstr "تم النسخ"
 
@@ -2104,7 +2104,7 @@ msgstr "نسخ الرسالة"
 msgid "Copy table"
 msgstr "نسخ الجدول"
 
-#: src/conversation/Conversation.tsx:546
+#: src/conversation/Conversation.tsx:545
 msgid "Copy text"
 msgstr "نسخ النص"
 
@@ -2120,7 +2120,7 @@ msgstr "التكلفة · {window}"
 msgid "Cost per hour today"
 msgstr "التكلفة لكل ساعة اليوم"
 
-#: src/conversation/Conversation.tsx:398
+#: src/conversation/Conversation.tsx:397
 msgid "Could not copy"
 msgstr "تعذّر النسخ"
 
@@ -2369,7 +2369,7 @@ msgstr "تغيّر التفويض"
 
 #: src/components/market/MarketWatch.tsx:330
 #: src/components/skills/SkillEditor.tsx:131
-#: src/conversation/Conversation.tsx:527
+#: src/conversation/Conversation.tsx:526
 #: src/pages/ScratchpadSection.tsx:203
 #: src/shell/domain/FilesPages.tsx:78
 #: src/shell/domain/FilesPages.tsx:124
@@ -2637,7 +2637,7 @@ msgstr "مصدر التقويم الاقتصادي"
 msgid "Edit"
 msgstr "تعديل"
 
-#: src/conversation/Conversation.tsx:547
+#: src/conversation/Conversation.tsx:546
 msgid "Edit and resend"
 msgstr "تعديل وإعادة الإرسال"
 
@@ -3156,7 +3156,7 @@ msgstr "من 22:00 إلى 08:00"
 msgid "From the cache"
 msgstr "من الذاكرة المؤقتة"
 
-#: src/conversation/Conversation.tsx:502
+#: src/conversation/Conversation.tsx:501
 msgid "From the conversation"
 msgstr "من المحادثة"
 
@@ -3214,11 +3214,11 @@ msgstr "التوجيه العالمي"
 msgid "Global trading settings"
 msgstr "إعدادات التداول العالمية"
 
-#: src/conversation/Conversation.tsx:1126
+#: src/conversation/Conversation.tsx:1125
 msgid "Go to the latest messages"
 msgstr "الانتقال إلى آخر الرسائل"
 
-#: src/conversation/Conversation.tsx:1126
+#: src/conversation/Conversation.tsx:1125
 msgid "Go to the latest messages, {fresh} new"
 msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 
@@ -3296,7 +3296,7 @@ msgstr "المجموعات"
 msgid "Happy"
 msgstr "سعيد"
 
-#: src/conversation/Conversation.tsx:1204
+#: src/conversation/Conversation.tsx:1203
 msgid "Hello {ownerName}"
 msgstr "مرحبًا {ownerName}"
 
@@ -3832,7 +3832,7 @@ msgstr "جارٍ تحميل الشارت…"
 #~ msgid "Loading group…"
 #~ msgstr "جارٍ تحميل المجموعة…"
 
-#: src/conversation/Conversation.tsx:1092
+#: src/conversation/Conversation.tsx:1091
 msgid "Loading older messages"
 msgstr "جارٍ تحميل الرسائل الأقدم"
 
@@ -4071,8 +4071,8 @@ msgstr "راسل {name}"
 msgid "Message composer"
 msgstr "محرر الرسالة"
 
-#: src/conversation/Conversation.tsx:529
-#: src/conversation/Conversation.tsx:552
+#: src/conversation/Conversation.tsx:528
+#: src/conversation/Conversation.tsx:551
 #: src/conversation/Message.tsx:567
 msgid "Message options"
 msgstr "خيارات الرسالة"
@@ -5241,7 +5241,7 @@ msgstr "المساعد الشخصي"
 msgid "Phone notification"
 msgstr "إشعار الهاتف"
 
-#: src/conversation/Conversation.tsx:496
+#: src/conversation/Conversation.tsx:495
 msgid "Photo"
 msgstr "صورة"
 
@@ -5459,8 +5459,8 @@ msgctxt "task state"
 msgid "Queued"
 msgstr "في الانتظار"
 
-#: src/conversation/Conversation.tsx:422
-#: src/conversation/Conversation.tsx:558
+#: src/conversation/Conversation.tsx:421
+#: src/conversation/Conversation.tsx:557
 msgid "Quick reaction"
 msgstr "تفاعل سريع"
 
@@ -5484,7 +5484,7 @@ msgstr "رفع حدٍّ أو إزالته يتطلّب مفتاح المرور."
 msgid "Ray"
 msgstr "شعاع"
 
-#: src/conversation/Conversation.tsx:428
+#: src/conversation/Conversation.tsx:427
 msgid "React {emoji}"
 msgstr "تفاعل {emoji}"
 
@@ -5492,8 +5492,8 @@ msgstr "تفاعل {emoji}"
 msgid "React to the message"
 msgstr "تفاعل مع الرسالة"
 
-#: src/conversation/Conversation.tsx:569
-#: src/conversation/Conversation.tsx:603
+#: src/conversation/Conversation.tsx:568
+#: src/conversation/Conversation.tsx:602
 msgid "Reactions"
 msgstr "التفاعلات"
 
@@ -5734,7 +5734,7 @@ msgstr "التكرار"
 msgid "Replies"
 msgstr "الردود"
 
-#: src/conversation/Conversation.tsx:545
+#: src/conversation/Conversation.tsx:544
 #: src/shell/lists/HeadsUp.tsx:254
 msgid "Reply"
 msgstr "رد"
@@ -5898,7 +5898,7 @@ msgstr "أُعيدت المحاولة. تتحدّث الحالة عندما يس
 
 #: src/App.tsx:55
 #: src/conversation/Cards.tsx:127
-#: src/conversation/Conversation.tsx:524
+#: src/conversation/Conversation.tsx:523
 #: src/pages/ActivityList.tsx:153
 #: src/pages/Artifacts.tsx:251
 #: src/pages/Board.tsx:139
@@ -6925,7 +6925,7 @@ msgstr "اضغط لمعاودة الاتصال"
 msgid "Tap to dictate · hold for a voice message"
 msgstr "اضغط للإملاء · اضغط مطولًا لرسالة صوتية"
 
-#: src/conversation/Conversation.tsx:589
+#: src/conversation/Conversation.tsx:588
 msgid "Tap to remove"
 msgstr "اضغط للإزالة"
 
@@ -6934,7 +6934,7 @@ msgctxt "chart"
 msgid "Target"
 msgstr "هدف"
 
-#: src/conversation/Conversation.tsx:409
+#: src/conversation/Conversation.tsx:408
 #: src/pages/Board.tsx:380
 #: src/pages/Board.tsx:382
 #: src/shell/domain/SchedulesPages.tsx:477
@@ -6956,7 +6956,7 @@ msgstr "أُلغيت المهمة"
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
-#: src/conversation/Conversation.tsx:411
+#: src/conversation/Conversation.tsx:410
 #: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task created"
 msgstr "أُنشئت مهمة"
@@ -7275,12 +7275,12 @@ msgstr "قائمة الوكلاء أثناء الكتابة"
 msgid "The market"
 msgstr "السوق"
 
-#: src/conversation/Conversation.tsx:236
-#: src/conversation/Conversation.tsx:239
+#: src/conversation/Conversation.tsx:237
+#: src/conversation/Conversation.tsx:240
 msgid "The message is no longer available."
 msgstr "لم تعد الرسالة متاحة."
 
-#: src/conversation/Conversation.tsx:520
+#: src/conversation/Conversation.tsx:519
 msgid "The message was not sent"
 msgstr "لم تُرسل الرسالة"
 
@@ -7349,7 +7349,7 @@ msgstr "اعتُمد المخطط الجديد"
 msgid "The operation could not be completed"
 msgstr "تعذّر إكمال العملية"
 
-#: src/conversation/Conversation.tsx:490
+#: src/conversation/Conversation.tsx:489
 #: src/conversation/Message.tsx:126
 msgid "The original message is no longer available."
 msgstr "الرسالة الأصلية لم تعد متاحة."
@@ -7774,7 +7774,7 @@ msgstr "قيد الانتظار"
 #~ msgid "To:"
 #~ msgstr "إلى:"
 
-#: src/conversation/Conversation.tsx:89
+#: src/conversation/Conversation.tsx:90
 #: src/pages/Artifacts.tsx:235
 #: src/shell/settings/UsagePage.tsx:85
 #: src/shell/settings/UsagePage.tsx:234
@@ -7829,7 +7829,7 @@ msgstr "تُرفض الأدوات التي قد تحرّك المال: {0}"
 msgid "Trade action"
 msgstr "عملية تداول"
 
-#: src/conversation/Conversation.tsx:890
+#: src/conversation/Conversation.tsx:889
 msgid "Trade order"
 msgstr "أمر تداول"
 
@@ -7927,7 +7927,7 @@ msgstr "موثوق"
 msgid "Try again"
 msgstr "إعادة المحاولة"
 
-#: src/conversation/Conversation.tsx:550
+#: src/conversation/Conversation.tsx:549
 msgid "Turn into a task"
 msgstr "تحويل إلى مهمة"
 
@@ -8426,7 +8426,7 @@ msgstr "ما الذي حدث لدى الوسيط"
 msgid "What is needed"
 msgstr "المطلوب"
 
-#: src/conversation/Conversation.tsx:1210
+#: src/conversation/Conversation.tsx:1209
 msgid "What shall we do today with {name}?"
 msgstr "ماذا سنفعل اليوم مع {name}؟"
 
@@ -8503,7 +8503,7 @@ msgstr "قلق"
 msgid "Write the alert condition."
 msgstr "اكتب شرط التنبيه."
 
-#: src/conversation/Conversation.tsx:1208
+#: src/conversation/Conversation.tsx:1207
 msgid "Write to the group, or pick a suggestion below."
 msgstr "اكتب للمجموعة، أو اختر اقتراحًا من الأسفل."
 
@@ -8528,14 +8528,14 @@ msgstr "رمز غير صحيح"
 msgid "Wrong code. {0} tries left"
 msgstr "رمز غير صحيح. بقيت {0} محاولات"
 
-#: src/conversation/Conversation.tsx:90
+#: src/conversation/Conversation.tsx:91
 #: src/shell/settings/OwnerPage.tsx:36
 #: src/shell/settings/UsagePage.tsx:234
 msgid "Yesterday"
 msgstr "أمس"
 
 #: src/components/charts/ChartAnnotations.tsx:81
-#: src/conversation/Conversation.tsx:586
+#: src/conversation/Conversation.tsx:585
 #: src/conversation/Message.tsx:121
 #: src/conversation/Message.tsx:140
 #: src/shell/lists/UnifiedSearch.tsx:152
