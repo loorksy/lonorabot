@@ -519,9 +519,9 @@ msgstr "Add a goal"
 msgid "Add a provider"
 msgstr "Add a provider"
 
-#: src/pages/ModelSettingsOverlay.tsx:73
-#~ msgid "Add a provider credential"
-#~ msgstr "Add a provider credential"
+#: src/shell/settings/ModelsPage.tsx:127
+msgid "Add a provider credential"
+msgstr "Add a provider credential"
 
 #: src/shell/settings/IntegrationsPage.tsx:708
 msgid "Add a trading account"
@@ -903,6 +903,7 @@ msgid "Any signed delegation on this account is revoked, and {names} go back to 
 msgstr "Any signed delegation on this account is revoked, and {names} go back to «Execute with approval» without an account until you choose another one."
 
 #: src/shell/settings/ConnectionPages.tsx:659
+#: src/shell/settings/ModelsPage.tsx:132
 msgid "API key"
 msgstr "API key"
 
@@ -1157,7 +1158,7 @@ msgstr "Back to the permissions"
 msgid "Background service is running late"
 msgstr "Background service is running late"
 
-#: src/shell/settings/ModelsPage.tsx:21
+#: src/shell/settings/ModelsPage.tsx:28
 msgid "Background work"
 msgstr "Background work"
 
@@ -1526,9 +1527,9 @@ msgstr "Cancelled"
 #~ msgid "Capabilities"
 #~ msgstr "Capabilities"
 
-#: src/pages/ModelSettingsOverlay.tsx:120
-#~ msgid "Capabilities unverified"
-#~ msgstr "Capabilities unverified"
+#: src/shell/settings/ModelsPage.tsx:176
+msgid "Capabilities unverified"
+msgstr "Capabilities unverified"
 
 #: src/pages/Artifacts.tsx:161
 msgid "Card view"
@@ -1730,7 +1731,7 @@ msgid "Choose a connection"
 msgstr "Choose a connection"
 
 #: src/pages/KnowledgeSection.tsx:177
-#: src/shell/settings/ModelsPage.tsx:82
+#: src/shell/settings/ModelsPage.tsx:209
 msgid "Choose a discovered model"
 msgstr "Choose a discovered model"
 
@@ -2183,7 +2184,7 @@ msgid "Continue recording"
 msgstr "Continue recording"
 
 #: src/conversation/Conversation.tsx:1082
-#: src/shell/settings/ModelsPage.tsx:14
+#: src/shell/settings/ModelsPage.tsx:21
 msgid "Conversation"
 msgstr "Conversation"
 
@@ -2373,9 +2374,9 @@ msgstr "Create workspace"
 #~ msgid "Created by an agent"
 #~ msgstr "Created by an agent"
 
-#: src/pages/ModelSettingsOverlay.tsx:71
-#~ msgid "Credential configured"
-#~ msgstr "Credential configured"
+#: src/shell/settings/ModelsPage.tsx:127
+msgid "Credential configured"
+msgstr "Credential configured"
 
 #: src/pages/RoutineSchedule.tsx:29
 #: src/pages/RoutineSchedule.tsx:47
@@ -2694,9 +2695,9 @@ msgstr "Discard"
 msgid "Disconnect account"
 msgstr "Disconnect account"
 
-#: src/pages/ModelSettingsOverlay.tsx:109
-#~ msgid "Discovered models"
-#~ msgstr "Discovered models"
+#: src/shell/settings/ModelsPage.tsx:162
+msgid "Discovered models"
+msgstr "Discovered models"
 
 #: src/pages/shell/chat-context.tsx:698
 #~ msgid "Dismiss error"
@@ -3407,7 +3408,7 @@ msgstr "Global embedding model"
 msgid "Global models"
 msgstr "Global models"
 
-#: src/shell/settings/ModelsPage.tsx:143
+#: src/shell/settings/ModelsPage.tsx:270
 msgid "Global routing"
 msgstr "Global routing"
 
@@ -4394,7 +4395,7 @@ msgctxt "call log"
 msgid "Missed voice call"
 msgstr "Missed voice call"
 
-#: src/shell/settings/ModelsPage.tsx:147
+#: src/shell/settings/ModelsPage.tsx:274
 msgid "Mode"
 msgstr "Mode"
 
@@ -4415,7 +4416,7 @@ msgstr "Model provider unavailable — retry scheduled"
 
 #: src/shell/pages.tsx:155
 #: src/shell/settings/IntegrationsPage.tsx:510
-#: src/shell/settings/ModelsPage.tsx:45
+#: src/shell/settings/ModelsPage.tsx:68
 msgid "Model providers"
 msgstr "Model providers"
 
@@ -4423,7 +4424,7 @@ msgstr "Model providers"
 msgid "Models"
 msgstr "Models"
 
-#: src/shell/settings/ModelsPage.tsx:42
+#: src/shell/settings/ModelsPage.tsx:65
 msgid "Models appear here after you add a model provider."
 msgstr "Models appear here after you add a model provider."
 
@@ -5136,7 +5137,7 @@ msgstr "Once"
 msgid "One agent"
 msgstr "One agent"
 
-#: src/shell/settings/ModelsPage.tsx:167
+#: src/shell/settings/ModelsPage.tsx:294
 msgid "One model for text work"
 msgstr "One model for text work"
 
@@ -5757,12 +5758,13 @@ msgid "Protection change"
 msgstr "Protection change"
 
 #: src/shell/settings/ConnectionPages.tsx:638
+#: src/shell/settings/ModelsPage.tsx:117
 msgid "Provider"
 msgstr "Provider"
 
-#: src/pages/ModelSettingsOverlay.tsx:53
-#~ msgid "Providers and official catalog"
-#~ msgstr "Providers and official catalog"
+#: src/shell/settings/ModelsPage.tsx:113
+msgid "Providers and official catalog"
+msgstr "Providers and official catalog"
 
 #: src/components/skills/CreateSkill.tsx:101
 #: src/shell/agent/GroupPage.tsx:308
@@ -5867,7 +5869,7 @@ msgstr "Reading"
 msgid "Realtime conversation"
 msgstr "Realtime conversation"
 
-#: src/shell/settings/ModelsPage.tsx:18
+#: src/shell/settings/ModelsPage.tsx:25
 msgid "Realtime voice"
 msgstr "Realtime voice"
 
@@ -5876,7 +5878,7 @@ msgstr "Realtime voice"
 msgid "Reason"
 msgstr "Reason"
 
-#: src/shell/settings/ModelsPage.tsx:15
+#: src/shell/settings/ModelsPage.tsx:22
 msgid "Reasoning"
 msgstr "Reasoning"
 
@@ -6123,7 +6125,7 @@ msgstr "Required capabilities"
 msgid "Required tools"
 msgstr "Required tools"
 
-#: src/shell/settings/ModelsPage.tsx:16
+#: src/shell/settings/ModelsPage.tsx:23
 msgid "Research"
 msgstr "Research"
 
@@ -6328,7 +6330,7 @@ msgstr "Review version block"
 msgid "Role"
 msgstr "Role"
 
-#: src/shell/settings/ModelsPage.tsx:168
+#: src/shell/settings/ModelsPage.tsx:295
 msgid "Route by capability"
 msgstr "Route by capability"
 
@@ -6379,9 +6381,9 @@ msgstr "Running on «{0}» now · the routing picks the best fit for each task"
 msgid "Save"
 msgstr "Save"
 
-#: src/pages/ModelSettingsOverlay.tsx:90
-#~ msgid "Save and discover models"
-#~ msgstr "Save and discover models"
+#: src/shell/settings/ModelsPage.tsx:149
+msgid "Save and discover models"
+msgstr "Save and discover models"
 
 #: src/shell/agent/AvatarSheet.tsx:129
 msgid "Save avatar"
@@ -6391,7 +6393,7 @@ msgstr "Save avatar"
 msgid "Save file"
 msgstr "Save file"
 
-#: src/shell/settings/ModelsPage.tsx:192
+#: src/shell/settings/ModelsPage.tsx:319
 msgid "Save global routing"
 msgstr "Save global routing"
 
@@ -6431,7 +6433,8 @@ msgstr "Save with the passkey"
 #: src/pages/KnowledgeSection.tsx:96
 #: src/shell/agent/IdentityPage.tsx:132
 #: src/shell/settings/ConnectionPages.tsx:627
-#: src/shell/settings/ModelsPage.tsx:135
+#: src/shell/settings/ModelsPage.tsx:103
+#: src/shell/settings/ModelsPage.tsx:262
 #: src/shell/settings/NotifyPages.tsx:344
 #: src/shell/settings/OwnerPage.tsx:137
 msgid "Saved"
@@ -7046,11 +7049,11 @@ msgstr "Specialist role · Fixed market"
 msgid "Specialist role · Flexible scope"
 msgstr "Specialist role · Flexible scope"
 
-#: src/shell/settings/ModelsPage.tsx:19
+#: src/shell/settings/ModelsPage.tsx:26
 msgid "Speech recognition"
 msgstr "Speech recognition"
 
-#: src/shell/settings/ModelsPage.tsx:20
+#: src/shell/settings/ModelsPage.tsx:27
 msgid "Speech synthesis"
 msgstr "Speech synthesis"
 
@@ -7583,9 +7586,9 @@ msgstr "The broker's confirmation did not arrive; «Filled» is never shown befo
 msgid "The call ended."
 msgstr "The call ended."
 
-#: src/pages/ModelSettingsOverlay.tsx:93
-#~ msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
-#~ msgstr "The catalog is read from the provider. Unknown capabilities are shown as unverified."
+#: src/shell/settings/ModelsPage.tsx:143
+msgid "The catalog is read from the provider. Unknown capabilities are shown as unverified."
+msgstr "The catalog is read from the provider. Unknown capabilities are shown as unverified."
 
 #. placeholder {0}: chatsWord(rows.length)
 #: src/shell/lists/Selection.tsx:66
@@ -7964,7 +7967,7 @@ msgstr "There is no call in progress."
 msgid "There is no content in this section yet"
 msgstr "There is no content in this section yet"
 
-#: src/shell/settings/ModelsPage.tsx:185
+#: src/shell/settings/ModelsPage.tsx:312
 msgid "These settings apply to every agent and routine. Voice routes require models that support audio."
 msgstr "These settings apply to every agent and routine. Voice routes require models that support audio."
 
@@ -8507,7 +8510,7 @@ msgstr "Undo"
 msgid "Undo this version"
 msgstr "Undo this version"
 
-#: src/shell/settings/ModelsPage.tsx:174
+#: src/shell/settings/ModelsPage.tsx:301
 msgid "Unified model"
 msgstr "Unified model"
 
@@ -8714,9 +8717,9 @@ msgstr "Use the suggestion (Tab)"
 msgid "Use the suggestion: {suggestion}"
 msgstr "Use the suggestion: {suggestion}"
 
-#: src/pages/ModelSettingsOverlay.tsx:118
-#~ msgid "Verified metadata"
-#~ msgstr "Verified metadata"
+#: src/shell/settings/ModelsPage.tsx:172
+msgid "Verified metadata"
+msgstr "Verified metadata"
 
 #: src/lib/goal-status.ts:24
 #~ msgid "Verifying execution"
@@ -8778,7 +8781,7 @@ msgstr "View usage"
 #~ msgid "Virtual monetary profit is unavailable without verified contract and currency valuation."
 #~ msgstr "Virtual monetary profit is unavailable without verified contract and currency valuation."
 
-#: src/shell/settings/ModelsPage.tsx:17
+#: src/shell/settings/ModelsPage.tsx:24
 msgid "Vision"
 msgstr "Vision"
 

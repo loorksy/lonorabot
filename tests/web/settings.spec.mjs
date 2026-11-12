@@ -446,43 +446,97 @@ test("Global models opens the models page; voice and trading keep their settings
     await page.goto("/app/settings");
     await page.getByRole("button", { name: /^Global models/ }).click();
     await expect(page).toHaveURL(/\/app\/models$/);
+    // The server's provider state is this test's: no key until this page stores one.
+    const server = { configured: false, discovered: false, failDiscovery: false };
+    const calls = [];
+    const model = (id, name, verified) => ({
+      id,
+      provider: "openai",
+      name,
+      capabilities: ["conversation"],
+      verified,
+      source: "discovered",
+      context_window: null,
+    });
+    await page.route("**/api/providers", (route) =>
+      route.fulfill({ json: [{ id: "openai", configured: server.configured }] }),
+    );
     await page.goto("/app/settings?tab=models");
     await expect(page).toHaveURL(/\/app\/models$/);
     await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
-    // No provider yet: the page says where models come from and offers no empty form.
+    // No model yet: the page says where models come from and has no routing form. Main's
+    // catalog form is there, as in main's overlay, to add the first key.
     await expect(
       page.getByText("Models appear here after you add a model provider."),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Global routing" })).toHaveCount(0);
+    const discover = page.getByRole("button", { name: "Save and discover models" });
+    await expect(
+      page.getByRole("heading", { name: "Providers and official catalog" }),
+    ).toBeVisible();
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
     await page.getByRole("button", { name: /^Model providers/ }).click();
     await expect(page).toHaveURL(/\/app\/providers$/);
     await page.route("**/api/providers/openai/models", (route) =>
       route.fulfill({
         json: [
-          {
-            id: "gpt-test",
-            provider: "openai",
-            name: "GPT Test",
-            capabilities: ["conversation"],
-            verified: true,
-            source: "discovered",
-            context_window: null,
-          },
+          model("gpt-test", "GPT Test", true),
+          ...(server.discovered ? [model("gpt-new", "GPT New", false)] : []),
         ],
       }),
     );
+    await page.route("**/api/providers/openai/credential", (route) => {
+      calls.push(`credential ${route.request().postDataJSON().api_key}`);
+      server.configured = true;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/api/providers/openai/discover", (route) => {
+      calls.push("discover");
+      if (server.failDiscovery)
+        return route.fulfill({ status: 400, json: { code: "provider_discovery_failed" } });
+      server.discovered = true;
+      return route.fulfill({ json: [] });
+    });
     await page.goto("/app/models");
     await expect(page.getByRole("heading", { name: "Global routing" })).toBeVisible();
     // Only the owner assigns an agent's model (main, Q20 a): no allowed-models list.
     await expect(page.locator("[data-allowed-models]")).toHaveCount(0);
-    // One key form: the provider page. This page has none.
-    await expect(page.getByText("API key")).toHaveCount(0);
     const saved = page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/settings/models") && response.request().method() === "PUT",
     );
     await page.getByRole("button", { name: "Save global routing" }).click();
     expect((await saved).ok()).toBe(true);
+    // Main's overlay, carried over: the discovered catalog with its metadata badge …
+    await expect(page.getByRole("heading", { name: "Discovered models (1)" })).toBeVisible();
+    await expect(
+      page.locator(".row").filter({ hasText: "GPT Test" }).getByText("Verified metadata"),
+    ).toBeVisible();
+    // … and «Save and discover models»: a key is needed until one is stored. A key stored
+    // before a failed discovery counts, so the owner can try again without typing it.
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
+    server.failDiscovery = true;
+    await page.getByLabel("API key").fill("sk-test-key-1234");
+    await discover.click();
+    await expect.poll(() => calls).toEqual(["credential sk-test-key-1234", "discover"]);
+    await expect(page.getByLabel("API key")).toHaveValue("");
+    await expect(page.getByText("Credential configured")).toBeVisible();
+    await expect(discover).toBeEnabled();
+    // Discovering again needs no key, and the page reads the catalog again in place.
+    server.failDiscovery = false;
+    calls.length = 0;
+    await discover.click();
+    await expect.poll(() => calls).toEqual(["discover"]);
+    await expect(page.getByRole("heading", { name: "Discovered models (2)" })).toBeVisible();
+    await expect(
+      page.locator(".row").filter({ hasText: "GPT New" }).getByText("Capabilities unverified"),
+    ).toBeVisible();
+    // Another provider without a key: the form asks for one.
+    await page.getByRole("combobox", { name: /^Provider/ }).selectOption("anthropic");
+    await expect(page.getByText("Add a provider credential")).toBeVisible();
+    await expect(discover).toBeDisabled();
   } finally {
     fixture({ ...data, action: "cleanup" });
   }
