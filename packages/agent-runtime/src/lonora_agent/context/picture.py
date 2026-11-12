@@ -21,6 +21,8 @@ PICTURE_PREFIX = "[Lonora account picture v1]\n"
 MAX_ACCOUNTS = 5
 MAX_TICKETS = 12
 MAX_SYMBOLS = 12
+# Reads every position and order of an account, live from the broker.
+READ_ALL = "account_read"
 
 
 def _amount(value: Decimal) -> str:
@@ -92,26 +94,35 @@ def own_book(book: AccountBook, agent_id: str) -> dict[str, Any]:
     )
     shown_positions = _largest(positions)[:MAX_TICKETS]
     shown_orders = _largest(orders)[:MAX_TICKETS]
-    return {
-        "account": book.account_id,
-        **read,
-        "currency": snapshot.account.currency if snapshot.account else None,
-        "positions": [_position(item) for item in shown_positions],
-        "positions_not_shown": len(positions) - len(shown_positions),
-        "orders": [_order(item) for item in shown_orders],
-        "orders_not_shown": len(orders) - len(shown_orders),
-        "exposure_by_symbol": [
-            {
-                "symbol": symbol,
-                "net_volume": _amount(net_volume(by_symbol[symbol])),
-                "positions": len(by_symbol[symbol]),
-                "floating_pnl": _amount(sum((i.profit for i in by_symbol[symbol]), Decimal(0))),
-            }
-            for symbol in symbols[:MAX_SYMBOLS]
-        ],
-        "symbols_not_shown": max(len(symbols) - MAX_SYMBOLS, 0),
-        "floating_pnl": _amount(sum((item.profit for item in positions), Decimal(0))),
-    }
+    return more(
+        {
+            "account": book.account_id,
+            **read,
+            "currency": snapshot.account.currency if snapshot.account else None,
+            "positions": [_position(item) for item in shown_positions],
+            "positions_not_shown": len(positions) - len(shown_positions),
+            "orders": [_order(item) for item in shown_orders],
+            "orders_not_shown": len(orders) - len(shown_orders),
+            "exposure_by_symbol": [
+                {
+                    "symbol": symbol,
+                    "net_volume": _amount(net_volume(by_symbol[symbol])),
+                    "positions": len(by_symbol[symbol]),
+                    "floating_pnl": _amount(sum((i.profit for i in by_symbol[symbol]), Decimal(0))),
+                }
+                for symbol in symbols[:MAX_SYMBOLS]
+            ],
+            "symbols_not_shown": max(len(symbols) - MAX_SYMBOLS, 0),
+            "floating_pnl": _amount(sum((item.profit for item in positions), Decimal(0))),
+        }
+    )
+
+
+def more(book: dict[str, Any]) -> dict[str, Any]:
+    """The bounds keep the message small; they never hide a ticket. When a list is cut,
+    the book says how many more there are and which tool reads them all."""
+    cut = any(value for key, value in book.items() if key.endswith("_not_shown"))
+    return {**book, "read_all_with": READ_ALL} if cut else book
 
 
 async def account_picture(session: AsyncSession, owner_id: str, agent_id: str) -> str:
@@ -119,11 +130,15 @@ async def account_picture(session: AsyncSession, owner_id: str, agent_id: str) -
     picture = {
         "own": [own_book(book, agent_id) for book in shown],
         "accounts_not_shown": enabled - len(shown),
+        **({"list_all_with": "list_accounts"} if enabled > len(shown) else {}),
     }
     return (
         PICTURE_PREFIX
         + "Your own book: the positions and pending orders your orders opened or placed, on "
-        "each enabled connection (the first five; accounts_not_shown counts the rest). The "
+        "each enabled connection (the first five; accounts_not_shown counts the rest, and "
+        "list_accounts lists them all). Lists are largest first and bounded only to keep "
+        "this message small: a *_not_shown count says how many more there are, and "
+        "read_all_with names the tool that reads them all. The "
         "figures are those of the last successful broker reconciliation, at as_of; stale "
         "true means the connection is down now and they may have changed. The picture is "
         "built at each wake and is not a fresh broker read; the execution door reads the "
