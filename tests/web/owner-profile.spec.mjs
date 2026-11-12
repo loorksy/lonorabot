@@ -180,7 +180,9 @@ test("what I know about you lists each line with its origin, corrected or delete
   const gold = known.filter({ hasText: `Trades gold ${tag}` });
   await expect(gold).toContainText("You said");
   await gold.getByRole("button", { name: "Correct the fact", exact: true }).click();
-  await page.getByLabel("Correct the fact", { exact: true }).fill(`- Trades silver ${tag}`);
+  await page
+    .getByRole("textbox", { name: "Correct the fact", exact: true })
+    .fill(`- Trades silver ${tag}`);
   await page.getByRole("button", { name: "Save", exact: true }).last().click();
   await expect(known.filter({ hasText: `Trades silver ${tag}` })).toContainText("You said");
   await known

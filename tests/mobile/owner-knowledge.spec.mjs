@@ -33,12 +33,14 @@ test("Expo Arabic what-I-know view lists origins and records corrections", async
   expect(written.ok()).toBeTruthy();
   await page.goto("/settings");
   await page.getByTestId("what-i-know").click();
-  await expect(page.getByText("ما أعرفه عنك", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("ما أعرفه عنك", { exact: true }).last()).toBeVisible();
   const lines = page.getByTestId("known-line");
   const gold = lines.filter({ hasText: `يتداول الذهب ${tag}` });
   await expect(gold).toContainText("قلتَه");
   await gold.getByRole("button", { name: "صحّح المعلومة", exact: true }).click();
-  await page.getByLabel("صحّح المعلومة", { exact: true }).fill(`- يتداول الفضة ${tag}`);
+  await page
+    .getByRole("textbox", { name: "صحّح المعلومة", exact: true })
+    .fill(`- يتداول الفضة ${tag}`);
   await page.getByRole("button", { name: "حفظ", exact: true }).click();
   await expect(lines.filter({ hasText: `يتداول الفضة ${tag}` })).toContainText("قلتَه");
   await lines

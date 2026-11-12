@@ -129,7 +129,7 @@ export default function OwnerKnowledge() {
                       hitSlop={10}
                       onPress={() => setEditing({ text: line.text, value: line.text })}
                     >
-                      <NativeSymbol name="settings" size={18} />
+                      <NativeSymbol name="edit" size={18} />
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
