@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from lonora_adapter_kit.types import ModelMessage
 
-FINANCIAL_CALLS = {"trade_execute", "trade_close_positions", "goal_step_execute"}
+FINANCIAL_CALLS = {"trade_execute", "trade_close_positions"}
 
 
 def public_broker_ids(messages: list[ModelMessage]) -> set[str]:
