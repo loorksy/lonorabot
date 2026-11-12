@@ -703,6 +703,30 @@ class TradingJournalRow(Base):
     timeline_seq: Mapped[int | None] = mapped_column(Integer)
 
 
+class ExecutionReceiptRow(Base):
+    """The Execution Receipt of one broker-confirmed operation (mandate 10.3, 11.2).
+
+    Written once, in the transaction that records the broker's confirmation; its facts are
+    read from the journal row, never from model text. It outlives the agent and the
+    conversation (3.1.2): ``agent_id`` is attribution only and the anchor is nullable.
+    """
+
+    __tablename__ = "ln_execution_receipts"
+    __table_args__ = (Index("ln_execution_receipts_thread", "thread_id", "timeline_seq"),)
+    operation_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_trading_journal.operation_id", ondelete="CASCADE"), primary_key=True
+    )
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    # The requesting agent; None for the owner's own order. No foreign key: never deleted.
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    # Where the receipt is posted (presentation only, like the journal's anchor).
+    thread_id: Mapped[str | None] = mapped_column(ForeignKey("ln_threads.id", ondelete="SET NULL"))
+    timeline_seq: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ScratchpadRow(ResourceRow):
     __tablename__ = "ln_scratchpad"
 
@@ -799,10 +823,6 @@ class ChartIndicatorRow(ResourceRow):
 
 class TradingAccountRow(ResourceRow):
     __tablename__ = "ln_trading_accounts"
-
-
-class FinancialReceiptRow(ResourceRow):
-    __tablename__ = "ln_financial_receipts"
 
 
 class EconomicCalendarRow(ResourceRow):
