@@ -61,6 +61,10 @@ EXTERNAL_TOOLS = frozenset(
         "workspace_run",
         "workspace_processes",
         "workspace_file_read",
+        # The former analytical workspace's tools: earlier Runs stored their results.
+        "workspace_read",
+        "workspace_inspect",
+        "workspace_execute",
         "skill_repository_inspect",
         "search_internal",
         "session_search",

@@ -705,6 +705,8 @@ back_to_hold() { # $1 reason
     local status=0
     if [[ -f "$HELD_BUNDLE" ]]; then
         if [[ -f "$ROLLBACK_BUNDLE" ]]; then
+            # A bundle from an older update has no overlays line: none may be left over.
+            rm -f "$STATE/overlays.env"
             tar -xzf "$ROLLBACK_BUNDLE" && restore_overlays || say "Cannot restore the deployment files from $ROLLBACK_BUNDLE."
         fi
         mv -f "$HELD_BUNDLE" "$ROLLBACK_BUNDLE" || status=1
@@ -752,6 +754,8 @@ rollback() { # $1 reason, $2 force (true|false)
             return 2
         fi
     fi
+    # A bundle from an older update has no overlays line: none may be left over.
+    rm -f "$STATE/overlays.env"
     tar -xzf "$ROLLBACK_BUNDLE" || { say "Cannot restore the previous deployment files from $ROLLBACK_BUNDLE. Fix it (disk space?), then run: sudo lonora rollback"; return 1; }
     restore_overlays || { say "Cannot restore LONORA_COMPOSE_OVERLAYS in .env (disk space?); run: sudo lonora rollback"; return 1; }
     if "$restore_db"; then

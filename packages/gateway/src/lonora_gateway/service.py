@@ -96,6 +96,8 @@ class Gateway:
         self.db, self.key, self.root = db, key, artifact_root
         self.chart_visual = chart_visual
         self.mcp_declarations = mcp_declarations
+        # Old snapshots that cannot be read, set aside until a restart (workspace_move.py).
+        self.unreadable_snapshots: set[str] = set()
         # Package run copies checked since this Gateway started (skills/run_copies.py).
         self.run_copies_checked: dict[tuple[str, str, str], bool] = {}
         self.mcp_owner_trust = mcp_owner_trust
@@ -312,7 +314,7 @@ class Gateway:
         listing = await WORKSPACE.processes(SecretScan({}))
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
-        await move_snapshots(self.db, WORKSPACE)
+        await move_snapshots(self.db, WORKSPACE, self.unreadable_snapshots)
         await restore_run_copies(self.db, WORKSPACE, self.run_copies_checked)
 
     async def morning_brief(self) -> None:

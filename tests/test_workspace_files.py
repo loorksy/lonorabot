@@ -131,9 +131,15 @@ async def test_an_unreadable_snapshot_does_not_hold_up_the_others(task_db: Any) 
     db, _, agent, _ = task_db
     async with db.sessions() as session, session.begin():
         session.add(AnalyticalWorkspaceRow(agent_id=agent, revision=1, snapshot=b'{"a": null}'))
-    workspace = FakeWorkspace()
-    assert await move_snapshots(db, workspace.client()) == 0
-    assert workspace.files == {}
+    workspace, unreadable = FakeWorkspace(), set[str]()
+    assert await move_snapshots(db, workspace.client(), unreadable) == 0
+    assert workspace.files == {} and unreadable == {agent}
     async with db.sessions() as session:
         row = await session.get(AnalyticalWorkspaceRow, agent)
         assert row is not None and row.moved_at is None and row.move_tried_at is not None
+        tried = row.move_tried_at
+    # Set aside: later ticks do not read it again; it stays in the database.
+    assert await move_snapshots(db, workspace.client(), unreadable) == 0
+    async with db.sessions() as session:
+        row = await session.get(AnalyticalWorkspaceRow, agent)
+        assert row is not None and row.move_tried_at == tried

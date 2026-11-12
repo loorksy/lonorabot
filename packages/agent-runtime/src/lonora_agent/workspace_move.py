@@ -13,6 +13,7 @@ from lonora_db.schema import AnalyticalWorkspaceRow
 from lonora_security.secrets import SecretScan
 from lonora_workspace.client import WorkspaceClient
 from sqlalchemy import select
+from sqlalchemy import true as sa_true
 
 from .skills.paths import check_files, package_path
 
@@ -54,16 +55,24 @@ MAX_TRANSFER_BYTES = 12 * 1024 * 1024
 log = logging.getLogger("lonora.workspace.move")
 
 
-async def move_snapshots(db: Database, workspace: WorkspaceClient) -> int:
+async def move_snapshots(
+    db: Database, workspace: WorkspaceClient, unreadable: set[str] | None = None
+) -> int:
     """Copy up to PER_TICK agents' files, least recently tried first; returns how many
     agents were moved. An agent whose copy did not finish is tried again after the
     others; files already copied are written again with the same bytes. An unreachable
-    supervisor ends the tick (its error propagates)."""
+    supervisor ends the tick (its error propagates). A snapshot that cannot be read is
+    logged once and left in the database: `unreadable` (kept by the caller) holds those
+    agents, so later ticks skip them."""
+    skipped = unreadable if unreadable is not None else set[str]()
     async with db.sessions() as session, session.begin():
         rows = (
             await session.scalars(
                 select(AnalyticalWorkspaceRow)
-                .where(AnalyticalWorkspaceRow.moved_at.is_(None))
+                .where(
+                    AnalyticalWorkspaceRow.moved_at.is_(None),
+                    AnalyticalWorkspaceRow.agent_id.not_in(skipped) if skipped else sa_true(),
+                )
                 .order_by(
                     AnalyticalWorkspaceRow.move_tried_at.asc().nulls_first(),
                     AnalyticalWorkspaceRow.agent_id,
@@ -83,6 +92,7 @@ async def move_snapshots(db: Database, workspace: WorkspaceClient) -> int:
         except LonoraError as error:
             # A stored snapshot that cannot be read is never moved; the others go on.
             log.warning("workspace_snapshot_unreadable agent_id=%s code=%s", agent_id, error.code)
+            skipped.add(agent_id)
             continue
         for path, data in sorted(files.items()):
             # Only the supervisor's acknowledgement comes back; there is nothing to scan.
