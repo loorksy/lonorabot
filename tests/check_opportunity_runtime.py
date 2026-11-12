@@ -497,6 +497,44 @@ async def main() -> None:
         print(
             "PASS a thesis keeps every open operation, ignores another market's and is never revived once ended"
         )
+
+        async def expired_with_position(setup: str, position_id: str) -> dict[str, Any]:
+            """A thesis acted on, whose expiry then passes before its position closes."""
+            thesis = await fresh_thesis(setup)
+            async with f.runtime.db.sessions() as session, session.begin():
+                row = await owned_opportunity(session, f.owner, thesis["id"], lock=True)
+                row.status = "acted_on"
+                row.state = {**row.state, "entry_position_id": position_id}
+                await refresh_opportunity(session, row, now=utcnow() + timedelta(hours=2))
+                assert row.status == "expired", row.status
+            return thesis
+
+        def close_row(thesis_id: str, position_id: str, status: str) -> TradingJournalRow:
+            row = journal_row(thesis_id, status, action="close_position")
+            row.request = {**row.request, "position_id": position_id, "volume": None}
+            if status == "resolved":
+                row.result = {
+                    **row.result,
+                    "code": "target_closed",
+                    "details": {"resolution": {"source": "broker_state", "basis": "target_closed"}},
+                }
+            return row
+
+        # An expired thesis still completes when its position fully closes.
+        closed = await expired_with_position("fixture-expired-close", "pos-expired-close")
+        done = await sync(close_row(closed["id"], "pos-expired-close", "confirmed"))
+        assert done["status"] == "completed", done
+        assert done["state"]["reason_code"] == "thesis_position_closed", done
+        observed = await expired_with_position("fixture-expired-observed", "pos-expired-seen")
+        seen = await sync(close_row(observed["id"], "pos-expired-seen", "resolved"))
+        assert seen["status"] == "completed", seen
+        assert seen["state"]["reason_code"] == "thesis_position_no_longer_open", seen
+        # An expired thesis is still never revived by an entry.
+        revived = await sync(journal_row(observed["id"], "confirmed"))
+        assert revived["status"] == "completed", revived
+        print(
+            "PASS an expired thesis completes when its position closes or is observed closed, and is never revived by an entry"
+        )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
         await f.close()

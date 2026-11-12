@@ -287,7 +287,7 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
             and resolution.get("basis") == "target_closed"
             and row.state.get("entry_position_id")
             and journal.request.get("position_id") == row.state.get("entry_position_id")
-            and row.status not in TERMINAL
+            and row.status != "completed"
         ):
             # Whoever closed it, the thesis position is observed closed at the broker.
             transition(
@@ -301,9 +301,11 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
     state["last_operation_id"] = journal.operation_id
     details = journal.result.get("details", {})
     row.state = state
-    if row.status in TERMINAL:
-        return  # An ended thesis records the operation and is never revived.
-    if action in ENTRY_ACTIONS and row.state.get("entry_operation_id") != journal.operation_id:
+    if (
+        action in ENTRY_ACTIONS
+        and row.status not in TERMINAL  # An ended thesis is never revived by an entry.
+        and row.state.get("entry_operation_id") != journal.operation_id
+    ):
         # An entry that may have executed (attested, or of unknown outcome) acts on the
         # thesis; a later entry is the agent's own decision and becomes its entry.
         attested = journal.status == "resolved"
@@ -340,6 +342,7 @@ async def sync_opportunity_execution(session: AsyncSession, journal: TradingJour
         and not details.get("partial_execution")
         and row.state.get("entry_position_id")
         and journal.request.get("position_id") == row.state.get("entry_position_id")
+        and row.status != "completed"
     ):
         transition(
             session,
