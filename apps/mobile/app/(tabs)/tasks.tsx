@@ -5,6 +5,7 @@ import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AgentFace, Empty, GroupBox, Row } from "../../components/shell/kit";
 import { Loading } from "../../components/ui";
+import { reportThread } from "../../lib/run-thread";
 import { useSession } from "../../lib/session";
 import { useShellData } from "../../lib/shell-data";
 import { useTheme } from "../../lib/theme";
@@ -54,7 +55,7 @@ export default function Tasks() {
                   title={agent.name}
                   sub={runStatusText(run.status, locale)}
                   onPress={() =>
-                    router.push({ pathname: "/thread", params: { id: run.thread_id } })
+                    router.push({ pathname: "/thread", params: { id: reportThread(run) } })
                   }
                 />
               );
