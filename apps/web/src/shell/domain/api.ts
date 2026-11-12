@@ -18,7 +18,6 @@ export type TaskView = {
   title: string;
   description: string;
   version: number;
-  created_at: string;
   status: "queued" | "running" | "waiting" | "paused" | "completed" | "failed" | "cancelled";
   origin_thread_id: string;
   work_thread_id: string;

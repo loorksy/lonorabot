@@ -83,7 +83,7 @@ for (const [size, viewport, cap] of [
   });
 }
 
-test("a message turned into a task leaves a durable «Task created» card that opens the task", async ({
+test("a message turned into a task says «Task created» and leaves no card in the chat", async ({
   page,
   context,
 }) => {
@@ -105,18 +105,15 @@ test("a message turned into a task leaves a durable «Task created» card that o
     await text.hover();
     await text.locator(".msg-more").click();
     await page.getByRole("menuitem", { name: "Turn into a task" }).click();
-    const card = page.locator("[data-task-id]");
-    await expect(card).toHaveCount(1);
-    await expect(card.getByText("Task created", { exact: true })).toBeVisible();
-    await expect(card.locator("strong")).toHaveText(LONG.slice(0, 160));
-    const id = await card.getAttribute("data-task-id");
-    await page.reload();
-    await expect(page.locator(`[data-task-id="${id}"]`)).toBeVisible();
-    expect((await page.locator(".msg").last().getAttribute("data-message-id")) ?? "").toBe(
-      `task:${id}`,
-    );
-    await page.getByRole("button", { name: "View task", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/app/tasks/${id}$`));
+    await expect(page.locator("#toast")).toHaveText("Task created");
+    const tasks = await (
+      await context.request.get(`/api/tasks?agent_id=${fixture.agent.id}`)
+    ).json();
+    expect(tasks.map((task) => [task.title, task.origin_thread_id])).toEqual([
+      [LONG.slice(0, 160), fixture.thread.id],
+    ]);
+    // The task is not a card of the conversation: the chat still ends at the message.
+    await expect(page.locator(".msg").last()).toHaveAttribute("data-message-id", "cards-2");
   } finally {
     await fixture.cleanup();
   }

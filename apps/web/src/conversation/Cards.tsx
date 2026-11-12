@@ -237,30 +237,6 @@ export function QuestionCard({
   );
 }
 
-/** «أُنشئت مهمة»: a Task made from this conversation, with «عرض المهمة». */
-export function TaskCard({
-  task,
-  onOpen,
-}: {
-  task: { id: string; title: string };
-  onOpen: () => void;
-}) {
-  return (
-    <div className="mcard" data-task-id={task.id}>
-      <div className="mcard-kicker">
-        <Icon name="task" />
-        <Trans>Task created</Trans>
-      </div>
-      <strong dir="auto">{task.title}</strong>
-      <div className="mcard-actions">
-        <button type="button" className="btn small" onClick={onOpen}>
-          <Trans>View task</Trans>
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /* ---- Orders (Q30): the server's operation states under the reference's names, from the
    one shared helper (core orderLineState: the executor's real TradeResult fields). «منفَّذ»
    only with evidence (a broker ticket or a verified state, or the owner's attestation). */
