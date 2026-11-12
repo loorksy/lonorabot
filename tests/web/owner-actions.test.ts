@@ -1021,3 +1021,17 @@ test("the Mandate card says a signed grant still applies within its own terms", 
     assert.ok(granted.lines.includes(ownerActionLabels[locale].mandateGrantStays));
   }
 });
+
+test("a Settle card answered Unknown stays pending with Executed and Not executed live", () => {
+  for (const locale of ["en", "ar"]) {
+    const card = ownerActionCard({ ...resolve, result: { outcome: "unknown" } }, locale, now);
+    assert.deepEqual(
+      card.buttons.map((button) => button.outcome),
+      ["executed", "not_executed"],
+    );
+    assert.match(
+      card.lines.join(" "),
+      /stays held until the outcome is known|معلّقة حتى تُعرف النتيجة/,
+    );
+  }
+});

@@ -256,7 +256,8 @@ async def test_unknown_with_the_switch_pauses_new_trades_on_the_account_until_da
         "resolve-op-paused",
         OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
     )
-    assert paused["status"] == "confirmed" and paused["result"]["outcome"] == "unknown"
+    # Unknown settles nothing: the card stays pending (6.3, 6.8).
+    assert paused["status"] == "pending" and paused["result"]["outcome"] == "unknown"
     rows = await restrictions(db, owner)
     assert len(rows) == 1
     pause = rows[0]
@@ -283,12 +284,12 @@ async def test_unknown_with_the_switch_pauses_new_trades_on_the_account_until_da
         "resolve-op-paused",
         OwnerActionDecision(decision="confirm", outcome="unknown", pause_new_today=True),
     )
-    assert again["status"] == "confirmed" and len(await restrictions(db, owner)) == 1
+    assert again["status"] == "pending" and len(await restrictions(db, owner)) == 1
     # «غير معروف» without the switch pauses nothing.
     plain = await answer(
         db, owner, "resolve-op-plain", OwnerActionDecision(decision="confirm", outcome="unknown")
     )
-    assert plain["status"] == "confirmed" and len(await restrictions(db, owner)) == 1
+    assert plain["status"] == "pending" and len(await restrictions(db, owner)) == 1
     assert "restriction_id" not in plain["result"]
 
 

@@ -2023,7 +2023,18 @@ async def confirmation_agent(session: AsyncSession, row: OwnerActionRow) -> str 
     )
 
 
-async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
+async def keep_pending(session: AsyncSession, row: OwnerActionRow, result: dict[str, Any]) -> None:
+    """An answer that settles nothing (Unknown on a Settle card): recorded on the card,
+    which stays pending; its one line goes to the conversation once."""
+    row.result, row.updated_at = result, utcnow()
+    await session.flush()
+    await owner_action_event(session, row)
+    await confirm_in_thread(session, row, answer="unknown")
+
+
+async def confirm_in_thread(
+    session: AsyncSession, row: OwnerActionRow, *, answer: str | None = None
+) -> None:
     """One server-written line in the card's conversation saying what changed, and what
     still holds new risk there (``still_holding``), read after the effect.
 
@@ -2036,9 +2047,11 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     from .messages import message_data
     from .schema import EffectReceiptRow, MessageRow
 
-    if row.status != "confirmed" or row.thread_id is None:
+    if (row.status != "confirmed" and answer is None) or row.thread_id is None:
         return
-    key = "owner-action-ack:" + row.id
+    # An answer that leaves the card pending has its own line, once.
+    suffix = "" if answer is None else ":" + answer
+    key = "owner-action-ack:" + row.id + suffix
     if await session.get(EffectReceiptRow, key):
         return
     # The agent before its conversation: the order a delete of that agent locks them in.
@@ -2051,7 +2064,7 @@ async def confirm_in_thread(session: AsyncSession, row: OwnerActionRow) -> None:
     locale = await conversation_locale(session, row.owner_id, thread.id)
     codes = [confirmation_code(row), *await still_holding(session, row)]
     message = MessageRow(
-        id=stable_id(row.id, "owner-action-ack"),
+        id=stable_id(row.id, "owner-action-ack" + suffix),
         thread_id=thread.id,
         agent_id=speaker,
         seq=thread.next_seq,

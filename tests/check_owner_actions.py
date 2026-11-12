@@ -570,8 +570,32 @@ async def main() -> None:
         )
         assert mine["facts"]["operation"]["by_agent_name"] == agent["name"]
         status, unknown = await decide(mine["id"], {"decision": "confirm", "outcome": "unknown"})
-        assert status == 200 and unknown["result"] == {"outcome": "unknown"}
+        assert status == 200 and unknown["status"] == "pending", unknown
+        assert unknown["result"] == {"outcome": "unknown"}
         assert "unknown" in (await acknowledgements(thread["id"]))[-1].lower()
+        # Unknown keeps the operation uncertain and held (6.3), so the same card stays
+        # pending: the owner can still answer Executed or Not executed (6.8).
+        await project()
+        again = [
+            row
+            for row in await cards_in(thread["id"])
+            if row["kind"] == "settle_operation"
+            and row["status"] == "pending"
+            and row["facts"]["operation"]["operation_id"]
+            == mine["facts"]["operation"]["operation_id"]
+        ]
+        assert [row["id"] for row in again] == [mine["id"]], again
+        assert again[0]["result"] == {"outcome": "unknown"}
+        async with db.sessions() as session:
+            journal = await session.get(
+                TradingJournalRow, mine["facts"]["operation"]["operation_id"]
+            )
+            assert journal is not None and journal.status == "ambiguous"
+        # A later Executed answer on the same card settles it, with its own line.
+        status, executed = await decide(mine["id"], {"decision": "confirm", "outcome": "executed"})
+        assert status == 200 and executed["status"] == "confirmed", executed
+        assert executed["result"]["outcome"] == "executed"
+        assert "executed" in (await acknowledgements(thread["id"]))[-1].lower()
         print("PASS an agent's uncertain operation raises its card in that agent's conversation")
 
         # 8. The per-agent cap and expiry.

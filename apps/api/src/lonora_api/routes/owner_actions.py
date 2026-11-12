@@ -77,6 +77,7 @@ from lonora_db.owner_actions import (
     grant_conflicts,
     grant_facts,
     grant_proposal,
+    keep_pending,
     live_status,
     lock_owner_actions,
     owned_account,
@@ -405,6 +406,8 @@ async def decide(
         )
     elif row.kind == "settle_operation":
         assert body.outcome is not None  # refused above without one
+        if body.outcome == "unknown" and row.result.get("outcome") == "unknown":
+            return  # Unknown again: already recorded; the card stays as it is.
         await attest_operation(
             session,
             owner.id,
@@ -427,6 +430,11 @@ async def decide(
             # «أوقف الصفقات الجديدة اليوم» (Q11): the owner's own pause on the account
             # until the trading day ends there. It only narrows; one tap lifts it.
             result["restriction_id"] = await pause_new_today(session, owner, row)
+        if body.outcome == "unknown":
+            # Still uncertain, still held, still reconciled (6.3): the card stays the
+            # owner's way to answer Executed or Not executed later (6.8).
+            await keep_pending(session, row, {**row.result, **result})
+            return
     elif row.kind in MODEL_CARD_KINDS:
         result = await confirm_model_card(session, row)
     elif row.kind == "grant_authority":

@@ -1515,6 +1515,11 @@ export function ownerActionCard(
           primary: false,
         },
       ];
+      if (card.result.outcome === "unknown") {
+        // Answered Unknown: still uncertain and held; Executed or Not executed remain.
+        lines.push(text.recordedUnknown);
+        buttons = buttons.filter((button) => button.outcome !== "unknown");
+      }
       break;
     }
     case "create_agent": {
