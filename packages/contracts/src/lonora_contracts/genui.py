@@ -39,8 +39,6 @@ MAX_FACTS = 24
 MAX_CHILDREN = 8
 MAX_DEPTH = 4
 KEY = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")
-# A client route name (``chat-prefs``); the compile step checks it against the routes.
-ROUTE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 BLOCKED_KEYS = frozenset({"__proto__", "prototype", "constructor"})
 KINDS = (
     "calculator",
@@ -234,8 +232,7 @@ def _action(value: Any) -> bool:
             and isinstance(value.get("lock", True), bool)
         )
     if kind == "go":
-        route = value.get("route")
-        return set(value) <= {"do", "route"} and isinstance(route, str) and bool(ROUTE.match(route))
+        return set(value) <= {"do", "route"} and _key(value.get("route"))
     if kind == "set":
         return set(value) <= {"do", "key", "value"} and _key(value.get("key"))
     if kind == "toggle":

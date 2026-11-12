@@ -374,13 +374,13 @@ export function ScheduleList({ agentId }: { agentId?: string }) {
   );
 }
 
-/** «المهام المجدولة» of one agent, or of all of them. */
+/** «المهام المجدولة» of one agent. */
 export function SchedulesPage() {
   const agent = useAgentParam();
   const nav = useNavigation();
   return (
     <div className="domain-page">
-      <ScheduleList agentId={agent?.id} />
+      {agent && <ScheduleList agentId={agent.id} />}
       <button
         type="button"
         className="btn full outline"

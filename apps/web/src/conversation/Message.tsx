@@ -27,7 +27,6 @@ import {
 } from "./context";
 import { GenUiPart, GenUiSubmitQuote, hasGenUi } from "./GenUiPart";
 import { TextBody } from "./Markdown";
-import { useChatPrefs } from "./prefs";
 import { UploadRing } from "./UploadRing";
 import { VoiceNote, voiceFmt } from "./Voice";
 
@@ -372,12 +371,8 @@ export function Message({
     dx: number;
   } | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const prefs = useChatPrefs();
   // The streaming preview flows a word at a time; a finished reply is shown whole.
-  const paced = useRevealedText(
-    live?.text ?? "",
-    Boolean(live?.streaming) && prefs.stream && !reducedMotion(),
-  );
+  const paced = useRevealedText(live?.text ?? "", Boolean(live?.streaming) && !reducedMotion());
   if (callPart(message)) return <CallBubble message={message} />;
   const mine = message.role === "user";
   const agent = ctx.agents.find((row) => row.id === message.agent_id);
@@ -394,13 +389,6 @@ export function Message({
       Boolean(
         live?.rich && partsOf({ ...message, rich_content: live.rich }).some((p) => p.type === "ui"),
       ));
-  // «عناصر تفاعلية في الردود» off, or «عرض كنص» on this message: the card's own text
-  // instead (the same facts). A card with no text yet stays a card.
-  const asText =
-    genUi &&
-    (!prefs.genui || ctx.textIds.has(message.id)) &&
-    Boolean((live ? live.text : message.content).trim());
-  const showUi = genUi && !asText;
   const superseded = Boolean(message.superseded_by);
   const submitted = mine && message.origin === "ui_submit";
   const images = message.attachment_ids.some((id) => isImage(ctx.artifacts.get(id)));
@@ -408,14 +396,14 @@ export function Message({
     ? ` k-card${cardKind && cardKind !== "card" ? ` k-${cardKind}` : ""}`
     : voice
       ? " k-voice"
-      : showUi
+      : genUi
         ? " k-ui"
         : images
           ? " k-image"
           : "";
   const bubbleClass = card
     ? "wide"
-    : showUi
+    : genUi
       ? "wide ui-bubble"
       : voice
         ? "voice-bubble"
@@ -449,7 +437,7 @@ export function Message({
         )}
       </span>
     );
-  else if (showUi)
+  else if (genUi)
     body = (
       <GenUiPart
         message={
@@ -473,7 +461,6 @@ export function Message({
         <TextBody
           text={text}
           agent={!mine}
-          markdown={prefs.markdown}
           mentions={ctx.mentions}
           caret={Boolean(live?.streaming)}
         />

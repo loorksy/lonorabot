@@ -3,8 +3,7 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
 /* «تجربة المحادثة» (reference chatPrefsPage and streamAnswer, Desktop-37 5753-5830): the
-   page's sections and rows in the reference's order, and what each switch does to a reply:
-   the stream, its pacing, the formatting and the vibration. */
+   page's sections and rows, and a streaming reply's pacing. */
 function fixture(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_streaming.py", "browser"], {
@@ -32,7 +31,7 @@ const prefs = (context, value, locale = "en") =>
     [value, locale],
   );
 
-test("the page: the reference's sections and rows, a dependent switch, and the vibration gate", async ({
+test("the page: its sections and rows, a dependent switch, and the choices kept", async ({
   page,
   context,
 }) => {
@@ -51,53 +50,29 @@ test("the page: the reference's sections and rows, a dependent switch, and the v
     })),
   );
   await prefs(context, {});
-  // Recorded before the app wraps it: what really reaches the device.
-  await context.addInitScript(() => {
-    window.__vibrated = [];
-    navigator.vibrate = (pattern) => {
-      window.__vibrated.push(pattern);
-      return true;
-    };
-  });
   await page.goto("/app/chat-prefs");
-  await expect(page.locator("main h3")).toHaveText([
-    "Replies",
-    "Interactive interfaces",
-    "Agents",
-    "Writing",
-    "Touch",
-  ]);
+  await expect(page.locator("main h3")).toHaveText(["Replies", "Agents", "Writing"]);
   const rows = page.getByRole("switch");
-  await expect(rows).toHaveCount(10);
+  await expect(rows).toHaveCount(5);
   expect(
     await rows.evaluateAll((list) => list.map((row) => row.getAttribute("aria-label"))),
   ).toEqual([
-    "Stream the reply word by word",
     "The agent's work steps",
     "Open the steps automatically",
-    "Formatted replies",
-    "Interactive elements in replies",
-    "Why this interface",
     "Detailed agent status",
     "Send with Enter",
     "@ suggestions",
-    "Vibration",
   ]);
-  // «سبب اختيار الواجهة» depends on the interfaces themselves.
-  const why = page.getByRole("switch", { name: "Why this interface" });
-  await expect(why).toBeEnabled();
-  await page.getByRole("switch", { name: "Interactive elements in replies" }).click();
-  await expect(why).toBeDisabled();
-  // «الاهتزاز» off: nothing vibrates, whoever asks.
-  expect(await page.evaluate(() => navigator.vibrate(7))).toBe(true);
-  const vibration = page.getByRole("switch", { name: "Vibration" });
-  await vibration.click();
-  await expect(vibration).toHaveAttribute("aria-checked", "false");
-  expect(await page.evaluate(() => navigator.vibrate(9))).toBe(false);
-  expect(await page.evaluate(() => window.__vibrated)).toEqual([7]);
+  // «فتح الخطوات تلقائياً» depends on the steps themselves.
+  const open = page.getByRole("switch", { name: "Open the steps automatically" });
+  await expect(open).toBeEnabled();
+  const steps = page.getByRole("switch", { name: "The agent's work steps" });
+  await steps.click();
+  await expect(steps).toHaveAttribute("aria-checked", "false");
+  await expect(open).toBeDisabled();
   // The choices are kept on this device.
   await page.reload();
-  await expect(page.getByRole("switch", { name: "Vibration" })).toHaveAttribute(
+  await expect(page.getByRole("switch", { name: "The agent's work steps" })).toHaveAttribute(
     "aria-checked",
     "false",
   );
@@ -105,8 +80,7 @@ test("the page: the reference's sections and rows, a dependent switch, and the v
   // In Arabic the section is «الكتابة», not the typing status «يكتب».
   await page.evaluate(() => localStorage.setItem("lonora.locale", "ar"));
   await page.reload();
-  await expect(page.locator("main h3").nth(3)).toHaveText("الكتابة");
-  await expect(page.locator("main h3").nth(4)).toHaveText("اللمس");
+  await expect(page.locator("main h3").nth(2)).toHaveText("الكتابة");
   execFileSync(".venv/bin/python", ["tests/agent_pages_browser.py"], {
     input: JSON.stringify({ ...owner, groups: [], agents: [], action: "cleanup" }),
     encoding: "utf8",
@@ -137,41 +111,6 @@ test("a streaming reply flows a word at a time and a finished one is shown whole
     await expect(preview).toHaveCount(0);
     await expect(page.getByTestId("transcript")).toContainText("chunk-169");
     await expect(page.locator(".caret")).toHaveCount(0);
-  } finally {
-    fixture({ ...data, action: "cleanup" });
-  }
-});
-
-test("with «بث الرد» off the reply lands whole; with «تنسيق الردود» off it is plain text", async ({
-  page,
-  context,
-}) => {
-  test.setTimeout(60_000);
-  const data = fixture({ action: "init" });
-  await login(context);
-  await prefs(context, { stream: false, markdown: false });
-  try {
-    await page.goto(`/app/g/${data.group}`);
-    // The run works (its row and ■ show) but no text is painted while it streams.
-    await expect(page.locator("form .stop")).toBeVisible();
-    await expect(page.locator(`[data-stream-run-id='${data.run.id}']`)).toHaveCount(0);
-    await expect(page.getByTestId("transcript")).not.toContainText("START durable browser prefix");
-    const text = "# Weekly plan\n\n- first step\n- second step";
-    fixture({ ...data, action: "complete", text });
-    const reply = page.locator(".msg:not(.mine)").last();
-    await expect(reply).toContainText("first step");
-    // Formatting off: the marks stay as typed, with no heading and no list.
-    await expect(reply).toContainText("# Weekly plan");
-    await expect(reply.locator(".md, h1, h2, h3, ul")).toHaveCount(0);
-
-    // Formatting back on (the default): the same reply is laid out.
-    await page.evaluate(() =>
-      localStorage.setItem("lonora.chatPrefs", JSON.stringify({ stream: false })),
-    );
-    await page.reload();
-    const laid = page.locator(".msg:not(.mine)").last();
-    await expect(laid.locator(".md")).toHaveCount(1);
-    await expect(laid.locator("li")).toHaveText(["first step", "second step"]);
   } finally {
     fixture({ ...data, action: "cleanup" });
   }

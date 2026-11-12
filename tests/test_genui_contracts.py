@@ -230,22 +230,6 @@ def test_a_literal_send_value_is_data_and_a_bad_action_drops_its_button() -> Non
     assert card.blocks[0]["action"]["data"]["watch_id"].startswith("47a32ccd")
 
 
-def test_a_go_route_keeps_its_hyphen_and_a_malformed_route_drops_its_button() -> None:
-    raw = "\n".join(
-        [
-            '{"v":2,"kind":"receipt","title":"Alert active","icon":"check"}',
-            '{"type":"Row","children":['
-            '{"type":"Button","label":"Prefs","action":{"do":"go","route":"chat-prefs"}},'
-            '{"type":"Button","label":"Odd","action":{"do":"go","route":"../admin"}},'
-            '{"type":"Button","label":"Dash","action":{"do":"go","route":"-x"}}]}',
-            '{"why":"w","fallback":"f"}',
-        ]
-    )
-    card = parse_lines(raw, final=True)
-    assert [b["label"] for b in card.blocks[0]["children"]] == ["Prefs"]
-    assert card.blocks[0]["children"][0]["action"] == {"do": "go", "route": "chat-prefs"}
-
-
 def test_function_arity_is_the_shared_fixture() -> None:
     """Both evaluators refuse a call outside a function's arity (``functions.ts`` ARITY)."""
     from lonora_contracts.genui_functions import ARITY

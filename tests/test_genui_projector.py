@@ -290,7 +290,7 @@ def test_v2_prompt_block_is_bounded_generated_and_off_by_default(
     assert "{vocabulary}" not in block and native_visual_policy() == block
     assert capabilities().block() == (
         "<lonora_ui_capabilities>\nintents: ask, alert.create, alert.off\ndelivery: app\n"
-        "go: market, tasks, schedules, usage, chat-prefs, files, agents\n"
+        "go: market, tasks, usage, files, agents\n"
         "timezone: UTC · language: ar\n</lonora_ui_capabilities>"
     )
 

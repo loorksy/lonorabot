@@ -7,7 +7,6 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ChartRenderBridge } from "./components/charts/ChartRenderBridge";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { gateHaptics } from "./conversation/prefs";
 import { activateLocale } from "./i18n/config";
 import { A11Y_DEFAULTS, applyA11y, readDevicePref } from "./shell/settings/device-prefs";
 import "./styles.css";
@@ -20,8 +19,6 @@ const rendererLocale =
 activateLocale((rendererLocale ?? localStorage.getItem("lonora.locale")) === "en" ? "en" : "ar");
 // «سهولة الاستخدام» applies from the first paint.
 applyA11y(readDevicePref("a11y", A11Y_DEFAULTS));
-// «الاهتزاز» off silences every vibration, from the first one.
-gateHaptics();
 const root = document.getElementById("root");
 if (!root) throw new Error("root_element_missing");
 ReactDOM.createRoot(root).render(

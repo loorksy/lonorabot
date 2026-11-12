@@ -15,7 +15,6 @@ import {
 } from "@lonora/core";
 import { ICON_PATHS, Icon, type IconName } from "@lonora/ui-web";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useChatPrefs } from "../../conversation/prefs";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useNavigation } from "../../shell/navigation";
@@ -25,11 +24,9 @@ import { type UiPartHost, useGenuiHost } from "./index";
 const ROUTES: Record<string, string> = {
   market: "/app/market",
   tasks: "/app/tasks",
-  schedules: "/app/routines",
   agents: "/app/agents",
   files: "/app/artifacts",
-  usage: "/app/usage",
-  "chat-prefs": "/app/chat-prefs",
+  usage: "/app/settings?tab=usage",
 };
 const STALE_MS = 120_000;
 
@@ -407,7 +404,6 @@ export default function UiCard({
   const saved = message?.ui_state?.parts?.[String(index)]?.values;
   const [values, setValues] = useState<Values>(() => ({ ...doc.state, ...(saved ?? {}) }));
   const [whyOpen, setWhyOpen] = useState(false);
-  const prefs = useChatPrefs();
   const [invalid, setInvalid] = useState<string | null>(null);
   const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set());
   // Stable, so a field's cleanup on hide or unmount runs only then.
@@ -552,9 +548,7 @@ export default function UiCard({
   const title = renderTemplate(doc.title, env);
   // Stopped before any block was built: no card, its fallback text (review E2).
   if (part.cut === 0) return <p className="ux-fallback">{doc.fallback}</p>;
-  // «سبب اختيار الواجهة» off hides the button and its panel, never the sent lock.
-  const why = prefs.genuiWhy ? doc.why : "";
-  const showFoot = !building && (locked || why || part.cut !== undefined);
+  const showFoot = !building && (locked || doc.why || part.cut !== undefined);
   const sources = Object.values(doc.facts).filter((fact) => fact.value !== null);
   return (
     // biome-ignore lint/a11y/useSemanticElements: the reference's card is a labelled group
@@ -616,7 +610,7 @@ export default function UiCard({
               <span>{t`You stopped the reply before the interface was complete`}</span>
             </span>
           )}
-          {why && (
+          {doc.why && (
             <button
               type="button"
               className="ux-why-b"
@@ -629,9 +623,9 @@ export default function UiCard({
           )}
         </div>
       )}
-      {showFoot && why && whyOpen && (
+      {showFoot && doc.why && whyOpen && (
         <p className="ux-why">
-          {why}
+          {doc.why}
           {sources.length > 0 && (
             <span className="ux-sources">
               {t`Sources`}: {[...new Set(sources.map((fact) => fact.source))].join("، ")}

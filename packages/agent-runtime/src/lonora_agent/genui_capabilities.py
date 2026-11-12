@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from lonora_contracts.genui_intents import S_A01_INTENTS
 
 # Client routes that exist today (the web shell maps each to its page).
-ROUTES = ("market", "tasks", "schedules", "usage", "chat-prefs", "files", "agents")
+ROUTES = ("market", "tasks", "usage", "files", "agents")
 OPEN_KINDS = ("agent", "journal", "task", "operation", "watch", "message", "chart", "artifact")
 
 

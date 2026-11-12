@@ -57,8 +57,6 @@ export type ConversationApi = {
   onJump: (messageId: string) => void;
   onOpenImage: (artifact: Resource) => void;
   onOpenFile: (artifact: Resource) => void;
-  /** Card messages the owner asked to read as text («عرض كنص»), for this visit. */
-  textIds: ReadonlySet<string>;
   onMenu: (message: ConversationMessage, anchor: HTMLElement) => void;
   onReactPicker: (message: ConversationMessage, anchor: HTMLElement) => void;
   onReactionList: (message: ConversationMessage, anchor: HTMLElement) => void;
