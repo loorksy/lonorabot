@@ -2,7 +2,6 @@ Superseded by VISION.md
 
 # Supervision: Lonora sees everything, peers stay private
 
-Corrections 1, 3 and 15 (`docs/lonora-specs/MANDATE_CORRECTIONS.md`) and `VISION.md`:
 Lonora, the Personal Agent, supervises every agent by default. It reads their work and
 memory on demand, messages them and pauses or resumes their work. The owner sees every
 grant and revokes any of them with one tap. Any agent becomes "supervises X and Y" from

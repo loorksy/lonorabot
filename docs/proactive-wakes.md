@@ -2,8 +2,7 @@ Superseded by VISION.md
 
 # Proactive wakes that can act, and reading without walls
 
-Wave 1.5 slice W15-7 (corrections 1, 25 and 26 in
-`docs/lonora-specs/MANDATE_CORRECTIONS.md`). Agents react to events in their own
+Agents react to events in their own
 responsibilities and read all of the owner's data. Only money stays gated.
 
 ## Observe-only means no financial effects

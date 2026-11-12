@@ -1,4 +1,4 @@
-"""The acceptance harness (OWNER_BRIEF §8), deterministic layer: no model, no network.
+"""The acceptance harness, deterministic layer: no model, no network.
 
 The scorer's rules on the real replies of the owner's conversation and on good replies, the
 fake MetaApi terminal under the real adapter, the scenario bank's integrity, and the
@@ -675,7 +675,7 @@ def test_only_a_registered_fake_account_is_ever_connected():
 
 # --- The bank -----------------------------------------------------------------------------
 
-# Every problem message of OWNER_BRIEF §2 and §8, by its number in the conversation.
+# Every problem message of the owner's conversation, by its number in the conversation.
 PROBLEM_TURNS = [1, 9, 11, 13, 15, 17, 23, 28, 30, 34, 36, 38, 40, 42, 46] + [
     48,
     50,

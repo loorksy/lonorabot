@@ -19,8 +19,7 @@ and across all of them it checks four properties:
 4. No credential value appears in a message, an event, a card, a Run or anything the
    model was sent.
 
-No live broker, model provider, MetaApi account or real device is involved. What still
-needs one is recorded in ``docs/lonora-specs/MANDATE_EXECUTION_PLAN.md``.
+No live broker, model provider, MetaApi account or real device is involved.
 """
 
 import asyncio

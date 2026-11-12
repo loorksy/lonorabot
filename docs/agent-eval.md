@@ -2,12 +2,10 @@ Superseded by VISION.md
 
 # Agent acceptance evaluation
 
-Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks
-(`docs/research/OWNER_BRIEF.md` on the research branch, §8 «القبول»). Every problem message of
+Measures whether Lonora behaves as the owner's brief of 2026-11-11 asks. Every problem message of
 the owner's conversation with Lonora on production is one scenario: his words exactly as he
 wrote them, the state before them, and the outcome he expects. The state follows the
-production trace of that conversation (`docs/research/evidence/production-trace-2026-11-11.md`
-on the research branch). This page says how to run the
+production trace of that conversation. This page says how to run the
 harness, what each scenario checks, and what `main` scores today: the "before" column of the
 before/after report.
 

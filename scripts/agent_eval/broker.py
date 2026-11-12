@@ -1,6 +1,6 @@
 """A fake MetaApi terminal under Lonora's real MetaApi adapter.
 
-Acceptance-harness support (OWNER_BRIEF §8). ``FakeTerminal`` holds one demo account the way
+Acceptance-harness support. ``FakeTerminal`` holds one demo account the way
 the owner's broker shows it: suffixed symbols (XAUUSDm, EURUSDm, ...), quotes, candles on
 every timeframe, contract specifications, positions, pending orders, modify and close. It
 answers in MetaApi's own shapes and raises the SDK's own exceptions, and

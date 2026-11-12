@@ -45,7 +45,7 @@ capacity source, the admitted limit, the transport limit and how many omission
 notices the request carried.
 
 Estimates use the verified offline tokenizer cache when present (see
-`docs/lonora-specs/CONTEXT_BUDGETING.md`) and UTF-8 bytes otherwise. Bytes
+`docs/context-budgeting.md`) and UTF-8 bytes otherwise. Bytes
 overestimate tokens, so a missing cache compacts and sheds earlier.
 
 ## Admission degrades instead of failing

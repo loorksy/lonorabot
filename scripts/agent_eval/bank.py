@@ -1,4 +1,4 @@
-"""The acceptance scenario bank (OWNER_BRIEF §8) and the state each scenario starts from.
+"""The acceptance scenario bank and the state each scenario starts from.
 
 Every problem message of the owner's conversation of 2026-11-11 is one scenario in
 tests/fixtures/agent_eval/scenarios.json: the owner's words exactly as he wrote them, the
