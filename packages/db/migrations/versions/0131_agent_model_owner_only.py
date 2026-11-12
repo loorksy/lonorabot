@@ -27,7 +27,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0131_agent_model_owner_only"
-down_revision = "0176_weekly_reports"
+down_revision = "0090_routine_work_threads"
 branch_labels = None
 depends_on = None
 

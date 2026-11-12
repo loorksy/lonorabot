@@ -41,7 +41,7 @@ from typing import Any, Literal
 from lonora_core.user_error import LonoraError
 from lonora_db.memory import MEMORY_CHAR_LIMIT
 
-from .guard import AUTHORITY_RECOVERY, authority_claims
+from .guard import DISCLOSURE_RECOVERY, disclosure_claims
 from .markdown_memory import normalize_memory
 from .profile import VIEW_HEADING, operating_notes
 
@@ -302,16 +302,16 @@ def guarded_text(document: str, *, profile: bool) -> str:
     return document if profile else operating_notes(document)
 
 
-def new_authority_claim(before: str, after: str, *, profile: bool) -> str | None:
-    """An authority statement ``after`` adds to guided text; one already there is not new."""
-    added = Counter(authority_claims(guarded_text(after, profile=profile)))
-    added.subtract(Counter(authority_claims(guarded_text(before, profile=profile))))
+def new_disclosure_claim(before: str, after: str, *, profile: bool) -> str | None:
+    """A disclosure line ``after`` adds to guided text; one already there is not new."""
+    added = Counter(disclosure_claims(guarded_text(after, profile=profile)))
+    added.subtract(Counter(disclosure_claims(guarded_text(before, profile=profile))))
     return next((claim for claim, count in added.items() if count > 0), None)
 
 
-def authority_refusal(index: int, claim: str) -> "MemoryEditError":
+def disclosure_refusal(index: int, claim: str) -> "MemoryEditError":
     return MemoryEditError(
-        "memory_authority_claim_refused", index, statement=claim, recovery=AUTHORITY_RECOVERY
+        "memory_disclosure_refused", index, statement=claim, recovery=DISCLOSURE_RECOVERY
     )
 
 
@@ -327,7 +327,7 @@ def apply_edits(
 
     A batch that changes nothing returns the stored document itself, so the
     caller keeps the current revision instead of committing an identical one.
-    An operation that adds an authority statement to operating notes (or to the
+    An operation that adds a disclosure line to the method (or to the
     owner profile) rejects the whole batch.
     """
     original = normalize_memory(document)
@@ -335,8 +335,8 @@ def apply_edits(
     applied: list[dict[str, Any]] = []
     for index, edit in enumerate(edits):
         current, outcome = apply_edit(current, edit, index, profile=profile)
-        if claim := new_authority_claim(original, current, profile=profile):
-            raise authority_refusal(index, claim)
+        if claim := new_disclosure_claim(original, current, profile=profile):
+            raise disclosure_refusal(index, claim)
         applied.append(outcome)
     if current == original:
         return document, applied

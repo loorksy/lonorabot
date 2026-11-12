@@ -77,6 +77,8 @@ LIFETIME = {
     "supervision_paused": timedelta(days=31),
     # Connect an account or credential (W15-8).
     "connect_credential": timedelta(days=7),
+    # The Secret card: it waits as long as a credential card did.
+    "secret": timedelta(days=7),
     # Changes an agent made without asking (Q31): Undo of an extended watch, and the
     # notice of a tightened stop (recorded settled, nothing to tap).
     "watch_changed": timedelta(days=7),
@@ -303,6 +305,8 @@ async def stale_reason(
         return await watch_change_stale(session, owner_id, payload)
     if kind == "stop_tightened":
         return "nothing_to_undo"
+    if kind == "secret":
+        return None  # A credential is checked when the owner saves it.
     if kind == "supervision_paused":
         hold = await _live_pause(session, owner_id, payload)
         if hold is None:
@@ -602,6 +606,10 @@ def proposal_payload(
     if proposal.kind == "resolve_operation":
         assert proposal.operation_id is not None
         return "operation:" + proposal.operation_id, {"operation_id": proposal.operation_id}
+    if proposal.kind == "secret":
+        from .secret_cards import secret_card_payload
+
+        return secret_card_payload(proposal)
     if proposal.kind == "connect_credential":
         from .capability_cards import credential_payload
 
@@ -715,6 +723,12 @@ async def card_facts(
         from .notice_cards import notice_facts
 
         return await notice_facts(session, row, facts), False
+    if row.kind == "secret":
+        from .secret_cards import secret_facts
+
+        names = await agent_names(session, owner_id, {row.agent_id})
+        facts["secret"] = secret_facts(payload, names.get(row.agent_id or ""))
+        return facts, False
     if row.kind == "connect_credential":
         from .capability_cards import card_facts as capability_facts
 
@@ -1911,6 +1925,10 @@ CONTINUE_TRIGGER = "owner_card"
 def continue_prompt(row: OwnerActionRow) -> str:
     """Fixed text and server-checked identifiers only (a connection id, a target name):
     nothing the model wrote reaches the system role."""
+    if row.kind == "secret":
+        from .secret_cards import saved_prompt
+
+        return saved_prompt(row)
     if row.payload["target"] == "mcp_server":
         return (
             "The owner connected an MCP server (connection_id="

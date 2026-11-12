@@ -4,7 +4,7 @@
 #
 #   sudo bash install.sh --domain lonora.example.com [--version v0.3.0] [--home /opt/lonora]
 #                        [--project lonora] [--behind-proxy 127.0.0.1:18030]
-#                        [--min-free-ram-mb 2560] [--min-free-disk-gb 10] [--no-systemd]
+#                        [--min-free-ram-mb 3584] [--min-free-disk-gb 10] [--no-systemd]
 #
 #   --project       Compose project name: prefixes every container, volume and network, so
 #                   this installation can run beside another one (default: lonora).
@@ -35,7 +35,7 @@ ENV_FROM_KEYS=" LONORA_DOMAIN LONORA_ENCRYPTION_KEY LONORA_BOOTSTRAP_TOKEN LONOR
  LONORA_OPENAI_API_KEY LONORA_ANTHROPIC_API_KEY LONORA_DEEPSEEK_API_KEY LONORA_ZAI_API_KEY LONORA_OPENROUTER_API_KEY
  LONORA_OPENAI_COMPATIBLE_BASE_URL LONORA_OPENAI_COMPATIBLE_API_KEY "
 ENV_FROM_KEYS=" ${ENV_FROM_KEYS//$'\n'/ } "   # one space around every name, for the " $name " match
-min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-2560}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-10}"
+min_ram_mb="${LONORA_MIN_FREE_RAM_MB:-3584}" min_disk_gb="${LONORA_MIN_FREE_DISK_GB:-10}"
 repo="${LONORA_IMAGE_REPO:-ghcr.io/loorksy/lonorabot}"
 domain_given=false
 while (($#)); do
@@ -129,7 +129,6 @@ else
 fi
 for overlay in $overlays; do
     case "$overlay" in
-        infra/research/compose.research.yml) check true "overlay $overlay (adds about 1.1 GB)" ;;
         infra/analysis/compose.workspace.yml)
             if [[ -S /run/lonora-analysis/host.sock ]]; then check true "overlay $overlay: workspace host socket /run/lonora-analysis/host.sock is up"
             else say "  warn  overlay $overlay: /run/lonora-analysis/host.sock is missing; Lonora starts, analysis stays unavailable until lonora-analysis.service runs"; fi ;;
@@ -150,7 +149,7 @@ if [[ -n "$env_from" ]]; then
     if ((bad > 0)); then problems=$((problems + bad)); else check true "--env-from $env_from: $number lines, all readable"; fi
 fi
 ram_mb=$(($(sed -n 's/^MemAvailable: *\([0-9]*\) kB/\1/p' /proc/meminfo) / 1024))
-if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 2.3 GB)"; fi
+if ((ram_mb >= min_ram_mb)); then check true "available memory ${ram_mb} MB (need ${min_ram_mb} MB)"; else check false "available memory ${ram_mb} MB, below ${min_ram_mb} MB (the stack is limited to about 3.4 GB)"; fi
 disk_dir="$(existing_dir "$home")"
 disk_gb=$(($(df -Pm "$disk_dir" | awk 'NR==2 {print $4}') / 1024))
 if ((disk_gb >= min_disk_gb)); then check true "free disk ${disk_gb} GB at $disk_dir (need ${min_disk_gb} GB)"; else check false "free disk ${disk_gb} GB at $disk_dir, below ${min_disk_gb} GB"; fi
@@ -196,11 +195,12 @@ LONORA_POSTGRES_PASSWORD=$(random 24 | tr '+/' 'xy' | tr -d '=')
 LONORA_ENCRYPTION_KEY=$(random 32 | tr '+/' '-_')
 LONORA_BOOTSTRAP_TOKEN=$(random 32 | tr '+/' '-_' | tr -d '=')
 LONORA_WEBHOOK_SECRET=$(random 32 | tr '+/' '-_' | tr -d '=')
-# Optional overlays, space separated, e.g. infra/research/compose.research.yml (adds ~1.1 GB)
+# Optional overlays, space separated, e.g. infra/analysis/compose.workspace.yml
 LONORA_COMPOSE_OVERLAYS=$overlays
-# Resource limits (defaults shown; about 2.3 GB in all):
+# Resource limits (defaults shown; about 3.4 GB in all):
 # LONORA_DB_MEMORY=512m LONORA_DB_CPUS=0.5 LONORA_API_MEMORY=896m LONORA_API_CPUS=0.75
 # LONORA_GATEWAY_MEMORY=768m LONORA_GATEWAY_CPUS=0.75 LONORA_CADDY_MEMORY=96m LONORA_CADDY_CPUS=0.25
+# LONORA_SEARXNG_MEMORY=384m LONORA_SEARXNG_CPUS=0.25 LONORA_BROWSER_MEMORY=768m LONORA_BROWSER_CPUS=0.5
 # Optional provider keys; the owner can also save encrypted keys in the Web settings.
 LONORA_OPENAI_API_KEY=
 LONORA_ANTHROPIC_API_KEY=

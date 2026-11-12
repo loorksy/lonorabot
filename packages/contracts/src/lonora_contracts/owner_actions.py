@@ -7,12 +7,13 @@ a money limit) also needs a verified passkey assertion bound to the card's paylo
 """
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 
 from .account_authority import ALL_AUTHORITY_ACTIONS, AuthorityAction
+from .agent_secrets import WORKSPACE_SECRET_NAME
 from .devices import DeviceProof
 from .domain import Contract
 
@@ -24,6 +25,9 @@ OwnerActionKind = Literal[
     "set_account_limits",
     "grant_authority",
     "connect_credential",
+    # The Secret card (mandate 10.3, 7.2): fields the agent chooses; the owner's values go
+    # straight to the encrypted store as workspace secrets; the agent learns "saved".
+    "secret",
 ]
 # Notices of a change an agent made without asking (Q31): "watch_changed" offers Undo of
 # an extended watch (one use, while the watch is as the agent left it); "stop_tightened"
@@ -49,6 +53,26 @@ MoneyLimitName = Literal[
 AttestedOutcome = Literal["executed", "not_executed", "unknown"]
 # The owner's statement when the card's optional note is left empty.
 CARD_ATTESTATION = "Owner attested via chat card; not broker confirmation."
+
+
+class SecretField(Contract):
+    """One field of a Secret card: its key names the saved value (an environment variable
+    name), its label is shown to the owner; ``secret`` masks it while it is typed.
+    Every value is stored encrypted, whatever ``secret`` says."""
+
+    key: str = Field(pattern=WORKSPACE_SECRET_NAME)
+    label: str = Field(min_length=1, max_length=60)
+    secret: bool = True
+
+
+class SecretCardSave(Contract):
+    """The owner's values for a Secret card's fields, by key; they go to the encrypted
+    store and are never kept on the card, in an event or in the conversation."""
+
+    values: dict[
+        Annotated[str, Field(pattern=WORKSPACE_SECRET_NAME)],
+        Annotated[str, Field(min_length=1, max_length=16000)],
+    ] = Field(min_length=1, max_length=8)
 
 
 class OwnerActionProposal(Contract):
@@ -85,14 +109,34 @@ class OwnerActionProposal(Contract):
     # connect_credential: the form to offer; service "x" for an X MCP server (D3).
     target: CredentialTarget | None = None
     service: Literal["x"] | None = None
+    # secret: the card's label and its fields, in the owner's language. Each value is
+    # saved under its field's key, the name agents use for it.
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    secret_fields: list[SecretField] | None = Field(default=None, min_length=1, max_length=8)
 
     @model_validator(mode="after")
     def fields_for_kind(self) -> "OwnerActionProposal":
+        if self.kind == "secret":
+            return self.secret_card_fields()
+        if self.label is not None or self.secret_fields is not None:
+            raise ValueError("owner_action_fields_invalid")
         if self.kind == "connect_credential":
             return self.capability_fields()
         if self.target is not None or self.service is not None:
             raise ValueError("owner_action_fields_invalid")
         return self.trading_fields()
+
+    def secret_card_fields(self) -> "OwnerActionProposal":
+        if (
+            self.model_dump(exclude={"kind", "label", "secret_fields"}, exclude_defaults=True)
+            or self.label is None
+            or self.secret_fields is None
+        ):
+            raise ValueError("owner_action_fields_invalid")
+        keys = [field.key for field in self.secret_fields]
+        if len(set(keys)) != len(keys):
+            raise ValueError("owner_action_secret_fields_duplicate")
+        return self
 
     def capability_fields(self) -> "OwnerActionProposal":
         if (
