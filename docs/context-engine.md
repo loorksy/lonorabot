@@ -56,14 +56,11 @@ overestimate tokens, so a missing cache compacts and sheds earlier.
 2. The newest exchange, with oversized result bodies reduced to their effect
    identities in the working copy (never dropped, never split).
 3. Optional first-party blocks, each whole, in message order: the capability
-   inventory, goal details (`lonora_goal_details`: objectives, current-step
-   instructions, nearby step titles), recorded decisions and theses
+   inventory, recorded decisions and theses
    (`lonora_recorded_decisions`), operational observations
    (`lonora_operational_observations`), the domain policy chapters and the
    visual observation catalog (system role, marked `runtime_context`). Server
-   enforcement never depends on them; each goal's core (identity, status, scope
-   limits, current step and the operation/broker IDs of nearby steps) stays in
-   the mandatory system text.
+   enforcement never depends on them.
 4. The leading context-data message, shedding whole sections from the lowest
    priority up. An `omitted_sections` section names what was shed.
 5. Older history, newest first, as complete blocks.
@@ -72,7 +69,7 @@ Each run of history left out is replaced in place by a `<context_omitted>`
 notice (message and tool-exchange counts) in the user role, and shed blocks are
 listed as `omitted_guidance` with the tools that reread them, so the model knows
 what it does not see. `context_limit_exceeded` now only happens when the
-mandatory first-party system text (policy, owner instructions, goal cores, the
+mandatory first-party system text (policy, owner instructions, the
 routing frame) and the newest request alone do not fit, or the newest tool call
 cannot be represented.
 
@@ -84,19 +81,17 @@ successive user messages.
 ## Trust separation
 
 The system role carries only first-party policy, the owner's instructions,
-identity, the agent binding, server-derived records (goals, and as optional
-blocks goal details, decisions and operational failures; the skill catalog,
+identity, the agent binding, server-derived records (as optional blocks
+decisions and operational failures; the skill catalog,
 wake details) and the routing frame.
 
 Two refinements keep model-written text out of it. `wake_context` keeps a Run's
-prompt in the system role only for server-authored wakes (`goal`, `broker_event`,
+prompt in the system role only for server-authored wakes (`broker_event`,
 `follow_up`, `activation`); for every other trigger (a subagent's task written by
 its parent model, a peer request, a Task or ticket title, a routine or watch prompt
 an agent saved, an owner prompt) it names the trigger only, and the prompt arrives
 as the user-role turn. The permission frame shows restrictions as structured fields;
-an agent-written restriction reason never enters it. One exception remains: goal
-detail records (an agent's objective and step text) are still a system-role block,
-JSON-escaped and labelled as untrusted records.
+an agent-written restriction reason never enters it.
 
 Everything model-authored or untrusted travels in **one user-role context
 message** directly after the system messages, as labelled sections:
@@ -158,7 +153,7 @@ the UTF-8 byte estimate) cannot trigger a summary on every turn:
    at least two) are replaced by a placeholder: tool name, arguments, the
    observation time, `ok`, effect identities found anywhere in the result
    (`operation_id`, `approval_id`, `broker_reference`, order/position/deal ids,
-   goal/task/watch ids, `status`, `code`, …), an ambiguous result's
+   task/watch ids, `status`, `code`, …), an ambiguous result's
    "reconcile before any resend" recovery, and a `result_ref`. Full results of
    at least 1,500 characters are stored first in the existing tool-result
    artifact store, so the model can `artifact_read` them instead of calling the
@@ -218,8 +213,7 @@ execution lifecycle of `lonora_contracts.trading` — unresolved ones
 `reconcile_before_any_resend` and the scoped block they impose on new risk for
 their symbol or ticket), and for 24 hours the settled-but-not-plain ones
 (`confirmed` with state verification pending, and `resolved` with its
-resolution source and outcome and `broker_confirmed: false`) — goal steps in
-flight, pending approvals with their requested symbol/side/volume, and enabled
+resolution source and outcome and `broker_confirmed: false`) — pending approvals with their requested symbol/side/volume, and enabled
 watches. Grants, waits and tasks were already in `live_agent_state`. Owner
 restrictions and monetary limits are not repeated: the permission frame in the
 same routing frame re-reads them every turn. Live risk usage (daily loss, open
