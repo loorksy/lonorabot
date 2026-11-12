@@ -9,7 +9,7 @@ import type {
   TrustedSource,
 } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";
 import { useShellData } from "../data";
@@ -37,8 +37,9 @@ const levelText = (server: CapabilityServer) => {
 
 /* «التكاملات» (integrationsPage 8297-8320, v35 order): trading accounts → AI providers → servers and
    repositories → news and channels → skills. MCP servers are remote only (Q56) and have no per-agent
-   allow list (Q55). Telegram is an inbound channel to an agent, never a delivery channel to the
-   owner (Q53). */
+   allow list (Q55). Telegram delivers to the owner's paired chat the same alerts a push carries
+   (VISION 11.4); what the owner writes there reaches the chosen agent as an owner message and
+   never decides a card. */
 export function IntegrationsPage() {
   const data = useShellData();
   const sheets = useSheets();
@@ -391,6 +392,7 @@ export function IntegrationsPage() {
               <Trans>Saved · never shown again</Trans>
             </small>
           </div>
+          <TelegramPairing id={telegram.id} />
           <button
             type="button"
             className="btn full danger"
@@ -705,5 +707,47 @@ function McpAddButton() {
     <button type="button" className="btn full outline" onClick={() => nav.go("/app/mcp")}>
       <Trans>Add an MCP server</Trans>
     </button>
+  );
+}
+
+/** Pairs the owner's Telegram chat: a one-time code the owner sends to the bot. */
+function TelegramPairing({ id }: { id: string }) {
+  const [paired, setPaired] = useState<boolean | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const toast = useToast();
+  useEffect(() => {
+    void api
+      .get<{ paired: boolean }>(`/integrations/${id}/telegram`)
+      .then((status) => setPaired(status.paired))
+      .catch(() => setPaired(null));
+  }, [id]);
+  const pair = () =>
+    void api
+      .post<{ code: string }>(`/integrations/${id}/telegram/pairing`, {})
+      .then((result) => setCode(result.code))
+      .catch((error: unknown) => toast(userError(error), { type: "warn" }));
+  return (
+    <div>
+      <p className="oa-hint">
+        {paired ? (
+          <Trans>Alerts that need you also reach your Telegram chat.</Trans>
+        ) : (
+          <Trans>Pair your Telegram chat to receive the alerts that need you there.</Trans>
+        )}
+      </p>
+      {code ? (
+        <p className="oa-hint">
+          <span>
+            <Trans>Send this to your bot within ten minutes:</Trans>
+          </span>{" "}
+          <code className="ltr" dir="ltr">
+            /start {code}
+          </code>
+        </p>
+      ) : null}
+      <button type="button" className="btn full" onClick={pair}>
+        {paired ? <Trans>Pair another chat</Trans> : <Trans>Pair a chat</Trans>}
+      </button>
+    </div>
   );
 }
