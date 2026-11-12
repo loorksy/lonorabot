@@ -59,7 +59,12 @@ async def test_an_unreachable_workspace_at_start_is_not_a_failure_until_it_answe
         return None
 
     gateway: Any = SimpleNamespace(
-        db=db, workspace_reached=False, for_each_owner=each, record_running=None
+        db=db,
+        workspace_reached=False,
+        for_each_owner=each,
+        record_running=None,
+        unreadable_snapshots=set(),
+        run_copies_checked={},
     )
     liveness = Liveness()
     caplog.set_level(logging.INFO, logger="lonora.gateway")
