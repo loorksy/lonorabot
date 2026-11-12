@@ -65,9 +65,10 @@ class FakeWorkspace:
                     for (owner, path), body in self.files.items()
                     if owner == agent
                     and path.startswith(prefix)
+                    # find prunes __pycache__ and every dot-name, file or directory.
+                    and "__pycache__" not in path[len(prefix) :].split("/")[:-1]
                     and not any(
-                        part == "__pycache__" or part.startswith(".")
-                        for part in path[len(prefix) :].split("/")[:-1]
+                        part.startswith(".") for part in path[len(prefix) :].split("/")
                     )
                 )
                 if not any(owner == agent and p.startswith(prefix) for owner, p in self.files):

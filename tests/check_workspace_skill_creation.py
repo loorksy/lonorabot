@@ -55,7 +55,8 @@ async def main() -> None:
         # A fresh copy of the stored files is in place before the utility runs.
         assert command == f"python3 {UTILITY}", command
         assert workspace.files[(agent_id, UTILITY)] == SOURCE.encode()
-        return {"exit_code": 0, "stdout": "mean=2\n"}
+        # Long output: the answer keeps its last 64 KiB, as workspace_run does.
+        return {"exit_code": 0, "stdout": "." * 70_000 + "mean=2\n"}
 
     workspace = FakeWorkspace(python)
     try:
@@ -137,6 +138,9 @@ async def main() -> None:
                 )
             elif rounds == 3:
                 assert results[-1]["exit_code"] == 0 and "mean=2" in results[-1]["stdout"]
+                assert results[-1]["stdout"].endswith("mean=2\n")
+                assert len(results[-1]["stdout"]) == 65_536
+                assert results[-1]["stdout_omitted_bytes"] == 70_007 - 65_536
                 assert results[-1]["validation_level"] == "workspace_smoke_test"
                 call = ToolCall(
                     id="activate-local",
@@ -181,7 +185,7 @@ async def main() -> None:
                 "validated_at",
             }
             # The package's files are in the agent's private store.
-            stored = await stored_files(session, agent["id"])
+            stored = await stored_files(session, agent["id"], [UTILITY])
             assert stored[UTILITY] == SOURCE.encode()
         print(
             "PASS workspace directory -> disabled package in the private store -> utility run in"

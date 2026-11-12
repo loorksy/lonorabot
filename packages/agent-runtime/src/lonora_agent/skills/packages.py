@@ -164,6 +164,9 @@ def prepare_workspace_package(
     source_path = f"{source_directory}/SKILL.md"
     package_path(source_path)
     directory = PurePosixPath(source_directory)
+    # skills/ holds the run copies that validation and activation replace whole.
+    if directory.parts[0] == "skills":
+        raise LonoraError("skill_package_source_reserved", 422)
     source_files = {
         name: body
         for name, body in snapshot.items()
