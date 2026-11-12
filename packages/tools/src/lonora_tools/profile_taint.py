@@ -1,9 +1,12 @@
 """Profile taint: whether Lonora may record an owner observation in this run (8.2, 6.10).
 
-A run that read content others wrote may not write Lonora's observations of the owner
-to USER.md. A routine, watch or opportunity such a run created, enabled or changed
-carries that mark (an effect receipt ``profile-taint:<kind>:<id>``), so the runs it
-wakes may not write observations either.
+A run is profile-tainted when someone other than Lonora or the owner started it (its
+trigger is not in OBSERVATION_TRIGGERS: a peer, subagent, follow-up, task or webhook
+run), when it read content others wrote, or when a marked routine, watch or opportunity
+woke it. Such a run may not write Lonora's observations of the owner to USER.md, and a
+routine, watch or opportunity it creates, enables or changes carries the mark (an
+effect receipt ``profile-taint:<kind>:<id>``), so the runs that row wakes are tainted
+too, down any chain.
 
 The mark is read ONLY by the owner-profile observation check in ``memory.py``. It never
 taints the woken run otherwise: trading, tool exposure, other wakes and every other path
@@ -18,6 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .restrictions import OWNER_TRIGGERS, external_content_seen
 
+# Runs Lonora starts itself or the owner starts: what it observes there is its own (8.2).
+# A peer, subagent, follow-up, task, webhook or other wake carries someone else's words.
+OBSERVATION_TRIGGERS = OWNER_TRIGGERS | {"routine", "watch", "broker_event", "owner_card"}
 Kind = Literal["routine", "watch", "opportunity"]
 # The run metadata key that names the durable row a wake comes from.
 SOURCES: tuple[tuple[str, Kind], ...] = (
@@ -38,10 +44,19 @@ async def run_read_others(session: AsyncSession, run: RunRow) -> bool:
     return await external_content_seen(session, run, int(typed.seq) if typed else run.input_seq)
 
 
+async def profile_tainted(session: AsyncSession, run: RunRow) -> bool:
+    """Whether this run may not record Lonora's observations of the owner."""
+    return (
+        run.trigger not in OBSERVATION_TRIGGERS
+        or await run_read_others(session, run)
+        or await woken_by_marked_row(session, run)
+    )
+
+
 async def mark_from(session: AsyncSession, run: RunRow, kind: Kind, identifier: str) -> None:
-    """A row a run that read others' content creates or changes keeps the mark for good."""
+    """A row a profile-tainted run creates or changes keeps the mark for good."""
     key = _key(kind, identifier)
-    if await run_read_others(session, run) and await session.get(EffectReceiptRow, key) is None:
+    if await profile_tainted(session, run) and await session.get(EffectReceiptRow, key) is None:
         session.add(EffectReceiptRow(key=key, result={"run_id": run.id}))
         await session.flush()
 

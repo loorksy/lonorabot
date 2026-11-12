@@ -162,7 +162,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 "task_id": run.model_metadata["task_id"],
                 "task_run_id": run.id,
             }
-        # A watch tainted work created wakes tainted (GENUI_PLAN §8.5).
+        # A watch tainted work created wakes tainted (docs/genui.md).
         await taint_row_from(session, run, "watch", row.id)
         await mark_from(session, run, "watch", row.id)
         return resource_data(row)
@@ -254,7 +254,7 @@ async def steer(context: ToolContext, watch_id: str, action: WatchAction) -> dic
             agent_id=context.agent_id,
             owner_message=await owner_message_id(session, run) is not None,
         )
-        # Tainted work that resumes or steers a watch taints it (GENUI_PLAN §8.5).
+        # Tainted work that resumes or steers a watch taints it (docs/genui.md).
         await taint_row_from(session, run, "watch", row.id)
         await mark_from(session, run, "watch", row.id)
         return stating(

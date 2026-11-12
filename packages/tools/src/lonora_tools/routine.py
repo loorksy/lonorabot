@@ -41,7 +41,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             RoutineCreate.model_validate(args),
             context.resource_id,
         )
-        # A routine tainted work created wakes tainted (GENUI_PLAN §8.5).
+        # A routine tainted work created wakes tainted (docs/genui.md).
         await taint_row_from(session, run, "routine", row.id)
         await mark_from(session, run, "routine", row.id)
         return routine_data(row)
@@ -116,7 +116,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 owner_message=await owner_message_id(session, run) is not None,
             )
         row.enabled = args["enabled"]
-        # Tainted work that revives or toggles a routine taints it (GENUI_PLAN §8.5).
+        # Tainted work that revives or toggles a routine taints it (docs/genui.md).
         await taint_row_from(session, run, "routine", row.id)
         await mark_from(session, run, "routine", row.id)
         return stating(routine_data(row), named)
