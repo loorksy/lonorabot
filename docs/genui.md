@@ -33,13 +33,19 @@ template `"…{expr}…"`. `@Fact('key')` reads a data-line fact. Shared vectors
 The server contract `lonora_contracts.genui` is the single source of the set (mandate 10.1.5):
 
 - **Nodes (`NODES`):** Segmented, Select, Number, Slider, Title, Text, Markdown, Note, Badge,
-  KeyValue, Stat, Button, Divider, Row, Col, Grid, Card, More. Every node takes `when`.
+  KeyValue, Stat, Button, Divider, Row, Col, Grid, Card, More, Slot. Every node but Slot takes
+  `when`.
 - **Server rows (`SERVER_NODES`):** Delivery, the read-only delivery row the compiler adds
   above an alert's send. The model never writes it.
 - **Actions (`ACTIONS`):** `send {intent, data, lock?}`, `go {route}`, `set {key, value}`,
   `toggle {key}`, `reset`, `copy {text}`, `open {url}`.
 - **Icons:** `genui_icons.ICON_NAMES`, the keys of `packages/ui-tokens/src/icons.ts`, which
   both clients draw.
+
+- **Trusted slots (`Slot {card, record}`, mandate 10.2):** a fixed card placed inside the
+  agent's card. `card` is one of `SLOT_CARDS` (today `trade_approval` and `settle`); `record` is
+  the record's id. The agent chooses only where the slot sits; section 4a says what the server
+  and the clients do with it.
 
 `scripts/export_genui_catalog.py` generates `packages/contracts/src/genui-catalog.ts` (node
 types, props, server rows, actions, routes, tones; `--check` in `scripts/build.sh`). Each part
@@ -87,7 +93,33 @@ or data line that fails makes the whole card fall back. `genui_compile.compile_c
 - folds to the budget (section 5) and adds the delivery row to an alert;
 - stores the result as `UiDocument` (re-validated on every write).
 
-A card that cannot be built shows its model-written fallback. One card per reply: a second is
+A card that cannot be built shows its model-written fallback.
+
+## 4a. Trusted slots
+
+- **Placement (10.2.1).** The projector reads the records a card's slots name
+  (`lonora_db.genui_slots.slot_records`): a Trade Approval row (`trade_approval`) or a
+  `resolve_operation` owner-action card (`settle`) of this owner, in this conversation. A slot
+  whose record is missing, of another kind, another owner's or another conversation's is
+  refused (`slot_refused`) and the card shows its fallback. A record appears once per card.
+- **Protection (10.2.2).** A slot sits at the top level only (`slot_nested` drops it from a
+  container); it takes no `when`, text or style (dropped as `prop_dropped`), so the stored node
+  is exactly `{type, card, record}`. The budget never folds it. The clients draw the live record
+  inside a trust frame (`.ux-slot` on web, the `slotFrame` palette on mobile) that no agent node
+  can draw: agents set no class or colour, and a card whose own text says what a fixed card or
+  the frame says (`FIXED_LABELS`, `FRAME_MARKS` in `genui_compile.py`) falls back
+  (`card_fallback_imitation`).
+- **Words, numbers and buttons.** Everything inside a slot is the record as the clients read it
+  from the server (`/trading/approvals`, `/owner-actions`) with the card's own owner-session
+  actions; nothing comes from the agent's card. A generated element still never approves,
+  settles or switches a mode (6.10): only the fixed card inside the slot does.
+- **Budget (10.1.4).** A slot counts `SLOT_HEIGHTS` (trade approval 230 px, settle 250 px, its
+  frame included) toward the 560 px resting height and is one of the 6 visible blocks.
+- **Fallback row (10.2.3).** `conversationTimeline` (`packages/core`) leaves out a fixed card's
+  standalone row while a loaded message of the conversation embeds its record as a slot
+  (`embeddedSlots`); the row returns when none does. Slot and row draw the same live record with
+  the same callbacks, so they act on one record; a tap refused because the record was already
+  decided reads the record again and shows it as it is now. One card per reply: a second is
 dropped and its fallback kept as text. Diagnostics carry structural codes only, never model text.
 
 ## 5. Budgets

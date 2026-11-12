@@ -251,9 +251,7 @@ class VisualReplyProjector:
         if key not in self.slots:
             async with self.context.db.sessions() as session:
                 self.slots[key] = frozenset(
-                    await slot_records(
-                        session, self.context.owner_id, self.context.thread_id, ids
-                    )
+                    await slot_records(session, self.context.owner_id, self.context.thread_id, ids)
                 )
         return replace(scope, slot_records=self.slots[key])
 

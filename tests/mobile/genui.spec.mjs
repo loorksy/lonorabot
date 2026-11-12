@@ -106,7 +106,11 @@ for (const theme of ["dark", "light"]) {
       const input = { thread_id: fixture.thread.id, connection: fixture.connection };
       python("stream", { ...input, delay: 0 });
       python("parity", input);
+      // A trusted slot needs a real record: the agent's card embeds a pending approval.
+      const ids = python("records", input);
+      python("slots", { ...input, approval: ids.approval });
       await page.goto(`/thread?id=${fixture.thread.id}`);
+      await expect(page.getByTestId("ui-slot-trade_approval")).toBeVisible();
       const ux = page.getByTestId("ux-card").filter({ hasText: "حاسبة حجم الصفقة" });
       await expect(ux).toBeVisible();
       await expect(page.getByTestId("ux-card").filter({ hasText: "تنبيه سعر" })).toBeVisible();
@@ -180,3 +184,55 @@ for (const theme of ["dark", "light"]) {
     }
   });
 }
+
+test("Expo: a slot is the live record in its trust frame, and its row steps aside", async ({
+  page,
+  context,
+}) => {
+  const fixture = python("setup");
+  const csrf = fixture.cookies.find((row) => row.name === "lonora_csrf").value;
+  const headers = { "X-CSRF-Token": csrf };
+  await context.addCookies(
+    fixture.cookies.map((cookie) => ({
+      ...cookie,
+      url: test.info().project.use.baseURL,
+      httpOnly: cookie.name === "lonora_session",
+      sameSite: "Strict",
+    })),
+  );
+  await context.addInitScript(() => localStorage.setItem("lonora.locale", "ar"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  try {
+    const input = { thread_id: fixture.thread.id, connection: fixture.connection };
+    const ids = python("records", input);
+    await page.goto(`/thread?id=${fixture.thread.id}`);
+    // No message embeds the approval yet: it stands in its own row.
+    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    await expect(page.getByTestId("ui-slot-trade_approval")).toHaveCount(0);
+    python("slots", { ...input, approval: ids.approval });
+    await page.reload();
+    const slot = page.getByTestId("ui-slot-trade_approval");
+    await expect(slot).toBeVisible();
+    // The server's record, drawn natively; none of the words the agent tried to give it.
+    await expect(slot.getByText("بطاقة ثابتة من Lonora")).toBeVisible();
+    await expect(slot.getByText(/XAUUSD/)).toBeVisible();
+    for (const forged of ["صفقة مضمونة", "0.50 لوت"])
+      await expect(slot.getByText(forged)).toHaveCount(0);
+    // The slot is its place now: one approval card on the screen, inside the slot.
+    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+    const [decision] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith(`/api/trading/approvals/${ids.approval}/decision`),
+      ),
+      slot.getByRole("button", { name: "رفض", exact: true }).click(),
+    ]);
+    expect(decision.status()).toBe(200);
+    await expect(slot.getByRole("button", { name: "رفض", exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId("ui-slot-trade_approval")).toBeVisible();
+    await expect(page.getByText("طلب تداول", { exact: true })).toHaveCount(1);
+  } finally {
+    await context.request.delete(`/api/agents/${fixture.agent.id}`, { headers });
+    await context.request.delete(`/api/trading/connections/${fixture.connection}`, { headers });
+  }
+});

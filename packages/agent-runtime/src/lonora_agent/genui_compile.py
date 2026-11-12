@@ -79,6 +79,8 @@ FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
 FIXED_LABELS = (
     "Approval request",
     "طلب موافقة",
+    "Trading request",
+    "طلب تداول",
     "Approve",
     "موافقة",
     "Reject",
