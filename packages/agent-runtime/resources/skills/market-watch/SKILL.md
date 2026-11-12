@@ -16,7 +16,7 @@ user-facing replies and labels. English examples do not require an English reply
    threshold. Persist it with watch_create, actual account/symbol, expiry and
    continuation objective. Never invent a threshold just to fill a schema.
 3. A trigger wakes analysis, never execution directly. Read fresh market, account,
-   positions and goal before deciding the next step.
+   positions and objective before deciding the next step.
 4. Use continuous work for ongoing monitoring. Before yielding, use task_wait
    on the actual watch, recovery or justified timer; a reply does not finish
    that responsibility. Include a brief useful result with the wait when
