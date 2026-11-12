@@ -34,9 +34,9 @@ Superseded by VISION.md
 
 | Piece | Where | What it does |
 |---|---|---|
-| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), plus a `migrate` service that runs only when asked. |
+| Deployment definition | `infra/compose/docker-compose.prod.yml` | The one production stack: PostgreSQL, API, Gateway, Caddy (HTTPS), SearXNG web search and the research browser, plus a `migrate` service that runs only when asked. |
 | Mode | `infra/compose/mode-direct.yml` or `mode-proxy.yml` | Direct: Caddy owns 80/443 and gets the certificate. Proxy (`LONORA_PROXY_LISTEN` set): Caddy listens in plain HTTP on one loopback address behind an existing reverse proxy; nothing binds 80/443. |
-| Optional overlays | `infra/research/compose.research.yml` (search and browser, ~1.1 GB, off by default), `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
+| Optional overlays | `infra/analysis/compose.workspace.yml` | Listed in `LONORA_COMPOSE_OVERLAYS` in `.env` (space separated). `lonora` always adds them. |
 | Source build | `infra/compose/build-from-source.sh` | Builds the image on the server into a loopback-only registry, when no published image exists. |
 | `lonora` command | `infra/compose/lonora` (linked as `/usr/local/bin/lonora`) | status, start, update, rollback, backup, restore, restore-test, logs. |
 | Installer | `infra/compose/install.sh` | Sets up a new server. |
@@ -81,7 +81,7 @@ sudo bash install.sh --domain lonora.example.com --version main
 the server (`127.0.0.1:5055/lonora:v0.3.0`, see «Build from source on the server»). Other options:
 `--home DIR` (default `/opt/lonora`), `--project NAME` (default `lonora`), `--behind-proxy
 127.0.0.1:PORT` (see «Side by side»), `--env-from FILE`, `--overlay FILE` (repeatable),
-`--min-free-ram-mb` (default 2560), `--min-free-disk-gb` (default 10), `--no-systemd`.
+`--min-free-ram-mb` (default 3584), `--min-free-disk-gb` (default 10), `--no-systemd`.
 
 `--env-from /opt/lonora/.env` reuses settings and secrets from an earlier installation. It copies
 only keys this version knows — `LONORA_ENCRYPTION_KEY` (provider and broker keys saved in a database
@@ -95,8 +95,7 @@ provider API keys. The database password is always new (a fresh database). Every
 key — is not copied. It prints the copied and the ignored key **names**, never a value, and the new
 `.env` is mode 600.
 
-`--overlay` adds a bundled overlay at install time (`infra/research/compose.research.yml`,
-`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
+`--overlay` adds a bundled overlay at install time (`infra/analysis/compose.workspace.yml`); the preflight warns (does not refuse) when the workspace
 host socket is missing.
 
 The preflight also reads the whole `--env-from` file before anything is written: `export ` prefixes
@@ -140,12 +139,12 @@ Every service has a memory and CPU limit, overridable in `.env`:
 | api (includes the chart renderer) | 896m | 0.75 | `LONORA_API_MEMORY`, `LONORA_API_CPUS` |
 | gateway | 768m | 0.75 | `LONORA_GATEWAY_MEMORY`, `LONORA_GATEWAY_CPUS` |
 | caddy | 96m | 0.25 | `LONORA_CADDY_MEMORY`, `LONORA_CADDY_CPUS` |
+| searxng (web search) | 384m | 0.25 | `LONORA_SEARXNG_MEMORY`, `LONORA_SEARXNG_CPUS` |
+| browser (research browser) | 768m | 0.5 | `LONORA_BROWSER_MEMORY`, `LONORA_BROWSER_CPUS` |
 | migrate (runs only during updates) | 512m | 0.5 | `LONORA_MIGRATE_MEMORY`, `LONORA_MIGRATE_CPUS` |
 
-The running stack is limited to about 2.3 GB and 2.25 CPUs, so it fits a 2-vCPU host next to other
-projects. The optional search and browser services (`infra/research/compose.research.yml`) add
-384m + 768m and are off unless listed in `LONORA_COMPOSE_OVERLAYS`; leave them off on a shared host.
-After changing a limit: `sudo lonora start`.
+The running stack is limited to about 3.4 GB and 3 CPUs. The limits are ceilings, not reservations,
+so the stack still runs on a 2-vCPU host. After changing a limit: `sudo lonora start`.
 
 ## Side by side with an existing reverse proxy
 
