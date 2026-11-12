@@ -49,9 +49,9 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from lonora_core.user_error import LonoraError
+from lonora_db.lead import reached_ids
 from lonora_db.owner_words import visible_to_recall
 from lonora_db.schema import AgentRow, EventRow, GroupRow, MessageRow, ThreadRow
-from lonora_db.supervision import supervised_ids
 from lonora_db.trading_decisions import DECISION_KIND
 from lonora_db.transactions import owned_agent
 from sqlalchemy import (
@@ -134,9 +134,10 @@ class HistoryScope:
 async def supervised_names(
     session: AsyncSession, owner_id: str, agent_id: str
 ) -> tuple[tuple[str, str], ...]:
-    """(id, name) of the agents this one supervises now, read on every call, so a
-    revoked grant ends the reads at once."""
-    ids = await supervised_ids(session, owner_id, agent_id)
+    """(id, name) of the agents this one reads now: every team agent for Lonora, the
+    lead; else those it supervises, read on every call, so a revoked grant ends the
+    reads at once."""
+    ids = await reached_ids(session, owner_id, agent_id)
     if not ids:
         return ()
     names = dict(

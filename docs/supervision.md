@@ -2,9 +2,11 @@ Superseded by VISION.md
 
 # Supervision: Lonora sees everything, peers stay private
 
-Lonora, the Personal Agent, supervises every agent by default. It reads their work and
-memory on demand, messages them and pauses or resumes their work. The owner sees every
-grant and revokes any of them with one tap. Any agent becomes "supervises X and Y" from
+Lonora, the Personal Agent, leads every team agent by its built-in role
+(`lonora_db/lead.py`, mandate 3.1.6 and 14.3.15). It reads their work and memory on
+demand, messages them and pauses or resumes their work, with or without a grant; no
+revoked grant takes that away. The owner sees every other grant and revokes any of them
+with one tap. Any agent becomes "supervises X and Y" from
 one sentence of the owner. A supervisor never trades for the agents it supervises, never
 uses their grant, never lifts a brake and never edits their memory or instructions.
 Agents without a grant stay as private from each other as before (wall 5 of correction 1).
@@ -22,7 +24,8 @@ either agent.
   every other agent. A Personal Agent created later supervises every agent that already
   exists (`ensure_personal_agent`), and every agent created afterwards is supervised by
   it from its creation (`agents.create_agent`, so the owner's form, `agent_create`, child
-  agents and fixtures all get it). A revoked default grant is not recreated.
+  agents and fixtures all get it). A revoked default grant is not recreated, and
+  revoking it no longer limits Lonora, whose reads and control are its lead role.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
   `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
