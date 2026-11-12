@@ -81,8 +81,9 @@ connection version is recorded and re-checked when the agent is created.
 
 - There is no limit on the number of agents (mandate 3.3.2). The one rate guard
   against a runaway creation loop is at most `MAXIMUM_CREATIONS_PER_RUN` (3) creations
-  or creation cards per run (`agent_create_run_limit`), checked under the owner's
-  creation lock; it never counts the owner's agents. The owner's own «وكيل جديد» form
+  or creation cards per minute within one run (`agent_create_run_limit`,
+  `CREATION_WINDOW`), checked under the owner's creation lock; it never counts the
+  owner's agents. The owner's own «وكيل جديد» form
   (`POST /api/agents/create`, `created_via` `owner_ui`) has no guard.
 - A crash-replayed call returns the agent it created (its id is the call's resource id).
   A retry under a new call id for the same owner message, template and name returns the

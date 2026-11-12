@@ -308,7 +308,7 @@ async def main() -> None:
         assert entries[gold_id]["reports_to"] == []
         print("PASS a research agent reports to the gold agent: one link, notes in both")
 
-        # 5. At most three creations per run.
+        # 5. At most three creations per minute within one run (3.3.2).
         assert (
             await refused(context, "agent_create", {"template": "general", "name": "Fourth"})
             == "agent_create_run_limit"
@@ -319,7 +319,18 @@ async def main() -> None:
             {"template": "research", "name": "News agent", "report_to": [gold_id]},
         )
         assert repeat["deduplicated"] is True and repeat["agent"]["id"] == news_id
-        print("PASS at most three creations per run; a repeat still returns its agent")
+        # A minute later the same run creates again: a rate, never a count of agents.
+        async with db.sessions() as session, session.begin():
+            for row in await session.scalars(
+                select(EventRow).where(
+                    EventRow.run_id == context.lease.run_id, EventRow.kind == "agent.created"
+                )
+            ):
+                row.created_at = utcnow() - timedelta(minutes=2)
+        fourth = await call(context, "agent_create", {"template": "general", "name": "Fourth"})
+        assert fourth["created"] is True, fourth
+        created_ids.append(fourth["agent"]["id"])
+        print("PASS at most three creations per minute in a run; a repeat still returns its agent")
 
         # 6. Without an owner message the creation is a card; the tap creates it once.
         async with db.sessions() as session, session.begin():

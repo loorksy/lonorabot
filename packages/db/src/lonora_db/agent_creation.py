@@ -14,11 +14,12 @@ supervises get supervision grants with the creation's source (``lonora_db.superv
 
 Limits: no limit on the number of agents (mandate 3.3.2). The one rate guard against
 a runaway creation loop is ``MAXIMUM_CREATIONS_PER_RUN`` creations or creation cards per
-run; it never counts the owner's agents. Undo
+minute within one run; it never counts the owner's agents. Undo
 deletes an agent that has done nothing yet and pauses one that has (agent deletion
 still cascades its work in Wave 1, so it never deletes work).
 """
 
+from datetime import timedelta
 from hashlib import sha256
 from typing import Any, Literal, cast
 
@@ -49,6 +50,8 @@ from .schema import (
 from .transactions import owned_agent
 
 MAXIMUM_CREATIONS_PER_RUN = 3
+# The guard counts one run's creations per minute (3.3.2), never the owner's agents.
+CREATION_WINDOW = timedelta(minutes=1)
 MAXIMUM_DESCRIPTION_CHARS = 280
 
 UndoPlan = Literal["delete", "pause"]
@@ -91,7 +94,9 @@ async def lock_creation(session: AsyncSession, owner_id: str) -> None:
 
 
 async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> int:
-    """Agents this run created plus the creation cards it raised."""
+    """Agents this run created, plus the creation cards it raised, in the last
+    ``CREATION_WINDOW``: the guard against a runaway creation loop (mandate 3.3.2)."""
+    since = utcnow() - CREATION_WINDOW
     created = await session.scalar(
         select(func.count())
         .select_from(EventRow)
@@ -99,6 +104,7 @@ async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> in
             EventRow.owner_id == owner_id,
             EventRow.run_id == run_id,
             EventRow.kind == "agent.created",
+            EventRow.created_at >= since,
         )
     )
     proposed = await session.scalar(
@@ -108,6 +114,7 @@ async def run_creations(session: AsyncSession, owner_id: str, run_id: str) -> in
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.run_id == run_id,
             OwnerActionRow.kind == "create_agent",
+            OwnerActionRow.created_at >= since,
         )
     )
     return int(created or 0) + int(proposed or 0)
