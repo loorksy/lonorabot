@@ -1112,3 +1112,73 @@ async def test_an_empty_background_turn_is_never_sent_back_to_the_model():
         assert (await reload(fixture, run.id)).result == "Gold held 2,400."
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_background_run_gets_no_helper_card_in_the_chat():
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Failed desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        for status in ("failed", "cancelled"):
+            watch = await make_run(fixture, agent, conversation, "watch")
+            await ended(fixture, watch, status=status)
+            await returned_helper(fixture, agent, watch, "completed", "Gold held 2,400.")
+            assert await follow_ups(fixture, watch.id) == []
+        # Nothing acts on a helper's result once its background work failed: no card.
+        assert await contents(fixture, conversation) == []
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_subagent_of_background_work_works_in_a_hidden_thread():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import RunRow, ThreadRow
+    from lonora_db.threads import list_threads, report_thread
+    from test_routine_output import call
+
+    fixture = await Fixture().open()
+    try:
+        agent = await fixture.agent("Delegating desk")
+        conversation = (await fixture.conversation(agent))["id"]
+        work = await work_thread(fixture, agent)
+        routine = await make_run(
+            fixture, agent, work, "routine", metadata={"origin_thread_id": conversation}
+        )
+        context = await fixture.lease(
+            {"id": routine.id, "agent_id": routine.agent_id, "thread_id": routine.thread_id}
+        )
+        spawned = await call(context, "subagent_spawn", task="Check today's calendar")
+        async with fixture.runtime.db.sessions() as session:
+            helper = await session.get(RunRow, spawned["id"])
+            assert helper is not None
+            thread = await session.get(ThreadRow, helper.thread_id)
+            assert thread is not None and thread.purpose == "work"
+            # Its cards and questions still reach the owner's conversation (11.6).
+            assert await report_thread(session, helper) == conversation
+            listed = await list_threads(session, fixture.owner, agent["id"])
+            assert [row.id for row in listed] == [conversation]
+        # A subagent of the owner's own request keeps its own chat, as before.
+        asked = await fixture.run(agent, {"id": conversation})
+        owner_context = await fixture.lease(asked)
+        direct = await call(owner_context, "subagent_spawn", task="Check the CPI print")
+        async with fixture.runtime.db.sessions() as session:
+            helper = await session.get(RunRow, direct["id"])
+            assert helper is not None
+            thread = await session.get(ThreadRow, helper.thread_id)
+            assert thread is not None and thread.purpose == "conversation"
+    finally:
+        await fixture.close()
+
+
+def test_the_wake_sentence_does_not_say_no_one_is_waiting():
+    from lonora_agent.context.routine import BACKGROUND
+
+    # A Task the owner asked for is background work too; the owner may well wait on it.
+    assert "no one is waiting" not in BACKGROUND
+    assert "end with an empty reply" in BACKGROUND and "answer them" in BACKGROUND

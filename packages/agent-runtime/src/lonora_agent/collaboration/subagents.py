@@ -3,11 +3,12 @@ from typing import Any
 from lonora_contracts.domain import ThreadCreate
 from lonora_contracts.model_routing import ModelSelection
 from lonora_contracts.runs import RunRequest
+from lonora_core.run_state import is_background
 from lonora_core.user_error import LonoraError
 from lonora_db.runs import create_run, require_lease, run_data
 from lonora_db.schema import AgentRow, RunRow
 from lonora_db.supervision import supervises
-from lonora_db.threads import create_thread
+from lonora_db.threads import create_thread, report_thread
 from lonora_db.transactions import owned_thread
 from lonora_tools.context import ToolContext
 from lonora_tools.models import model_available
@@ -22,7 +23,7 @@ async def spawn_subagent(
     if context.depth >= 2:
         raise LonoraError("delegation_depth_exceeded", 409)
     async with context.db.sessions() as session, session.begin():
-        await require_lease(session, context.lease, lock=True)
+        parent = await require_lease(session, context.lease, lock=True)
         existing = await session.get(RunRow, context.resource_id)
         if existing:
             return run_data(existing)
@@ -39,9 +40,17 @@ async def spawn_subagent(
         )
         if (count or 0) >= context.maximum_subagents:
             raise LonoraError("subagent_limit", 409)
+        # A helper of background work is that work's own: it works in a hidden thread,
+        # never a new chat (11.6), and what it raises for the owner goes where its parent
+        # reports (11.5: an empty background run posts nothing anywhere).
+        background = is_background(parent.trigger, parent.model_metadata)
         thread = await create_thread(
-            session, context.owner_id, ThreadCreate(agent_id=context.agent_id, title=task[:80])
+            session,
+            context.owner_id,
+            ThreadCreate(agent_id=context.agent_id, title=task[:80]),
+            purpose="work" if background else "conversation",
         )
+        origin = {"origin_thread_id": await report_thread(session, parent)} if background else {}
         run = await create_run(
             session,
             context.owner_id,
@@ -55,6 +64,7 @@ async def spawn_subagent(
                     "depth": context.depth + 1,
                     "return_thread_id": context.thread_id,
                     "return_agent_id": context.agent_id,
+                    **origin,
                     **({"model": model.model_dump(mode="json")} if model else {}),
                 },
             ),

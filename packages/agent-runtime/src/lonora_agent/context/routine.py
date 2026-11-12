@@ -32,9 +32,8 @@ PEER_WAKE = (
 
 # VISION 11.5: fixed server text on every background wake, never the wake's own prompt.
 BACKGROUND = (
-    "Background run: no one is waiting on this reply. If nothing is new for the owner, end "
-    "with an empty reply; it posts nothing and notifies no one. If the owner writes to you "
-    "during this run, answer them."
+    "Background run: if nothing is new for the owner, end with an empty reply; it posts "
+    "nothing and notifies no one. If the owner writes to you during this run, answer them."
 )
 
 

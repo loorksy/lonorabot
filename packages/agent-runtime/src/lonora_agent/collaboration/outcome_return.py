@@ -164,9 +164,10 @@ async def return_outcome(db: Database, run_id: str) -> None:
         returned_message: MessageRow | None = None
         await report_to_origin(session, child, rich_content)
         # VISION 11.5: background work that has ended in a conversation shows a helper's
-        # outcome there only when it has one. A work thread still gets every outcome (it
-        # is the work's memory), a Run still running is still told, and a collaboration
-        # still collects every return for its synthesis.
+        # outcome there only when it completed and the helper has something to show;
+        # nothing acts on an outcome of failed or cancelled work. A work thread still gets
+        # every outcome (it is the work's memory), a Run still running is still told, and
+        # a collaboration still collects every return for its synthesis.
         quiet = bool(
             parent
             and thread
@@ -174,7 +175,7 @@ async def return_outcome(db: Database, run_id: str) -> None:
             and parent.status in TERMINAL
             and is_background(parent.trigger, parent.model_metadata)
             and not child.model_metadata.get("collaboration_session_id")
-            and not (child.result or rich_content)
+            and (parent.status != "completed" or not (child.result or rich_content))
         )
         # A follow-up is its parent's continuation, not a helper: its outcome never
         # returns to the parent, so it never starts another follow-up.
