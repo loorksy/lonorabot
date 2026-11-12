@@ -21,7 +21,7 @@ the creation service `lonora_db.agent_creation.create_root_agent` and
 | `responsibility` | What the owner asked it to do. Stored as its instructions; a short form is its directory description. Text that states authority ("trade without approval") is refused (`agent_responsibility_authority_claim`), like operating notes. Both creation cards show it word for word ("Its task: …"), so the owner sees the standing instruction a tap keeps. |
 | `market` | Trading template only, and required there: the focus pair as the broker names it |
 | `account_id` | Only when the owner chose among several accounts |
-| `model` | Optional, the model the owner named: any catalog model of a connected provider (otherwise `agent_model_not_available`). Without one the agent starts on Lonora's current model |
+| `model` | Optional, the model the owner named: any catalog model of a connected provider (otherwise `agent_model_not_available`). Without one the agent starts on Lonora's current model. From the owner's message, a model his words do not name is dropped (`model_dropped`) and the agent starts on Lonora's; on a card, the model shown is the owner's tap |
 | `report_to` | Up to five existing agents it reports important findings to |
 | `supervises` | Up to ten existing agents it supervises, granted with the creation's source (`docs/supervision.md`) |
 

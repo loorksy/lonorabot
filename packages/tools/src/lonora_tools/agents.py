@@ -46,7 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
 from .context import ToolContext
-from .models import model_available
+from .models import model_available, owner_named
 from .restrictions import owner_message_id
 
 # A broker's spelling of a symbol may add a suffix ("XAUUSD.r", "XAUUSDm").
@@ -306,6 +306,13 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             # Fenced after the conversation lock: the thread-before-run order of admission.
             await require_lease(session, context.lease, lock=True)
             return proposal_result(card, created=created)
+        dropped = params.model is not None and not await owner_named(
+            session, run, message_id, params.model
+        )
+        if dropped:
+            # Only the owner assigns a model (VISION 12.3): one his words do not name is
+            # dropped, and the new agent starts on Lonora's (3.1.2).
+            spec["model"] = None
         key = creation_receipt(context.owner_id, message_id, params.template, params.name)
         receipt = await session.get(EffectReceiptRow, key)
         agent_id = str(receipt.result["agent_id"]) if receipt else context.resource_id
@@ -335,7 +342,10 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             run_id=run.id,
         )
         await require_lease(session, context.lease, lock=True)
-        return await created_result(session, context, row, deduplicated=not created)
+        result = await created_result(session, context, row, deduplicated=not created)
+        if dropped:
+            result["model_dropped"] = "not named by the owner: it starts on Lonora's model"
+        return result
 
 
 def tools() -> list[Tool]:
