@@ -62,7 +62,7 @@ done
 say() { printf 'install: %s\n' "$*"; }
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 [[ "$workspace_memory" =~ ^[1-9][0-9]*[mMgG]$ ]] || die '--workspace-memory must look like 4g or 2048m.'
-[[ "$workspace_cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && [[ "$workspace_cpus" != 0 && "$workspace_cpus" != 0.0 ]] || die '--workspace-cpus must be a positive number.'
+[[ "$workspace_cpus" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v n="$workspace_cpus" 'BEGIN { exit !(n > 0) }' || die '--workspace-cpus must be a positive number.'
 [[ "$workspace_disk" =~ ^[1-9][0-9]{0,4}[gG]$ ]] || die '--workspace-disk must be whole gigabytes, e.g. 20g.'
 workspace_memory_mb="${workspace_memory%[mMgG]}"
 if [[ "$workspace_memory" == *[gG] ]]; then workspace_memory_mb=$((workspace_memory_mb * 1024)); fi

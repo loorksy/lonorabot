@@ -2,15 +2,21 @@
 and the supervisor's request rules. The container behavior itself is proved by
 tests/check_workspace_service.py against a real Docker stack."""
 
+import asyncio
 import ipaddress
 import json
+import os
+import shutil
+import signal
 import struct
+import tempfile
+import time
 import uuid
 from pathlib import Path
 
 import pytest
 from lonora_core.broker_endpoints import BROKER_DOMAINS, METAAPI_KNOWN_HOSTS, METAAPI_SDK_DOMAIN
-from lonora_workspace import dns
+from lonora_workspace import dns, netguard
 from lonora_workspace.egress import (
     BLOCKED_V4,
     BLOCKED_V6,
@@ -20,7 +26,7 @@ from lonora_workspace.egress import (
     ruleset,
 )
 from lonora_workspace.netguard import verdict
-from lonora_workspace.supervisor import Limits, RunCommand, Supervisor
+from lonora_workspace.supervisor import Limits, RunCommand, Supervisor, signal_agents
 from lonora_workspace.users import AGENTS_GID, FIRST_UID, Users
 from pydantic import ValidationError
 
@@ -193,3 +199,56 @@ def test_foreground_limit_defaults_to_ten_minutes(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("LONORA_WORKSPACE_FOREGROUND_SECONDS", "0")
     with pytest.raises(ValueError):
         Limits.from_environment()
+
+
+def test_only_the_upstream_reply_to_that_very_query_is_accepted():
+    query = dns.query("pypi.org", dns.A)
+    genuine = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 0, 0, 0) + query[12:]
+    assert dns.answers(query, genuine)
+    forged_id = bytes([query[0] ^ 1, query[1]]) + genuine[2:]
+    assert not dns.answers(query, forged_id)
+    assert not dns.answers(query, query)  # not a reply
+    other = dns.query("files.pythonhosted.org", dns.A)
+    assert not dns.answers(query, query[:2] + other[2:])
+    assert not dns.answers(query, genuine[:12])  # an empty forged reply
+
+
+def test_answers_that_lead_into_a_broker_domain_are_refused():
+    domains = denied_domains(None)
+    query = dns.query("innocent.example.org", dns.A)
+    target = b"\x0cagiliumtrade\x02ai\x00"
+    cname = query[12:-4] + struct.pack("!HHIH", dns.CNAME, 1, 60, len(target)) + target
+    answer = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 1, 0, 0) + query[12:] + cname
+    assert "agiliumtrade.ai" in dns.names(answer)
+    screened = netguard.screened(query, answer, domains)
+    assert screened[3] & 0x0F == dns.NXDOMAIN
+    clean = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 0, 0, 0) + query[12:]
+    assert netguard.screened(query, clean, domains) == clean
+
+
+def test_no_resolver_but_the_forwarder_is_reachable():
+    text = ruleset()
+    assert "th dport { 53, 853 } reject" in text
+    assert text.index('oifname "lo" accept') < text.index("th dport { 53, 853 }")
+
+
+@pytest.mark.skipif(os.geteuid() != 0, reason="runs a command as an agent user")
+def test_a_foreground_command_ends_with_its_own_process(tmp_path: Path):
+    root = Path(tempfile.mkdtemp(dir="/tmp"))
+    root.chmod(0o755)
+    try:
+        supervisor = Supervisor(Users(root, _etc(tmp_path)), Limits(foreground_seconds=20))
+        supervisor.users.load()
+
+        async def go() -> dict[str, object]:
+            request = RunCommand(agent_id=uuid.uuid4(), command="sleep 8 & echo quick")
+            return await supervisor.foreground(request)
+
+        started = time.monotonic()
+        result = asyncio.run(go())
+        assert time.monotonic() - started < 4
+        assert result["exit_code"] == 0 and not result["timed_out"]
+        assert result["stdout"] == "quick\n"
+        signal_agents(signal.SIGKILL, None, supervisor.users)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

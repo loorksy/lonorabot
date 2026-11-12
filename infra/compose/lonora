@@ -120,9 +120,15 @@ compose() {
     done
     local envs=(--env-file .env)
     if [[ -f "$STATE/image.env" ]]; then envs+=(--env-file "$STATE/image.env"); fi
-    docker compose -p "$(project)" "${envs[@]}" "${files[@]}" "$@"
+    LONORA_WORKSPACE_HOST_ADDRESSES="$(host_addresses)" docker compose -p "$(project)" "${envs[@]}" "${files[@]}" "$@"
 }
 
+# Every global address of this host: the workspace may reach none of them (7.1.4), so no
+# port the host publishes (Caddy, a reverse proxy, SSH) is open to it.
+host_addresses() {
+    { ip -o addr show scope global 2>/dev/null | awk '{print $4}' | sed 's#/.*##'; hostname -I 2>/dev/null | tr ' ' '\n'; } |
+        grep -E '^[0-9a-fA-F:.]+$' | sort -u | tr '\n' ' '
+}
 current_image() { [[ -f "$STATE/image.env" ]] || return 0; sed -n 's/^LONORA_IMAGE=//p' "$STATE/image.env" | tail -n 1; }
 pin_image() {
     printf 'LONORA_IMAGE=%s\n' "$1" >"$STATE/image.env.part"
@@ -170,7 +176,11 @@ workspace_disk() {
     mkdir -p "$dir"
     if ! mountpoint -q "$dir"; then
         if ((bytes > current)); then
-            fallocate -l "$bytes" "$image" && e2fsck -f -p "$image" >/dev/null && resize2fs "$image" >/dev/null || die 'Cannot grow the workspace disk.'
+            local checked=0
+            fallocate -l "$bytes" "$image" || die 'Cannot grow the workspace disk.'
+            e2fsck -f -p "$image" >/dev/null || checked=$?
+            # 1: errors were found and corrected (an unclean shutdown); still fine to grow.
+            ((checked <= 1)) && resize2fs "$image" >/dev/null || die 'Cannot grow the workspace disk.'
         fi
         mount -o loop,nodev,nosuid "$image" "$dir" || die "Cannot mount the workspace disk at $dir."
     elif ((bytes > current)); then

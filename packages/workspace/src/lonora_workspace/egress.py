@@ -4,8 +4,10 @@ The workspace shares the network namespace of the guard container and has no net
 capability of its own. The guard installs these rules in that namespace: every packet
 to a private, link-local, loopback-adjacent or reserved range, to Lonora's own public
 address, or to a resolved MetaApi address is rejected; Docker's embedded resolver is
-reachable only by root (the guard's own forwarder). Names under a broker domain or
-Lonora's domain do not resolve.
+reachable only by root (the guard's own forwarder), and no other resolver is reachable
+(DNS and DNS-over-TLS ports are rejected off the host), so every name goes through the
+forwarder. Names under a broker domain or Lonora's domain, and answers that lead into
+one, do not resolve.
 """
 
 import ipaddress
@@ -36,6 +38,7 @@ BLOCKED_V6 = (
     "::/127",
     "::ffff:0:0/96",
     "64:ff9b::/96",
+    "64:ff9b:1::/48",
     "100::/64",
     "2001:db8::/32",
     "fc00::/7",
@@ -89,6 +92,7 @@ table inet {TABLE} {{
     type filter hook output priority 0; policy accept;
     oifname "lo" ip daddr {DOCKER_RESOLVER} meta skuid != 0 reject
     oifname "lo" accept
+    meta l4proto {{ tcp, udp }} th dport {{ 53, 853 }} reject
     meta l4proto tcp ip daddr @blocked4 reject with tcp reset
     ip daddr @blocked4 reject with icmpx type admin-prohibited
     meta l4proto tcp ip6 daddr @blocked6 reject with tcp reset

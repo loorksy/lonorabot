@@ -27,6 +27,7 @@ READY = Path("/run/lonora-netguard.ready")
 RESOLV = Path("/etc/resolv.conf")
 LISTEN = ("127.0.0.1", 53)
 UPSTREAM = (DOCKER_RESOLVER, 53)
+IN_FLIGHT = 128
 log = logging.getLogger("lonora.workspace.netguard")
 
 
@@ -48,12 +49,18 @@ async def resolve(names: list[str]) -> list[str]:
 
 
 async def forward_udp(packet: bytes) -> bytes:
+    """Ask Docker's resolver on a connected socket; only its reply to this very query
+    counts, so no other local process can inject an answer."""
     loop = asyncio.get_running_loop()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setblocking(False)
-        await loop.sock_sendto(sock, packet, UPSTREAM)
-        answer, _ = await asyncio.wait_for(loop.sock_recvfrom(sock, 65535), 5)
-        return answer
+        await loop.sock_connect(sock, UPSTREAM)
+        await loop.sock_sendall(sock, packet)
+        async with asyncio.timeout(5):
+            while True:
+                answer = await loop.sock_recv(sock, 65535)
+                if dns.answers(packet, answer):
+                    return answer
 
 
 async def forward_tcp(packet: bytes) -> bytes:
@@ -62,9 +69,12 @@ async def forward_tcp(packet: bytes) -> bytes:
         writer.write(struct.pack("!H", len(packet)) + packet)
         await writer.drain()
         size = struct.unpack("!H", await asyncio.wait_for(reader.readexactly(2), 5))[0]
-        return await asyncio.wait_for(reader.readexactly(size), 5)
+        answer = await asyncio.wait_for(reader.readexactly(size), 5)
     finally:
         writer.close()
+    if not dns.answers(packet, answer):
+        raise OSError("dns_answer_mismatch")
+    return answer
 
 
 def verdict(packet: bytes, domains: tuple[str, ...]) -> bytes | None:
@@ -78,21 +88,39 @@ def verdict(packet: bytes, domains: tuple[str, ...]) -> bytes | None:
     return None
 
 
+def screened(query: bytes, answer: bytes, domains: tuple[str, ...]) -> bytes:
+    """The answer, unless it leads into a denied domain (a CNAME into MetaApi, say)."""
+    try:
+        if any(name_denied(name, domains) for name in dns.names(answer)):
+            return dns.reply(query, dns.NXDOMAIN)
+    except dns.DnsError:
+        return dns.reply(query, dns.FORMERR)
+    return answer
+
+
 class Udp(asyncio.DatagramProtocol):
     def __init__(self, domains: tuple[str, ...]) -> None:
         self.domains = domains
         self.transport: asyncio.DatagramTransport | None = None
+        self.pending: set[asyncio.Task[None]] = set()
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport  # type: ignore[assignment]
 
     def datagram_received(self, data: bytes, addr: tuple[str | int, int]) -> None:
-        asyncio.get_running_loop().create_task(self.answer(data, addr))
+        if len(self.pending) >= IN_FLIGHT:
+            return  # a flood is dropped; the guard and other lookups keep working
+        task = asyncio.get_running_loop().create_task(self.answer(data, addr))
+        self.pending.add(task)
+        task.add_done_callback(self.pending.discard)
 
     async def answer(self, data: bytes, addr: tuple[str | int, int]) -> None:
         refusal = verdict(data, self.domains)
         try:
-            response = refusal if refusal is not None else await forward_udp(data)
+            if refusal is not None:
+                response = refusal
+            else:
+                response = screened(data, await forward_udp(data), self.domains)
         except (TimeoutError, OSError):
             return
         if self.transport is not None:
@@ -105,22 +133,33 @@ def announce() -> None:
     READY.write_text("ready\n")
 
 
-async def serve(domains: tuple[str, ...], extra: list[str], refresh_seconds: int) -> None:
+async def serve(
+    domains: tuple[str, ...], extra: list[str], learned: set[str], refresh_seconds: int
+) -> None:
     loop = asyncio.get_running_loop()
     await loop.create_datagram_endpoint(lambda: Udp(domains), local_addr=LISTEN)
 
+    connections = asyncio.Semaphore(IN_FLIGHT)
+
     async def tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        try:
-            size = struct.unpack("!H", await asyncio.wait_for(reader.readexactly(2), 10))[0]
-            packet = await asyncio.wait_for(reader.readexactly(size), 10)
-            refusal = verdict(packet, domains)
-            response = refusal if refusal is not None else await forward_tcp(packet)
-            writer.write(struct.pack("!H", len(response)) + response)
-            await writer.drain()
-        except (TimeoutError, OSError, asyncio.IncompleteReadError, struct.error):
-            pass
-        finally:
+        if connections.locked():
             writer.close()
+            return
+        async with connections:
+            try:
+                size = struct.unpack("!H", await asyncio.wait_for(reader.readexactly(2), 10))[0]
+                packet = await asyncio.wait_for(reader.readexactly(size), 10)
+                refusal = verdict(packet, domains)
+                if refusal is not None:
+                    response = refusal
+                else:
+                    response = screened(packet, await forward_tcp(packet), domains)
+                writer.write(struct.pack("!H", len(response)) + response)
+                await writer.drain()
+            except (TimeoutError, OSError, asyncio.IncompleteReadError, struct.error):
+                pass
+            finally:
+                writer.close()
 
     await asyncio.start_server(tcp, *LISTEN)
     announce()
@@ -129,7 +168,9 @@ async def serve(domains: tuple[str, ...], extra: list[str], refresh_seconds: int
     while True:
         await asyncio.sleep(refresh_seconds)
         try:
-            apply(extra + await resolve(known))
+            # Grow only: a failed or empty lookup never removes an address already blocked.
+            learned.update(await resolve(known))
+            apply([*extra, *sorted(learned)])
         except (subprocess.SubprocessError, OSError) as error:
             log.warning("workspace_netguard_refresh_failed type=%s", type(error).__name__)
 
@@ -162,15 +203,18 @@ def main() -> None:
         os.environ.get("LONORA_DOMAIN"),
         os.environ.get("LONORA_WORKSPACE_BLOCKED_DOMAINS", "").split(),
     )
-    extra = os.environ.get("LONORA_WORKSPACE_BLOCKED_ADDRESSES", "").split()
+    extra = [
+        *os.environ.get("LONORA_WORKSPACE_BLOCKED_ADDRESSES", "").split(),
+        *os.environ.get("LONORA_WORKSPACE_HOST_ADDRESSES", "").split(),
+    ]
     networks(extra)  # refuse a malformed address before anything is installed
     refresh = int(os.environ.get("LONORA_WORKSPACE_GUARD_REFRESH_SECONDS", "300"))
     apply(extra)
 
     async def run() -> None:
-        resolved = await resolve([*METAAPI_KNOWN_HOSTS, *domains])
-        apply(extra + resolved)
-        await serve(domains, extra, refresh)
+        learned = set(await resolve([*METAAPI_KNOWN_HOSTS, *domains]))
+        apply([*extra, *sorted(learned)])
+        await serve(domains, extra, learned, refresh)
 
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run())

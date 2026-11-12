@@ -5,7 +5,7 @@ import ipaddress
 import secrets
 import struct
 
-A, AAAA = 1, 28
+A, CNAME, AAAA, DNAME = 1, 5, 28, 39
 NOERROR, FORMERR, NXDOMAIN = 0, 1, 3
 
 
@@ -103,5 +103,42 @@ def addresses(packet: bytes) -> list[str]:
             raise DnsError("dns_answer_short")
         if kind == A and size == 4 or kind == AAAA and size == 16:
             found.append(str(ipaddress.ip_address(data)))
+        offset += 10 + size
+    return found
+
+
+def answers(query_packet: bytes, answer: bytes) -> bool:
+    """True when `answer` is a reply to exactly `query_packet` (id, flag, question)."""
+    try:
+        _, end = question(query_packet)
+    except DnsError:
+        return False
+    return (
+        len(answer) >= end
+        and answer[:2] == query_packet[:2]
+        and bool(answer[2] & 0x80)
+        and answer[4:6] == b"\0\1"
+        and answer[12:end].lower() == query_packet[12:end].lower()
+    )
+
+
+def names(packet: bytes) -> list[str]:
+    """Every name an answer leads to: the owners of its records and CNAME/DNAME targets."""
+    if len(packet) < 12:
+        raise DnsError("dns_answer_short")
+    qdcount, ancount, nscount, arcount = struct.unpack("!HHHH", packet[4:12])
+    offset = 12
+    for _ in range(qdcount):
+        _, offset = _name(packet, offset)
+        offset += 4
+    found: list[str] = []
+    for _ in range(ancount + nscount + arcount):
+        owner, offset = _name(packet, offset)
+        if offset + 10 > len(packet):
+            raise DnsError("dns_answer_short")
+        kind, _, _, size = struct.unpack("!HHIH", packet[offset : offset + 10])
+        found.append(owner)
+        if kind in (CNAME, DNAME):
+            found.append(_name(packet, offset + 10)[0])
         offset += 10 + size
     return found

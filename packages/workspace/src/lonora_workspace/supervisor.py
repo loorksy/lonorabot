@@ -151,14 +151,16 @@ def live_processes(users: Users) -> list[dict[str, Any]]:
         if not entry.name.isdigit():
             continue
         try:
-            uid = entry.stat().st_uid
-            if not is_agent_uid(uid):
+            uid = owner(int(entry.name))
+            if uid is None or not is_agent_uid(uid):
                 continue
             raw = (entry / "cmdline").read_bytes()[:4096]
             stat = (entry / "stat").read_text()
         except OSError:
             continue
         fields = stat[stat.rindex(")") + 2 :].split()
+        if fields[0] in {"Z", "X"}:
+            continue  # ended, waiting to be reaped: no longer running
         found.append(
             {
                 "pid": int(entry.name),
@@ -174,10 +176,16 @@ def live_processes(users: Users) -> list[dict[str, Any]]:
 
 
 def owner(pid: int) -> int | None:
+    """The real uid of a process. Not the owner of /proc/<pid>, which the kernel shows as
+    root for a process that made itself non-dumpable (which would hide it)."""
     try:
-        return Path(f"/proc/{pid}").stat().st_uid
+        status = Path(f"/proc/{pid}/status").read_text()
     except OSError:
         return None
+    for line in status.splitlines():
+        if line.startswith("Uid:"):
+            return int(line.split()[1])
+    return None
 
 
 def running(pid: int) -> bool:
@@ -198,6 +206,49 @@ def signal_agents(sig: int, uids: set[int] | None, users: Users) -> int:
             os.kill(pid, sig)
             count += 1
     return count
+
+
+async def exited(process: asyncio.subprocess.Process, seconds: float) -> bool:
+    """Whether the command's own process ended within `seconds`. Watched through a pidfd,
+    not `process.wait()`, which also waits for every pipe to close: a background child
+    that keeps stdout open must not hold a foreground command until its limit."""
+    loop = asyncio.get_running_loop()
+    try:
+        descriptor = os.pidfd_open(process.pid)
+    except ProcessLookupError:
+        return True
+    done: asyncio.Future[None] = loop.create_future()
+    loop.add_reader(descriptor, lambda: done.done() or done.set_result(None))
+    try:
+        await asyncio.wait_for(done, seconds)
+        return True
+    except TimeoutError:
+        return False
+    finally:
+        loop.remove_reader(descriptor)
+        os.close(descriptor)
+
+
+async def returncode(process: asyncio.subprocess.Process) -> int | None:
+    for _ in range(100):  # the child watcher reaps it a moment after it ends
+        if process.returncode is not None:
+            return process.returncode
+        await asyncio.sleep(0.02)
+    return None
+
+
+async def watch_network(interval: float = 10) -> None:
+    """The workspace lives in the guard's network namespace. If the guard container is
+    restarted on its own, that namespace is gone and only loopback is left: exit, so the
+    restart policy starts the workspace again inside the guard's new namespace."""
+    missed = 0
+    while True:
+        await asyncio.sleep(interval)
+        interfaces = set(os.listdir("/sys/class/net"))
+        missed = missed + 1 if interfaces <= {"lo"} else 0
+        if missed >= 2:
+            log.warning("workspace_network_lost")
+            os._exit(1)
 
 
 class Supervisor:
@@ -283,7 +334,8 @@ class Supervisor:
             self.jobs.pop(old.id, None)
 
     async def watch(self, job: Job, process: asyncio.subprocess.Process) -> None:
-        self.ended(job, await process.wait())
+        await process.wait()
+        self.ended(job, process.returncode)
 
     async def foreground(self, request: RunCommand) -> dict[str, Any]:
         limit = self.limits.foreground_seconds
@@ -305,18 +357,18 @@ class Supervisor:
             asyncio.create_task(drain("stdout", process.stdout)),
             asyncio.create_task(drain("stderr", process.stderr)),
         ]
-        timed_out = False
-        try:
-            code: int | None = await asyncio.wait_for(process.wait(), timeout)
-        except TimeoutError:
-            timed_out = True
+        timed_out = not await exited(process, timeout)
+        if timed_out:
             with contextlib.suppress(OSError):
                 os.killpg(process.pid, signal.SIGKILL)
-            code = await process.wait()
+            await exited(process, 10)
+        code = await returncode(process)
         # A background child may keep the pipes open: read what is there, then stop.
         _, pending = await asyncio.wait(readers, timeout=1)
         for task in pending:
             task.cancel()
+        # Release our ends of the pipes; a child still holding them gets SIGPIPE, not a hang.
+        process._transport.close()  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
         self.ended(job, code)
         return {
             "boot_id": self.boot_id,
@@ -410,6 +462,9 @@ def create_app(supervisor: Supervisor) -> FastAPI:
             return await supervisor.foreground(request)
         except ValueError as error:
             return refused(str(error))
+        except OSError:
+            # Typically the process limit: nothing was started.
+            return refused("workspace_start_failed", 503)
 
     @app.get("/v1/processes")
     async def processes() -> dict[str, Any]:
@@ -471,7 +526,15 @@ def serve() -> None:
             timeout_graceful_shutdown=5,
         )
         log.warning("workspace_supervisor_ready boot_id=%s", supervisor.boot_id)
-        asyncio.run(uvicorn.Server(config).serve(sockets=[listener]))
+
+        async def run() -> None:
+            watcher = asyncio.create_task(watch_network())
+            try:
+                await uvicorn.Server(config).serve(sockets=[listener])
+            finally:
+                watcher.cancel()
+
+        asyncio.run(run())
 
 
 def main() -> None:
