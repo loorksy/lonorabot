@@ -17,7 +17,6 @@ from uuid import uuid4
 import pytest
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_trading.closed_trades import position_deal, realized, trades
 from test_proactive_wakes import database, journal, retire, set_positions, simulation
 
@@ -168,16 +167,13 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
     database()
     from check_streaming import Fixture
     from lonora_db.schema import BrokerDealRow, ClosedTradeCursorRow
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import delete, func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
         await quote(fixture, connection, "100", "101")
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Ledger", supervised=True)
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
         opened = await send(
@@ -252,7 +248,6 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             )
             assert kept == 0  # The closed trade's deals live on its row only.
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 
