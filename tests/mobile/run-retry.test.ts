@@ -47,3 +47,14 @@ test("only the newest provider failure, not yet retried, once its wait is over",
   assert.equal(retryableFailure([waiting], now + 600_000)?.ready, true);
   assert.equal(retryableFailure([run("6", { status: "succeeded" })], now), null);
 });
+
+test("only the owner's replies are retried: never a routine's, a peer's or a subagent's run", () => {
+  const now = Date.parse("2026-11-12T06:10:00Z");
+  assert.equal(retryableFailure([run("1", { trigger: "routine" })], now), null);
+  assert.equal(retryableFailure([run("1", { parent_run_id: "p" })], now), null);
+  assert.equal(retryableFailure([run("1", { trigger: "group" })], now)?.run.id, "1");
+  // A newer background run does not hide the owner's failed reply.
+  const reply = run("1");
+  const routine = run("2", { trigger: "routine", status: "succeeded" });
+  assert.equal(retryableFailure([reply, routine], now)?.run.id, "1");
+});

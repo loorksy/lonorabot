@@ -270,3 +270,34 @@ test("a failed reply offers Retry once; the retry names it and the banner settle
     await data.remove();
   }
 });
+
+test("a failed routine run shows in the banner without Retry: the server never retries it", async ({
+  page,
+  context,
+}) => {
+  const data = await fixture(context);
+  const now = new Date().toISOString();
+  const routine = {
+    id: randomUUID(),
+    thread_id: data.thread.id,
+    agent_id: data.agent.id,
+    parent_run_id: null,
+    status: "failed",
+    trigger: "routine",
+    input_seq: null,
+    model_metadata: {},
+    result: null,
+    error_code: "provider_unavailable",
+    created_at: now,
+    updated_at: now,
+  };
+  await page.route("**/api/runs?thread_id=*", (route) => route.fulfill({ json: [routine] }));
+  try {
+    await page.goto(`/thread?id=${data.thread.id}`);
+    await expect(page.getByText(data.agent.name).first()).toBeVisible();
+    await expect(page.getByText(/· Failed/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
+  } finally {
+    await data.remove();
+  }
+});
