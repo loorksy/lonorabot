@@ -225,6 +225,11 @@ def test_a_refused_login_becomes_the_owners_problem_after_the_grace() -> None:
         "reason_code": "broker_login_rejected",
     }
     assert broker_problem(recovery, since + timedelta(seconds=90)) is None
+    # A broker down for maintenance clears by itself: recovery keeps trying meanwhile.
+    from lonora_core.runtime_failure import TRANSIENT_READ_CODES
+    from lonora_db.task_recovery import TRANSIENT_CODES
+
+    assert "broker_login_rejected" in TRANSIENT_READ_CODES & TRANSIENT_CODES
     assert broker_problem(recovery, since + LOST_CONNECTION_GRACE) == (
         "broker_connection_lost",
         since.isoformat(),

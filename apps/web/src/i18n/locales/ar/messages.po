@@ -7170,6 +7170,10 @@ msgstr "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُ�
 msgid "The broker is connected"
 msgstr "الاتصال بالوسيط سليم"
 
+#: src/lib/user_error.ts:157
+msgid "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
+msgstr "يرفض الوسيط تسجيل الدخول للتداول: قد يكون خادمه متوقفًا، أو تغيّرت كلمة المرور. إن استمر ذلك فاطلب من لونورا في المحادثة."
+
 #: src/lib/user_error.ts:167
 msgid "The broker market-data service is rate limited."
 msgstr "تم بلوغ حد طلبات خدمة بيانات السوق لدى الوسيط."
@@ -7181,10 +7185,6 @@ msgstr "نتيجة العملية لدى الوسيط غير مؤكدة. يبق�
 #: src/lib/user_error.ts:176
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "سعر الوسيط غير متاح لهذا الرمز المحدد."
-
-#: src/lib/user_error.ts:157
-msgid "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password."
-msgstr "رفض الوسيط تسجيل الدخول للتداول: كلمة مرور تغيّرت أو خادمه متوقف. اطلب من لونورا في المحادثة تحديث كلمة المرور."
 
 #: src/conversation/Cards.tsx:414
 msgid "The broker rejected the order"

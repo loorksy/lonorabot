@@ -154,7 +154,7 @@ export function userError(error: unknown) {
     case "broker_account_not_ready":
       return t`The broker account is not ready at MetaApi yet. If it lasts, ask Lonora in chat.`;
     case "broker_login_rejected":
-      return t`The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password.`;
+      return t`The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.`;
     case "broker_credentials_rejected":
       return t`Broker authentication was rejected.`;
     case "broker_candles_timeout":

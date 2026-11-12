@@ -7176,6 +7176,10 @@ msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 msgid "The broker is connected"
 msgstr "The broker is connected"
 
+#: src/lib/user_error.ts:157
+msgid "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
+msgstr "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat."
+
 #: src/lib/user_error.ts:167
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
@@ -7187,10 +7191,6 @@ msgstr "The broker mutation is uncertain. Execution remains blocked until its re
 #: src/lib/user_error.ts:176
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
-
-#: src/lib/user_error.ts:157
-msgid "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password."
-msgstr "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password."
 
 #: src/conversation/Cards.tsx:414
 msgid "The broker rejected the order"

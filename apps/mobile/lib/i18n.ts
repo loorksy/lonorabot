@@ -482,8 +482,8 @@ export const labels = {
     "The broker account is not running at MetaApi. Ask Lonora in chat to start it.",
   ],
   broker_login_rejected: [
-    "رفض الوسيط تسجيل الدخول للتداول: كلمة مرور تغيّرت أو خادمه متوقف. اطلب من لونورا في المحادثة تحديث كلمة المرور.",
-    "The broker refused the trading login: a changed password, or its server is down. Ask Lonora in chat to update the password.",
+    "يرفض الوسيط تسجيل الدخول للتداول: قد يكون خادمه متوقفًا، أو تغيّرت كلمة المرور. إن استمر ذلك فاطلب من لونورا في المحادثة.",
+    "The broker is refusing the trading login: its server may be down, or the password changed. If it lasts, ask Lonora in chat.",
   ],
   broker_account_not_ready: [
     "حساب الوسيط غير جاهز بعد لدى MetaApi. إن استمر ذلك فاطلب من لونورا في المحادثة.",

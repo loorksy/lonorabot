@@ -190,7 +190,7 @@ def manage_tools() -> list[Tool]:
             "Change one of the owner's broker connections on the owner's own request: "
             "disconnect (an account Lonora created at MetaApi is removed there too; its open "
             "positions and orders stay at the broker, unmanaged), enable, deploy (start an "
-            "account MetaApi reports not running, after the owner agrees), "
+            "account MetaApi reports not running, once the owner says yes in chat), "
             "disable (its positions are then not read or managed), rotate_password or "
             "replace_token (each shows a card for the new value; you never see it). "
             "account_id is the connection_id from list_accounts. disable, disconnect and "
