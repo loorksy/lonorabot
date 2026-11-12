@@ -7,7 +7,6 @@ from typing import Any
 from lonora_contracts.broker import BrokerConnection
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market_health import HealthSnapshot
-from lonora_contracts.trading import TradingControl
 from lonora_contracts.trading_decision import (
     DecisionCompare,
     DecisionEvidence,
@@ -32,7 +31,6 @@ from lonora_db.trading_decisions import (
     read_decision,
     store_decision,
 )
-from lonora_db.transactions import SettingsRepository
 from lonora_market.health import assess_account, assess_candles, assess_quote, timeframe_age_seconds
 from lonora_market.relationships import relationship_usable
 from lonora_trading.admission import entry_recovery_status
@@ -162,14 +160,10 @@ async def record(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             session, context.owner_id, params.account_id
         )
         config = BrokerConnection.model_validate(current_connection.payload)
-        controls = TradingControl.model_validate(
-            await SettingsRepository().get(session, "trading_control")
-        )
         recovery = current_connection.state.get("broker_recovery")
         readiness = decision_readiness(
             params,
             evidence,
-            controls=controls,
             broker_enabled=config.enabled,
             broker_recovery_status=await entry_recovery_status(
                 session, context.owner_id, params.account_id, params.symbol, recovery

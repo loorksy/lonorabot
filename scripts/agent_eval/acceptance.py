@@ -29,6 +29,7 @@ runs on its own copy of a disposable PostgreSQL template, dropped at the end.
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -44,10 +45,15 @@ from uuid import uuid4
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
 from lonora_agent.environment import classify, error_class
 from lonora_agent.executor import execute_run
+from lonora_contracts.domain import AgentCreate, ThreadCreate
+from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
-from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
+from lonora_db.schema import AgentRow, MessageRow, RunRow, TradingJournalRow
+from lonora_db.threads import create_thread
+from lonora_db.trading_mode import set_trading_mode
 from lonora_market.watchers import check_watches
 from lonora_tools.loader import load_tools
+from lonora_trading.manual_activity import journal_agent
 from lonora_trading.reconciliation import reconcile_ambiguous
 from sqlalchemy import func, select
 from sqlalchemy.engine import URL
@@ -363,6 +369,10 @@ async def judged(stage: Stage, thread_id: str) -> list[Check]:
     ]
 
 
+# 4c's actor (a close is risk-reducing, so it needs no approval in either mode, 4.1).
+GOLD_SENT = "the gold agent, a team agent in Full, sent the close"
+
+
 async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> list[Check]:
     """4c: a connection drop during a close is reconciled without a resend.
 
@@ -374,6 +384,7 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     given = step["given"]
     terminal = stage.terminal
     position = terminal.open_position(**given["position"])
+    await opened_by(stage, position, stage.ids["gold"])
     if stage.model is not None:
         stage.model.names.update({"$account": stage.ids["account_id"], "$ticket": position["id"]})
     async with stage.api.runtime.db.sessions() as session, session.begin():
@@ -397,7 +408,19 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     await stage.drain()
     closes = [row for row in await stage.journal() if row.request.get("action") == "close_position"]
     sends = terminal.calls.count("close_position")
+    senders = [journal_agent(row) for row in closes]
+    async with stage.api.runtime.db.sessions() as session:
+        gold = await session.get(AgentRow, stage.ids["gold"])
     checks: list[Check] = [
+        (
+            GOLD_SENT,
+            senders == [stage.ids["gold"]]
+            and gold is not None
+            and gold.role != "personal"
+            and gold.trading_mode == "full",
+            f"sent by {[stage.handle(agent) if agent else 'the owner' for agent in senders]}"
+            f", mode {gold.trading_mode if gold else None}",
+        ),
         (
             "the agent's own watch woke it",
             (await stage.triggers())[:1] == ["watch"],
@@ -432,14 +455,51 @@ RUNNERS: dict[str, Callable[[Stage, dict[str, Any]], Awaitable[list[Check]]]] = 
 # --- One step on its own copy of the template ----------------------------------------------
 
 
-async def gold_agent(api: Any, ids: dict[str, str]) -> dict[str, str]:
-    """The gold agent of step 2 as this commit can make it.
+async def gold_agent(api: Any, ids: dict[str, str], variant: broker.Variant) -> dict[str, str]:
+    """The gold agent of step 2: a team agent bound to the account's gold, set to Full by
+    the owner's tap (4.2.1), with its own conversation."""
+    async with api.runtime.db.sessions() as session, session.begin():
+        gold = await create_agent(
+            session,
+            api.owner,
+            AgentCreate(
+                name="وكيل الذهب",
+                template="trading",
+                trading_account_id=ids["account_id"],
+                trading_symbol=broker.broker_symbol("XAUUSD", variant),
+            ),
+        )
+        await set_trading_mode(session, api.owner, gold.id, "full", by="owner_tap")
+        thread = await create_thread(session, api.owner, ThreadCreate(agent_id=gold.id))
+    return {"gold": gold.id, "gold_thread": thread.id}
 
-    Until modes land (W-AUTH), the only agent that may execute without asking is the one
-    the template's signed grant covers: Lonora. The step's actor is then Lonora, and the
-    status table says so.
-    """
-    return {"gold": ids["lonora_id"], "gold_thread": ids["thread_id"]}
+
+async def opened_by(stage: Stage, position: dict[str, Any], agent_id: str) -> None:
+    """The journal's record of the agent's own confirmed order that opened ``position``,
+    as the executor writes it, so the ticket is that agent's (3.3.4)."""
+    request = {
+        "account_id": stage.ids["account_id"],
+        "action": position["type"].removeprefix("POSITION_TYPE_").lower(),
+        "symbol": position["symbol"],
+        "volume": str(position["volume"]),
+    }
+    async with stage.api.runtime.db.sessions() as session, session.begin():
+        session.add(
+            TradingJournalRow(
+                operation_id=str(uuid4()),
+                owner_id=stage.api.owner,
+                account_id=stage.ids["account_id"],
+                request_hash=hashlib.sha256(
+                    json.dumps(request, sort_keys=True).encode()
+                ).hexdigest(),
+                request=request,
+                status="confirmed",
+                result={
+                    "broker_id": position["id"],
+                    "details": {"position_id": position["id"], "execution": {"agent_id": agent_id}},
+                },
+            )
+        )
 
 
 async def run_step(
@@ -455,7 +515,7 @@ async def run_step(
         try:
             api = harness.Api(clone)
             await api.login()
-            names = {**ids, **await gold_agent(api, ids)}
+            names = {**ids, **await gold_agent(api, ids, terminal.variant)}
             model = None if live else ScriptedModel(turns=json.loads(json.dumps(step["script"])))
             stage = Stage(api, names, terminal, model)
             await stage.settle()

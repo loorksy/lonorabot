@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Persistent agents with a resident Python gateway"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "webauthn>=2.7,<2.8", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2", "Pillow>=11,<13", "tiktoken==0.12.0", "playwright==1.58.0", "PyYAML>=6,<7", "jsonschema==4.25.1"]
+dependencies = ["alembic>=1.14,<2", "asyncpg>=0.30,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.6,<3", "pypdf>=6.21,<7", "sqlalchemy[asyncio]>=2.0.36,<3", "uvicorn[standard]>=0.30,<1", "PyJWT>=2.10,<3", "pwdlib[argon2]>=0.2,<1", "cryptography>=44,<48", "webauthn>=2.7,<2.8", "python-multipart>=0.0.20,<1", "croniter>=6,<7", "websockets>=14,<17", "metaapi-cloud-sdk==29.1.1", "numpy>=2,<3", "python-dotenv>=1,<2", "Pillow>=11,<13", "tiktoken==0.12.0", "playwright==1.58.0", "PyYAML>=6,<7", "jsonschema==4.25.1"]
 
 [project.optional-dependencies]
 dev = ["setuptools>=75", "wheel", "aiosqlite>=0.20", "pytest>=8.3,<9", "pytest-asyncio>=0.25,<2", "ruff>=0.11,<1", "pyright>=1.1.406,<2", "types-jsonschema>=4.25,<5"]
@@ -31,9 +31,9 @@ typeCheckingMode = "strict"
 pythonVersion = "3.12"
 venvPath = "."
 venv = ".venv"
-extraPaths = ["apps/api/src", "apps/worker/src", "packages/adapter-kit/src", "packages/adapters/src", "packages/agent-runtime/src", "packages/auth/src", "packages/automation/src", "packages/bus/src", "packages/channels/src", "packages/charts/src", "packages/contracts/src", "packages/core/src", "packages/db/src", "packages/gateway/src", "packages/llm-usage/src", "packages/logging/src", "packages/market/src", "packages/memory/src", "packages/providers/src", "packages/security/src", "packages/session/src", "packages/tools/src", "packages/trading/src", "packages/voice/src"]
+extraPaths = ["apps/api/src", "apps/worker/src", "packages/adapter-kit/src", "packages/adapters/src", "packages/agent-runtime/src", "packages/auth/src", "packages/automation/src", "packages/bus/src", "packages/channels/src", "packages/charts/src", "packages/contracts/src", "packages/core/src", "packages/db/src", "packages/gateway/src", "packages/llm-usage/src", "packages/logging/src", "packages/market/src", "packages/memory/src", "packages/providers/src", "packages/security/src", "packages/session/src", "packages/tools/src", "packages/trading/src", "packages/voice/src", "packages/workspace/src"]
 [tool.setuptools]
-packages = ["lonora_api", "lonora_api.cli", "lonora_api.middleware", "lonora_api.routes", "lonora_api.websocket", "lonora_worker", "lonora_gateway", "lonora_agent", "lonora_agent.context", "lonora_agent.collaboration", "lonora_agent.automation", "lonora_agent.skills", "lonora_adapter_kit", "lonora_adapters", "lonora_adapters.models", "lonora_adapters.voice", "lonora_adapters.brokers", "lonora_adapters.market", "lonora_adapters.channels", "lonora_adapters.mcp", "lonora_adapters.storage", "lonora_providers", "lonora_tools", "lonora_bus", "lonora_session", "lonora_automation", "lonora_market", "lonora_charts", "lonora_trading", "lonora_voice", "lonora_channels", "lonora_channels.telegram", "lonora_channels.websocket", "lonora_channels.webhook", "lonora_contracts", "lonora_core", "lonora_db", "lonora_memory", "lonora_auth", "lonora_security", "lonora_logging", "lonora_llm_usage"]
+packages = ["lonora_api", "lonora_api.cli", "lonora_api.middleware", "lonora_api.routes", "lonora_api.websocket", "lonora_worker", "lonora_gateway", "lonora_agent", "lonora_agent.context", "lonora_agent.collaboration", "lonora_agent.automation", "lonora_agent.skills", "lonora_adapter_kit", "lonora_adapters", "lonora_adapters.models", "lonora_adapters.voice", "lonora_adapters.brokers", "lonora_adapters.market", "lonora_adapters.channels", "lonora_adapters.mcp", "lonora_adapters.storage", "lonora_providers", "lonora_tools", "lonora_bus", "lonora_session", "lonora_automation", "lonora_market", "lonora_charts", "lonora_trading", "lonora_voice", "lonora_channels", "lonora_channels.telegram", "lonora_channels.websocket", "lonora_channels.webhook", "lonora_contracts", "lonora_core", "lonora_db", "lonora_memory", "lonora_auth", "lonora_security", "lonora_logging", "lonora_llm_usage", "lonora_workspace"]
 [tool.setuptools.package-dir]
 "lonora_api" = "apps/api/src/lonora_api"
 "lonora_api.cli" = "apps/api/src/lonora_api/cli"
@@ -77,6 +77,7 @@ packages = ["lonora_api", "lonora_api.cli", "lonora_api.middleware", "lonora_api
 "lonora_security" = "packages/security/src/lonora_security"
 "lonora_logging" = "packages/logging/src/lonora_logging"
 "lonora_llm_usage" = "packages/llm-usage/src/lonora_llm_usage"
+"lonora_workspace" = "packages/workspace/src/lonora_workspace"
 
 [tool.setuptools.package-data]
 "lonora_bus" = ["attention_messages.json"]
@@ -85,14 +86,7 @@ packages = ["lonora_api", "lonora_api.cli", "lonora_api.middleware", "lonora_api
 "share/lonora/bootstrap" = ["packages/agent-runtime/resources/bootstrap/*.md", "packages/agent-runtime/resources/bootstrap/LICENSE.nanobot"]
 "share/lonora/system" = ["packages/agent-runtime/resources/system/lonora.md", "packages/agent-runtime/resources/system/manifest.json"]
 "share/lonora/constitution" = ["packages/agent-runtime/resources/constitution/collaboration-policy.md", "packages/agent-runtime/resources/constitution/identity.md", "packages/agent-runtime/resources/constitution/memory-policy.md", "packages/agent-runtime/resources/constitution/security-policy.md", "packages/agent-runtime/resources/constitution/tool-policy.md", "packages/agent-runtime/resources/constitution/trading-policy.md"]
-"share/lonora/playbooks/ambiguous-execution-recovery" = ["packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/ambiguous-execution-recovery/playbook.json"]
-"share/lonora/playbooks/market-analysis-cycle" = ["packages/agent-runtime/resources/playbooks/market-analysis-cycle/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/market-analysis-cycle/playbook.json"]
-"share/lonora/playbooks/position-monitoring" = ["packages/agent-runtime/resources/playbooks/position-monitoring/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/position-monitoring/playbook.json"]
-"share/lonora/playbooks/trade-entry" = ["packages/agent-runtime/resources/playbooks/trade-entry/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-entry/playbook.json"]
-"share/lonora/playbooks/trade-exit" = ["packages/agent-runtime/resources/playbooks/trade-exit/PLAYBOOK.md", "packages/agent-runtime/resources/playbooks/trade-exit/playbook.json"]
 "share/lonora/prompts" = ["packages/agent-runtime/resources/prompts/*.md"]
-"share/lonora/references/metaapi" = ["packages/agent-runtime/resources/references/metaapi/operations.md"]
-"share/lonora/schemas" = ["packages/agent-runtime/resources/schemas/playbook.schema.json", "packages/agent-runtime/resources/schemas/skill.schema.json"]
 "share/lonora/skills/chart-analysis" = ["packages/agent-runtime/resources/skills/chart-analysis/SKILL.md", "packages/agent-runtime/resources/skills/chart-analysis/skill.json"]
 "share/lonora/skills/market-analysis" = ["packages/agent-runtime/resources/skills/market-analysis/SKILL.md", "packages/agent-runtime/resources/skills/market-analysis/skill.json"]
 "share/lonora/skills/market-watch" = ["packages/agent-runtime/resources/skills/market-watch/SKILL.md", "packages/agent-runtime/resources/skills/market-watch/skill.json"]

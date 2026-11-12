@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal, cast
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -62,11 +62,7 @@ class AgentModelPreference(Contract):
         return self
 
 
-# "automatic": Lonora chooses. The Agent starts on the owner's default model and may
-# switch itself among the owner's allowed models. "fixed": the owner chose one model;
-# only the owner changes it (an Agent's own request becomes an owner card).
-AgentModelMode = Literal["automatic", "fixed"]
-# Text capabilities an Agent's own model serves; their global routes are allowed models.
+# Text capabilities an Agent's own model serves.
 TEXT_CAPABILITIES = (
     Capability.CONVERSATION,
     Capability.REASONING,
@@ -74,82 +70,23 @@ TEXT_CAPABILITIES = (
     Capability.BACKGROUND,
     Capability.VISION,
 )
-MAXIMUM_ADDED_MODELS = 20
-
-
-def legacy_mode(data: Any) -> Any:
-    """Records and requests written before modes existed: a stored primary was the
-    owner's own choice, so it reads as Fixed; none reads as Automatic."""
-    if not isinstance(data, dict):
-        return data
-    values = cast(dict[str, Any], data)
-    if "mode" in values:
-        return values
-    preference: Any = values.get("preference", values)
-    primary: Any = (
-        cast(dict[str, Any], preference).get("primary") if isinstance(preference, dict) else None
-    )
-    return {**values, "mode": "fixed" if primary else "automatic"}
 
 
 class AgentModelChange(AgentModelPreference):
-    """The owner's choice for one Agent. Fixed needs its model; Automatic may name a
-    starting model the Agent can later change."""
+    """The owner's choice for one Agent: its model, or none for the owner's default."""
 
-    mode: AgentModelMode = "automatic"
     expected_revision: int | None = Field(default=None, ge=0)
-
-    @model_validator(mode="before")
-    @classmethod
-    def unset_mode(cls, data: Any) -> Any:
-        return legacy_mode(data)
-
-    @model_validator(mode="after")
-    def fixed_has_model(self) -> "AgentModelChange":
-        if self.mode == "fixed" and self.primary is None:
-            raise ValueError("agent_model_fixed_requires_model")
-        return self
-
-
-class AgentModelState(Contract):
-    """A mode and its models: what Undo restores."""
-
-    mode: AgentModelMode = "automatic"
-    preference: AgentModelPreference = Field(default_factory=AgentModelPreference)
 
 
 class AgentModelRecord(Contract):
     owner_id: str
     agent_id: str
     revision: int = Field(default=0, ge=0)
-    mode: AgentModelMode = "automatic"
     preference: AgentModelPreference = Field(default_factory=AgentModelPreference)
-    # Who made the current choice; None until anyone chose.
-    chosen_by: Literal["owner", "agent"] | None = None
-    # The Agent that switched itself (or switched on the owner's request).
+    # Who set the current choice: the owner (settings, or his message an agent applied),
+    # or "inherited" (Lonora's model, copied when the agent was created); None until set.
+    chosen_by: Literal["owner", "inherited"] | None = None
+    # The agent that applied the owner's message, or Lonora for an inherited model.
     chosen_by_agent_id: str | None = None
-    previous: AgentModelState | None = None
+    previous: AgentModelPreference | None = None
     changed_at: datetime | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def unset_mode(cls, data: Any) -> Any:
-        return legacy_mode(data)
-
-    def state(self) -> AgentModelState:
-        return AgentModelState(mode=self.mode, preference=self.preference)
-
-
-class AllowedModels(Contract):
-    """Models the owner allowed beyond the global routes and backups. Agents switch
-    among the whole allowed list on their own; any other model is an owner card."""
-
-    added: list[ModelSelection] = Field(
-        default_factory=list[ModelSelection], max_length=MAXIMUM_ADDED_MODELS
-    )
-
-    @model_validator(mode="after")
-    def distinct_models(self) -> "AllowedModels":
-        if len({(item.provider, item.model) for item in self.added}) != len(self.added):
-            raise ValueError("agent_model_duplicate")
-        return self

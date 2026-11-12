@@ -9,7 +9,6 @@ from lonora_adapters.brokers.base import BrokerManager
 from lonora_contracts.attention import AttentionClassification
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market_watch import Watch
-from lonora_contracts.trading import TradingControl
 from lonora_core.attention import ATTENTION_KINDS, classify_attention
 from lonora_core.market_watch import condition_met
 from lonora_core.user_error import LonoraError
@@ -45,8 +44,9 @@ from lonora_db.schema import (
     TradingOpportunityRow,
     TradingRestrictionRow,
 )
+from lonora_db.system_alerts import wake_for_alerts
 from lonora_db.threads import conversation_thread
-from lonora_db.transactions import SettingsRepository, owned_agent
+from lonora_db.transactions import owned_agent
 from lonora_market.watchers import observe
 from lonora_trading.opportunities import evidence_state
 from sqlalchemy import select
@@ -131,15 +131,9 @@ async def candidate(
         if responsible:
             # Activity on an Agent's own positions reaches the owner in that Agent's chat.
             agent_id = str(event.agent_id)
-        elif event.kind.startswith("broker.") or event.kind == "trading.controls_updated":
-            agent_id, thread_id = personal.id, None
-        if event.kind == "trading.controls_updated":
-            current = TradingControl.model_validate(
-                await SettingsRepository().get(session, "trading_control")
-            )
-            if classification.code == "emergency_stop" and not current.emergency_stop:
-                raise LonoraError("attention_superseded_state", 409)
         elif event.kind.startswith("broker."):
+            agent_id, thread_id = personal.id, None
+        if event.kind.startswith("broker."):
             account_id = str(event.payload.get("account_id", ""))
             source = await session.get(BrokerSessionRow, account_id)
             if source is None or source.owner_id != event.owner_id:
@@ -295,7 +289,7 @@ async def candidate(
                         or not recovery.get("failures")
                     ):
                         raise LonoraError("attention_superseded_state", 409)
-        if not (event.kind.startswith("broker.") or event.kind == "trading.controls_updated") and (
+        if not event.kind.startswith("broker.") and (
             resource is None or resource.owner_id != event.owner_id
         ):
             raise LonoraError("attention_source_unavailable", 404)
@@ -387,7 +381,7 @@ async def quarantine_event(session: AsyncSession, item_id: str) -> bool:
 
     A critical or action-required event still reaches the owner under its own code
     (without the details its failed projection would have added): a projection bug
-    must never cost the owner an Emergency Stop or approval alert.
+    must never cost the owner an approval alert.
     """
     event = await session.get(EventRow, int(item_id))
     if event is None:
@@ -523,7 +517,17 @@ async def attention_tick(db: Database, brokers: BrokerManager, owner_id: str) ->
             await project_event(db, brokers, owner_id, event)
 
         await retry.run(str(event.cursor), owner_id, again)
-    return await ready_attention(db, brokers, owner_id)
+    readied = await ready_attention(db, brokers, owner_id)
+    # Lonora receives the system alerts (3.1.5): isolated like the health steps.
+    alerts = ItemGuard(db, "attention_health", quarantine_after=None)
+    await alerts.prepare(["wake:" + owner_id])
+
+    async def wake() -> None:
+        async with db.sessions() as session, session.begin():
+            await wake_for_alerts(session, owner_id)
+
+    await alerts.run("wake:" + owner_id, owner_id, wake)
+    return readied
 
 
 async def ready_attention(db: Database, brokers: BrokerManager, owner_id: str) -> int:

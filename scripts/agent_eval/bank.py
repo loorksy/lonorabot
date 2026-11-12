@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, cast
 
 from lonora_contracts.domain import AgentCreate, ThreadCreate
-from lonora_contracts.trading import TradingControl
 from lonora_db.agents import create_agent
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.schema import (
@@ -29,7 +28,6 @@ from lonora_db.schema import (
 )
 from lonora_db.tasks import finish_task, request_task_attention
 from lonora_db.threads import create_thread
-from lonora_trading.controls import save_controls
 from sqlalchemy import delete, select
 
 from . import broker
@@ -152,7 +150,6 @@ async def seed(api: Any, model: str) -> dict[str, str]:
             "enabled": True,
         },
     )
-    await save_controls(api.runtime.db, TradingControl(enabled=True))
     lonora = next(a for a in await api.request("GET", "/agents") if a["role"] == "personal")
     thread = await api.request("POST", f"/agents/{lonora['id']}/conversation", {})
     device = await device_type.enroll(api)
@@ -192,9 +189,7 @@ async def prepare(api: Any, ids: dict[str, str], scenario: dict[str, Any]) -> di
     async with api.runtime.db.sessions() as session, session.begin():
         if state.get("model_routing") == "unset":
             # A fresh install: a provider credential is saved and no model was chosen.
-            await session.execute(
-                delete(SettingRow).where(SettingRow.key.in_(["model_routing", "model_allowed"]))
-            )
+            await session.execute(delete(SettingRow).where(SettingRow.key == "model_routing"))
         # The account-management Task the signed mandate started (production: «إدارة حساب
         # التداول»), with its own conversation.
         task = await session.scalar(
