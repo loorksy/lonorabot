@@ -278,3 +278,78 @@ def test_the_wake_prompt_carries_only_sanitized_broker_values() -> None:
     assert "You are paused" not in prompt
     paused = transfer_prompt("agent-1", [], paused=True)
     assert "You are paused: only risk-reducing requests are sent" in paused
+
+
+@pytest.mark.asyncio
+async def test_lonora_never_deletes_on_an_unsettled_operation_or_from_an_observe_only_wake():
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.runs import create_run
+    from lonora_db.schema import AgentRow, TradingJournalRow
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        gold = await fixture.agent("Gold")
+        operation = "op-" + uuid4().hex
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            session.add(
+                TradingJournalRow(
+                    operation_id=operation,
+                    owner_id=fixture.owner,
+                    account_id="account-" + uuid4().hex[:8],
+                    request_hash="h",
+                    request={"symbol": "XAUUSD"},
+                    result={"details": {"execution": {"agent_id": gold["id"]}}},
+                    submitted_at=utcnow(),
+                    status="submitted",
+                )
+            )
+        lead = await wake(fixture, lonora)
+
+        # 14.3.16: an operation with no confirmed outcome refuses the delete.
+        assert (
+            await refused(lead, "agent_control", agent_id=gold["id"], action="delete")
+            == "delete_blocked_unresolved_operation"
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            journal = await session.get(TradingJournalRow, operation)
+            assert journal is not None
+            journal.status = "confirmed"
+
+        # 6.9: a wake about activity Lonora did not cause never deletes an agent.
+        thread = await fixture.conversation(lonora)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            observed = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=thread["id"],
+                    agent_id=lonora["id"],
+                    trigger="broker_event",
+                    prompt="Activity",
+                    metadata={"authority": "observe_only"},
+                ),
+            )
+            data = {"id": observed.id, "agent_id": lonora["id"], "thread_id": thread["id"]}
+        watcher = await fixture.lease(data)
+        assert (
+            await refused(watcher, "agent_control", agent_id=gold["id"], action="delete")
+            == "observe_only_execution_forbidden"
+        )
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(AgentRow, gold["id"]) is not None
+
+        # A full run deletes it; a replay answers from the receipt.
+        deleted = await call(lead, "agent_control", agent_id=gold["id"], action="delete")
+        assert deleted["deleted"] is True and deleted["changed"] is True
+        again = await call(lead, "agent_control", agent_id=gold["id"], action="delete")
+        assert again["deleted"] is True and again["changed"] is False
+    finally:
+        async with fixture.runtime.db.sessions() as session:
+            fixture.agents = [a for a in fixture.agents if await session.get(AgentRow, a)]
+        await fixture.close()

@@ -50,21 +50,28 @@ async def opened_tickets(
         if not raw:
             continue
         snapshot = BrokerRecoverySnapshot.model_validate(raw)
-        entries = list(
-            await session.scalars(
-                select(TradingJournalRow)
-                .where(
-                    TradingJournalRow.owner_id == owner_id,
-                    TradingJournalRow.account_id == account.id,
-                    # Opening orders only, so a busy account's closes never crowd them out.
-                    TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-                )
-                .order_by(TradingJournalRow.updated_at.desc())
-                .limit(1000)
-            )
-        )
+        by_symbol: dict[str, list[TradingJournalRow]] = {}
         for resource, items in (("position", snapshot.positions), ("order", snapshot.orders)):
             for item in sorted(items, key=lambda ticket: ticket.id):
+                # Per symbol, as ticket_agent reads it, so a busy account's other symbols
+                # never push an old opening out of the window.
+                entries = by_symbol.get(item.symbol)
+                if entries is None:
+                    entries = by_symbol[item.symbol] = list(
+                        await session.scalars(
+                            select(TradingJournalRow)
+                            .where(
+                                TradingJournalRow.owner_id == owner_id,
+                                TradingJournalRow.account_id == account.id,
+                                TradingJournalRow.request["symbol"].as_string() == item.symbol,
+                                TradingJournalRow.request["action"]
+                                .as_string()
+                                .in_(sorted(ENTRY_ACTIONS)),
+                            )
+                            .order_by(TradingJournalRow.updated_at.desc())
+                            .limit(1000)
+                        )
+                    )
                 if opening_agent(item, entries) == agent_id:
                     tickets.append(
                         {

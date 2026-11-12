@@ -33,6 +33,7 @@ from lonora_db.owner_actions import (
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
+    EffectReceiptRow,
     EventRow,
     MarketWatchRow,
     MemoryRow,
@@ -420,9 +421,20 @@ async def inspect(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def delete_receipt(owner_id: str, agent_id: str) -> str:
+    return "agent-delete:" + owner_id + ":" + agent_id
+
+
 async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = AgentControlInput.model_validate(args)
     async with context.db.sessions() as session:
+        if params.action == "delete" and await is_lead(session, context.owner_id, context.agent_id):
+            done = await session.get(
+                EffectReceiptRow, delete_receipt(context.owner_id, params.agent_id)
+            )
+            if done is not None:
+                # A replay after the commit: the agent is already gone; never a failure.
+                return {**done.result, "changed": False, "money_authority": "none"}
         # A name is never acted on here: the refusal carries the agent it fits.
         agent_id, _ = await named_agent(session, context, params.agent_id, read=False)
     params = params.model_copy(update={"agent_id": agent_id})
@@ -475,6 +487,12 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
         run = await require_lease(session, context.lease)
         if not await is_lead(session, context.owner_id, context.agent_id):
             raise LonoraError("agent_control_lead_only", 403)
+        if action == "delete":
+            from .base import run_scope
+
+            # Irreversible: never from a wake about activity Lonora did not cause (6.9).
+            if run_scope(run.trigger, run.model_metadata) != "full":
+                raise LonoraError("observe_only_execution_forbidden", 403)
         agent = await owned_agent(session, context.owner_id, agent_id)
         if agent.id == context.agent_id:
             raise LonoraError("supervision_self_target", 409)
@@ -485,6 +503,12 @@ async def lead_control(context: ToolContext, agent_id: str, action: str) -> dict
             # Refused while one of its operations has no confirmed outcome (14.3.16).
             result.update(await delete_created_agent(session, context.owner_id, agent.id))
             result.update(changed=True, deleted=True)
+            session.add(
+                EffectReceiptRow(
+                    key=delete_receipt(context.owner_id, agent.id),
+                    result={**result, "changed": True},
+                )
+            )
         elif action == "set_ask":
             # The same switch as trading_mode_ask: a signed grant still decides within its
             # own terms until revoked, and the result says how many are active.
