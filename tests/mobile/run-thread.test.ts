@@ -5,10 +5,35 @@ import { reportThread } from "../../apps/mobile/lib/run-thread";
 test("a run opens the conversation its output reaches, never a hidden work thread", () => {
   // A wake or Task working in a hidden thread reports to its origin conversation.
   assert.equal(
-    reportThread({ thread_id: "work", model_metadata: { origin_thread_id: "conversation" } }),
+    reportThread({
+      thread_id: "work",
+      status: "completed",
+      model_metadata: { origin_thread_id: "conversation" },
+    }),
     "conversation",
   );
   // An owner's turn, or a run from before origins existed, opens its own thread.
-  assert.equal(reportThread({ thread_id: "chat", model_metadata: {} }), "chat");
-  assert.equal(reportThread({ thread_id: "old", model_metadata: { origin_thread_id: "" } }), "old");
+  assert.equal(
+    reportThread({ thread_id: "chat", status: "completed", model_metadata: {} }),
+    "chat",
+  );
+  assert.equal(
+    reportThread({
+      thread_id: "old",
+      status: "completed",
+      model_metadata: { origin_thread_id: "" },
+    }),
+    "old",
+  );
+});
+
+test("a run waiting for the owner's answer opens the thread that holds its question", () => {
+  assert.equal(
+    reportThread({
+      thread_id: "work",
+      status: "waiting_input",
+      model_metadata: { origin_thread_id: "conversation" },
+    }),
+    "work",
+  );
 });

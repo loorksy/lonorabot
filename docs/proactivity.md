@@ -26,8 +26,10 @@ conversation, never in a chat of its own.
   outside any chat (for example through `POST /watches` without a thread) gets a hidden
   work thread and reports to the agent's conversation exactly like a routine.
 - **History.** A routine's run history (`GET /routines/{id}/history`) lists its runs by
-  routine, so it survives a move to a new work thread. On mobile, a history entry opens
-  the agent's conversation.
+  routine, so it survives a move to a new work thread. On mobile, a history entry, like a
+  row of the Tasks tab, opens where the owner reads that run: the agent's conversation
+  for a run with an origin; the run's own thread for a run waiting for the owner's answer
+  (its question is there) or for a run from before this change (its output is there).
 
 Migration `0090_routine_work_threads` converts the routine chats of earlier releases:
 a chat used only by a routine or a thread-less watch becomes that routine's work thread.

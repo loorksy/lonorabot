@@ -8,6 +8,7 @@ import { WorkingIndicator } from "../components/WorkingIndicator";
 import { agents as agentApi } from "../lib/agents";
 import { routines } from "../lib/routine";
 import { titleInput } from "../lib/routine-title";
+import { reportThread } from "../lib/run-thread";
 import { useSession } from "../lib/session";
 
 export default function RoutineScreen() {
@@ -102,13 +103,8 @@ export default function RoutineScreen() {
               <Button label={t("edit")} secondary onPress={() => setSelected(row)} />
               <RoutineHistory
                 id={row.id}
-                onConversation={() =>
-                  void agentApi
-                    .conversation(row.agent_id)
-                    .then((thread) =>
-                      router.push({ pathname: "/thread", params: { id: thread.id } }),
-                    )
-                    .catch((cause) => setError(errorText(cause)))
+                onThread={(run) =>
+                  router.push({ pathname: "/thread", params: { id: reportThread(run) } })
                 }
               />
             </View>
@@ -281,7 +277,7 @@ function RoutineForm({
     </ScrollView>
   );
 }
-function RoutineHistory({ id, onConversation }: { id: string; onConversation: () => void }) {
+function RoutineHistory({ id, onThread }: { id: string; onThread: (run: Run) => void }) {
   const { t, errorText } = useSession();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -314,7 +310,7 @@ function RoutineHistory({ id, onConversation }: { id: string; onConversation: ()
               {new Date(run.created_at).toLocaleString()}
             </Text>
             <WorkingIndicator run={run} />
-            <Button label={t("openConversation")} secondary onPress={onConversation} />
+            <Button label={t("openConversation")} secondary onPress={() => onThread(run)} />
           </View>
         ))
       )}
