@@ -13,7 +13,7 @@ from lonora_db.secrets import BROKER
 from lonora_security.secrets import SecretCipher
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .secret_store import _store_in_session
+from .secret_store import encrypt_in_session
 
 
 class BrokerSecrets:
@@ -31,4 +31,4 @@ class BrokerSecrets:
 
     async def write_in_session(self, session: AsyncSession, name: str, value: str) -> str:
         """Commit a broker value with its connection; a rejected connection writes nothing."""
-        return await _store_in_session(session, self._cipher, self._owner_id, name, value, BROKER)
+        return await encrypt_in_session(session, self._cipher, self._owner_id, name, value, BROKER)
