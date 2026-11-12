@@ -12,7 +12,7 @@ user-facing replies and labels. English examples do not require an English reply
 
 1. Read fresh positions/account state. Use the exact broker ticket, symbol and
    volume; do not assume the position was created by Lonora.
-2. Recover the goal and latest owner changes. Do not restore old protections or
+2. Recover the objective and latest owner changes. Do not restore old protections or
    volume after manual intervention. Management permission is not entry permission.
 3. Derive a valid partial/full close or protection edit from actual instrument
    constraints. Under signed full-management scope choose protection and exit
