@@ -28,11 +28,11 @@ conversation thread, so a participant sees the request it answered there and
 nothing of the host's private thread. A persistent child Agent has its own
 identity and therefore its own scope.
 
-A supervisor also reads the threads, decisions, memory and Runs of the agents it
-supervises now, through the owner's visible, revocable supervision grant
-(`docs/supervision.md`; Lonora holds one over every agent by default). Each such
-result names the agent and is labelled untrusted; without a grant everything below
-is unchanged.
+Lonora reads the threads, decisions, memory and Runs of every team agent by its lead
+role, whatever its grant (`lonora_db.lead`); another supervisor reads those of the
+agents it supervises now, through the owner's visible, revocable supervision grant
+(`docs/supervision.md`). Each such result names the agent and is labelled untrusted;
+for any other agent everything below is unchanged.
 
 `subagent_inspect` follows the same rule for Runs
 (`lonora_agent/collaboration/subagents.py`, `delegated_by`): it returns a Run
@@ -126,6 +126,20 @@ from a Run that has read third-party content is no longer the owner's word
 edit) does not block unrelated edits. `MEMORY.md` keeps its earlier contract: it
 is untrusted data. This is defence in depth only; the executor never reads memory
 and authority comes from the signed grant alone.
+
+**Method and skill versions (VISION.md 5.5.5).** An Agent's method is its `OPERATING.md`.
+Every write that changes it is a method version, kept past the 100-revision window;
+`method_history` lists them and `method_restore` saves an earlier version's text as a new
+version, leaving `MEMORY.md` as it is. `skill_save` writes an instruction-only skill;
+`skill_history` and `skill_restore` list and restore its versions. A deleted skill keeps
+its versions (migration 0120): `skill_restore` with `expected_version` 0 brings it back
+under its own id, except a removed package, which returns only through its own import or
+create. The owner restores a method or a skill, deleted or not, from chat by asking the
+agent or Lonora; a method restore records the owner's typed message (skill versions carry
+no message). Lonora reads and restores any team agent's method and skills with
+`agent_id` (its built-in lead role); the revision names Lonora as its author, and reading
+another agent's text marks Lonora's run as having read third-party content. The owner's skill
+routes (`/skills/{id}/versions`, `/skills/{id}/restore`) serve existing skills only.
 
 **Legacy `# USER.md` sections.** Migration `0039_owner_profile_memory_revisions`
 merges every Agent's `# USER.md` section into the profile, oldest change first,

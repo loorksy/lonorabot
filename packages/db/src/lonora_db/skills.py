@@ -51,15 +51,27 @@ class SkillRepository(ResourceRepository):
 
 
 def record_version(session: AsyncSession, row: ResourceRow) -> None:
+    """Save the row's payload as its version, marked as a package version when the row is
+    a workspace or GitHub package (only its lifecycle restores those)."""
     session.add(
         SkillVersionRow(
             skill_id=row.id,
             version=row.version,
             owner_id=row.owner_id,
+            agent_id=row.agent_id,
+            package="package" in row.state,
             payload=dict(row.payload),
             created_at=row.updated_at,
         )
     )
+
+
+async def mark_package(session: AsyncSession, row: ResourceRow) -> None:
+    """A package's first version is saved before its package state; mark it now."""
+    await session.flush()
+    version = await session.get(SkillVersionRow, (row.id, row.version))
+    if version is not None:
+        version.package = True
 
 
 async def skill_versions(

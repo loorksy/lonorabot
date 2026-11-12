@@ -52,6 +52,21 @@ def memory_view(content: str) -> str:
     return split_legacy(content)[0]
 
 
+METHOD_VIEW = "OPERATING.md"
+
+
+def method_text(content: str) -> str:
+    """The Agent's method: the text of every ``# OPERATING.md`` section of its view."""
+    view = memory_view(content)
+    matches = list(VIEW_HEADING.finditer(view if view.endswith("\n") else view + "\n"))
+    bodies = [
+        view[match.end() : matches[index + 1].start() if index + 1 < len(matches) else None]
+        for index, match in enumerate(matches)
+        if match[1] == METHOD_VIEW
+    ]
+    return "\n\n".join(body.strip() for body in bodies if body.strip())
+
+
 def with_legacy(view: str, legacy: str) -> str:
     """The row to store: the new view, then the retired sections, unchanged."""
     if not legacy:
@@ -129,6 +144,7 @@ async def commit_memory(
     source_message_id: str | None = None,
     change: str | None = None,
     reverted_revision_id: str | None = None,
+    author_agent_id: str | None = None,
 ) -> dict[str, Any]:
     """One attributed revision: an Agent's own write when ``source_run_id`` is set,
     otherwise the owner's. The prior text is kept so the owner can revert it.
@@ -178,7 +194,8 @@ async def commit_memory(
         content=memory_view(row.content),
         author="agent" if source_run_id else "owner",
         change=kind,
-        author_agent_id=agent_id if source_run_id else None,
+        # Lonora restoring a team agent's method is the author of that revision (3.1.2).
+        author_agent_id=(author_agent_id or agent_id) if source_run_id else None,
         source_message_id=source_message_id,
         source_run_id=source_run_id,
         reverted_revision_id=reverted_revision_id,
