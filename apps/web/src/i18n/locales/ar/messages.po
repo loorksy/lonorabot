@@ -948,8 +948,8 @@ msgstr "تسري على كل وكلاء هذا الحساب"
 msgid "Apply it to what? (optional)"
 msgstr "على ماذا أطبّقها؟ (اختياري)"
 
-#: src/components/trading/TradeApprovals.tsx:155
-#: src/components/trading/TradeApprovals.tsx:220
+#: src/components/trading/TradeApprovals.tsx:160
+#: src/components/trading/TradeApprovals.tsx:225
 msgid "Approval request"
 msgstr "طلب موافقة"
 
@@ -957,7 +957,7 @@ msgstr "طلب موافقة"
 msgid "Approval request · {what}"
 msgstr "طلب موافقة · {what}"
 
-#: src/components/trading/TradeApprovals.tsx:296
+#: src/components/trading/TradeApprovals.tsx:301
 msgid "Approve"
 msgstr "موافقة"
 
@@ -1323,7 +1323,7 @@ msgstr "خادم الوسيط"
 msgid "Broker symbol"
 msgstr "رمز الوسيط"
 
-#: src/components/trading/TradeApprovals.tsx:281
+#: src/components/trading/TradeApprovals.tsx:286
 #: src/conversation/Cards.tsx:467
 msgid "Broker ticket"
 msgstr "رقم العملية لدى الوسيط"
@@ -3147,7 +3147,7 @@ msgstr "تحتفظ المهام الحالية بتعليماتها المثبت
 #~ msgid "Expand chart"
 #~ msgstr "توسيع الشارت"
 
-#: src/components/trading/TradeApprovals.tsx:158
+#: src/components/trading/TradeApprovals.tsx:163
 msgid "Expired"
 msgstr "منتهي الصلاحية"
 
@@ -4573,7 +4573,7 @@ msgstr "رسالة جديدة"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "تستخدم المهارات الخاصة الجديدة التفعيل الصريح وبيانات وصفية للقراءة فقط. لا تثبّت أكوادًا ولا تمنح صلاحيات."
 
-#: src/components/trading/TradeApprovals.tsx:176
+#: src/components/trading/TradeApprovals.tsx:181
 msgid "New request"
 msgstr "طلب جديد"
 
@@ -5737,7 +5737,7 @@ msgstr "المحادثة السابقة / التالية"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:237
+#: src/components/trading/TradeApprovals.tsx:242
 msgid "Price"
 msgstr "السعر"
 
@@ -6037,7 +6037,7 @@ msgstr "سجّل مفتاح مرور قبل تفعيل هذا الطلب."
 msgid "Regression"
 msgstr "تراجع في الأداء"
 
-#: src/components/trading/TradeApprovals.tsx:304
+#: src/components/trading/TradeApprovals.tsx:309
 msgid "Reject"
 msgstr "رفض"
 
@@ -6093,11 +6093,11 @@ msgstr "إزالة من المفضلة"
 #~ msgid "Remove reply"
 #~ msgstr "إزالة الرد"
 
-#: src/components/trading/TradeApprovals.tsx:264
+#: src/components/trading/TradeApprovals.tsx:269
 msgid "Remove stop loss"
 msgstr "إزالة وقف الخسارة"
 
-#: src/components/trading/TradeApprovals.tsx:274
+#: src/components/trading/TradeApprovals.tsx:279
 msgid "Remove take profit"
 msgstr "إزالة جني الربح"
 
@@ -7195,8 +7195,8 @@ msgstr "إيقاف {0}"
 msgid "Stop all"
 msgstr "إيقاف الكل"
 
-#: src/components/trading/TradeApprovals.tsx:245
-#: src/components/trading/TradeApprovals.tsx:261
+#: src/components/trading/TradeApprovals.tsx:250
+#: src/components/trading/TradeApprovals.tsx:266
 #: src/shell/agent/TradesPage.tsx:371
 #: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
@@ -7376,8 +7376,8 @@ msgstr "الرمز"
 msgid "Symbols"
 msgstr "رموز"
 
-#: src/components/trading/TradeApprovals.tsx:253
-#: src/components/trading/TradeApprovals.tsx:271
+#: src/components/trading/TradeApprovals.tsx:258
+#: src/components/trading/TradeApprovals.tsx:276
 #: src/shell/agent/TradesPage.tsx:372
 #: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"

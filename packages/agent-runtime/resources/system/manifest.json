@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "manual_sha256": "4b66ba9faf1f0a204c3d32df7e4c234b9ec0a7cb86d150c8a9581ab5fcacb655",
+  "manual_sha256": "3d826fa0b3d68af61e9503d450026cec1528b42c72ae209953bc29a476cc033e",
   "bootstrap_sha256": {
     "AGENTS.md": "e49bf686b452d5a1102586f7120509166697304688c6d4c65ab37c781e25d686",
     "SOUL.md": "46ab4009a2b24a35752dd76942f4ad2621144c4bf1a660ad117a6baf6a200608"

@@ -149,8 +149,14 @@ async def main() -> None:
             return await fixture.request("GET", f"/agents/{agent_id or agent['id']}/model")
 
         async def no_cards() -> None:
+            # Lonora's onboarding Mandate card (4.3.1) is the system's, not a model card.
+            onboarding = (OwnerActionRow.kind == "trading_mode") & (
+                OwnerActionRow.source == "system"
+            )
             async with db.sessions() as session:
-                assert not await session.scalar(select(func.count()).select_from(OwnerActionRow))
+                assert not await session.scalar(
+                    select(func.count()).select_from(OwnerActionRow).where(~onboarding)
+                )
 
         async def owner_says(words: str, to: dict[str, Any], conversation: dict[str, Any]):
             """The owner's message in a conversation; a Run already working there takes

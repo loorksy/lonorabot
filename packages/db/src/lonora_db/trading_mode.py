@@ -44,6 +44,12 @@ async def set_trading_mode(
     if agent.trading_mode != mode:
         agent.trading_mode = mode
         await session.flush()
+        await refresh_mandate_cards(session, owner_id, agent_id)
+        if mode == "full":
+            from .trade_approvals import withdraw_pending
+
+            # Decided again under Full; a card is never executed because of a mode change.
+            await withdraw_pending(session, owner_id, agent_id, mode)
         emit(
             session,
             owner_id,
@@ -52,3 +58,20 @@ async def set_trading_mode(
             payload={"agent_id": agent_id, "trading_mode": mode, "by": by},
         )
     return cast(TradingMode, agent.trading_mode)
+
+
+async def refresh_mandate_cards(session: AsyncSession, owner_id: str, agent_id: str) -> None:
+    """The agent's Mandate cards read its mode live: tell their conversations it changed."""
+    from sqlalchemy import select
+
+    from .owner_actions import owner_action_event
+    from .schema import OwnerActionRow
+
+    for row in await session.scalars(
+        select(OwnerActionRow).where(
+            OwnerActionRow.owner_id == owner_id,
+            OwnerActionRow.subject == "trading_mode:" + agent_id,
+            OwnerActionRow.status.in_(["pending", "confirmed"]),
+        )
+    ):
+        await owner_action_event(session, row)

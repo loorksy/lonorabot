@@ -948,8 +948,8 @@ msgstr "Applies to every agent of this account"
 msgid "Apply it to what? (optional)"
 msgstr "Apply it to what? (optional)"
 
-#: src/components/trading/TradeApprovals.tsx:155
-#: src/components/trading/TradeApprovals.tsx:220
+#: src/components/trading/TradeApprovals.tsx:160
+#: src/components/trading/TradeApprovals.tsx:225
 msgid "Approval request"
 msgstr "Approval request"
 
@@ -957,7 +957,7 @@ msgstr "Approval request"
 msgid "Approval request · {what}"
 msgstr "Approval request · {what}"
 
-#: src/components/trading/TradeApprovals.tsx:296
+#: src/components/trading/TradeApprovals.tsx:301
 msgid "Approve"
 msgstr "Approve"
 
@@ -1323,7 +1323,7 @@ msgstr "Broker server"
 msgid "Broker symbol"
 msgstr "Broker symbol"
 
-#: src/components/trading/TradeApprovals.tsx:281
+#: src/components/trading/TradeApprovals.tsx:286
 #: src/conversation/Cards.tsx:467
 msgid "Broker ticket"
 msgstr "Broker ticket"
@@ -3147,7 +3147,7 @@ msgstr "Existing tasks keep pinned instructions. Disabling a skill prevents its 
 #~ msgid "Expand chart"
 #~ msgstr "Expand chart"
 
-#: src/components/trading/TradeApprovals.tsx:158
+#: src/components/trading/TradeApprovals.tsx:163
 msgid "Expired"
 msgstr "Expired"
 
@@ -4579,7 +4579,7 @@ msgstr "New message"
 msgid "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 msgstr "New owner skills use explicit activation and read-only metadata. They do not install code or grant permissions."
 
-#: src/components/trading/TradeApprovals.tsx:176
+#: src/components/trading/TradeApprovals.tsx:181
 msgid "New request"
 msgstr "New request"
 
@@ -5743,7 +5743,7 @@ msgstr "Previous / next chat"
 
 #: src/components/charts/ChartAnnotations.tsx:23
 #: src/components/market/MarketWatch.tsx:125
-#: src/components/trading/TradeApprovals.tsx:237
+#: src/components/trading/TradeApprovals.tsx:242
 msgid "Price"
 msgstr "Price"
 
@@ -6043,7 +6043,7 @@ msgstr "Register a passkey before activating this request."
 msgid "Regression"
 msgstr "Regression"
 
-#: src/components/trading/TradeApprovals.tsx:304
+#: src/components/trading/TradeApprovals.tsx:309
 msgid "Reject"
 msgstr "Reject"
 
@@ -6099,11 +6099,11 @@ msgstr "Remove from favourites"
 #~ msgid "Remove reply"
 #~ msgstr "Remove reply"
 
-#: src/components/trading/TradeApprovals.tsx:264
+#: src/components/trading/TradeApprovals.tsx:269
 msgid "Remove stop loss"
 msgstr "Remove stop loss"
 
-#: src/components/trading/TradeApprovals.tsx:274
+#: src/components/trading/TradeApprovals.tsx:279
 msgid "Remove take profit"
 msgstr "Remove take profit"
 
@@ -7201,8 +7201,8 @@ msgstr "Stop {0}"
 msgid "Stop all"
 msgstr "Stop all"
 
-#: src/components/trading/TradeApprovals.tsx:245
-#: src/components/trading/TradeApprovals.tsx:261
+#: src/components/trading/TradeApprovals.tsx:250
+#: src/components/trading/TradeApprovals.tsx:266
 #: src/shell/agent/TradesPage.tsx:371
 #: src/shell/agent/TradesPage.tsx:418
 msgid "Stop loss"
@@ -7382,8 +7382,8 @@ msgstr "Symbol"
 msgid "Symbols"
 msgstr "Symbols"
 
-#: src/components/trading/TradeApprovals.tsx:253
-#: src/components/trading/TradeApprovals.tsx:271
+#: src/components/trading/TradeApprovals.tsx:258
+#: src/components/trading/TradeApprovals.tsx:276
 #: src/shell/agent/TradesPage.tsx:372
 #: src/shell/agent/TradesPage.tsx:429
 msgid "Take profit"
