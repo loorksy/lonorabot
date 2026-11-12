@@ -744,6 +744,18 @@ export function chatsWord(locale: Locale, count: number): string {
   if (count === 2) return "محادثتان";
   return count <= 10 ? `${count} محادثات` : `${count} محادثة`;
 }
+/** The toast after the offline queue went out by itself (Q6), with Web's Arabic plural forms. */
+export function waitingSentText(locale: Locale, count: number): string {
+  if (locale === "en")
+    return count === 1
+      ? "One waiting message was sent"
+      : count === 2
+        ? "Two waiting messages were sent"
+        : `${count} waiting messages were sent`;
+  if (count === 1) return "أُرسلت رسالة واحدة كانت تنتظر";
+  if (count === 2) return "أُرسلت رسالتان كانت تنتظر";
+  return count <= 10 ? `أُرسلت ${count} رسائل كانت تنتظر` : `أُرسلت ${count} رسالة كانت تنتظر`;
+}
 export function agentsWord(locale: Locale, count: number): string {
   if (locale === "en")
     return count === 1 ? "one agent" : count === 2 ? "two agents" : `${count} agents`;
