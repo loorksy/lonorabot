@@ -21,6 +21,9 @@ from lonora_core.broker_endpoints import BROKER_DOMAINS, under
 
 TABLE = "lonora_workspace"
 RELAY_PORT = 15001
+# DNS lookups per agent uid per second, metered in the kernel (a flood of unique names
+# from one agent must not starve the others).
+DNS_RATE = 200
 DOCKER_RESOLVER = "127.0.0.11"
 BLOCKED_V4 = (
     "0.0.0.0/8",
@@ -97,8 +100,10 @@ table inet {TABLE} {{
     ip daddr @blocked4 return
     meta skuid != 0 ip daddr != 127.0.0.0/8 meta l4proto tcp redirect to :{RELAY_PORT}
   }}
+  set dnsrate {{ type uid; flags dynamic; timeout 1m; size 4096; }}
   chain output {{
     type filter hook output priority 0; policy accept;
+    oifname "lo" meta skuid != 0 meta l4proto {{ tcp, udp }} th dport 53 update @dnsrate {{ meta skuid limit rate over {DNS_RATE}/second burst 50 packets }} drop
     oifname "lo" ip daddr {DOCKER_RESOLVER} meta skuid != 0 reject
     oifname "lo" accept
     ct status dnat ip daddr 127.0.0.1 tcp dport {RELAY_PORT} accept

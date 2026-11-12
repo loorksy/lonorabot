@@ -332,7 +332,9 @@ def test_a_chain_into_a_denied_domain_gives_no_address_and_blocks_its_own(
     query = dns.query("evil-cname.example", dns.A)
     target = b"\x10mt-client-api-v1\x06london\x0cagiliumtrade\x02ai\x00"
     cname = query[12:-4] + struct.pack("!HHIH", dns.CNAME, 1, 60, len(target)) + target
-    a_record = b"\xc0\x0c" + struct.pack("!HHIH", dns.A, 1, 60, 4) + bytes([45, 33, 1, 2])
+    target_at = 12 + len(query[12:]) + len(query[12:-4]) + 10
+    a_record = struct.pack("!H", 0xC000 | target_at) + struct.pack("!HHIH", dns.A, 1, 60, 4)
+    a_record += bytes([45, 33, 1, 2])
     chained = query[:2] + struct.pack("!HHHHH", 0x8180, 1, 2, 0, 0) + query[12:] + cname + a_record
 
     async def upstream(packet: bytes) -> bytes:
@@ -341,7 +343,7 @@ def test_a_chain_into_a_denied_domain_gives_no_address_and_blocks_its_own(
     monkeypatch.setattr(netguard, "forward_udp", upstream)
     answers = netguard.Answers(denied_domains(None))
     assert asyncio.run(answers.of("evil-cname.example")) == set()
-    assert answers.denied == {"45.33.1.2"} and answers.changed.is_set()
+    assert answers.blocked() == {"45.33.1.2"} and answers.changed.is_set()
     answers.record(query, chained)
     assert "evil-cname.example" not in answers.names
 
@@ -356,9 +358,42 @@ def test_the_answer_cache_and_the_lookup_rate_are_bounded():
         answer += b"\xc0\x0c" + struct.pack("!HHIH", dns.A, 1, 60, 4) + bytes([93, 184, 216, index])
         answers.record(query, answer)
     assert list(answers.names) == ["n2.example", "n3.example", "n4.example"]
-    rate = netguard.Rate()
-    allowed = [rate.allow(20000) for _ in range(rate.PER_SECOND + 5)]
-    assert allowed.count(True) <= rate.PER_SECOND + 1 and rate.allow(0)
+
+
+def test_dns_is_metered_per_agent_in_the_kernel():
+    text = ruleset()
+    assert "set dnsrate { type uid; flags dynamic;" in text
+    assert (
+        'oifname "lo" meta skuid != 0 meta l4proto { tcp, udp } th dport 53 update @dnsrate'
+        " { meta skuid limit rate over 200/second burst 50 packets } drop"
+    ) in text
+
+
+def test_only_addresses_a_denied_name_owns_are_blocked(monkeypatch: pytest.MonkeyPatch):
+    query = dns.query("pypi.example", dns.A)
+    target = b"\x02zz\x0cagiliumtrade\x02ai\x00"
+    cname = b"\xc0\x0c" + struct.pack("!HHIH", dns.CNAME, 1, 60, len(target)) + target
+    owner_offset = 12 + len(query[12:]) + 12
+    a_record = struct.pack("!H", 0xC000 | owner_offset) + struct.pack("!HHIH", dns.A, 1, 60, 4)
+    a_record += bytes([45, 33, 1, 1])
+    authority = b"\xc0\x0c" + struct.pack("!HHIH", dns.A, 1, 60, 4) + bytes([151, 101, 0, 1])
+    packet = (
+        query[:2]
+        + struct.pack("!HHHHH", 0x8180, 1, 2, 0, 1)
+        + query[12:]
+        + cname
+        + a_record
+        + authority
+    )
+
+    async def upstream(_: bytes) -> bytes:
+        return packet[:2] + packet[2:]
+
+    monkeypatch.setattr(netguard, "forward_udp", upstream)
+    answers = netguard.Answers(denied_domains(None))
+    assert asyncio.run(answers.of("pypi.example")) == set()
+    # The denied CNAME target's own address is blocked; the additional record is not.
+    assert answers.blocked() == {"45.33.1.1"}
 
 
 def test_every_outbound_agent_connection_is_relayed_except_rejected_addresses():
