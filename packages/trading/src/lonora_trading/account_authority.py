@@ -40,29 +40,17 @@ GRANT_TERM_REFUSALS = frozenset(
 
 
 async def provisional_voice(session: AsyncSession, run: RunRow) -> bool:
-    """A provisional handoff and its descendants cannot spend standing authority, and
-    neither can a tainted Run: one a generated card's send started, anything that descends
-    from it or that it started, or the wake of a durable row it created or changed
-    (docs/genui.md, ``lonora_db.genui_taint``): their trades become approval cards."""
-    from lonora_db.genui_taint import is_tainted
+    """Whether this Run answers a provisional voice handoff or a generated card's send
+    (6.10). Such input is the agent's own judgment's input. In Full, trade_execute and
+    trade_close_positions in this Run send like any other; in Ask its risk-increasing
+    trades ask, even where a signed grant would cover them: it never spends a grant
+    (until grants are deleted). The mark is this Run's alone, and its retry's (the same
+    request run again): it never spreads to the agent's later watches, routines or wakes."""
+    from lonora_db.owner_words import ui_submit_provenance
 
-    seen: set[str] = set()
-    current = run
-    for _ in range(16):
-        if current.id in seen:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        seen.add(current.id)
-        if current.model_metadata.get("voice_handoff", {}).get("finalized") is False:
-            return True
-        if not current.parent_run_id:
-            break
-        parent = await session.get(RunRow, current.parent_run_id)
-        if parent is None:
-            raise LonoraError("goal_run_ancestry_invalid", 409)
-        current = parent
-    else:
-        raise LonoraError("goal_run_ancestry_invalid", 409)
-    return await is_tainted(session, run)
+    if run.model_metadata.get("voice_handoff", {}).get("finalized") is False:
+        return True
+    return ui_submit_provenance(run)
 
 
 async def available_authority(
@@ -74,7 +62,8 @@ async def available_authority(
     (the ladder is monotonic). A grant's management Run is held to its own grant.
     """
     management_id = run.model_metadata.get("account_management_id")
-    if management_id:
+    # The mode task's Runs carry the agent's own id: they are ordinary Runs of the agent.
+    if management_id and management_id != run.agent_id:
         _, envelope = await require_authority(session, owner_id, run.agent_id, management_id)
         if (
             request.account_id != envelope.account_id
@@ -110,7 +99,14 @@ async def available_authority(
 async def lonora_opened(
     session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
 ) -> bool:
-    """Whether the journal attributes this ticket to an agent's entry (not the owner's own).
+    """Whether the journal attributes this ticket to an agent's entry (not the owner's own)."""
+    return await ticket_agent(session, owner_id, request, target) is not None
+
+
+async def ticket_agent(
+    session: AsyncSession, owner_id: str, request: TradeRequest, target: Position | Order
+) -> str | None:
+    """The agent whose journaled entry opened or placed this ticket; None for the owner's own.
 
     Attribute by the existing journal and broker identity, never ticket format. Only an
     entry an Agent's leased Run sent counts (``journal_agent``, the same rule the broker
@@ -139,8 +135,8 @@ async def lonora_opened(
             entry.operation_id,
             broker_operation_tag(entry.operation_id),
         } or target.id in {details.get(kind), safe_id}:
-            return journal_agent(entry) is not None
-    return False
+            return journal_agent(entry)
+    return None
 
 
 async def authority_snapshot(broker: BrokerStateReader, account_id: str) -> ExecutionSnapshot:
@@ -215,7 +211,7 @@ async def require_account_execution(
 ) -> None:
     # The central permission gate additionally requires exact-operation owner
     # approval for provisional speech; a signed grant alone cannot spend it.
-    if run.model_metadata.get("account_management_id", identifier) != identifier:
+    if run.model_metadata.get("account_management_id") not in (None, identifier, run.agent_id):
         raise LonoraError("account_authority_scope_mismatch", 403)
     _, envelope = await require_authority(session, owner_id, run.agent_id, identifier)
     if request.account_id != envelope.account_id or not envelope.permits_symbol(request.symbol):

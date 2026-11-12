@@ -268,7 +268,8 @@ async def brief_facts(
             OwnerActionRow.owner_id == owner_id,
             OwnerActionRow.status == "pending",
             OwnerActionRow.expires_at > now,
-            OwnerActionRow.kind != "resolve_operation",
+            # A Mandate card is the owner's standing switch, with no answer that ends it.
+            OwnerActionRow.kind.not_in(("resolve_operation", "trading_mode")),
         ),
     )
     questions = await _count(

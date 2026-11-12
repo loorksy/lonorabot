@@ -1,6 +1,6 @@
 """Nothing holds a new entry before its approval card (W15-ACC).
 
-An agent at Ask me (or a trade outside an On its own grant) asks the owner with an
+An agent in Ask (or a trade outside an On its own grant) asks the owner with an
 approval card. Lonora has no Stop and no pause of new entries, so no brake refuses an
 entry before its card: the executor decides it against the fresh broker target. Runs on
 the real migrated PostgreSQL schema and the simulation broker (skipped without
@@ -35,6 +35,8 @@ async def test_a_first_trade_on_a_fresh_install_is_asked_with_no_start_card() ->
             "symbol": "XAUUSD",
             "volume": "0.1",
             "stop_loss": "95",
+            "tolerance": "2",
+            "reason": "Fixture entry",
         }
         asked = await call(context, "trade_execute", **entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked

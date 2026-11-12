@@ -3,7 +3,6 @@ from typing import Any
 from lonora_contracts.domain import Contract
 from lonora_contracts.routines import RoutineCreate
 from lonora_core.user_error import LonoraError
-from lonora_db.genui_taint import taint_row_from
 from lonora_db.owner_actions import lock_owner_actions
 from lonora_db.routines import create_routine, owned_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
@@ -41,8 +40,6 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             RoutineCreate.model_validate(args),
             context.resource_id,
         )
-        # A routine tainted work created wakes tainted (docs/genui.md).
-        await taint_row_from(session, run, "routine", row.id)
         await mark_from(session, run, "routine", row.id)
         return routine_data(row)
 
@@ -116,8 +113,6 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                 owner_message=await owner_message_id(session, run) is not None,
             )
         row.enabled = args["enabled"]
-        # Tainted work that revives or toggles a routine taints it (docs/genui.md).
-        await taint_row_from(session, run, "routine", row.id)
         await mark_from(session, run, "routine", row.id)
         return stating(routine_data(row), named)
 
