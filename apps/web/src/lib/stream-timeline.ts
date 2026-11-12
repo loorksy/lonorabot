@@ -1,3 +1,4 @@
+import type { ActivityCall } from "@lonora/core";
 import type { Message, ReplyStreamSnapshot, Run } from "./api";
 
 export type StreamRow = { run: Run; stream: ReplyStreamSnapshot };
@@ -18,6 +19,12 @@ export function streamVisible(
   if (canonical.length && inputSeq != null && inputSeq < Math.min(...canonical.map((m) => m.seq)))
     return false;
   return true;
+}
+/** «N خطوات · Xث»: from the turn's start to its last finished step; 0 while none has finished. */
+export function stepsSeconds(run: Pick<Run, "created_at">, calls: ActivityCall[]): number {
+  const ends = calls.flatMap((call) => (call.completed_at ? [Date.parse(call.completed_at)] : []));
+  if (!ends.length) return 0;
+  return Math.max(1, Math.round((Math.max(...ends) - Date.parse(run.created_at)) / 1000));
 }
 /** Place a provisional reply at its observed input, rather than in a detached footer. */
 export function streamTimeline(messages: Message[], streams: StreamRow[]): Message[] {

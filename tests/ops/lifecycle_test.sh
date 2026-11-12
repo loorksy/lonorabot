@@ -89,7 +89,6 @@ wipe() { dc down -v --remove-orphans >/dev/null 2>&1 || true; rm -rf "$home"; }
 teardown() {
     if [[ -f "$home/.env" ]]; then dc down -v --remove-orphans >/dev/null 2>&1 || true; fi
     rm -f /usr/local/bin/lonora /usr/local/bin/lonora-lonora2 /usr/local/bin/lonora-lonora3
-    if [[ -n "${made_analysis_dir:-}" ]]; then rm -rf /run/lonora-analysis; fi
     docker compose -p lonora -f "$work/dummy/compose.yml" down -v >/dev/null 2>&1 || true
     rm -rf "$work"
 }
@@ -422,10 +421,10 @@ ok 'restore failing after DROP: marker kept, update, daily backup and unconfirme
 lonora update v3-broken >"$work/hold.log" 2>&1 &
 updater=$!
 wait_phase gateway "$updater" || { show "$work/hold.log"; fail 'hold update ended early'; }
-dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_trading_restrictions (id, owner_id, account_id, symbol_verified, action_class, valid_from, source, reason, created_by, applies_to_owner_manual, created_at, updated_at) VALUES ('r-during-gate', '$owner_id', 'acct', true, 'no_new_entries', now(), 'owner_ui', 'test', 'owner', false, now(), now())" >/dev/null
+dc exec -T db psql -U lonora -d lonora -qc "INSERT INTO ln_owner_actions (id, owner_id, agent_id, source, kind, subject, payload, payload_hash, status, result, expires_at, created_at, updated_at) VALUES ('card-during-gate', '$owner_id', 'agent-probe', 'system', 'resolve_operation', 'operation:op-probe', '{}', 'probe', 'pending', '{}', now() + interval '1 day', now(), now())" >/dev/null
 status=0; wait "$updater" || status=$?
-[[ "$status" == 2 ]] || { show "$work/hold.log"; fail "restriction hold exit status ($status)"; }
-grep -q 'ROLLBACK HELD: owner controls' "$work/hold.log" || { show "$work/hold.log"; fail 'restriction hold reason'; }
+[[ "$status" == 2 ]] || { show "$work/hold.log"; fail "control write hold exit status ($status)"; }
+grep -q 'ROLLBACK HELD: owner controls' "$work/hold.log" || { show "$work/hold.log"; fail 'control write hold reason'; }
 [[ "$(phase)" == hold && -e "$home/maintenance/on" ]] || fail 'held: marker phase and maintenance'
 if gateway_running; then fail 'held: gateway still running'; fi
 # (a) the same failed digest: started behind the gates, still fails, still held
@@ -444,14 +443,14 @@ status=0; lonora update v3-broken2 --keep-data >"$work/keep-broken2.log" 2>&1 ||
 grep -q 'Returning to the held state' "$work/keep-broken2.log" || fail 'back to hold message'
 [[ "$(phase)" == hold && ! -e "$home/state/held-update" && "$(pinned)" == "$(digest_of v3-broken)" ]] || fail 'back to hold: state'
 if gateway_running; then fail 'back to hold: gateway stopped'; fi
-[[ "$(sql "SELECT count(*) FROM ln_trading_restrictions WHERE id='r-during-gate'")" == 1 ]] || fail 'back to hold kept the restriction'
+[[ "$(sql "SELECT count(*) FROM ln_owner_actions WHERE id='card-during-gate'")" == 1 ]] || fail 'back to hold kept the control write'
 # (c) a fixed version: forward update keeps the data, closes the hold
 lonora update v3-fixed --keep-data >"$work/keep-fixed.log" 2>&1 || { show "$work/keep-fixed.log"; fail 'keep-data forward update'; }
 [[ "$(pinned)" == "$(digest_of v3-fixed)" && "$(revision)" == 9999_broken_probe ]] || fail 'forward update state'
-[[ "$(sql "SELECT count(*) FROM ln_trading_restrictions WHERE id='r-during-gate'")" == 1 ]] || fail 'forward update kept the restriction'
+[[ "$(sql "SELECT count(*) FROM ln_owner_actions WHERE id='card-during-gate'")" == 1 ]] || fail 'forward update kept the control write'
 [[ ! -e "$home/state/update-in-progress" && ! -e "$home/state/held-update" && ! -e "$home/maintenance/on" ]] || fail 'forward update closed the hold'
 ready || fail 'ready after forward update'
-ok 'restriction written during the gate: held; --keep-data same digest stays held, bad tag changes nothing, another failing version returns to the hold, fixed version updates forward keeping it'
+ok 'owner-control write during the gate: held; --keep-data same digest stays held, bad tag changes nothing, another failing version returns to the hold, fixed version updates forward keeping it'
 
 # 11b. A trading-journal write holds too; timer backups during the hold never rotate its
 # backup away; rollback without --force still holds; --force restores on request.
@@ -553,12 +552,7 @@ old_key="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_')"
     printf '%s\n' "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" 'LONORA_WORKER_POLL_SECONDS=1.0'
 } >"$work/old.env"
 chmod 600 "$work/old.env"
-if [[ ! -e /run/lonora-analysis ]]; then made_analysis_dir=1; fi
-[[ ! -S /run/lonora-analysis/host.sock ]] || fail 'this test needs the workspace host socket absent'
-side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --overlay infra/analysis/compose.workspace.yml --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
-grep -q 'warn  overlay infra/analysis/compose.workspace.yml' "$work/side-install.log" || fail 'preflight warns about the missing workspace socket'
-[[ "$(docker exec lonora2-api-1 printenv LONORA_WORKSPACE_SOCKET)" == /run/lonora-analysis/host.sock ]] || fail 'workspace overlay on the API'
-if docker exec lonora2-gateway-1 test -S /run/lonora-analysis/host.sock; then fail 'unexpected workspace socket'; fi
+side --behind-proxy 127.0.0.1:18030 --env-from "$work/old.env" --version v1 >"$work/side-install.log" 2>&1 || { show "$work/side-install.log"; fail 'side-by-side install'; }
 val() { sed -n "s/^$1=//p" "$home/.env" | tail -n 1; }
 [[ "$(val LONORA_ENCRYPTION_KEY)" == "$old_key" && "$old_key" == *= && "$(val LONORA_BOOTSTRAP_TOKEN)" == old-bootstrap-token-0123456789abcdef ]] || fail 'env-from: secrets copied'
 grep -qxF "LONORA_WEBHOOK_SECRET='old webhook secret = \"x\" 123'" "$home/.env" || fail 'env-from: a value with spaces, = and quotes copied byte for byte'
@@ -601,7 +595,7 @@ diff -q "$work/dummy.before" "$work/dummy.after" >/dev/null || { diff "$work/dum
 wipe
 snapshot >"$work/dummy.end"
 diff -q "$work/dummy.before" "$work/dummy.end" >/dev/null || fail 'removing the new project changed the old one'
-ok "side by side (with --env-from: known keys copied incl. export/indented lines, fresh DB password, names listed, no values printed; workspace overlay with no socket still reaches /ready; a lonora2 backup restored --with-config into lonora3 keeps project and mode): preflight refuses a bad port and a CRLF file, the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
+ok "side by side (with --env-from: known keys copied incl. export/indented lines, fresh DB password, names listed, no values printed; a lonora2 backup restored --with-config into lonora3 keeps project and mode): preflight refuses a bad port and a CRLF file, the taken project, a used port, a public address, low memory and disk; lonora2 in proxy mode on 127.0.0.1:18030 only (limits ${total} MB), updated, backed up, restore-tested; old project lonora untouched"
 
 # 18. No secret in anything the tooling printed or logged.
 for secret in "$key" "$backup_key" "$first_password" "$new_password" "$bootstrap" "$webhook" "$old_key" 'old webhook secret' livekit-secret-value-456 old-postgres-password-789; do

@@ -53,6 +53,13 @@ export type InputAnswer = { run_id: string; question_id: string; choice_id: stri
 /** A recorded voice note: the audio artifact uploaded to the thread, duration and 44 peaks. */
 export type VoiceNote = { artifact_id: string; duration: number; peaks: number[] };
 /** POST /threads/{id}/messages. With `voice` the content stays empty (the server transcribes). */
+/** A / command at the start of the owner's message: what was asked for. It grants nothing.
+    `skill_id` is the id of the agent's own skill the owner picked. */
+export type MessageCommand = {
+  name: "task" | "search" | "summary" | "skill";
+  argument?: string;
+  skill_id?: string | null;
+};
 export type MessageCreate = {
   content?: string;
   client_nonce?: string;
@@ -67,6 +74,8 @@ export type MessageCreate = {
   /** Edit and resend (Q21): the owner's own text message this one replaces. */
   edited_from?: string | null;
   voice?: VoiceNote | null;
+  /** The / command this message is; the content stays the owner's own words. */
+  command?: MessageCommand | null;
 };
 export type Message = {
   /** Owner messages: the agent's run started on this message (two accent ticks). */
@@ -165,8 +174,6 @@ export type ActivityCode =
   | "agent_created"
   | "authority_changed"
   | "limits_changed"
-  | "restriction_set"
-  | "restriction_lifted"
   | "operation_resolved"
   | "approval_approved"
   | "approval_rejected"

@@ -129,7 +129,7 @@ test("restored activity reflects actual work without a status fetch or replay", 
   );
   assert.equal(turnActivity({ ...restored, status: "completed" }, []).phase, "completed");
   const started = (payload: Payload) => [event("tool.started", 2, payload)];
-  const exec = { call_id: "exec", name: "workspace_execute", toolset: "files", effect: "change" };
+  const exec = { call_id: "exec", name: "workspace_run", toolset: "files", effect: "change" };
   assert.equal(turnActivity(run, started(exec)).phase, "executing");
   const trade = {
     call_id: "trade",

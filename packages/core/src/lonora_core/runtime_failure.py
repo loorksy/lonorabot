@@ -11,6 +11,9 @@ TRANSIENT_READ_CODES = frozenset(
     {
         "broker_connection_timeout",
         "broker_connection_unavailable",
+        # The broker refuses the terminal's login: often its server is down for a while,
+        # so recovery keeps trying; a lasting refusal reaches the owner after the grace.
+        "broker_login_rejected",
         # The broker asked to slow down: the same read succeeds after a short wait.
         "broker_rate_limited",
         "broker_candles_unavailable",

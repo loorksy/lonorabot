@@ -6,7 +6,8 @@ a Task or ticket title, a routine or watch prompt saved by an agent) may carry
 injected text, so the system role names only the trigger: the builder delivers
 that prompt as the user-role turn, where it is a request, never policy. A
 ``lonora wake`` run's prompt is fixed server text; the script's text and the calling
-agent reach the model only as the labelled untrusted section ``workspace_wake`` (6.10).
+agent reach the model only as the labelled untrusted section ``workspace_wake`` (6.10);
+a signed webhook's text likewise, as the section ``webhook``.
 """
 
 from typing import cast
@@ -16,9 +17,19 @@ from lonora_db.schema import RunRow
 from lonora_db.workspace_wakes import TRIGGER as WORKSPACE_WAKE
 from lonora_db.workspace_wakes import WAKE_KEY
 
+from ..automation.webhooks import TRIGGER as WEBHOOK
+from ..automation.webhooks import WEBHOOK_KEY
+
 # Triggers whose run.prompt is fixed server text (lonora_trading, lonora_db).
 SERVER_AUTHORED_TRIGGERS = frozenset(
-    {"broker_event", "follow_up", "agent_created", "owner_card", WORKSPACE_WAKE}
+    {
+        "broker_event",
+        "follow_up",
+        "agent_created",
+        "owner_card",
+        WORKSPACE_WAKE,
+        WEBHOOK,
+    }
 )
 
 # A peer run's wake is fixed server text; the peer's own words stay in the transcript.
@@ -45,12 +56,27 @@ def workspace_wake_section(run: RunRow) -> ContextSection | None:
     )
 
 
+def webhook_section(run: RunRow) -> ContextSection | None:
+    """A signed webhook's text, as untrusted data from outside Lonora."""
+    stored: object = run.model_metadata.get(WEBHOOK_KEY)
+    if run.trigger != WEBHOOK or not isinstance(stored, dict):
+        return None
+    call = cast(dict[str, object], stored)
+    return ContextSection(
+        "webhook", "external_caller", "webhook_untrusted", str(call.get("text", "")), 96, ()
+    )
+
+
 def wake_context(run: RunRow) -> str:
     if run.trigger == "peer" and run.model_metadata.get("peer_message_id"):
         return PEER_WAKE
     if run.trigger in {"user", "group"} and not run.prompt:
         return ""
     trigger = "".join(char for char in run.trigger if char.isalnum() or char == "_")
-    if run.trigger not in SERVER_AUTHORED_TRIGGERS:
+    # A webhook run is server text only when its caller's text is in the data frame: one
+    # the earlier route wrote has the caller's text as its prompt and stays a request.
+    if run.trigger not in SERVER_AUTHORED_TRIGGERS or (
+        run.trigger == WEBHOOK and webhook_section(run) is None
+    ):
         return "<wake trigger='" + trigger + "' request='in_the_conversation_turn'/>"
     return "<wake trigger='" + trigger + "'>\n" + run.prompt + "\n</wake>"

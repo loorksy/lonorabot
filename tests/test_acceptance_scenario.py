@@ -67,7 +67,11 @@ def test_every_step_names_its_feature_and_its_owner():
         if "void" in step:
             continue
         assert step["feature"] and step["owners"], step["id"]
-        for need in step["needs"]:
+        for defect in step.get("defects", []):
+            assert set(defect) == {"check", "owner", "defect"} and all(defect.values())
+        partial = step.get("partial", {"note": "-", "until": []})
+        assert set(partial) == {"note", "until"} and partial["note"], step["id"]
+        for need in step["needs"] + partial["until"]:
             assert set(need) <= {"pending", "tool", "code"} and len(need) == 1, step["id"]
 
 
@@ -92,7 +96,7 @@ def test_a_missing_feature_keeps_its_step_pending():
     assert acceptance.missing([{"code": "lonora_trading.execution:ExecutionService"}]) == []
     rows = {row["step"]: row for row in acceptance.status(SCENARIO)}
     assert rows["6"]["state"] == "void"
-    assert rows["5"]["state"] == "pending"
+    assert rows["7b"]["state"] == "pending"
 
 
 @pytest.mark.asyncio
@@ -128,10 +132,21 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
     assert not failed, json.dumps(failed, ensure_ascii=False)
     assert done.returncode == 0, done.stderr[-2000:]
     assert {row["step"] for row in report} == set(STEPS)
-    passed = {row["step"]: row for row in report if row["state"] == "pass"}
-    assert "4c" in passed
-    # The step's own actor, the gold agent in Full: no stand-in is reported.
-    assert "partial" not in passed["4c"]
+    ran = {row["step"]: row for row in report if row["state"] in {"pass", "known defect"}}
+    assert {"4a", "4c", "5", "7a"} <= set(ran)
+    # Today's stand-ins are said, never passed off as the step itself.
+    assert all("partial" in ran[step] for step in ("4a", "5", "7a"))
+    # The step's own actor: the gold agent in Full sent the close, no stand-in.
+    assert "partial" not in ran["4c"]
+    assert {row["check"]: row["ok"] for row in ran["4c"]["checks"]}[acceptance.GOLD_SENT]
+    # A defect is held strictly: its step fails exactly the checks it names, and a fixed
+    # defect (the step passes) must leave the scenario file in the same change.
+    for row in report:
+        named = STEPS[row["step"]].get("defects", [])
+        if row["state"] in {"pass", "known defect"}:
+            assert (row["state"] == "known defect") == bool(named), row["step"]
+            failing = {check["check"] for check in row["checks"] if not check["ok"]}
+            assert failing == {item["check"] for item in named}, row["step"]
 
 
 def test_a_refusal_raised_or_answered_counts_against_authority():

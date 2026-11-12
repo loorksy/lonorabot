@@ -43,10 +43,13 @@ from an agent's sentence:
 - pending Trade Approval cards;
 - what else waits for the owner, whatever its date: operations of unknown outcome, other
   pending owner cards, runs waiting for the owner's answer, and action-required alerts
-  the owner has not seen. A Mandate card counts only when an agent's run proposed it;
-  the one Lonora offers at onboarding is the owner's switch. Each is counted once: a Settle card is its operation, and an
-  alert for an approval, an uncertain operation, a pending card (the Secret card's) or
-  a broker health problem (an account shown disconnected) is not counted again;
+  the owner has not seen. A Mandate card is not counted: it is the owner's standing
+  switch, with no answer that ends it. One an agent proposed since the last brief is
+  named once instead (`new_mandate_cards`, by the agent it switches), as news that never
+  holds `nothing_else_needs_you`. Each is counted once: a Settle card is its
+  operation, and an alert for an approval, an uncertain operation, a pending card (the
+  Secret card's) or a broker health problem (an account shown disconnected) is not
+  counted again;
 - `nothing_else_needs_you`, true when none of these is waiting, no approval is pending
   and every account is connected.
 
