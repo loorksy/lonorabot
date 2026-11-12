@@ -67,8 +67,6 @@ const ALIASES: Readonly<Record<string, string>> = {
   notifications: "/app/updates",
   account: "/app/settings",
   capabilities: "/app/integrations",
-  "my-profile": "/app/owner",
-  "reach-me": "/app/notify-settings",
   // Search lives in the chats header (phones) and the list pane (desktop).
   search: "/app",
 };

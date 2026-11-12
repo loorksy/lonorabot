@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-/* A conversation's ⋮ menu is a popover built from the conversation itself: it opens at once.
-   Its header (avatar and name) opens the agent's sheet only once the agent is loaded. */
+/* A conversation header's settings sheet opens only once the agents are loaded: the sheet
+   keeps the body it opened with, so it never opens without its agent's rows. */
 function fixture(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/check_chart_browser.py"], {
@@ -45,22 +45,24 @@ async function holdAgents(page) {
     await gate;
     await route.continue();
   });
-  // Waits for a held request still being continued, so none is handled twice.
-  return { release, unroute: () => page.unrouteAll({ behavior: "wait" }) };
+  return { release, unroute: () => page.unroute(slowAgents) };
 }
 
-/** The avatar and the name open nothing before the agent is there. While the agents load they
-    may be absent or empty, so any there are clicked in the page, not by the pointer. */
-async function expectHeaderInert(page, path) {
-  await page.evaluate(() => {
-    for (const selector of [".head-avatar", ".chat-name"])
-      document.querySelector(selector)?.click();
-  });
+/** The avatar and the name open the settings sheet: not before the agents are there.
+    Without an agent they are empty, so they are clicked in the page, not by the pointer. */
+async function expectHeaderInert(page) {
+  const clicked = await page.evaluate(() =>
+    [".head-avatar", ".chat-name"].map((selector) => {
+      const button = document.querySelector(selector);
+      button?.click();
+      return Boolean(button);
+    }),
+  );
+  expect(clicked).toEqual([true, true]);
   await expect(page.locator("#dialog[open]")).toHaveCount(0);
-  await expect(page).toHaveURL(path);
 }
 
-test("an agent's menu opens at once; its header waits for the agent", async ({ page, context }) => {
+test("an agent's settings wait for the agent list before they open", async ({ page, context }) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -73,14 +75,19 @@ test("an agent's menu opens at once; its header waits for the agent", async ({ p
     await signIn(context, data);
     agent = await createAgent(context, data, headers, `Menu ${randomUUID()}`);
     await page.goto(`/app/${agent.id}`);
-    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeEnabled();
+    const title = page.locator(".chat-head .chat-name");
+    await expect(title).toHaveText(agent.name);
     held = await holdAgents(page);
     await page.reload();
-    await expect(menu).toBeEnabled();
-    await expectHeaderInert(page, new RegExp(`/app/${agent.id}$`));
+    await expect(page.locator(".chat-head .head-avatar")).toBeAttached();
+    await expectHeaderInert(page);
     held.release();
+    await expect(title).toHaveText(agent.name);
     await held.unroute();
+    await page.locator(".chat-head .head-avatar").click();
+    const sheet = page.locator("#dialog");
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Agent info");
     expect(errors).toEqual([]);
   } finally {
     held?.release();
@@ -89,7 +96,10 @@ test("an agent's menu opens at once; its header waits for the agent", async ({ p
   }
 });
 
-test("a group's menu opens before its member agents arrive", async ({ page, context }) => {
+test("a group's settings wait for its member agents before they open", async ({
+  page,
+  context,
+}) => {
   const data = fixture({ action: "init" });
   const headers = {
     "X-CSRF-Token": data.cookies.find((cookie) => cookie.name === "lonora_csrf").value,
@@ -115,15 +125,15 @@ test("a group's menu opens before its member agents arrive", async ({ page, cont
     held = await holdAgents(page);
     await page.goto(`/app/g/${group.id}`);
     await expect(page.locator(".chat-name")).toHaveText(group.payload.name);
-    // The ⋮ menu is a popover built from the group itself: it opens at once.
-    const menu = page.getByRole("button", { name: "Chat menu", exact: true });
-    await expect(menu).toBeEnabled();
-    await menu.click();
-    await page.getByRole("menuitem", { name: "Group info" }).click();
-    await expect(page).toHaveURL(new RegExp(`/app/group/${group.id}$`));
+    await expectHeaderInert(page);
     held.release();
+    await expect(page.locator(".chat-head")).toContainText(name);
     await held.unroute();
-    await expect(page.locator("main").getByText(name).first()).toBeVisible();
+    await page.locator(".chat-head .head-avatar").click();
+    const sheet = page.locator("#dialog");
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Group info");
+    await expect(sheet.getByRole("switch", { name })).toBeChecked();
   } finally {
     held?.release();
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });

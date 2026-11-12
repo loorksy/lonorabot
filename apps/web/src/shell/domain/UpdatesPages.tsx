@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { ActivityCode, ActivityEntry, AttentionViewRow } from "@lonora/contracts";
 import { Icon } from "@lonora/ui-web";
 import { useState } from "react";
+import { AgentAvatar } from "../../components/ai/AgentAvatar";
 import { useAttentionLabels } from "../../components/ai/AttentionInbox";
 import { api } from "../../lib/api";
 import { userError } from "../../lib/user_error";

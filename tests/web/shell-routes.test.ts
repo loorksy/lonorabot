@@ -20,11 +20,6 @@ test("the agent, identity, trades and group pages carry their item", () => {
   assert.deepEqual(parseRoute("/app/recovery/x"), { kind: "not-found" });
 });
 
-test("my-profile and reach-me reach the owner and notification settings", () => {
-  assert.deepEqual(parseRoute("/app/my-profile"), { kind: "alias", to: "/app/owner" });
-  assert.deepEqual(parseRoute("/app/reach-me"), { kind: "alias", to: "/app/notify-settings" });
-});
-
 test("the rail keeps Settings on workspace files and recovery, Tasks on a new schedule", () => {
   assert.equal(sectionOf(parseRoute("/app/artifacts"), ""), "settings");
   assert.equal(sectionOf(parseRoute("/app/artifacts"), "?agent=a1"), "chats");

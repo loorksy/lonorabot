@@ -6,8 +6,11 @@ import { useChatPrefs } from "../conversation/prefs";
 import { useAgentSheet } from "../conversation/sheets/AgentSheet";
 import { useWatchesSheet } from "../conversation/sheets/WatchesSheet";
 import type { Agent, Resource } from "../lib/api";
+import { GroupSettings } from "../pages/GroupPanel";
 import { AgentSettings } from "../pages/shell/bot-settings";
+import { useClient } from "../providers/ClientProvider";
 import { useChartSheet } from "./agent/ChartSheet";
+import { useShellData } from "./data";
 import { PopItem, PopSep, usePopover } from "./lists/Popover";
 import { useLists } from "./lists/state";
 import { useNavigation } from "./navigation";
@@ -34,6 +37,8 @@ export function useChatMenu({
   const popover = usePopover();
   const nav = useNavigation();
   const lists = useLists();
+  const data = useShellData();
+  const { refresh } = useClient();
   const prefs = useChatPrefs();
   const statusSheet = useAgentSheet((id) =>
     window.dispatchEvent(new CustomEvent("lonora:jump", { detail: { id } })),
@@ -66,23 +71,36 @@ export function useChatMenu({
     if (agent) nav.go(`/app/agent/${agent.id}`);
     else if (group) nav.go(`/app/group/${group.id}`);
   }, [nav, agent, group]);
-  // The header's avatar and name open the agent's settings sheet, as before (its market, model,
-  // supervision and full permission panel), until phase 3 removes it; a group's open its page.
+  // The header's avatar and name open the agent's or the group's settings sheet, as before (an
+  // agent's market, model, supervision and full permission panel; a group's name and members),
+  // until phase 3 removes them. A group's is built from the agents: it waits until they load.
   const openSettings = useCallback(() => {
-    if (!agent) return openInfo();
-    const title = t`Agent info`;
+    if (!agent && !(group && !data.agentsLoading)) return;
+    const title = agent ? t`Agent info` : t`Group info`;
     sheets.open({
-      id: "agent-settings",
+      id: agent ? "agent-settings" : "group-settings",
       bar: true,
       title,
       label: title,
       body: (
         <div className="legacy-surface">
-          <AgentSettings key={agent.id} agent={agent} onClose={() => sheets.close()} />
+          {agent ? (
+            <AgentSettings key={agent.id} agent={agent} onClose={() => sheets.close()} />
+          ) : group ? (
+            <GroupSettings
+              key={group.id}
+              group={group}
+              agents={data.agents}
+              onSave={() => {
+                refresh();
+                sheets.close();
+              }}
+            />
+          ) : null}
         </div>
       ),
     });
-  }, [sheets, agent, openInfo]);
+  }, [sheets, agent, group, data.agents, data.agentsLoading, refresh]);
   const confirmClear = useCallback(() => {
     const row = lists.rows.find(
       (item) => item.key === (agent ? `agent:${agent.id}` : `group:${group?.id}`),

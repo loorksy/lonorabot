@@ -128,7 +128,7 @@ async def seed(fixture: Fixture, agents: dict[str, str], threads: dict[str, str]
                     thread_id=threads["lonora"],
                     logical_key=key,
                     coalesce_key=key,
-                    importance="important_change",
+                    importance="informational",
                     code="agent_notification",
                     parameters={
                         "summary": "أعدّ Lonora موجز اليوم: لا مستجدات عاجلة. افتح محادثته لقراءته.",

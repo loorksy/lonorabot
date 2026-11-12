@@ -92,7 +92,7 @@ test("the status line uses the reference's own words", () => {
       { ...analysing, current_work: { ...analysing.current_work, kind: "other" } },
       "ar",
     ),
-    "يحلّل",
+    "يعمل",
   );
   assert.equal(agentStatusLine(watching, "ar", now), "يراقب ⁨XAUUSD⁩");
 });
@@ -129,11 +129,11 @@ test("the status line follows the reference priority, most urgent first", () => 
   assert.equal(agentStatusLine(working, "ar"), "يحلّل");
 });
 
-test("the status line keeps to the owner's words when the server names no kind of work", () => {
-  // A run with no named family is the agent busy on its own.
+test("the status line says «يعمل» or «ينتظر», never «نشط», when the server names no work", () => {
+  // A run with no named family is the agent at work.
   const busy: AgentLiveState = { ...idle, state: "working", phase: "thinking" };
-  assert.equal(agentStatusLine(busy, "ar"), "يحلّل");
-  assert.equal(agentStatusLine(busy, "en"), "Analysing");
+  assert.equal(agentStatusLine(busy, "ar"), "يعمل");
+  assert.equal(agentStatusLine(busy, "en"), "Working");
   // A waiting agent, a model retry or a read retry included, waits: it is never «نشط».
   const waiting: AgentLiveState[] = [
     { ...idle, state: "waiting", phase: "queued" },

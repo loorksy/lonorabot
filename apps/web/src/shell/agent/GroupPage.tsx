@@ -38,8 +38,7 @@ function members(group: Resource, agents: readonly Agent[]) {
 }
 
 /* The group page (route group): the cluster, name, size and purpose, the members (the lead
-   reads «المنسق»), «إضافة وكيل», «تعديل المجموعة» (rename, remove members),
-   «فتح محادثة المجموعة». No deletion (Q1, Q44). */
+   reads «المنسق»), «إضافة وكيل», «فتح محادثة المجموعة». No deletion (Q1, Q44). */
 export function GroupPage({ groupId }: { groupId: string }) {
   const data = useShellData();
   const nav = useNavigation();
@@ -128,26 +127,6 @@ export function GroupPage({ groupId }: { groupId: string }) {
           <Trans>Add an agent</Trans>
         </button>
       )}
-      <button
-        type="button"
-        className="btn full outline"
-        onClick={() =>
-          sheets.open({
-            id: "group-edit",
-            title: t`Edit the group`,
-            body: scoped(
-              <EditGroup
-                group={group}
-                members={list}
-                onDone={() => sheets.close()}
-                onError={(failure) => toast(userError(failure), { type: "error" })}
-              />,
-            ),
-          })
-        }
-      >
-        <Trans>Edit the group</Trans>
-      </button>
       <button
         type="button"
         className="btn full primary"
@@ -241,102 +220,6 @@ function AddMembers({
         onClick={() => void save()}
       >
         <Trans>Add</Trans>
-      </button>
-    </>
-  );
-}
-
-/** The name and the members kept; a removed coordinator leaves the group without one (the
-    first available member answers). */
-function EditGroup({
-  group,
-  members,
-  onDone,
-  onError,
-}: {
-  group: Resource;
-  members: Agent[];
-  onDone: () => void;
-  onError: (failure: unknown) => void;
-}) {
-  const data = useShellData();
-  const [name, setName] = useState(String(group.payload.name ?? ""));
-  const [kept, setKept] = useState<string[]>(memberIds(group));
-  const [busy, setBusy] = useState(false);
-  const lead = leadOf(group);
-  const save = async () => {
-    if (!name.trim() || !kept.length || busy) return;
-    setBusy(true);
-    try {
-      await api.put(`/groups/${group.id}`, {
-        version: group.version,
-        payload: {
-          ...group.payload,
-          name: name.trim(),
-          member_ids: kept,
-          lead_agent_id: lead && kept.includes(lead) ? lead : null,
-        },
-      });
-      data.refresh();
-      onDone();
-    } catch (failure) {
-      onError(failure);
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <label className="field">
-        <span>
-          <Trans>Group name</Trans>
-        </span>
-        <input
-          name="name"
-          required
-          maxLength={80}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </label>
-      <h3>
-        <Trans>Members</Trans>
-      </h3>
-      <div className="group">
-        {members.map((agent) => {
-          const on = kept.includes(agent.id);
-          return (
-            // biome-ignore lint/a11y/useSemanticElements: a whole row toggles, as in the reference
-            <button
-              type="button"
-              key={agent.id}
-              className={`row reach-opt${on ? " on" : ""}`}
-              role="checkbox"
-              aria-checked={on}
-              onClick={() =>
-                setKept((old) => (on ? old.filter((id) => id !== agent.id) : [...old, agent.id]))
-              }
-            >
-              <AgentAvatar agent={agent} />
-              <span className="body">
-                <strong>
-                  <bdi>{agent.name}</bdi>
-                </strong>
-                <small>{agent.id === lead ? t`Coordinator` : <bdi>{agentRole(agent)}</bdi>}</small>
-              </span>
-              <span className={`pick-box${on ? " on" : ""}`} aria-hidden="true">
-                {on && <Icon name="check" />}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        className="btn full primary"
-        disabled={!name.trim() || !kept.length || busy}
-        onClick={() => void save()}
-      >
-        <Trans>Save</Trans>
       </button>
     </>
   );

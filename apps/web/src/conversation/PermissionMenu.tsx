@@ -490,7 +490,7 @@ function ModelPage({
         role="menuitem"
         onClick={() => {
           popover.close();
-          go("/app/providers");
+          go("/app/settings?tab=models");
         }}
       >
         <Icon name="plus" />

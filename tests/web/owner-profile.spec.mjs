@@ -137,7 +137,7 @@ test("the profile page reads right to left in Arabic with the reference's labels
   expect(owner.agent.id).toBeTruthy();
 });
 
-test("one name and initial everywhere, every time zone, an enabled Save and no call without a device", async ({
+test("one name and initial everywhere, every time zone, a Save that waits for a change and no call without a device", async ({
   page,
   context,
   owner,
@@ -160,14 +160,9 @@ test("one name and initial everywhere, every time zone, an enabled Save and no c
   const zones = page.locator("select[name=zone] option");
   await expect(zones.filter({ hasText: /^Asia\/Damascus$/ })).toHaveCount(1);
   expect(await zones.count()).toBeGreaterThan(100);
-  // «حفظ» is the ivory primary from the start; with nothing changed it sends nothing.
-  const writes = [];
-  page.on("request", (request) => request.method() === "PUT" && writes.push(request.url()));
+  // «حفظ» waits for a change.
   const save = page.getByRole("button", { name: "حفظ", exact: true });
-  await expect(save).toBeEnabled();
-  await save.click();
-  await expect(page.getByText("تم الحفظ")).toBeVisible();
-  expect(writes).toEqual([]);
+  await expect(save).toBeDisabled();
   await name.fill("Ahmed");
   // A blank form of address is no address: the initial stays the name's.
   await page.getByLabel("طريقة المخاطبة", { exact: true }).fill(" ");

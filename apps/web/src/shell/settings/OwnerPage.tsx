@@ -115,7 +115,6 @@ export function OwnerPage() {
   };
   const save = async () => {
     if (!profile || busy) return;
-    if (!draft) return toast(t`Saved`, { type: "success" });
     setBusy(true);
     try {
       let next: OwnerProfile = profile;
@@ -240,7 +239,7 @@ export function OwnerPage() {
           />
         </label>
         <div className="actions">
-          <button type="submit" className="btn primary" disabled={!profile || busy}>
+          <button type="submit" className="btn primary" disabled={!profile || busy || !draft}>
             <Trans>Save</Trans>
           </button>
         </div>

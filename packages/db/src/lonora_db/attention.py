@@ -82,8 +82,7 @@ async def policy(session: AsyncSession, owner_id: str) -> AttentionPolicy:
     )
 
 
-async def fact_current(session: AsyncSession, row: AttentionRow) -> bool | None:
-    """Whether the fact behind the item still holds; None for a code with no such check."""
+async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
     if row.code == "operation_uncertain":
         journal = await session.get(TradingJournalRow, row.parameters.get("operation_id", ""))
         if journal is None or journal.owner_id != row.owner_id or journal.status != "ambiguous":
@@ -172,15 +171,7 @@ async def fact_current(session: AsyncSession, row: AttentionRow) -> bool | None:
                 )
             )
         )
-    return None
-
-
-async def mandatory_current(session: AsyncSession, row: AttentionRow) -> bool:
-    return await fact_current(session, row) is True
-
-
-async def still_current(session: AsyncSession, row: AttentionRow) -> bool:
-    return await fact_current(session, row) is not False
+    return False
 
 
 async def decide_attention(

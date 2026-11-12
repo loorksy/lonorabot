@@ -92,12 +92,12 @@ test("the ⋮ menu is a popover beside its button, in the reference's order", as
   await expect(menuItems(page)).toHaveText(["Group info", "Chart", "New task", "Clear the chat"]);
 });
 
-test("the menu's info goes to the agent or group page; the header opens the agent's settings", async ({
+test("the menu's info goes to the agent or group page; the header opens their settings", async ({
   page,
 }) => {
   await page.goto(`/app/${data.trader.id}`);
   // Until phase 3 the agent's avatar and name open its settings sheet (the full permission
-  // panel among them); a group's open the group page.
+  // panel among them); a group's open the group's settings (its name and members).
   const sheet = page.locator("#dialog");
   for (const target of [".chat-head .head-avatar", ".chat-head .chat-name"]) {
     await page.locator(target).click();
@@ -116,9 +116,20 @@ test("the menu's info goes to the agent or group page; the header opens the agen
   await expect(page.locator("#dialog[open]")).toHaveCount(0);
 
   await page.goto(`/app/g/${data.group.id}`);
-  await page.locator(".chat-head .head-avatar").click();
-  await expect(page).toHaveURL(new RegExp(`/app/group/${data.group.id}$`));
-  await page.goBack();
+  // The group's settings list the agents: they open once the members are shown.
+  await expect(page.locator(".chat-head")).toContainText(data.research.name);
+  for (const target of [".chat-head .head-avatar", ".chat-head .chat-name"]) {
+    await page.locator(target).click();
+    await expect(sheet).toHaveAttribute("open", "");
+    await expect(sheet).toHaveAttribute("aria-label", "Group info");
+    await expect(sheet.getByRole("textbox", { name: "Group name", exact: true })).toHaveValue(
+      data.group.payload.name,
+    );
+    await expect(sheet.getByRole("switch", { name: data.research.name })).toBeChecked();
+    await page.keyboard.press("Escape");
+    await expect(sheet).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(new RegExp(`/app/g/${data.group.id}$`));
+  }
   await page.getByRole("button", { name: "Chat menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Group info" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/group/${data.group.id}$`));

@@ -9,7 +9,7 @@ function fixture(data) {
     }),
   );
 }
-test("chart sheet expands, dismisses with Escape and restores focus (Q37: the reference's look)", async ({
+test("chart sheet expands, dismisses with Escape and opens again (Q37: the reference's look)", async ({
   page,
   context,
 }) => {
