@@ -34,10 +34,6 @@ async def ensure_personal_agent(session: AsyncSession, owner_id: str) -> AgentRo
     # Lonora is the personal agent, not an agent of a template.
     row.template = None
     await session.flush()
-    from .supervision import seed_personal_grants
-
-    # Lonora supervises every agent by default; the owner revokes any grant in one tap.
-    await seed_personal_grants(session, owner_id, row.id)
     thread = await conversation_thread(session, owner_id, row.id)
     emit(session, owner_id, "agent.personal_initialized", agent_id=row.id, thread_id=thread.id)
     return row

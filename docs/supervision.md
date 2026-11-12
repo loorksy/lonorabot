@@ -20,12 +20,11 @@ recorded it, `created_at`, and `revoked_at` / `revoked_via`. At most one grant p
 active; a revoked grant stays as the record of what was allowed. Rows cascade with
 either agent.
 
-- **Default.** The migration gives each owner's Personal Agent a `default` grant over
-  every other agent. A Personal Agent created later supervises every agent that already
-  exists (`ensure_personal_agent`), and every agent created afterwards is supervised by
-  it from its creation (`agents.create_agent`, so the owner's form, `agent_create`, child
-  agents and fixtures all get it). A revoked default grant is not recreated, and
-  revoking it no longer limits Lonora, whose reads and control are its lead role.
+- **Default.** The migration gave each owner's Personal Agent a `default` grant over
+  every agent that existed then. No grant is made at creation any more: Lonora reads and
+  steers every team agent by its lead role (`lonora_db.lead`), so a stored default grant
+  only shows on the profiles, and revoking it does not limit Lonora. Lonora's profile
+  offers no new grant.
 - **From one sentence.** `supervision_change` (toolset `collaboration`, long-tail)
   grants or revokes supervision for `supervisor_id` (default: the caller) over
   `supervised_ids`. Oversight for the calling agent itself, or over the Personal Agent,
@@ -133,8 +132,8 @@ Holds (`ln_supervision_holds`) record each pause a supervisor sets:
   refuses while the owner holds a live pause (a holder-less hold has no place in the
   earlier schema), and the downgrade of `0041_supervision_grants` refuses while a grant
   the owner set (not `default`) or revoked, or any live hold, exists: dropping them
-  would bring a revoked default back on the re-upgrade (Lonora reading an agent the
-  owner took away from it) or resume paused work. A refused downgrade changes nothing.
+  would lose the owner's record of who supervises whom (a revoked grant would come back
+  on the re-upgrade) or resume paused work. A refused downgrade changes nothing.
 - **The owner's pause is the owner's.** The owner pausing work a supervisor holds (the
   agent's switch, the routine's switch, the watch list's Pause or Cancel, the Task's
   Pause, an Undo) keeps the hold and makes it the owner's (`source='owner'`, the
@@ -223,13 +222,13 @@ profile) do not fit and are promoted after first use like any remembered tool.
   through another agent; a cancelled watch staying cancelled; supervision from a card
   and from a sentence
   with Undo; the supervised agent refused revoking its own oversight and a revoke from
-  chat restored from its card; the Personal Agent's default grant on a new agent.
+  chat restored from its card; no default grant on a new agent.
 - `tests/check_supervision.py` (fresh database): the migration seed, its idempotence and
-  round trip, a Personal Agent created after other agents, a later agent; a real Run in
+  round trip; no grant at creation; a real Run in
   which Lonora answers "what did the gold agent do and why did it skip London" from the
   records through natively offered `agent_inspect` and `session_search`, with nothing of
   the gold agent in its context beforehand, and still answered after the owner revokes
   Lonora's default grant (its lead role).
 - `tests/web/supervision.test.ts` (the supervise, Undo, Restore and pause cards in
   Arabic and English) and Playwright `supervision` (Web and Mobile, Arabic and English):
-  the cards, the profile rows, Stop and Supervise.
+  the cards, the profile rows and Stop.

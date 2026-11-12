@@ -29,8 +29,8 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .lead import personal_agent_id
 from .schema import SettingRow
-from .supervision import personal_agent_id
 from .transactions import SettingsRepository, owned_agent
 
 

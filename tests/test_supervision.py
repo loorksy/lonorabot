@@ -1007,9 +1007,11 @@ async def test_supervision_from_a_sentence_or_a_card_shows_undo():
 
 
 @pytest.mark.asyncio
-async def test_the_personal_agent_supervises_new_agents_by_default():
+async def test_a_new_agent_gets_no_grant_and_lonora_leads_it_by_role():
+    """14.3.15: no grant is made at creation; Lonora reaches the agent by its lead role."""
     database()
     from check_streaming import Fixture
+    from lonora_db.lead import reaches
     from lonora_db.personal_agent import ensure_personal_agent
     from lonora_db.supervision import supervises
 
@@ -1020,11 +1022,11 @@ async def test_the_personal_agent_supervises_new_agents_by_default():
             lonora_id = lonora.id
         created = await fixture.agent("Fresh")
         async with fixture.runtime.db.sessions() as session:
-            assert await supervises(session, fixture.owner, lonora_id, created["id"])
-            assert not await supervises(session, fixture.owner, created["id"], lonora_id)
+            assert not await supervises(session, fixture.owner, lonora_id, created["id"])
+            assert await reaches(session, fixture.owner, lonora_id, created["id"])
+            assert not await reaches(session, fixture.owner, created["id"], lonora_id)
         view = await fixture.request("GET", f"/supervision?agent_id={created['id']}")
-        assert [item["supervisor"]["id"] for item in view["supervised_by"]] == [lonora_id]
-        assert view["supervised_by"][0]["created_via"] == "default"
+        assert view["supervised_by"] == []
         directory = await call(
             await wake(fixture, created, await fixture.conversation(created)), "list_agents"
         )

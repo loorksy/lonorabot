@@ -4,7 +4,7 @@
  * and never carries money authority; the owner stops any grant with one tap. Names are
  * isolated so a Latin name keeps its order inside Arabic text.
  */
-import type { Agent, SupervisionGrant, SupervisionView } from "@lonora/contracts";
+import type { SupervisionGrant, SupervisionView } from "@lonora/contracts";
 import { isolate } from "./trading-readiness";
 
 type Language = "ar" | "en";
@@ -23,9 +23,7 @@ export const supervisionLabels = {
       "A supervisor reads this agent's work and memory, messages it and can pause or resume its work. It never trades for it or lifts your brakes.",
     supervisedBy: "Supervised by",
     supervises: "Supervises",
-    notSupervised: "Not supervised by Lonora",
     stop: "Stop",
-    supervise: "Supervise",
     byDefault: "by default",
     byYou: "set by you",
     fromMessage: "from your message",
@@ -42,9 +40,7 @@ export const supervisionLabels = {
       "يقرأ المشرف عمل هذا الوكيل وذاكرته، ويراسله، ويستطيع إيقاف عمله أو استئنافه. لا يتداول عنه أبدًا ولا يرفع فراملك.",
     supervisedBy: "يشرف عليه",
     supervises: "يشرف على",
-    notSupervised: "لا تشرف عليهم لونورا",
     stop: "إيقاف",
-    supervise: "إشراف",
     byDefault: "افتراضيًا",
     byYou: "عيّنته أنت",
     fromMessage: "من رسالتك",
@@ -91,12 +87,6 @@ export function supervisionRows(
     supervises: view.supervises.map((grant) => row(grant, grant.supervised)),
     supervisedBy: view.supervised_by.map((grant) => row(grant, grant.supervisor)),
   };
-}
-
-/** The Personal Agent's profile offers to supervise again every agent it does not now. */
-export function unsupervisedAgents(view: SupervisionView, agents: Agent[]): Agent[] {
-  const supervised = new Set(view.supervises.map((grant) => grant.supervised.id));
-  return agents.filter((agent) => agent.id !== view.agent_id && !supervised.has(agent.id));
 }
 
 const errors: Readonly<Record<string, { en: string; ar: string }>> = {

@@ -46,7 +46,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
-from .lead import personal_agent_id, reaches
+from .lead import reaches
 from .schema import (
     AgentRow,
     MarketWatchRow,
@@ -221,30 +221,6 @@ async def revoke_supervision(
         await session.flush()
         _grant_events(session, row, "supervision.revoked")
     return row
-
-
-async def grant_default(session: AsyncSession, owner_id: str, agent: AgentRow) -> None:
-    """A new agent is supervised by the Personal Agent from its creation."""
-    personal = await personal_agent_id(session, owner_id)
-    if personal is None or personal == agent.id or agent.role == "personal":
-        return
-    await grant_supervision(session, owner_id, personal, agent.id, via="default")
-
-
-async def seed_personal_grants(session: AsyncSession, owner_id: str, personal_id: str) -> int:
-    """A Personal Agent created after other agents supervises each of them by default."""
-    others = list(
-        await session.scalars(
-            select(AgentRow.id)
-            .where(AgentRow.owner_id == owner_id, AgentRow.id != personal_id)
-            .order_by(AgentRow.created_at, AgentRow.id)
-        )
-    )
-    created = 0
-    for agent_id in others:
-        _, new = await grant_supervision(session, owner_id, personal_id, agent_id, via="default")
-        created += new
-    return created
 
 
 async def agent_names(

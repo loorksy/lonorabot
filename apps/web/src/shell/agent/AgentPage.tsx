@@ -133,7 +133,7 @@ function AgentPageBody({ agent }: { agent: Agent }) {
   const [busy, setBusy] = useState(false);
   const level = permissions.value?.effective_level ?? "analysis";
   const accounts = connections.value ?? [];
-  // Lonora supervises every agent by default: the line names a chosen supervisor first.
+  // A stored grant of Lonora's shows last: the line names a chosen supervisor first.
   const personalId = data.agents.find((row) => row.role === "personal")?.id;
   const supervisors = supervision.value?.supervised_by ?? [];
   const supervisor = (
