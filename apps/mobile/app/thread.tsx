@@ -89,6 +89,7 @@ import {
   type InboxSnapshot,
 } from "../lib/conversation-cache";
 import { projectConversation } from "../lib/conversation-projection";
+import { markEditing, restoreDraft } from "../lib/draft-store";
 import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
@@ -174,7 +175,10 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setReactions(new Map());
     // Leaving the conversation ends an edit: its text does not stay behind as a new message.
     return () => {
-      if (editingKey.current) editComposerDraft(editingKey.current, { text: "" });
+      if (editingKey.current) {
+        editComposerDraft(editingKey.current, { text: "" });
+        markEditing(editingKey.current, false);
+      }
       editingKey.current = null;
     };
   }, [id]);
@@ -238,6 +242,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const snapshotRef = useRef<() => Promise<void>>(async () => undefined);
   useEffect(() => {
     void hydrateOutgoing(outboxKey);
+    // The draft this conversation had before the app restarted.
+    let live = true;
+    void restoreDraft(outboxKey).then((restored) => {
+      if (!live || !restored) return;
+      const saved = composerDraft(outboxKey);
+      setDraft(saved.text);
+      setAttachments(saved.attachments);
+      setReply(saved.reply);
+    });
+    return () => {
+      live = false;
+    };
   }, [outboxKey]);
   // A message that waited for the network and went out by itself (Q6) joins this transcript,
   // and the snapshot brings the run it started.
@@ -792,6 +808,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         setAtEnd(true);
         if (edit) {
           editingKey.current = null;
+          markEditing(targetKey, false);
           setEditing(null);
         }
         if (!followUp) {
@@ -962,6 +979,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       ),
     onEdit: (message) => {
       editingKey.current = outboxKey;
+      markEditing(outboxKey, true);
       setEditing(message);
       updateDraft({ text: message.content, reply: null });
     },
@@ -987,6 +1005,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   });
   /** An edit ends without sending: its text leaves the composer with it. */
   function endEdit() {
+    if (editingKey.current) markEditing(editingKey.current, false);
     editingKey.current = null;
     setEditing(null);
     updateDraft({ text: "" });
