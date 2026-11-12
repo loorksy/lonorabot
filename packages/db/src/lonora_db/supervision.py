@@ -14,7 +14,8 @@ grant over every agent from the agent's creation (migration ``0041_supervision_g
 seeds existing agents) until grants are deleted. Another agent becomes a
 supervisor only from the owner's message, recorded as the grant's source, or from the
 owner's tap on a card. The owner sees every grant on the agents' profiles and in chat
-and revokes one with one tap; a revoked grant ends every read and control at once.
+and revokes one with one tap; a revoked grant ends that supervisor's reads and control at
+once, never Lonora's (its lead role).
 
 Holds (``ln_supervision_holds``) record the pauses a supervisor put on another agent's
 work: the agent itself, a Task, a routine or a watch. On its own initiative only the

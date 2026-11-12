@@ -2,9 +2,9 @@
 
 An Agent reads its own history: the threads it owns (conversations, Task work
 threads and its subagents' threads, which carry the same Agent id) and the group
-threads it is a member of, plus the decision snapshots it recorded. A supervisor also
-reads the threads and decisions of the agents it supervises now, through the owner's
-visible, revocable supervision grant (``lonora_db.supervision``); each such result
+threads it is a member of, plus the decision snapshots it recorded. Lonora also reads
+those of every team agent by its lead role, and another supervisor those of the agents
+it supervises now, through the owner's revocable grant (``lonora_db.lead``); each result
 names the agent and is labelled untrusted. Other Agents' private threads and memory
 stay invisible; owner-wide search remains an owner API. Every result is a historical
 record, never current broker state.

@@ -629,8 +629,9 @@ def tools() -> list[Tool]:
             "pause you set, or any supervisor's when the owner asks; the owner's own pauses "
             "stay. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A whole trading agent is paused only when the owner asks (its exits "
-            "would stop too): narrow it with trade_restriction_create (no_new_entries) and "
-            "pause its routines, watches or Tasks. Only the owner pauses Lonora itself. It "
+            "would stop too): narrow it with trade_restriction_create (no_new_entries; it "
+            "needs that agent's grant or the owner's message, also for Lonora) and pause its "
+            "routines, watches or Tasks. Only the owner pauses Lonora itself. It "
             "never trades, grants, raises limits, lifts restrictions or edits its memory "
             "or instructions.",
             AgentControlInput,
