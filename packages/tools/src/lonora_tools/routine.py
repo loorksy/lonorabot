@@ -16,6 +16,7 @@ from .base import Tool
 from .context import ToolContext
 from .market_watch import created_to_run
 from .memory import Empty
+from .profile_taint import mark_from
 from .resolve import Option, resolve, stating
 from .restrictions import owner_message_id
 
@@ -42,6 +43,7 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         )
         # A routine tainted work created wakes tainted (GENUI_PLAN §8.5).
         await taint_row_from(session, run, "routine", row.id)
+        await mark_from(session, run, "routine", row.id)
         return routine_data(row)
 
 
@@ -116,6 +118,7 @@ async def toggle(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         row.enabled = args["enabled"]
         # Tainted work that revives or toggles a routine taints it (GENUI_PLAN §8.5).
         await taint_row_from(session, run, "routine", row.id)
+        await mark_from(session, run, "routine", row.id)
         return stating(routine_data(row), named)
 
 

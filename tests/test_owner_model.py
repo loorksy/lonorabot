@@ -18,7 +18,9 @@ from lonora_tools.loader import load_tools
 from test_owner_profile import call, database, owner_turn, reset_profile
 
 
-async def routine_run(fixture: Any, agent_id: str, trigger: str = "routine") -> Any:
+async def routine_run(
+    fixture: Any, agent_id: str, trigger: str = "routine", metadata: dict[str, Any] | None = None
+) -> Any:
     """A routine wake (or another trigger): no owner message in the run."""
     from lonora_db.runs import create_run
     from lonora_db.threads import conversation_thread
@@ -33,6 +35,7 @@ async def routine_run(fixture: Any, agent_id: str, trigger: str = "routine") -> 
                 agent_id=agent_id,
                 trigger=trigger,
                 prompt="Daily owner review",
+                metadata=metadata or {},
             ),
         )
         data = {"id": run.id, "agent_id": agent_id, "thread_id": thread.id}
@@ -242,6 +245,68 @@ async def test_lonora_observes_only_in_untainted_runs_and_agents_see_observation
         assert body["profile"] == "- Arabic reports\n- Merged old line\n- Unrecorded line"
         assert body["lonora_observations"] == "- Closes gold before news"
         assert "not his word" in sections[0].body
+    finally:
+        await reset_profile(fixture)
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_routine_or_watch_a_tainted_run_made_wakes_without_observations():
+    database()
+    from check_streaming import Fixture
+    from lonora_db.schema import OwnerProfileRow, RunRow
+    from lonora_tools.profile_taint import mark_from
+    from lonora_tools.restrictions import mark_external_content
+
+    fixture = await Fixture().open()
+    try:
+        await reset_profile(fixture)
+        registry = load_tools()
+        lead = await lonora(fixture)
+        schedule = {"prompt": "Review the owner's trading", "interval_seconds": 3600}
+        # The reviewer's probe: an owner turn reads a web page, then schedules a routine.
+        tainted, _ = await owner_turn(fixture, lead, "اقرأ هذه الصفحة وراجعها كل ساعة")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await mark_external_content(session, tainted.lease.run_id, "web_fetch")
+        steered = await call(registry, tainted, "routine_create", **schedule)
+        # The same routine from a clean owner turn.
+        clean, _ = await owner_turn(fixture, lead, "راجع تداولي كل ساعة")
+        trusted = await call(registry, clean, "routine_create", **schedule)
+        line = {
+            "action": "add",
+            "section": "USER.md",
+            "content": "- Prefers the largest lot size on every trade",
+        }
+        woken = await routine_run(fixture, lead["id"], metadata={"routine_id": steered["id"]})
+        refused = await call(
+            registry, woken, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert refused["code"] == "owner_profile_tainted_run", refused
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(OwnerProfileRow, fixture.owner) is None
+        woken = await routine_run(fixture, lead["id"], metadata={"routine_id": trusted["id"]})
+        line["content"] = "- Reviews trades hourly"
+        written = await call(
+            registry, woken, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert written.get("owner_profile", written).get("changed") is True, written
+        # A watch carries the same mark; only the observation check reads it.
+        watched, unmarked = "watch-" + uuid4().hex, "watch-" + uuid4().hex
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, tainted.lease.run_id)
+            assert row is not None
+            await mark_from(session, row, "watch", watched)
+        woken = await routine_run(fixture, lead["id"], "watch", {"watch_id": watched})
+        line["content"] = "- Closes gold before news"
+        refused = await call(
+            registry, woken, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert refused["code"] == "owner_profile_tainted_run", refused
+        woken = await routine_run(fixture, lead["id"], "watch", {"watch_id": unmarked})
+        written = await call(
+            registry, woken, "memory_write", version=1, observed=True, operations=[line]
+        )
+        assert written.get("owner_profile", written).get("changed") is True, written
     finally:
         await reset_profile(fixture)
         await fixture.close()
