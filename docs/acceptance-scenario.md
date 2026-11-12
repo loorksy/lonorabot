@@ -18,7 +18,10 @@ Step 6 (Stop) is void by Amendment 1.
 | `not exercised` | Live only. The model chose not to produce the event the step needs, for example it did not close. Which choice the model makes is not asserted. |
 | `void` | Step 6. |
 
-Each step starts from its own seeded state, not from the steps before it. A step therefore runs as soon as its own feature lands.
+Each step starts from its own seeded state, not from the steps before it, so a step does not wait for the steps before it.
+
+- **`needs` entries.** A `code` or `tool` entry turns ready by itself when that name is on the commit. A `pending` entry names a feature whose code name is not known yet; it is replaced by a `code` entry when its owner's PR names it.
+- **`partial`.** A step that runs today on a stand-in names the stand-in in the report. It becomes `not written` once the features under `until` are on the commit, so the stand-in can never keep passing in place of the real step.
 
 ## What a step asserts
 
@@ -37,7 +40,7 @@ Each step starts from its own seeded state, not from the steps before it. A step
   - the reconciliation step (`reconcile_ambiguous`);
   - the queued runs, which go through `execute_run` as the worker does.
 
-## Offline: every PR and the merged main
+## Offline: the local gate of every PR and of the merged main
 
 ```
 service postgresql start
@@ -48,7 +51,7 @@ export LONORA_DATABASE_URL=postgresql+asyncpg://lonora:ci-only-password@127.0.0.
 
 - **No model and no network.** Scripted model turns go through Lonora's real loop, the real tool handlers and the real MetaApi adapter, over the fake terminal of `scripts/agent_eval/broker.py`.
 - **The database.** The URL names a disposable `*_test` database. The run migrates it as a template, copies it for each step, and drops every copy.
-- **The test suite runs it too:** `tests/test_acceptance_scenario.py`. It fails when a step whose feature is here fails.
+- **The full pytest run includes it:** `tests/test_acceptance_scenario.py` fails when a step whose feature is here fails. GitHub Actions do not run it; the local gate does.
 
 ## Live: a real model, run by the lead on the owner's server
 
@@ -66,6 +69,6 @@ export LONORA_ACCEPT_PROVIDER_KEY=...                             # read from th
 
 | Step | State | Note |
 |---|---|---|
-| 4c, a connection drop during a close | runs | The actor is Lonora under the template's signed grant (`bank.seed`). It becomes the gold agent in Full once the modes are on main. |
+| 4c, a connection drop during a close | pass, partial | Fake terminal. The actor is Lonora under the template's signed grant (`bank.seed`), not the gold agent in Full: modes are not on main. |
 | 6 | void | Amendment 1. |
 | Every other step | pending | Its feature is not on main. Run `--offline` for the exact list. |

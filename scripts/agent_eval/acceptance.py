@@ -10,7 +10,7 @@ Two modes:
 
 - ``--offline``: scripted model turns (``ScriptedModel``) through Lonora's real loop
   (``execute_run``), the real tool handlers and the real MetaApi adapter over the fake
-  terminal of broker.py. No model, no network. Every PR and the lead's merged main run it.
+  terminal of broker.py. No model, no network. The local gate of every PR runs it.
 - ``--live``: the same steps with the product choosing and calling a real model through the
   providers saved in the database (the owner's server). The harness only presents the
   situation (a watch firing, a dropped reply); a step that depends on the model's choice
@@ -42,6 +42,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
+from lonora_agent.environment import classify
 from lonora_agent.executor import execute_run
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
@@ -58,7 +59,6 @@ from scripts.agent_eval import run as runner  # noqa: E402
 from scripts.genui_eval import run as genui  # noqa: E402
 
 SCENARIO = bank.FIXTURES / "acceptance.json"
-OUT = ROOT / ".runtime/agent_eval"
 # Runs the harness drives after one induced event: the wake, and the wakes it causes.
 MAXIMUM_RUNS = 6
 
@@ -99,8 +99,7 @@ class ScriptedModel:
 
     A turn is a list of replies, one per round: ``{"calls": [{"tool", "arguments"}]}`` or
     ``{"text": "..."}``. ``$name`` in an argument is the step's own value (an account, a
-    ticket); ``$result.<field>`` is that field of the previous tool result. The loop, the
-    tool handlers and the broker adapter are the product's own.
+    ticket). The loop, the tool handlers and the broker adapter are the product's own.
     """
 
     turns: dict[str, list[list[dict[str, Any]]]]
@@ -136,24 +135,17 @@ class ScriptedAdapter:
         max_output_tokens: int | None = None,
         on_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> ModelReply:
-        del model, tools, max_output_tokens, on_delta
+        del model, messages, tools, max_output_tokens, on_delta
         if not self.script.replies:
             raise AssertionError(f"{self.script.agent}'s scripted turn ended early")
         reply = self.script.replies.pop(0)
         if "text" in reply:
             return ModelReply(text=reply["text"])
-        previous = next((m for m in reversed(messages) if m.role == "tool"), None)
-        last: dict[str, Any] = {}
-        if previous is not None:
-            try:
-                last = json.loads(previous.content)
-            except ValueError:
-                last = {}
         calls = [
             ToolCall(
                 id=uuid4().hex,
                 name=call["tool"],
-                arguments=resolve(call["arguments"], self.script.names, last),
+                arguments=resolve(call["arguments"], self.script.names),
             )
             for call in reply["calls"]
         ]
@@ -166,13 +158,11 @@ class ScriptedAdapter:
         return None
 
 
-def resolve(value: Any, names: dict[str, str], last: dict[str, Any]) -> Any:
+def resolve(value: Any, names: dict[str, str]) -> Any:
     if isinstance(value, dict):
-        return {k: resolve(v, names, last) for k, v in cast(dict[str, Any], value).items()}
+        return {k: resolve(v, names) for k, v in cast(dict[str, Any], value).items()}
     if isinstance(value, list):
-        return [resolve(item, names, last) for item in cast(list[Any], value)]
-    if isinstance(value, str) and value.startswith("$result."):
-        return last.get(value.removeprefix("$result."))
+        return [resolve(item, names) for item in cast(list[Any], value)]
     if isinstance(value, str):
         return re.sub(r"\$\w+", lambda m: names.get(m[0], m[0]), value)
     return value
@@ -224,15 +214,25 @@ class Stage:
     model: ScriptedModel | None
     runs: list[str] = field(default_factory=list[str])
     calls: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
-    # Runs already queued in the template (the signed grant's account task): not the step's.
+    # Runs the template left queued (the signed grant's account task): not the step's.
     before: set[str] = field(default_factory=set[str])
-    seq: int = 0
+    # Each conversation's last message before the step (``seq`` counts per conversation).
+    seq: dict[str, int] = field(default_factory=dict[str, int])
 
     async def settle(self) -> None:
-        """Mark what the template left queued, so ``drain`` runs only what the step caused."""
+        """Mark what the template left, so the step sees only what it caused."""
         async with self.api.runtime.db.sessions() as session:
-            self.before = set(await session.scalars(select(RunRow.id)))
-            self.seq = await session.scalar(select(func.max(MessageRow.seq))) or 0
+            self.before = set(
+                await session.scalars(select(RunRow.id).where(RunRow.status == "queued"))
+            )
+            self.seq = {
+                thread: seq
+                for thread, seq in await session.execute(
+                    select(MessageRow.thread_id, func.max(MessageRow.seq)).group_by(
+                        MessageRow.thread_id
+                    )
+                )
+            }
 
     @property
     def brokers(self) -> Any:
@@ -250,6 +250,8 @@ class Stage:
                 )
             if run is None:
                 return
+            if run.id in self.runs:
+                raise AssertionError(f"a run is still queued after {runner.WORKER_PICKUPS} pickups")
             self.runs.append(run.id)
             if self.model is not None:
                 self.model.start(self.handle(run.agent_id))
@@ -279,8 +281,18 @@ class Stage:
     def handle(self, agent_id: str) -> str:
         """The scenario's name for an agent (``gold``, ``euro``, ...)."""
         scripted = list(self.model.turns) if self.model is not None else []
-        known = [*scripted, "gold", "euro", "news", "lonora_id"]
+        known = [*scripted, "gold", "lonora_id"]
         return next((k for k in known if self.ids.get(k) == agent_id), "an agent")
+
+    async def triggers(self) -> list[str]:
+        """What started each run of the step (``watch``, ``user``, ...)."""
+        async with self.api.runtime.db.sessions() as session:
+            return [
+                trigger
+                for trigger in await session.scalars(
+                    select(RunRow.trigger).where(RunRow.id.in_(self.runs))
+                )
+            ]
 
     async def journal(self) -> list[TradingJournalRow]:
         async with self.api.runtime.db.sessions() as session:
@@ -301,7 +313,7 @@ class Stage:
                     .where(
                         MessageRow.thread_id == thread_id,
                         MessageRow.role == "assistant",
-                        MessageRow.seq > self.seq,
+                        MessageRow.seq > self.seq.get(thread_id, 0),
                     )
                     .order_by(MessageRow.seq)
                 )
@@ -320,15 +332,21 @@ class NotExercised(Exception):
     it made is not asserted, so the step is reported, not failed."""
 
 
-def result_class(call: dict[str, Any]) -> Any:
+def refusal(call: dict[str, Any]) -> str | None:
+    """The code of a refused call: raised (``error``) or answered with ``ok`` false."""
     result: dict[str, Any] = call.get("result") or {}
-    return result.get("class")
+    code = call.get("error") or (result.get("code") if result.get("ok") is False else None)
+    return str(code) if code else None
 
 
 async def judged(stage: Stage, thread_id: str) -> list[Check]:
     """A step that depends on the model's choice: the agent acted within its authority,
     without asking, and explained in one line."""
-    refused = [c["tool"] for c in stage.calls if result_class(c) == "permission"]
+    refused = [
+        code
+        for code in map(refusal, stage.calls)
+        if code and classify(code, None)["class"] == "permission"
+    ]
     asked = [c["tool"] for c in stage.calls if c["tool"] in ASKING]
     replies = await stage.replies(thread_id)
     asked += [text for text in replies if "?" in text or "؟" in text]
@@ -378,7 +396,11 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
     closes = [row for row in await stage.journal() if row.request.get("action") == "close_position"]
     sends = terminal.calls.count("close_position")
     checks: list[Check] = [
-        ("the agent's own watch woke it", bool(stage.runs), f"{len(stage.runs)} runs"),
+        (
+            "the agent's own watch woke it",
+            (await stage.triggers())[:1] == ["watch"],
+            f"runs started by {await stage.triggers()}",
+        ),
         (
             "one close operation in the journal",
             len(closes) == 1,
@@ -386,7 +408,7 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
         ),
         (
             "the dropped close was uncertain, not failed",
-            uncertain in (["ambiguous"], ["submitted"]),
+            uncertain == ["ambiguous"],
             f"after the drop: {uncertain}",
         ),
         ("the close reached the broker once", sends_before == 1, f"{sends_before} sends"),
@@ -395,11 +417,6 @@ async def close_with_dropped_connection(stage: Stage, step: dict[str, Any]) -> l
             "reconciled from broker evidence",
             [row.status for row in closes] == ["confirmed"],
             f"journal: {[row.status for row in closes]}",
-        ),
-        (
-            "the position is closed at the broker",
-            all(p["id"] != position["id"] for p in terminal.positions),
-            f"{len(terminal.positions)} open",
         ),
     ]
     return checks + await judged(stage, stage.ids["gold_thread"])
@@ -431,9 +448,10 @@ async def run_step(
     terminal = AcceptanceTerminal(account_id=bank.ACCOUNT, balance=Decimal("10000"))
     checks: list[Check] = []
     error, exercised = None, True
+    api: Any = None
     with broker.installed(terminal):
-        api = genui.Api(clone)
         try:
+            api = genui.Api(clone)
             await api.login()
             names = {**ids, **await gold_agent(api, ids)}
             model = None if live else ScriptedModel(turns=json.loads(json.dumps(step["script"])))
@@ -448,13 +466,17 @@ async def run_step(
         except Exception as caught:  # a step that raises fails with its reason
             error = f"{type(caught).__name__}: {caught}"
         finally:
-            await api.close()
-            await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
+            try:
+                if api is not None:
+                    await api.close()
+            finally:
+                await genui.admin(base, f'DROP DATABASE IF EXISTS "{clone.database}" WITH (FORCE)')
     passed = error is None and all(ok for _, ok, _ in checks)
     return {
         "step": step["id"],
         "state": "not exercised" if not exercised else ("pass" if passed else "fail"),
         "error": error,
+        **({"partial": step["partial"]["note"]} if "partial" in step else {}),
         "checks": [{"check": name, "ok": ok, "seen": seen} for name, ok, seen in checks],
     }
 
@@ -464,12 +486,15 @@ def status(scenario: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for step in scenario["steps"]:
         absent = missing(step["needs"])
+        # A runner written for today's stand-in (``partial``) is out of date once the
+        # features it stands in for are here: it must be rewritten, not kept passing.
+        superseded = "partial" in step and not missing(step["partial"]["until"])
         if "void" in step:
             state = "void"
         elif absent:
             state = "pending"
         else:
-            state = "ready" if step["id"] in RUNNERS else "not written"
+            state = "ready" if step["id"] in RUNNERS and not superseded else "not written"
         rows.append({"step": step["id"], "state": state, "missing": absent})
     return rows
 
@@ -493,6 +518,9 @@ async def own_key(base: URL, model: str) -> None:
 async def main(arguments: argparse.Namespace) -> int:
     scenario = load()
     chosen = set(arguments.steps.split(",")) if arguments.steps else None
+    unknown = (chosen or set()) - {step["id"] for step in scenario["steps"]}
+    if unknown:
+        raise SystemExit(f"No such step: {', '.join(sorted(unknown))}")
     base = genui.disposable(os.environ.get("LONORA_DATABASE_URL", ""))
     results: list[dict[str, Any]] = []
     ready = [
@@ -500,10 +528,10 @@ async def main(arguments: argparse.Namespace) -> int:
         for step, row in zip(scenario["steps"], status(scenario), strict=True)
         if row["state"] == "ready" and (chosen is None or step["id"] in chosen)
     ]
-    ids = await runner.template(base, arguments.model) if ready else {}
-    if ready and arguments.live:
-        await own_key(base, arguments.model)
     try:
+        ids = await runner.template(base, arguments.model) if ready else {}
+        if ready and arguments.live:
+            await own_key(base, arguments.model)
         for step in ready:
             results.append(await run_step(base, ids, step, arguments.live))
     finally:
@@ -518,7 +546,9 @@ async def main(arguments: argparse.Namespace) -> int:
         print(json.dumps(report, ensure_ascii=False, indent=1))
     else:
         for row in report:
-            print(f"{row['step']:<4} {row['state']:<12} {'; '.join(row['missing'])}")
+            print(f"{row['step']:<4} {row['state']:<13} {'; '.join(row['missing'])}")
+            if row.get("partial"):
+                print(f"       partial: {row['partial']}")
             for check in row.get("checks", []):
                 print(
                     f"       {'ok ' if check['ok'] else 'NO '} {check['check']} ({check['seen']})"

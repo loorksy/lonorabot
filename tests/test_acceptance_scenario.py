@@ -71,6 +71,12 @@ def test_every_step_names_its_feature_and_its_owner():
             assert set(need) <= {"pending", "tool", "code"} and len(need) == 1, step["id"]
 
 
+def test_a_stand_in_runner_is_superseded_when_its_feature_lands():
+    step = {**STEPS["4c"], "partial": {"note": "n", "until": [{"tool": "trade_execute"}]}}
+    rows = acceptance.status({"steps": [step]})
+    assert rows[0]["state"] == "not written"
+
+
 def test_a_step_with_a_runner_has_its_script_and_situation():
     for name in acceptance.RUNNERS:
         assert {"given", "script"} <= set(STEPS[name]), name
@@ -116,9 +122,13 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
         text=True,
         timeout=900,
     )
+    assert "[" in done.stdout, done.stderr[-2000:]
     report = json.loads(done.stdout[done.stdout.index("[") :])
     failed = {row["step"]: row for row in report if row["state"] == "fail"}
     assert not failed, json.dumps(failed, ensure_ascii=False)
     assert done.returncode == 0, done.stderr[-2000:]
     assert {row["step"] for row in report} == set(STEPS)
-    assert {row["step"] for row in report if row["state"] == "pass"} >= {"4c"}
+    passed = {row["step"]: row for row in report if row["state"] == "pass"}
+    assert "4c" in passed
+    # Today's stand-in is said, never passed off as the step itself.
+    assert "partial" in passed["4c"]
