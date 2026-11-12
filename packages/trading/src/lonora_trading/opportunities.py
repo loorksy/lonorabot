@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 from lonora_contracts.domain import ThreadCreate, utcnow
 from lonora_contracts.opportunity import OpportunityUpdate, ThesisDefinition
 from lonora_contracts.runs import RunRequest
-from lonora_contracts.trading import TERMINAL_STATUSES, TradeRequest
+from lonora_contracts.trading import TERMINAL_STATUSES
 from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
 from lonora_db.runs import create_run
@@ -201,29 +201,6 @@ async def update_opportunity(
     return row
 
 
-async def require_entry_thesis(session: AsyncSession, owner_id: str, request: TradeRequest) -> None:
-    if not request.thesis_id:
-        return
-    row = await owned_opportunity(session, owner_id, request.thesis_id, lock=True)
-    if (row.account_id, row.symbol) != (request.account_id, request.symbol):
-        raise LonoraError("thesis_execution_scope_mismatch", 409)
-    if request.action not in ENTRY_ACTIONS:
-        row.state = {**row.state, "pending_management_operation_id": request.operation_id}
-        return  # Protective exits still use all normal execution/approval controls.
-    codes, _ = await evidence_state(session, row, utcnow())
-    if row.status != "confirmed" or codes:
-        raise LonoraError(codes[0] if codes else "thesis_not_confirmed", 409)
-    if row.state.get("entry_operation_id"):
-        raise LonoraError("thesis_already_acted_on", 409)
-    pending = row.state.get("pending_entry_operation_id")
-    if pending and pending != request.operation_id:
-        raise LonoraError("thesis_operation_unresolved", 409)
-    direction = ThesisDefinition.model_validate(row.payload["definition"]).direction
-    if not request.action.startswith(direction.lower()):
-        raise LonoraError("thesis_execution_direction_mismatch", 409)
-    row.state = {**row.state, "pending_entry_operation_id": request.operation_id}
-
-
 def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_executed", "unknown"]:
     """What a settled journal row says about its own broker effect, for thesis linkage.
 
@@ -245,11 +222,20 @@ def execution_outcome(journal: TradingJournalRow) -> Literal["executed", "not_ex
 
 async def sync_opportunity_execution(session: AsyncSession, journal: TradingJournalRow) -> None:
     identifier = journal.request.get("thesis_id")
-    if not identifier or journal.status not in TERMINAL_STATUSES:
+    if not identifier:
         return
     row = await owned_opportunity(session, journal.owner_id, str(identifier), lock=True)
-    outcome = execution_outcome(journal)
     action = journal.request.get("action")
+    if journal.status not in TERMINAL_STATUSES:
+        # Its outcome is not known yet: maintenance settles the link once it is.
+        key = (
+            "pending_entry_operation_id"
+            if action in ENTRY_ACTIONS
+            else "pending_management_operation_id"
+        )
+        row.state = {**row.state, key: journal.operation_id}
+        return
+    outcome = execution_outcome(journal)
     if outcome == "not_executed" or (outcome == "unknown" and action not in ENTRY_ACTIONS):
         # Never sent, rejected, or a management outcome nobody can establish: release the
         # pending link. Exposure is read from the broker again, never from this thesis.

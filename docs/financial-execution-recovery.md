@@ -166,11 +166,14 @@ ambiguous entries.
 
 Consumers of `resolved`:
 
-- Opportunity theses (`sync_opportunity_execution`, run by the executor, by this
-  route and by the gateway maintenance steps) read the outcome from the attestation: `executed`
-  acts on the thesis as a confirmed entry would; `not_executed` releases the pending
-  link so the thesis can be acted on again; an entry of `unknown` outcome still acts
-  on the thesis so it can never authorize a second entry. A management operation of
+- Opportunity theses are the agent's memory, never a gate on execution (mandate
+  14.2.5). `sync_opportunity_execution` (run by the executor after the send, by this
+  route and by the gateway maintenance steps) links an operation that names a thesis:
+  an outcome not yet known is kept as the thesis's pending link, and the attestation
+  settles it. `executed` acts on the thesis as a confirmed entry would; `not_executed`
+  releases the pending link; an entry of `unknown` outcome still acts on the thesis. A
+  later entry on the same thesis is the agent's decision and becomes its entry. A
+  management operation of
   unknown outcome (owner `unknown` or any broker-state resolution) releases its
   pending link; when it is a broker-state `target_closed` on the thesis entry
   position, the position is observed closed and the thesis completes

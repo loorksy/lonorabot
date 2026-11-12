@@ -426,9 +426,6 @@ class ExecutionService:
                 await require_unrestricted(
                     session, owner_id, request, agent_id=restricted_agent, reducing=reducing
                 )
-                from .opportunities import require_entry_thesis
-
-                await require_entry_thesis(session, owner_id, request)
                 row = await session.get(
                     TradingJournalRow, request.operation_id, with_for_update=True
                 )

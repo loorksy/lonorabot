@@ -218,21 +218,29 @@ async def main() -> None:
         assert (
             state["status"] == "acted_on" and state["state"]["entry_position_id"] == positions[0].id
         )
+        # Opportunities are the agent's memory, never a gate (mandate 14.2.5): a second
+        # entry on the same thesis is the agent's own decision and becomes its entry.
         second_args = {**args, "volume": "0.2"}
-        second = await call("trade_execute", second_args, "second-entry-blocked")
+        second = await call("trade_execute", second_args, "second-entry")
         await f.request(
             "POST",
             "/trading/approvals/" + second["approval_id"] + "/decision",
             {"decision": "approve"},
         )
-        blocked = await call("trade_execute", second_args, "second-entry-blocked")
-        assert blocked["results"][0]["status"] == "failed"
-        assert len(await broker.positions()) == 1
+        added = await call("trade_execute", second_args, "second-entry")
+        assert added["results"][0]["status"] == "confirmed", added
+        first_position = positions[0].id
+        positions = await broker.positions()
+        assert len(positions) == 2
+        state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
+        target = state["state"]["entry_position_id"]
+        assert state["status"] == "acted_on" and target not in {None, first_position}, state
+        assert state["state"]["entry_operation_id"] == added["results"][0]["operation_id"]
         partial_args = {
             "account_id": account,
             "symbol": symbols[0],
             "action": "close_position",
-            "position_id": positions[0].id,
+            "position_id": target,
             "volume": "0.04",
             "thesis_id": thesis["id"],
         }
@@ -248,13 +256,13 @@ async def main() -> None:
         partial_state = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert (
             partial_state["status"] == "acted_on"
-            and str((await broker.positions())[0].volume) == "0.06"
+            and {p.id: str(p.volume) for p in await broker.positions()}[target] == "0.16"
         )
         close_args = {
             "account_id": account,
             "symbol": symbols[0],
             "action": "close_position",
-            "position_id": positions[0].id,
+            "position_id": target,
             "thesis_id": thesis["id"],
         }
         close_card = await call("trade_execute", close_args, "close-real-ticket")
@@ -265,11 +273,11 @@ async def main() -> None:
         )
         close_result = await call("trade_execute", close_args, "close-real-ticket")
         assert close_result["results"][0]["status"] == "confirmed", close_result
-        assert not await broker.positions()
+        assert [p.id for p in await broker.positions()] == [first_position]
         finished = await f.request("GET", "/trading/opportunities/" + thesis["id"])
         assert finished["status"] == "completed"
         print(
-            "PASS same approval/journal/adapter path verifies entry and full exit, repeats return one receipt, and thesis cannot duplicate a financial entry"
+            "PASS same approval/journal/adapter path verifies entry and full exit, repeats return one receipt, and a second entry on a thesis is the agent's own decision"
         )
 
         async def refresh_market() -> None:
@@ -396,9 +404,11 @@ async def main() -> None:
         assert attested["state"]["pending_entry_operation_id"] is None
         assert attested["state"]["reason_code"] == "thesis_entry_attested"
         again = await entry(executed, "lost-entry-second", volume="0.3")
-        # An acted-on thesis no longer admits entries (status check precedes the link).
-        assert again["status"] == "failed" and again["details"]["send_state"] == "not_sent", again
-        assert again["code"] in {"thesis_not_confirmed", "thesis_already_acted_on"}, again
+        # An acted-on thesis is memory, never a gate: the next entry is sent and linked.
+        assert again["status"] == "confirmed", again
+        assert (await thesis_state(executed))["state"]["entry_operation_id"] == again[
+            "operation_id"
+        ]
         assert await maintenance_opportunities(f.runtime.db, f.owner) >= 0
         # A broker-state resolution never says who closed the position, but the thesis
         # position is observed closed: the thesis completes.
@@ -432,7 +442,7 @@ async def main() -> None:
         assert completed["status"] == "completed", completed
         assert completed["state"]["reason_code"] == "thesis_position_no_longer_open"
         print(
-            "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and blocks a duplicate; an observed-closed position completes its thesis"
+            "PASS an owner attestation settles a thesis entry link: not_executed releases it for a fresh entry, executed acts on it and a later entry is linked; an observed-closed position completes its thesis"
         )
     finally:
         await f.request("PUT", "/trading/controls", {"enabled": False, "emergency_stop": False})
