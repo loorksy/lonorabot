@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0102_genui_summary_kind"
-down_revision = "0131_agent_model_owner_only"
+down_revision = "0091_run_origin_index"
 branch_labels = None
 depends_on = None
 

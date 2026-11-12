@@ -9,7 +9,7 @@ lookup from scanning every run.
 from alembic import op
 
 revision = "0091_run_origin_index"
-down_revision = "0145_metaapi_token"
+down_revision = "0190_drop_unused_resource_tables"
 branch_labels = None
 depends_on = None
 
