@@ -22,6 +22,7 @@ ROUTES = (
     "version",
     "auth",
     "device_authority",
+    "push_devices",
     "account_authority",
     "agent_permissions",
     "agent_models",

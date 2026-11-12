@@ -6,7 +6,9 @@ from pydantic import Field, model_validator
 
 from .domain import Contract
 
-ProviderId = Literal["openai", "anthropic", "deepseek", "zai", "openrouter"]
+# "openai_compatible" is an endpoint the owner names by its base URL (vLLM, Ollama, a
+# gateway): an API key and that URL, through the OpenAI-compatible adapter.
+ProviderId = Literal["openai", "anthropic", "deepseek", "zai", "openrouter", "openai_compatible"]
 
 
 class Capability(StrEnum):

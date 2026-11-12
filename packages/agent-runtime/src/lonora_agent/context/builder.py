@@ -22,7 +22,7 @@ from lonora_tools.registry import ToolRegistry
 
 from ..context_engine import resolve_limits
 from ..progress import progress
-from ..runtime_notices import is_owner_message
+from ..runtime_notices import is_owner_message, peer_text
 from ..skills.loader import load_constitution, load_prompt
 from .account_symbols import account_symbols_context
 from .attachments import attachment_parts
@@ -174,7 +174,12 @@ async def build_context(
         if explicit_prompt:
             messages.append(ModelMessage(role="user", content=explicit_prompt))
         query = explicit_prompt or next(
-            (message.content for message in reversed(messages) if message.role == "user"), ""
+            (
+                peer_text(message.content)
+                for message in reversed(messages)
+                if message.role == "user"
+            ),
+            "",
         )
         semantic = ""
         if query:
