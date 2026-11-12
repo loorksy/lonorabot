@@ -82,8 +82,7 @@ client keeps its own copy. Mobile "bot" wording is "agent" / «وكيل».
 
 `stale_lease`, `context_limit_exceeded`, `invalid_tool_exchange` and `tool_round_limit`
 no longer tell the owner to start a new conversation or mention another worker: they
-say what happened and that the conversation is kept. `agent_permission_changed` (an
-operation whose agent changed level while it was prepared) has shared owner text.
+say what happened and that the conversation is kept.
 
 ## Verification
 

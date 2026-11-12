@@ -61,7 +61,6 @@ export function userError(error: unknown) {
       return t`An active skill is no longer available. Review its settings before resuming this task.`;
     case "personal_agent_cannot_delete":
       return t`Your Personal Agent cannot be deleted.`;
-    case "execution_mode_changed":
     case "shadow_execution_forbidden":
       return t`Execution mode changed. Review the saved plan before continuing.`;
     case "device_challenge_not_found":

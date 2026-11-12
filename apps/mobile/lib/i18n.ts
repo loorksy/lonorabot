@@ -226,10 +226,6 @@ export const labels = {
     "Your Personal Agent cannot be deleted.",
   ],
   cancelAction: ["إلغاء", "Cancel"],
-  execution_mode_changed: [
-    "تغير وضع التنفيذ. راجع الخطة المحفوظة قبل المتابعة.",
-    "Execution mode changed. Review the saved plan before continuing.",
-  ],
   shadow_execution_forbidden: [
     "وضع التنفيذ لا يطابق صلاحيات هذه العملية.",
     "The execution mode does not match this operation's authority.",

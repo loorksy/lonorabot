@@ -686,6 +686,16 @@ async def checkpoint_task(session: AsyncSession, lease: Lease) -> bool:
     return False
 
 
+def carries_operation(value: Any) -> bool:
+    """Whether a stored tool result names a broker operation anywhere in it."""
+    if isinstance(value, dict):
+        mapping = cast(dict[str, Any], value)
+        return "operation_id" in mapping or any(carries_operation(v) for v in mapping.values())
+    if isinstance(value, list):
+        return any(carries_operation(item) for item in cast(list[Any], value))
+    return False
+
+
 async def update_task_step(
     session: AsyncSession, lease: Lease, request: TaskStepUpdate
 ) -> TicketRow:
@@ -738,7 +748,7 @@ async def update_task_step(
                     if names.get(identifier) in {
                         "trade_execute",
                         "trade_close_positions",
-                    }:
+                    } or carries_operation(result):
                         outcomes = result.get("results")
                         if result.get("status") != "confirmed" and (
                             not isinstance(outcomes, list)
