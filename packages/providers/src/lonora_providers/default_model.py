@@ -33,7 +33,9 @@ log = logging.getLogger("lonora.model_router")
 PREFERRED_FAMILIES: dict[str, tuple[str, ...]] = {
     "openai": ("gpt-5.4-mini", "gpt-5-mini", "gpt-5", "gpt-4.1-mini", "gpt-4o-mini"),
     "anthropic": ("claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4"),
-    "deepseek": ("deepseek-chat",),
+    # DeepSeek's catalog lists deepseek-v4-pro and deepseek-flash (2026-11); deepseek-chat
+    # stays for an account whose catalog still lists it.
+    "deepseek": ("deepseek-v4-pro", "deepseek-flash", "deepseek-chat"),
     "zai": ("glm-5", "glm-4.7", "glm-4.6", "glm-4.5"),
     "openrouter": ("openrouter/auto",),
     # The owner's own endpoint has no family Lonora could know: the first model it lists.
