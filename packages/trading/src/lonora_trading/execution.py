@@ -19,7 +19,6 @@ from lonora_contracts.trading import (
 from lonora_contracts.trading_goal import GoalExecution
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import assert_market_binding, require_financial_agent
 from lonora_db.authority_lock import authority_lock
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
@@ -33,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .account_authority import management_target, require_account_execution
 from .admission import may_reduce_risk, require_operation_scope, risk_reducing
-from .agent_permission import require_operation_permission
+from .agent_permission import acting_agent, require_operation_permission
 from .controls import read_controls
 from .execution_quality import actual_execution, evaluate_execution, execution_policy
 from .goals import guard_goal_execution
@@ -74,7 +73,6 @@ async def require_goal_lineage(
     lease: Lease,
     goal: GoalExecution | None,
     owner_id: str | None = None,
-    request: TradeRequest | None = None,
     *,
     reducing: bool = False,
 ) -> None:
@@ -83,19 +81,15 @@ async def require_goal_lineage(
     classification of the request, which a paused Task still lets through (4.7)."""
     origin_run = await require_lease(session, lease)
     if owner_id is not None:
-        await require_financial_agent(session, owner_id, origin_run.agent_id)
+        # The owner's agent, whatever its role or bound market (6.9): the door never binds
+        # an agent to an account or symbol (3.1.2).
+        await acting_agent(session, owner_id, origin_run.agent_id)
     if (
         origin_run.trigger == "subagent"
         or origin_run.model_metadata.get("authority") == "observe_only"
     ):
         raise LonoraError("observe_only_execution_forbidden", 403)
     await require_task_authority(session, origin_run, reducing=reducing)
-    if owner_id is not None and request is not None:
-        assert_market_binding(
-            await require_financial_agent(session, owner_id, origin_run.agent_id),
-            request.account_id,
-            request.symbol,
-        )
     linked_goal = origin_run.model_metadata.get("goal_id")
     ancestor = origin_run
     seen = {origin_run.id}
@@ -114,12 +108,8 @@ async def require_goal_lineage(
         ):
             raise LonoraError("observe_only_execution_forbidden", 403)
         await require_task_authority(session, ancestor, reducing=reducing)
-        if owner_id is not None and request is not None:
-            assert_market_binding(
-                await require_financial_agent(session, owner_id, ancestor.agent_id),
-                request.account_id,
-                request.symbol,
-            )
+        if owner_id is not None:
+            await acting_agent(session, owner_id, ancestor.agent_id)
         if ancestor.model_metadata.get("goal_id"):
             raise LonoraError("goal_delegated_trade_forbidden", 409)
     else:
@@ -175,7 +165,7 @@ class ExecutionService:
         async with self.db.sessions() as session:
             if lease:
                 await require_goal_lineage(
-                    session, lease, goal, owner_id, request, reducing=may_reduce_risk(request)
+                    session, lease, goal, owner_id, reducing=may_reduce_risk(request)
                 )
             previous = await session.get(TradingJournalRow, request.operation_id)
             if previous:
@@ -463,9 +453,7 @@ class ExecutionService:
                 )
                 if lease:
                     await require_lease(session, lease, lock=True)
-                    await require_goal_lineage(
-                        session, lease, goal, owner_id, request, reducing=reducing
-                    )
+                    await require_goal_lineage(session, lease, goal, owner_id, reducing=reducing)
                     target = (
                         next(
                             (

@@ -12,10 +12,7 @@ from lonora_contracts.trading import (
 )
 from lonora_core.trading_control import require_trading
 from lonora_core.user_error import LonoraError, ToolRefusal
-from lonora_db.agent_binding import (
-    agent_binding,
-    require_financial_agent,
-)
+from lonora_db.agent_binding import agent_binding
 from lonora_db.agent_permissions import effective_permission
 from lonora_db.authority_lock import authority_lock
 from lonora_db.notice_cards import raise_stop_tightened
@@ -485,7 +482,8 @@ async def approved_execution(
         # Shadow trading is removed (Q57): a Run started in it never asks or sends.
         if origin.model_metadata.get("execution_mode", "live") != "live":
             raise LonoraError("shadow_execution_forbidden", 403)
-        await require_financial_agent(reader, context.owner_id, context.agent_id)
+        # Any of the owner's agents trades, whatever its role or market (6.9, 3.1.2).
+        await acting_agent(reader, context.owner_id, context.agent_id)
         previous = await reader.get(TradeApprovalRow, approval_id)
         mode = await trading_mode(reader, context.owner_id, context.agent_id)
         if previous is None or previous.status != "completed":
@@ -588,7 +586,7 @@ async def approved_execution(
             current = await require_lease(session, context.lease)
             if current.agent_id != context.agent_id:
                 raise LonoraError("agent_run_mismatch", 409)
-            await require_financial_agent(session, context.owner_id, current.agent_id)
+            await acting_agent(session, context.owner_id, current.agent_id)
             visible_thread_id = current.model_metadata.get("origin_thread_id") or context.thread_id
             # The order a mode change takes them in: authority, conversation, run.
             await authority_lock(session, context.agent_id)

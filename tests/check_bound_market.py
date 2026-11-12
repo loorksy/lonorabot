@@ -46,16 +46,16 @@ def main() -> None:
     assert "XAUUSDm" in text and "immutable_trading_market" in text
     assert "Never ask which pair" in text and "Speech and chat text are not approval" in text
     assert BINDING_POLICY in text
-    # Focus pair; reading is open; executing follows the grant. No "different bot" wall.
+    # Focus pair; reading is open; orders are not bound (3.1.2). No "different bot" wall.
     assert "focus pair" in BINDING_POLICY and "Reading is open" in BINDING_POLICY
-    assert "Executing follows your grant" in BINDING_POLICY
+    assert "Your orders are not bound to this pair" in BINDING_POLICY
     assert "cannot change" not in BINDING_POLICY and "different bot" not in BINDING_POLICY
     unbound = AgentRow(owner_id="owner", name="Legacy")
     assert binding_context(unbound) == ""
     assert_market_binding(unbound, "anything", "EURUSDm")
     print(
         "PASS bound pair is the focus and is filled; letter case is the same market; "
-        "mutating another pair is refused"
+        "mutating another pair (outside orders) is refused"
     )
 
 

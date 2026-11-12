@@ -6,16 +6,12 @@ checks. A paused Task still lets risk-reducing requests through (4.7). Runs on t
 migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
 """
 
-from decimal import Decimal
 from typing import Any
 
 import pytest
 from lonora_contracts.runs import Lease
-from lonora_contracts.trading import TradeRequest
 from lonora_core.user_error import LonoraError
 from test_proactive_wakes import database
-
-BUY = TradeRequest(account_id="acc", action="buy", symbol="XAUUSD", volume=Decimal("0.1"))
 
 
 async def check(fixture: Any, lease: Lease, *, reducing: bool = False) -> str | None:
@@ -24,7 +20,7 @@ async def check(fixture: Any, lease: Lease, *, reducing: bool = False) -> str | 
 
     async with fixture.runtime.db.sessions() as session:
         try:
-            await require_goal_lineage(session, lease, None, fixture.owner, BUY, reducing=reducing)
+            await require_goal_lineage(session, lease, None, fixture.owner, reducing=reducing)
         except LonoraError as error:
             return error.code
     return None
@@ -129,4 +125,59 @@ async def test_task_authority_refuses_stopped_work_and_lets_a_paused_task_reduce
         await change_run(fixture, lease.run_id, model_metadata={"execution_mode": "shadow"})
         assert await check(fixture, lease, reducing=True) == "shadow_execution_forbidden"
     finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_bound_agents_replayed_order_is_the_same_operation() -> None:
+    """Risk 4 of the phase 6 map: dropping the binding refusal keeps the argument fill,
+    so a bound agent's replayed call hashes the same arguments, derives the same
+    operation id, answers from the journal and never sends twice (6.2, 6.3)."""
+    database()
+    from check_streaming import Fixture
+    from lonora_contracts.trading import TradingControl
+    from lonora_db.schema import AgentRow, TradingJournalRow
+    from lonora_db.trading_mode import set_trading_mode
+    from lonora_trading.controls import read_controls, save_controls
+    from sqlalchemy import func, select
+    from test_proactive_wakes import retire, simulation
+    from test_trading_mode_tools import same_call
+
+    fixture = await Fixture().open()
+    original = await read_controls(fixture.runtime.db)
+    connection = ""
+    try:
+        connection = await simulation(fixture, [])
+        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
+        agent = await fixture.agent("Bound replay", supervised=True)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(AgentRow, agent["id"])
+            assert row is not None
+            row.role = "specialist"
+            row.trading_account_id, row.trading_symbol = connection, "XAUUSD"
+            await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
+        context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
+        # Account and symbol are omitted: the focus pair fills them before the id is hashed.
+        first = await same_call(
+            context, "bound-buy", "trade_execute", action="buy", volume="0.1", stop_loss="95"
+        )
+        again = await same_call(
+            context, "bound-buy", "trade_execute", action="buy", volume="0.1", stop_loss="95"
+        )
+        assert first.get("status") == "confirmed", first
+        assert again["operation_id"] == first["operation_id"]
+        broker = await fixture.runtime.services(fixture.owner).brokers.get(
+            fixture.owner, connection
+        )
+        assert len(await broker.positions()) == 1
+        async with fixture.runtime.db.sessions() as session:
+            journaled = await session.scalar(
+                select(func.count())
+                .select_from(TradingJournalRow)
+                .where(TradingJournalRow.operation_id == first["operation_id"])
+            )
+        assert journaled == 1
+    finally:
+        await save_controls(fixture.runtime.db, original)
+        await retire(fixture, connection)
         await fixture.close()

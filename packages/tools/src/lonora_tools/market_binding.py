@@ -202,7 +202,8 @@ async def prepare_market_arguments(
 async def guard_market_tool(
     context: ToolContext, name: str, args: dict[str, Any], *, read: bool = False
 ) -> dict[str, Any]:
-    """Financial identity for financial tools; a fixed market for mutations only.
+    """The run's lease for financial tools; a fixed market for mutations other than
+    orders (the door never binds an agent's orders, 3.1.2, 6.9).
 
     ``read`` is the registry's own effect metadata for the tool: reads are open.
     """
@@ -210,9 +211,10 @@ async def guard_market_tool(
         return args
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
-        if (name.startswith("trade_") and name not in NONFINANCIAL_TRADE_TOOLS) or (
-            name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}
-        ):
+        trading = name.startswith("trade_") and name not in NONFINANCIAL_TRADE_TOOLS
+        if trading:
+            await require_lease(session, context.lease)
+        elif name.startswith("goal_") and name not in {"goal_read", "goal_list", "goal_decisions"}:
             await require_lease(session, context.lease)
             await require_financial_agent(session, context.owner_id, context.agent_id)
         if not fixed_market(agent):
@@ -223,7 +225,11 @@ async def guard_market_tool(
         if read or name in OPEN_READ_EFFECTS:
             return args
         if name in {"watch_create", "trade_close_positions"} and not args.get("symbol"):
+            # Unchanged argument fill: a replayed call keeps its operation ids (6.2, 6.3).
             args = {**args, "symbol": agent.trading_symbol}
+        if trading:
+            # The door never binds an agent's orders to its focus pair (3.1.2, 6.9).
+            return args
         assert_payload_binding(agent, args)
         if args.get("chart_id"):
             chart = await session.get(CloudChartRow, args["chart_id"])
@@ -246,53 +252,27 @@ async def guard_market_tool(
         return args
 
 
-EXECUTION_SCOPE_NOTE = (
-    "Reading is open across every owned account and symbol; charts, watches, goals, "
-    "decisions and trades stay on this bound account and symbol."
+FOCUS_PAIR_NOTE = (
+    "Reading and trading are open across every owned account and symbol; charts, watches, "
+    "goals and decisions stay on this bound account and symbol."
 )
 
 
-def _kept(value: object, bound: str | None) -> bool:
-    return same_binding(value, bound)
-
-
 async def scope_market_result(
-    context: ToolContext, name: str, result: dict[str, Any], args: dict[str, Any] | None = None
+    context: ToolContext, name: str, result: dict[str, Any]
 ) -> dict[str, Any]:
-    """Annotate what a fixed-market agent may execute; never hide what it may read."""
-    if name not in {"market_symbols", "market_instruments", "account_read", "list_accounts"}:
+    """Name a fixed-market agent's focus pair; never hide what it may read or trade."""
+    if name not in {"market_symbols", "market_instruments", "account_read"}:
         return result
     async with context.db.sessions() as session:
         agent = await agent_binding(session, context.owner_id, context.agent_id)
         if not fixed_market(agent):
             return result
-        result = dict(result)
-        if name in {"market_symbols", "market_instruments", "account_read"}:
-            # The bound account's catalog and exposure are readable; trading is not widened.
-            result["execution_scope"] = {
+        return {
+            **result,
+            "focus_pair": {
                 "account_id": agent.trading_account_id,
                 "symbol": agent.trading_symbol,
-                "note": EXECUTION_SCOPE_NOTE,
-            }
-        if name == "account_read":
-            bound = _kept((args or {}).get("account_id"), agent.trading_account_id)
-            for key in ("positions", "orders"):
-                result[key] = [
-                    {
-                        **item,
-                        "in_execution_scope": bound
-                        and _kept(item.get("symbol"), agent.trading_symbol),
-                    }
-                    for item in result.get(key, [])
-                ]
-        if name == "list_accounts":
-            result["accounts"] = [
-                {
-                    **item,
-                    "in_execution_scope": _kept(
-                        item.get("connection_id"), agent.trading_account_id
-                    ),
-                }
-                for item in result.get("accounts", [])
-            ]
-        return result
+                "note": FOCUS_PAIR_NOTE,
+            },
+        }

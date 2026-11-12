@@ -19,12 +19,19 @@ from lonora_db.schema import AgentRow
 from lonora_db.trading_goals import create_goal
 from lonora_tools.loader import load_tools
 
+# The door no longer refuses a role or an ancestry (6.9): an order of a delegated
+# identity is refused by its own trading permission, which keeps it at analysis until
+# the 14.3.18 migration makes it an ordinary team agent.
+ORDER_REFUSALS = ("agent_analysis_only", "trade_approval_required")
 
-async def denied(awaitable: Any) -> None:
+
+async def denied(
+    awaitable: Any, codes: tuple[str, ...] = ("delegated_financial_authority_forbidden",)
+) -> None:
     try:
         await awaitable
     except LonoraError as error:
-        assert error.code == "delegated_financial_authority_forbidden", error.code
+        assert error.code in codes, error.code
     else:
         raise AssertionError("Delegation gained financial authority")
 
@@ -95,7 +102,8 @@ async def main() -> None:
                     },
                 ),
                 context,
-            )
+            ),
+            ORDER_REFUSALS,
         )
         async with f.runtime.db.sessions() as session, session.begin():
             await denied(
@@ -141,9 +149,11 @@ async def main() -> None:
                     volume=Decimal("0.1"),
                 ),
                 descendant_context.lease,
-            )
+            ),
+            ORDER_REFUSALS,
         )
-        # Even an otherwise valid specialist peer cannot turn delegated run ancestry into authority.
+        # A specialist peer's order under a delegated run's ancestry is decided by the
+        # specialist's own trading permission, never by the ancestry's role.
         specialist_thread = await f.conversation(specialist_data)
         async with f.runtime.db.sessions() as session, session.begin():
             peer = await create_run(
@@ -169,7 +179,8 @@ async def main() -> None:
                     volume=Decimal("0.1"),
                 ),
                 peer_context.lease,
-            )
+            ),
+            ORDER_REFUSALS,
         )
         print(
             "PASS direct descendant execution and scoped peer collaboration cannot bypass persisted delegated authority"
