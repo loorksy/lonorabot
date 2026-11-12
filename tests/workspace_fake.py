@@ -67,9 +67,7 @@ class FakeWorkspace:
                     and path.startswith(prefix)
                     # find prunes __pycache__ and every dot-name, file or directory.
                     and "__pycache__" not in path[len(prefix) :].split("/")[:-1]
-                    and not any(
-                        part.startswith(".") for part in path[len(prefix) :].split("/")
-                    )
+                    and not any(part.startswith(".") for part in path[len(prefix) :].split("/"))
                 )
                 if not any(owner == agent and p.startswith(prefix) for owner, p in self.files):
                     result: Ran = {"exit_code": 1, "stderr": "No such file or directory"}
