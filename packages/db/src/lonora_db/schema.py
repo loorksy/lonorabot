@@ -47,8 +47,8 @@ class SessionRow(Base):
 
 
 class PushDeviceRow(Base):
-    """One phone that receives push. Bound to the sign-in session that registered it, so
-    signing out (or an expired or revoked session) ends delivery to that phone."""
+    """One phone registered for push, bound to the sign-in session that registered it:
+    signing out deletes it."""
 
     __tablename__ = "ln_push_devices"
     __table_args__ = (UniqueConstraint("owner_id", "device_id", name="uq_push_device"),)

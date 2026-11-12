@@ -60,7 +60,7 @@ if any(push_inputs) and not all(push_inputs):
     )
 push = all(push_inputs)
 if push and not Path(push_inputs[1]).is_file():
-    raise SystemExit("LONORA_ANDROID_GOOGLE_SERVICES_FILE is not a readable file.")
+    raise SystemExit("LONORA_ANDROID_GOOGLE_SERVICES_FILE is not a file.")
 if push:
     os.environ["LONORA_ANDROID_GOOGLE_SERVICES_FILE"] = str(Path(push_inputs[1]).resolve())
 env = os.environ.copy()
@@ -103,7 +103,6 @@ subprocess.run(
         str(candidate),
         "--require-minimal-permissions",
         "--require-call-permissions",
-        *(["--require-push"] if push else []),
     ],
     cwd=mobile,
     env=env,

@@ -3,7 +3,7 @@
 import re
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import SecretStr, field_validator
 
 from .domain import Contract
 
@@ -24,6 +24,3 @@ class PushDeviceRegistration(Contract):
         if not PUSH_TOKEN.fullmatch(value.get_secret_value()):
             raise ValueError("push_token_invalid")
         return value
-
-
-PushDeviceId = Field(pattern=DEVICE_ID)

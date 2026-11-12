@@ -461,8 +461,8 @@ exists at this commit is the phone side: after sign-in the app asks for the noti
 permission and registers the phone with `PUT /api/push/devices/<install id>` (owner session
 only). The server stores the Expo push token encrypted, bound to the sign-in session that sent
 it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds the permission
-turned off (`DELETE /api/push/devices/<install id>`). A revoked or expired session's phone is
-never a push target. The token is never logged and never shown to a model.
+turned off (`DELETE /api/push/devices/<install id>`). The token is never logged and never
+shown to a model. Nothing sends a push yet.
 
 A native release with push needs, once:
 
@@ -481,11 +481,14 @@ LONORA_EXPO_PROJECT_ID=<uuid> LONORA_ANDROID_GOOGLE_SERVICES_FILE=/path/google-s
   pnpm --filter @lonora/mobile android:release
 ```
 
-The release refuses one variable without the other, verifies that the APK declares
-`POST_NOTIFICATIONS`, and prints `Push: built in.`. Without the variables it prints
-`Push: not configured`, and that build never asks for the permission or registers. The
-notification module is native code, so an OTA update cannot add it to an older APK: the phone
-needs this new APK (the fingerprint `runtimeVersion` changes with it).
+The release refuses one variable without the other and prints `Push: built in.`. Without the
+variables it prints `Push: not configured`, and that build never asks for the permission or
+registers (the notification module is linked into every build, so every APK declares
+`POST_NOTIFICATIONS`). The notification module is native code, so an OTA update cannot add it
+to an older APK: the phone needs this new APK. The fingerprint `runtimeVersion` includes the
+project id and the Firebase file, so publish OTA updates for a push build with the same two
+variables set (`scripts/ota-publish.sh` refuses one without the other); an update exported
+without them has another runtime and never reaches that phone.
 
 ## Release manifest and client versions
 

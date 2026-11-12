@@ -1,6 +1,6 @@
 """Push device registration (VISION 11.4, map R7): owner session only, one row per device and
-per token, encrypted at rest, removed on sign-out, and a revoked or expired session never
-receives a push. Runs on in-memory SQLite, or on LONORA_TASK_TEST_DATABASE_URL."""
+per token, encrypted at rest, removed on sign-out, and never bound to a signed-out session.
+Runs on in-memory SQLite, or on LONORA_TASK_TEST_DATABASE_URL."""
 
 import logging
 from collections.abc import AsyncGenerator
@@ -14,11 +14,12 @@ import pytest_asyncio
 from fastapi import FastAPI
 from lonora_api.errors import install_errors
 from lonora_api.routes import auth, push_devices
-from lonora_auth.sessions import issue_session
+from lonora_auth.sessions import issue_session, token_hash
 from lonora_contracts.domain import utcnow
 from lonora_contracts.push import PushDeviceRegistration
+from lonora_core.user_error import LonoraError
 from lonora_db.client import Database
-from lonora_db.push_devices import live_devices
+from lonora_db.push_devices import register_device
 from lonora_db.schema import OwnerRow, PushDeviceRow, SessionRow
 from lonora_security.secrets import SecretCipher
 from pydantic import SecretStr, ValidationError
@@ -95,9 +96,7 @@ async def test_a_device_is_stored_once_encrypted_and_bound_to_its_session(api: A
     assert len(stored) == 1
     assert TOKEN not in stored[0].token_ciphertext and OTHER not in stored[0].token_ciphertext
     assert stored[0].platform == "android" and stored[0].device_id == PHONE
-    async with db.sessions() as session:
-        devices = await live_devices(session, owner_id, SecretCipher(KEY))
-    assert [(device.device_id, device.token) for device in devices] == [(PHONE, OTHER)]
+    assert SecretCipher(KEY).decrypt(stored[0].token_ciphertext) == OTHER
 
 
 @pytest.mark.asyncio
@@ -135,22 +134,30 @@ async def test_delete_removes_this_device_and_refuses_an_unknown_one(api: Any) -
 
 
 @pytest.mark.asyncio
-async def test_a_revoked_or_expired_session_receives_no_push(api: Any) -> None:
-    app, db, owner_id = api
-    phone_session, tablet_session = await bearer(db, owner_id), await bearer(db, owner_id)
-    async with client(app, phone_session) as phone, client(app, tablet_session) as tablet:
-        await phone.put(f"/api/push/devices/{PHONE}", json=body())
-        await tablet.put(f"/api/push/devices/{TABLET}", json=body(OTHER, "ios"))
+async def test_a_registration_after_sign_out_or_expiry_binds_nothing(api: Any) -> None:
+    # The route authenticated before sign-out committed: the registration reads the session
+    # again under its lock and binds no token to it.
+    _, db, owner_id = api
+    signed_out, expired = await bearer(db, owner_id), await bearer(db, owner_id)
     async with db.sessions() as session, session.begin():
-        sessions = list(await session.scalars(select(SessionRow)))
-        by_device = {row.device_id: row.session_hash for row in await rows(db)}
-        for row in sessions:
-            if row.token_hash == by_device[PHONE]:
+        for row in await session.scalars(select(SessionRow)):
+            if row.token_hash == token_hash(signed_out):
                 row.revoked = True
             else:
                 row.expires_at = utcnow() - timedelta(seconds=1)
-    async with db.sessions() as session:
-        assert await live_devices(session, owner_id, SecretCipher(KEY)) == []
+    for token in (signed_out, expired):
+        with pytest.raises(LonoraError) as refused:
+            async with db.sessions() as session, session.begin():
+                await register_device(
+                    session,
+                    owner_id,
+                    token_hash(token),
+                    PHONE,
+                    PushDeviceRegistration(token=SecretStr(TOKEN), platform="android"),
+                    SecretCipher(KEY),
+                )
+        assert refused.value.code == "unauthorized"
+    assert await rows(db) == []
 
 
 @pytest.mark.asyncio
