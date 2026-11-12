@@ -10,7 +10,6 @@ from lonora_contracts.trading import (
     OperationResolution,
     TradeRequest,
     TradeResult,
-    TradingControl,
 )
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
@@ -19,7 +18,6 @@ from lonora_db.trading_journal import journal_entries
 from lonora_db.transactions import resource_data
 from lonora_trading.accounts import account_snapshot
 from lonora_trading.connections import connect_account
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.journal import journal_data
 from lonora_trading.owner_controls import attest_operation
 from lonora_trading.simulation import import_simulation
@@ -36,20 +34,6 @@ class SimulationInput(Contract):
 
 
 router = APIRouter(prefix="/trading")
-
-
-@router.get("/controls")
-async def controls(
-    request: Request, owner: OwnerIdentity = Depends(require_owner)
-) -> TradingControl:
-    return await read_controls(runtime(request).db)
-
-
-@router.put("/controls")
-async def set_controls(
-    request: Request, body: TradingControl, owner: OwnerIdentity = Depends(require_owner)
-) -> TradingControl:
-    return await save_controls(runtime(request).db, body)
 
 
 @router.get("/connections")

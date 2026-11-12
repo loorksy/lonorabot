@@ -529,7 +529,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "goal_step_execute",
-            "Execute the exact current step with fresh evidence. Live steps follow the agent's current level: No trading prohibits mutations, Ask me waits for the owner's approval card, On its own sends inside a matching signed grant and asks with an approval card outside it. Stop new trading and pauses still apply. Fixed step/attempt identity across runs; ambiguity blocks retries.",
+            "Execute the exact current step with fresh evidence. Live steps follow the agent's current level: No trading prohibits mutations, Ask me waits for the owner's approval card, On its own sends inside a matching signed grant and asks with an approval card outside it. Pauses still apply. Fixed step/attempt identity across runs; ambiguity blocks retries.",
             GoalStepNote,
             execute,
             financial=True,

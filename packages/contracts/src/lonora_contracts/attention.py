@@ -12,7 +12,6 @@ AttentionImportance = Literal[
 ]
 AttentionCode = Literal[
     "watch_condition_met",
-    "emergency_stop",
     "approval_required",
     "approval_resolved",
     "broker_degraded",

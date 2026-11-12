@@ -6,11 +6,6 @@ from pydantic import Field, model_validator
 from .domain import Contract, new_id
 
 
-class TradingControl(Contract):
-    enabled: bool = False
-    emergency_stop: bool = False
-
-
 class TradeRequest(Contract):
     thesis_id: str | None = Field(default=None, max_length=36)
     account_id: str = Field(min_length=1, max_length=120)

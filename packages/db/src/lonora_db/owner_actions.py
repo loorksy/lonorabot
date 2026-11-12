@@ -34,7 +34,7 @@ from lonora_contracts.owner_actions import (
     OwnerActionProposal,
 )
 from lonora_contracts.risk_limits import MonetaryRiskLimits
-from lonora_contracts.trading import UNRESOLVED_STATUSES, TradingControl
+from lonora_contracts.trading import UNRESOLVED_STATUSES
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_session.idempotency import request_hash, stable_id
 from pydantic import ValidationError
@@ -55,13 +55,12 @@ from .schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from .trading_readiness import RISK_LIMIT_NAMES, global_trading, risk_limit_frame
+from .trading_readiness import RISK_LIMIT_NAMES, risk_limit_frame
 from .trading_restrictions import restriction_state
 from .transactions import SettingsRepository, execution_policy_key, owned_thread
 
 # How long a card stays usable. A lift card never outlives its restriction.
 LIFETIME = {
-    "resume_trading": timedelta(hours=24),
     "lift_restriction": timedelta(days=31),
     "resolve_operation": timedelta(days=7),
     "set_account_limits": timedelta(hours=24),
@@ -227,12 +226,6 @@ async def stale_reason(
         from .model_cards import model_stale_reason
 
         return await model_stale_reason(session, owner_id, kind, payload)
-    if kind == "resume_trading":
-        return (
-            "trading_already_running"
-            if (await global_trading(session))["state"] == "running"
-            else None
-        )
     if kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
         if restriction is None or restriction.owner_id != owner_id:
@@ -604,8 +597,6 @@ def proposal_payload(
         if grant is None:
             raise LonoraError("owner_action_fields_invalid", 422)
         return "grant:" + grant.agent_id + ":" + grant.account_id, grant.model_dump(mode="json")
-    if proposal.kind == "resume_trading":
-        return "trading", TradingControl(enabled=True, emergency_stop=False).model_dump()
     if proposal.kind == "lift_restriction":
         assert proposal.restriction_id is not None
         return "restriction:" + proposal.restriction_id, {"restriction_id": proposal.restriction_id}
@@ -672,9 +663,6 @@ async def card_facts(
         from .model_cards import model_card_facts
 
         facts["model"] = await model_card_facts(session, row)
-        return facts, False
-    if row.kind == "resume_trading":
-        facts["global_trading"] = await global_trading(session)
         return facts, False
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
@@ -762,8 +750,7 @@ async def grant_facts(
     session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
 ) -> dict[str, Any]:
     """What the owner signs, read now: the agent, account, markets, actions, duration,
-    their own positions, the account's money limits and daily loss line, Stop new
-    trading, other agents already trading that market and the grant it replaces.
+    their own positions, the account's money limits and daily loss line, other agents already trading that market and the grant it replaces.
 
     Once signed the card shows what was signed, as stored at that moment
     (``signed_facts``): later limits or grants never rewrite it, it never names the
@@ -824,7 +811,6 @@ async def grant_facts(
             "requested_above": None if above is None else str(above),
         },
     }
-    facts["global_trading"] = await global_trading(session)
     facts["conflicts"] = [
         {
             "authority_id": item.id,
@@ -1773,7 +1759,7 @@ async def draft_grant_card(
 # Cards «طلب جديد» can raise again once expired: decisions the runtime asks for whose
 # record may still need one. Undo and notice cards keep their own window and never come
 # back; an agent's proposal is the agent's to make again.
-RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction", "resume_trading"})
+RENEWABLE_KINDS = frozenset({"resolve_operation", "lift_restriction"})
 
 
 async def renew_card(session: AsyncSession, owner_id: str, card_id: str) -> OwnerActionRow:
@@ -1860,7 +1846,7 @@ def confirmation_code(row: OwnerActionRow) -> str:
 
 
 async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
-    """The grant's one-line confirmation: what else the card did, and Stop if it holds."""
+    """The grant's one-line confirmation: what else the card did."""
     result = row.result
     notes: list[str] = []
     if result.get("delegation") == "full":
@@ -1881,10 +1867,6 @@ async def grant_notes(session: AsyncSession, row: OwnerActionRow) -> list[str]:
             if len(stopped) == 1
             else "owner_action_grant_stopped_others"
         )
-    if result.get("resumed"):
-        notes.append("owner_action_grant_resumed")
-    elif (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     return notes
 
 
@@ -1904,7 +1886,7 @@ def _same_symbol(left: str | None, right: str | None) -> bool:
 
 async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]:
     """What still holds new risk where a lift or an answer just released it, read after
-    the effect: Stop new trading, another pause in force over the same market and agents,
+    the effect: another pause in force over the same market and agents,
     or another trade there without a confirmed broker outcome. One fixed clause each."""
     if row.kind == "grant_authority":
         return await grant_notes(session, row)
@@ -1935,8 +1917,6 @@ async def still_holding(session: AsyncSession, row: OwnerActionRow) -> list[str]
             if operation.request.get(key)
         ]
     notes: list[str] = []
-    if (await global_trading(session))["state"] == "stopped":
-        notes.append("owner_action_still_stopped")
     now = utcnow()
     pauses = await session.scalars(
         select(TradingRestrictionRow).where(

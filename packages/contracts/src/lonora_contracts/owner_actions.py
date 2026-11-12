@@ -18,7 +18,6 @@ from .domain import Contract
 
 # Cards an agent proposes with owner_action_propose.
 OwnerActionKind = Literal[
-    "resume_trading",
     "lift_restriction",
     "resolve_operation",
     "set_account_limits",
@@ -173,7 +172,6 @@ class OwnerActionProposal(Contract):
         )
         grant = self.grant_fields()
         needed = {
-            "resume_trading": (),
             "lift_restriction": ("restriction_id",),
             "resolve_operation": ("operation_id",),
             "set_account_limits": ("account_id",),
@@ -333,7 +331,7 @@ class OwnerActionDecision(Contract):
 
     A grant card's own choices narrow or widen nothing that needs another signature:
     leaving the account without the suggested daily loss limit (``money_limit``
-    "none"), resuming new trading, and stopping other agents' grants on that market.
+    "none") and stopping other agents' grants on that market.
     """
 
     decision: Literal["confirm", "cancel", "choose"]
@@ -345,7 +343,6 @@ class OwnerActionDecision(Contract):
     broker_reference: str | None = Field(default=None, max_length=200)
     proof: DeviceProof | None = None
     money_limit: Literal["apply", "none"] = "apply"
-    resume_trading: bool = False
     stop_authorities: list[str] = Field(default_factory=list[str], max_length=20)
     # A resolve card answered «غير معروف»: also pause new trades on its account until the
     # end of the trading day (an owner restriction; it only narrows). Only with "unknown".
