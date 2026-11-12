@@ -969,8 +969,8 @@ msgid "At market price"
 msgstr "بسعر السوق"
 
 #: src/lib/user_error.ts:33
-msgid "At most two other agents can join one message."
-msgstr "يمكن أن ينضم وكيلان آخران على الأكثر إلى رسالة واحدة."
+#~ msgid "At most two other agents can join one message."
+#~ msgstr "يمكن أن ينضم وكيلان آخران على الأكثر إلى رسالة واحدة."
 
 #: src/pages/shell/chat-context.tsx:802
 #: src/pages/shell/chat-context.tsx:803
@@ -7619,6 +7619,10 @@ msgstr "انتهت هذه المكالمة."
 #: src/shell/agent/ChartSheet.tsx:468
 msgid "This chart is no longer available."
 msgstr "لم يعد هذا الشارت متاحًا."
+
+#: src/lib/user_error.ts:33
+msgid "This collaboration has used all its rounds. Mention the agents in a new message to start a new one."
+msgstr "اكتملت جولات هذا التعاون. اذكر الوكلاء في رسالة جديدة لبدء تعاون جديد."
 
 #: src/lib/user_error.ts:233
 #~ msgid "This conversation could not be resumed. Start a new conversation."

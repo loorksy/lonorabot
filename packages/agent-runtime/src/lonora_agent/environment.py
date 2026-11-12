@@ -204,7 +204,6 @@ def classify(code: str, tool: Tool | None, status: int | None = None) -> dict[st
         "ui_submit_disabled",
         "memory_disclosure_refused",
         "restriction_owner_manual_agent_conflict",
-        "collaboration_guest_limit",
     }:
         category, action = "permission_denied", "respect_scope"
     elif code.startswith("risk_"):
