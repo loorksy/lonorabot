@@ -44,7 +44,7 @@ from lonora_db.schema import (
 from lonora_db.trusted_sources import write_tools as mcp_write_tools
 from lonora_tools import mcp
 from lonora_tools.loader import load_tools
-from lonora_tools.source_trust import asks_writes, names_source, trusts_source
+from lonora_tools.source_trust import names_source
 from pydantic import ValidationError
 from sqlalchemy import select
 
@@ -275,90 +275,6 @@ def test_owner_words_name_a_source_strictly() -> None:
     assert named("trust Notes, not Notes Pro", "notes", others=("notes pro",))
     assert named("trust mcp.notion.com", "notion", "mcp.notion.com")
     assert not named("trust mcp.notion.com.evil.io", "mcp.notion.com")
-
-
-def test_a_passing_mention_trusts_nothing_a_request_does() -> None:
-    feed = ("reuters.com", "www.reuters.com")
-    repo = ("acme/tools", "github.com/acme/tools")
-    server = ("notes",)
-    for text, names in (
-        ("what does reuters.com say", feed),
-        ("summarize www.reuters.com/markets for me", feed),
-        ("what is in acme/tools?", repo),
-        ("look at skills on github.com/acme/tools", repo),
-        ("Take notes on gold today", server),
-        ("ماذا يقول reuters.com", feed),
-        ("Don't trust reuters.com", feed),
-        ("Never use reuters.com", feed),
-        ("what does reuters.com say about gold? use a chart", feed),
-        ("Take notes on gold today and use them tomorrow", server),
-        ("Take notes on gold and add them to my journal", server),
-        ("لا تثق بـ reuters.com", feed),
-    ):
-        assert names_source(text, names), text
-        assert not trusts_source(text, names), text
-    for text, names in (
-        ("subscribe to reuters.com", feed),
-        ("trust www.reuters.com and add its feed", feed),
-        ("اشترك في reuters.com", feed),
-        ("import the skills from acme/tools", repo),
-        ("install github.com/acme/tools", repo),
-        ("ثبّت acme/tools", repo),
-        ("Trust Notes", server),
-        ("Let Notes write as well", server),
-        ("use Notes as a source", server),
-        ("ثق بخادم Notes", server),
-        ("فعّل Notes", server),
-    ):
-        assert trusts_source(text, names), text
-
-
-def test_owner_words_give_the_server_writing_only_in_so_many_words() -> None:
-    server = ("notes",)
-    for text in (
-        "Trust Notes and let it write",
-        "read and write",
-        "Trust Notes for read/write",
-        "Trust Notes: writes are fine",
-        "Allow Notes to write",
-        "Trust Notes; Notes can write too",
-        "Trust Notes with write access",
-        "ثق بخادم Notes واسمح له بالكتابة",
-        "اسمح لNotes بالكتابة",
-        "ثق بـ Notes وأعطه صلاحية الكتابة",
-        "ثق بـ Notes للقراءة والكتابة",
-        "خلّه يكتب في الملاحظات",
-    ):
-        assert asks_writes(text, server), text
-    for text in (
-        "Trust Notes",
-        "Trust Notes, read only",
-        "Trust Notes read-only, write nothing",
-        "Trust Notes for reading only; I will write the notes myself",
-        "Use Notes to write me a summary",
-        "اكتب لي ملخصا من Notes",
-        "ثق بـ Notes للقراءة فقط",
-        "Trust Notes and let it write nothing",
-        "Trust Notes with no write access",
-        "Notes can't write",
-        "Trust Notes, and let me write the summaries myself",
-        "Trust Notes; allow the agent to write me a summary",
-        "Trust Notes. You can write me a summary from it",
-        "Trust Notes so you may write a report",
-        "Trust Notes for reading; Scout can write the report",
-        "do not let it write",
-        "don't write anything",
-        "never allow it to write",
-        "I don't want you to let Notes write",
-        "trust it without writing",
-        "ثق بخادم Notes بدون كتابة",
-        "لا تسمح له بالكتابة",
-        "written",
-    ):
-        assert not asks_writes(text, server), text
-    # "it" is the server only when the message names no other server.
-    assert not asks_writes("Trust Notes and Wiki, let it write", server, ("wiki",))
-    assert asks_writes("Trust Notes and Wiki, let Notes write", server, ("wiki",))
 
 
 def test_credential_cards_have_lifetimes_and_fixed_confirmations() -> None:
@@ -630,7 +546,7 @@ async def test_a_trusted_mcp_server_runs_without_declarations_and_a_changed_tool
             assert trusted_now["trusted"] and trusted_now["tier"] == "read", trusted_now
             assert trusted_now["tools_trusted"] == 2 and trusted_now["tools_that_write"] == 1
             assert trusted_now["tools_blocked_moving_money"] == 1
-            assert trusted_now["write_tier"] == "owner_did_not_ask_for_writes"
+            assert trusted_now["write_tier"] == "not_requested"
             assert await card_kinds(fixture, context.thread_id) == []
             trusted = await trusted_row(fixture, "mcp_server", connection_id)
             assert trusted is not None and trusted.added_via == "owner_message"
@@ -943,7 +859,7 @@ async def test_a_wallet_server_moves_no_money_and_read_only_refuses_its_writes()
             context = await owner_says(
                 fixture, agent, context.thread_id, "Let the Wallet server write too"
             )
-            widened = await call(context, "mcp_trust", server="Wallet")
+            widened = await call(context, "mcp_trust", server="Wallet", tier="write_nonfinancial")
             assert widened["tier"] == "read" and widened["write_tier"] == "blocked_moves_money"
             preview = await fixture.request("POST", f"/trusted-sources/mcp/{connection_id}/preview")
             widen = await fixture.client.post(
@@ -1116,7 +1032,7 @@ async def test_connecting_a_server_raises_no_trust_card_and_asks_the_owner_to_na
 
 
 @pytest.mark.asyncio
-async def test_an_mcp_server_is_trusted_only_on_the_owners_words_and_writes_only_if_asked():
+async def test_an_mcp_server_is_trusted_only_on_the_owners_words_and_writes_only_if_asked_to():
     database()
     from check_streaming import Fixture
 
@@ -1147,15 +1063,16 @@ async def test_an_mcp_server_is_trusted_only_on_the_owners_words_and_writes_only
             # (d) He names it, but the Run read a web page since: refused.
             context = await owner_says(fixture, agent, thread, "Trust Notes, let it write")
             await read_third_party(fixture, context)
-            assert (await call(context, "mcp_trust", server="Notes"))["code"] == REFUSED
+            asked = await call(context, "mcp_trust", server="Notes", tier="write_nonfinancial")
+            assert asked["code"] == REFUSED
             for connection_id in (notes, pro):
                 assert await trusted_row(fixture, "mcp_server", connection_id) is None
             assert server.calls == []
-            # (a) He names it: trusted for reading, no card; (e) without asking for
-            # writing the writing tool waits.
+            # (a) He names it: trusted for reading, no card; (e) with the tier omitted the
+            # writing tool waits.
             context = await owner_says(fixture, agent, thread, "Please trust notes")
             read = await call(context, "mcp_trust", server="Notes")
-            assert read["tier"] == "read" and read["write_tier"] == "owner_did_not_ask_for_writes"
+            assert read["tier"] == "read" and read["write_tier"] == "not_requested"
             row = await trusted_row(fixture, "mcp_server", notes)
             assert row is not None and row.added_via == "owner_message"
             assert await trusted_row(fixture, "mcp_server", pro) is None
@@ -1169,9 +1086,9 @@ async def test_an_mcp_server_is_trusted_only_on_the_owners_words_and_writes_only
                 )
                 == "mcp_tool_needs_write_trust"
             )
-            # (e) He asks it to write: the non-financial write tier.
+            # (e) He asks it to write: the agent asks for the non-financial write tier.
             context = await owner_says(fixture, agent, thread, "Let Notes write as well")
-            wrote = await call(context, "mcp_trust", server="notes")
+            wrote = await call(context, "mcp_trust", server="notes", tier="write_nonfinancial")
             assert wrote["tier"] == "write_nonfinancial" and wrote["changed"], wrote
             ran = await call(
                 context,
@@ -1181,10 +1098,10 @@ async def test_an_mcp_server_is_trusted_only_on_the_owners_words_and_writes_only
                 arguments={"query": "x"},
             )
             assert ran["effect_tier"] == "write_nonfinancial"
-            # (e) Never with a money tool: the same words keep a trading server to reading.
+            # (e) Never with a money tool: the write tier keeps a trading server to reading.
             server.tools = [*writer, {"name": "place_order", "inputSchema": SCHEMA}]
             context = await owner_says(fixture, agent, thread, "Notes Pro may write too")
-            money = await call(context, "mcp_trust", server="Notes Pro")
+            money = await call(context, "mcp_trust", server="Notes Pro", tier="write_nonfinancial")
             assert money["tier"] == "read" and money["write_tier"] == "blocked_moves_money"
             row = await trusted_row(fixture, "mcp_server", pro)
             assert row is not None and row.blocked_tools == ["place_order"]

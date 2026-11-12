@@ -180,9 +180,9 @@ def tools() -> list[Tool]:
             "news_feed_subscribe",
             "Subscribe a public RSS/Atom feed every agent then reads. Inside the owner's "
             "trusted feed domains it is added without asking (the owner can remove it in "
-            "Capabilities); outside them only when the owner's message this run answers "
-            "names the domain, which it then trusts (trust_requires_owner_message "
-            "otherwise). The feed is read once first; the same URL twice is one feed.",
+            "Capabilities). Trusting a new domain applies only when the owner's own message "
+            "names it and asks for it (trust_requires_owner_message otherwise). The feed is "
+            "read once first; the same URL twice is one feed.",
             FeedSubscribeInput,
             subscribe,
             replay_safe=True,

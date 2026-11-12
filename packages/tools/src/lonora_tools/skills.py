@@ -128,7 +128,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_package_import",
-            "Import one reviewed public Skill at a full immutable Git commit into this Agent's workspace and disabled catalog. Inside the owner's trusted sources it installs without asking; outside them only when the owner's message this run names the repository (or github.com/<owner>), which it then trusts (trust_requires_owner_message otherwise, nothing installed). Instructions-only packages need no analysis host. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
+            "Import one reviewed public Skill at a full immutable Git commit into this Agent's workspace and disabled catalog. Inside the owner's trusted sources it installs without asking; outside them, trust applies only when the owner's own message names the repository (or github.com/<owner>) and asks for it (trust_requires_owner_message otherwise, nothing installed). Instructions-only packages need no analysis host. Supply adapted SKILL.md plus explicit source behavior, adapted behavior, assumptions and limitations. New installation uses expected_version=0; updates require current resource_version and a fresh semantic version. No setup hooks run; imported instructions grant no tools or financial authority. Bounded text-only packages; semantic equivalence is not implied.",
             SkillPackageImportInput,
             import_package,
             replay_safe=True,
@@ -169,7 +169,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_repository_inspect",
-            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking; a repository the owner's message this run names joins his trusted sources before it is read.",
+            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking. Trust applies only when the owner's own message names the repository and asks for it; it is trusted before it is read.",
             SkillRepositoryInput,
             inspect_repository,
             # Not read only: a repository the owner names joins his trusted sources.

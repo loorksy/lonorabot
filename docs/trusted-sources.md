@@ -37,7 +37,7 @@ and retires the `trust_source` cards). A tool adds a source when the owner's typ
 message the run answers names it: `owner_message_id` is set (an owner message or the
 owner's steering; never a routine, peer or card wake, and never once the run read
 content someone else wrote), and that message, or one the owner added while the run
-worked, names the source and asks for trust. Otherwise the tool returns `trust_requires_owner_message`,
+worked, names the source. Otherwise the tool returns `trust_requires_owner_message`,
 nothing is trusted, and the agent asks the owner to name it in chat. So the agent trusts
 first, before reading anything from the source.
 
@@ -55,20 +55,16 @@ dot that continues the name. `evil-github.com`, `news.example.com` and
 - MCP server: its saved name or its URL host. A name inside another saved server's
   longer name ("Notes" in "Notes Pro") counts for the longer one only.
 
-The same message must ask for trust: a verb such as trust, subscribe, add, install,
-import, connect, allow, enable or use (`ثق`، `أثق`، `اشترك`، `أضف`، `ثبّت`، `استورد`،
-`اربط`، `اسمح`، `فعّل`), or give an MCP server writing (below). A passing mention ("Take
-notes on gold today", "what does reuters.com say") trusts nothing.
+This check is the anti-injection gate only (Q21 (b), VISION 10.3.2): the server reads no
+intent. Whether the owner wants the source trusted is the agent's judgment of his words
+(VISION 5.1: the model decides), and the tool descriptions say trust applies only when
+the owner's own message names the source and asks for it.
 
-An MCP server is trusted at the non-financial write tier only when the message that
-names it gives the server writing: "let/allow <server> write", "<server> can write",
-"write access", "read and write", "writes are fine", «اسمح له بالكتابة», «صلاحية الكتابة».
-A request for the agent to write something ("Use Notes to write me a summary", «اكتب لي
-ملخصا من Notes») is not one. A negation (`no`, `not`, `don't`, `never`, `without`, `لا`,
-`بدون`, `ما`, ...) in the four words before, `nothing` or `none` (`لا شيء`) right after,
-or a read-only phrase anywhere (`read only`, `read-only`, `reading only`, `للقراءة فقط`,
-`قراءة فقط`) keeps the read tier. Otherwise, and always for a server that offers a tool
-that can trade or move money, it is the read tier.
+`mcp_trust` takes `tier`: `read` (the default) or `write_nonfinancial`, which the agent
+asks for only when the owner asks for the server to write. The same naming gate applies.
+A server that offers a tool that can trade or move money is kept to the read tier
+(`write_tier: blocked_moves_money`) and that tool is never pinned. Feeds and
+repositories have no tier.
 
 The migration makes today's trust visible: every owner gets `github.com` (Skill imports
 always trusted all of GitHub; now the owner sees it and can remove it), and each saved
@@ -142,10 +138,10 @@ A server is trusted in one of two ways:
 
 - `mcp_trust(server=…)` in a run whose owner message names the server (its saved name or
   host, or the connection id with the owner's words naming it): the tool reads the tools
-  the server advertises now and pins exactly those, at the tier the rule above gives. It
+  the server advertises now and pins exactly those, at the tier it was given. It
   checks the owner's words before contacting the server. A server trusted for reading
   whose work later needs a writing tool (`needs_write_trust` in `mcp_tools`) is widened
-  the same way, when the owner names it and asks it to write. After a `connect_credential`
+  the same way (`tier=write_nonfinancial`), when the owner names it and asks it to write. After a `connect_credential`
   card connects a server, the agent that asked is woken and tells the owner to name it;
 - «التكاملات» (`/app/integrations`), owner session only: an MCP server's sheet previews
   the tools with a digest («مراجعة الأدوات»), and approving re-reads the server and
@@ -260,9 +256,9 @@ preview, and **Set up integrations on the web** opens the web settings.
   a tool from running, never let one run that the review did not mark read-only.
 - `mcp_trust` pins the tools the server advertises when it runs; a server that changes
   later is blocked at first use until the owner names it again.
-- Naming and intent are word matches, not a reading of meaning: "don't trust
-  example.com" names example.com and has a trust verb. The writing rule errs toward the
-  read tier ("no problem, let it write" is read).
+- Intent, including a negation such as "don't trust example.com" (which still names
+  example.com), is the agent's judgment of the owner's words, not a server rule; so is
+  asking for the write tier. The owner removes a source in Capabilities with one tap.
 - Feeds are read on demand; feed watches that wake an agent arrive with the Wave 2 wake
   primitive.
 - If the secure form creates its record but the confirmation fails, the record stays and

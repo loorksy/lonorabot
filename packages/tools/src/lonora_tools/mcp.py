@@ -23,7 +23,7 @@ the server.
 
 import hashlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from lonora_adapter_kit.secrets import SecretStore
@@ -50,7 +50,7 @@ from sqlalchemy import select
 
 from .base import Tool
 from .context import ToolContext
-from .source_trust import asks_writes, owner_named, refusal
+from .source_trust import owner_named, refusal
 
 
 class McpList(Contract):
@@ -69,6 +69,10 @@ class McpTrust(Contract):
         max_length=200,
         description="The server the owner named: its saved name or host as he wrote it, or "
         "its connection_id.",
+    )
+    tier: Literal["read", "write_nonfinancial"] = Field(
+        default="read",
+        description="write_nonfinancial only when the owner asks for the server to write.",
     )
 
 
@@ -356,10 +360,9 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         raise LonoraError("mcp_connection_changed", 409)
     async with context.db.sessions() as session, session.begin():
         run = await require_lease(session, context.lease)
-        said = await owner_named(session, run, own, others=others)
-        if said is None:
+        if await owner_named(session, run, own, others=others) is None:
             return refusal(connection_id=connection_id)
-        writes = asks_writes(said, own, others)
+        writes = params.tier == "write_nonfinancial"
         # A server that offers a tool that can trade or move money is read only.
         tier = "write_nonfinancial" if writes and not review.blocked else "read"
         row, changed = await trust_source(
@@ -386,7 +389,7 @@ async def trust(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             if tier == "write_nonfinancial"
             else "blocked_moves_money"
             if writes
-            else "owner_did_not_ask_for_writes",
+            else "not_requested",
             "tools_trusted": len(review.tools),
             "tools_that_write": len(review.tools) - len(review.read_only),
             "tools_blocked_moving_money": len(review.blocked),
@@ -467,12 +470,10 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "mcp_trust",
-            "Trust one saved MCP server's tools, as the server advertises them now, when the "
-            "owner's typed message this run answers names the server (its saved name or "
-            "host); call it before reading anything else in the run. It trusts for reading, "
-            "or for non-financial writes when that message also asks it to write and no "
-            "tool can trade or move money. Without his words: trust_requires_owner_message, "
-            "nothing trusted.",
+            "Trust one saved MCP server's tools, as the server advertises them now, before "
+            "reading anything else in the run. Trust applies only when the owner's own message "
+            "names the server and asks for it; never for a tool that can trade or move money. "
+            "Otherwise: trust_requires_owner_message, nothing trusted.",
             McpTrust,
             trust,
             replay_safe=True,
