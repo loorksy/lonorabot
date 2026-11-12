@@ -131,15 +131,14 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_package_validate",
-            "Run one stored Python utility with bounded arguments in the workspace, from a copy of the package in your home (.skill-validation/), for at most 30 seconds. Record its source hash and actual exit status as smoke-test evidence. Validate every utility before activation; passing is not proof of strategy equivalence or safety. No broker secrets or financial access.",
+            "Run one stored Python utility with bounded arguments in the workspace, for at most 30 seconds, from a fresh copy of the stored package at skills/<id>/<version>/ in your home. Record its source hash and actual exit status as smoke-test evidence. Validate every utility before activation; passing is not proof of strategy equivalence or safety. No broker secrets or financial access.",
             SkillPackageValidateInput,
             validate_package,
-            replay_safe=True,
             availability=available,
         ),
         Tool(
             "skill_package_control",
-            "Activate a reviewed package after every utility passes validation, disable, restore a retained immutable version disabled, or remove its catalog resource. Uses existing owner scope, resource version and revocations. Rollback never activates automatically; removal retains the stored files. These operations cannot grant trading authority.",
+            "Activate a reviewed package after every utility passes validation (its stored files are copied afresh to skills/<id>/<version>/ in your home, where you run them), disable, restore a retained immutable version disabled, or remove its catalog resource. Uses existing owner scope, resource version and revocations. Rollback never activates automatically; removal retains the stored files. These operations cannot grant trading authority.",
             SkillPackageControlInput,
             control_package,
             replay_safe=True,
@@ -165,7 +164,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "skill_repository_inspect",
-            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and isolated execution remain separate requirements. source_trusted says whether an import installs without asking.",
+            "Inspect a public GitHub Skill repository at an immutable resolved commit. Enumerate SKILL.md instructions, utility hashes, Python imports and dependency files without running code, installing anything, changing instructions or granting authority. Static compatibility is not security approval; adaptation and validation remain separate requirements. source_trusted says whether an import installs without asking.",
             SkillRepositoryInput,
             inspect_repository,
             read_only=True,

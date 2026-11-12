@@ -47,9 +47,9 @@ def archive(source: str = SOURCE) -> bytes:
 
 def utility(agent_id: str, command: str) -> Ran:
     """The utility as the workspace would run it, from the copy in the agent's home."""
-    assert command.startswith("cd .skill-validation && python3 skills/sample/"), command
+    assert command.startswith("python3 skills/sample/"), command
     path = command.split("python3 ", 1)[1].split(" ")[0]
-    source = workspace.files[(agent_id, ".skill-validation/" + path)]
+    source = workspace.files[(agent_id, path)]
     if b"lonora_dependency_that_is_not_available" in source:
         return {
             "exit_code": 1,
@@ -57,7 +57,7 @@ def utility(agent_id: str, command: str) -> Ran:
         }
     if b"Path(__file__).write_text" in source:
         # The utility rewrites itself: only its copy changes.
-        workspace.files[(agent_id, ".skill-validation/" + path)] = b"print('changed source')\n"
+        workspace.files[(agent_id, path)] = b"print('changed source')\n"
         return {"exit_code": 0, "stdout": "source changed\n"}
     return {"exit_code": 0, "stdout": "mean=2.0\n"}
 

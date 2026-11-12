@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..workspace import encode_snapshot
-from ..workspace_access import output_scan, scoped_run
+from ..workspace_access import scoped_run
 from .packages import (
     AdaptationReview,
     PackageState,
@@ -34,9 +34,9 @@ from .registry import installed_registry
 from .repository import repository_identity
 from .store import store_files, stored_files
 
-# Where a utility's package files are copied in the agent's home to be run.
-VALIDATION_DIRECTORY = ".skill-validation"
 SOURCE_FILES = 65
+SOURCE_BYTES = 1048576
+FILE_BYTES = 262144
 
 
 def receipt_key(context: ToolContext) -> str:
@@ -202,25 +202,48 @@ def describe(row: SkillRow, entry: PackageVersion, **extra: Any) -> dict[str, An
 
 async def workspace_directory(context: ToolContext, directory: str) -> dict[str, bytes]:
     """The regular files under a directory of the agent's workspace (relative to its home),
-    read as the agent's own user; every byte passes the secret scan."""
+    listed and read as the agent's own user; every byte passes the secret scan. Caches
+    (__pycache__) and dot-directories (.git, .venv) are not part of a package."""
     encode_snapshot({directory + "/SKILL.md": b""})
     found = await client(context).run(
         await scan(context),
         context.agent_id,
-        f"cd -- {shlex.quote(directory)} && find . -type f -printf '%P\\n' | LC_ALL=C sort"
-        f" | head -n {SOURCE_FILES}",
+        f"set -o pipefail; cd -- {shlex.quote(directory)} && find . \\( -name __pycache__"
+        " -o -name '.?*' \\) -prune -o -type f -printf '%s %P\\n' | LC_ALL=C sort -k2"
+        f" | awk 'NR <= {SOURCE_FILES}'",
         timeout_seconds=30,
     )
     if found.get("exit_code") != 0:
         raise LonoraError("skill_package_document_missing", 422)
-    names = [line for line in found["stdout"].splitlines() if line]
-    if len(names) >= SOURCE_FILES:
+    listed = [line.split(" ", 1) for line in found["stdout"].splitlines() if " " in line]
+    if len(listed) >= SOURCE_FILES or sum(int(size) for size, _ in listed) > SOURCE_BYTES:
         raise LonoraError("skill_package_too_large", 422)
+    if any(int(size) > FILE_BYTES for size, _ in listed):
+        raise LonoraError("skill_package_file_too_large", 422)
     files: dict[str, bytes] = {}
-    for name in names:
+    for _, name in listed:
         path = f"{directory}/{name}"
         files[path] = await client(context).read_bytes(await scan(context), context.agent_id, path)
     return files
+
+
+async def materialize(
+    context: ToolContext, entry: PackageVersion, stored: dict[str, bytes]
+) -> None:
+    """A fresh copy of the version's stored files at skills/<id>/<version>/ in the agent's
+    home, the path its instructions name: whatever was there before is removed first."""
+    assert entry.payload.manifest is not None
+    directory = f"skills/{entry.payload.name}/{entry.payload.manifest.version}"
+    workspace, found = client(context), await scan(context)
+    cleared = await workspace.run(
+        found, context.agent_id, "rm -rf -- " + shlex.quote(directory), timeout_seconds=60
+    )
+    if cleared.get("exit_code") != 0:
+        raise LonoraError("workspace_file_unwritable", 409)
+    for path in entry.files:
+        written = await workspace.write(found, context.agent_id, path, stored[path])
+        if not written["ok"]:
+            raise LonoraError("workspace_file_unwritable", 409)
 
 
 async def untrusted_source(context: ToolContext, repository_url: str) -> dict[str, Any] | None:
@@ -332,7 +355,9 @@ async def create_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-create-v2", **arguments})
-    found = await output_scan(context)
+    # Listing the source runs a command in the workspace (6.9: an ordinary run only).
+    await require_ordinary(context)
+    found = await scan(context)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -371,9 +396,8 @@ async def create_package(
                 entry.payload.model_dump(mode="json"),
                 row.id if row else None,
             )
-            # A fixed bounded source receipt survives a crash after file copy but
-            # before catalog publication. Retrying cannot read different source
-            # or invent a new origin revision for the same effect identity.
+            # A fixed bounded source receipt: a retry after a crash before publication
+            # uses the source read the first time, never a changed one.
             session.add(
                 EffectReceiptRow(
                     key=receipt_key(context) + ":prepared",
@@ -408,19 +432,13 @@ async def validate_package(context: ToolContext, arguments: dict[str, Any]) -> d
             raise LonoraError("skill_package_utility_unsupported", 422)
         stored = await stored_files(session, context.agent_id)
         validate_package_files(entry, stored)
-    # Run from a copy of the package in the agent's home in the owner's workspace.
+    # Run from a fresh copy of the stored package in the agent's home.
     await require_ordinary(context)
-    workspace, found = client(context), await scan(context)
-    for path in entry.files:
-        written = await workspace.write(
-            found, context.agent_id, f"{VALIDATION_DIRECTORY}/{path}", stored[path]
-        )
-        if not written["ok"]:
-            raise LonoraError("workspace_file_unwritable", 409)
-    command = "cd {} && {}".format(
-        VALIDATION_DIRECTORY, shlex.join(["python3", utility, *arguments["arguments"]])
+    await materialize(context, entry, stored)
+    command = shlex.join(["python3", utility, *arguments["arguments"]])
+    outcome = await client(context).run(
+        await scan(context), context.agent_id, command, timeout_seconds=30
     )
-    outcome = await workspace.run(found, context.agent_id, command, timeout_seconds=30)
     if not isinstance(outcome.get("exit_code"), int):
         raise LonoraError("skill_package_validation_interrupted", 409)
     async with context.db.sessions() as session, session.begin():
@@ -463,6 +481,23 @@ async def control_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-control-v1", **arguments})
+    if arguments["action"] == "activate":
+        # The agent runs an active package's utilities from skills/<id>/<version>/ in its
+        # home: a fresh copy of the validated stored files is put there first.
+        async with context.db.sessions() as session, session.begin():
+            if (result := await prior(session, context, digest)) is not None:
+                return result
+            candidate = await owned_skill(session, context, arguments["skill_id"])
+            if candidate is None:
+                raise LonoraError("skill_not_found", 404)
+            _, proposed = current_version(candidate, arguments["expected_version"])
+            await assert_unrevoked(session, context, proposed)
+            require_validated(proposed)
+            stored = await stored_files(session, context.agent_id)
+            validate_package_files(proposed, stored)
+        if proposed.utilities:
+            await require_ordinary(context)
+            await materialize(context, proposed, stored)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result

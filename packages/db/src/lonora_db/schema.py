@@ -704,6 +704,19 @@ class AnalyticalWorkspaceRow(Base):
     move_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class SkillPackageFileRow(Base):
+    """A file of an agent's skill package version (skills/<id>/<version>/...): the agent's
+    private package store. Packages are the agent's own; workspace files are shared."""
+
+    __tablename__ = "ln_skill_package_files"
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(String(512), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class WorkspaceOperationRow(Base):
     __tablename__ = "ln_workspace_operations"
     __table_args__ = (

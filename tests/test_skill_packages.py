@@ -150,5 +150,10 @@ def test_import_validation_and_control_are_mutations_without_financial_power() -
     registry = load_tools()
     for name in ("skill_package_import", "skill_package_validate", "skill_package_control"):
         tool = registry.tools[name]
-        assert tool.replay_safe and not tool.read_only and not tool.financial
+        assert not tool.read_only and not tool.financial
         assert name not in {item.name for item in registry.definitions(scope="helper")}
+    # Validation runs a command in the workspace, which has internet access: an
+    # interrupted call is reconciled, never replayed on its own.
+    assert not registry.tools["skill_package_validate"].replay_safe
+    assert registry.tools["skill_package_import"].replay_safe
+    assert registry.tools["skill_package_control"].replay_safe

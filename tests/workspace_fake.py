@@ -17,8 +17,9 @@ Ran = dict[str, Any]
 
 
 class FakeWorkspace:
-    """`run` answers a directory listing (`cd -- DIR && find ...`) from the files, and any
-    other command through `commands` (default: exit 0, no output)."""
+    """`run` answers a directory listing (`cd -- DIR && find ...`, as "size path" lines)
+    and `rm -rf -- DIR` from the files, and any other command through `commands`
+    (default: exit 0, no output)."""
 
     def __init__(self, commands: Callable[[str, str], Ran] | None = None) -> None:
         self.files: dict[tuple[str, str], bytes] = {}
@@ -56,15 +57,33 @@ class FakeWorkspace:
         if request.url.path == "/v1/run":
             agent, command = str(body["agent_id"]), str(body["command"])
             self.ran.append((agent, command))
-            words = shlex.split(command.split("&&", 1)[0])
-            if command.startswith("cd -- ") and "find . -type f" in command:
-                prefix = words[2].rstrip("/") + "/"
-                names = sorted(
-                    path[len(prefix) :]
-                    for owner, path in self.files
-                    if owner == agent and path.startswith(prefix)
+            if "cd -- " in command and "find . " in command:
+                directory = shlex.split(command.split("cd -- ", 1)[1].split(" && ", 1)[0])[0]
+                prefix = directory.rstrip("/") + "/"
+                listed = sorted(
+                    (path[len(prefix) :], len(body))
+                    for (owner, path), body in self.files.items()
+                    if owner == agent
+                    and path.startswith(prefix)
+                    and not any(
+                        part == "__pycache__" or part.startswith(".")
+                        for part in path[len(prefix) :].split("/")[:-1]
+                    )
                 )
-                result: Ran = {"exit_code": 0, "stdout": "".join(n + "\n" for n in names)}
+                if not any(owner == agent and p.startswith(prefix) for owner, p in self.files):
+                    result: Ran = {"exit_code": 1, "stderr": "No such file or directory"}
+                else:
+                    result = {
+                        "exit_code": 0,
+                        "stdout": "".join(f"{size} {name}\n" for name, size in listed),
+                    }
+            elif command.startswith("rm -rf -- "):
+                prefix = shlex.split(command)[3].rstrip("/") + "/"
+                for key in [
+                    key for key in self.files if key[0] == agent and key[1].startswith(prefix)
+                ]:
+                    del self.files[key]
+                result = {"exit_code": 0}
             else:
                 result = self.commands(agent, command) if self.commands else {"exit_code": 0}
             return httpx.Response(

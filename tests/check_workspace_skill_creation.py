@@ -52,9 +52,9 @@ async def main() -> None:
     registry = load_tools()
 
     def python(agent_id: str, command: str) -> Ran:
-        # The copy is in place before the utility runs.
-        assert command == f"cd .skill-validation && python3 {UTILITY}", command
-        assert (agent_id, ".skill-validation/" + UTILITY) in workspace.files
+        # A fresh copy of the stored files is in place before the utility runs.
+        assert command == f"python3 {UTILITY}", command
+        assert workspace.files[(agent_id, UTILITY)] == SOURCE.encode()
         return {"exit_code": 0, "stdout": "mean=2\n"}
 
     workspace = FakeWorkspace(python)
@@ -186,7 +186,7 @@ async def main() -> None:
             assert stored[UTILITY] == SOURCE.encode()
         print(
             "PASS workspace directory -> disabled package in the private store -> utility run in"
-            " the workspace from a copy -> activation -> view; no generic enable bypass"
+            " the workspace from a fresh copy -> activation -> view; no generic enable bypass"
         )
 
         page = await fixture.request("GET", f"/agents/{agent['id']}/skills/catalog")
@@ -280,7 +280,9 @@ async def main() -> None:
             run = await session.get(RunRow, context.lease.run_id)
             assert run
             trigger, run.trigger = run.trigger, "subagent"
-        await denied(call("helper-create", "skill_package_create", create), "tool_not_allowed")
+        await denied(
+            call("helper-create", "skill_package_create", create), "workspace_run_scope_refused"
+        )
         async with context.db.sessions() as session, session.begin():
             run = await session.get(RunRow, context.lease.run_id)
             assert run

@@ -1,29 +1,39 @@
-"""Where an agent's skill-package files are kept: its private package store (the table
-of the former analytical workspace, kept for this). Packages are private to the agent
-(3.2.1); the owner's workspace is shared by all agents (7.1), so files are only copied
-there to run a utility. The store's revision is internal and never asked of the model."""
+"""An agent's private skill-package store: the files of its package versions
+(skills/<id>/<version>/...), kept in ln_skill_package_files. Packages are the agent's own
+(3.2.1); the owner's workspace is shared by every agent (7.1), so a package's files are
+copied into the agent's home only to be run (`skills/<id>/<version>/` there)."""
 
 from lonora_contracts.domain import utcnow
-from lonora_db.schema import AnalyticalWorkspaceRow
+from lonora_db.schema import SkillPackageFileRow
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from ..workspace import encode_snapshot, read_snapshot
 
 
 async def stored_files(session: AsyncSession, agent_id: str) -> dict[str, bytes]:
-    row = await session.get(AnalyticalWorkspaceRow, agent_id)
-    return read_snapshot(row.snapshot) if row is not None else {}
+    rows = await session.execute(
+        select(SkillPackageFileRow.path, SkillPackageFileRow.content).where(
+            SkillPackageFileRow.agent_id == agent_id
+        )
+    )
+    return {path: bytes(content) for path, content in rows.all()}
 
 
 async def store_files(session: AsyncSession, agent_id: str, files: dict[str, str]) -> None:
-    """Add files to the agent's store, in the caller's transaction; quotas as before."""
-    row = await session.get(AnalyticalWorkspaceRow, agent_id, with_for_update=True)
-    if row is None:
-        row = AnalyticalWorkspaceRow(agent_id=agent_id, revision=0, snapshot=b"{}")
-        session.add(row)
-        await session.flush()
-    current = read_snapshot(row.snapshot)
-    current.update({path: body.encode() for path, body in files.items()})
-    row.snapshot = encode_snapshot(current)
-    row.revision += 1
-    row.updated_at = utcnow()
+    """Add a version's files, in the caller's transaction. Paths carry the version
+    (skills/<id>/<version>/); a path stored again takes the new bytes."""
+    if not files:
+        return
+    now = utcnow()
+    statement = insert(SkillPackageFileRow).values(
+        [
+            {"agent_id": agent_id, "path": path, "content": body.encode(), "stored_at": now}
+            for path, body in files.items()
+        ]
+    )
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=["agent_id", "path"],
+            set_={"content": statement.excluded.content, "stored_at": now},
+        )
+    )

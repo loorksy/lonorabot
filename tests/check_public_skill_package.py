@@ -57,12 +57,12 @@ async def main() -> None:
                 ],
             },
         }
-        # The utility runs in .skill-validation/ in the agent's home.
+        # The utility runs from the agent's home.
         assert c.workspace is not None
         await c.workspace.write(
             SecretScan({}),
             c.agent_id,
-            ".skill-validation/scenario-prices.json",
+            "scenario-prices.json",
             json.dumps({"AAPL": 100}).encode(),
         )
         imported = await r.execute(

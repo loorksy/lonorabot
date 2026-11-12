@@ -36,22 +36,24 @@ pinned to their original content.
 ## Controlled validation and lifecycle
 
 `skill_package_validate` runs one exact stored Python utility, with bounded quoted
-arguments, in the owner's persistent workspace, from a copy of the package in
-`.skill-validation/` in the agent's home (`docs/workspace-created-skills.md`). The
+arguments, in the owner's persistent workspace, from a fresh copy of the stored version at
+`skills/<id>/<version>/` in the agent's home (`docs/workspace-created-skills.md`). The
 owner, Agent, Thread and Run lease are checked before and after execution, and the
 stored source hashes must match before and after. A script that changes its own
 source changes only its copy.
 
 Validation records actual exit status, source digest and arguments. A missing dependency produces the real failed exit and bounded stderr.
 Identical retries return the original receipt, including failures; changed
-arguments cannot reuse that identity. Passing a smoke test is not proof of
+arguments cannot reuse that identity. A call interrupted before its receipt is not run
+again on its own (the workspace has internet access): the agent runs it again. Passing a smoke test is not proof of
 security, predictive accuracy, instrument equivalence or full strategy semantics.
 
 `skill_package_control` supports activation, disabling, rollback and removal.
 Every executable utility must have a successful matching validation before
 activation. Unsupported non-Python utilities prevent activation. Rollback restores
 retained instructions disabled and requires an explicit later activation.
-Removal deletes the catalog resource and retains the stored files. Existing dependency-graph and semantic-version revocations remain
+Activation writes the same fresh copy. Removal deletes the catalog resource and retains
+the stored files. Existing dependency-graph and semantic-version revocations remain
 authoritative. A removed identity with a revoked version cannot be reimported
 under a new label to erase that denial.
 
