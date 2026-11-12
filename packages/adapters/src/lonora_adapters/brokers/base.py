@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from lonora_market.runtime import MarketRuntime
 
+    from ..storage.broker_secrets import BrokerSecrets
+
 from lonora_adapter_kit.broker import BrokerAdapter
-from lonora_adapter_kit.secrets import SecretStore
 from lonora_contracts.account import AccountState
 from lonora_contracts.broker import BrokerConnection
 from lonora_core.user_error import LonoraError
@@ -15,8 +16,9 @@ from lonora_db.events import emit
 
 
 class BrokerManager:
-    def __init__(self, db: Database, secrets: SecretStore):
-        self.db, self.secrets = db, secrets
+    def __init__(self, db: Database, secrets: "BrokerSecrets"):
+        # The broker destination (7.2.3): only this layer and provisioning read it.
+        self.db, self._secrets = db, secrets
         self.market: MarketRuntime | None = None
         self.lock = asyncio.Lock()
         self.closed = False
@@ -52,7 +54,7 @@ class BrokerManager:
             broker = MetaApiBroker(
                 config.account_id,
                 config.region,
-                await self.secrets.read(config.secret_id),
+                await self._secrets.read(config.secret_id),
                 connection_id,
             )
         self.connections[connection_id] = (version, broker)

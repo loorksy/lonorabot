@@ -9,7 +9,7 @@ export type { CallPart, VoicePart } from "@lonora/contracts";
 export type { MessageReaction };
 /** Message fields phase 3 adds on the server (WP-D, WP-E), read defensively. */
 export type ConversationMessage = Message & {
-  /** The generative-UI submit origin (T1, docs/genui.md). */
+  /** The generative-UI submit origin (docs/genui.md §7: `origin = 'ui_submit'`). */
   origin?: string | null;
 };
 
