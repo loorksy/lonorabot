@@ -13,10 +13,13 @@ export function AgentLiveStatus({
   state,
   error: readError,
   refresh,
+  detailed = true,
 }: {
   state: AgentLiveState | null;
   error: unknown;
   refresh: () => Promise<void>;
+  /** «حالة الوكيل التفصيلية» (chat preference): off, only a problem shows. */
+  detailed?: boolean;
 }) {
   const { t, errorText, rtl, locale } = useSession();
   const [expanded, setExpanded] = useState(false);
@@ -24,6 +27,16 @@ export function AgentLiveStatus({
   if (!state) return null;
   const error = actionError ?? (readError ? errorText(readError) : null);
   const attention = state.state === "degraded" || state.state === "action_required";
+  // Off, the bare status line goes; a problem, or anything the owner can act on (a watch, a
+  // task, a wait, a pending decision, a health item), still shows.
+  const actionable =
+    (state.watches ?? []).length > 0 ||
+    state.tasks.length > 0 ||
+    (state.runtime_waits ?? []).length > 0 ||
+    state.pending_approval_count > 0 ||
+    (state.pending_authorization_count ?? 0) > 0 ||
+    state.health.length > 0;
+  if (!detailed && !attention && !error && !actionable) return null;
   const tint = attention
     ? colors.warning
     : state.state === "working"
