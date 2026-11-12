@@ -216,9 +216,18 @@ async def voice_context(
             break
         content = bounded_text(message.content, available)
         if peer is not None:
-            # Another agent's message is information, never this agent's own words (3.2.3);
-            # bounded before framing, so the frame always closes.
-            content = peer_content(peer, bounded_text(message.content, max(available - 600, 32)))
+            # Another agent's message is information, never this agent's own words (3.2.3).
+            # The body is bounded before framing, so the frame always closes, and shrunk
+            # until the framed, escaped entry fits; below the floor the entry is left out.
+            inner = available - 600
+            while inner >= 32:
+                content = peer_content(peer, bounded_text(message.content, inner))
+                excess = len(_json(content).encode()) - available
+                if excess <= 0:
+                    break
+                inner -= excess
+            if inner < 32:
+                break
         entry = _message(role, content)
         remaining -= len(_json(entry).encode()) + bool(seed)
         seed.append(entry)
