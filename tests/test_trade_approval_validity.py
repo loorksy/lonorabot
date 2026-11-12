@@ -257,7 +257,7 @@ async def test_the_reason_never_changes_the_operation_and_the_journal_keeps_it()
         async with fixture.runtime.db.sessions() as session:
             row = await session.get(TradingJournalRow, first["operation_id"])
             assert row is not None
-            assert row.annotation == {"reason": "First", "tolerance": None}
+            assert row.annotation == {"reason": "First", "tolerance": None, "label": ""}
             assert "reason" not in row.request
     finally:
         await save_controls(fixture.runtime.db, original)

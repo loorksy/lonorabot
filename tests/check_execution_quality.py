@@ -241,8 +241,8 @@ async def main() -> None:
             agent["id"],
             PerformanceRead(account_id=account_id, symbol=symbol),
         )
-        assert summary["sample_count"] == 1
-        assert summary["monetary_pnl"] is None and not summary["live_authority_granted"]
+        # The position is still open: statistics count only broker-confirmed closes.
+        assert summary == {"closed_trades": [], "management": []}, summary
         print(
             "PASS blocked and executed historical evidence survives reconciliation; same read-only tool loop reads scoped receipts without broker access"
         )
