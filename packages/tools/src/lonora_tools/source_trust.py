@@ -11,16 +11,22 @@ inside a longer domain, name or path. "evil-github.com", "news.github.com" and
 "github.com.evil.io" do not name github.com; "acme/tools-fork", "acme/tools.js" and
 "evil/acme/tools" do not name acme/tools; a URL names its host ("https://example.com/rss"
 names example.com). A name the owner wrote as part of another saved name ("Notes" in
-"Notes Pro") counts for the longer one only. The same message must also ask for trust
-(a verb such as trust, subscribe, add, install, import, connect, allow, enable or use;
-ثق، اشترك، أضف، ثبّت، استورد، اربط، اسمح، فعّل), or give the server writing (below): a
-passing mention ("take notes on gold", "what does reuters.com say") trusts nothing.
+"Notes Pro") counts for the longer one only. The same message must also ask to trust
+that source, or give the server writing (below): a trust verb (trust, subscribe, add,
+install, import, connect, allow, enable or use; ثق، اشترك، أضف، ثبّت، استورد، اربط، اسمح،
+فعّل) at most TRUST_BEFORE words before the name or TRUST_AFTER words after it, with no
+negation ("don't", "never", "no", "لا", "بدون", ...) in the NEGATION_REACH words before
+the verb. A passing mention ("take notes on gold and add them to my journal", "what does
+reuters.com say? use a chart") or a refusal ("don't trust reuters.com") trusts nothing.
 
 Writing (an MCP server's non-financial write tier) is asked for only when the message
 that names the server gives the server writing: "let/allow <server> write",
 "<server> can write", "write access", "read and write", "writes are fine", «اسمح له
-بالكتابة», «صلاحية الكتابة». A request for the agent to write something ("use Notes to
-write me a summary", «اكتب لي ملخصا») is not one. A negation ("no", "not", "don't",
+بالكتابة», «صلاحية الكتابة». The let-word's object and the modal's subject must be the
+server: one of its names, or "it" / «له» / «لها» when the message names no other server.
+A request for the agent or anyone else to write ("use Notes to write me a summary",
+"let me write", "allow the agent to write", "Scout can write the report", «اكتب لي
+ملخصا») is not one. A negation ("no", "not", "don't",
 "never", "without", "لا", "بدون", ...) in the four words before, "nothing" or "none"
 right after, or a read-only phrase anywhere ("read only", "reading only", «للقراءة
 فقط») keeps the read tier. Anything else is the read tier.
@@ -65,26 +71,16 @@ _WRITE_WORDS = frozenset(
 # Words that give the server writing when one of them is at most four words before the
 # writing word: "let it write", "allow Notes to write", «اسمح له بالكتابة».
 _LET = frozenset(
-    {
-        "let",
-        "lets",
-        "allow",
-        "allows",
-        "allowing",
-        "permit",
-        "enable",
-        "اسمح",
-        "واسمح",
-        "تسمح",
-        "خله",
-        "خليه",
-        "خلي",
-        "دعه",
-        "اتركه",
-    }
+    {"let", "lets", "allow", "allows", "allowing", "permit", "enable", "اسمح", "واسمح", "تسمح"}
 )
+# Let-words and modals that carry their own "it": «خلّه يكتب», «يمكنه الكتابة».
+_LET_IT = frozenset({"خله", "خليه", "دعه", "اتركه", "يمكنه"})
+# The server as the let-word's object or the modal's subject; a pronoun only when the
+# message names no other server. Articles and «ل» may stand between ("the Wallet server").
+_PRONOUNS = frozenset({"it", "له", "لها"})
+_BETWEEN = frozenset({"the", "this", "that", "ل", "server"})
 # "<server> can write"; «يستطيع الكتابة».
-_MODALS = frozenset({"can", "may", "could", "should", "يستطيع", "يقدر", "يمكنه", "تستطيع"})
+_MODALS = frozenset({"can", "may", "could", "should", "يستطيع", "يقدر", "تستطيع"})
 # "write access", "writing permission"; and «صلاحية الكتابة», «إذن الكتابة» before it.
 _GRANTS_AFTER = frozenset({"access", "permission", "permissions", "rights", "tier", "tools"})
 _GRANTS_BEFORE = frozenset(
@@ -96,6 +92,12 @@ _READ_ONLY = re.compile(r"\bread(?:ing)?[\s-]*only\b|\breadonly\b|قراءه ف�
 # it ("t" is the end of "don't", "can't", "won't" once split into words), and the
 # words after it that do ("write nothing").
 WINDOW = 4
+# A trust verb counts at most this many words before the source's name or after it, and
+# not with a negation in the NEGATION_REACH words before it. URL schemes are not words.
+TRUST_BEFORE = 5
+TRUST_AFTER = 2
+NEGATION_REACH = 3
+_SCHEMES = frozenset({"http", "https"})
 _NEGATIONS = frozenset(
     {
         "no",
@@ -175,10 +177,11 @@ def names_source(
 def trusts_source(
     text: str, names: Iterable[str], *, closed: bool = False, others: Iterable[str] = ()
 ) -> bool:
-    """Whether these words name the source and ask for trust, or give it writing (module
-    rule)."""
+    """Whether these words name the source and ask to trust it, or give it writing
+    (module rule)."""
+    names, others = list(names), list(others)
     return names_source(text, names, closed=closed, others=others) and (
-        asks_trust(text) or asks_writes(text, names)
+        asks_trust(text, names) or asks_writes(text, names, others)
     )
 
 
@@ -190,26 +193,48 @@ def _words(text: str, names: Iterable[str] = ()) -> list[str]:
     return _WORD.findall(folded)
 
 
-def asks_trust(text: str) -> bool:
-    """Whether these words ask for trust at all (module rule), not only mention a source."""
-    return any(word in _TRUST or _TRUST_ARABIC.fullmatch(word) for word in _words(text))
+def asks_trust(text: str, names: Iterable[str]) -> bool:
+    """Whether these words ask to trust the source (``names``): a trust verb near its
+    name and not negated (module rule), not only a mention of it."""
+    words = [word for word in _words(text, names) if word not in _SCHEMES]
+    spots = [index for index, word in enumerate(words) if word == "srv"]
+    for index, word in enumerate(words):
+        if not (word in _TRUST or _TRUST_ARABIC.fullmatch(word)):
+            continue
+        if not _NEGATIONS.isdisjoint(words[max(0, index - NEGATION_REACH) : index]):
+            continue
+        if any(-TRUST_AFTER <= spot - index <= TRUST_BEFORE for spot in spots):
+            return True
+    return False
 
 
-def asks_writes(text: str, names: Iterable[str] = ()) -> bool:
-    """Whether these words give the server (``names``) writing (module rule)."""
+def asks_writes(text: str, names: Iterable[str] = (), others: Iterable[str] = ()) -> bool:
+    """Whether these words give the server (``names``) writing (module rule); ``others``:
+    the other servers' names, whose mention keeps "it" from meaning this server."""
     if _READ_ONLY.search(" ".join(_words(text))):
         return False
+    names = list(names)
     words = _words(text, names)
+    alone = not any(names_source(text, [other], others=names) for other in others)
+    subjects = {"srv", *(_PRONOUNS if alone else ())}
+
+    def server_at(index: int, step: int) -> bool:
+        """Whether the server stands at ``index``, skipping articles in ``step``."""
+        while 0 <= index < len(words) and words[index] in _BETWEEN:
+            index += step
+        return 0 <= index < len(words) and words[index] in subjects
 
     def gives(index: int) -> int | None:
         """Where the words that give the server writing start, or None."""
-        before = words[max(0, index - 4) : index]
-        for offset, word in enumerate(before):
-            if word in _LET:
-                return index - len(before) + offset
+        start = max(0, index - 4)
+        for offset, word in enumerate(words[start:index]):
+            if word in _LET_IT or (word in _LET and server_at(start + offset + 1, 1)):
+                return start + offset
         previous = words[index - 1] if index else ""
         following = words[index + 1 : index + 3]
-        if previous in _MODALS or previous in _GRANTS_BEFORE:
+        if previous in _MODALS and server_at(index - 2, -1):
+            return index - 1
+        if previous in _GRANTS_BEFORE:
             return index - 1
         if previous == "and" and index > 1 and words[index - 2] in _GRANTS_BEFORE:
             return index - 2  # "read and write"

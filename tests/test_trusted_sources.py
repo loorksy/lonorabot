@@ -288,6 +288,12 @@ def test_a_passing_mention_trusts_nothing_a_request_does() -> None:
         ("look at skills on github.com/acme/tools", repo),
         ("Take notes on gold today", server),
         ("ماذا يقول reuters.com", feed),
+        ("Don't trust reuters.com", feed),
+        ("Never use reuters.com", feed),
+        ("what does reuters.com say about gold? use a chart", feed),
+        ("Take notes on gold today and use them tomorrow", server),
+        ("Take notes on gold and add them to my journal", server),
+        ("لا تثق بـ reuters.com", feed),
     ):
         assert names_source(text, names), text
         assert not trusts_source(text, names), text
@@ -335,6 +341,11 @@ def test_owner_words_give_the_server_writing_only_in_so_many_words() -> None:
         "Trust Notes and let it write nothing",
         "Trust Notes with no write access",
         "Notes can't write",
+        "Trust Notes, and let me write the summaries myself",
+        "Trust Notes; allow the agent to write me a summary",
+        "Trust Notes. You can write me a summary from it",
+        "Trust Notes so you may write a report",
+        "Trust Notes for reading; Scout can write the report",
         "do not let it write",
         "don't write anything",
         "never allow it to write",
@@ -345,6 +356,9 @@ def test_owner_words_give_the_server_writing_only_in_so_many_words() -> None:
         "written",
     ):
         assert not asks_writes(text, server), text
+    # "it" is the server only when the message names no other server.
+    assert not asks_writes("Trust Notes and Wiki, let it write", server, ("wiki",))
+    assert asks_writes("Trust Notes and Wiki, let Notes write", server, ("wiki",))
 
 
 def test_credential_cards_have_lifetimes_and_fixed_confirmations() -> None:
@@ -1392,7 +1406,10 @@ async def test_feeds_and_credentials_reach_agents_as_configured_never_as_values(
             assert await subscriptions() == 0
             # (a) He names it: the site joins his list (no card) and the feed is added.
             context = await owner_says(
-                fixture, agent, thread["id"], "Subscribe to the analyst feed at https://" + domain
+                fixture,
+                agent,
+                thread["id"],
+                "Subscribe to https://" + domain + ", the analyst feed",
             )
             added = await call(context, "news_feed_subscribe", **feed)
             assert added["status"] == "subscribed" and added["trusted_domain"] == domain, added
