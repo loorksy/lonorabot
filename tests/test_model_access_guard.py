@@ -71,6 +71,7 @@ RULES: dict[str, tuple[str, ...]] = {
         r"(claude\.ai|claude\.com|anthropic\.com)/\S*oauth",
         r"claude\.ai/(api|login)\b",
         r"\.claude/\.credentials\.json|claudeAiOauth|Claude Code-credentials",
+        r"""["']\.credentials\.json["']""",  # the same file joined from parts
         r"\.codex/auth\.json",
         r"auth\.openai\.com",
         r"(chatgpt\.com|chat\.openai\.com)/(backend-api|auth|api/auth)",
@@ -91,6 +92,8 @@ RULES: dict[str, tuple[str, ...]] = {
     ENGINE: (
         r"^\s*(from|import)\s+(claude_agent_sdk|claude_code_sdk|langgraph|crewai|autogen_agentchat)\b",
         r"""(from|require\(|import\()\s*["'](@anthropic-ai/claude-(code|agent-sdk)|@openai/codex(-sdk)?|@openai/agents)""",
+        # A name bound to the program, so that argv[0] in a variable is still found.
+        r"""\b\w+\s*[:=]\s*["'](?:[\w./-]*/)?(claude|codex)["']""",
     ),
 }
 PATTERNS = [
@@ -209,6 +212,7 @@ def caught(kind: str, sample: str, path: str = "packages/core/src/lonora_core/x.
         (LOGIN, 'data["claudeAiOauth"]["accessToken"]', None),
         (LOGIN, 'security find-generic-password -s "Claude Code-credentials"', None),
         (LOGIN, 'Path.home() / ".codex/auth.json"', None),
+        (LOGIN, 'Path.home() / ".claude" / ".credentials.json"', None),
         (LOGIN, '"https://platform.claude.com/v1/oauth/token"', None),
         (LOGIN, '"https://claude.com/cai/oauth/authorize"', None),
         (LOGIN, '"https://api.anthropic.com/api/oauth/claude_cli/create_api_key"', None),
@@ -221,6 +225,8 @@ def caught(kind: str, sample: str, path: str = "packages/core/src/lonora_core/x.
         (ENGINE, '"@anthropic-ai/claude-agent-sdk": "^0.1.0"', "apps/web/package.json"),
         (ENGINE, 'dependencies = ["langgraph>=0.2"]', "packages/core/pyproject.toml"),
         (ENGINE, 'subprocess.run(["claude", "-p", prompt])', None),
+        (ENGINE, 'ENGINE = "claude"\nsubprocess.run([ENGINE, "-p", prompt])', None),
+        (ENGINE, "const bin = '/usr/local/bin/codex';", "apps/web/src/x.ts"),
         (ENGINE, 'subprocess.run(f"claude -p {prompt}", shell=True)', None),
         (ENGINE, 'subprocess.Popen(["/usr/local/bin/claude", "--print", prompt])', None),
         (ENGINE, "await asyncio.create_subprocess_exec('codex', 'exec', task)", None),
@@ -251,6 +257,8 @@ def test_each_rule_catches_what_it_names(kind: str, sample: str, path: str | Non
         ("RUN npm i -g @anthropic-ai/claude-code", "infra/workspace/Dockerfile"),
         ('"@anthropic-ai/claude-code"', "infra/workspace/tools.json"),
         ('route = "/auth/setup-token"', None),
+        ('provider = "anthropic"', None),
+        ('family = "claude-sonnet-4-5"', None),
     ],
 )
 def test_ordinary_use_and_workspace_tooling_are_not_flagged(sample: str, path: str | None) -> None:
