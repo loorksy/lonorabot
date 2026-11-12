@@ -106,6 +106,8 @@ async def dispatch_integration(db: Database, services: OwnerServices, row: Integ
                     message: dict[str, Any] = update.get("message") or {}
                     chat: dict[str, Any] = message.get("chat") or {}
                     chat_id, text = str(chat.get("id", "")), message.get("text")
+                    # The locked row: a link committed since this tick began counts.
+                    config = locked.payload
                     paired = chat_id in config.get("allowed_destinations", [])
                     if FORWARDED.intersection(message) or not isinstance(text, str):
                         # Forwarded or sent through another bot: someone else's words. They

@@ -6,11 +6,12 @@ run answers contains the code (``owner_message_id``): a code read from a page, a
 peer or any other text links nothing, and the code never needs to reach a card or a screen.
 """
 
+import re
 from typing import Any
 
 from lonora_contracts.domain import Contract
 from lonora_db.runs import require_lease
-from lonora_db.schema import MessageRow, SteeringRow
+from lonora_db.schema import EffectReceiptRow, MessageRow, SteeringRow
 from lonora_db.telegram_pairing import ALPHABET, CODE_LENGTH, link_chat
 from pydantic import Field
 from sqlalchemy import or_, select
@@ -20,6 +21,7 @@ from .context import ToolContext
 from .restrictions import owner_message_id
 
 NAME = "telegram_link"
+MAX_MESSAGE = 160
 
 
 class TelegramLinkInput(Contract):
@@ -28,8 +30,12 @@ class TelegramLinkInput(Contract):
 
 async def link(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = TelegramLinkInput.model_validate(args)
+    receipt_key = "telegram-link:" + context.resource_id
     async with context.db.sessions() as session, session.begin():
-        run = await require_lease(session, context.lease)
+        replayed = await session.get(EffectReceiptRow, receipt_key)
+        if replayed is not None:
+            return replayed.result  # A crash-replayed call answers as it did.
+        run = await require_lease(session, context.lease, lock=True)
         message_id = await owner_message_id(session, run)
         said: list[str] = []
         if message_id is not None:
@@ -44,23 +50,35 @@ async def link(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                     )
                 )
             )
-        if not any(params.code.upper() in str(text).upper() for text in said):
+        if not any(names_code(str(text), params.code) for text in said):
             return {
                 "ok": False,
                 "code": "telegram_link_requires_owner_message",
                 "linked": False,
-                "recovery": "Nothing changed. Only the owner links a chat: ask him to type the "
-                "code the bot sent him, here in chat.",
+                "recovery": "Nothing changed. Only the owner links a chat: ask him to send "
+                "the code the bot gave him as a short message of his own.",
             }
-        if not await link_chat(session, context.owner_id, params.code):
-            return {
+        result: dict[str, Any] = (
+            {"ok": True, "linked": True, "sends": "the alerts that push, from every agent"}
+            if await link_chat(session, context.owner_id, params.code)
+            else {
                 "ok": False,
                 "code": "telegram_code_unknown",
                 "linked": False,
-                "recovery": "No chat waits with this code (codes last ten minutes). Ask the "
-                "owner to write to the bot again for a new one.",
+                "recovery": "No chat waits with this code: codes last ten minutes, and a bot "
+                "that already has a chat offers none (the owner unlinks it to move).",
             }
-    return {"ok": True, "linked": True, "sends": "the alerts that push, from every agent"}
+        )
+        session.add(EffectReceiptRow(key=receipt_key, result=result))
+    return result
+
+
+def names_code(text: str, code: str) -> bool:
+    """The owner sent the code himself: as a whole word, in a short message. A long pasted
+    text (a mail, a page) carrying a code links nothing."""
+    return len(text) <= MAX_MESSAGE and bool(
+        re.search(rf"(?<![A-Za-z0-9]){re.escape(code)}(?![A-Za-z0-9])", text, re.IGNORECASE)
+    )
 
 
 def tools() -> list[Tool]:

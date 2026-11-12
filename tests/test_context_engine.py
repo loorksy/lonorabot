@@ -1310,7 +1310,7 @@ def test_every_catalog_tool_is_classified_for_earlier_run_evidence() -> None:
         "market_performance_read", "market_position_size", "market_quote",
         "market_relationship_read", "market_relationship_record", "market_sessions",
         "market_snapshot", "market_structure",
-        "market_symbols", "model_list", "model_request", "news_feed_subscribe",
+        "market_symbols", "model_list", "model_request", "news_feed_subscribe", "telegram_link",
         "capabilities_list", "owner_action_propose", "owner_attention_list",
         "owner_call_request",
         "owner_notify", "peer_send",

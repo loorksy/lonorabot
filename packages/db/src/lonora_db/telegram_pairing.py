@@ -1,12 +1,14 @@
 """Pairing the owner's Telegram chat with a linked bot, from chat (VISION 11.4, P5).
 
-A private chat that writes to a bot with no paired chat gets a one-time code from the bot.
+While a bot has no paired chat, a private chat that writes to it gets a one-time code.
 The owner types that code to Lonora in the app, and the agent links the chat with
 ``telegram_link``, which works only when the owner's own typed message this run answers
 contains the code (``owner_message_id``). So the code proves the Telegram chat and the
 owner's typed message proves the owner: a code that reached the model, a page or another
 chat links nothing by itself. A code is kept as a hash, is valid for ten minutes and works
-once; at most three chats wait at a time. Pairing again replaces the chat.
+once. A chat whose code still waits gets no new one; when three chats wait, the oldest is
+dropped, so strangers cannot hold the owner out. Once a chat is paired the bot offers no
+codes: to move to another chat, the owner unlinks the bot and links it again.
 """
 
 import hashlib
@@ -49,14 +51,18 @@ def waiting(row: IntegrationRow, now: datetime) -> dict[str, dict[str, Any]]:
 
 
 def offer_code(row: IntegrationRow, chat_id: str) -> str | None:
-    """A fresh code for ``chat_id``, replacing its earlier one; None while three other chats
-    already wait (a stranger cannot fill the bot's state)."""
-    now = utcnow()
-    pending = {
-        key: value for key, value in waiting(row, now).items() if value["chat_id"] != chat_id
-    }
-    if len(pending) >= MAX_WAITING:
+    """A code for ``chat_id``; None when the bot already has a chat or this chat's code still
+    waits (one code per chat, one answer per chat)."""
+    if row.payload.get("allowed_destinations"):
         return None
+    now = utcnow()
+    pending = waiting(row, now)
+    if any(value["chat_id"] == chat_id for value in pending.values()):
+        return None
+    while len(pending) >= MAX_WAITING:
+        # The oldest waiting chat makes room: no group of strangers holds every place.
+        oldest = min(pending, key=lambda key: str(pending[key]["expires_at"]))
+        del pending[oldest]
     code = "".join(secrets.choice(ALPHABET) for _ in range(CODE_LENGTH))
     pending[code_hash(code)] = {
         "chat_id": chat_id,
@@ -72,10 +78,15 @@ async def link_chat(session: AsyncSession, owner_id: str, code: str) -> bool:
     digest = code_hash(code)
     now = utcnow()
     rows = await session.scalars(
-        select(IntegrationRow).where(IntegrationRow.owner_id == owner_id).with_for_update()
+        select(IntegrationRow)
+        .where(
+            IntegrationRow.owner_id == owner_id,
+            IntegrationRow.payload["type"].as_string() == "telegram",
+        )
+        .with_for_update()
     )
     for row in rows:
-        if row.payload.get("type") != "telegram":
+        if not row.payload.get("enabled") or row.payload.get("allowed_destinations"):
             continue
         found = waiting(row, now).get(digest)
         if found is None:
