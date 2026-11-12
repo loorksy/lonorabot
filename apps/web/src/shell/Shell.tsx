@@ -1,5 +1,6 @@
 import { plural, t } from "@lingui/core/macro";
 import {
+  appOpenReporter,
   filterRows,
   liveAvatarState,
   projectRunEvents,
@@ -81,8 +82,19 @@ import { Welcome } from "./Welcome";
 import "./shell.css";
 import "./lists/lists.css";
 
+// The owner opened the app: the morning brief's time is learned from it (VISION 11.1).
+const reportAppOpen = appOpenReporter((body) => api.post("/app-opens", body));
+
 export function Shell({ onLogout }: { onLogout: () => void }) {
   const { owner } = useClient();
+  useEffect(() => {
+    reportAppOpen();
+    const visible = () => {
+      if (document.visibilityState === "visible") reportAppOpen();
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => document.removeEventListener("visibilitychange", visible);
+  }, []);
   return (
     <VoiceProvider ownerId={owner.id}>
       <ShellDataLoader onLogout={onLogout}>

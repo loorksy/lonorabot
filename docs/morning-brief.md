@@ -6,11 +6,16 @@ owner in `ln_morning_briefs`.
 
 ## When
 
-- **Time zone:** `reach_me.timezone` when the owner stored one, else UTC. The step only
-  reads reach-me.
-- **Time:** 07:00 in that zone. VISION 11.1 keeps 07:00 until Lonora has seen the owner
-  open the app on 3 days; app opens are not recorded yet, so the learned time is not
-  built.
+- **App opens.** Web (the shell, on mount and when the page becomes visible) and mobile
+  (when the app becomes active) post the device's time zone to `POST /api/app-opens`, at
+  most once per local date of the device. The server keeps the first open of each local
+  date of the device in `ln_app_opens` (`lonora_db/app_opens.py`). Owner session only.
+- **Time zone:** `reach_me.timezone` when the owner stored one, else the zone of the
+  latest recorded app open, else UTC. The step only reads reach-me.
+- **Time:** 07:00 until the owner has opened the app on 3 days (VISION 11.1). Then the
+  median of the first opens of the last recorded days (at most 14), in the owner's zone,
+  15 minutes earlier. The time is planned once per local date and moves at most one
+  hour a day.
 - **Once per local date.** The effect receipt `morning-brief:<owner>:<date>` claims a
   date's brief in the transaction that starts it, under the record's row lock. After
   downtime the step sends only today's brief: missed dates are not sent.

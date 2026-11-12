@@ -244,3 +244,4 @@ export {
   visualDocumentKey,
   visualStateStorageKey,
 } from "./visual-response";
+export { type AppOpenPost, appOpenReporter } from "./app-open";

@@ -10,7 +10,7 @@ import type {
   ThreadPrefs,
   ThreadSettings,
 } from "@lonora/contracts";
-import { activeStatuses, mergePrefs } from "@lonora/core";
+import { activeStatuses, appOpenReporter, mergePrefs } from "@lonora/core";
 import {
   createContext,
   type ReactNode,
@@ -25,6 +25,9 @@ import { AppState, Platform } from "react-native";
 import { api } from "./api";
 import { conversationCache, type InboxSnapshot } from "./conversation-cache";
 import { useSession } from "./session";
+
+// The owner opened the app: the morning brief's time is learned from it (VISION 11.1).
+const reportAppOpen = appOpenReporter((body) => api.post("/app-opens", body));
 
 export type ShellData = {
   agents: Agent[];
@@ -162,7 +165,9 @@ export function ShellDataProvider({ children }: { children: ReactNode }) {
         if (!disposed) timer = setTimeout(() => void tick(), 5000);
       }
     };
+    reportAppOpen();
     const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") reportAppOpen();
       if (state === "active" && !disposed) {
         clearTimeout(timer);
         void tick();

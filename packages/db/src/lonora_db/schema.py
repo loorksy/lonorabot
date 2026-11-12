@@ -572,12 +572,25 @@ class SettingRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AppOpenRow(Base):
+    """The owner's first app open on each local date of the device (VISION 11.1, 8.1)."""
+
+    __tablename__ = "ln_app_opens"
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
+    )
+    local_date: Mapped[str] = mapped_column(String(10), primary_key=True)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    timezone: Mapped[str] = mapped_column(String(64))
+
+
 class MorningBriefRow(Base):
     """One per owner: when the morning brief is due and what the last one saw (11.1).
 
-    ``brief_minute`` is minutes after local midnight in the owner's time zone (07:00 until
-    app opens are recorded); ``baseline``  holds balance and equity per account at the
-    last brief; ``pending`` is the brief of ``local_date`` that Lonora is writing now.
+    ``brief_minute`` is minutes after local midnight in the owner's time zone, planned
+    once per local date (``planned_date``); ``baseline`` holds balance and equity per
+    account at the last brief; ``pending`` is the brief of ``local_date`` that Lonora is
+    writing now.
     """
 
     __tablename__ = "ln_morning_briefs"
@@ -585,6 +598,7 @@ class MorningBriefRow(Base):
         ForeignKey("ln_owners.id", ondelete="CASCADE"), primary_key=True
     )
     brief_minute: Mapped[int] = mapped_column(Integer, default=420)
+    planned_date: Mapped[str | None] = mapped_column(String(10))
     last_local_date: Mapped[str | None] = mapped_column(String(10))
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     baseline: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
