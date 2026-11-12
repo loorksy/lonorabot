@@ -25,7 +25,7 @@
       {"text": "أعطني رقم حساب MT5 واسم سيرفر الوسيط، وكلمة المرور تدخلها في البطاقة لا هنا."}
      ],
      [
-      {"calls": [{"tool": "broker_connect", "arguments": {"login": "$login", "server": "$server"}}]},
+      {"calls": [{"tool": "broker_connect", "arguments": {"login": "$login", "server": "$server", "platform": "mt5"}}]},
       {"text": "أدخل كلمة مرور الحساب في البطاقة، وسأربطه عبر MetaApi."}
      ],
      [

@@ -90,10 +90,17 @@ export LONORA_ENCRYPTION_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA= LONORA
   - the harness asks at hidden prompts for the demo account's login, server, master password and the MetaApi token;
   - the owner's chat message names the login and server, as 9.2 has the owner do;
   - the password and token are saved through the broker Secret card's own route;
-  - the gateway's provisioning step creates and deploys the account through MetaApi;
+  - the gateway's provisioning step creates and deploys the account through MetaApi. The harness repeats it until the card is connected or failed, for up to the product's own deploy and read deadlines plus two minutes (about 22 minutes);
   - Lonora is woken with the balance read from the broker.
-- **What it leaves behind.** Nothing. The product's own disconnect (9.3) removes the connection, its password, and the MetaApi account Lonora created; the step checks that MetaApi removed it.
-- **What it prints.** The step table and its checks. It prints no login, server, password, token or account id. The values live in the run's memory and in its disposable database, which is dropped.
+
+  The template's own (fake) connection is switched off first, so nothing in the run reaches MetaApi with it.
+- **What it leaves behind.** Nothing.
+  - A connected account is removed by the product's own disconnect (9.3). A failed one is removed by the provisioning step's own cleanup, which the harness waits for. This happens even when a check or a run fails.
+  - The harness then asks MetaApi itself, with the owner's token, whether any account for this login and server is left. It reports one that is, without its id. That includes an account that was already there before the run: the product reuses it and does not remove it, so the owner removes it at MetaApi.
+- **What it prints.** The step table and its checks, and nothing else.
+  - While the run goes, its standard output is discarded (the MetaApi SDK prints account ids) and logging is off.
+  - It prints no login, server, password, token, account id or balance.
+  - The values live in the run's memory and in its disposable database, which is dropped.
 - **The model.** Use `--live` in place of `--offline` (with `LONORA_ACCEPT_PROVIDER_KEY`, as above) to have a real model hold the conversation.
 - **Only step 1 runs on the demo account.** The trading steps need an agent that may trade the new account without asking (Full mode, W-AUTH); until then they run on the fake terminal.
 

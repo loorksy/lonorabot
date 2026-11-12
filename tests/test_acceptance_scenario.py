@@ -179,6 +179,8 @@ def test_the_demo_broker_runs_only_the_steps_that_may_reach_it():
         capture_output=True,
         text=True,
         stdin=subprocess.DEVNULL,
+        # No controlling terminal: a prompt would have to come through stdin/stderr.
+        start_new_session=True,
         timeout=120,
     )
     assert done.returncode != 0
