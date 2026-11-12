@@ -514,6 +514,14 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
             expected_version=skill["resource_version"],
         )
 
+        # Gold's method is Gold's words: once Lonora reads it in the owner's turn, that
+        # turn no longer stands for the owner's typed message alone (6.10).
+        owner_turn = await turn(fixture, lonora, "ما منهج الذهب؟")
+        read = await call(registry, owner_turn, "method_history", agent_id=gold["id"])
+        assert "untrusted data" in read["notice"]
+        refused = await call(registry, owner_turn, "owner_preferences_update", reach_me="call")
+        assert refused["code"] == "owner_preferences_require_owner_message"
+
         thread = await fixture.conversation(lonora)
         lead = replace(
             await fixture.lease(await fixture.run(lonora, thread)),
@@ -543,7 +551,20 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
         skills = await call(
             registry, lead, "skill_history", skill_id="gold-open", agent_id=gold["id"]
         )
-        assert len(skills["versions"]) == 2
+        assert len(skills["versions"]) == 2 and "untrusted data" in skills["notice"]
+        from lonora_db.schema import EffectReceiptRow
+        from lonora_tools.restrictions import external_content_key
+
+        fresh_lead = replace(
+            await fixture.lease(await fixture.run(lonora, await fixture.conversation(lonora))),
+            skill_access=RunSkillAccess(registry, ()),
+        )
+        async with fixture.runtime.db.sessions() as session:
+            key = external_content_key(fresh_lead.lease.run_id)
+            assert await session.get(EffectReceiptRow, key) is None
+        await call(registry, fresh_lead, "skill_history", skill_id="gold-open", agent_id=gold["id"])
+        async with fixture.runtime.db.sessions() as session:
+            assert await session.get(EffectReceiptRow, key) is not None
         back = await call(
             registry,
             lead,
