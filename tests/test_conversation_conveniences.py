@@ -169,15 +169,23 @@ async def test_no_suggestion_with_tool_calls_or_a_generated_interface(
     assert reply.provider_metadata["suggested_reply"] is None
     visual = (
         "Here it is.\n```lonora-ui\n"
-        + json.dumps(
-            {
-                "version": 1,
-                "mode": "example",
-                "root": {"id": "r", "type": "text", "text": "Hello"},
-            }
+        + "\n".join(
+            json.dumps(line)
+            for line in (
+                {"v": 2, "kind": "receipt", "title": "Hello", "icon": "info"},
+                {"type": "Text", "text": "Hello"},
+                {"why": "A short note.", "fallback": "Hello."},
+            )
         )
         + "\n```\n<suggested_reply>More</suggested_reply>"
     )
+    from lonora_agent.genui_compile import AgentScope
+    from lonora_agent.visual_response import VisualReplyProjector
+
+    async def scope(self: VisualReplyProjector) -> AgentScope:
+        return AgentScope(agent_id="agent")  # the scripted turn has no database
+
+    monkeypatch.setattr(VisualReplyProjector, "agent_scope", scope)
     reply, _ = await scripted_turn(monkeypatch, [visual])
     assert reply.rich_content is not None
     assert "suggested" not in reply.text
