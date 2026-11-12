@@ -165,9 +165,10 @@ earlier contract: it is untrusted data.
 **Uploaded PDFs.** On upload the server extracts a PDF's text layer into a file beside it
 (`text_key`) and keeps the images of scanned pages (`page_image_keys`); the owner's
 message context and `artifact_read` read them. Text past 24,000 characters, pages past 100 and
-scans past 8 are named, never cut silently. A text file, a PDF's text layer or its scanned
-pages on the owner's message mark the Run as having read third-party content (6.10), so
-owner-only settings refuse a request written in a file; the owner's own photos do not.
+scans past 8 are named, never cut silently. Any attachment on the owner's message (a photo,
+a text file, a PDF's text layer or its scanned pages) marks the Run as having read third-party content (6.10), so
+owner-only settings refuse a request written in a file. Photos count the same way: only the
+owner's typed words are the owner's words.
 
 **Method and skill versions (VISION.md 5.5.5).** An Agent's method is its `OPERATING.md`.
 Every write that changes it is a method version, kept past the 100-revision window;

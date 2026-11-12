@@ -37,7 +37,7 @@ async def merge_steering(
                 else ("", [])
             )
             if notes and await third_party_attachment(
-                session, context.owner_id, context.thread_id, row.seq
+                session, context.owner_id, row.thread_id, row.seq
             ):
                 await mark_external_content(session, context.lease.run_id, "owner_attachment")
             messages.append(
