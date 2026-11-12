@@ -49,7 +49,7 @@ STEPS = (
     StepSpec("verifications", 10, 300),
     StepSpec("account_recovery", 10, 300),
     # The closed-trade ledger from broker deal history (mandate 5.5.1).
-    StepSpec("closed_trades", 10, 300, critical=False),
+    StepSpec("closed_trades", 30, 300, critical=False),
     StepSpec("goals", 10, 120),
     StepSpec("opportunities", 10, 120, critical=False),
     StepSpec("market", 2, 120),
