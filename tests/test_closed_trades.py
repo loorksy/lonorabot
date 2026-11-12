@@ -17,9 +17,8 @@ from uuid import uuid4
 import pytest
 from lonora_contracts.account import Position
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_trading.closed_trades import position_deal, realized, trades
-from test_proactive_wakes import call, database, journal, retire, set_positions, simulation
+from test_proactive_wakes import database, journal, retire, set_positions, simulation
 
 
 def deal(
@@ -137,27 +136,48 @@ async def record(fixture: Any, connection: str) -> int:
     )
 
 
+async def send(fixture: Any, context: Any, name: str, **arguments: Any) -> dict[str, Any]:
+    """The agent's own order through the door: approved by the owner when it asks."""
+    from lonora_adapter_kit.types import ToolCall
+    from lonora_db.schema import RunRow
+    from lonora_tools.loader import load_tools
+
+    tool_call = ToolCall(id=name + "-" + uuid4().hex, name=name, arguments=arguments)
+    answer = await load_tools().execute(tool_call, context)
+    if not answer.get("approval_id") or answer.get("status") == "confirmed":
+        return answer
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id, with_for_update=True)
+        assert run is not None
+        run.status = "waiting_input"
+    approved = await fixture.client.post(
+        f"/api/trading/approvals/{answer['approval_id']}/decision", json={"decision": "approve"}
+    )
+    assert approved.status_code == 200, approved.text
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        run = await session.get(RunRow, context.lease.run_id, with_for_update=True)
+        assert run is not None
+        run.status = "running"
+    sent = await load_tools().execute(tool_call, context)
+    return {**sent, **(sent["results"][0] if sent.get("results") else {})}
+
+
 @pytest.mark.asyncio
 async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
     database()
     from check_streaming import Fixture
     from lonora_db.schema import BrokerDealRow, ClosedTradeCursorRow
-    from lonora_db.trading_mode import set_trading_mode
-    from lonora_trading.controls import read_controls, save_controls
     from sqlalchemy import delete, func, select
 
     fixture = await Fixture().open()
-    original = await read_controls(fixture.runtime.db)
     connection = ""
     try:
         connection = await simulation(fixture, [])
         await quote(fixture, connection, "100", "101")
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         agent = await fixture.agent("Ledger", supervised=True)
-        async with fixture.runtime.db.sessions() as session, session.begin():
-            await set_trading_mode(session, fixture.owner, agent["id"], "full", by="owner_tap")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        opened = await call(
+        opened = await send(
+            fixture,
             context,
             "trade_execute",
             action="buy",
@@ -165,14 +185,16 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             volume="0.2",
             stop_loss="95",
             account_id=connection,
-            reason="Breakout",
+            tolerance="5",
+            reason="Fixture request",
         )
         assert opened["status"] == "confirmed", opened
         ticket = opened["broker_id"]
         assert await record(fixture, connection) == 0 and await ledger(fixture, connection) == []
         # A partial close leaves volume at the broker: not a closed trade.
         await quote(fixture, connection, "103", "104")
-        partial = await call(
+        partial = await send(
+            fixture,
             context,
             "trade_execute",
             action="close_position",
@@ -180,20 +202,19 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             position_id=ticket,
             volume="0.1",
             account_id=connection,
-            reason="Half at the first target",
         )
         assert partial["status"] == "confirmed", partial
         assert await record(fixture, connection) == 0 and await ledger(fixture, connection) == []
         # The rest closes: volume zero at the broker, one row.
         await quote(fixture, connection, "99", "100")
-        closed = await call(
+        closed = await send(
+            fixture,
             context,
             "trade_execute",
             action="close_position",
             symbol="XAUUSD",
             position_id=ticket,
             account_id=connection,
-            reason="Reason for the trade broke",
         )
         assert closed["status"] == "confirmed", closed
         assert await record(fixture, connection) == 1
@@ -217,19 +238,9 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             await session.execute(
                 delete(ClosedTradeCursorRow).where(ClosedTradeCursorRow.account_id == connection)
             )
-        # A restarted process: a new broker manager over the same database.
-        from lonora_adapters.brokers.base import BrokerManager
-        from lonora_trading.closed_trades import record_closed_trades
-
-        services = fixture.runtime.services(fixture.owner).brokers
-        restarted = BrokerManager(fixture.runtime.db, services.secrets)
-        try:
-            assert (
-                await record_closed_trades(fixture.runtime.db, restarted, fixture.owner, connection)
-                == 0
-            )
-        finally:
-            await restarted.close()
+        # A restarted process: no broker connection survives, only the database.
+        fixture.runtime.services(fixture.owner).brokers.connections.clear()
+        assert await record(fixture, connection) == 0
         assert len(await ledger(fixture, connection)) == 1
         async with fixture.runtime.db.sessions() as session:
             kept = await session.scalar(
@@ -239,7 +250,6 @@ async def test_every_close_of_the_test_broker_creates_exactly_one_row() -> None:
             )
             assert kept == 0  # The closed trade's deals live on its row only.
     finally:
-        await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
         await fixture.close()
 

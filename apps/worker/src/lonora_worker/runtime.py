@@ -19,6 +19,9 @@ def create_gateway(settings: Settings) -> tuple[Database, Gateway]:
         mcp_owner_trust=settings.mcp_owner_trust,
         searxng_url=settings.searxng_url,
         browser_url=settings.browser_url,
+        expo_access_token=settings.expo_access_token.get_secret_value()
+        if settings.expo_access_token
+        else None,
         chart_visual=ChartVisualRuntime(
             settings.chart_renderer_url,
             str(settings.chart_browser_executable) if settings.chart_browser_executable else None,
