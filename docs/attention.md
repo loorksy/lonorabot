@@ -37,14 +37,23 @@ mirrored in `packages/contracts/src/attention.ts`. The item is the payload of th
 
 ## Lonora's system alerts
 
-Lonora receives the system alerts (mandate 3.1.5, 9.4): each broker health item and each
-`operation_uncertain` item wakes Lonora once (`lonora_db/system_alerts.py`).
+Lonora receives the system alerts (mandate 3.1.5, 9.4): each broker health problem and
+each uncertain operation wakes Lonora once (`lonora_db/system_alerts.py`). On every
+attention tick, `wake_for_alerts` wakes Lonora for each open alert item it has not been
+woken for yet.
 
 - The wake is a Run of Lonora with trigger `broker_event` in a new work thread, with
   `origin_thread_id` set to Lonora's conversation, so its non-empty answer is posted
-  there (`outcome_return`). Its id is derived from the item, so it never runs twice.
+  there (`outcome_return`). Its id is derived from the problem (`alert_key`: the code,
+  account and outage start, or the operation id), so the same problem never wakes
+  Lonora twice: not across gateways, nor when its item is raised again in the same
+  outage after the connection was disabled and enabled.
 - Its prompt is fixed server text that names only server values (the problem, the
   account or operation id, the adapter's reason code, the start time). No text from a
   model, a peer, a page or the owner reaches it.
 - It keeps Lonora's normal authority: it is not observe-only.
-- A paused Lonora is not woken (4.7); the owner still has the item.
+- A paused Lonora is not woken (4.7); the owner still has the item, and Lonora is woken
+  for it on the first tick after it resumes, while the problem still stands. A wake
+  that fails is logged and tried again on a later tick.
+- An uncertain operation delivered without its record (its projection kept failing,
+  `quarantine_event`) names no operation, so it wakes nobody; the owner has the item.
