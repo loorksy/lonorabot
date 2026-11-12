@@ -36,7 +36,6 @@ async def prepare_wait(
             or source.owner_id != thread.owner_id
             or source.agent_id != run.agent_id
             or source.thread_id != run.thread_id
-            or source.payload.get("goal_id")
             or not source.payload.get("enabled", True)
         ):
             raise LonoraError("task_wait_source_invalid", 409)

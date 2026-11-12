@@ -42,8 +42,8 @@ def selected(*intents: str, **kwargs: Any) -> list[str]:
         (("chart", "market"), ["chart-analysis", "market-analysis"]),
         (("research",), ["research"]),
         (
-            ("trade", "goal"),
-            ["chart-analysis", "market-analysis", "trade-management", "trading-goal"],
+            ("trade",),
+            ["chart-analysis", "market-analysis", "trade-management"],
         ),
         ((), []),
     ],
@@ -63,7 +63,7 @@ def definition(identity: str, **kwargs: Any) -> SkillDefinition:
 
 def test_resources_validate_and_policies_independent() -> None:
     playbooks = validate_resources(TOOLS)
-    assert len(playbooks) == 6
+    assert len(playbooks) == 5
     assert "ambiguous-execution-recovery" in playbooks
     assert len(load_constitution()) == 7
     assert load_constitution()[0].startswith("<lonora_operating_policy>")
@@ -72,7 +72,7 @@ def test_resources_validate_and_policies_independent() -> None:
     assert "Emergency Stop" not in "\n".join(load_constitution())
     assert "Super Bot" not in "\n".join(load_constitution())
     assert "MetaApi" not in "\n".join(load_constitution())
-    assert len(built_in_skills()) == 9
+    assert len(built_in_skills()) == 8
 
 
 def test_explicit_and_trigger_modes() -> None:
@@ -219,7 +219,7 @@ def test_conflicts_budget_and_ordering() -> None:
         == "skill_context_budget_exceeded"
     )
     for _ in range(3):
-        assert selected("trade", "goal") == selected("trade", "goal")
+        assert selected("trade", "market") == selected("trade", "market")
 
 
 class FakeSession:
@@ -314,7 +314,6 @@ async def test_actual_context_builder_resolver_and_fenced_diagnostics(
     monkeypatch.setattr(builder, "wake_context", empty_context)
     monkeypatch.setattr(builder, "attachment_parts", AsyncMock(return_value=("", [])))
     monkeypatch.setattr(builder, "history_gap", AsyncMock(return_value=None))
-    monkeypatch.setattr(builder, "goal_context_blocks", AsyncMock(return_value=("", "")))
     monkeypatch.setattr(builder, "recent_tool_evidence", AsyncMock(return_value=RunEvidence()))
     monkeypatch.setattr(
         builder,
