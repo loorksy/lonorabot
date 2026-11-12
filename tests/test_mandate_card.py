@@ -319,3 +319,40 @@ async def test_lonoras_card_for_a_deleted_agent_ends_with_it() -> None:
         assert row["status"] != "pending", row
     finally:
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_lonora_offers_its_own_mandate_card_at_onboarding() -> None:
+    """4.3.1: Lonora starts in Ask and offers its Mandate card during onboarding."""
+    database()
+    from check_streaming import Fixture
+    from lonora_db.personal_agent import ensure_personal_agent
+    from lonora_db.schema import OwnerActionRow
+    from lonora_db.threads import conversation_thread
+    from sqlalchemy import select
+
+    fixture = await Fixture().open()
+    try:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            lonora = await ensure_personal_agent(session, fixture.owner)
+            thread = await conversation_thread(session, fixture.owner, lonora.id)
+            cards = list(
+                await session.scalars(
+                    select(OwnerActionRow).where(
+                        OwnerActionRow.owner_id == fixture.owner,
+                        OwnerActionRow.kind == "trading_mode",
+                        OwnerActionRow.subject == "trading_mode:" + lonora.id,
+                    )
+                )
+            )
+            # Asked again, no second card.
+            await ensure_personal_agent(session, fixture.owner)
+        assert [(c.subject, c.thread_id, c.status) for c in cards] == [
+            ("trading_mode:" + lonora.id, thread.id, "pending")
+        ], cards
+        assert await mode_of(fixture, lonora.id) == "ask"
+        tapped = await tap(fixture, cards[0].id, "full")
+        assert tapped.status_code == 200, tapped.text
+        assert await mode_of(fixture, lonora.id) == "full"
+    finally:
+        await fixture.close()
