@@ -221,10 +221,10 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     assert not tool.financial and not tool.read_only and tool.replay_safe
     assert tool.toolset == "trading" and not tool.eager
     # No tool module imports anything that settles or decides a card (owner_action_propose
-    # reads the account's limits and actions for a grant card). agent_create raises
-    # a creation card or a creation's Undo card, supervision_change a supervision card, its
-    # Undo card or a Restore card; trust and credential cards come from a proposal or the
-    # server; none settles one.
+    # reads the account's limits and actions for a grant card). agent_create raises the
+    # new agent's Mandate card when the owner asked for full authority, supervision_change
+    # a supervision card, its Undo card or a Restore card; trust and credential cards come
+    # from a proposal or the server; none settles one.
     allowed = {
         "ALL_ACTIONS",
         "account_policy",
@@ -235,8 +235,7 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         "lock_owner_actions",
         "payload_hash",
         "pending_effect",
-        "propose_creation",
-        "raise_created_card",
+        "raise_system_card",
         "propose_supervision",
         "raise_supervision_card",
         "raise_supervision_stopped_card",

@@ -26,7 +26,6 @@ export const PAGES = [
   "new-skill",
   "file-edit",
   "activity",
-  "new-agent",
   "new-group",
   "owner",
   "lab",

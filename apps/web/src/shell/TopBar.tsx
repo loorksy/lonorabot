@@ -22,7 +22,6 @@ export function TopBar({
   onBack,
   onNewChat,
   onNewTask,
-  onNewAgent,
   header,
   selection,
   children,
@@ -37,7 +36,6 @@ export function TopBar({
   onNewChat: () => void;
   onNewTask: () => void;
   /** «إنشاء وكيل» on the agents page. */
-  onNewAgent?: () => void;
   /** The conversation header, when the route is a conversation. */
   header?: ReactNode;
   /** The selection toolbar replaces the header on the chat list and the archived page. */
@@ -52,11 +50,6 @@ export function TopBar({
   const tasks = root && route.root === "tasks";
   const newTask = (
     <button type="button" className="icon" aria-label={t`Create task`} onClick={onNewTask}>
-      <Icon name="plus" />
-    </button>
-  );
-  const newAgent = route.kind === "page" && route.page === "agents" && onNewAgent && (
-    <button type="button" className="icon" aria-label={t`Create agent`} onClick={onNewAgent}>
       <Icon name="plus" />
     </button>
   );
@@ -81,7 +74,6 @@ export function TopBar({
         ) : detail ? (
           <>
             <div className="float-back">{back}</div>
-            {newAgent && <div className="float-actions">{newAgent}</div>}
           </>
         ) : (
           <header
@@ -98,7 +90,6 @@ export function TopBar({
               </button>
             )}
             {tasks && newTask}
-            {newAgent}
           </header>
         ))}
       {children}

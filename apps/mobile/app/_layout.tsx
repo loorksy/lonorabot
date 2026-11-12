@@ -54,7 +54,6 @@ export default function Layout() {
                         <Stack.Screen name="agents" />
                         <Stack.Screen name="archived" />
                         <Stack.Screen name="thread" />
-                        <Stack.Screen name="new" />
                         <Stack.Screen name="charts" />
                         <Stack.Screen name="new-group" options={{ presentation: "modal" }} />
                         <Stack.Screen name="(settings)" />

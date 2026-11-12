@@ -19,8 +19,6 @@ export type OwnerActionKind =
   | "grant_authority"
   | "agent_model"
   | "agent_model_changed"
-  | "create_agent"
-  | "agent_created"
   | "supervise"
   | "supervision_created"
   | "supervision_stopped"
@@ -52,22 +50,8 @@ export type CredentialTarget =
   | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
-/** A creation card's agent, read on the server. */
-export type OwnerActionAgent = {
-  exists: boolean;
-  id?: string;
-  name: string | null;
-  template?: AgentTemplate | null;
-  symbol?: string | null;
-  level?: "analysis" | "supervised" | "autonomous";
-  paused?: boolean;
-  report_to?: string[];
-  /** Names of the agents it supervises (reads, messages, pauses; never trades). */
-  supervises?: string[];
-  model?: string | null;
-  /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
-  responsibility?: string | null;
-};
+/** The agent a Mandate card switches, read on the server. */
+export type OwnerActionAgent = { exists: boolean; id?: string; name: string | null };
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -202,10 +186,8 @@ export type OwnerAction = {
       /** Lonora asked on the owner's behalf for another agent. */
       asked_by_agent_name?: string;
     };
-    /** create_agent / agent_created: the agent the card creates or created. */
+    /** trading_mode: the agent the Mandate card switches. */
     agent?: OwnerActionAgent;
-    /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
-    undo?: "delete" | "pause";
     /**
      * supervise / supervision_created / supervision_stopped: who supervises whom;
      * supervision_paused: which supervisor paused which work of which agent. Names are

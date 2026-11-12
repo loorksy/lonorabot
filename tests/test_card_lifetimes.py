@@ -183,14 +183,14 @@ async def test_undo_and_notice_cards_are_never_renewed(task_db: Fixture) -> None
         undo = await create_card(
             session,
             owner,
-            card_id="created-undo",
+            card_id="watch-undo",
             agent_id=agent,
             thread=thread,
             run_id=None,
             source="system",
-            kind="agent_created",
-            subject="agent:" + agent,
-            payload={"agent_id": agent},
+            kind="watch_changed",
+            subject="watch:watch-1",
+            payload={"watch_id": "watch-1"},
         )
         undo.expires_at = utcnow() - timedelta(minutes=1)
         with pytest.raises(LonoraError) as error:

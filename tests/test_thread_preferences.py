@@ -442,41 +442,6 @@ async def test_the_group_lead_answers_when_nobody_is_mentioned():
 
 
 @pytest.mark.asyncio
-async def test_the_template_is_persisted_by_every_creation_path():
-    database()
-    from check_streaming import Fixture
-
-    fixture = await Fixture().open()
-    try:
-        form = await fixture.request(
-            "POST", "/agents", {"name": "نموذج " + uuid4().hex[:6], "scope_mode": "flexible"}
-        )
-        fixture.agents.append(form["id"])
-        assert form["template"] == "general"
-        created = await fixture.request(
-            "POST",
-            "/agents/create",
-            {"template": "research", "name": "باحث " + uuid4().hex[:6], "responsibility": "ابحث"},
-        )
-        fixture.agents.append(created["id"])
-        assert created["template"] == "research" and created["created"] is True
-        assert created["role"] == "general" and created["trading_symbol"] is None
-        again = await fixture.request("GET", f"/agents/{created['id']}")
-        assert again["template"] == "research"
-        response = await fixture.client.post(
-            "/api/agents/create",
-            json={"template": "trading", "name": "x", "responsibility": ""},
-        )
-        assert response.status_code == 422  # a trading template needs its market
-        lonora = next(
-            agent for agent in await listing(fixture, "/agents") if agent["role"] == "personal"
-        )
-        assert lonora["template"] is None
-    finally:
-        await fixture.close()
-
-
-@pytest.mark.asyncio
 async def test_chat_lists_are_unique_by_name_and_hold_the_owners_threads():
     database()
     from check_streaming import Fixture

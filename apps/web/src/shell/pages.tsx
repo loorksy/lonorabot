@@ -11,7 +11,6 @@ import { userError } from "../lib/user_error";
 import { Artifacts } from "../pages/Artifacts";
 import { Knowledge } from "../pages/Knowledge";
 import type { SettingsTab } from "../pages/settings-sidebar";
-import { AgentCreatePanel } from "../pages/shell/bot-panel";
 import { useClient } from "../providers/ClientProvider";
 import { AgentsPage } from "./AgentsPage";
 import { AgentPage } from "./agent/AgentPage";
@@ -133,8 +132,6 @@ export function pageTitle(page: Page): string {
       return t`Edit file`;
     case "activity":
       return t`Activity log`;
-    case "new-agent":
-      return t`Create agent`;
     case "new-group":
       return t({ message: "Create group", context: "page title" });
     case "owner":
@@ -300,17 +297,6 @@ export function DetailPages({
         <Route path="/app/activity" element={<ActivityPage />} />
         <Route path="/app/call" element={<CallPage />} />
         <Route path="/app/incoming/:callId" element={<IncomingPage />} />
-        <Route
-          path="/app/new-agent"
-          element={scoped(
-            <AgentCreatePanel
-              onCreated={(row) => {
-                data.refresh();
-                nav.go(`/app/agent/${row.id}`, { replace: true });
-              }}
-            />,
-          )}
-        />
         <Route
           path="/app/new-group"
           element={scoped(

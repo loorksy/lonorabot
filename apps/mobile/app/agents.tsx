@@ -36,16 +36,7 @@ export default function Agents() {
   if (!owner) return <Redirect href="/sign-in" />;
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <PageHeader
-        title={t("sh_fAgents")}
-        actions={
-          <CircleButton
-            icon="plus"
-            label={t("sh_createAgent")}
-            onPress={() => router.push("/new")}
-          />
-        }
-      />
+      <PageHeader title={t("sh_fAgents")} />
       {!data.loaded ? (
         <SkRows count={5} />
       ) : (

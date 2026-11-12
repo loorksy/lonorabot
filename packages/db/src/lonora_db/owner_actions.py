@@ -68,9 +68,6 @@ LIFETIME = {
     "grant_authority": timedelta(hours=24),
     "agent_model": timedelta(hours=24),
     "agent_model_changed": timedelta(days=7),
-    # An agent's proposal to create an agent, and the Undo card after a creation.
-    "create_agent": timedelta(hours=24),
-    "agent_created": timedelta(days=7),
     # An agent's proposal to set supervision, the Undo card after one is set, and the
     # Restore card after supervision was stopped from chat.
     "supervise": timedelta(hours=24),
@@ -275,21 +272,6 @@ async def stale_reason(
             assert_market_binding(agent, draft.account_id, symbol)
         covered = await covering_grant(session, owner_id, draft)
         return "grant_already_active" if covered is not None else None
-    if kind == "create_agent":
-        from .agent_creation import check_creation, existing_creation
-
-        spec = payload["spec"]
-        # The owner already had it created another way (said yes in chat, another card).
-        if await existing_creation(session, owner_id, spec["template"], spec["name"]):
-            return "agent_already_created"
-        try:
-            await check_creation(session, owner_id, spec)
-        except LonoraError as error:
-            return CREATION_STALE.get(error.code, "agent_creation_unavailable")
-        return None
-    if kind == "agent_created":
-        agent = await session.get(AgentRow, payload["agent_id"])
-        return "agent_already_removed" if agent is None or agent.owner_id != owner_id else None
     if kind == "supervise":
         from .supervision import supervises
 
@@ -592,17 +574,6 @@ async def _active_grants(
     )
 
 
-# Why a creation card no longer applies, by the refusal its re-check raised.
-CREATION_STALE = {
-    "agent_limit_reached": "agent_limit_reached",
-    "agent_not_found": "agent_report_to_missing",
-    "agent_report_to_invalid": "agent_report_to_missing",
-    "agent_supervises_missing": "supervision_agent_missing",
-    "broker_sessions_not_found": "broker_connection_changed",
-    "broker_connection_changed": "broker_connection_changed",
-}
-
-
 def proposal_payload(
     proposal: OwnerActionProposal, grant: GrantDraft | None = None
 ) -> tuple[str, dict[str, Any]]:
@@ -759,8 +730,6 @@ async def card_facts(
         return facts, False
     if row.kind == "grant_authority":
         return await grant_facts(session, row, facts), True
-    if row.kind in {"create_agent", "agent_created"}:
-        return await creation_facts(session, row, facts), False
     if row.kind in {"supervise", "supervision_created", "supervision_stopped"}:
         return await supervision_facts(session, row, facts), False
     if row.kind == "supervision_paused":
@@ -879,75 +848,6 @@ async def grant_facts(
     )
     # The one rule is shown on the owner's first grant card.
     facts["first_grant"] = signed is None
-    return facts
-
-
-async def creation_facts(
-    session: AsyncSession, row: OwnerActionRow, facts: dict[str, Any]
-) -> dict[str, Any]:
-    """What a creation card shows: the agent's name, template, focus pair and ladder,
-    whom it reports to, and its task exactly as stored. That task becomes the agent's
-    standing instructions, so the owner sees every word the tap commits to; the client
-    shows it isolated and labelled as the agent's task, never as Lonora's words."""
-    from lonora_contracts.agent_creation import TEMPLATE_LEVEL
-
-    from .agent_creation import agent_origin, report_targets, undo_plan
-    from .agent_permissions import effective_permission
-
-    owner_id = row.owner_id
-    if row.kind == "create_agent":
-        spec = row.payload["spec"]
-        report_to = [str(item) for item in spec.get("report_to", [])]
-        supervises = [str(item) for item in spec.get("supervises", [])]
-        names = await agent_names(session, owner_id, {*report_to, *supervises})
-        account_id = spec.get("account_id")
-        if account_id:
-            facts["account"] = account_facts(
-                await session.get(BrokerSessionRow, account_id), account_id
-            )
-        model = spec.get("model")
-        facts["agent"] = {
-            "exists": False,
-            "name": spec["name"],
-            "template": spec["template"],
-            "symbol": spec.get("symbol"),
-            "level": TEMPLATE_LEVEL[spec["template"]],
-            "paused": False,
-            "report_to": [names[item] for item in report_to if item in names],
-            "supervises": [names[item] for item in supervises if item in names],
-            "model": cast(dict[str, Any], model).get("model") if isinstance(model, dict) else None,
-            "responsibility": str(spec.get("responsibility") or "") or None,
-        }
-        return facts
-    agent_id = row.payload["agent_id"]
-    agent = await session.get(AgentRow, agent_id)
-    if agent is None or agent.owner_id != owner_id:
-        facts["agent"] = {"exists": False, "name": row.result.get("agent_name")}
-        return facts
-    from .supervision import supervised_ids
-
-    origin = await agent_origin(session, owner_id, agent_id)
-    report_to = report_targets(origin)
-    supervises = await supervised_ids(session, owner_id, agent_id)
-    names = await agent_names(session, owner_id, {*report_to, *supervises})
-    if agent.trading_account_id:
-        facts["account"] = account_facts(
-            await session.get(BrokerSessionRow, agent.trading_account_id),
-            agent.trading_account_id,
-        )
-    facts["agent"] = {
-        "exists": True,
-        "name": agent.name,
-        "template": origin.get("template"),
-        "symbol": agent.trading_symbol,
-        "level": await effective_permission(session, owner_id, agent_id),
-        "paused": agent.paused,
-        "report_to": [names[item] for item in report_to if item in names],
-        "supervises": [names[item] for item in supervises if item in names],
-        "model": None,
-        "responsibility": agent.instructions or None,
-    }
-    facts["undo"] = await undo_plan(session, owner_id, agent_id)
     return facts
 
 
@@ -1368,111 +1268,6 @@ async def propose_effect(
     return row, True
 
 
-async def propose_creation(
-    session: AsyncSession,
-    owner_id: str,
-    spec: dict[str, Any],
-    *,
-    card_id: str,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> tuple[OwnerActionRow, bool]:
-    """A creation card when no owner message asked for the agent: the owner's tap
-    creates it. A repeated proposal of the same agent returns the card shown."""
-    await lock_owner_actions(session, owner_id)
-    existing = await session.get(OwnerActionRow, card_id)
-    if existing is not None:
-        if existing.owner_id != owner_id or existing.agent_id != agent_id:
-            raise LonoraError("owner_action_not_found", 404)
-        return existing, False
-    return await propose_effect(
-        session,
-        owner_id,
-        "create_agent",
-        "agent-create",
-        {"spec": spec},
-        card_id=card_id,
-        agent_id=agent_id,
-        thread_id=thread_id,
-        run_id=run_id,
-    )
-
-
-async def settle_created_proposals(
-    session: AsyncSession,
-    owner_id: str,
-    template: str,
-    name: str,
-    *,
-    keep: str | None = None,
-) -> list[OwnerActionRow]:
-    """Pending creation cards for an agent that now exists (same template and name) no
-    longer apply: tapping one would create a second agent. The caller holds the
-    owner-actions lock, so no tap is deciding one of them at this moment."""
-    wanted = " ".join(name.split()).casefold()
-    rows = await session.scalars(
-        select(OwnerActionRow)
-        .where(
-            OwnerActionRow.owner_id == owner_id,
-            OwnerActionRow.kind == "create_agent",
-            OwnerActionRow.status == "pending",
-        )
-        .order_by(OwnerActionRow.created_at, OwnerActionRow.id)
-        .with_for_update()
-    )
-    settled: list[OwnerActionRow] = []
-    for row in list(rows):
-        spec = row.payload["spec"]
-        if row.id == keep or spec["template"] != template:
-            continue
-        if str(spec["name"]).casefold() != wanted:
-            continue
-        expired = row.expires_at <= utcnow()
-        settled.append(
-            await settle(
-                session,
-                row,
-                "expired" if expired else "superseded",
-                "expired" if expired else "agent_already_created",
-            )
-        )
-    return settled
-
-
-async def raise_created_card(
-    session: AsyncSession,
-    owner_id: str,
-    created_agent: AgentRow,
-    *,
-    agent_id: str,
-    thread_id: str | None,
-    run_id: str | None,
-) -> OwnerActionRow:
-    """The one-line result card of a creation, with Undo; one per created agent."""
-    await lock_owner_actions(session, owner_id)
-    subject = "agent:" + created_agent.id
-    card_id = stable_id(owner_id, "owner-action:agent_created:" + subject)
-    existing = await session.get(OwnerActionRow, card_id)
-    if existing is not None:
-        return existing
-    thread = await card_thread(session, owner_id, agent_id, thread_id)
-    row = await create_card(
-        session,
-        owner_id,
-        card_id=card_id,
-        agent_id=agent_id,
-        thread=thread,
-        run_id=run_id,
-        source="system",
-        kind="agent_created",
-        subject=subject,
-        payload={"agent_id": created_agent.id},
-    )
-    row.result = {"agent_name": created_agent.name}
-    return row
-
-
 async def propose_supervision(
     session: AsyncSession,
     owner_id: str,
@@ -1875,8 +1670,6 @@ async def thread_cards(
 def confirmation_code(row: OwnerActionRow) -> str:
     if row.kind == "resolve_operation":
         return "owner_action_resolve_" + str(row.result.get("outcome", "unknown"))
-    if row.kind == "agent_created":
-        return "owner_action_undo_" + str(row.result.get("undo", "paused"))
     if row.kind == "trust_source" and row.payload.get("source_kind") == "mcp_server":
         # Trusted for reading while some tools may change something: those wait.
         if row.result.get("tier") == "read" and row.result.get("writes"):
@@ -2184,8 +1977,6 @@ async def awaiting_owner_answer(session: AsyncSession, owner_id: str, operation_
 async def card_account(session: AsyncSession, row: OwnerActionRow) -> str | None:
     if row.kind in {"set_account_limits", "grant_authority"}:
         return cast(str, row.payload["account_id"])
-    if row.kind == "create_agent":
-        return cast(str | None, row.payload["spec"].get("account_id"))
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, row.payload["restriction_id"])
         return restriction.account_id if restriction else None

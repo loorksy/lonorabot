@@ -1,49 +1,39 @@
 """The agent directory and creating persistent agents from the conversation.
 
-``agent_create`` creates an independent root agent from a template when the run answers
-the owner's message (that message is recorded as its source). Otherwise it raises a
-creation card and nothing is created until the owner taps it. A new agent never gets
-money authority: the trading template starts at "Ask me" and the others at "No
-trading". The trading template's focus pair is looked up in the broker catalog: the
-only connected account is used without asking, and when two accounts or two symbols
-match, the result lists them so the agent asks the owner one focused question.
+Only Lonora creates agents (mandate 3.1.2, 3.2.2), on its own judgment, without asking
+first: flat, with no template, hierarchy, card or cap. A team agent's call is refused
+with the way to ask Lonora. An assigned market is looked up in the broker catalog (the
+only connected account is used without asking; when two accounts or two symbols match,
+the result lists them so Lonora asks the owner one focused question) and written into
+the new agent's method. The mode follows 4.3.2 and 4.3.3: an agent the owner asked for
+starts in Ask, and a request for full authority shows its Mandate card; an agent Lonora
+creates on its own copies Lonora's mode unless Lonora creates it in Ask.
 """
 
 from hashlib import sha256
 from typing import Any, cast
 
 from lonora_adapters.brokers.base import BrokerManager
-from lonora_contracts.agent_creation import TEMPLATE_LEVEL, AgentCreateInput
+from lonora_contracts.agent_creation import AgentCreateInput
 from lonora_contracts.broker import BrokerConnection
-from lonora_contracts.domain import Contract, utcnow
-from lonora_contracts.model_routing import Capability, ModelSelection
-from lonora_core.user_error import LonoraError
-from lonora_db.agent_binding import agent_binding
+from lonora_contracts.domain import Contract
+from lonora_contracts.owner_actions import OwnerActionProposal
+from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_creation import (
-    MAXIMUM_ACTIVE_AGENTS,
     MAXIMUM_CREATIONS_PER_RUN,
-    active_agents,
-    agent_origin,
-    existing_creation,
-    report_targets,
     run_creations,
 )
 from lonora_db.agent_directory import agent_directory
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.client import Database
-from lonora_db.lead import personal_agent_id
+from lonora_db.lead import is_lead
 from lonora_db.owner_actions import (
     account_facts,
-    live_status,
     lock_owner_actions,
-    payload_hash,
-    pending_effect,
-    propose_creation,
-    raise_created_card,
+    raise_system_card,
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
-from lonora_db.supervision import supervised_ids
 from lonora_session.idempotency import stable_id
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,118 +132,52 @@ async def resolve_market(
     return {"resolved": True, "account_id": row.id, "symbol": name, "version": row.version}
 
 
-async def configured_models(context: ToolContext) -> list[ModelSelection]:
-    """The owner's configured conversation models, in routing order."""
-    route: Any = getattr(context.router, "route", None)
-    if route is None:
-        return []
-    try:
-        routed = await route(
-            Capability.CONVERSATION, owner_id=context.owner_id, agent_id=context.agent_id
-        )
-    except LonoraError:
-        return []
-    return list(routed.choices)
-
-
-def creation_receipt(owner_id: str, message_id: str, template: str, name: str) -> str:
-    """One agent per owner message, template and requested name, across retries."""
-    digest = sha256(
-        "\n".join((owner_id, message_id, template, name.casefold())).encode()
-    ).hexdigest()
+def creation_receipt(owner_id: str, message_id: str, name: str) -> str:
+    """One agent per owner message and requested name, across retries."""
+    digest = sha256("\n".join((owner_id, message_id, name.casefold())).encode()).hexdigest()
     return "agent-create:" + digest
 
 
-def created_card_id(owner_id: str, agent_id: str) -> str:
-    return stable_id(owner_id, "owner-action:agent_created:agent:" + agent_id)
+LEAD_ONLY_HINT = (
+    "Only Lonora creates agents. Ask Lonora with peer_send for the agent you need, saying "
+    "what it is for; when the owner asked you for it, hand the owner's request to Lonora "
+    "that way and tell the owner in one line that Lonora will create it."
+)
 
 
 async def created_result(
-    session: AsyncSession,
-    context: ToolContext,
-    row: AgentRow,
-    *,
-    deduplicated: bool,
+    session: AsyncSession, context: ToolContext, row: AgentRow, *, deduplicated: bool
 ) -> dict[str, Any]:
-    origin = await agent_origin(session, context.owner_id, row.id)
-    template = str(origin.get("template") or "general")
-    card = await session.get(OwnerActionRow, created_card_id(context.owner_id, row.id))
+    from lonora_db.trading_mode import trading_mode
+
+    mandate = await session.get(
+        OwnerActionRow, stable_id(context.owner_id, "owner-action:trading_mode:" + row.id)
+    )
     return {
         "created": True,
         "deduplicated": deduplicated,
         "agent": {
             "id": row.id,
             "name": row.name,
-            "template": template,
-            "focus": {"account_id": row.trading_account_id, "symbol": row.trading_symbol}
-            if row.trading_symbol
-            else None,
-            "trading_level": "ask_me" if TEMPLATE_LEVEL[template] == "supervised" else "no_trading",
-            "reports_to": report_targets(origin),
-            "supervises": await supervised_ids(session, context.owner_id, row.id),
+            "trading_mode": await trading_mode(session, context.owner_id, row.id),
         },
-        "undo_card_shown": card is not None,
-        "money_authority": "none: every trade waits for the owner's tap until the owner signs "
-        "a grant",
-        "next": "It works when it has a task: send its first task with peer_send, then say in "
-        "one line what was created and what is still missing.",
-    }
-
-
-def proposal_result(card: OwnerActionRow, *, created: bool) -> dict[str, Any]:
-    return {
-        "created": False,
-        "owner_action": {
-            "id": card.id,
-            "kind": card.kind,
-            "status": live_status(card),
-            "expires_at": card.expires_at.isoformat(),
-        },
-        "already_shown": not created,
-        # No owner message asked for this agent: it exists only after the owner's tap.
-        "owner_must_tap": True,
-        "money_authority": "none",
+        "mandate_card_shown": mandate is not None,
+        "next": "It works when it has a task: send its first task with peer_send, then tell "
+        "the owner in one line what you created and why.",
     }
 
 
 async def check_limits(session: AsyncSession, owner_id: str, run_id: str) -> None:
-    """A new creation (or creation card) fits the per-run and per-owner limits."""
+    """A new creation fits the per-run guard against a runaway loop; the number of the
+    owner's agents is never counted (mandate 3.3.2)."""
     if await run_creations(session, owner_id, run_id) >= MAXIMUM_CREATIONS_PER_RUN:
         raise LonoraError("agent_create_run_limit", 429)
-    if await active_agents(session, owner_id) >= MAXIMUM_ACTIVE_AGENTS:
-        raise LonoraError("agent_limit_reached", 409)
 
 
-async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    from lonora_agent.collaboration.agent_create import check_responsibility, create_from_spec
-
-    params = AgentCreateInput.model_validate(args)
-    async with context.db.sessions() as session:
-        run = await require_lease(session, context.lease)
-        if run.agent_id != context.agent_id:
-            raise LonoraError("agent_run_mismatch", 409)
-        creator = await agent_binding(session, context.owner_id, context.agent_id)
-        if creator.role == "delegated":
-            raise LonoraError("delegated_agent_create_forbidden", 403)
-        # A crash-replayed call returns what it already did, unchanged.
-        replayed = await session.get(AgentRow, context.resource_id)
-        if replayed is not None and replayed.owner_id == context.owner_id:
-            return await created_result(session, context, replayed, deduplicated=True)
-        card = await session.get(OwnerActionRow, context.resource_id)
-        if card is not None and card.owner_id == context.owner_id:
-            return proposal_result(card, created=False)
-    check_responsibility(params.responsibility)
-    spec: dict[str, Any] = {
-        "template": params.template,
-        "name": params.name,
-        "responsibility": params.responsibility.strip(),
-        "account_id": None,
-        "symbol": None,
-        "connection_version": None,
-        "model": params.model.model_dump(mode="json") if params.model else None,
-        "report_to": params.report_to,
-        "supervises": params.supervises,
-    }
+async def assigned_market(
+    context: ToolContext, params: AgentCreateInput, spec: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Fill the spec's assigned market and account, or the question to ask the owner."""
     if params.market is not None:
         market = await resolve_market(
             context.db, context.brokers, context.owner_id, params.market, params.account_id
@@ -269,90 +193,101 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         spec.update(
             account_id=market["account_id"],
             symbol=market["symbol"],
+            account_label=market["account"],
             connection_version=market["version"],
         )
-    if params.model is not None:
-        models = await configured_models(context)
-        if params.model not in models:
-            return {
-                "created": False,
-                "code": "agent_model_not_allowed",
-                "configured_models": [item.model_dump(mode="json") for item in models],
-            }
+    elif params.account_id is not None:
+        async with context.db.sessions() as session:
+            row = await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
+            spec.update(
+                account_id=row.id,
+                account_label=account_facts(row, row.id)["label"],
+                connection_version=row.version,
+            )
+    return None
+
+
+async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from lonora_agent.collaboration.agent_create import check_responsibility, create_from_spec
+    from lonora_db.trading_mode import trading_mode
+
+    params = AgentCreateInput.model_validate(args)
+    async with context.db.sessions() as session:
+        run = await require_lease(session, context.lease)
+        if run.agent_id != context.agent_id:
+            raise LonoraError("agent_run_mismatch", 409)
+        if not await is_lead(session, context.owner_id, context.agent_id):
+            # No leading (3.2.2): a team agent asks Lonora, whatever its run says.
+            raise ToolRefusal(
+                "agent_create_lead_only",
+                403,
+                details={"class": "permission_denied", "hint": LEAD_ONLY_HINT},
+            )
+        # A crash-replayed call returns what it already did, unchanged.
+        replayed = await session.get(AgentRow, context.resource_id)
+        if replayed is not None and replayed.owner_id == context.owner_id:
+            return await created_result(session, context, replayed, deduplicated=True)
+    check_responsibility(params.responsibility)
+    spec: dict[str, Any] = {
+        "name": params.name,
+        "responsibility": params.responsibility.strip(),
+        "account_id": None,
+        "symbol": None,
+        "account_label": None,
+        "connection_version": None,
+    }
+    question = await assigned_market(context, params, spec)
+    if question is not None:
+        return question
     async with context.db.sessions() as session, session.begin():
         # The order the owner's card decision takes them in: cards, then creation.
         await lock_owner_actions(session, context.owner_id)
         run = await require_lease(session, context.lease)
         origin_thread = run.model_metadata.get("origin_thread_id") or context.thread_id
         message_id = await owner_message_id(session, run)
-        if message_id is not None and await personal_agent_id(session, context.owner_id) in set(
-            spec["supervises"]
-        ):
-            # Oversight over Lonora opens the owner's own chats: always the owner's tap.
-            message_id = None
-        if message_id is None:
-            # Already created (the owner said yes in chat, or tapped another card): a
-            # card would only create a second one.
-            existing = await existing_creation(
-                session, context.owner_id, params.template, params.name
+        if message_id is not None:
+            # The owner asked for it (4.3.2): it starts in Ask, and a request for full
+            # authority shows its Mandate card; only the owner's tap sets Full.
+            spec["mode"] = "ask"
+            mandate = params.mode == "full"
+            key = creation_receipt(context.owner_id, message_id, params.name)
+            receipt = await session.get(EffectReceiptRow, key)
+        else:
+            # On Lonora's own judgment (4.3.3): Lonora's mode now, unless created in Ask.
+            spec["mode"] = (
+                "ask"
+                if params.mode == "ask"
+                else await trading_mode(session, context.owner_id, context.agent_id)
             )
-            if existing is not None:
-                return {
-                    "created": False,
-                    "code": "agent_already_exists",
-                    "agent": {"id": existing.id, "name": existing.name, "paused": existing.paused},
-                    "recovery": "Use this agent (peer_send) instead of creating another one.",
-                }
-            # No owner message asked for it: the owner's tap creates it. A repeat returns
-            # the card already shown, whatever the limits are now.
-            shown = await pending_effect(
-                session,
-                context.agent_id,
-                "create_agent",
-                payload_hash("create_agent", {"spec": spec}),
-            )
-            if shown is None or shown.thread_id is None or shown.expires_at <= utcnow():
-                await check_limits(session, context.owner_id, run.id)
-            card, created = await propose_creation(
-                session,
-                context.owner_id,
-                spec,
-                card_id=context.resource_id,
-                agent_id=context.agent_id,
-                thread_id=origin_thread,
-                run_id=run.id,
-            )
-            # Fenced after the conversation lock: the thread-before-run order of admission.
-            await require_lease(session, context.lease, lock=True)
-            return proposal_result(card, created=created)
-        key = creation_receipt(context.owner_id, message_id, params.template, params.name)
-        receipt = await session.get(EffectReceiptRow, key)
+            mandate, key, receipt = False, None, None
         agent_id = str(receipt.result["agent_id"]) if receipt else context.resource_id
         if receipt is None:
             await check_limits(session, context.owner_id, run.id)
         elif await session.get(AgentRow, agent_id) is None:
-            # The owner undid it: the same message never creates it again.
+            # The owner deleted it: the same message never creates it again.
             raise LonoraError("agent_create_undone", 409)
         row, created = await create_from_spec(
             session,
             context.owner_id,
             spec,
             agent_id=agent_id,
-            created_via="owner_message",
+            created_via="owner_message" if message_id else "lead",
             created_by_agent_id=context.agent_id,
             source_message_id=message_id,
             run_id=run.id,
         )
-        if receipt is None:
+        if key is not None and receipt is None:
             session.add(EffectReceiptRow(key=key, result={"agent_id": row.id}))
-        await raise_created_card(
-            session,
-            context.owner_id,
-            row,
-            agent_id=context.agent_id,
-            thread_id=origin_thread,
-            run_id=run.id,
-        )
+        if created and mandate:
+            await raise_system_card(
+                session,
+                context.owner_id,
+                OwnerActionProposal(kind="trading_mode", agent_id=row.id),
+                agent_id=context.agent_id,
+                thread_id=origin_thread,
+                run_id=run.id,
+            )
+        # Fenced after the conversation lock: the thread-before-run order of admission.
         await require_lease(session, context.lease, lock=True)
         return await created_result(session, context, row, deduplicated=not created)
 
@@ -370,14 +305,14 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "agent_create",
-            "Create a persistent agent from a template when the owner asks for one: trading "
-            "(needs market, its focus pair), general, research or supervisor. Put what the "
-            "owner asked it to do in responsibility. Without the owner's message in this run "
-            "it becomes a card the owner taps. It never gets money authority: trading starts "
-            "at Ask me, the others at No trading. If two accounts or symbols match, ask the "
-            "owner once and call again with account_id. report_to: agents it reports to; "
-            "supervises: agents it supervises. The owner gets an Undo card; a taken name gets "
-            "a number.",
+            "Lonora only: create a team agent on your own judgment, without asking first. "
+            "responsibility: its responsibilities and instructions. market and account_id: "
+            "an instrument and account to assign, written into its method; if two match, "
+            "ask the owner once and call again with account_id. mode: the mode the owner "
+            "named (full shows the owner its Mandate card), or ask to create it in Ask; "
+            "omitted, an agent the owner asked for starts in Ask and one you create on "
+            "your own copies your mode. It uses your current model. A taken name gets a "
+            "number.",
             AgentCreateInput,
             create,
             replay_safe=True,
