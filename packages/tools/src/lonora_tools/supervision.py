@@ -38,7 +38,6 @@ from lonora_db.owner_actions import (
     raise_supervision_card,
     raise_supervision_stopped_card,
 )
-from lonora_db.owner_words import owner_typed_message
 from lonora_db.runs import require_lease
 from lonora_db.schema import (
     AgentRow,
@@ -73,7 +72,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import Tool, eager_for
 from .context import ToolContext
 from .resolve import Option, resolve, stating
-from .restrictions import OWNER_TRIGGERS, owner_message_id
+from .restrictions import owner_message_id
 
 PAGE_ITEMS = 10
 # What a decisions page shows of each stored decision; the full record is one read away.
@@ -462,11 +461,6 @@ async def control(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             action="pause" if params.action == "pause" else "resume",
             owner_message_id=await owner_message_id(session, run),
             run_id=run.id,
-            # The owner's words this run answers, read even after other content: they only
-            # ever make a pause the owner's (4.7.2), never grant a control.
-            owner_words_id=getattr(await owner_typed_message(session, run), "id", None)
-            if run.trigger in OWNER_TRIGGERS
-            else None,
         )
         # Fenced after the conversation lock: the thread-before-run order of admission.
         await require_lease(session, context.lease, lock=True)
@@ -627,8 +621,8 @@ def tools() -> list[Tool]:
             "agent_control",
             "Steer an agent you supervise: pause or resume it, or one of its Tasks, "
             "routines or watches (target, target_id), or message it. resume lifts a pause "
-            "you made on your own (Lonora: only those); a pause the owner asked for or made "
-            "is the owner's. You cannot pause an agent that holds a pause over you unless the owner "
+            "you made on your own, or one the owner tells you to lift; Lonora never lifts "
+            "another agent's. You cannot pause an agent that holds a pause over you unless the owner "
             "asks. A paused agent still wakes for its own positions and orders and only "
             "reduces their risk; unless you are Lonora, pause a whole trading agent only "
             "when the owner asks. Only the owner pauses Lonora itself. It "
