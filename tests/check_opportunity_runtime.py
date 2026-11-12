@@ -252,13 +252,8 @@ async def main() -> None:
             "position_id": positions[0].id,
             "thesis_id": thesis["id"],
         }
-        close_card = await call("trade_execute", close_args, "close-real-ticket")
-        await f.request(
-            "POST",
-            "/trading/approvals/" + close_card["approval_id"] + "/decision",
-            {"decision": "approve"},
-        )
         close_result = await call("trade_execute", close_args, "close-real-ticket")
+        assert "approval_id" not in close_result, close_result
         assert close_result["results"][0]["status"] == "confirmed", close_result
         assert not await broker.positions()
         finished = await f.request("GET", "/trading/opportunities/" + thesis["id"])
