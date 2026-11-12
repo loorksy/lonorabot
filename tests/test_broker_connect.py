@@ -594,3 +594,45 @@ async def test_a_leftover_account_another_connection_reused_is_never_removed() -
         FakeMetaApiBroker.terminals.clear()
         await remove_token(fixture)
         await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_leftover_account_a_card_is_still_connecting_with_waits_for_its_outcome() -> None:
+    """The retry does not decide while another card is connecting with the leftover
+    account; when that card fails too, the account is removed, not kept billing."""
+    database()
+    from check_streaming import Fixture
+
+    fixture = await Fixture().open()
+    account = login()
+    api = FakeProvisioningApi(servers={SERVER: {account: PASSWORD}})
+    world = World(fixture, api)
+    try:
+        await remove_token(fixture)
+        agent = await fixture.agent("Waits")
+        with installed():
+            first = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(first, {"PASSWORD": PASSWORD, "METAAPI_TOKEN": TOKEN})
+            metaapi_id = (await refused_after_create(world, first, account))["metaapi_account_id"]
+            second = (await connect(fixture, agent, account))["owner_action"]["id"]
+            await world.save(second, {"PASSWORD": "still-wrong"})
+            await world.gateway(1)
+            again = (await world.card(second)).result
+            assert (
+                again["provisioning"] == "deploying" and again["metaapi_account_id"] == metaapi_id
+            )
+            await backdate(world, first, "cleanup_at")
+            await world.gateway(1)
+            assert (await world.card(first)).result["metaapi_cleanup"] == "pending"
+            assert metaapi_id in api.accounts
+            await backdate(world, second, "started_at")
+            await world.gateway(1)
+            refused = (await world.card(second)).result
+            assert refused["provisioning"] == "failed" and refused["created"] is False
+            await world.gateway(1)
+        assert metaapi_id not in api.accounts
+        assert (await world.card(first)).result["metaapi_cleanup"] == "removed"
+    finally:
+        FakeMetaApiBroker.terminals.clear()
+        await remove_token(fixture)
+        await fixture.close()

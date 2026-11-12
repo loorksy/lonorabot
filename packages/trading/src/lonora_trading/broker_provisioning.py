@@ -99,7 +99,9 @@ async def maintain_broker_provisioning(
                 .order_by(OwnerActionRow.created_at, OwnerActionRow.id)
             )
             if row.result.get("metaapi_cleanup") == "pending"
-            and _late(str(row.result.get("cleanup_at")), CLEANUP_RETRY)
+            and _late(
+                str(row.result.get("cleanup_at") or row.created_at.isoformat()), CLEANUP_RETRY
+            )
         ]
     for card_id in leftovers:
         try:
@@ -272,9 +274,11 @@ class Failing:
 
 async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, card_id: str) -> None:
     """Removes a MetaApi account Lonora created for a card that failed, after the first
-    removal failed. Under the provisioning lock, so it never races a connect: an account
-    a connection or another card has taken since (a connect of the same login and server
-    finds and reuses it) is the owner's now and is kept."""
+    removal failed. Under the provisioning lock, so it never races a connect from chat:
+    an account a connection or a connected card has taken since (a connect of the same
+    login and server finds and reuses it) is the owner's now and is kept; one a card is
+    still connecting with waits for that card's outcome. (The old link-by-id route,
+    ``connect_account``, does not take this lock; step 6 removes it for MetaApi.)"""
     token_id = await secrets.named(METAAPI_TOKEN)
     if token_id is None:
         return  # MetaApi cannot be reached without a token; retried once one is saved.
@@ -286,7 +290,10 @@ async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, car
                 if row.result.get("metaapi_cleanup") != "pending":
                     return
                 account_id = str(row.result["metaapi_account_id"])
-                if await _metaapi_account_taken(session, owner_id, card_id, account_id):
+                taken = await _metaapi_account_taken(session, owner_id, card_id, account_id)
+                if taken == "connecting":
+                    return  # Looked at again next pass, once that card has an outcome.
+                if taken == "taken":
                     row.result = {**row.result, "metaapi_cleanup": "kept"}
                     return
                 row.result = {**row.result, "cleanup_at": utcnow().isoformat()}
@@ -299,7 +306,9 @@ async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, car
                         "broker_provisioning_cleanup_failed card=%s code=%s", card_id, failure.code
                     )
                     return
-                outcome = "not_found"
+                # Not visible with the current token: gone, or another MetaApi user's
+                # account after a token replacement. Nothing Lonora holds can reach it.
+                outcome = "not_found_with_current_token"
             async with db.sessions() as session, session.begin():
                 row = await _card(session, owner_id, card_id)
                 row.result = {**row.result, "metaapi_cleanup": outcome}
@@ -309,12 +318,13 @@ async def retry_cleanup(db: Database, secrets: BrokerSecrets, owner_id: str, car
 
 async def _metaapi_account_taken(
     session: AsyncSession, owner_id: str, card_id: str, account_id: str
-) -> bool:
+) -> str | None:
     for connection in await session.scalars(
         select(BrokerSessionRow).where(BrokerSessionRow.owner_id == owner_id)
     ):
         if connection.payload.get("account_id") == account_id:
-            return True
+            return "taken"
+    connecting = False
     for card in await session.scalars(
         select(OwnerActionRow).where(
             OwnerActionRow.owner_id == owner_id,
@@ -322,11 +332,12 @@ async def _metaapi_account_taken(
             OwnerActionRow.id != card_id,
         )
     ):
-        if card.result.get("metaapi_account_id") == account_id and card.result.get(
-            "provisioning"
-        ) in {*ACTIVE, "connected"}:
-            return True
-    return False
+        if card.result.get("metaapi_account_id") != account_id:
+            continue
+        if card.result.get("provisioning") == "connected":
+            return "taken"
+        connecting = connecting or card.result.get("provisioning") in ACTIVE
+    return "connecting" if connecting else None
 
 
 async def _provision(
