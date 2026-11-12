@@ -83,7 +83,7 @@ class InputAnswer(Contract):
 
 
 class UiSubmit(Contract):
-    """A generated card's send (GENUI_PLAN §8.2): the card message, its part, the button's
+    """A generated card's send (docs/genui.md): the card message, its part, the button's
     node path and the card's current values. The server computes the intent's data and
     composes the owner's bubble; a client's ``content`` is ignored."""
 

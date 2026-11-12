@@ -1,9 +1,9 @@
-"""Exercise the actual provider callback, compiler and bounded event publisher."""
+"""Exercise the actual provider callback, the v2 card compiler and the bounded publisher."""
 
 import asyncio
 import json
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from lonora_adapter_kit.types import ModelMessage, ModelReply
@@ -14,57 +14,72 @@ from lonora_contracts.model_routing import Capability, ModelSelection
 from lonora_tools.loader import load_tools
 from test_teammate_runtime import model_boundary as model_boundary
 from test_teammate_runtime import model_context
-from test_visual_response import context, document, frame, messages
+from test_visual_response import FALLBACK, context, frame, messages
+
+
+def text_card(text: str, when: str | None = None) -> str:
+    """A v2 card showing one Text node."""
+    block: dict[str, Any] = {"type": "Text", "text": text}
+    if when is not None:
+        block["when"] = when
+    lines = [
+        {"v": 2, "kind": "receipt", "title": "Preview", "icon": "info"},
+        block,
+        {"why": "A short preview.", "fallback": "A preview."},
+    ]
+    return "\n".join(json.dumps(line) for line in lines)
 
 
 @pytest.mark.asyncio
-async def test_complete_panels_and_following_prose_do_not_wait_for_a_later_panel():
+async def test_a_complete_card_and_following_prose_do_not_wait_for_a_later_fence():
     compiler = VisualReplyProjector(context(), messages())
-    first = "First paragraph.\n\n" + frame(document()) + "Independent prose.\n"
-    unfinished = first + '```lonora-ui\n{"version":1,'
+    first = "First paragraph.\n\n" + frame() + "Independent prose.\n"
+    unfinished = first + '```lonora-ui\n{"v":2,'
     preview = await compiler.project(unfinished, partial=True)
-    assert preview.text.startswith("First paragraph.\n\n[example]\nEquity: 42 USD\n")
+    assert preview.text.startswith("First paragraph.\n\n") and FALLBACK in preview.text
     assert preview.text.endswith("Independent prose.\n") and not preview.errors
     rich = preview.rich_until()
     assert rich and [part["type"] for part in rich["parts"]] == ["text", "ui", "text"]
-    assert "lonora-ui" not in preview.text and "version" not in preview.text
+    assert "lonora-ui" not in preview.text and '"v"' not in preview.text
     final = await compiler.project(unfinished + "\n```\nStill useful.")
     assert final.text.startswith(preview.text)
     final_rich = final.rich_until()
-    assert final.errors and final_rich and final_rich["parts"][1]["type"] == "ui"
+    # One card per reply: the second fence is dropped (its fallback, if any, stays text).
+    assert final_rich and final_rich["parts"][1]["type"] == "ui"
     assert "Still useful." in final.text
+    assert any(item["code"] == "interface_extra" for item in compiler.diagnostics)
 
 
 @pytest.mark.asyncio
 async def test_closed_frames_compile_once_across_provider_chunks(monkeypatch: pytest.MonkeyPatch):
-    compile_real = visual_response.compile_document
-    observed = AsyncMock(side_effect=compile_real)
-    monkeypatch.setattr(visual_response, "compile_document", observed)
+    observed = Mock(side_effect=visual_response.compile_card)
+    monkeypatch.setattr(visual_response, "compile_card", observed)
     compiler = VisualReplyProjector(context(), messages())
-    complete = "  Intro.\n\n" + frame(document())
+    complete = "  Intro.\n\n" + frame()
     for tail in ("", "Additional ", "Additional words. "):
         preview = await compiler.project(complete + tail, partial=True)
         assert preview.rich_until() and preview.text.startswith("  Intro.\n\n")
     final = await compiler.project(complete + "Additional words. ")
-    assert final.text == preview.text and observed.await_count == 1
+    assert final.text == preview.text and observed.call_count == 1
 
 
 @pytest.mark.asyncio
 async def test_closing_line_at_provisional_eof_waits_for_its_line_boundary():
     compiler = VisualReplyProjector(context(), messages())
-    raw = frame(document()).rstrip()
+    raw = frame().rstrip()
     preview = await compiler.project(raw, partial=True)
-    assert not preview.text and preview.rich_until() is None
+    assert not preview.text
     complete = await compiler.project(raw + "\n", partial=True)
     complete_rich = complete.rich_until()
     assert complete_rich and complete_rich["parts"][0]["type"] == "ui"
+    assert "building" not in complete_rich["parts"][0]
     final = await compiler.project(raw)
     assert final.text == complete.text
 
 
 @pytest.mark.asyncio
 async def test_protocol_demonstration_inside_a_code_example_remains_code():
-    raw = "A code example:\n````text\n" + frame(document()) + "````\n"
+    raw = "A code example:\n````text\n" + frame() + "````\n"
     assert await parse_visual_reply(context(), raw, messages()) == (raw, None, [])
     compiler = VisualReplyProjector(context(), messages())
     assert (await compiler.project(raw, partial=True)).text == raw
@@ -96,29 +111,23 @@ async def test_unfinished_prose_binding_does_not_escape_incremental_admission():
 
 @pytest.mark.asyncio
 async def test_tilde_native_frame_has_the_same_validated_projection():
-    raw = frame(document()).replace("```", "~~~")
+    raw = frame().replace("```", "~~~")
     answer, rich, errors = await parse_visual_reply(context(), raw, messages())
-    assert not errors and rich and "Equity: 42 USD" in answer
+    assert not errors and rich and FALLBACK in answer
     assert "~~~" not in answer
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("hidden", [False, True])
 async def test_split_credentials_in_composed_display_never_enter_the_rich_transport(hidden: bool):
-    raw = document()
-    raw["root"] = {
-        "id": "secret-preview",
-        "type": "text",
-        "visible": not hidden,
-        "value": {"op": "concat", "args": ["password", "=", "private-example-value"]},
-    }
+    body = text_card("{'password' + '=' + 'private-example-value'}", "false" if hidden else None)
     compiler = VisualReplyProjector(context(), messages())
-    result = await compiler.project(frame(raw))
+    result = await compiler.project(frame(body))
     answer, rich, errors = result.text, result.rich_until(), result.errors
     assert rich and all(part["type"] == "text" for part in rich["parts"])
     assert errors == ["visual_frame_rejected"]
-    assert compiler.diagnostics[0]["code"] == "visual_composed_display_private"
-    assert "private-example-value" not in answer
+    assert any(item["code"] == "card_fallback_private" for item in compiler.diagnostics)
+    assert "private-example-value" not in answer and "private-example-value" not in json.dumps(rich)
 
 
 @pytest.mark.asyncio
@@ -131,17 +140,12 @@ async def test_final_malformed_bindings_are_unavailable_while_code_stays_literal
 
 
 @pytest.mark.asyncio
-async def test_split_markers_in_composed_display_do_not_enter_transport():
-    raw = document()
-    raw["root"] = {
-        "id": "bad",
-        "type": "text",
-        "value": {"op": "concat", "args": ["{", "{symbol}}"]},
-    }
+@pytest.mark.parametrize("text", ["Entry: {{symbol}}", "**{{ entry }}** at {$x}"])
+async def test_split_markers_in_composed_display_do_not_enter_transport(text: str):
     compiler = VisualReplyProjector(context(), messages())
-    result = await compiler.project(frame(raw))
+    result = await compiler.project(frame(text_card(text)))
     assert result.errors == ["visual_frame_rejected"]
-    assert compiler.diagnostics[0]["code"] == "visual_display_binding_unresolved"
+    assert any(item["code"] == "card_fallback_binding" for item in compiler.diagnostics)
     rich = result.rich_until()
     assert (
         "{{" not in result.text and rich and not any(part["type"] == "ui" for part in rich["parts"])
@@ -150,14 +154,14 @@ async def test_split_markers_in_composed_display_do_not_enter_transport():
 
 @pytest.mark.asyncio
 async def test_diagnostics_contain_structural_locations_without_model_inputs():
-    raw = document()
-    raw["root"]["value"] = {"op": "not-real", "args": ["password=private-value"]}
+    body = text_card("{@NotReal('password=private-value')}")
+    body = body.replace('{"type": "Text"', '{"type": "Note", "text": "Kept"}\n{"type": "Text"')
     compiler = VisualReplyProjector(context(), messages())
-    projection = await compiler.project(frame(raw))
-    assert projection.errors and compiler.diagnostics
+    await compiler.project(frame(body))
+    assert compiler.diagnostics
     diagnostic = json.dumps(compiler.diagnostics)
     assert "private-value" not in diagnostic and "password" not in diagnostic
-    assert "visual_schema_invalid" in diagnostic and "root.value" in diagnostic
+    assert "block_dropped" in diagnostic
 
 
 @pytest.mark.asyncio

@@ -196,7 +196,7 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
     saved: list[str] = []
     try:
         saved.append(
-            (await fixture.request("POST", "/secrets", {"name": name, "value": value}))["id"]
+            await fixture.runtime.services(fixture.owner).secrets.write(name, value, "workspace")
         )
         services = fixture.runtime.services(fixture.owner)
         # A value too short to find at every base64 alignment is not stored.
@@ -285,7 +285,9 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         said = await run("late", 4, "say " + late_value)
         assert said["stdout"] == late_value + "\n"
         saved.append(
-            (await fixture.request("POST", "/secrets", {"name": late, "value": late_value}))["id"]
+            await fixture.runtime.services(fixture.owner).secrets.write(
+                late, late_value, "workspace"
+            )
         )
         replayed = await run("late", 4, "say " + late_value)
         assert replayed["stdout"] == f"[secret:{late}]\n"

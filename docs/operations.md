@@ -29,7 +29,7 @@ Superseded by VISION.md
 - **استعادة غير مكتملة:** `sudo lonora status` يعرض «RESTORE NOT FINISHED». الخيارات: أكملها بالأمر المطبوع، أو ارجع إلى ما قبلها بـ `sudo lonora restore <نسختها الاحتياطية> --replace`، أو `sudo lonora restore --abandon`.
 - **التحويل لاحقًا (قرارك أنت ومتى تشاء):** أولًا تجرّب النسخة الجديدة على اسم تجريبي (مثل `next.lonora.lork.cloud`) عبر ملف traefik جديد `lonora-next.yml`. عند التحويل تغيّر سطرًا واحدًا فقط في `lonora.yml` (العنوان `http://127.0.0.1:18010` يصبح `http://127.0.0.1:18030`)، ثم توقف النسخة القديمة دون حذف شيء. تنبيه: ملف معطوب في مجلد traefik قد يعطّل كل المواقع على الخادم، لذا اكتب الملف باسم مؤقت وتحقق منه ثم انقله إلى مكانه. المثبّت لا يكتب في مجلد traefik أبدًا. الخطوات في قسمي «Side by side» و«Switch over later» أدناه.
 - **مساحة العمل (الطرفية):** تثبّت هذه النسخة مساحة عمل Linux واحدة دائمة للمالك (الخدمتان `workspace` و`workspace-net`) سيتشاركها كل وكلائه، لكل وكيل مستخدم Unix ومجلد منزلي خاص به، و`/workspace/shared` مشترك بين الجميع. يستخدمها الوكلاء عبر أدوات مساحة العمل (تشغيل أمر، قراءة ملف وكتابته، عرض العمليات وإيقافها)، وكل ما يعود منها يُفحص فتُستبدل قيم الأسرار بـ `[secret:NAME]`. ولأن سجلًا أو عملية قديمة قد تحمل قيمة سرّ أُعطي لأمر، تحتفظ البوابة بكل قيمة أُعطيت مشفّرةً بمفتاح الأسرار 30 يومًا بعد آخر مرة أُعطيت فيها، لتبقى مستبدلة في الفحص؛ فالسرّ المحذوف أو المُبدَّل تبقى قيمته مشفّرة حتى 30 يومًا ثم تُمحى. تصل إلى الإنترنت ولا تصل إلى قاعدة البيانات ولا API ولا Caddy ولا الشبكات الخاصة ولا عناوين الخادم نفسه؛ وكل اتصال TCP منها يمر بمرحّل يقبل من العميل TLS أو HTTP أو SSH فقط، ويرفض أسماء MetaApi ونطاق Lonora، ويرفض العنوان المكتوب بدل الاسم، ويشترط أن يكون العنوان المطلوب من عناوين الاسم المعلن. هذا حماية إضافية لا جدار: اسم يشير إلى عنوان MetaApi لم يتعلّمه الحارس، أو وسيط HTTPS، أو أي شيء عبر SSH يبلغ MetaApi، والإنترنت وSSH مطلوبان. والضمان الذي لا يُتجاوز هو أن مفتاح MetaApi لا يدخل مساحة العمل أبدًا. الملفات والحزم المثبّتة للمستخدم تبقى بعد إعادة التشغيل والتحديث، والعمليات الجارية لا تبقى. يبدأها `lonora` بعد خدمات Lonora ولا ينتظرها: إن لم تبدأ أو تعذّر تجهيز قرصها يُبلَّغ بذلك ويعمل Lonora بدونها. حدودها الافتراضية: معالجان، 4 غيغابايت ذاكرة، قرص 20 غيغابايت، 256 عملية، و10 دقائق للأمر الأمامي؛ تُغيَّر في `.env`. وزن معالجها منخفض وهي أول ما يُقتل عند نفاد ذاكرة الخادم، وقاعدة البيانات وAPI والبوابة تحجز ذاكرتها، فتتنازل مساحة العمل أولًا عند الضغط. على خادمك الحالي (معالجان، 7.9 غيغابايت منها نحو 5.2 متاحة، 25 غيغابايت حرة): `LONORA_WORKSPACE_MEMORY=2g` و`LONORA_WORKSPACE_CPUS=1.0` و`LONORA_WORKSPACE_DISK=10g` (انظر «The workspace» أدناه). أول تحديث إلى إصدار فيه مساحة العمل يُشغَّل بأمر `lonora` الجديد من الصورة نفسها (الأمر في القسم نفسه).
-- **الإشعارات على الهاتف:** تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
+- **الإشعارات على الهاتف:** تصل إشعارة واحدة عند إنشاء بطاقة موافقة على صفقة، أو بطاقة «عملية غير محسومة»، أو بطاقة سرّ ينتظرها وكيل، وإشعارة واحدة لكل انقطاع في حساب الوسيط (رمز مرفوض، حساب غير مُشغَّل، أو اتصال مقطوع لأكثر من دقيقتين)، بنص ثابت وباسم الوكيل، دون سعر أو حجم أو رقم حساب، ولا زر فيها؛ لمسها يفتح المحادثة عند البطاقة. تمرّ عبر خدمة Expo بمشروع Expo يملكه المالك. يحتاج إصدار أندرويد إلى معرّف المشروع `LONORA_EXPO_PROJECT_ID` وملف Firebase للمشروع نفسه `LONORA_ANDROID_GOOGLE_SERVICES_FILE` عند البناء، وهي وحدة أصلية فلا تصل عبر تحديث OTA بل تحتاج APK جديدًا. التفاصيل في قسم «Push to the owner's phone».
 - **البناء على الخادم:** ما دام GitHub Actions متوقفًا، يبني الأمر `infra/compose/build-from-source.sh` الصورة على الخادم بحدود معالج وذاكرة، ويضعها في سجل محلي على `127.0.0.1` فقط، ثم يتم التثبيت أو التحديث منها كالمعتاد.
 
 ## The pieces
@@ -402,7 +402,7 @@ new image (no downgrades: restore a backup made on that version instead). Then, 
 1. **Maintenance on.** `maintenance/on` is created. While it exists, Caddy answers every write
    (anything but GET, HEAD and OPTIONS) with `503` and «يجري التحديث، حاول بعد دقائق». It is on only
    while no Gateway runs: **a Gateway never runs while maintenance is on**, so whenever anything could
-   trade, the owner's emergency stop, trading stop, close, approval reject and authority revoke are
+   trade, the owner's pause, close, approval reject and authority revoke are
    accepted.
 2. An in-progress marker (`state/update-in-progress`) is written; API and Gateway are stopped.
 3. An encrypted backup is taken **and verified** (decrypted, authenticated, every checksum and the
@@ -432,13 +432,12 @@ before that backup, nothing the owner did before the update is lost, and nothing
 wrote (including a half-applied migration) survives.
 
 **The exception: a held rollback.** Once the new API or Gateway has run, restoring the backup could
-undo something that must not be undone: an owner's "stop trading", a new restriction, a revoked
+undo something that must not be undone: an owner's pause, a new restriction, a revoked
 authority, an owner's message, or the record of an order already at the broker. So before restoring,
 `lonora` compares the fingerprint of these records with the one from step 5: whole rows (each hashed
 on its own) of `ln_trading_restrictions`, `ln_account_authorities`, `ln_supervision_grants`,
-`ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, the
-`trading…` rows of `ln_settings`, paused agents, the broker connections' enabled flags, paused or
-cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
+`ln_supervision_holds`, `ln_owner_actions`, `ln_trade_approvals`, `ln_trading_journal`, paused
+agents, the broker connections' enabled flags, paused or cancelled tasks, and the owner's own messages in `ln_messages` (including Telegram and
 voice). If any of them changed, or cannot be read, it does **not** restore. It stops API and
 Gateway, keeps maintenance on and the failed version pinned, prints `ROLLBACK HELD` with the reason,
 and exits with status 2.
@@ -595,7 +594,34 @@ permission and registers the phone with `PUT /api/push/devices/<install id>` (ow
 only). The server stores the Expo push token encrypted, bound to the sign-in session that sent
 it, and deletes it on sign-out (`POST /api/auth/logout`) or when the app finds the permission
 turned off (`DELETE /api/push/devices/<install id>`). The token is never logged and never
-shown to a model. Nothing sends a push yet.
+shown to a model.
+
+The gateway step `push` sends one push per record, when it is created, to every phone that has
+not signed out: a pending Trade Approval card, a Settle Uncertain Operation card, a
+Secret card an agent's run is waiting on, and a broker health problem (a rejected MetaApi
+token, an undeployed account, or a connection lost for more than two minutes), once per
+account and outage however often its reason changes. The text is
+Lonora's fixed text for that event in the owner's language under the agent's name; no price,
+volume, symbol or account number leaves the server, and the notification has no button. A tap
+opens the conversation at the card, and the card itself is where the owner approves or
+settles. Quiet hours do not hold these pushes. Execution Receipts and reports never push. Each
+push has an effect receipt written before the call to Expo, and a push whose outcome is unknown
+(a timeout, a restart) is never sent again, so a record pushes once per phone even across
+restarts and two gateways. A push that certainly never reached Expo (no connection, or "too
+many requests") is tried again up to five times over about eight minutes. Each phone gets its own request, so a token Expo refuses never
+costs another phone its push. When push is first installed it starts from the end of the event
+stream: cards that were already waiting do not push.
+
+A phone keeps receiving push until it signs out, even after its sign-in session has expired
+(a session lasts `LONORA_SESSION_SECONDS`, default one day): a push carries only the agent's
+name and fixed text, and the phone must stay reachable while the app is closed. Signing out
+revokes the session and the gateway deletes that phone's row; the app registers again at the
+next sign-in.
+
+`LONORA_EXPO_ACCESS_TOKEN` (optional, in `.env`) is sent to Expo only when the Expo project has
+"enhanced security for push notifications" turned on. `/ready` reports `"push":
+"configured"` once a phone that has not signed out is registered and `"not_configured"` before;
+push never makes the server unready.
 
 A native release with push needs, once:
 
