@@ -31,7 +31,11 @@ export type OwnerActionKind =
 export type GrantDelegation = "custom" | "full";
 /** trust_source: what the owner adds to the trusted list. */
 export type TrustSourceKind = "mcp_server" | "github_owner" | "github_repo" | "feed_domain";
-/** What a connecting Secret card connects; the server sets its field and destination. */
+/**
+ * What a connecting Secret card connects; the server sets its field and destination.
+ * "broker" only names a card converted from the credential card (migration 0071): a
+ * trading account is connected with broker_connect's card.
+ */
 export type CredentialTarget =
   | "mcp_server"
   | "news_feed"
@@ -48,7 +52,7 @@ export type SecretField = {
   key: string;
   label: string | null;
   secret: boolean;
-  role?: "token" | "api_key" | "server_url" | "feed_url" | "metaapi_token" | null;
+  role?: "token" | "api_key" | "server_url" | "feed_url" | null;
   /** Omitted on older cards: required. */
   required?: boolean;
 };
@@ -237,7 +241,7 @@ export type OwnerAction = {
       label: string | null;
       connect?: CredentialTarget | null;
       service?: "x" | null;
-      details?: { name?: string; metaapi_account_id?: string };
+      details?: { name?: string };
       fields: SecretField[];
       destination: SecretDestination;
       agent_name: string | null;
@@ -245,6 +249,10 @@ export type OwnerAction = {
        * which of them replace a value already saved (read now). */
       saves_as?: string[];
       replaces?: string[];
+      /** A broker card (raised only by the connect tool): the account the password is for. */
+      account?: { login: string; server: string; platform: "mt4" | "mt5" };
+      /** A broker card: connect the account, store its new password, or a new token. */
+      purpose?: "connect" | "rotate_password" | "replace_token";
     };
     /** watch_changed: the agent's extension; active while Undo still restores it. */
     watch?: {
@@ -300,6 +308,8 @@ export type OwnerAction = {
     integration_id?: string;
     /** A saved Secret card: the keys saved and where; never a value. */
     saved?: string[];
+    /** A broker card: how provisioning stands (9.2). */
+    provisioning?: "pending" | "deploying" | "reading" | "connected" | "failed";
     destination?: SecretDestination;
     /** A Secret card that connected an MCP server: whether its trust card followed. */
     review?: "raised" | "unread" | "nothing_to_trust" | "disabled" | "already";

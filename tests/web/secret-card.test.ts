@@ -130,3 +130,116 @@ test("a Secret card says, in our words, where each value goes and what it replac
     assert.ok(lines.includes(text.secretReplaces.replace("{names}", isolated("BINANCE_API_KEY"))));
   }
 });
+
+test("a broker connect card shows the account as server facts and only our own words", () => {
+  const broker: OwnerAction = {
+    ...card,
+    id: "card/broker",
+    facts: {
+      several_accounts: false,
+      secret: {
+        label: "70000001 @ Exness-MT5Trial16",
+        fields: [
+          { key: "PASSWORD", label: "Trading password", secret: true },
+          { key: "METAAPI_TOKEN", label: "MetaApi API token", secret: true },
+        ],
+        destination: "broker",
+        agent_name: "Lonora",
+        account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+      },
+    },
+  };
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const spec = ownerActionCard(broker, locale);
+    assert.equal(spec.title, text.brokerConnectTitle);
+    assert.equal(
+      spec.lines[0],
+      text.brokerAccountLine
+        .replace("{login}", isolated("70000001"))
+        .replace("{server}", isolated("Exness-MT5Trial16"))
+        .replace("{platform}", "MT5"),
+    );
+    // Field labels are ours by key, never the stored English label; both are masked.
+    assert.deepEqual(spec.secret?.fields, [
+      { key: "PASSWORD", label: text.brokerPassword, type: "password", required: true },
+      { key: "METAAPI_TOKEN", label: text.brokerToken, type: "password", required: true },
+    ]);
+    assert.equal(spec.hint, text.secretBroker);
+    const saved = ownerActionCard({ ...broker, status: "confirmed", result: {} }, locale);
+    assert.equal(saved.outcome, text.brokerSaved);
+  }
+});
+
+test("a settled broker card says how connecting ended", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const broker = {
+      ...card,
+      status: "confirmed" as const,
+      facts: { several_accounts: false, secret: { ...secret, destination: "broker" as const } },
+    };
+    for (const [provisioning, line] of [
+      ["pending", text.brokerSaved],
+      ["connected", text.brokerConnected],
+      ["failed", text.brokerFailed],
+    ] as const) {
+      assert.equal(ownerActionCard({ ...broker, result: { provisioning } }, locale).outcome, line);
+    }
+  }
+});
+
+test("a broker card for a new password or token is titled for what it changes", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    for (const [purpose, title] of [
+      ["rotate_password", text.brokerRotateTitle],
+      ["replace_token", text.brokerTokenTitle],
+    ] as const) {
+      const spec = ownerActionCard(
+        {
+          ...card,
+          facts: {
+            several_accounts: false,
+            secret: {
+              label: "70000001 @ Exness-MT5Trial16",
+              fields: [{ key: "PASSWORD", label: "Trading password", secret: true }],
+              destination: "broker",
+              agent_name: "Lonora",
+              account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+              purpose,
+            },
+          },
+        },
+        locale,
+      );
+      assert.equal(spec.title, title);
+    }
+  }
+});
+
+test("a new-token card labels its field as the new token, not one asked once", () => {
+  for (const locale of ["ar", "en"] as const) {
+    const text = ownerActionLabels[locale];
+    const spec = ownerActionCard(
+      {
+        ...card,
+        facts: {
+          several_accounts: false,
+          secret: {
+            label: "70000001 @ Exness-MT5Trial16",
+            fields: [{ key: "METAAPI_TOKEN", label: "MetaApi API token", secret: true }],
+            destination: "broker",
+            agent_name: "Lonora",
+            account: { login: "70000001", server: "Exness-MT5Trial16", platform: "mt5" },
+            purpose: "replace_token",
+          },
+        },
+      },
+      locale,
+    );
+    assert.deepEqual(spec.secret?.fields, [
+      { key: "METAAPI_TOKEN", label: text.brokerTokenNew, type: "password", required: true },
+    ]);
+  }
+});

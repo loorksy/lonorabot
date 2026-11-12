@@ -19,6 +19,8 @@ from .schema import BrokerSessionRow, IntegrationRow, McpConnectionRow, SecretRo
 
 WORKSPACE = "workspace"
 BROKER = "broker"
+# The owner's one MetaApi API token (scope ``broker``); connections made from chat name it.
+METAAPI_TOKEN = "metaapi_token"
 SCOPES = (BROKER, "provider", "integration", WORKSPACE)
 WORKSPACE_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,63}")
 # Where a connection names its secrets: an MCP server saved from a Secret card also
@@ -48,8 +50,24 @@ async def secret_metadata(session: AsyncSession, owner_id: str, scope: str) -> l
     return [{"id": r.id, "name": r.name, "updated_at": r.updated_at.isoformat()} for r in rows]
 
 
+def metaapi_password_name(card_id: str) -> str:
+    """The broker secret of the password the owner saved on one connect card."""
+    return "metaapi_password:" + card_id
+
+
 async def secret_in_use(session: AsyncSession, owner_id: str, secret_id: str) -> bool:
-    """A broker, integration or MCP connection still refers to it."""
+    """A broker, integration or MCP connection still refers to it (a broker connection
+    also by the password it was provisioned with)."""
+    password = await session.scalar(
+        select(BrokerSessionRow.id)
+        .where(
+            BrokerSessionRow.owner_id == owner_id,
+            BrokerSessionRow.state["password_secret_id"].as_string() == secret_id,
+        )
+        .limit(1)
+    )
+    if password is not None:
+        return True
     for row_type, keys in REFERENCES:
         for key in keys:
             used = await session.scalar(

@@ -16,10 +16,13 @@ server says whether the trust card follows (or why not, waking the agent that as
 agent's model has no card: only the owner assigns it (`docs/provider-resilience.md`).
 
 The Secret card (`secret`, VISION.md 7.2 and 10.3) is how any credential reaches Lonora.
-With a `target` it connects something (an MCP server, web search, a feed, a calendar, a
-broker account) with the fields and the destination the server sets
-(`docs/trusted-sources.md`); stored `connect_credential` cards became such cards
-(migration `0071_secret_card_kinds`). Otherwise the agent chooses its label and fields
+With a `target` it connects something (an MCP server, web search, a feed, a calendar)
+with the fields and the destination the server sets (`docs/trusted-sources.md`); stored
+`connect_credential` cards became such cards (migration `0071_secret_card_kinds`). A
+trading account has its own Secret card, raised by `broker_connect` (and `broker_manage`
+for a new password or token) with the `broker` destination: its values go only to the
+broker layer, and the gateway provisions the account and wakes the agent with the
+result. Otherwise the agent chooses its label and fields
 (each a key in `[A-Z][A-Z0-9_]{0,63}`, the name the value is saved under, and a label;
 `secret: false` only unmasks a field while it is typed). The server sets the
 destination: an agent's card saves to the owner's `workspace` secrets, and the card

@@ -162,7 +162,7 @@ async def test_the_owner_profile_keeps_no_line_that_sends_private_data_elsewhere
             operations=[{"action": "add", "section": "USER.md", "content": line}],
         )
         assert written["ok"] is False, written
-        assert written["code"] == "memory_authority_claim_refused", written
+        assert written["code"] == "memory_disclosure_refused", written
         # After reading a feed, even a harmless preference is no longer the owner's word.
         await tainted(fixture, context)
         changed = await call(context, "owner_preferences_update", reach_me="activity")

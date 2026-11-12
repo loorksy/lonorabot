@@ -65,12 +65,14 @@ def test_the_agent_chooses_fields_and_the_server_the_destination() -> None:
         {"label": "x", "secret_fields": [{"key": "lower", "label": "k"}]},
         {"label": "x", "secret_fields": [{"key": "K", "label": "a"}, {"key": "K", "label": "b"}]},
         # The destination is never the agent's choice; nor are other kinds' fields.
-        {"label": "x", "secret_fields": [{"key": "K", "label": "k"}], "target": "broker"},
+        {"label": "x", "secret_fields": [{"key": "K", "label": "k"}], "target": "news_feed"},
+        # A trading account is connected with broker_connect's own card, never this one.
+        {"target": "broker"},
         {"label": "x", "secret_fields": [{"key": "K", "label": "k"}], "account_id": "a"},
         # An address may carry a key: the owner types it into the card, never the agent.
         {"target": "mcp_server", "name": "Desk", "url": "https://mcp.example.test/rpc"},
         # A detail is text from chat: never blank, never longer than its connection takes.
-        {"target": "broker", "metaapi_account_id": "   "},
+        {"target": "news_feed", "name": "   "},
         {"target": "news_feed", "name": "N" * 81},
     ):
         with pytest.raises(ValidationError):
@@ -225,7 +227,7 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
         )
         card_id = proposed["owner_action"]["id"]
         cards = await thread_cards(fixture, context.thread_id)
-        card = next(item for item in cards if item["id"] == card_id)
+        card: dict[str, Any] = next(item for item in cards if item["id"] == card_id)
         assert card["kind"] == "secret" and card["status"] == "pending"
         assert card["facts"]["secret"] == {
             "label": "بورصة",
@@ -372,59 +374,17 @@ async def test_the_owner_saves_values_the_agent_never_sees() -> None:
 
 @pytest.mark.asyncio
 async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_owner() -> None:
-    """A broker card's token goes to the broker scope with the connection, in one
-    transaction; an MCP card's token is a workspace secret under a name no other
-    connection holds."""
+    """An MCP card's address and token are workspace secrets under names no other
+    connection holds. A trading account has its own card (broker_connect)."""
     database()
-    from unittest.mock import AsyncMock, patch
-
     from check_streaming import Fixture
-    from lonora_db.schema import BrokerSessionRow, McpConnectionRow
+    from lonora_db.schema import McpConnectionRow
 
     fixture = await Fixture().open()
-    token = "metaapi-" + uuid4().hex
-    account = "acct-" + uuid4().hex[:10]
-    connections: list[str] = []
     servers: list[str] = []
     try:
         agent = await fixture.agent("Desk")
         context = await fixture.lease(await fixture.run(agent, await fixture.conversation(agent)))
-        broker = await call(
-            context,
-            "owner_action_propose",
-            kind="secret",
-            target="broker",
-            metaapi_account_id=account,
-        )
-        card_id = broker["owner_action"]["id"]
-        cards = await thread_cards(fixture, context.thread_id)
-        card = next(item for item in cards if item["id"] == card_id)
-        facts = card["facts"]["secret"]
-        assert facts["connect"] == "broker" and facts["destination"] == "broker"
-        assert facts["details"] == {"metaapi_account_id": account}
-        assert [field["key"] for field in facts["fields"]] == ["METAAPI_TOKEN"]
-        identity = {"login": "777", "server": "Fixture-MT5", "platform": "mt5", "broker": "B"}
-        with patch(
-            "lonora_trading.connections.verified_identity", AsyncMock(return_value=identity)
-        ):
-            saved = await fixture.client.post(
-                f"/api/owner-actions/{card_id}/secret", json={"values": {"METAAPI_TOKEN": token}}
-            )
-        assert saved.status_code == 200 and saved.json()["status"] == "confirmed"
-        assert saved.json()["result"] == {"target": "broker", "configured": True, "saved": []}
-        async with fixture.runtime.db.sessions() as session:
-            rows = (
-                await session.scalars(
-                    select(BrokerSessionRow).where(BrokerSessionRow.owner_id == fixture.owner)
-                )
-            ).all()
-            mine = [row for row in rows if row.payload.get("account_id") == account]
-            assert len(mine) == 1
-            connections.append(mine[0].id)
-            stored = await session.get(SecretRow, mine[0].payload["secret_id"])
-            assert stored is not None and stored.scope == "broker"
-        # The token is the broker's: never a workspace secret.
-        assert token not in (await workspace(fixture)).values()
 
         # An MCP server: the agent gives its name from chat; the owner types its address
         # (it may carry a key) and an optional token into the card. Both are workspace
@@ -556,8 +516,6 @@ async def test_connecting_cards_take_details_from_chat_and_the_secret_from_the_o
     finally:
         for server_id in servers:
             await fixture.client.delete("/api/mcp/" + server_id)
-        for connection_id in connections:
-            await fixture.client.delete("/api/trading/connections/" + connection_id)
         async with fixture.runtime.db.sessions() as session, session.begin():
             for row in (
                 await session.scalars(
