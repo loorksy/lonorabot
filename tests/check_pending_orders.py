@@ -9,13 +9,12 @@ from uuid import uuid4
 from check_streaming import Fixture
 from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError
 from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.schema import EventRow, TradeApprovalRow, TradingAccountRow, TradingJournalRow
 from lonora_session.idempotency import request_hash
 from lonora_tools.loader import load_tools
-from lonora_trading.controls import read_controls, save_controls
 from lonora_trading.idempotency import trade_fingerprint
 from lonora_trading.manual_activity import material_state
 from sqlalchemy import delete, func, select
@@ -23,7 +22,6 @@ from sqlalchemy import delete, func, select
 
 async def main() -> None:
     fixture = await Fixture().open()
-    original_controls = await read_controls(fixture.runtime.db)
     connection_id: str | None = None
     operations: list[str] = []
     try:
@@ -116,8 +114,6 @@ async def main() -> None:
         print(
             "PASS broker-native directory identity is cached under unchanged config version and observation-only refresh emits no WS loop"
         )
-
-        await save_controls(fixture.runtime.db, TradingControl(enabled=True))
         service = fixture.runtime.services(fixture.owner).trading
 
         async def approve(request: TradeRequest) -> None:
@@ -351,7 +347,6 @@ async def main() -> None:
             "PASS credential-preserving edits keep verified native identity; credential edits invalidate it rather than presenting stale labels as current"
         )
     finally:
-        await save_controls(fixture.runtime.db, original_controls)
         async with fixture.runtime.db.sessions() as session, session.begin():
             await session.execute(
                 delete(TradingJournalRow).where(TradingJournalRow.operation_id.in_(operations))

@@ -1,0 +1,411 @@
+{
+  "documents": [
+    {
+      "v": 2,
+      "kind": "calculator",
+      "title": "حاسبة حجم الصفقة",
+      "sub": "جرّب الأرقام بنفسك",
+      "icon": "chart",
+      "agent_id": "agent-1",
+      "facts": {},
+      "state": {
+        "risk": 1,
+        "balance": 10000,
+        "stop": 20,
+        "side": "buy",
+        "lev": "100",
+        "show": false
+      },
+      "calc": {
+        "cash": "$balance*$risk/100",
+        "lots": "$cash/($stop*10)"
+      },
+      "blocks": [
+        {
+          "type": "Grid",
+          "cols": 2,
+          "children": [
+            {
+              "type": "Stat",
+              "label": "المخاطرة",
+              "value": "{@Fmt($cash,0)} $",
+              "sub": "من الرصيد",
+              "trend": "$risk>2?'up':'down'",
+              "tone": "accent",
+              "icon": "trend"
+            },
+            {
+              "type": "Stat",
+              "label": "الحجم",
+              "value": "{@Fmt($lots,2)} لوت"
+            }
+          ]
+        },
+        {
+          "type": "Card",
+          "title": "الفكرة",
+          "icon": "info",
+          "children": [
+            {
+              "type": "Title",
+              "text": "قاعدة ثابتة"
+            },
+            {
+              "type": "Badge",
+              "text": "تقدير",
+              "tone": "good",
+              "icon": "check"
+            }
+          ]
+        },
+        {
+          "type": "Segmented",
+          "bind": "side",
+          "label": "الاتجاه",
+          "options": [
+            {
+              "value": "buy",
+              "label": "شراء"
+            },
+            {
+              "value": "sell",
+              "label": "بيع"
+            }
+          ]
+        },
+        {
+          "type": "Number",
+          "bind": "balance",
+          "label": "الرصيد",
+          "hint": "رصيد الحساب",
+          "prefix": "$",
+          "required": true
+        },
+        {
+          "type": "More",
+          "label": "المزيد",
+          "children": [
+            {
+              "type": "Select",
+              "bind": "lev",
+              "label": "الرافعة",
+              "options": [
+                {
+                  "value": "50",
+                  "label": "1:50"
+                },
+                {
+                  "value": "100",
+                  "label": "1:100"
+                },
+                {
+                  "value": "200",
+                  "label": "1:200"
+                },
+                {
+                  "value": "500",
+                  "label": "1:500"
+                },
+                {
+                  "value": "1000",
+                  "label": "1:1000"
+                }
+              ]
+            },
+            {
+              "type": "Slider",
+              "bind": "risk",
+              "label": "المخاطرة %",
+              "min": 0.5,
+              "max": 5,
+              "step": 0.5,
+              "show": "{$risk}%"
+            },
+            {
+              "type": "Text",
+              "text": "**{@Fmt($lots,2)}** لوت عند وقف {$stop} نقطة",
+              "tone": "muted",
+              "size": "sm"
+            },
+            {
+              "type": "Markdown",
+              "text": "- المخاطرة من الرصيد\n- الوقف بالنقاط"
+            },
+            {
+              "type": "Note",
+              "tone": "warn",
+              "icon": "alert",
+              "when": "$risk>=2",
+              "text": "مخاطرة مرتفعة"
+            },
+            {
+              "type": "KeyValue",
+              "rows": [
+                [
+                  "الرصيد",
+                  "{@Fmt($balance,0)} $"
+                ],
+                [
+                  "الوقف",
+                  "{$stop}"
+                ]
+              ]
+            },
+            {
+              "type": "Col",
+              "children": [
+                {
+                  "type": "Divider"
+                },
+                {
+                  "type": "Text",
+                  "when": "$show",
+                  "text": "تفاصيل إضافية"
+                }
+              ]
+            },
+            {
+              "type": "Row",
+              "children": [
+                {
+                  "type": "Button",
+                  "label": "2%",
+                  "action": {
+                    "do": "set",
+                    "key": "risk",
+                    "value": 2
+                  }
+                },
+                {
+                  "type": "Button",
+                  "label": "التفاصيل",
+                  "action": {
+                    "do": "toggle",
+                    "key": "show"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "label": "إعادة",
+                  "action": {
+                    "do": "reset"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "label": "نسخ",
+                  "icon": "copy",
+                  "action": {
+                    "do": "copy",
+                    "text": "{@Fmt($lots,2)} لوت"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "label": "المصدر",
+                  "action": {
+                    "do": "open",
+                    "url": "https://example.com/position-size"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "label": "السوق",
+                  "action": {
+                    "do": "go",
+                    "route": "market"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Button",
+          "label": "اشرح الحساب",
+          "style": "primary",
+          "full": true
+        }
+      ],
+      "why": "حاسبة تجرّب فيها الأرقام بنفسك وترى الحجم فورًا؛ أوضح من شرح نصي.",
+      "fallback": "الحجم = الرصيد × المخاطرة ÷ (الوقف × 10)."
+    },
+    {
+      "v": 2,
+      "kind": "form",
+      "title": "تنبيه سعر",
+      "sub": "يصلك عند تحقق الشرط",
+      "icon": "bell",
+      "mode": "observed",
+      "account_id": "acc-1",
+      "agent_id": "agent-1",
+      "facts": {
+        "xau": {
+          "value": 2368.4,
+          "source": "market_quote",
+          "observed_at": "2026-11-10T09:00:00Z",
+          "account_id": "acc-1"
+        },
+        "xag": {
+          "value": 28.92,
+          "source": "market_quote",
+          "observed_at": "2026-11-10T09:00:00Z",
+          "account_id": "acc-1"
+        },
+        "eur": {
+          "value": 1.0842,
+          "source": "market_quote",
+          "observed_at": "2026-11-10T09:00:00Z",
+          "account_id": "acc-1"
+        }
+      },
+      "state": {
+        "symbol": "XAUUSD",
+        "dir": "above",
+        "price": 2400
+      },
+      "calc": {
+        "cur": "@Pick($symbol,'XAUUSD',@Fact('xau'),'XAGUSD',@Fact('xag'),@Fact('eur'))",
+        "dp": "@Pick($symbol,'EURUSD',4,2)",
+        "gap": "($price-$cur)/$cur*100",
+        "hit": "($dir=='above'&&$price<=$cur)||($dir=='below'&&$price>=$cur)"
+      },
+      "blocks": [
+        {
+          "type": "Segmented",
+          "bind": "symbol",
+          "label": "الأصل",
+          "options": [
+            {
+              "value": "XAUUSD",
+              "label": "الذهب",
+              "also": {
+                "price": 2400
+              }
+            },
+            {
+              "value": "XAGUSD",
+              "label": "الفضة",
+              "also": {
+                "price": null
+              }
+            },
+            {
+              "value": "EURUSD",
+              "label": "اليورو",
+              "also": {
+                "price": null
+              }
+            }
+          ]
+        },
+        {
+          "type": "Segmented",
+          "bind": "dir",
+          "label": "الشرط",
+          "options": [
+            {
+              "value": "above",
+              "label": "يصعد فوق"
+            },
+            {
+              "value": "below",
+              "label": "يهبط تحت"
+            }
+          ]
+        },
+        {
+          "type": "Number",
+          "bind": "price",
+          "label": "السعر المستهدف",
+          "hint": "الآن {@Fmt($cur,$dp)}",
+          "suffix": "$",
+          "required": true
+        },
+        {
+          "type": "Text",
+          "tone": "muted",
+          "size": "sm",
+          "when": "$price&&!$hit",
+          "text": "يبعد **{@Pct(@Abs($gap),2)}** عن السعر الحالي"
+        },
+        {
+          "type": "Note",
+          "tone": "warn",
+          "when": "$price&&$hit",
+          "text": "الشرط متحقق الآن؛ سيصلك التنبيه فور إنشائه."
+        },
+        {
+          "type": "Delivery",
+          "channels": [
+            "app"
+          ]
+        },
+        {
+          "type": "Button",
+          "label": "إنشاء التنبيه",
+          "style": "primary",
+          "icon": "bell",
+          "full": true,
+          "disabled": "!$price",
+          "action": {
+            "do": "send",
+            "intent": "alert.create",
+            "data": {
+              "symbol": "$symbol",
+              "dir": "$dir",
+              "price": "$price"
+            },
+            "lock": true
+          }
+        }
+      ],
+      "why": "التنبيه يحتاج أصلًا واتجاهًا وسعرًا. نموذج قصير يجمعها مرة واحدة ويمنع الأخطاء، بدل ثلاثة أسئلة متتالية.",
+      "fallback": "أستطيع إنشاء التنبيه. أرسل الأصل والاتجاه والسعر، مثل: «نبّهني إذا صعد الذهب فوق 2400»، وسأراقبه وأرسل لك إشعارًا عند تحققه."
+    },
+    {
+      "v": 2,
+      "kind": "receipt",
+      "title": "ينتظر قرارك",
+      "sub": "طلب معلّق",
+      "icon": "check",
+      "agent_id": "agent-1",
+      "facts": {},
+      "state": {},
+      "calc": {},
+      "blocks": [
+        {
+          "type": "Text",
+          "text": "الذهب عند المقاومة؛ الطلب أدناه بانتظار قرارك."
+        },
+        {
+          "type": "Slot",
+          "card": "trade_approval",
+          "record": "parity-approval"
+        }
+      ],
+      "why": "الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.",
+      "fallback": "طلب موافقة بانتظار قرارك."
+    },
+    {
+      "v": 2,
+      "kind": "receipt",
+      "title": "ينتظر قرارك",
+      "sub": "طلب معلّق",
+      "icon": "check",
+      "agent_id": "agent-1",
+      "facts": {},
+      "state": {},
+      "calc": {},
+      "blocks": [
+        {
+          "type": "Slot",
+          "card": "settle",
+          "record": "parity-settle"
+        }
+      ],
+      "why": "الطلب في مكانه من الشرح، فتقرر وأنت تقرأ.",
+      "fallback": "طلب موافقة بانتظار قرارك."
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-"""Generated-card sends (GENUI_PLAN §8.2, §8.4, §8.5, §10.2): the server-composed bubble,
-the queued submission and its rules Q, W, V, N, T and L, and its provenance (mandate 6.10).
+"""Generated-card sends (docs/genui.md): the server-composed bubble, the queued
+submission and its rules Q, W, V, N, T and L, and its provenance (mandate 6.10).
 
 Runs on the real migrated PostgreSQL schema (skipped without ``LONORA_DATABASE_URL``).
 """
@@ -153,7 +153,7 @@ async def test_submit_stores_the_server_bubble_and_its_own_marked_queued_run() -
         result = response.json()
         message = result["message"]
         # The bubble is the registry's template with the server's own name, never the
-        # client's text or a card label (§10.2 item 8).
+        # client's text or a card label (docs/genui.md §7).
         assert message["content"] == "أنشئ تنبيهًا: الذهب فوق 2,400.00"
         assert message["origin"] == "ui_submit" and message["reply_to"] == card.message_id
         assert message["ui_submit"]["intent"] == "alert.create"
@@ -486,7 +486,7 @@ async def test_card_words_never_stand_for_the_owner() -> None:
 
 
 def test_every_owner_words_read_uses_the_helper_or_reads_origin() -> None:
-    """§8.4: every query of user messages either goes through ``owner_words``, reads
+    """docs/genui.md §7: every query of user messages either goes through ``owner_words``, reads
     ``origin`` or sits on this reviewed allowlist with its reason."""
     root = Path(__file__).parent.parent
     allowed = {
@@ -798,5 +798,277 @@ async def test_an_edit_never_duplicates_an_owner_message_another_run_answers() -
         )
         queued = [r.id for r in await runs(fixture, card.thread["id"]) if r.status == "queued"]
         assert queued == [earlier["id"]]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_retried_card_send_stays_marked_and_an_ordinary_retry_does_not() -> None:
+    """A retry re-runs the same submission, not a later wake: a card send's retry carries a
+    provenance-only mark, so in Ask it can never spend the signed grant either (6.10), as a
+    spoken request's retry stays provisional. A retry of the owner's own message is not
+    marked."""
+    from lonora_db.runs import fail_run
+    from lonora_db.schema import RunRow
+    from lonora_trading.account_authority import provisional_voice
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+
+        async def retried(run_id: str) -> bool:
+            context = await fixture.lease(
+                {"id": run_id, "agent_id": card.agent["id"], "thread_id": card.thread["id"]}
+            )
+            async with fixture.runtime.db.sessions() as session, session.begin():
+                await fail_run(session, context.lease, "model_provider_unavailable")
+            response = await fixture.client.post(f"/api/runs/{run_id}/retry")
+            assert response.status_code == 202, response.text
+            async with fixture.runtime.db.sessions() as session:
+                retry = await session.get(RunRow, response.json()["id"])
+                assert retry is not None and retry.model_metadata["retry_of"] == run_id
+                return await provisional_voice(session, retry)
+
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "راقب الذهب"}
+        )
+        sent = await card.post(card.body({"price": 2460}))
+        assert sent.status_code == 202, sent.text
+        assert await retried(sent.json()["run_ids"][0]) is True
+        assert await retried(typed["run_ids"][0]) is False
+    finally:
+        await fixture.close()
+
+
+async def fail_and_retry(fixture: Any, card: Card, run_id: str, *, started: bool = False) -> str:
+    """The Run fails and the owner taps «إعادة المحاولة»: the retry's Run id. ``started``: the
+    Run reached ``running`` first, recorded as the executor records it (rules N and T)."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.runs import fail_run
+    from lonora_db.schema import RunRow
+
+    context = await fixture.lease(
+        {"id": run_id, "agent_id": card.agent["id"], "thread_id": card.thread["id"]}
+    )
+    if started:
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, run_id, with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+    async with fixture.runtime.db.sessions() as session, session.begin():
+        await fail_run(session, context.lease, "model_provider_unavailable")
+    response = await fixture.client.post(f"/api/runs/{run_id}/retry")
+    assert response.status_code == 202, response.text
+    return str(response.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_a_card_sends_retry_carries_a_provenance_only_mark() -> None:
+    """The retry's mark names the send's own Run and is provenance only (6.10): never the
+    send's queue key, carried again by a retry of that retry, never set through
+    ``create_run``. Like the send's own Run, the retry has no owner words, even with the
+    owner's message folded into the send while it waited."""
+    from lonora_contracts.runs import RunRequest
+    from lonora_db.genui_submit import SUBMIT
+    from lonora_db.owner_words import RETRY_OF_SUBMIT, owner_typed_message
+    from lonora_db.runs import create_run
+    from lonora_db.schema import RunRow
+    from lonora_trading.account_authority import provisional_voice
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2490}))
+        assert sent.status_code == 202, sent.text
+        send = sent.json()["run_ids"][0]
+        typed = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages", {"content": "اشترِ الآن"}
+        )
+        assert typed["run_ids"] == [send]  # folded into the queued send's Run
+        first = await fail_and_retry(fixture, card, send)
+        second = await fail_and_retry(fixture, card, first)
+        async with fixture.runtime.db.sessions() as session:
+            for retry_id in (first, second):
+                retry = await session.get(RunRow, retry_id)
+                assert retry is not None and retry.input_seq >= typed["message"]["seq"]
+                assert SUBMIT not in retry.model_metadata
+                assert retry.model_metadata[RETRY_OF_SUBMIT] == send
+                assert await provisional_voice(session, retry) is True
+                assert await owner_typed_message(session, retry) is None
+        # Never through the door every other Run takes: the mark cannot spread.
+        async with fixture.runtime.db.sessions() as session:
+            forged = await create_run(
+                session,
+                fixture.owner,
+                RunRequest(
+                    thread_id=card.thread["id"],
+                    agent_id=card.agent["id"],
+                    metadata={RETRY_OF_SUBMIT: send},
+                ),
+            )
+            assert RETRY_OF_SUBMIT not in forged.model_metadata
+            assert await provisional_voice(session, forged) is False
+            await session.rollback()
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_retry_that_ends_unstarted_never_marks_a_send_that_ran() -> None:
+    """Rule N reads the send's own Run only: the send's Run started and failed, and its retry
+    is stopped before it starts. The send ran, so it is never marked «لم يُنفَّذ» and its
+    card stays locked."""
+    from lonora_db.cancellation import cancel_run
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2500}))
+        assert sent.status_code == 202, sent.text
+        retry = await fail_and_retry(fixture, card, sent.json()["run_ids"][0], started=True)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await cancel_run(session, fixture.owner, retry)
+        page = await fixture.request("GET", f"/threads/{card.thread['id']}/messages")
+        shown = next(m for m in page if m["id"] == sent.json()["message"]["id"])
+        assert shown.get("ui_mark") is None and "mark" not in shown["ui_submit"]
+        assert next(m for m in page if m["id"] == card.message_id)["ui_lock"]["1"]
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_an_edit_after_a_retry_is_not_refused_because_of_the_retry() -> None:
+    """«تعديل» on a card whose send failed and was retried: the corrected send is accepted,
+    never refused as busy because of the retry. As on main (c5b5f1c2, where the retry
+    carried only ``ui_tainted``), «تعديل» cancels only the send's own Run
+    (``ui_submit.run_id``): the retry stays queued as an ordinary reply, and the corrected
+    send's Run is claimed after it ends (rule Q)."""
+    from lonora_db.genui_submit import SUBMIT
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2510}))
+        assert sent.status_code == 202, sent.text
+        retry = await fail_and_retry(fixture, card, sent.json()["run_ids"][0], started=True)
+        unlocked = await fixture.request(
+            "POST", f"/threads/{card.thread['id']}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        assert unlocked["unlocked"] is True
+        corrected = await card.post(card.body({"price": 2520}))
+        assert corrected.status_code == 202, corrected.text
+        queued = {r.id: r for r in await runs(fixture, card.thread["id"]) if r.status == "queued"}
+        assert set(queued) == {retry, corrected.json()["run_ids"][0]}
+        assert SUBMIT not in queued[retry].model_metadata
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_rule_l_never_expires_a_waiting_retry() -> None:
+    """Rule L cancels a send's own Run 30 minutes after the send; a retry that waits longer
+    is the owner's tap on an ordinary reply and stays queued."""
+    from lonora_db.genui_submit import expire_submits
+    from lonora_db.schema import RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2530}))
+        assert sent.status_code == 202, sent.text
+        retry = await fail_and_retry(fixture, card, sent.json()["run_ids"][0], started=True)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, retry, with_for_update=True)
+            assert row is not None
+            row.created_at = row.created_at - timedelta(minutes=31)
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            assert await expire_submits(session, card.thread["id"]) == []
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(RunRow, retry)
+            assert row is not None and row.status == "queued" and row.error_code is None
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_a_retrys_start_leaves_the_sends_started_and_visibility_state_alone() -> None:
+    """Rules N, T and V read the send's own Run only. The send's Run failed before it
+    started, so the send stays hidden from every other Run; the retry's start (the
+    executor's ``mark_submit_started``) neither marks the send started nor makes it visible
+    to another Run while the retry runs."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.owner_words import submit_hidden
+    from lonora_db.schema import MessageRow, RunRow
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        sent = await card.post(card.body({"price": 2540}))
+        assert sent.status_code == 202, sent.text
+        retry = await fail_and_retry(fixture, card, sent.json()["run_ids"][0])
+        await fixture.lease(
+            {"id": retry, "agent_id": card.agent["id"], "thread_id": card.thread["id"]}
+        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await session.get(RunRow, retry, with_for_update=True)
+            assert row is not None
+            await mark_submit_started(session, row)
+        peer = await fixture.run(card.agent, card.thread)
+        async with fixture.runtime.db.sessions() as session:
+            message = await session.get(MessageRow, sent.json()["message"]["id"])
+            row = await session.get(RunRow, retry)
+            other = await session.get(RunRow, peer["id"])
+            assert message is not None and message.ui_submit is not None
+            assert row is not None and row.status == "running" and other is not None
+            assert "started_at" not in message.ui_submit
+            assert "ui_submit_started" not in row.model_metadata
+            assert await submit_hidden(session, message, other)
+    finally:
+        await fixture.close()
+
+
+@pytest.mark.asyncio
+async def test_card_events_carry_the_row_a_history_page_shows() -> None:
+    """A card's own ``message.updated`` events (its send started, «تعديل») carry the message
+    as a history page shows it, reactions included, so a client that replaces the row with
+    the event keeps them."""
+    from lonora_db.genui_submit import mark_submit_started
+    from lonora_db.schema import EventRow, RunRow
+    from sqlalchemy import select
+
+    fixture = await open_fixture()
+    try:
+        card = await Card(fixture).open()
+        thread_id = card.thread["id"]
+        await fixture.request(
+            "PUT", f"/threads/{thread_id}/messages/{card.message_id}/reactions/👍"
+        )
+        response = await card.post(card.body({"price": 2470}))
+        assert response.status_code == 202, response.text
+        submit = response.json()["message"]
+        await fixture.request("PUT", f"/threads/{thread_id}/messages/{submit['id']}/reactions/👍")
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            run = await session.get(RunRow, response.json()["run_ids"][0], with_for_update=True)
+            assert run is not None
+            await mark_submit_started(session, run)
+            run.status = "completed"
+        unlocked = await fixture.request(
+            "POST", f"/threads/{thread_id}/messages/{card.message_id}/ui-state/1/unlock"
+        )
+        assert unlocked["unlocked"] is True
+        page = {m["id"]: m for m in await fixture.request("GET", f"/threads/{thread_id}/messages")}
+        async with fixture.runtime.db.sessions() as session:
+            events = list(
+                await session.scalars(
+                    select(EventRow)
+                    .where(EventRow.thread_id == thread_id, EventRow.kind == "message.updated")
+                    .order_by(EventRow.cursor)
+                )
+            )
+        latest = {e.payload["id"]: e.payload for e in events}
+        for message_id in (card.message_id, submit["id"]):
+            assert latest[message_id]["reactions"] == page[message_id]["reactions"] != []
+            assert latest[message_id].get("ui_lock") == page[message_id].get("ui_lock")
+            assert latest[message_id].get("ui_mark") == page[message_id].get("ui_mark")
     finally:
         await fixture.close()

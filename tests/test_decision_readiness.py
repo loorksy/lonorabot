@@ -10,7 +10,6 @@ from lonora_contracts.account import AccountState
 from lonora_contracts.domain import utcnow
 from lonora_contracts.market import Candle, Quote
 from lonora_contracts.market_intelligence import DetectorDefinition
-from lonora_contracts.trading import TradingControl
 from lonora_contracts.trading_decision import (
     ConditionalEntryPlan,
     DecisionEvidence,
@@ -76,7 +75,6 @@ def project(
     return decision_readiness(
         request,
         evidence,
-        controls=TradingControl(enabled=True),
         broker_enabled=True,
         broker_recovery_status="connected",
         connection_changed=connection_changed,
@@ -123,7 +121,6 @@ def test_reconciliation_cannot_erase_market_analysis_or_allow_execution():
     value = decision_readiness(
         request,
         evidence,
-        controls=TradingControl(enabled=True),
         broker_enabled=True,
         broker_recovery_status="reconciling",
     )
@@ -209,19 +206,17 @@ def test_model_selected_entry_does_not_turn_open_bar_into_closed_confirmation():
     assert value.execution_readiness.execution_authorized is False
 
 
-def test_controls_and_changed_connection_stay_authoritative():
+def test_a_disabled_broker_and_changed_connection_stay_authoritative():
     request, evidence = sample()
     value = decision_readiness(
         request,
         evidence,
-        controls=TradingControl(enabled=False, emergency_stop=True),
         broker_enabled=False,
         broker_recovery_status="connected",
     )
     assert value.market_assessment.bias == "BULLISH"
-    assert {"emergency_stop", "trading_disabled", "broker_disabled"} <= set(
-        value.execution_readiness.reason_codes
-    )
+    assert "broker_disabled" in value.execution_readiness.reason_codes
+    assert not {"emergency_stop", "trading_disabled"} & set(value.execution_readiness.reason_codes)
     changed = project(request, evidence, connection_changed=True)
     assert changed.market_assessment.bias == "INSUFFICIENT_EVIDENCE"
     assert "broker_connection_changed" in changed.execution_readiness.reason_codes

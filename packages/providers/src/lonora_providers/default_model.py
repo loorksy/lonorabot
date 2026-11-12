@@ -24,7 +24,7 @@ from lonora_db.transactions import SettingsRepository
 
 from .catalog import store_catalog
 from .credentials import ProviderCredentials
-from .registry import PROVIDERS, model_adapter
+from .registry import PROVIDERS, build_adapter, model_adapter
 
 log = logging.getLogger("lonora.model_router")
 
@@ -36,6 +36,8 @@ PREFERRED_FAMILIES: dict[str, tuple[str, ...]] = {
     "deepseek": ("deepseek-chat",),
     "zai": ("glm-5", "glm-4.7", "glm-4.6", "glm-4.5"),
     "openrouter": ("openrouter/auto",),
+    # The owner's own endpoint has no family Lonora could know: the first model it lists.
+    "openai_compatible": (),
 }
 
 
@@ -59,7 +61,7 @@ def preferred_model(listed: list[str], families: tuple[str, ...]) -> str | None:
 async def choose_default_model(
     db: Database,
     credentials: ProviderCredentials,
-    factory: Callable[[str, str], ModelAdapter] = model_adapter,
+    factory: Callable[..., ModelAdapter] = model_adapter,
 ) -> ModelSelection | None:
     """Choose and record the unified model, or return ``None`` when nothing can be
     chosen. A provider that could not be asked is passed over; if no other provider
@@ -78,7 +80,7 @@ async def choose_default_model(
             if error.code != "model_not_configured":
                 raise
             continue
-        adapter = factory(provider, secret)
+        adapter = build_adapter(factory, provider, secret, await credentials.endpoint(provider))
         try:
             models = await adapter.discover()
         except LonoraError as error:
@@ -87,7 +89,9 @@ async def choose_default_model(
         finally:
             await adapter.close()
         await store_catalog(db, provider, models)
-        model = preferred_model([item.id for item in models], PREFERRED_FAMILIES[provider])
+        listed = [item.id for item in models]
+        families = PREFERRED_FAMILIES[provider]
+        model = preferred_model(listed, families) if families else next(iter(listed), None)
         if model is None:
             continue
         selection = ModelSelection.model_validate({"provider": provider, "model": model})

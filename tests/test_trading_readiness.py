@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from lonora_contracts.domain import utcnow
-from lonora_contracts.trading import TradingControl
 from lonora_db.agent_state import agent_live_state
 from lonora_db.client import Database
 from lonora_db.schema import (
@@ -26,9 +25,8 @@ from lonora_db.schema import (
     TradingJournalRow,
     TradingRestrictionRow,
 )
-from lonora_db.trading_readiness import global_trading, trading_readiness
+from lonora_db.trading_readiness import trading_readiness
 from lonora_db.transactions import SettingsRepository, execution_policy_key
-from lonora_trading.controls import save_controls
 from lonora_trading.execution_quality import policy_key
 from test_task_runtime import task_db as task_db
 
@@ -74,10 +72,6 @@ async def readiness(db: Database, owner: str, agent: str) -> dict[str, Any]:
         return await trading_readiness(session, owner, row)
 
 
-async def resume(db: Database) -> None:
-    await save_controls(db, TradingControl(enabled=True))
-
-
 def restriction(
     owner: str, acct: str, action_class: str, *, symbol: str | None = None, **values: Any
 ) -> TradingRestrictionRow:
@@ -96,7 +90,7 @@ def restriction(
 
 
 @pytest.mark.asyncio
-async def test_no_grant_reads_as_no_trading_with_default_stopped_and_unset_limits(
+async def test_no_grant_reads_as_no_trading_with_unset_limits(
     task_db: Fixture,
 ) -> None:
     db, owner, agent, _ = task_db
@@ -106,8 +100,8 @@ async def test_no_grant_reads_as_no_trading_with_default_stopped_and_unset_limit
     # The per-agent default is analysis: the one line says it does not trade.
     assert result["level"] == "analysis" and result["state"] == "no_trading"
     assert result["grants"] == []
-    # Trading starts stopped until the owner resumes it; nobody changed it yet.
-    assert result["global_trading"] == {"state": "stopped", "since": None, "changed_by": "default"}
+    # Lonora has no Stop: the projection carries no global trading state.
+    assert "global_trading" not in result
     assert result["money_limits"] == [
         {
             "account_id": acct,
@@ -134,12 +128,9 @@ async def test_ask_me_and_signed_grant_lines_report_whether_a_money_limit_is_set
 ) -> None:
     db, owner, agent, _ = task_db
     acct = await account(db, owner)
-    await resume(db)
     level(monkeypatch, "supervised")
     asked = await readiness(db, owner, agent)
     assert asked["state"] == "ask_me" and asked["params"] == {"money_limit_set": False}
-    assert asked["global_trading"]["state"] == "running"
-    assert asked["global_trading"]["changed_by"] == "owner"
 
     level(monkeypatch, "autonomous", grant(acct, valid_until="2026-12-01T00:00:00+00:00"))
     signed = await readiness(db, owner, agent)
@@ -178,7 +169,6 @@ async def test_a_granted_account_is_read_whatever_the_owner_s_other_accounts(
     for _ in range(12):
         await account(db, owner)
     granted = await account(db, owner)  # Created last: beyond the first ten.
-    await resume(db)
     async with db.sessions() as session, session.begin():
         await SettingsRepository().put(
             session,
@@ -197,40 +187,12 @@ async def test_a_granted_account_is_read_whatever_the_owner_s_other_accounts(
 
 
 @pytest.mark.asyncio
-async def test_globally_stopped_wins_over_the_ladder_and_since_stays_true(
-    task_db: Fixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db, owner, agent, _ = task_db
-    acct = await account(db, owner)
-    level(monkeypatch, "autonomous", grant(acct))
-    await resume(db)
-    await save_controls(db, TradingControl(enabled=False, emergency_stop=True))
-    stopped = await readiness(db, owner, agent)
-    assert stopped["state"] == "stopped"
-    assert stopped["params"]["since"] == stopped["global_trading"]["since"] is not None
-    # Repeating Stop is not a new change: "stopped since" does not move.
-    await save_controls(db, TradingControl(enabled=False, emergency_stop=True))
-    async with db.sessions() as session:
-        assert (await global_trading(session))["since"] == stopped["global_trading"]["since"]
-    # Plain Trading OFF is the same single brake.
-    await save_controls(db, TradingControl(enabled=False))
-    assert (await readiness(db, owner, agent))["state"] == "stopped"
-    await resume(db)
-    assert (await readiness(db, owner, agent))["state"] == "on_its_own"
-    # No trading stays the truthful line for an agent that never trades.
-    level(monkeypatch, "analysis")
-    await save_controls(db, TradingControl(enabled=False))
-    assert (await readiness(db, owner, agent))["state"] == "no_trading"
-
-
-@pytest.mark.asyncio
 @pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
 async def test_active_restriction_pauses_and_a_freeze_traps_no_exit_but_shows_it(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db, owner, agent, _ = task_db
     acct = await account(db, owner)
-    await resume(db)
     level(monkeypatch, "supervised")
     now = utcnow()
     async with db.sessions() as session, session.begin():
@@ -303,7 +265,6 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
 ) -> None:
     db, owner, agent, thread = task_db
     acct = await account(db, owner)
-    await resume(db)
     level(monkeypatch, "autonomous", grant(acct))
     rows: list[tuple[str, str, dict[str, Any]]] = [
         ("op-ambiguous", "ambiguous", {"execution": {"agent_id": agent}}),
@@ -374,10 +335,13 @@ async def test_ambiguous_operation_reads_as_uncertain_with_its_scoped_block(
         "timeline_seq": 7,
     }
     assert linked[1]["resolve_card"] is None
-    # A stop or pause is the stronger line; the operation stays listed for the sheet.
-    await save_controls(db, TradingControl(enabled=False))
-    stopped = await readiness(db, owner, agent)
-    assert stopped["state"] == "stopped" and stopped["unresolved_count"] == 2
+    # A pause is the stronger line; the operation stays listed for the sheet.
+    async with db.sessions() as session, session.begin():
+        row = await session.get(AgentRow, agent)
+        assert row is not None
+        row.paused = True
+    held = await readiness(db, owner, agent)
+    assert held["state"] == "agent_paused" and held["unresolved_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -386,7 +350,6 @@ async def test_paused_agent_and_market_bound_scope(
 ) -> None:
     db, owner, agent, _ = task_db
     bound, other = await account(db, owner), await account(db, owner)
-    await resume(db)
     level(monkeypatch, "supervised")
     async with db.sessions() as session, session.begin():
         row = await session.get(AgentRow, agent)
@@ -423,22 +386,20 @@ async def test_paused_agent_and_market_bound_scope(
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not POSTGRES, reason="restriction windows need timezone-aware timestamps")
-async def test_stop_with_a_freeze_never_claims_exits_are_allowed(
+async def test_a_freeze_never_claims_exits_are_allowed(
     task_db: Fixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db, owner, agent, _ = task_db
     acct = await account(db, owner)
     level(monkeypatch, "supervised")
-    await resume(db)
-    await save_controls(db, TradingControl(enabled=False, emergency_stop=True))
-    stopped = await readiness(db, owner, agent)
-    assert stopped["state"] == "stopped" and stopped["exits_allowed"] is True
+    asked = await readiness(db, owner, agent)
+    assert asked["state"] == "ask_me" and asked["exits_allowed"] is True
     async with db.sessions() as session, session.begin():
         session.add(restriction(owner, acct, "all_mutations"))
     frozen = await readiness(db, owner, agent)
-    # Stop stays the headline; the same projection says exits are frozen too, so the
-    # line cannot say "exits allowed" next to the sheet's "exits are blocked too".
-    assert frozen["state"] == "stopped" and frozen["exits_allowed"] is False
+    # The same projection says exits are frozen too, so the line cannot say "exits
+    # allowed" next to the sheet's "exits are blocked too".
+    assert frozen["state"] == "paused" and frozen["exits_allowed"] is False
     assert frozen["restrictions"][0]["action_class"] == "all_mutations"
 
 
@@ -449,7 +410,6 @@ async def test_pauses_and_operations_count_only_on_the_accounts_the_agent_acts_o
 ) -> None:
     db, owner, agent, _ = task_db
     granted, other = await account(db, owner), await account(db, owner)
-    await resume(db)
     level(monkeypatch, "autonomous", grant(granted))
     async with db.sessions() as session, session.begin():
         session.add(restriction(owner, other, "all_mutations"))
@@ -494,7 +454,6 @@ async def test_a_freeze_on_a_bound_agents_market_blocks_its_exits(
 ) -> None:
     db, owner, agent, _ = task_db
     bound = await account(db, owner)
-    await resume(db)
     level(monkeypatch, "supervised")
     async with db.sessions() as session, session.begin():
         row = await session.get(AgentRow, agent)
