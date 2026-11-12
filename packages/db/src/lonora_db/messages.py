@@ -360,14 +360,12 @@ async def send_message(
         if collaboration is None:
             raise LonoraError("collaboration_session_required", 409)
     elif guest_ids:
-        from lonora_contracts.collaboration import MAXIMUM_ROUNDS
-
         from .collaboration import current_session
 
         # Guests join the chat's open session while it has room for another round;
         # otherwise the invitation starts a new one.
         current = await current_session(session, owner_id, thread_id)
-        if current is not None and len(current.state.get("rounds", [])) < MAXIMUM_ROUNDS:
+        if current is not None and has_room(current):
             collaboration = current
     reply = None
     if request.reply_to:
@@ -410,7 +408,7 @@ async def send_message(
         mentions={
             "agent_ids": list(dict.fromkeys(request.mention_agent_ids)),
             "all": request.mention_all,
-            "session_id": collaboration.id if collaboration else None,
+            "session_id": collaboration.id if collaboration and has_room(collaboration) else None,
         },
         client_nonce=request.client_nonce,
     )
@@ -634,9 +632,18 @@ async def admit_runs(
                 participant_ids,
                 request.content,
                 message_id=message.id,
-                session_id=collaboration.id if collaboration else None,
+                # A session with no room left for a round (the runaway guard) never refuses
+                # the owner: its participants are invited into a new session instead.
+                session_id=collaboration.id if collaboration and has_room(collaboration) else None,
             )
     return run_ids
+
+
+def has_room(collaboration: Any) -> bool:
+    """Whether a collaboration session can take another round (MAXIMUM_ROUNDS)."""
+    from lonora_contracts.collaboration import MAXIMUM_ROUNDS
+
+    return len(collaboration.state.get("rounds", [])) < MAXIMUM_ROUNDS
 
 
 async def supersede(

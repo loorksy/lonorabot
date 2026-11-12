@@ -3,7 +3,6 @@
 from typing import Any
 
 from lonora_contracts.collaboration import (
-    MAXIMUM_PARTICIPANT_RUNS,
     MAXIMUM_ROUNDS,
     CollaborationParticipant,
     CollaborationRound,
@@ -142,9 +141,6 @@ async def invite(
             if existing.prompt != subject or existing.agent_id != target.id:
                 raise LonoraError("collaboration_intent_conflict", 409)
             continue
-        # The same runaway guard, per participant within one session.
-        if len(participant.run_ids) >= MAXIMUM_PARTICIPANT_RUNS:
-            raise LonoraError("collaboration_round_limit", 409)
         target_thread = await conversation_thread(session, owner_id, target.id)
         require_collaboration(owner_id, target.owner_id, len(seen) - 1)
         try:

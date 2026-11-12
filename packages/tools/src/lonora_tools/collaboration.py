@@ -117,7 +117,7 @@ def tools() -> list[Tool]:
     return [
         Tool(
             "collaboration_start",
-            "Invite selected owned agents to contribute evidence in their own scoped peer runs. Real outcomes return as attributed guests in this conversation. No authority is shared.",
+            "Invite selected owned agents to contribute evidence in their own scoped peer runs. Real outcomes return as attributed guests in this conversation. No authority is shared. A session takes 8 rounds; when one is full, start a new collaboration without session_id.",
             CollaborationCreate,
             start,
         ),
