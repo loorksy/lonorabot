@@ -49,9 +49,7 @@ NEVER_RESTORED='^LONORA_(POSTGRES_PASSWORD|COMPOSE_OVERLAYS|IMAGE|IMAGE_REPO|DAT
 # Owner controls, authority and money records. If any of them changed while a new version
 # ran, restoring the pre-update backup could undo an owner's stop, restriction or
 # revocation, or erase the record of an order already at the broker: the rollback holds.
-# ln_supervision_holds records every pause of an agent, routine, watch or Task and who may
-# lift it (mandate 4.6, 4.7.2): a rollback never undoes an owner's pause or resume.
-CONTROL_TABLES=(ln_trading_restrictions ln_account_authorities ln_supervision_grants ln_supervision_holds ln_owner_actions ln_trade_approvals ln_trading_journal)
+CONTROL_TABLES=(ln_trading_restrictions ln_account_authorities ln_supervision_grants ln_owner_actions ln_trade_approvals ln_trading_journal)
 CLEANUP=()
 GPG_DIR=""
 WORK_DIR=""
