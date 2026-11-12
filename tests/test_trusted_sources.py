@@ -1251,27 +1251,55 @@ async def test_skills_install_inside_the_list_and_outside_it_only_on_the_owners_
         assert repo["added_by_agent_name"] == agent["name"]
         async with fixture.runtime.db.sessions() as session:
             assert await session.scalar(select(SkillRow).where(SkillRow.agent_id == agent["id"]))
-        # Inspecting trusts what the owner named before it reads: a publisher he named as
-        # github.com/<owner> joins his list, and the inspection says so.
+        # Inspecting trusts nothing unless trust=True; then only on the owner's words, before
+        # it reads: a publisher he named as github.com/<owner> joins his list.
         publisher = "pub-" + uuid4().hex[:8]
+        url = f"https://github.com/{publisher}/tools"
+        reads: list[str] = []
 
         async def inspected(url: str, ref: str) -> dict[str, Any]:
-            assert await trusted_row(fixture, "github_owner", publisher) is not None
+            reads.append(url)
             return {"repository_url": url, "commit": "b" * 40}
 
-        context = bare(
-            await owner_says(
-                fixture, agent, thread["id"], f"trust skills from github.com/{publisher}"
+        async def untrusted() -> bool:
+            return (
+                await trusted_row(fixture, "github_owner", publisher) is None
+                and await trusted_row(fixture, "github_repo", publisher + "/tools") is None
             )
-        )
+
         with patch("lonora_agent.skills.repository.inspect_repository", inspected):
-            seen = await call(
-                context,
-                "skill_repository_inspect",
-                repository_url=f"https://github.com/{publisher}/tools",
-                ref="main",
+            # trust omitted: the owner only mentions it (and refuses): read, not trusted.
+            context = bare(
+                await owner_says(
+                    fixture,
+                    agent,
+                    thread["id"],
+                    f"What is in {publisher}/tools? Don't add it, just tell me.",
+                )
             )
-        assert seen["source_trusted"] is True
+            seen = await call(context, "skill_repository_inspect", repository_url=url, ref="main")
+            assert seen["source_trusted"] is False and reads == [url], seen
+            assert await untrusted()
+            # trust=True on a routine run, or after third-party content: refused, unread.
+            context = bare(await routine(fixture, agent, thread["id"]))
+            args = {"repository_url": url, "ref": "main", "trust": True}
+            assert (await call(context, "skill_repository_inspect", **args))["code"] == REFUSED
+            context = bare(
+                await owner_says(
+                    fixture, agent, thread["id"], f"trust skills from github.com/{publisher}"
+                )
+            )
+            await read_third_party(fixture, context)
+            assert (await call(context, "skill_repository_inspect", **args))["code"] == REFUSED
+            assert await untrusted() and reads == [url]
+            # trust=True with the owner naming it: trusted before it is read.
+            context = bare(
+                await owner_says(
+                    fixture, agent, thread["id"], f"trust skills from github.com/{publisher}"
+                )
+            )
+            seen = await call(context, "skill_repository_inspect", **args)
+        assert seen["source_trusted"] is True and reads == [url, url], seen
         row = await trusted_row(fixture, "github_owner", publisher)
         assert row is not None and row.added_via == "owner_message"
         assert await card_kinds(fixture, thread["id"]) == []

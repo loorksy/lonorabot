@@ -236,7 +236,7 @@ class RunSkillAccess:
         return await restore_skill(context, self.registry, arguments)
 
     async def inspect_repository(
-        self, context: ToolContext, repository_url: str, ref: str
+        self, context: ToolContext, repository_url: str, ref: str, trust: bool = False
     ) -> dict[str, Any]:
         from lonora_db.trusted_sources import github_trusted
 
@@ -246,9 +246,12 @@ class RunSkillAccess:
         owner, repository = repository_identity(repository_url)
         async with context.db.sessions() as session, session.begin():
             run = await scoped_run(session, context)
-            # Before reading it: once this run reads the repository, the owner's message
-            # no longer counts on its own, so a repository he named joins his list now.
-            await repository_trusted(session, context, run, owner, repository)
+            # Trusting it is asked for (trust=True), and before reading it: once this run
+            # reads the repository, the owner's message no longer counts on its own.
+            if trust and not await repository_trusted(session, context, run, owner, repository):
+                from lonora_tools.source_trust import refusal
+
+                return refusal(repository=owner + "/" + repository)
         result = await inspect_repository(repository_url, ref)
         async with context.db.sessions() as session, session.begin():
             await scoped_run(session, context)

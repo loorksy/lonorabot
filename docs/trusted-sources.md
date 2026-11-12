@@ -154,9 +154,10 @@ anything. Inside the list (github.com by default) the pinned commit installs as 
 and the agent may activate it; outside it the import goes on only when the owner's
 message names the repository (or `github.com/<owner>`), which then joins the list;
 otherwise it returns `trust_requires_owner_message` without fetching.
-`skill_repository_inspect` trusts a repository the owner's message names before it reads
-it (afterwards the run has read the repository, so the owner's message no longer counts)
-and reports `source_trusted`. Instructions-only packages (no utilities) need no analysis host: their
+`skill_repository_inspect` reads any public repository and reports `source_trusted`;
+with `trust=true` (only when the owner asks) it first trusts the repository his message
+names, before it reads it (afterwards the owner's message no longer counts), and returns
+`trust_requires_owner_message`, unread, otherwise. Instructions-only packages (no utilities) need no analysis host: their
 files go to the agent's database-backed workspace store even when no workspace access is
 configured. Packages with utilities still need sandbox validation before activation, and
 the owner's revocation (Undo in Capabilities) is unchanged.
