@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from lonora_contracts.broker_activity import BrokerRecoverySnapshot
 from lonora_contracts.domain import utcnow
 from lonora_contracts.runs import RunRequest
+from lonora_core.attention import CARD_ATTENTION
 from lonora_core.run_state import TERMINAL
 from lonora_core.user_error import LonoraError
 from lonora_db.cancellation import cancel_run
@@ -60,8 +61,18 @@ WRITE_DEADLINE = timedelta(minutes=30)
 # Bounds that keep the facts inside the wake prompt (RunRequest.prompt, 30,000 chars).
 MAXIMUM_ITEMS = 40
 PROMPT_LIMIT = 30000
-# Attention codes whose fact the brief already counts (approvals, unsettled operations).
-COUNTED_ELSEWHERE = ("approval_required", "operation_uncertain", "operation_unresolved")
+# Attention codes whose fact the brief already counts: approvals, unsettled operations,
+# a pending owner card's own item (the Secret card's), and a broker health problem, which
+# is an account the snapshot shows disconnected.
+COUNTED_ELSEWHERE = (
+    "approval_required",
+    "operation_uncertain",
+    "operation_unresolved",
+    *CARD_ATTENTION.values(),
+    "broker_token_rejected",
+    "broker_account_undeployed",
+    "broker_connection_lost",
+)
 # A weekly report reaches the brief bounded, as the agent's own words.
 REPORT_CHARACTERS = 1500
 # How long the brief waits for the agents it woke for their weekly reports.

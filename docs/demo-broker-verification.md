@@ -31,13 +31,11 @@ credentials or account IDs in shared logs.
 7. Repeat market/pending/modify/close operations for broker forex, metals, index
    and crypto symbols including suffixes. Never substitute an alias for the exact
    native symbol. Verify unavailable symbols have a specific error.
-8. Turn global trading OFF, then test Emergency Stop separately. Approving must
-   not execute a new mutation. Reads remain available. Restore original controls.
-9. Interrupt the connection **after** a demo send. Verify ambiguity is recorded,
+8. Interrupt the connection **after** a demo send. Verify ambiguity is recorded,
    no automatic second send occurs, and reconciliation queries the broker before
    resolving the operation. Restart the worker while waiting for approval and
    after a send: durable decisions and journal results must survive recovery.
-10. Confirm the resumed original run reports broker success/error in chat. A
+9. Confirm the resumed original run reports broker success/error in chat. A
     model failure must not hide the durable execution result card. Finish by
     closing demo test positions/orders and restoring original settings.
 

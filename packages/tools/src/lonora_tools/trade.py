@@ -3,8 +3,7 @@ from typing import Any
 
 from lonora_contracts.account import Order, Position
 from lonora_contracts.domain import Contract, utcnow
-from lonora_contracts.trading import TradeRequest, TradeResult, TradingControl
-from lonora_core.trading_control import require_trading
+from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_core.user_error import LonoraError, ToolRefusal
 from lonora_db.agent_binding import (
     agent_binding,
@@ -16,7 +15,6 @@ from lonora_db.runs import require_lease
 from lonora_db.schema import (
     MessageRow,
     RunRow,
-    SettingRow,
     TradeApprovalRow,
     TradingJournalRow,
 )
@@ -260,50 +258,15 @@ async def new_risk_requests(
     return result
 
 
-async def start_trading_card(context: ToolContext) -> dict[str, Any]:
-    """New trading was never started on this install (not the owner's Stop): nothing is
-    sent and no approval is asked, but the owner gets the one-tap Start trading card in
-    the conversation at once, instead of a bare refusal to find the safety sheet for."""
-    from lonora_contracts.owner_actions import OwnerActionProposal
-    from lonora_db.owner_actions import live_status, propose
-
-    async with context.db.sessions() as session, session.begin():
-        # The order every card takes them in: the owner's cards, then the Run.
-        run = await require_lease(session, context.lease)
-        card, created = await propose(
-            session,
-            context.owner_id,
-            OwnerActionProposal(kind="resume_trading"),
-            card_id=context.resource_id,
-            agent_id=context.agent_id,
-            thread_id=run.model_metadata.get("origin_thread_id") or context.thread_id,
-            run_id=run.id,
-        )
-        await require_lease(session, context.lease, lock=True)
-        return {
-            "status": "failed",
-            "code": "trading_not_started",
-            "details": {"send_state": "not_sent"},
-            "owner_action": {
-                "id": card.id,
-                "kind": card.kind,
-                "status": live_status(card),
-                "already_shown": not created,
-            },
-            "recovery": "Say in one line that trading has not been started and that the "
-            "owner's one tap on the card starts it; ask again after the tap.",
-        }
-
-
 async def refuse_braked_entries(
     session: AsyncSession, context: ToolContext, requests: list[TradeRequest]
 ) -> None:
     """Never ask the owner to approve new risk a brake in force would refuse at send.
 
-    Stop new trading and a pause (``no_new_entries`` and stronger) hold every entry, so an
-    approval card for one could only fail after the owner's tap. The boundary's own codes
-    (``trading_disabled``, ``emergency_stop``, ``trading_restriction_active``) come back
-    instead, and the agent offers the owner's Resume or Lift card. ``requests`` are the
+    A pause (``no_new_entries`` and stronger) holds every entry, so an approval card for
+    one could only fail after the owner's tap. The boundary's own code
+    (``trading_restriction_active``) comes back instead, and the agent offers the owner's
+    Lift card. ``requests`` are the
     ones that add risk on the broker's current facts (``new_risk_requests``); a close,
     cancel or tightening is still asked and decided by the executor against the fresh
     broker target, which repeats every check at the moment of sending. This only
@@ -312,8 +275,6 @@ async def refuse_braked_entries(
     entries = requests
     if not entries:
         return
-    stored = await session.get(SettingRow, "trading_control", populate_existing=True)
-    require_trading(TradingControl.model_validate(stored.payload if stored else {}))
     for request in entries:
         await require_unrestricted(
             session, context.owner_id, request, agent_id=context.agent_id, reducing=False
@@ -326,7 +287,7 @@ def independent_exits(requests: list[TradeRequest]) -> bool:
     No such close depends on another: each one is admitted again against its own fresh
     broker target under the send lock, and admission never blocks a risk-reducing exit.
     A failed, blocked or uncertain close must therefore never hold back the other
-    approved exits (for example a close-all during an Emergency Stop).
+    approved exits (for example a close-all).
     """
     positions = [request.position_id for request in requests]
     return all(
@@ -409,13 +370,6 @@ async def approved_execution(
     adding = (
         await new_risk_requests(context, requests) if not gate_only and previous is None else []
     )
-    if adding:
-        async with context.db.sessions() as reader:
-            # No stored control: trading was never started on this install (it starts
-            # stopped), unlike the owner's own Stop.
-            never_started = await reader.get(SettingRow, "trading_control") is None
-        if never_started:
-            return await start_trading_card(context)
     async with context.db.sessions() as session, session.begin():
         current = await require_lease(session, context.lease)
         if current.agent_id != context.agent_id:
