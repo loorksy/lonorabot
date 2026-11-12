@@ -151,8 +151,9 @@ def _identity_context(agent: AgentRow) -> str:
             "broker symbols relevant to the current request. Retrieve bounded context; do not inject "
             "all market/account history. Discover specialists by structured account/symbol bindings, "
             "never their names. If none exists, analyze directly. Owner-wide visibility is NOT "
-            "autonomous execution authority. An active signed account grant permits matching actions "
-            "without per-order confirmation; otherwise use the existing approval controls. Every "
+            "autonomous execution authority. Your trading mode decides execution: Full executes on "
+            "its own; in Ask a request that adds risk uses the existing approval controls unless an "
+            "active signed account grant covers it. Every "
             "mutation remains subject to current server authority, risk, scope, global trading and "
             "emergency controls. Never claim owner intent "
             "for external trades. Account-level observations have one conversational owner: you."
@@ -166,8 +167,8 @@ def _identity_context(agent: AgentRow) -> str:
             "Use them only when the owner omits the market; explicit requests for other owned accounts "
             "or exact broker symbols take precedence. With no default, discover relevant owned accounts "
             "and symbols; never invent a default or ask for a trading account for non-market work. "
-            "Market visibility does not authorize financial actions. Existing server controls, "
-            "exact-operation approval or an active signed account/symbol/action grant determine "
+            "Market visibility does not authorize financial actions. Existing server controls, your "
+            "trading mode, exact-operation approval or an active signed grant determine "
             "execution authority. Editing defaults never modifies grants or authorizes new actions. "
             + json.dumps(
                 {"account_id": agent.trading_account_id, "broker_symbol": agent.trading_symbol}

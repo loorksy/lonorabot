@@ -1,10 +1,10 @@
 """Brakes come before approval cards (W15-ACC).
 
-An agent at Ask me (or a trade outside an On its own grant) asks the owner with an
+An agent in Ask (or a trade outside an On its own grant) asks the owner with an
 approval card. While Stop new trading or a pause holds new risk, a card for a new entry
 could only fail after the owner's tap, so the trade tool returns the boundary's own code
-instead and no card is raised. Exits are still asked: the executor decides them against
-the fresh broker target. Runs on the real migrated PostgreSQL schema and the simulation
+instead and no card is raised. Exits execute without a card: the executor classifies
+them against the fresh broker target. Runs on the real migrated PostgreSQL schema and the simulation
 broker (skipped without ``LONORA_DATABASE_URL``).
 """
 
@@ -86,7 +86,8 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
         )
         assert await refused(context, **entry) == "trading_restriction_active"
         assert await cards() == 0
-        # An exit under the pause is still asked: closing is never held by a pause.
+        # An exit under the pause is never held by a pause, and in Ask a risk-reducing
+        # request executes without a card (mandate 4.1).
         close = await call(
             context,
             "trade_execute",
@@ -95,13 +96,13 @@ async def test_stop_and_pauses_refuse_new_entries_before_any_approval_card() -> 
             symbol="XAUUSD",
             position_id="held-ticket",
         )
-        assert close.get("_runtime_wait") and close.get("approval_id"), close
-        assert await cards() == 1
-        # Lifted: the same entry is asked again with a card, as Ask me promises.
+        assert close.get("status") == "confirmed" and "approval_id" not in close, close
+        assert await cards() == 0
+        # Lifted: the same entry is asked again with a card, as Ask promises.
         await fixture.request("POST", f"/trading/restrictions/{pause['id']}/revoke", {"reason": ""})
         asked = await call(context, "trade_execute", **entry)
         assert asked.get("_runtime_wait") and asked.get("approval_id"), asked
-        assert await cards() == 2
+        assert await cards() == 1
     finally:
         await save_controls(fixture.runtime.db, original)
         await retire(fixture, connection)
