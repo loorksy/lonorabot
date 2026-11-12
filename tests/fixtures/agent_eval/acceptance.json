@@ -33,19 +33,54 @@
    "feature": "an owner's strategy file becomes the agent's method, with versions (5.6, 5.5.5)",
    "owners": ["W-METHOD"],
    "needs": [
-    {"pending": "W-METHOD: owner methods from files (5.6)"}
+    {"code": "lonora_api.pdf_layers:extract"}
    ]
   },
   {
    "id": "4a",
    "title": "Overnight: the news agent",
    "clause": "The news agent tells the others about a central-bank speech.",
-   "feature": "peer messages, delivered to each peer as data (3.2.3, 6.10)",
-   "owners": ["W-OWNER"],
+   "feature": "peer messages, delivered to each peer as data (3.2.3, 6.10); the agent's own routine wakes it (11.8)",
+   "owners": ["W-OWNER", "W-AUTH for the gold agent"],
    "needs": [
     {"tool": "peer_send"},
-    {"pending": "W-OWNER: a peer's message reaches the model as data (3.2.3)"}
-   ]
+    {"code": "lonora_agent.context.routine:PEER_WAKE"}
+   ],
+   "partial": {
+    "note": "the speech is given in the news agent's routine (no calendar source is fed); the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
+    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}]
+   },
+   "given": {
+    "team": {"news": "وكيل الأخبار", "euro": "وكيل اليورو"},
+    "peers": ["gold", "euro"],
+    "routine": "The Fed chair speaks tonight at 02:00 GMT; volatility is expected on gold and EURUSD. Tell the team what matters."
+   },
+   "script": {
+    "news": [
+     [
+      {"calls": [{"tool": "peer_send", "arguments": {"agent_id": "$gold", "task": "خطاب رئيس الاحتياطي الفيدرالي الليلة 02:00 غرينتش: تقلّب متوقع على الذهب والدولار."}}, {"tool": "peer_send", "arguments": {"agent_id": "$euro", "task": "خطاب رئيس الاحتياطي الفيدرالي الليلة 02:00 غرينتش: تقلّب متوقع على اليورو دولار."}}]},
+      {"text": "أبلغت وكيل الذهب ووكيل اليورو بخطاب الاحتياطي الفيدرالي الليلة 02:00 غرينتش."}
+     ]
+    ],
+    "gold@peer": [
+     [
+      {"text": "سأبقي وقف صفقة الذهب على 4040 حتى بعد خطاب 02:00 ولن أفتح جديداً قبله."}
+     ]
+    ],
+    "euro@peer": [
+     [
+      {"text": "لن أطلب دخولاً على اليورو دولار قبل خطاب 02:00، وأعيد التقييم بعده."}
+     ]
+    ],
+    "news@follow_up": [
+     [
+      {"text": "وكيل الذهب يبقي وقفه على 4040 حتى بعد خطاب 02:00."}
+     ],
+     [
+      {"text": "وكيل اليورو لن يطلب دخولاً قبل خطاب 02:00."}
+     ]
+    ]
+   }
   },
   {
    "id": "4b",
@@ -110,10 +145,43 @@
    "id": "5",
    "title": "Morning",
    "clause": "Lonora's brief shows the account change, each agent's actions and results, the pending approval with its reason, and the day's events.",
-   "feature": "the morning brief, posted once (11.1), at a compressed time",
-   "owners": ["W-BRIEF"],
+   "feature": "the morning brief, posted once a day (11.1), at a compressed time",
+   "owners": ["W-BRIEF", "W-AUTH for the approval's reason"],
    "needs": [
-    {"pending": "W-BRIEF: the morning brief (11.1)"}
+    {"code": "lonora_trading.morning_brief:brief_tick"}
+   ],
+   "partial": {
+    "note": "not asserted: the pending approval with its reason (a card for new risk comes with Ask mode and its reason with W-AUTH; on this commit a new agent is analysis-only and is refused with agent_analysis_only), and the day's events (the brief's facts carry none, and Lonora reads them with economic_calendar_read, which no harness source feeds); the brief Lonora posts is checked to be posted once, its words are the model's; the gold agent is Lonora under the template's signed grant (bank.seed), not the gold agent in Full: modes are not on this commit",
+    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}, {"code": "lonora_contracts.trading:TradeAnnotation"}, {"pending": "a calendar source the harness can feed to economic_calendar_read"}]
+   },
+   "given": {
+    "overnight": [
+     {"market": "XAUUSD", "watch": {"symbol": "$XAUUSD", "condition": "above", "level": "4055", "cooldown_seconds": 300, "prompt": "Gold broke above 4055: the entry of the method."}, "bid": "4056.000"},
+     {"market": "XAUUSD", "watch": {"symbol": "$XAUUSD", "condition": "above", "level": "4070", "cooldown_seconds": 300, "prompt": "Gold reached 4070, the first target of the open buy."}, "bid": "4071.000"}
+    ]
+   },
+   "script": {
+    "gold": [
+     [
+      {"calls": [{"tool": "trade_execute", "arguments": {"account_id": "$account", "action": "buy", "symbol": "XAUUSDm", "volume": "0.02"}}]},
+      {"text": "اشتريت 0.02 ذهب بعد اختراق 4055، والوسيط أكّد التنفيذ."}
+     ],
+     [
+      {"calls": [{"tool": "trade_execute", "arguments": {"account_id": "$account", "action": "close_position", "symbol": "XAUUSDm", "position_id": "$ticket", "volume": "0.01"}}]},
+      {"text": "أغلقت 0.01 من شراء الذهب عند الهدف الأول 4070، والوسيط أكّد الإغلاق الجزئي."}
+     ]
+    ],
+    "lonora_id@morning_brief": [
+     [
+      {"text": "موجز الصباح: الرصيد 10000 دولار، لا صفقات مفتوحة، ولا شيء آخر يحتاجك."}
+     ],
+     [
+      {"text": "موجز الصباح: الرصيد زاد 14.76 دولار منذ الموجز السابق. وكيل الذهب اشترى 0.02 ذهب وأغلق 0.01 منها عند 4070، وكلاهما أكّده الوسيط، ويبقى 0.01 مفتوحاً. لا شيء آخر يحتاجك."}
+     ]
+    ]
+   },
+   "defects": [
+    {"check": "open positions as the broker shows them", "owner": "W-BRIEF", "defect": "brief_facts (lonora_trading/morning_brief.py) matches a position's operation_id against journal operation ids, but a MetaApi position carries the broker tag broker_operation_tag(operation_id) that the adapter sent as its clientId, so a position an agent opened is shown as opened by the owner (3.3.4); lonora_opened matches both forms"}
    ]
   },
   {
@@ -126,11 +194,43 @@
    "id": "7a",
    "title": "After a week: reports",
    "clause": "Each agent posts its report with what it learned and what it changed.",
-   "feature": "the weekly report per agent (5.5.6, 11.3), from the learning loop (5.5)",
-   "owners": ["W-BRIEF", "W-LEDGER", "W-METHOD"],
+   "feature": "the weekly report per agent after the weekly close, carried by the first brief after it (5.5.6, 11.3), at a compressed time",
+   "owners": ["W-BRIEF", "W-LEDGER for the results"],
    "needs": [
-    {"pending": "W-BRIEF: the weekly report (5.5.6, 11.3)"}
-   ]
+    {"code": "lonora_trading.weekly_report:wake_agents"}
+   ],
+   "partial": {
+    "note": "each agent's results are its journaled operations only: the per-label statistics wait for W-LEDGER (5.5.4); what each agent learned and changed is the model's own words and is not asserted; the gold agent is Lonora under the template's signed grant (bank.seed): modes are not on this commit",
+    "until": [{"code": "lonora_db.trading_mode:set_trading_mode"}, {"pending": "W-LEDGER: per-label statistics given on wake (5.5.4)"}]
+   },
+   "given": {
+    "team": {"news": "وكيل الأخبار", "euro": "وكيل اليورو"}
+   },
+   "script": {
+    "lonora_id@morning_brief": [
+     [
+      {"text": "موجز المساء: الرصيد 10000 دولار، لا صفقات مفتوحة، ولا شيء آخر يحتاجك."}
+     ],
+     [
+      {"text": "موجز الصباح وتقارير الأسبوع: وكيل الذهب لم يغلق صفقات، ووكيل الأخبار رصد خطاب البنك المركزي، ووكيل اليورو بقي على الحياد. لا شيء آخر يحتاجك."}
+     ]
+    ],
+    "lonora_id@weekly_report": [
+     [
+      {"text": "تقرير الأسبوع: لم أغلق صفقات هذا الأسبوع، وأبقيت طريقتي كما هي."}
+     ]
+    ],
+    "news@weekly_report": [
+     [
+      {"text": "تقرير الأسبوع: رصدت خطاب البنك المركزي وأبلغت الفريق، وتعلمت أن أرسل التنبيه قبل الخطاب بساعة."}
+     ]
+    ],
+    "euro@weekly_report": [
+     [
+      {"text": "تقرير الأسبوع: لم أفتح صفقات، وغيّرت شرط الدخول إلى إغلاق ساعة فوق المقاومة."}
+     ]
+    ]
+   }
   },
   {
    "id": "7b",
