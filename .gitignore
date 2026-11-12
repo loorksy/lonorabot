@@ -5,7 +5,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-node_modules/
+node_modules
 dist/
 .turbo/
 .ruff_cache/
