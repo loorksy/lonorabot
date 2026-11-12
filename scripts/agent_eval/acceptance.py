@@ -42,7 +42,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from lonora_adapter_kit.types import ModelMessage, ModelReply, ToolCall, ToolDefinition
-from lonora_agent.environment import classify
+from lonora_agent.environment import classify, error_class
 from lonora_agent.executor import execute_run
 from lonora_db.market_watches import MarketWatchRepository
 from lonora_db.schema import MessageRow, RunRow, TradingJournalRow
@@ -345,7 +345,7 @@ async def judged(stage: Stage, thread_id: str) -> list[Check]:
     refused = [
         code
         for code in map(refusal, stage.calls)
-        if code and classify(code, None)["class"] == "permission"
+        if code and error_class(code, classify(code, None)["category"]) == "permission"
     ]
     asked = [c["tool"] for c in stage.calls if c["tool"] in ASKING]
     replies = await stage.replies(thread_id)

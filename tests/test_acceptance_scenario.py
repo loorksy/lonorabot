@@ -135,7 +135,7 @@ def test_the_offline_run_passes_every_step_whose_feature_is_here():
 
 
 def test_a_refusal_raised_or_answered_counts_against_authority():
-    from lonora_agent.environment import classify
+    from lonora_agent.environment import classify, error_class
 
     raised = {"tool": "trade_execute", "error": "agent_analysis_only"}
     answered = {"tool": "trade_execute", "result": {"ok": False, "code": "approval_required"}}
@@ -145,5 +145,5 @@ def test_a_refusal_raised_or_answered_counts_against_authority():
         "approval_required",
         None,
     ]
-    assert classify("agent_analysis_only", None)["class"] == "permission"
-    assert classify("approval_required", None)["class"] == "permission"
+    for code in ("agent_analysis_only", "approval_required"):
+        assert error_class(code, classify(code, None)["category"]) == "permission"
