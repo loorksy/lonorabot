@@ -129,16 +129,27 @@ async def ticket_agent(
     the owner's own order from Lonora's Trading page is journaled too, with no agent, and
     stays the owner's own position. A ticket no entry matches is the owner's.
     """
+    entry_filter = (
+        TradingJournalRow.owner_id == owner_id,
+        TradingJournalRow.account_id == request.account_id,
+        TradingJournalRow.status == "confirmed",
+        TradingJournalRow.request["symbol"].as_string() == request.symbol,
+        TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
+    )
+    if target.operation_id:
+        # A raw operation id (our own, as the simulation reports it) is the primary key:
+        # no scan. A broker tag cannot be inverted, so it is matched in the scan below.
+        opener = await session.scalar(
+            select(TradingJournalRow).where(
+                TradingJournalRow.operation_id == target.operation_id, *entry_filter
+            )
+        )
+        if opener is not None:
+            return journal_agent(opener)
     entries = list(
         await session.scalars(
             select(TradingJournalRow)
-            .where(
-                TradingJournalRow.owner_id == owner_id,
-                TradingJournalRow.account_id == request.account_id,
-                TradingJournalRow.status == "confirmed",
-                TradingJournalRow.request["symbol"].as_string() == request.symbol,
-                TradingJournalRow.request["action"].as_string().in_(sorted(ENTRY_ACTIONS)),
-            )
+            .where(*entry_filter)
             .order_by(
                 TradingJournalRow.submitted_at.asc().nulls_last(),
                 TradingJournalRow.updated_at.asc(),
