@@ -3,12 +3,19 @@ import type { Message } from "@lonora/contracts";
 import { isPlainOutgoing, pendingVoiceRich } from "@lonora/core";
 import { Platform } from "react-native";
 import { ApiError } from "./api-error";
+import type { ComposerUpload, PickedFile } from "./composer-uploads";
 import { registerSessionTeardown } from "./session-lifecycle";
 
 export type OutgoingMessage = Message & {
   /** queued: the API never answered it; it goes out by itself when the network returns (Q6). */
   delivery: "sending" | "queued" | "failed";
   retry_nonce: string;
+  /**
+   * Files still uploading: the message is posted once they are all up. On a failed message
+   * they are files that never arrived (an upload failed, or the app restarted and their
+   * bytes are gone), so the message can only be deleted.
+   */
+  uploading?: PickedFile[];
 };
 /**
  * Whether the API itself answered a send (Q6, as on Web). No response at all, or a proxy's
@@ -158,12 +165,17 @@ export function hydrateOutgoing(key: string): Promise<void> {
   hydration.set(key, operation);
   return operation;
 }
+// The running uploads of a sent message, by its nonce. Never saved: a picked file cannot be.
+const handles = new Map<string, ComposerUpload[]>();
+export const outgoingUploads = (nonce: string): readonly ComposerUpload[] =>
+  handles.get(nonce) ?? [];
 export async function enqueueOutgoing(
   key: string,
   thread: string,
   fingerprint: string,
   body: Record<string, unknown>,
   afterSeq: number,
+  uploads: ComposerUpload[] = [],
 ): Promise<OutgoingIntent> {
   const epoch = generation;
   await hydrateOutgoing(key);
@@ -207,8 +219,12 @@ export async function enqueueOutgoing(
       reply_to: typeof body.reply_to === "string" ? body.reply_to : null,
       attachment_ids: Array.isArray(body.attachment_ids) ? [...body.attachment_ids] : [],
       created_at: new Date().toISOString(),
+      ...(uploads.length
+        ? { uploading: uploads.map(({ name, size, media_type }) => ({ name, size, media_type })) }
+        : {}),
     },
   };
+  if (uploads.length) handles.set(nonce, uploads);
   notify(key, [...outgoingMessages(key), intent]);
   try {
     await persist(key);
@@ -221,6 +237,50 @@ export async function enqueueOutgoing(
     throw error;
   }
   return intent;
+}
+/**
+ * Waits for a sent message's uploads, then puts their files on it. Null when the message
+ * has gone meanwhile (its uploads were cancelled). A failed upload fails the message, which
+ * keeps the files it never got and can only be deleted.
+ */
+export async function settleOutgoingUploads(
+  key: string,
+  nonce: string,
+): Promise<OutgoingIntent | null> {
+  const find = () => outgoingMessages(key).find((row) => row.nonce === nonce) ?? null;
+  const held = handles.get(nonce);
+  if (!held) return find();
+  let files: { id: string }[];
+  try {
+    files = await Promise.all(held.map((upload) => upload.done));
+  } catch (cause) {
+    handles.delete(nonce);
+    for (const upload of held) upload.cancel();
+    if (find()) failOutgoing(key, nonce);
+    throw cause;
+  }
+  handles.delete(nonce);
+  const row = find();
+  if (!row) return null;
+  const attachment_ids = [...row.message.attachment_ids, ...files.map((file) => file.id)];
+  const { uploading: _uploading, ...message } = row.message;
+  const next: OutgoingIntent = {
+    ...row,
+    body: { ...row.body, attachment_ids },
+    message: { ...message, attachment_ids },
+  };
+  notify(
+    key,
+    outgoingMessages(key).map((item) => (item.nonce === nonce ? next : item)),
+  );
+  void persist(key).catch(() => undefined);
+  return next;
+}
+/** ✕ on a message's ring: its uploads stop and the message, never posted, is removed. */
+export function cancelOutgoingUploads(key: string, nonce: string) {
+  for (const upload of handles.get(nonce) ?? []) upload.cancel();
+  handles.delete(nonce);
+  dropOutgoing(key, nonce);
 }
 export function failOutgoing(
   key: string,
@@ -307,6 +367,8 @@ export function isOutgoingMessage(message: Message): message is OutgoingMessage 
 }
 registerSessionTeardown(async () => {
   generation += 1;
+  for (const held of handles.values()) for (const upload of held) upload.cancel();
+  handles.clear();
   entries.clear();
   hydration.clear();
   for (const listener of listeners) listener();

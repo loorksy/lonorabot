@@ -57,6 +57,8 @@ import { type MessageMenuActions, useMessageMenu } from "../components/message-m
 import { NativeSymbol } from "../components/native-symbol";
 import { OwnerActionCard } from "../components/owner-action-card";
 import { SafetyPill } from "../components/safety-pill";
+import { Icon } from "../components/shell/icon";
+import { GroupBox, Row } from "../components/shell/kit";
 import { useSheets } from "../components/shell/sheets";
 import { useToast } from "../components/shell/toast";
 import { ThreadComposer } from "../components/thread-composer";
@@ -66,13 +68,20 @@ import { TradeApprovalCard } from "../components/trade-approval";
 import { TurnActivity } from "../components/turn-activity";
 import { Button, ErrorNotice, Loading, Screen } from "../components/ui";
 import { useAgentLiveState } from "../lib/agent-live-state";
-import { ApiError, api, upload } from "../lib/api";
+import { ApiError, api, SessionRequestCancelled, uploadTransfer } from "../lib/api";
 import {
   type ComposerDraft,
   composerDraft,
   consumeComposerDraft,
   editComposerDraft,
 } from "../lib/composer-drafts";
+import {
+  composerUploads,
+  handOver,
+  startUpload,
+  subscribeUploads,
+  uploadsVersion,
+} from "../lib/composer-uploads";
 import {
   type ConversationSnapshot,
   conversationCache,
@@ -83,6 +92,7 @@ import { type EventConnection, subscribeOwnerEvents } from "../lib/events";
 import { taskFromMessage, withOwnerReaction } from "../lib/message-actions";
 import {
   acknowledgeOutgoing,
+  cancelOutgoingUploads,
   dropOutgoing,
   enqueueOutgoing,
   failOutgoing,
@@ -90,12 +100,14 @@ import {
   type OutgoingIntent,
   outgoingKey,
   outgoingMessages,
+  outgoingUploads,
+  settleOutgoingUploads,
   subscribeFlushed,
   subscribeOutgoing,
   waitsForNetwork,
 } from "../lib/outgoing-messages";
 import { useSession } from "../lib/session";
-import { useShellColors } from "../lib/theme";
+import { useShellColors, useTheme } from "../lib/theme";
 import { useVoiceSession } from "../lib/voice-session";
 
 function mergeMessages(previous: Message[], incoming: Message[]): Message[] {
@@ -196,6 +208,18 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     subscribeOutgoing,
     useCallback(() => outgoingMessages(outboxKey), [outboxKey]),
   );
+  const { c: shellTheme } = useTheme();
+  const uploads = useSyncExternalStore(
+    subscribeUploads,
+    useCallback(() => composerUploads(outboxKey), [outboxKey]),
+  );
+  // Every upload's progress, a sent message's ring included.
+  const uploadTick = useSyncExternalStore(subscribeUploads, uploadsVersion);
+  // A finished upload has joined the stored draft: the composer shows it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `uploadTick` is the change signal
+  useEffect(() => {
+    setAttachments(composerDraft(outboxKey).attachments);
+  }, [uploadTick, outboxKey]);
   const updateDraft = (patch: Partial<Omit<ComposerDraft, "revision">>) => {
     const next = editComposerDraft(outboxKey, patch);
     setDraft(next.text);
@@ -554,10 +578,25 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     runs,
     streams,
   );
-  const deliver = async (intent: OutgoingIntent, targetKey: string, targetId: string) => {
-    if (!conversationCache.current(scope) || deliveries.current.has(intent.nonce)) return;
-    deliveries.current.add(intent.nonce);
+  const deliver = async (sent: OutgoingIntent, targetKey: string, targetId: string) => {
+    if (!conversationCache.current(scope) || deliveries.current.has(sent.nonce)) return;
+    deliveries.current.add(sent.nonce);
+    let intent = sent;
     try {
+      // A message sent while its files were still uploading is posted once they are up;
+      // its uploads cancelled, it is gone and nothing is posted.
+      if (outgoingUploads(sent.nonce).length) {
+        let ready: OutgoingIntent | null;
+        try {
+          ready = await settleOutgoingUploads(targetKey, sent.nonce);
+        } catch (reason) {
+          if (selected.current.id === targetId && !(reason instanceof SessionRequestCancelled))
+            setError(reportError.current(reason));
+          return;
+        }
+        if (!ready) return;
+        intent = ready;
+      }
       const accepted = await api.post<{ message: Message; run_ids: string[]; runs?: Run[] }>(
         `/threads/${encodeURIComponent(targetId)}/messages`,
         intent.body,
@@ -678,7 +717,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       sendLocks.current.has(outboxKey) ||
       uploading ||
       !thread ||
-      (!followUp?.trim() && !draft.trim() && !attachments.length) ||
+      (!followUp?.trim() && !draft.trim() && !attachments.length && !uploads.length) ||
       // An edit replaces the message with new text, never with files alone.
       (!followUp && editing && !draft.trim())
     )
@@ -686,6 +725,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     const submittedDraft = composerDraft(outboxKey);
     const content = followUp?.trim() || draft.trim() || t("attach");
     const attachment_ids = followUp ? [] : attachments.map((file) => file.id);
+    // Files still uploading go with the message, which waits for them.
+    const handed = followUp ? [] : handOver(outboxKey);
     const edit = followUp ? null : editing;
     const reply_to = followUp || edit ? null : (reply?.id ?? null);
     const targetKey = outboxKey,
@@ -699,7 +740,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       collaboration_session_id: mentions?.collaboration_session_id,
       ...(edit ? { edited_from: edit.id } : {}),
     };
-    const fingerprint = JSON.stringify([targetId, body]);
+    const fingerprint = JSON.stringify([targetId, body, handed.map((file) => file.id)]);
     sendLocks.current.add(targetKey);
     setError(null);
     let intent: OutgoingIntent;
@@ -710,6 +751,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         fingerprint,
         body,
         Math.max(0, ...messages.map((message) => message.seq)),
+        handed,
       );
       const nextDraft = followUp
         ? composerDraft(targetKey)
@@ -728,6 +770,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         }
       }
     } catch (reason) {
+      for (const file of handed) file.cancel();
       if (current()) setError(errorText(reason));
       if (followUp) throw reason;
       return;
@@ -758,8 +801,12 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const questions = new Map(
     runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
   );
-  const attach = async () => {
-    if (!thread || uploading || attachments.length >= 10) return;
+  // «+»: Files or Photos from the system picker (no storage or camera permission), several
+  // at once; each file uploads on its own with a ring and a cancel, as on Web.
+  const pick = async (kind: "files" | "photos") => {
+    if (!thread || uploading) return;
+    const room = 10 - attachments.length - uploads.length;
+    if (room <= 0) return;
     const targetId = id,
       targetKey = outboxKey;
     setUploading(true);
@@ -767,16 +814,26 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
-        multiple: false,
+        multiple: true,
+        ...(kind === "photos" ? { type: "image/*" } : {}),
       });
-      if (!result.canceled) {
-        if (!conversationCache.current(scope)) return;
-        const file = await upload(result.assets[0], targetId);
-        if (!conversationCache.current(scope)) return;
-        const next = editComposerDraft(targetKey, {
-          attachments: [...composerDraft(targetKey).attachments, file],
+      if (result.canceled || !conversationCache.current(scope)) return;
+      if (result.assets.length > room) setError(t("attachLimit"));
+      for (const asset of result.assets.slice(0, room)) {
+        const upload = startUpload(
+          targetKey,
+          {
+            name: asset.name,
+            size: asset.size ?? 0,
+            media_type: asset.mimeType ?? "application/octet-stream",
+          },
+          uploadTransfer(asset, targetId),
+        );
+        upload.done.catch((reason) => {
+          // A cancelled upload is the owner's choice, not an error.
+          if (reason instanceof SessionRequestCancelled || upload.sent) return;
+          if (selected.current.id === targetId) setError(reportError.current(reason));
         });
-        if (current()) setAttachments(next.attachments);
       }
     } catch (reason) {
       if (current()) setError(errorText(reason));
@@ -784,6 +841,33 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
       if (current()) setUploading(false);
     }
   };
+  const attach = () =>
+    sheets.open({
+      id: "attach",
+      title: t("addToConversation"),
+      body: (
+        <GroupBox>
+          <Row
+            lead={<Icon name="file" size={22} color={shellTheme.text} />}
+            title={t("pickFiles")}
+            onPress={() => {
+              sheets.close();
+              void pick("files");
+            }}
+          />
+          <Row
+            lead={<Icon name="image" size={22} color={shellTheme.text} />}
+            title={t("pickPhotos")}
+            sub={t("attachLimit")}
+            last
+            onPress={() => {
+              sheets.close();
+              void pick("photos");
+            }}
+          />
+        </GroupBox>
+      ),
+    });
   // Stop cancels every cancellable Run of the thread, a queued card submission included,
   // as web does (GENUI_PLAN §8.2 rule L, §9.7 M-a).
   const stopActive = async () => {
@@ -1213,6 +1297,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
                       onMenu={message.id.startsWith("preview:") ? undefined : menu.open}
                       onReactions={menu.reactions}
                       onQuote={jumpTo}
+                      onCancelUploads={(nonce) => cancelOutgoingUploads(outboxKey, nonce)}
                       body={
                         question?.choices.length ? (
                           <ConversationQuestion request={question} onAnswer={answerQuestion} />
@@ -1321,7 +1406,11 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
           onRemove={(fileId) =>
             updateDraft({ attachments: attachments.filter((file) => file.id !== fileId) })
           }
-          onAttach={() => void attach()}
+          onAttach={attach}
+          uploads={uploads}
+          onCancelUpload={(uploadId) => {
+            for (const file of uploads) if (file.id === uploadId) file.cancel();
+          }}
           onSend={(mentions) => void send(mentions)}
           busy={busy}
           uploading={uploading}
