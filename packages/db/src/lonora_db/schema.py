@@ -659,6 +659,36 @@ class WorkspaceOperationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WorkspaceProcessRow(Base):
+    """A background process an agent started in the owner's workspace (7.1.2), until the
+    agent has been told it ended. The command is stored as the scan left it."""
+
+    __tablename__ = "ln_workspace_processes"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('exited','stopped','restarted','lost')",
+            name="ln_workspace_process_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_owners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        ForeignKey("ln_agents.id", ondelete="CASCADE"), index=True
+    )
+    boot_id: Mapped[str] = mapped_column(String(36))
+    pid: Mapped[int] = mapped_column(Integer)
+    command: Mapped[str] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The run whose context first carried the notice: it shows for that whole run.
+    reported_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
 class ResourceRow(Base):
     __abstract__ = True
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

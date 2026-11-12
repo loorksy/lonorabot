@@ -60,6 +60,8 @@ STEPS = (
     StepSpec("attention", 2, 120),
     StepSpec("incoming", 2, 60, critical=False),
     StepSpec("thread_prefs", 2, 60, critical=False),
+    # Which background workspace processes ended, for each agent's next wake (7.1.2).
+    StepSpec("workspace", 10, 60, critical=False),
     StepSpec("watchdog", 30, 120),
 )
 
@@ -251,6 +253,20 @@ class Gateway:
 
         await self.for_each_owner(lambda service: thread_prefs_tick(self.db, service.owner_id))
 
+    async def workspace(self) -> None:
+        from lonora_db.workspace_processes import reconcile
+        from lonora_security.secrets import SecretScan
+
+        from .runtime import WORKSPACE
+
+        if not WORKSPACE.present():
+            return
+        # Only ids, times and exit codes are kept from this listing; commands are stored
+        # from the tool's own scanned answer.
+        listing = await WORKSPACE.processes(SecretScan({}))
+        async with self.db.sessions() as session, session.begin():
+            await reconcile(session, listing)
+
     def iterations(self) -> dict[str, Callable[[], Awaitable[object]]]:
         return {
             "heartbeat": self.heartbeat,
@@ -274,6 +290,7 @@ class Gateway:
             "attention": self.attention,
             "incoming": self.incoming,
             "thread_prefs": self.thread_prefs,
+            "workspace": self.workspace,
             "watchdog": self.watchdog.tick,
         }
 
