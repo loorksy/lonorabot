@@ -10,13 +10,11 @@ from lonora_adapter_kit.types import ToolCall
 from lonora_contracts.domain import AgentCreate
 from lonora_contracts.runs import RunRequest
 from lonora_contracts.trading import TradeRequest
-from lonora_contracts.trading_goal import GoalCreate, GoalStep
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import require_financial_agent
 from lonora_db.agents import agent_data, create_agent
 from lonora_db.runs import create_run, run_data
 from lonora_db.schema import AgentRow
-from lonora_db.trading_goals import create_goal
 from lonora_tools.loader import load_tools
 
 
@@ -99,22 +97,6 @@ async def main() -> None:
         )
         async with f.runtime.db.sessions() as session, session.begin():
             await denied(
-                create_goal(
-                    session,
-                    f.owner,
-                    GoalCreate(
-                        agent_id=child.id,
-                        thread_id=thread["id"],
-                        title="Bypass attempt",
-                        objective="Not financial authority",
-                        account_id=connection,
-                        symbol="BTCUSD.pro",
-                        steps=[GoalStep(id="a", title="Analyze")],
-                    ),
-                )
-            )
-        async with f.runtime.db.sessions() as session, session.begin():
-            await denied(
                 create_agent(
                     session,
                     f.owner,
@@ -125,7 +107,7 @@ async def main() -> None:
                 )
             )
         print(
-            "PASS Personal children and descendants are explicit research identities: account reads work, arbitrary trade/goal/scope laundering fail before proposal"
+            "PASS Personal children and descendants are explicit research identities: account reads work, arbitrary trade/scope laundering fail before proposal"
         )
         descendant_thread = await f.conversation(grandchild_data)
         descendant_context = await f.lease(await f.run(grandchild_data, descendant_thread))

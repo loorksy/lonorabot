@@ -69,7 +69,7 @@ def test_the_forbidden_vocabulary_is_read_from_the_code():
     assert {name for name in known.tools if "_" in name} <= known.identifiers
     # The terms the owner saw on 2026-11-11 ([10], [59], [65], [75], [77]).
     assert {"symbol_not_found", "broker_account_not_found", "owner_attention"} <= known.identifiers
-    assert {"waiting", "routines", "goals", "watch"} <= known.words
+    assert {"waiting", "routines", "watch"} <= known.words
     assert "watch_cancel" in known.identifiers and "watch_list" in known.read_only
     assert "watch_cancel" not in known.read_only and "memory_write" in known.notes
 
@@ -109,7 +109,7 @@ def test_the_real_replies_name_what_leaked():
         "broker_account_not_found, symbol_not_found"
     )
     assert score.conditions(ANY, turn_record(65))["internal_term"] == (
-        "goals, owner_attention, routines, waiting"
+        "owner_attention, routines, waiting"
     )
     assert score.conditions(ANY, turn_record(77))["internal_term"] == "watch, watch_cancel"
     assert score.conditions(ANY, turn_record(63))["unbacked_claim"] == "تم, أُزيلت"

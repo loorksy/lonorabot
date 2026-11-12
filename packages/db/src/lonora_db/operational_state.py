@@ -2,7 +2,7 @@
 
 Summaries, recalled evidence and earlier transcript text can be stale or lossy.
 The identities an Agent must never lose track of (unresolved financial
-operations, goal steps in flight, pending approvals and active watches) are
+operations, pending approvals and active watches) are
 projected here from their own tables instead, bounded and without request bodies,
 prompts or broker payloads. Grants, waits and tasks are already in the live state.
 
@@ -27,11 +27,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .schema import (
-    GoalDecisionRow,
     MarketWatchRow,
     RunRow,
     TradeApprovalRow,
-    TradingGoalRow,
     TradingJournalRow,
 )
 
@@ -50,7 +48,6 @@ NEXT_ACTIONS = {
     "confirmed": "executed_awaiting_state_verification_never_resend",
     "resolved": "settled_without_broker_confirmation_never_resend",
 }
-STEP_LIMIT = 5
 APPROVAL_LIMIT = 6
 WATCH_LIMIT = 8
 REQUEST_KEYS = ("action", "side", "symbol", "volume", "order_type", "account_id")
@@ -156,26 +153,6 @@ async def protected_operational_state(
     ]
     verifying = [operation(row) for row in attributed if row.status == "confirmed"][:SETTLED_LIMIT]
     resolved = [operation(row) for row in attributed if row.status == "resolved"][:SETTLED_LIMIT]
-    steps = [
-        {
-            "decision_id": row.id,
-            "goal_id": row.goal_id,
-            "step_id": row.step_id,
-            "operation_id": row.operation_id,
-            "status": row.status,
-        }
-        for row in await session.scalars(
-            select(GoalDecisionRow)
-            .join(TradingGoalRow, TradingGoalRow.id == GoalDecisionRow.goal_id)
-            .where(
-                GoalDecisionRow.owner_id == owner_id,
-                TradingGoalRow.agent_id == agent_id,
-                GoalDecisionRow.status.in_(["ambiguous", "submitted", "executing"]),
-            )
-            .order_by(GoalDecisionRow.updated_at.desc())
-            .limit(STEP_LIMIT)
-        )
-    ]
     approvals = [
         {
             "approval_id": row.id,
@@ -222,7 +199,6 @@ async def protected_operational_state(
             ("unresolved_operations", operations),
             ("operations_awaiting_verification", verifying),
             ("recently_resolved_operations", resolved),
-            ("goal_steps_in_flight", steps),
             ("pending_approvals", approvals),
             ("active_watches", watches),
         )

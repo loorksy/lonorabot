@@ -186,7 +186,6 @@ async def read_skill_context(
     for name, identity in names.items():
         if name and f"[skill:{name}]" in text:
             requested.add(identity)
-    has_goal = isinstance(run.model_metadata.get("goal_id"), str)
     has_chart = bool(
         await session.scalar(
             select(CloudChartRow.id).where(CloudChartRow.agent_id == agent.id).limit(1)
@@ -203,7 +202,6 @@ async def read_skill_context(
         requested=frozenset(requested),
         available_tools=frozenset(available),
         has_market=bool(agent.trading_account_id),
-        has_goal=has_goal,
         has_chart=has_chart,
     )
     skills, rejected = await effective_skill_registry(

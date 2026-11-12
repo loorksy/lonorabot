@@ -8,7 +8,7 @@ Two different facts, never one key:
   trades become approval cards. A Run is tainted when it is a submission, or when it
   descends from a tainted Run (``parent_run_id``), or when a tainted Run started it
   (Tasks, tickets), or when it wakes from a durable row a tainted Run created or changed
-  (a watch, routine, ticket or Task, or goal).
+  (a watch, routine, ticket or Task).
 
 Durable rows keep their taint in the effect-receipt ledger under ``ui_tainted:<kind>:<id>``,
 written by the server from the acting Run, never from a model argument, so no later state
@@ -25,14 +25,13 @@ from .schema import EffectReceiptRow, RunRow
 
 TAINT = "ui_tainted"
 SUBMIT = "ui_submit_origin"
-Kind = Literal["watch", "routine", "ticket", "goal", "opportunity"]
+Kind = Literal["watch", "routine", "ticket", "opportunity"]
 # The run metadata keys that name a durable wake source, and its kind.
 SOURCES: tuple[tuple[str, Kind], ...] = (
     ("watch_id", "watch"),
     ("routine_id", "routine"),
     ("ticket_id", "ticket"),
     ("task_id", "ticket"),
-    ("goal_id", "goal"),
     ("opportunity_id", "opportunity"),
 )
 
