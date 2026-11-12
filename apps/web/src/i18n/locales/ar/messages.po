@@ -112,7 +112,7 @@ msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:259
+#: src/shell/domain/UpdatesPages.tsx:229
 msgid "{0}, has something new"
 msgstr "{0}، لديه جديد"
 
@@ -355,7 +355,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "تنتهي المراقبة تلقائيًا في موعدها، ويمكن إيقافها مؤقتًا أو تمديدها أو إلغاؤها."
 
-#: src/shell/domain/UpdatesPages.tsx:57
+#: src/shell/domain/UpdatesPages.tsx:56
 msgid "A watch was met"
 msgstr "تحققت مراقبة"
 
@@ -427,7 +427,7 @@ msgstr "معرّف الحساب"
 msgid "Account limits"
 msgstr "حدود الحساب"
 
-#: src/shell/domain/UpdatesPages.tsx:31
+#: src/shell/domain/UpdatesPages.tsx:30
 msgid "Account limits changed"
 msgstr "تغيّرت حدود الحساب"
 
@@ -685,7 +685,7 @@ msgstr "مكالمات الوكيل"
 msgid "Agent collaboration"
 msgstr "تعاون الوكلاء"
 
-#: src/shell/domain/UpdatesPages.tsx:27
+#: src/shell/domain/UpdatesPages.tsx:26
 msgid "Agent created"
 msgstr "أُنشئ وكيل"
 
@@ -733,7 +733,7 @@ msgstr "قالب الوكيل"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:253
+#: src/shell/domain/UpdatesPages.tsx:223
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:86
@@ -2497,7 +2497,7 @@ msgstr "تنفيذ مفوَّض"
 msgid "Delegated task"
 msgstr "مهمة مفوّضة"
 
-#: src/shell/domain/UpdatesPages.tsx:29
+#: src/shell/domain/UpdatesPages.tsx:28
 msgid "Delegation changed"
 msgstr "تغيّر التفويض"
 
@@ -3409,7 +3409,7 @@ msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
-#: src/shell/domain/UpdatesPages.tsx:59
+#: src/shell/domain/UpdatesPages.tsx:58
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
@@ -3815,7 +3815,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/domain/UpdatesPages.tsx:61
+#: src/shell/domain/UpdatesPages.tsx:60
 msgid "Knowledge added"
 msgstr "أُضيفت معرفة"
 
@@ -3871,7 +3871,7 @@ msgstr "آخر تحديث"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:367
+#: src/shell/domain/UpdatesPages.tsx:337
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
@@ -4149,7 +4149,7 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:277
+#: src/shell/domain/UpdatesPages.tsx:247
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -4469,7 +4469,7 @@ msgstr "تحتاج مفتاح OpenAI"
 #~ msgid "Needs attention"
 #~ msgstr "يحتاج إلى مراجعة"
 
-#: src/shell/domain/UpdatesPages.tsx:303
+#: src/shell/domain/UpdatesPages.tsx:273
 msgid "Needs your action"
 msgstr "يتطلب إجراء"
 
@@ -4590,8 +4590,8 @@ msgstr "التالي"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/domain/UpdatesPages.tsx:115
-#: src/shell/domain/UpdatesPages.tsx:390
+#: src/shell/domain/UpdatesPages.tsx:114
+#: src/shell/domain/UpdatesPages.tsx:360
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -4660,7 +4660,7 @@ msgstr "لا توجد محادثات."
 msgid "No command by that name"
 msgstr "لا يوجد أمر بهذا الاسم"
 
-#: src/shell/domain/UpdatesPages.tsx:361
+#: src/shell/domain/UpdatesPages.tsx:331
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -4754,7 +4754,7 @@ msgstr "دون حد مالي"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:315
+#: src/shell/domain/UpdatesPages.tsx:285
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -5020,7 +5020,7 @@ msgstr "طريقة الإشعار"
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/shell/domain/UpdatesPages.tsx:273
+#: src/shell/domain/UpdatesPages.tsx:243
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
@@ -5166,7 +5166,6 @@ msgstr "افتح شارت"
 #: src/components/ai/AttentionInbox.tsx:137
 #: src/pages/ActivityList.tsx:250
 #: src/pages/Board.tsx:456
-#: src/shell/domain/UpdatesPages.tsx:242
 msgid "Open conversation"
 msgstr "فتح المحادثة"
 
@@ -5267,7 +5266,7 @@ msgstr "يُفتح"
 msgid "Operation id"
 msgstr "رقم العملية"
 
-#: src/shell/domain/UpdatesPages.tsx:37
+#: src/shell/domain/UpdatesPages.tsx:36
 msgid "Operation resolved"
 msgstr "حُسمت عملية"
 
@@ -6195,11 +6194,11 @@ msgstr "مقيَّد: {what}"
 msgid "Restricted: {what} until {until}"
 msgstr "مقيَّد: {what} حتى {until}"
 
-#: src/shell/domain/UpdatesPages.tsx:35
+#: src/shell/domain/UpdatesPages.tsx:34
 msgid "Restriction lifted"
 msgstr "رُفع قيد"
 
-#: src/shell/domain/UpdatesPages.tsx:33
+#: src/shell/domain/UpdatesPages.tsx:32
 msgid "Restriction set"
 msgstr "فُرض قيد"
 
@@ -6277,8 +6276,8 @@ msgid "Review skill dependencies and unique identities before saving."
 msgstr "راجع اعتماديات المهارات ومعرّفاتها الفريدة قبل الحفظ."
 
 #: src/shell/domain/UpdatesPages.tsx:240
-msgid "Review the connection"
-msgstr "مراجعة الاتصال"
+#~ msgid "Review the connection"
+#~ msgstr "مراجعة الاتصال"
 
 #: src/lib/user_error.ts:55
 msgid "Review the skill identity, version and manifest before saving."
@@ -6801,12 +6800,12 @@ msgstr "عرض كجدول"
 #~ msgstr "عرض كنص"
 
 #: src/components/genui/UiCard.tsx:363
-#: src/shell/domain/UpdatesPages.tsx:137
+#: src/shell/domain/UpdatesPages.tsx:136
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:385
+#: src/shell/domain/UpdatesPages.tsx:355
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -6909,7 +6908,7 @@ msgstr "مهارة"
 msgid "Skill catalog"
 msgstr "مكتبة المهارات"
 
-#: src/shell/domain/UpdatesPages.tsx:49
+#: src/shell/domain/UpdatesPages.tsx:48
 msgid "Skill created"
 msgstr "أُنشئت مهارة"
 
@@ -6934,7 +6933,7 @@ msgstr "أُعيدت المهارة إلى الإصدار {version}"
 msgid "Skill saved"
 msgstr "حُفظت المهارة"
 
-#: src/shell/domain/UpdatesPages.tsx:51
+#: src/shell/domain/UpdatesPages.tsx:50
 msgid "Skill updated"
 msgstr "حُدّثت مهارة"
 
@@ -7250,11 +7249,11 @@ msgstr "يشرف على"
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:55
+#: src/shell/domain/UpdatesPages.tsx:54
 msgid "Supervision ended"
 msgstr "أُلغي الإشراف"
 
-#: src/shell/domain/UpdatesPages.tsx:53
+#: src/shell/domain/UpdatesPages.tsx:52
 msgid "Supervision started"
 msgstr "بدأ الإشراف"
 
@@ -7340,18 +7339,18 @@ msgid "Task boards"
 msgstr "لوحات المهام"
 
 #: src/conversation/sheets/AgentSheet.tsx:429
-#: src/shell/domain/UpdatesPages.tsx:47
+#: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
 #: src/components/ai/AttentionInbox.tsx:29
 #: src/shell/domain/TasksPages.tsx:259
-#: src/shell/domain/UpdatesPages.tsx:45
+#: src/shell/domain/UpdatesPages.tsx:44
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
 #: src/conversation/Conversation.tsx:408
-#: src/shell/domain/UpdatesPages.tsx:43
+#: src/shell/domain/UpdatesPages.tsx:42
 msgid "Task created"
 msgstr "أُنشئت مهمة"
 
@@ -8165,7 +8164,6 @@ msgstr "التشديد يُحفَظ مباشرةً."
 #: src/shell/domain/SchedulesPages.tsx:178
 #: src/shell/domain/SchedulesPages.tsx:197
 #: src/shell/domain/SchedulesPages.tsx:507
-#: src/shell/domain/UpdatesPages.tsx:230
 msgid "Time"
 msgstr "الوقت"
 
@@ -8521,7 +8519,7 @@ msgstr "إلغاء الكتم"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:310
+#: src/shell/domain/UpdatesPages.tsx:280
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -8577,7 +8575,7 @@ msgstr "ارتفاع {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
-#: src/shell/domain/UpdatesPages.tsx:321
+#: src/shell/domain/UpdatesPages.tsx:291
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 
@@ -9095,7 +9093,7 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/domain/UpdatesPages.tsx:39
+#: src/shell/domain/UpdatesPages.tsx:38
 msgid "You approved a request"
 msgstr "وافقتَ على طلب"
 
@@ -9128,7 +9126,7 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #~ msgid "You reached the usage limit"
 #~ msgstr "وصلت إلى حد الاستهلاك"
 
-#: src/shell/domain/UpdatesPages.tsx:41
+#: src/shell/domain/UpdatesPages.tsx:40
 msgid "You rejected a request"
 msgstr "رفضتَ طلبًا"
 
