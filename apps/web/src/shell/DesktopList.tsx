@@ -39,11 +39,6 @@ export function DesktopList({
       anchor,
       <>
         <PopItem
-          icon="userPlus"
-          label={<Trans>New agent</Trans>}
-          onSelect={() => nav.go("/app/new-agent")}
-        />
-        <PopItem
           icon="users"
           label={<Trans>New group</Trans>}
           onSelect={() => nav.go("/app/new-group")}

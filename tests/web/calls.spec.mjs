@@ -99,11 +99,11 @@ const test = base.extend({
     expect(login.status()).toBe(200);
     const headers = { "X-CSRF-Token": (await login.json()).csrf };
     const agent = await (
-      await context.request.post("/api/agents/create", {
+      await context.request.post("/api/agents", {
         data: {
-          template: "general",
           name: `Caller ${randomUUID().slice(0, 8)}`,
-          responsibility: "Calls",
+          description: "Calls",
+          scope_mode: "flexible",
         },
         headers,
       })

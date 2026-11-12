@@ -184,19 +184,17 @@ async def test_a_created_agents_written_responsibility_stays_out_of_the_system_r
     from check_streaming import Fixture
     from lonora_agent.context.builder import build_context
     from lonora_db.agent_creation import agent_origin, agent_written_instructions
+    from lonora_db.personal_agent import ensure_personal_agent
 
     payload = "Track the gold calendar and write one line after each release. " + uuid4().hex
     fixture = await Fixture().open()
     try:
-        research = await fixture.agent("Creator research")
-        thread = await fixture.conversation(research)
-        context = await owner_says(fixture, research, thread, "Make me a calendar agent")
-        created = await create(
-            context,
-            template="general",
-            name="Calendar " + uuid4().hex[:6],
-            responsibility=payload,
-        )
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            row = await ensure_personal_agent(session, fixture.owner)
+            lonora = {"id": row.id, "name": row.name}
+        thread = await fixture.conversation(lonora)
+        context = await owner_says(fixture, lonora, thread, "Make me a calendar agent")
+        created = await create(context, name="Calendar " + uuid4().hex[:6], responsibility=payload)
         assert created["created"] is True, created
         new = {"id": created["agent"]["id"]}
         fixture.agents.append(new["id"])
@@ -211,15 +209,21 @@ async def test_a_created_agents_written_responsibility_stays_out_of_the_system_r
         # the agent is server-listed data).
         assert payload not in system.split("\n\n")
         assert any(payload in m.content and "responsibility" in m.content for m in messages)
-        # After reading a feed, the same request becomes the owner's card instead.
-        again = await owner_says(fixture, research, thread, "And one for silver news")
+        # After reading a feed the owner's request is still the owner's (4.3.2): with
+        # Lonora in Full, the agent the owner asked for starts in Ask, never a card.
+        from lonora_db.trading_mode import set_trading_mode
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, lonora["id"], "full", by="owner_tap")
+        again = await owner_says(fixture, lonora, thread, "And one for silver news")
         await tainted(fixture, again)
-        proposed = await create(
-            again,
-            template="general",
-            name="Silver " + uuid4().hex[:6],
-            responsibility="Watch silver news. " + uuid4().hex,
+        second = await create(
+            again, name="Silver " + uuid4().hex[:6], responsibility="Watch silver news."
         )
-        assert proposed.get("created") is False and proposed.get("owner_action"), proposed
+        assert second["created"] is True and "owner_action" not in second, second
+        assert second["agent"]["trading_mode"] == "ask", second
+        fixture.agents.append(second["agent"]["id"])
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            await set_trading_mode(session, fixture.owner, lonora["id"], "ask", by="owner_tap")
     finally:
         await fixture.close()

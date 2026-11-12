@@ -51,6 +51,7 @@ from lonora_db.schema import (
     AttentionRow,
     EventRow,
     MarketWatchRow,
+    MemoryRow,
     MessageRow,
     OwnerActionRow,
     RunRow,
@@ -640,12 +641,7 @@ class Acceptance:
             lambda t: call(
                 "j1-create",
                 "agent_create",
-                {
-                    "template": "trading",
-                    "name": "Gold agent",
-                    "market": "XAUUSD",
-                    "responsibility": task,
-                },
+                {"name": "Gold agent", "market": "XAUUSD", "responsibility": task},
             ),
             lambda t: call(
                 "j1-grant",
@@ -653,6 +649,7 @@ class Acceptance:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("j1-create")["agent"]["id"],
+                    "symbols": ["XAUUSD"],
                     "daily_loss_percent": "2",
                 },
             ),
@@ -671,12 +668,16 @@ class Acceptance:
         assert len(agents) == 1, [agent.name for agent in agents]
         gold = agents[0]
         self.created.append(gold.id)
-        assert (gold.trading_account_id, gold.trading_symbol) == (self.account, GOLD)
+        # Lonora assigned it gold: an instruction in its method, never a binding (3.1.2).
+        assert (gold.trading_account_id, gold.trading_symbol) == (None, None)
+        async with self.db.sessions() as session:
+            memory = await session.get(MemoryRow, gold.id)
+            assert memory is not None and f'assigned you "{GOLD}"' in memory.content
         # Created by the owner's sentence: no question, no grant, Ask me.
         assert await self.level(gold.id) == "supervised"
         assert await self.count(AccountAuthorityRow, AccountAuthorityRow.agent_id == gold.id) == 0
-        created = await self.pending(self.lonora_thread, "agent_created")
-        assert len(created) == 1 and created[0]["facts"]["undo"] == "delete", created
+        # No creation card: Lonora tells the owner in one line (10.3, Q3).
+        assert await self.pending(self.lonora_thread, "agent_created") == []
         grant_cards = await self.pending(self.lonora_thread, "grant_authority")
         assert len(grant_cards) == 1, grant_cards
         card = grant_cards[0]
@@ -744,6 +745,8 @@ class Acceptance:
             "symbol": GOLD,
             "volume": "0.1",
             "stop_loss": "1990",
+            "tolerance": "50",
+            "reason": "Fixture entry",
         }
         script = self.model.script(
             "The owner has authenticated automatic management of account",
@@ -846,6 +849,8 @@ class Acceptance:
             "symbol": EURO,
             "volume": "0.1",
             "stop_loss": "1.0900",
+            "tolerance": "0.05",
+            "reason": "Fixture entry",
         }
         self.model.script(
             words,
@@ -980,6 +985,8 @@ class Acceptance:
                     "symbol": EURO,
                     "volume": "0.1",
                     "stop_loss": "1.0900",
+                    "tolerance": "0.05",
+                    "reason": "Fixture entry",
                 },
             ),
             "فتحت الصفقة.",
@@ -1135,6 +1142,8 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.01",
                     "stop_loss": "1990",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "الصفقات الجديدة متوقفة اليوم بطلبك.",
@@ -1296,6 +1305,8 @@ class Acceptance:
                     "symbol": GOLD,
                     "volume": "0.1",
                     "stop_loss": "1990",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "لم يؤكد الوسيط الأمر بعد، ولن أرسله مرة أخرى.",
@@ -1429,31 +1440,34 @@ class Acceptance:
             "وخلي وكيل ثاني يشرف عليهم"
         )
         news_spec = {
-            "template": "research",
             "name": "News agent",
             "responsibility": "يتابع الأخبار الاقتصادية ومحللي X ويبلغ وكيل الذهب بالمهم.",
-            "report_to": [gold_id],
+        }
+        desk_spec = {
+            "name": "Desk supervisor",
+            "responsibility": "يشرف على وكيل الأخبار ووكيل الذهب.",
         }
 
-        def supervisor(t: Turn, call_id: str = "j4-news") -> dict[str, Any]:
+        def supervise(t: Turn, news: str = "j4-news", desk: str = "j4-supervisor") -> Any:
+            # The owner's «يشرف عليهم», while supervision grants exist (removed in 3.3.3).
             return {
-                "template": "supervisor",
-                "name": "Desk supervisor",
-                "responsibility": "يشرف على وكيل الأخبار ووكيل الذهب.",
-                "supervises": [t.result(call_id)["agent"]["id"], gold_id],
+                "action": "grant",
+                "supervisor_id": t.result(desk)["agent"]["id"],
+                "supervised_ids": [t.result(news)["agent"]["id"], gold_id],
             }
 
         reached = asyncio.Event()
         self.model.script(
             words,
             lambda t: call("j4-news", "agent_create", news_spec),
-            lambda t: call("j4-supervisor", "agent_create", supervisor(t)),
+            lambda t: call("j4-supervisor", "agent_create", desk_spec),
+            lambda t: call("j4-supervise", "supervision_change", supervise(t)),
             crash_then(
                 reached,
                 lambda t: calls(
                     # The restarted model asks for both agents again, under new calls.
                     ("j4-news-again", "agent_create", news_spec),
-                    ("j4-supervisor-again", "agent_create", supervisor(t)),
+                    ("j4-supervisor-again", "agent_create", desk_spec),
                     (
                         "j4-connect-x",
                         "owner_action_propose",
@@ -1493,7 +1507,9 @@ class Acceptance:
         assert len(news) == 1 and len(desk) == 1, ([a.name for a in news], [a.name for a in desk])
         news_id, desk_id = news[0].id, desk[0].id
         self.created.extend([news_id, desk_id])
-        assert await self.level(news_id) == "analysis" and await self.level(desk_id) == "analysis"
+        # Same capabilities (3.2.1): no agent starts at «No trading».
+        assert await self.level(news_id) == "supervised"
+        assert await self.level(desk_id) == "supervised"
         directory = {item["id"]: item for item in (await self.request("GET", "/agents"))}
         del directory
         async with self.db.sessions() as session:
@@ -1522,13 +1538,8 @@ class Acceptance:
             )
             assert lonora_over == 2, lonora_over  # Lonora sees them by default.
         cards = await self.cards(self.lonora_thread)
-        created = [
-            c
-            for c in cards
-            if c["kind"] == "agent_created"
-            and c["facts"]["agent"]["name"] in {"News agent", "Desk supervisor"}
-        ]
-        assert len(created) == 2, created  # One Undo card each, never two.
+        # No creation card: Lonora tells the owner in one line (10.3, Q3).
+        assert not [c for c in cards if c["kind"] == "agent_created"]
         connect = [
             c for c in cards if c["kind"] == "connect_credential" and c["status"] == "pending"
         ]
@@ -1890,7 +1901,7 @@ class Acceptance:
 
     async def supervise_two_trading_agents(self, desk_id: str) -> None:
         """«خلي وكيل المراقبة يشرف على وكيل الذهب ووكيل الفضة»: the grants come from the
-        owner's message with an Undo card; the supervisor reads them and never trades."""
+        owner's message with an Undo card; the supervisor reads them."""
         name = "J13 make an agent supervise two trading agents"
         gold_id = self.created[0]
         self.model.script(
@@ -1898,12 +1909,7 @@ class Acceptance:
             lambda t: call(
                 "j13-silver",
                 "agent_create",
-                {
-                    "template": "trading",
-                    "name": "Silver agent",
-                    "market": "XAGUSD",
-                    "account_id": self.account,
-                },
+                {"name": "Silver agent", "market": "XAGUSD", "account_id": self.account},
             ),
             "أنشأت وكيل الفضة على XAGUSD، ويسألك قبل كل صفقة.",
         )
@@ -1951,24 +1957,13 @@ class Acceptance:
             if c["kind"] == "supervision_created" and c["status"] == "pending"
         ]
         assert undo, "a supervision card with Undo"
-        # The supervisor reads the silver agent's work and cannot trade for it.
+        # The supervisor reads the silver agent's work (agent_inspect, while grants exist).
         desk_thread = await self.conversation(desk_id)
         check = "راجع عمل وكيل الفضة"
         self.model.script(
             check,
             lambda t: call("j13-read", "agent_inspect", {"agent_id": silver.id}),
-            lambda t: call(
-                "j13-trade",
-                "trade_execute",
-                {
-                    "action": "buy",
-                    "account_id": self.account,
-                    "symbol": SILVER,
-                    "volume": "0.1",
-                    "stop_loss": "23",
-                },
-            ),
-            "قرأت عمل وكيل الفضة؛ لا أتداول عنه.",
+            "قرأت عمل وكيل الفضة.",
         )
         before = await self.positions(self.account)
         run = await self.work(await self.say(desk_thread, check))
@@ -1978,12 +1973,6 @@ class Acceptance:
             next(m.content for m in transcript if m.role == "tool" and m.tool_call_id == "j13-read")
         )
         assert read["ok"] is True, read
-        traded = json.loads(
-            next(
-                m.content for m in transcript if m.role == "tool" and m.tool_call_id == "j13-trade"
-            )
-        )
-        assert traded.get("ok") is False and traded.get("reason") == "agent analysis only", traded
         assert await self.positions(self.account) == before
         self.journey(name, 0)
 
@@ -2181,7 +2170,6 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 "ui-create",
                 "agent_create",
                 {
-                    "template": "trading",
                     "name": data.get("name", "Gold agent"),
                     "market": symbol,
                     "account_id": account,
@@ -2194,6 +2182,7 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                 {
                     "kind": "grant_authority",
                     "agent_id": t.result("ui-create")["agent"]["id"],
+                    "symbols": [symbol],
                     "daily_loss_percent": "2",
                 },
             ),
@@ -2226,6 +2215,8 @@ async def ui_turn(data: dict[str, Any]) -> dict[str, Any]:
                     "symbol": symbol,
                     "volume": "0.1",
                     "stop_loss": "150",
+                    "tolerance": "50",
+                    "reason": "Fixture entry",
                 },
             ),
             "نُفّذ الشراء بعد موافقتك.",

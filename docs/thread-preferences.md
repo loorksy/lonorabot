@@ -44,12 +44,10 @@ it, or once the message was steered into a running run and merged. `GET
 ## Groups and templates
 
 A group payload carries `purpose` (≤160) and `lead_agent_id` (a member); the lead answers
-when no agent is mentioned and no reply names one (Q8). `ln_agents.template` persists the
-creation template (Q9): `POST /api/agents/create` takes the `agent_create` tool's input
-(`AgentCreateInput`) and runs the same creation service; the owner's older form derives
-`trading` from a focus pair and `general` otherwise; the personal agent and delegated
-helpers keep `null`, their role being their type. The migration backfills the column from
-the creation records.
+when no agent is mentioned and no reply names one (Q8). `ln_agents.template` holds the
+template of agents created before the flat team (mandate 14.2.6); agents Lonora creates
+keep `null`, as do the personal agent and delegated helpers. The owner's `POST /api/agents`
+still derives `trading` from a focus pair and `general` otherwise until binding is removed.
 
 ## Chat lists (`ln_chat_lists`, `ln_chat_list_members`, migration `0045_chat_lists`)
 

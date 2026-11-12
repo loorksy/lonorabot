@@ -793,7 +793,6 @@ function ShellBody() {
       onBack={nav.back}
       onNewChat={openNewChat}
       onNewTask={onNewTask}
-      onNewAgent={() => nav.go("/app/new-agent")}
       header={header ?? (onCallRoute ? <CallHeader desktop={desktop} /> : undefined)}
       selection={
         lists.selected &&

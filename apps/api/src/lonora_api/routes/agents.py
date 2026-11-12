@@ -1,11 +1,10 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from lonora_agent.collaboration.agent_create import create_from_spec, delete_created_agent
+from lonora_agent.collaboration.agent_create import delete_created_agent
 from lonora_auth.identity import OwnerIdentity
-from lonora_contracts.agent_creation import AgentCreateInput
 from lonora_contracts.broker import BrokerConnection
-from lonora_contracts.domain import AgentCreate, AgentUpdate, new_id
+from lonora_contracts.domain import AgentCreate, AgentUpdate
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_creation import record_owner_creation
 from lonora_db.agent_on_its_own import agents_on_their_own
@@ -15,7 +14,6 @@ from lonora_db.broker_sessions import BrokerSessionRepository
 from lonora_db.events import emit
 from lonora_db.threads import conversation_thread, thread_data
 from lonora_db.transactions import owned_agent
-from lonora_tools.agents import resolve_market
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import require_owner, runtime
@@ -74,50 +72,6 @@ async def create(
         row = await create_agent(session, owner.id, body)
         await record_owner_creation(session, owner.id, row)
         return agent_data(row)
-
-
-@router.post("/create", status_code=201)
-async def create_from_template(
-    request: Request, body: AgentCreateInput, owner: OwnerIdentity = Depends(require_owner)
-) -> dict[str, Any]:
-    """The owner's creation from a template: the same input and service as the
-    ``agent_create`` tool, the template persisted on the agent, never a grant."""
-    rt = runtime(request)
-    spec: dict[str, Any] = {
-        "template": body.template,
-        "name": body.name,
-        "responsibility": body.responsibility.strip(),
-        "account_id": None,
-        "symbol": None,
-        "connection_version": None,
-        "model": body.model.model_dump(mode="json") if body.model else None,
-        "report_to": body.report_to,
-        "supervises": body.supervises,
-    }
-    if body.market is not None:
-        market = await resolve_market(
-            rt.db, rt.services(owner.id).brokers, owner.id, body.market, body.account_id
-        )
-        if not market["resolved"]:
-            # Two accounts or symbols match: the form asks the owner to choose.
-            raise LonoraError("agent_market_ambiguous", 409)
-        spec.update(
-            account_id=market["account_id"],
-            symbol=market["symbol"],
-            connection_version=market["version"],
-        )
-    async with rt.db.sessions() as session, session.begin():
-        row, created = await create_from_spec(
-            session,
-            owner.id,
-            spec,
-            agent_id=new_id(),
-            created_via="owner_ui",
-            created_by_agent_id=None,
-            source_message_id=None,
-            run_id=None,
-        )
-        return {**agent_data(row), "created": created}
 
 
 @router.get("/{agent_id}")

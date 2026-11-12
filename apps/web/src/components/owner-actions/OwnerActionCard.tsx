@@ -10,6 +10,7 @@ import {
   ownerActionCard,
   ownerActionChoices,
   ownerActionChoose,
+  ownerActionLive,
   ownerActionText,
   rereadOwnerAction,
   submitCredential,
@@ -137,6 +138,7 @@ export function OwnerActionCard({
       ...(button.decision === "confirm" ? choices.decision : {}),
     };
     if (button.tier) body.tier = button.tier;
+    if (button.trading_mode) body.trading_mode = button.trading_mode;
     if (button.outcome) {
       body.outcome = button.outcome;
       if (note.trim()) body.note = note.trim();
@@ -216,7 +218,7 @@ export function OwnerActionCard({
       if (mounted.current) setBusy(false);
     }
   }
-  const settled = row.status !== "pending";
+  const settled = !ownerActionLive(row);
   const notice = NOTICE_KINDS.has(row.kind);
   const kind = ownerActionKindName(row);
   if (notice)
@@ -472,7 +474,6 @@ export function OwnerActionCard({
 /** Undo-only kinds: a change made without asking, in one centred line with «تراجع» (Q31). */
 const NOTICE_KINDS = new Set<string>([
   "agent_model_changed",
-  "agent_created",
   "supervision_created",
   "watch_changed",
   "stop_tightened",
@@ -485,8 +486,6 @@ const KIND_ICON: Partial<Record<string, IconName>> = {
   resume_trading: "power",
   agent_model: "cpu",
   agent_model_changed: "cpu",
-  create_agent: "userPlus",
-  agent_created: "userPlus",
   supervise: "eye",
   supervision_created: "eye",
   supervision_stopped: "eye",

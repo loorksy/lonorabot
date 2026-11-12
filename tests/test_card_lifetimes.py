@@ -39,11 +39,7 @@ from lonora_db.schema import (
     TradingRestrictionRow,
 )
 from lonora_db.trade_approvals import (
-    APPROVAL_LIFETIME,
-    MAXIMUM_APPROVAL_LIFETIME,
-    MINIMUM_APPROVAL_LIFETIME,
     approval_data,
-    approval_expiry,
     decide,
     expire_if_due,
 )
@@ -187,14 +183,14 @@ async def test_undo_and_notice_cards_are_never_renewed(task_db: Fixture) -> None
         undo = await create_card(
             session,
             owner,
-            card_id="created-undo",
+            card_id="watch-undo",
             agent_id=agent,
             thread=thread,
             run_id=None,
             source="system",
-            kind="agent_created",
-            subject="agent:" + agent,
-            payload={"agent_id": agent},
+            kind="watch_changed",
+            subject="watch:watch-1",
+            payload={"watch_id": "watch-1"},
         )
         undo.expires_at = utcnow() - timedelta(minutes=1)
         with pytest.raises(LonoraError) as error:
@@ -326,14 +322,6 @@ async def test_the_pause_switch_is_refused_on_any_other_card(task_db: Fixture) -
     assert await restrictions(db, owner) == []
 
 
-def test_an_approval_lives_between_thirty_and_sixty_minutes() -> None:
-    assert MINIMUM_APPROVAL_LIFETIME == timedelta(minutes=30)
-    assert MAXIMUM_APPROVAL_LIFETIME == timedelta(minutes=60)
-    assert APPROVAL_LIFETIME == timedelta(minutes=45)
-    now = utcnow()
-    assert approval_expiry(now) == now + APPROVAL_LIFETIME
-
-
 async def waiting_approval(
     session: AsyncSession, owner: str, agent: str, thread: str, identifier: str
 ) -> tuple[TradeApprovalRow, RunRow]:
@@ -357,7 +345,8 @@ async def waiting_approval(
         status="pending",
         results=[],
         created_at=created,
-        expires_at=approval_expiry(created),
+        # A card stored before the fixed lifetime was removed keeps its stored expiry.
+        expires_at=created + timedelta(minutes=45),
     )
     session.add(row)
     await session.flush()

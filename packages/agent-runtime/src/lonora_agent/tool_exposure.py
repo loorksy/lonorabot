@@ -15,6 +15,7 @@ from typing import Any, cast
 from lonora_adapter_kit.types import ModelMessage, ToolCall, ToolDefinition
 from lonora_core.user_error import LonoraError
 from lonora_db.agent_binding import agent_binding
+from lonora_db.lead import LEAD_ROLE
 from lonora_db.schema import AgentRow, ThreadRow
 from lonora_db.supervision import supervised_ids
 from lonora_db.threads import thread_options
@@ -31,18 +32,20 @@ EXPOSURE_VERSION = 1
 def run_profiles(
     agent: AgentRow, task_run: bool, *, supervises: bool = False
 ) -> list[ExposureProfile]:
-    """``market`` for trading identities: an agent bound to a broker account, and
-    the owner's Personal Agent, which reads every owned account and analyzes
-    directly when no specialist exists. Other agents get ``research``.
+    """``market`` for every agent (3.2.1: no template, role or scope makes one agent less
+    capable); only a delegated helper gets ``research``.
 
-    ``coordination`` (inspect and message the agents it supervises) for the Personal
-    Agent, which supervises every agent by default, and for any agent while it holds
-    a supervision grant. A trading identity's Task Run leaves it out: its market and
+    ``coordination`` (inspect and message other agents) for the Personal Agent, which
+    leads every team agent by its built-in role (``lonora_db.lead``), and for any agent
+    while it holds a supervision grant. A trading identity's Task Run leaves it out: its market and
     task schemas fill the eager budget, and coordination stays one tool_call away.
     """
-    trading = bool(agent.trading_account_id) or agent.role == "personal"
+    lead = agent.role == LEAD_ROLE
+    # Same capabilities (mandate 3.2.1): every agent trades, bound to an account or not;
+    # only a delegated helper (removed with child roles) keeps the research set.
+    trading = agent.role != "delegated"
     profiles: list[ExposureProfile] = ["core", "market" if trading else "research"]
-    if (agent.role == "personal" or supervises) and not (trading and task_run):
+    if (lead or supervises) and not (trading and task_run):
         profiles.append("coordination")
     if task_run:
         profiles.append("task")

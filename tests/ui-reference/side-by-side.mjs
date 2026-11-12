@@ -670,12 +670,6 @@ const STATES = [
     app: async () => {},
   },
   {
-    name: "new-agent-templates",
-    ref: (page) => refRun(page, () => go("agent-type")),
-    appPath: "/app/new-agent",
-    app: async () => {},
-  },
-  {
     name: "trades-trader",
     ref: (page) => refRun(page, () => go("trades", { agent: "gold" })),
     appPath: () => `/app/trades/${seed.agents.gold}`,
@@ -709,7 +703,7 @@ const STATES = [
       const names = new Set((await a.get("/agents")).map((agent) => agent.name));
       for (const [name, role] of MORE_AGENTS)
         if (!names.has(name))
-          await a.post("/agents/create", { template: "general", name, responsibility: role });
+          await a.post("/agents", { name, description: role, scope_mode: "flexible" });
     },
     app: (page) => scrollTo(page, "end"),
   },

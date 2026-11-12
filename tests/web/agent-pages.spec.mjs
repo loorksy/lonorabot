@@ -278,34 +278,6 @@ test("watches: pause, resume and cancel with undo, each through the watch's cont
   await expect(main.locator(".wt-row")).toHaveCount(1);
 });
 
-test("«وكيل جديد»: the supervision switch sends the agents it supervises; the model stays automatic", async ({
-  page,
-}) => {
-  await page.goto("/app/new-agent");
-  const main = page.locator("main");
-  await main.getByRole("radio", { name: /^Research agent/ }).check();
-  await main.getByRole("switch", { name: "Supervise other agents", exact: true }).click();
-  await main.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(main.getByRole("combobox", { name: "Model", exact: true })).toHaveValue("");
-  await main
-    .getByLabel("Agent name", { exact: true })
-    .fill(`Watcher ${data.trader.id.slice(0, 6)}`);
-  await main.getByLabel("Description", { exact: true }).fill("Keeps an eye on the desk");
-  await main.getByRole("switch", { name: data.trader.name }).check();
-  const creation = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === "/api/agents/create",
-  );
-  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
-  const response = await creation;
-  const agent = await response.json();
-  data.agents.push(agent.id);
-  const body = response.request().postDataJSON();
-  expect(body).toMatchObject({ template: "research", supervises: [data.trader.id] });
-  expect(body).not.toHaveProperty("model");
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
-  await expect(main.locator(".row", { hasText: data.trader.name })).toBeVisible();
-});
-
 test("«تعديل الوقف والهدف»: one operation per body, a retry reuses it, a clear is explicit", async ({
   page,
 }) => {
@@ -418,41 +390,6 @@ test("identity: a trading agent with no account sends a market only when the own
     trading_account_id: data.account,
     trading_symbol: data.symbol,
     expected_scope_revision: current.scope_revision + 1,
-  });
-});
-
-test("«وكيل جديد» with a fixed model sends it", async ({ page }) => {
-  const agents = await (await page.request.get("/api/agents")).json();
-  const lonora = agents.find((agent) => agent.role === "personal");
-  // One configured model, as the personal agent's summary lists the owner's models.
-  await page.route(`**/api/agents/${lonora.id}/model/summary`, async (route) => {
-    const summary = await (await route.fetch()).json();
-    await route.fulfill({
-      json: {
-        ...summary,
-        available: [{ provider: "openai", model: "gpt-fixture", name: "Fixture model" }],
-      },
-    });
-  });
-  let body = null;
-  await page.route("**/api/agents/create", (route) => {
-    body = route.request().postDataJSON();
-    return route.abort("failed");
-  });
-  await page.goto("/app/new-agent");
-  const main = page.locator("main");
-  await main.getByRole("radio", { name: /^General agent/ }).check();
-  await main.getByRole("button", { name: "Next", exact: true }).click();
-  await main.getByLabel("Agent name", { exact: true }).fill("Model fixture");
-  await main.getByLabel("Description", { exact: true }).fill("Uses one model");
-  await main
-    .getByRole("combobox", { name: "Model", exact: true })
-    .selectOption({ label: "Fixture model" });
-  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
-  await expect.poll(() => body).not.toBeNull();
-  expect(body).toMatchObject({
-    template: "general",
-    model: { provider: "openai", model: "gpt-fixture" },
   });
 });
 

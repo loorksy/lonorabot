@@ -210,7 +210,7 @@ test("task form, task page and profile creation remain usable under StrictMode a
   page,
   workspace,
 }) => {
-  const { agent, prefix, remember } = workspace;
+  const { agent, prefix, post, remember } = workspace;
   // /app/board is an alias of the reference's المهام tab; «إنشاء مهمة» is its own page.
   await page.goto("/app/board");
   await expect(page).toHaveURL(/\/app\/tasks$/);
@@ -235,30 +235,16 @@ test("task form, task page and profile creation remain usable under StrictMode a
   await page.getByRole("button", { name: "Agent info", exact: true }).click();
   await expect(page.locator("#dialog")).toHaveAttribute("open", "");
   await page.keyboard.press("Escape");
+  // A new agent is asked of Lonora in chat (P5, mandate 3.1.2): «New chat» offers groups
+  // and the existing agents, no creation form.
   await page.getByRole("button", { name: "New chat", exact: true }).first().click();
-  await page
-    .locator("#dialog")
-    .getByRole("button", { name: /^New agent/ })
-    .click();
-  await expect(page).toHaveURL(/\/app\/new-agent$/);
-  await expect(page.locator("#dialog")).not.toHaveAttribute("open", "");
-  const form = page.locator("main");
-  // Owner decision Q9: a template first, then the agent's name, role and pair.
-  await form.getByRole("radio", { name: /^Trading agent/ }).check();
-  await form.getByRole("button", { name: "Next", exact: true }).click();
-  await form.getByLabel("Agent name", { exact: true }).fill(`${prefix} teammate`);
-  await form.getByLabel("Description", { exact: true }).fill("Teammate on the same pair");
-  await form.getByLabel("Broker account", { exact: true }).selectOption(agent.trading_account_id);
-  await page.getByRole("button", { name: "Choose trading pair", exact: true }).click();
-  await page.getByRole("option", { name: agent.trading_symbol, exact: true }).click();
-  const created = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
+  await expect(page.locator("#dialog").getByRole("button", { name: /^New agent/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  const teammate = remember(
+    "agents",
+    await post("/agents", { name: `${prefix} teammate`, scope_mode: "flexible" }),
   );
-  await form.getByRole("button", { name: "Create the agent", exact: true }).click();
-  const teammate = remember("agents", await (await created).json());
-  // A new agent lands on its own page (phase 4a, agent.new.templates).
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${teammate.id}$`));
+  await page.goto(`/app/agent/${teammate.id}`);
   await page
     .locator(".desktop-rail")
     .getByRole("button", { name: "Settings", exact: true })

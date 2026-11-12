@@ -42,7 +42,6 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
   let agent;
   let secondAgent;
   let group;
-  let uiAgent;
   try {
     const created = await context.request.post("/api/agents", {
       headers,
@@ -222,34 +221,8 @@ test("Expo chat renders interactive idle capsules for saved shape profiles", asy
     });
     await studio.getByRole("button", { name: "إلغاء", exact: true }).click();
 
-    // Creation exposes the same picker and saves the selected expression without a broker binding.
-    await page.goto("/new");
-    await page.getByRole("button", { name: "التالي", exact: true }).click();
-    await page
-      .getByRole("textbox", { name: "اسم الوكيل", exact: true })
-      .fill(`Native face ${randomUUID()}`);
-    await page.getByRole("textbox", { name: "الوصف", exact: true }).fill("Face check");
-    await page.getByRole("button", { name: "تعديل الأفاتار", exact: true }).click();
-    await expect(studio.getByTestId("avatar-face-face-smile")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    await studio.getByTestId("avatar-face-face-happy").click();
-    await studio.getByRole("button", { name: "حفظ", exact: true }).click();
-    const createdByUi = page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/agents/create") && response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "إنشاء الوكيل", exact: true }).click();
-    const uiResponse = await createdByUi;
-    expect(uiResponse.status()).toBe(201);
-    uiAgent = await uiResponse.json();
-    await expect(page.getByTestId("trading-avatar").first()).toBeVisible();
-    await expect.poll(async () => (await readAgent(uiAgent.id)).avatar).toBe("face-happy");
-
     expect(errors).toEqual([]);
   } finally {
-    if (uiAgent) await context.request.delete(`/api/agents/${uiAgent.id}`, { headers });
     if (group) await context.request.delete(`/api/groups/${group.id}`, { headers });
     if (secondAgent) await context.request.delete(`/api/agents/${secondAgent.id}`, { headers });
     if (agent) await context.request.delete(`/api/agents/${agent.id}`, { headers });

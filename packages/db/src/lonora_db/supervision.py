@@ -8,11 +8,14 @@ threads, runs, decisions, memory and records (``session_search``, ``search_inter
 lifts a brake and never edits its memory or instructions. Agents without a grant stay
 private from each other.
 
-The Personal Agent holds a ``default`` grant over every agent from the agent's creation
-(migration ``0041_supervision_grants`` seeds existing agents). Another agent becomes a
+Lonora, the Personal Agent, needs no grant: its lead role (``lead.py``) reads and steers
+every team agent, and no revoked grant takes that away. It still holds a ``default``
+grant over every agent from the agent's creation (migration ``0041_supervision_grants``
+seeds existing agents) until grants are deleted. Another agent becomes a
 supervisor only from the owner's message, recorded as the grant's source, or from the
 owner's tap on a card. The owner sees every grant on the agents' profiles and in chat
-and revokes one with one tap; a revoked grant ends every read and control at once.
+and revokes one with one tap; a revoked grant ends that supervisor's reads and control at
+once, never Lonora's (its lead role).
 
 Holds (``ln_supervision_holds``) record the pauses a supervisor put on another agent's
 work: the agent itself, a Task, a routine or a watch. On its own initiative only the
@@ -45,11 +48,11 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .events import emit
+from .lead import personal_agent_id, reaches
 from .schema import (
     AgentRow,
     MarketWatchRow,
     RoutineRow,
-    RunRow,
     SupervisionGrantRow,
     SupervisionHoldRow,
     TicketRow,
@@ -128,11 +131,12 @@ async def supervises_all(session: AsyncSession, owner_id: str, supervisor_id: st
 async def require_supervision(
     session: AsyncSession, owner_id: str, supervisor_id: str, agent_id: str
 ) -> AgentRow:
-    """The supervised agent, or 403 when this agent does not supervise it now."""
+    """The supervised agent, or 403 when this agent neither leads (Lonora) nor
+    supervises it now."""
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == supervisor_id:
         raise LonoraError("supervision_self_target", 409)
-    if not await supervises(session, owner_id, supervisor_id, agent.id):
+    if not await reaches(session, owner_id, supervisor_id, agent.id):
         raise LonoraError("supervision_required", 403)
     return agent
 
@@ -219,12 +223,6 @@ async def revoke_supervision(
         await session.flush()
         _grant_events(session, row, "supervision.revoked")
     return row
-
-
-async def personal_agent_id(session: AsyncSession, owner_id: str) -> str | None:
-    return await session.scalar(
-        select(AgentRow.id).where(AgentRow.owner_id == owner_id, AgentRow.role == "personal")
-    )
 
 
 async def grant_default(session: AsyncSession, owner_id: str, agent: AgentRow) -> None:
@@ -599,10 +597,15 @@ async def _apply(
     (holds are settled by the caller, so the item's own hold checks pass)."""
     if kind == "agent":
         from .agents import agent_data
+        from .management_task import ensure_management_task
 
         agent = await owned_agent(session, owner_id, agent_id, lock=True)
         agent.paused = action == "pause"
         emit(session, owner_id, "agent.updated", agent_id=agent_id, payload=agent_data(agent))
+        # Pausing ended the Full-mode task in control_work; resuming starts it again.
+        if action == "resume":
+            await session.flush()
+            await ensure_management_task(session, owner_id, agent_id)
     elif kind == "routine":
         from .routines import owned_routine
 
@@ -641,8 +644,8 @@ async def control_work(
     """A supervisor pauses or resumes another agent's work (the agent itself, a Task, a
     routine or a watch). Repeating either changes nothing.
 
-    Pausing and resuming need the grant (Lonora also acts on the owner's message without
-    one), and pausing passes the cycle rule. Without the owner's message it never pauses a whole agent with money
+    Pausing and resuming need the grant (Lonora needs none: it leads every team agent),
+    and pausing passes the cycle rule. Without the owner's message it never pauses a whole agent with money
     standing, and no agent ever pauses the Personal Agent itself. Each pause raises a
     card in the paused agent's conversation naming the supervisor, with Resume.
 
@@ -652,14 +655,24 @@ async def control_work(
     agent cancelled itself while held stays cancelled; the resume only ends the hold.
     """
     owner_message = owner_message_id is not None
+    if kind == "agent":
+        from .authority_lock import authority_lock
+
+        # Taken before the agent's row lock, in the order a mode change takes them.
+        await authority_lock(session, agent_id)
+        if action == "pause":
+            from .management_task import end_management_task
+
+            # Pausing ends the Full-mode task (4.5.2), before the agent's row lock: the
+            # task's Runs are locked first, as their own work does. A refusal below rolls
+            # the whole transaction back.
+            await end_management_task(session, owner_id, agent_id)
     agent = await owned_agent(session, owner_id, agent_id)
     if agent.id == actor_id:
         raise LonoraError("supervision_self_target", 409)
-    if not await supervises(session, owner_id, actor_id, agent.id) and not (
-        # The owner's message routes through Lonora, the owner's entry point; any other
-        # agent steers another only under a visible grant, whatever a message said.
-        owner_message and actor_id == await personal_agent_id(session, owner_id)
-    ):
+    # Lonora steers every team agent by its built-in lead role; any other agent steers
+    # another only under a visible grant, whatever a message said.
+    if not await reaches(session, owner_id, actor_id, agent.id):
         raise LonoraError("supervision_required", 403)
     item = agent.id if kind == "agent" else target_id
     if not item:
@@ -725,14 +738,6 @@ async def control_work(
             result["stays_cancelled_by_the_agent"] = True
         else:
             await _apply(session, owner_id, agent.id, kind, item, "resume")
-            # Tainted work that revives another agent's work taints it (GENUI_PLAN §8.5).
-            from .genui_taint import taint_row_from
-
-            actor_run = await session.get(RunRow, run_id) if run_id else None
-            if kind == "task":
-                await taint_row_from(session, actor_run, "ticket", item)
-            elif kind == "routine" or kind == "watch":
-                await taint_row_from(session, actor_run, kind, item)
     record_intervention(
         session,
         owner_id,
@@ -758,7 +763,10 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
     kind, target_id = hold.target_kind, hold.target_id
     if kind == "agent":
         from .agents import agent_data
+        from .authority_lock import authority_lock
+        from .management_task import ensure_management_task
 
+        await authority_lock(session, target_id)
         agent = await owned_agent(session, owner_id, target_id, lock=True)
         await owner_takes_over(
             session, owner_id, kind, target_id, paused=False, agent_id=hold.agent_id
@@ -766,6 +774,9 @@ async def owner_resumes(session: AsyncSession, owner_id: str, hold_id: str) -> s
         if agent.paused:
             agent.paused = False
             emit(session, owner_id, "agent.updated", agent_id=agent.id, payload=agent_data(agent))
+            await session.flush()
+            # Resuming a Full agent starts its continuous task again (4.5.1).
+            await ensure_management_task(session, owner_id, agent.id)
     elif kind == "routine":
         from .routines import owned_routine
 

@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
-/* «إدارة الوكلاء» and «وكيل جديد» (docs/ui-reference/Lonora-Desktop-37.html, phase 2): the
-   ghost button of the new-chat sheet and the list menu item open the agents page on real data;
-   a new agent is created from a template through POST /api/agents/create (owner decision Q9)
-   and, with nothing said yet, sorts below every chat that has a message. */
+/* «إدارة الوكلاء» (docs/ui-reference/Lonora-Desktop-37.html, phase 2): the ghost button of the
+   new-chat sheet and the list menu item open the agents page on real data. There is no creation
+   form (P5): a new agent is asked of Lonora in chat (mandate 3.1.2), and with nothing said yet
+   it sorts below every chat that has a message. */
 function seed(data) {
   return JSON.parse(
     execFileSync(".venv/bin/python", ["tests/chat_lists_browser.py"], {
@@ -77,45 +77,23 @@ test("«إدارة الوكلاء» opens the agents page from the new-chat shee
   await page.getByRole("button", { name: "List options", exact: true }).click();
   await page.getByRole("menuitem", { name: "Manage agents" }).click();
   await expect(page).toHaveURL(/\/app\/agents$/);
-  await page.getByRole("button", { name: "Create agent", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/new-agent$/);
+  await expect(page.getByRole("button", { name: "Create agent", exact: true })).toHaveCount(0);
 });
 
-test("«وكيل جديد» persists its template and the new chat sorts below the chats with messages", async ({
+test("a new agent with nothing said yet sorts below the chats with messages", async ({
   page,
   context,
 }) => {
   const fixture = seed({ action: "init" });
   const state = await signIn(context, fixture);
-  const posts = [];
-  page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname.startsWith("/api/agents"))
-      posts.push(new URL(request.url()).pathname);
+  const made = await context.request.post("/api/agents", {
+    headers: state.headers,
+    data: { name: `Reader ${fixture.group.id.slice(0, 6)}`, scope_mode: "flexible" },
   });
-  await page.goto("/app/new-agent");
-  const main = page.locator("main");
-  await main.getByRole("radio", { name: /^Research agent/ }).check();
-  await main.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(main.locator(".row .value")).toHaveText("Research agent");
-  await main
-    .getByLabel("Agent name", { exact: true })
-    .fill(`Reader ${fixture.group.id.slice(0, 6)}`);
-  await main.getByLabel("Description", { exact: true }).fill("Summarises the week's research");
-  const creation = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/agents/create" &&
-      response.request().method() === "POST",
-  );
-  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
-  const response = await creation;
-  expect(response.status()).toBe(201);
-  expect(response.request().postDataJSON()).toMatchObject({ template: "research" });
-  const agent = await response.json();
+  expect(made.status()).toBe(201);
+  const agent = await made.json();
   state.extra.push(agent.id);
-  expect(agent.template).toBe("research");
-  expect(posts).toEqual(["/api/agents/create"]);
-  // The new agent lands on its own page (agent.new.templates).
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
+  await page.goto(`/app/agent/${agent.id}`);
   // Nothing said yet: below every seeded chat that has a message (the reference's lastAt).
   await expect(page.locator(`.desktop-list .thread[data-key="agent:${agent.id}"]`)).toBeVisible();
   const keys = await page
@@ -125,45 +103,4 @@ test("«وكيل جديد» persists its template and the new chat sorts below t
   expect(position).toBeGreaterThan(-1);
   for (const seeded of fixture.agents.slice(0, 2))
     expect(keys.indexOf(`agent:${seeded.id}`)).toBeLessThan(position);
-});
-
-test("a failed appearance save never reads as a failed creation (no second agent on retry)", async ({
-  page,
-  context,
-}) => {
-  const fixture = seed({ action: "init" });
-  const state = await signIn(context, fixture);
-  await page.route("**/api/agents/*", (route) =>
-    route.request().method() === "PATCH"
-      ? route.fulfill({
-          status: 500,
-          contentType: "application/json",
-          body: JSON.stringify({ code: "request_failed" }),
-        })
-      : route.continue(),
-  );
-  const posts = [];
-  page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname.startsWith("/api/agents"))
-      posts.push(new URL(request.url()).pathname);
-  });
-  await page.goto("/app/new-agent");
-  const main = page.locator("main");
-  await main.getByRole("radio", { name: /^General agent/ }).check();
-  await main.getByRole("button", { name: "Next", exact: true }).click();
-  await main
-    .getByLabel("Agent name", { exact: true })
-    .fill(`Helper ${fixture.group.id.slice(0, 6)}`);
-  await main.getByLabel("Description", { exact: true }).fill("Answers the owner's questions");
-  const creation = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/agents/create" &&
-      response.request().method() === "POST",
-  );
-  await main.getByRole("button", { name: "Create the agent", exact: true }).click();
-  const agent = await (await creation).json();
-  state.extra.push(agent.id);
-  await expect(page).toHaveURL(new RegExp(`/app/agent/${agent.id}$`));
-  await expect(main.getByRole("alert")).toHaveCount(0);
-  expect(posts).toEqual(["/api/agents/create"]);
 });

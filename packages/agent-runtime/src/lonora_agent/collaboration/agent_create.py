@@ -1,13 +1,14 @@
-"""Create a persistent agent from a stored creation spec, with its operating notes.
+"""Create a persistent agent from a creation spec, with its method.
 
-The database service (``lonora_db.agent_creation``) creates the agent, its ladder level
-and its provenance. This adds what every new agent should know from its first run, as
-fixed server text in its own operating notes (``OPERATING.md``): its template's role,
-and the agents it reports to. Each agent it reports to gets one line saying who reports
-to it. The notes name agents, never their ids or tools (``list_agents`` holds the link),
-are attributed to the owner's request and revertible like any other memory change.
-Neither text states authority: the memory guard would refuse it. The exact lines are
-kept in the origin record, so deleting the agent takes them out again.
+The database service (``lonora_db.agent_creation``) creates the agent, its mode, model
+and provenance. This writes what Lonora assigned it into its method (``OPERATING.md``,
+mandate 3.1.2): the instrument and account it trades, as an instruction the agent
+follows, never a binding the execution door enforces. The note is fixed server text
+around broker names, attributed to the request and revertible like any other memory
+change; it states no authority, which the memory guard would refuse.
+
+Agents created before the flat team may still carry report links in other agents'
+notes; ``forget_links`` takes them out when such an agent is deleted.
 """
 
 import json
@@ -18,7 +19,6 @@ from lonora_db.agent_creation import (
     agent_origin,
     create_root_agent,
     delete_agent,
-    origin_key,
     report_targets,
 )
 from lonora_db.authority_lock import authority_lock
@@ -37,16 +37,6 @@ from lonora_memory.guard import authority_claim
 from lonora_memory.markdown_memory import normalize_memory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-TEMPLATE_NOTES = {
-    "trading": "Trading agent: your focus pair is your default market. You read every market "
-    "and trade only within your level and your grant.",
-    "general": "General agent: you have no trading pair and do not trade.",
-    "research": "Research agent: you have no trading pair and do not trade. Research with web "
-    "search, web pages, news feeds and the economic calendar, and report what matters.",
-    "supervisor": "Supervisor: you review the work of the agents the owner named and message "
-    "them; you never trade for them.",
-}
 
 
 def check_responsibility(text: str) -> None:
@@ -102,6 +92,16 @@ async def _remove_note(session: AsyncSession, owner_id: str, agent_id: str, note
     await commit_memory(session, owner_id, agent_id, "", None, transform=transform)
 
 
+def method_note(spec: dict[str, Any]) -> str | None:
+    """The instruction for an assigned instrument and account, or None."""
+    symbol, account = spec.get("symbol"), spec.get("account_label")
+    if not symbol:
+        return None
+    # Names are quoted as data: a broker's or owner's label never reads as an instruction.
+    where = f" on the account {json.dumps(account, ensure_ascii=False)}" if account else ""
+    return f"Lonora assigned you {json.dumps(symbol, ensure_ascii=False)}{where} to trade."
+
+
 async def create_from_spec(
     session: AsyncSession,
     owner_id: str,
@@ -112,7 +112,6 @@ async def create_from_spec(
     created_by_agent_id: str | None,
     source_message_id: str | None,
     run_id: str | None,
-    card_id: str | None = None,
 ) -> tuple[AgentRow, bool]:
     """The agent and whether it is new; a repeated id returns the agent unchanged."""
     check_responsibility(str(spec.get("responsibility") or ""))
@@ -125,41 +124,11 @@ async def create_from_spec(
         created_by_agent_id=created_by_agent_id,
         source_message_id=source_message_id,
         run_id=run_id,
-        card_id=card_id,
     )
-    if not created:
-        return row, False
-    await _add_note(
-        session, owner_id, row.id, TEMPLATE_NOTES[str(spec["template"])], source_message_id
-    )
-    links: list[dict[str, Any]] = []
-    for target_id in spec.get("report_to", []):
-        target = await owned_agent(session, owner_id, target_id)
-        # Names are quoted as data: a model-chosen name never reads as an instruction in
-        # another agent's operating notes.
-        own = (
-            "Report important findings to the agent named "
-            f"{json.dumps(target.name, ensure_ascii=False)}."
-        )
-        theirs = (
-            f"The agent named {json.dumps(row.name, ensure_ascii=False)} "
-            "reports important findings to you."
-        )
-        added_own = await _add_note(session, owner_id, row.id, own, source_message_id)
-        added_theirs = await _add_note(session, owner_id, target.id, theirs, source_message_id)
-        # Only lines this creation added are recorded, so a delete removes nothing else.
-        links.append(
-            {
-                "agent_id": target.id,
-                "own": own if added_own else None,
-                "target": theirs if added_theirs else None,
-            }
-        )
-    if links:
-        origin = await session.get(SettingRow, origin_key(owner_id, row.id))
-        if origin is not None:
-            origin.payload = {**origin.payload, "link_notes": links}
-    return row, True
+    note = method_note(spec)
+    if created and note:
+        await _add_note(session, owner_id, row.id, note, source_message_id)
+    return row, created
 
 
 def _links(origin: dict[str, Any]) -> list[dict[str, Any]]:
@@ -230,12 +199,10 @@ async def forget_links(session: AsyncSession, owner_id: str, agent_id: str) -> N
         }
 
 
-async def delete_created_agent(
-    session: AsyncSession, owner_id: str, agent_id: str, *, keep_card: str | None = None
-) -> None:
+async def delete_created_agent(session: AsyncSession, owner_id: str, agent_id: str) -> None:
     """The owner's delete (``lonora_db.agent_creation.delete_agent``), with the notes and
     links its creation left in other agents removed first."""
     await authority_lock(session, agent_id)
     await owned_agent(session, owner_id, agent_id, lock=True)
     await forget_links(session, owner_id, agent_id)
-    await delete_agent(session, owner_id, agent_id, keep_card=keep_card)
+    await delete_agent(session, owner_id, agent_id)

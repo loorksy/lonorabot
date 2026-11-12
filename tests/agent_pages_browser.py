@@ -134,19 +134,18 @@ async def action(data: dict[str, Any]) -> dict[str, Any]:
             chart = {"account": connection["id"], "symbol": SYMBOL}
             trader = await fixture.request(
                 "POST",
-                "/agents/create",
+                "/agents",
                 {
-                    "template": "trading",
                     "name": f"Gold desk {tag}",
-                    "responsibility": "Follows gold",
-                    "market": chart["symbol"],
-                    "account_id": chart["account"],
+                    "description": "Follows gold",
+                    "trading_account_id": chart["account"],
+                    "trading_symbol": chart["symbol"],
                 },
             )
             research = await fixture.request(
                 "POST",
-                "/agents/create",
-                {"template": "research", "name": f"Reader {tag}", "responsibility": "Reads"},
+                "/agents",
+                {"name": f"Reader {tag}", "description": "Reads", "scope_mode": "flexible"},
             )
             group = await fixture.request(
                 "POST",

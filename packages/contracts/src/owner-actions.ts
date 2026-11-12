@@ -3,7 +3,13 @@ import type { AuthorityDuration } from "./agent-permissions";
 import type { EffectTier } from "./capabilities";
 import type { DeviceProof } from "./devices";
 import type { AgentModelMode, ModelLabel } from "./models";
-import type { GlobalTrading, MoneyLimitName, MoneyLimits, RestrictionActionClass } from "./trading";
+import type {
+  GlobalTrading,
+  MoneyLimitName,
+  MoneyLimits,
+  RestrictionActionClass,
+  TradingMode,
+} from "./trading";
 
 export type OwnerActionKind =
   | "resume_trading"
@@ -13,8 +19,6 @@ export type OwnerActionKind =
   | "grant_authority"
   | "agent_model"
   | "agent_model_changed"
-  | "create_agent"
-  | "agent_created"
   | "supervise"
   | "supervision_created"
   | "supervision_stopped"
@@ -24,7 +28,9 @@ export type OwnerActionKind =
   /** Notices of a change an agent made without asking (Q31): Undo of an extended watch. */
   | "watch_changed"
   /** A stop loss an agent tightened under its grant: recorded settled, no Undo. */
-  | "stop_tightened";
+  | "stop_tightened"
+  /** The Mandate card: the agent's mode read live and one button for the other mode. */
+  | "trading_mode";
 /**
  * A grant card's one choice: Custom (the markets, actions, duration, daily loss limit and
  * own positions the card shows) or Full delegation (every pair on the account, every
@@ -44,21 +50,8 @@ export type CredentialTarget =
   | "broker";
 /** Agent templates (lonora_contracts.agent_creation); none carries money authority. */
 export type AgentTemplate = "trading" | "general" | "research" | "supervisor";
-/** A creation card's agent, read on the server. */
-export type OwnerActionAgent = {
-  exists: boolean;
-  name: string | null;
-  template?: AgentTemplate | null;
-  symbol?: string | null;
-  level?: "analysis" | "supervised" | "autonomous";
-  paused?: boolean;
-  report_to?: string[];
-  /** Names of the agents it supervises (reads, messages, pauses; never trades). */
-  supervises?: string[];
-  model?: string | null;
-  /** Its task exactly as stored (its standing instructions); shown isolated and labelled. */
-  responsibility?: string | null;
-};
+/** The agent a Mandate card switches, read on the server. */
+export type OwnerActionAgent = { exists: boolean; id?: string; name: string | null };
 export type OwnerActionStatus = "pending" | "confirmed" | "cancelled" | "expired" | "superseded";
 export type AttestedOutcome = "executed" | "not_executed" | "unknown";
 /** A limits card shows one line per changed field: a limit, its currency or the day's zone. */
@@ -106,6 +99,10 @@ export type OwnerAction = {
   facts: {
     several_accounts: boolean;
     global_trading?: GlobalTrading;
+    /** The Mandate card: the agent's mode now, read live. */
+    trading_mode?: TradingMode;
+    /** The Mandate card: a signed grant of this agent is still in force. */
+    active_grant?: boolean;
     account?: OwnerActionAccount;
     restriction?: {
       action_class: RestrictionActionClass;
@@ -189,10 +186,8 @@ export type OwnerAction = {
       /** Lonora asked on the owner's behalf for another agent. */
       asked_by_agent_name?: string;
     };
-    /** create_agent / agent_created: the agent the card creates or created. */
+    /** trading_mode: the agent the Mandate card switches. */
     agent?: OwnerActionAgent;
-    /** agent_created: what Undo does now (remove an untouched agent, else pause it). */
-    undo?: "delete" | "pause";
     /**
      * supervise / supervision_created / supervision_stopped: who supervises whom;
      * supervision_paused: which supervisor paused which work of which agent. Names are
@@ -299,6 +294,8 @@ export type OwnerAction = {
 export type OwnerActionDecision = {
   /** "choose" switches a pending grant card's choice in its stored draft; it signs nothing. */
   decision: "confirm" | "cancel" | "choose";
+  /** The Mandate card: the mode its button showed at the moment of the tap. */
+  trading_mode?: TradingMode;
   /** Grant card, with "choose": Custom or Full delegation. */
   delegation?: GrantDelegation;
   outcome?: AttestedOutcome;

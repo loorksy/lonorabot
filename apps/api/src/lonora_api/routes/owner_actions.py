@@ -54,12 +54,6 @@ from lonora_contracts.owner_actions import (
 from lonora_contracts.trading import OperationResolution, TradingControl
 from lonora_core.user_error import LonoraError
 from lonora_db.account_authority import owned_authority, propose, revoke
-from lonora_db.agent_creation import (
-    cancel_first_task,
-    pause_agent,
-    start_first_task,
-    undo_plan,
-)
 from lonora_db.authority_lock import authority_lock
 from lonora_db.capability_cards import connected_result, review_writes
 from lonora_db.integrations import subscribe_feed
@@ -83,7 +77,6 @@ from lonora_db.owner_actions import (
     owned_card,
     owner_action_data,
     proposed_limits,
-    raise_created_card,
     raise_review_card,
     raise_supervision_card,
     renew_card,
@@ -94,7 +87,7 @@ from lonora_db.owner_actions import (
     thread_cards,
     widens,
 )
-from lonora_db.schema import AgentRow, McpConnectionRow, OwnerActionRow, TradingJournalRow
+from lonora_db.schema import McpConnectionRow, OwnerActionRow, TradingJournalRow
 from lonora_db.supervision import (
     grant_supervision,
     owned_grant,
@@ -102,6 +95,7 @@ from lonora_db.supervision import (
     revoke_supervision,
 )
 from lonora_db.threads import conversation_thread
+from lonora_db.trading_mode import set_trading_mode
 from lonora_db.trading_readiness import risk_limit_frame
 from lonora_db.trading_restrictions import create_restriction, revoke_restriction
 from lonora_db.transactions import owned_thread
@@ -201,6 +195,28 @@ async def renew(
     (``owner_action_not_renewable`` otherwise). It decides nothing."""
     async with runtime(request).db.sessions() as session, session.begin():
         return await owner_action_data(session, await renew_card(session, owner.id, card_id))
+
+
+async def decide_trading_mode(
+    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow, body: OwnerActionDecision
+) -> None:
+    """The Mandate card (10.3): the tap applies the mode its button showed at the moment of
+    the tap, never a toggle of whatever is stored now. The card stays the agent's switch
+    after a tap; only the owner's tap sets Full (4.2.1)."""
+    if body.decision != "confirm":
+        raise LonoraError("owner_action_decision_unsupported", 422)
+    if body.trading_mode is None:
+        raise LonoraError("owner_action_trading_mode_required", 422)
+    if row.status not in {"pending", "confirmed"}:
+        return  # Expired or superseded: the same answer from the record.
+    reason = await stale_reason(session, owner.id, row.kind, row.payload)
+    if reason is not None:
+        await settle(session, row, "expired", reason)
+        return
+    mode = await set_trading_mode(
+        session, owner.id, row.payload["agent_id"], body.trading_mode, by="owner_tap"
+    )
+    await settle(session, row, "confirmed", None, via="tap", result={"trading_mode": mode})
 
 
 async def grant_challenge(
@@ -334,6 +350,9 @@ async def decide(
     if body.decision == "choose":
         await choose(session, owner, row, body)
         return
+    if row.kind == "trading_mode":
+        await decide_trading_mode(session, owner, row, body)
+        return
     if body.pause_new_today and row.kind != "resolve_operation":
         raise LonoraError("owner_action_pause_unsupported", 422)
     desired = "confirmed" if body.decision == "confirm" else "cancelled"
@@ -407,16 +426,6 @@ async def decide(
             raise LonoraError("owner_action_passkey_required", 403)
         result = await confirm_grant(session, rt, owner, row, body)
         via = "passkey"
-    elif row.kind == "create_agent":
-        created = await create_agent_from_card(session, owner, row)
-        result = {"agent_id": created.id, "agent_name": created.name}
-    elif row.kind == "agent_created":
-        undone = await undo_creation(session, owner, row)
-        if undone is None:
-            # Deleted by the owner while this tap waited: nothing is left to undo.
-            await settle(session, row, "expired", "agent_already_removed")
-            return
-        result = undone
     elif row.kind == "supervise":
         granted = await supervise_from_card(session, owner, row)
         result = {"grant_ids": granted, "supervisor_id": row.payload["supervisor_id"]}
@@ -464,9 +473,6 @@ async def decide(
         )
         result = {"limits": risk_limit_frame(account_id, stored)}
     await settle(session, row, "confirmed", None, via=via, result={**row.result, **result})
-    created_agent = (
-        await session.get(AgentRow, result["agent_id"]) if row.kind == "create_agent" else None
-    )
     if row.kind == "supervise":
         # The same one-line result with Undo as a grant set from the owner's message.
         await raise_supervision_card(
@@ -474,15 +480,6 @@ async def decide(
             owner.id,
             result["grant_ids"],
             card_key=row.id,
-            agent_id=row.agent_id,
-            thread_id=row.thread_id,
-            run_id=row.run_id,
-        )
-    if created_agent is not None:
-        await raise_created_card(
-            session,
-            owner.id,
-            created_agent,
             agent_id=row.agent_id,
             thread_id=row.thread_id,
             run_id=row.run_id,
@@ -502,9 +499,6 @@ async def decide(
             session, owner.id, row.payload["agent_id"], "owner_changed_model", keep=row.id
         )
     await confirm_in_thread(session, row)
-    if created_agent is not None:
-        # The agent that proposed it hands it its first task, after the line above.
-        await start_first_task(session, row, created_agent)
     if row.kind == "connect_credential" and result.get("review") == "raised" and review:
         # The server the owner just connected: its tools on the next card to trust; the
         # agent continues once the owner taps it.
@@ -717,26 +711,6 @@ async def trust_from_card(
     return {"tier": "read", "subscribed": True, "subscription_created": created}
 
 
-async def create_agent_from_card(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> AgentRow:
-    """The owner's tap creates the agent the card names, once (its id comes from the card)."""
-    from lonora_agent.collaboration.agent_create import create_from_spec
-
-    created, _ = await create_from_spec(
-        session,
-        owner.id,
-        row.payload["spec"],
-        agent_id=stable_id(row.id, "created-agent"),
-        created_via="owner_card",
-        created_by_agent_id=row.agent_id,
-        source_message_id=None,
-        run_id=row.run_id,
-        card_id=row.id,
-    )
-    return created
-
-
 async def supervise_from_card(
     session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
 ) -> list[str]:
@@ -786,27 +760,3 @@ async def undo_supervision(session: AsyncSession, owner: OwnerIdentity, row: Own
             await revoke_supervision(session, owner.id, grant_id, via="owner_card")
             revoked += 1
     return revoked
-
-
-async def undo_creation(
-    session: AsyncSession, owner: OwnerIdentity, row: OwnerActionRow
-) -> dict[str, Any] | None:
-    """Undo: remove an agent that has done nothing yet, pause one that has. None when
-    the owner deleted it while this tap waited for its lock."""
-    from lonora_agent.collaboration.agent_create import delete_created_agent
-
-    agent_id = row.payload["agent_id"]
-    # Lock it first: a run or watch that starts now waits on this lock, so the plan below
-    # never deletes work begun meanwhile.
-    await authority_lock(session, agent_id)
-    agent = await session.get(AgentRow, agent_id, with_for_update=True, populate_existing=True)
-    if agent is None or agent.owner_id != owner.id:
-        return None
-    name = agent.name
-    # The proposing agent's first-task run has not started: it never hands out a task.
-    await cancel_first_task(session, owner.id, agent_id)
-    if await undo_plan(session, owner.id, agent_id) == "delete":
-        await delete_created_agent(session, owner.id, agent_id, keep_card=row.id)
-        return {"undo": "deleted", "agent_name": name}
-    await pause_agent(session, owner.id, agent_id)
-    return {"undo": "paused", "agent_name": name}
