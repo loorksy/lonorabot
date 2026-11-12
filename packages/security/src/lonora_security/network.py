@@ -78,6 +78,8 @@ LONORA_SERVICES = frozenset(
     {"api", "browser", "caddy", "db", "gateway", "migrate", "postgres", "searxng", "workspace"}
 )
 METADATA_HOSTS = frozenset({"instance-data", "metadata", "metadata.google.internal"})
+# Docker names a service's containers <project>-<service>-<n> (lonora-api-1).
+CONTAINER_NAME = re.compile(r"[a-z0-9][a-z0-9_.-]*-(?P<service>[a-z0-9]+)-[0-9]+")
 
 
 def _address(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
@@ -101,6 +103,9 @@ def _lonora_host(host: str) -> bool:
         or host in LONORA_SERVICES
         or host in METADATA_HOSTS
     ):
+        return True
+    container = CONTAINER_NAME.fullmatch(host)
+    if container is not None and container["service"] in LONORA_SERVICES:
         return True
     address = _address(host)
     return address is not None and (

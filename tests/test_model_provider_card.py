@@ -69,7 +69,11 @@ async def test_an_older_own_card_under_a_providers_key_name_settles_stale() -> N
 
     from lonora_db.secret_cards import secret_stale_reason
 
-    payload = {"connect": None, "fields": [{"key": "OPENAI_API_KEY", "label": "k"}]}
+    payload = {
+        "connect": None,
+        "fields": [{"key": "OPENAI_API_KEY", "label": "k"}],
+        "destination": "workspace",
+    }
     reason = await secret_stale_reason(cast(Any, None), "owner", payload)
     assert reason == "secret_name_reserved"
 

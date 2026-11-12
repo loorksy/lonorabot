@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,8 @@ class SavedKey:
     secret_id: str
     # The card's base URL; None for a fixed provider and for a key saved before cards.
     url: str | None
+    # When that secret was last written: a rotation keeps the id and changes this.
+    updated_at: datetime
 
 
 async def saved_key(session: AsyncSession, provider: str) -> SavedKey | None:
@@ -37,4 +40,4 @@ async def saved_key(session: AsyncSession, provider: str) -> SavedKey | None:
     if not candidates:
         return None
     row, url = max(candidates, key=lambda item: item[0].updated_at)
-    return SavedKey(row.id, url)
+    return SavedKey(row.id, url, row.updated_at)
