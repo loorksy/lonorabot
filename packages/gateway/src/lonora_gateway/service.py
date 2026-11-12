@@ -101,6 +101,8 @@ class Gateway:
         self.chart_visual = chart_visual
         self.workspace_socket = workspace_socket
         self.mcp_declarations = mcp_declarations
+        # Whether the workspace supervisor has answered since this Gateway started.
+        self.workspace_reached = False
         self.mcp_owner_trust = mcp_owner_trust
         self.searxng_url = searxng_url
         self.browser_url = browser_url
@@ -302,6 +304,7 @@ class Gateway:
     async def workspace(self) -> None:
         from datetime import UTC, datetime
 
+        from lonora_core.user_error import LonoraError
         from lonora_db.workspace_processes import reconcile
 
         from .runtime import WORKSPACE
@@ -311,7 +314,17 @@ class Gateway:
         # Only ids, times and exit codes are kept from this listing; commands are stored
         # from the tool's own scanned answer.
         fetched_at = datetime.now(UTC)
-        listing = await WORKSPACE.processes(SecretScan({}))
+        try:
+            listing = await WORKSPACE.processes(SecretScan({}))
+        except LonoraError as error:
+            # `lonora` starts the workspace after the core services and never waits for
+            # it: until the supervisor has answered once, an unreachable one is the
+            # normal start-up order, not a step failure.
+            if error.code != "workspace_unavailable" or self.workspace_reached:
+                raise
+            log.info("workspace_not_reached_yet")
+            return
+        self.workspace_reached = True
         async with self.db.sessions() as session, session.begin():
             await reconcile(session, listing, fetched_at)
         await self.for_each_owner(self.record_running)
