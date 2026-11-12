@@ -30,15 +30,7 @@ export type UiRenderedNodeType = UiNodeType | UiServerNodeType;
 export const UI_ACTIONS = ["set", "toggle", "reset", "copy", "open", "go", "send"] as const;
 export type UiActionKind = (typeof UI_ACTIONS)[number];
 /** The client routes a `go` action may name (`lonora_agent.genui_capabilities`). */
-export const UI_ROUTES = [
-  "market",
-  "tasks",
-  "schedules",
-  "usage",
-  "chat-prefs",
-  "files",
-  "agents",
-] as const;
+export const UI_ROUTES = ["market", "tasks", "usage", "files", "agents"] as const;
 export type UiRoute = (typeof UI_ROUTES)[number];
 export const UI_TONES = ["info", "good", "warn", "bad", "muted", "accent"] as const;
 export type UiTone = (typeof UI_TONES)[number];

@@ -24,14 +24,11 @@ import { useCardHost } from "./host";
 import { buttonOff, type CardCtx, CardIcon, Node, visible } from "./nodes";
 import { useCardPalette } from "./theme";
 
-/** The server's routes on mobile's screens. Mobile has no chat-preferences page: that route
- * opens Settings. */
+/** The server's routes on mobile's own screens. */
 const ROUTES: Record<UiRoute, string> = {
   market: "/charts",
   tasks: "/tasks",
-  schedules: "/routine",
   usage: "/account",
-  "chat-prefs": "/settings",
   files: "/artifacts",
   agents: "/agents",
 };
