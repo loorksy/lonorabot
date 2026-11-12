@@ -502,11 +502,49 @@ async def test_a_deleted_skill_keeps_its_versions_and_comes_back():
         assert "Text one" in str(viewed) and "Text two" not in str(viewed)
         history = await call(registry, context, "skill_history", skill_id=skill)
         assert len(history["versions"]) == 3 and "deleted" not in history
-        # A skill of the same name saved after a delete never repeats an old number.
+        # Saving the name again after a delete brings the skill back under its own id,
+        # with every earlier version still in its history, and never repeats a number.
         await fixture.request("DELETE", f"/skills/{two['resource_id']}")
         again = await call(
             registry, context, "skill_save", **arguments, content="Text three", expected_version=0
         )
-        assert again["version"] == "1.0.3"
+        assert again["version"] == "1.0.3" and again["resource_id"] == two["resource_id"]
+        history = await call(registry, context, "skill_history", skill_id=skill)
+        assert [item["version"] for item in history["versions"]] == [4, 3, 2, 1]
+        # A removed package comes back only through its own lifecycle (validated sources).
+        from lonora_db.skills import SkillRepository, mark_package
+
+        async with fixture.runtime.db.sessions() as session, session.begin():
+            package = await SkillRepository().create(
+                session,
+                fixture.owner,
+                {
+                    "name": "pkg-skill",
+                    "content": "Packaged instructions",
+                    "enabled": False,
+                    "manifest": {
+                        "id": "pkg-skill",
+                        "version": "1.0.0",
+                        "title": "Package",
+                        "description": "A package.",
+                        "source": "installed",
+                    },
+                },
+                agent_id=agent["id"],
+            )
+            package.state = {"package": {"versions": []}}
+            await mark_package(session, package)
+            package_id = package.id
+        await fixture.request("DELETE", f"/skills/{package_id}")
+        with pytest.raises(LonoraError) as refused:
+            await call(
+                registry,
+                context,
+                "skill_restore",
+                skill_id="pkg-skill",
+                version=1,
+                expected_version=0,
+            )
+        assert refused.value.code == "skill_package_lifecycle_required"
     finally:
         await fixture.close()
