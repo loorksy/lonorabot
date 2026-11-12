@@ -469,11 +469,15 @@ class ExecutionService:
                     if (
                         not account_authority_id
                         and (request.position_id or request.order_id)
-                        and expected_target is not None
-                        and (target is None or material_state(target) != expected_target)
+                        and (
+                            expected_target is None
+                            or target is None
+                            or material_state(target) != expected_target
+                        )
                     ):
                         # The ticket the agent read changed before the send (an owner's
-                        # intervention): never overwrite it, with or without a card (6.6).
+                        # intervention), or nothing records what it read: never overwrite
+                        # it, with or without a card (6.6, fail closed).
                         raise LonoraError("broker_state_changed", 409)
                     if account_authority_id:
                         leased_run = await require_lease(session, lease)
