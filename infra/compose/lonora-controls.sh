@@ -45,9 +45,10 @@ control_fingerprint() {
     control_add settings ln_settings 't::text' "WHERE key LIKE 'trading%'" || return 0
     control_add agent_pauses ln_agents "t.id || ':' || t.paused::text" 'WHERE t.paused' || return 0
     control_add connections ln_broker_sessions "t.id || ':' || coalesce(t.payload->>'enabled', '')" || return 0
+    # A Task's state lives under state->'task' (lonora_db.tasks).
     control_add task_exits ln_tickets \
-        "t.id || ':' || coalesce(t.state->>'control_requested', '') || ':' || CASE WHEN t.state->>'status' IN ('paused', 'cancelled') THEN t.state->>'status' ELSE '' END" \
-        "WHERE t.state->>'control_requested' IS NOT NULL OR t.state->>'status' IN ('paused', 'cancelled')" || return 0
+        "t.id || ':' || coalesce(t.state->'task'->>'control_requested', '') || ':' || CASE WHEN t.state->'task'->>'status' IN ('paused', 'cancelled') THEN t.state->'task'->>'status' ELSE '' END" \
+        "WHERE t.state->'task'->>'control_requested' IS NOT NULL OR t.state->'task'->>'status' IN ('paused', 'cancelled')" || return 0
     control_add owner_messages ln_messages 't::text' "WHERE role = 'user'" || return 0
     printf '%s\n' "$all" | sha256sum | cut -d' ' -f1
 }
