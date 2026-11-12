@@ -22,7 +22,7 @@
   --muted: #3b3f48;
 }
 
-/* The card's own element reset at one element's specificity (§2.4): the reference's element
+/* The card's own element reset at one element's specificity (docs/genui.md §8): the reference's element
    defaults (Desktop-37:62-72, 147-151), plus explicit values for every property the legacy
    rules set (styles.css:87-200), so a card looks the same wherever it is mounted. */
 /* The card starts from the reference's body text and border colour, never the bubble's. */
@@ -734,7 +734,7 @@
 .ux-pick:disabled {
   opacity: 0.7;
 }
-/* The delivery row is read-only: no hover (§4.4). */
+/* The delivery row is read-only: no hover (docs/genui.md §2). */
 .ux-pick[aria-disabled="true"] {
   cursor: default;
 }

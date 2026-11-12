@@ -346,7 +346,7 @@ class AgentScope:
     agent_id: str = ""
     bound_account: str | None = None
     bound_symbol: str | None = None
-    # More than one enabled account: an alert's bubble must name its account (§8.3), so
+    # More than one enabled account: an alert's bubble must name its account (docs/genui.md §7), so
     # an account without a verified broker label is listed here as unnamed.
     several_accounts: bool = False
     # The accounts this request read that the server can name (owner-checked, read
@@ -488,7 +488,7 @@ def compile_card(
         raise CardError("card_fallback")
     if head.get("mode") == "observed" and not facts:
         # No fact declared: the card shows no market or account number, so it is never
-        # labelled observed (§9.4, mode_checked).
+        # labelled observed (mode_checked).
         head.pop("mode")
         diagnostics.add("mode_checked", None, "head")
     elif head.get("mode") == "observed" and not any(f["value"] is not None for f in facts.values()):

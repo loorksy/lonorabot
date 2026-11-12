@@ -1,6 +1,6 @@
 // The canonical alert card end to end on web (docs/genui.md, S-A01 acceptance), from a
 // recorded stream replay of A01 through a real Run, a real card submission, the receipt,
-// reload and «تعديل»; Stop on a queued submission; and §10.4's gate on the A01 card inside
+// reload and «تعديل»; Stop on a queued submission; and the side-by-side gate on the A01 card inside
 // the real conversation pane against Desktop-37's own alert recipe.
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -70,7 +70,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
   const fixture = await open(page, context);
   const forbidden = [];
   page.on("request", (request) => {
-    // No card control may decide an approval, an owner action or a restriction (§10.2).
+    // No card control may decide an approval, an owner action or a restriction (mandate 6.10).
     const path = new URL(request.url()).pathname;
     if (
       request.method() !== "GET" &&
@@ -134,7 +134,7 @@ test("A01: the alert card streams, computes, sends and locks in the conversation
     expect(body.content).toBe("");
     expect(body.ui_submit.values).toMatchObject({ symbol: "XAUUSD", dir: "above", price: 2400 });
     // The server's bubble, quoting the card; the card locks.
-    // With several accounts in the database the server appends « · <account>» (§8.3).
+    // With several accounts in the database the server appends « · <account>» (docs/genui.md §7).
     await expect(
       page.getByText(/^أنشئ تنبيهًا: الذهب فوق 2,400\.00( · Simulation · \d+ · Demo)?$/),
     ).toBeVisible();
@@ -218,7 +218,7 @@ test("A01: «تعديل» on a queued send marks it «مُعدّلة» and colla
   }
 });
 
-// §10.4 inside the conversation pane: the A01 card as the owner sees it against the
+// The side-by-side gate inside the conversation pane: the A01 card as the owner sees it against the
 // reference's alert recipe opened in its own conversation («جرّب في محادثة»).
 const CLASSES = [
   ".ux",

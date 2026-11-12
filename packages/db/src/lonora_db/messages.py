@@ -75,7 +75,7 @@ def message_data(row: MessageRow) -> dict[str, Any]:
 
 
 def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
-    """What a client may see of a card submission (docs/genui.md step 4)."""
+    """What a client may see of a card submission (docs/genui.md §7)."""
     if not submit:
         return None
     keys = ("source_message_id", "part", "intent", "lock", "card_title", "run_id")
@@ -88,7 +88,7 @@ def public_submit(submit: dict[str, Any] | None) -> dict[str, Any] | None:
 
 async def follow_up_tap(session: AsyncSession, thread_id: str, content: str) -> bool:
     """A plain message equal to a v1 follow-up action text of a card among the thread's
-    last 20 assistant messages was a tap, not the owner's typed words (§8.4)."""
+    last 20 assistant messages was a tap, not the owner's typed words (docs/genui.md §7)."""
     rows = await session.scalars(
         select(MessageRow.rich_content)
         .where(MessageRow.thread_id == thread_id, MessageRow.role == "assistant")
@@ -271,7 +271,7 @@ async def send_message(
             "deduplicated": True,
         }
     if request.ui_submit is not None:
-        # A card's send: its own queued Run, never folded into an active one (§8.2).
+        # A card's send: its own queued Run, never folded into an active one (docs/genui.md §7).
         from .genui_submit import submit_card, submit_receipt
 
         # ``create_run`` emitted ``run.queued``.

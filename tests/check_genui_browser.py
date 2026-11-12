@@ -83,7 +83,7 @@ async def setup(_: dict[str, Any]) -> dict[str, Any]:
             },
         )
         # A verified broker identity, as a real connection has after its first read: with
-        # several accounts the server names this one in the alert's bubble (§8.3).
+        # several accounts the server names this one in the alert's bubble (docs/genui.md §7).
         from lonora_db.schema import BrokerSessionRow
 
         async with fixture.runtime.db.sessions() as session, session.begin():

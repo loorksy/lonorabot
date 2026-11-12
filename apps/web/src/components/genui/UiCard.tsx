@@ -1,5 +1,5 @@
-/** A lonora-ui v2 card in the reference's look (Desktop-37 aa_genui, `.ux*`; docs/genui.md,
- * §5.1). The server compiled and checked it; this renders it, keeps its values, and sends
+/** A lonora-ui v2 card in the reference's look (Desktop-37 aa_genui, `.ux*`; docs/genui.md §8).
+ * The server compiled and checked it; this renders it, keeps its values, and sends
  * through `MessageCreate.ui_submit` only: the server writes the owner's bubble and data.
  * While the card builds, and until its message is committed, every control is disabled. */
 import { t } from "@lingui/core/macro";
@@ -744,7 +744,7 @@ export default function UiCard({
       .filter(Number.isFinite),
   );
   const stale = (text: string) => {
-    // «الآن» over a fact older than 120 s becomes «آخر تحديث HH:MM» (§9.6).
+    // «الآن» over a fact older than 120 s becomes «آخر تحديث HH:MM» (docs/genui.md §8).
     if (!Number.isFinite(oldest) || Date.now() - oldest <= STALE_MS) return text;
     const time = new Date(oldest).toLocaleTimeString("en-GB", {
       hour: "2-digit",
@@ -779,7 +779,7 @@ export default function UiCard({
         ui_submit: { source_message_id: host.messageId, part: index, path, values },
       });
       const action = block.action as { lock?: boolean } | undefined;
-      // Locked at once; the submission's own message then carries the lock (§8.2).
+      // Locked at once; the submission's own message then carries the lock (docs/genui.md §7).
       if (action?.lock !== false) setSentHere(nonce);
     } catch (error) {
       setNotice(userError(error));

@@ -114,10 +114,16 @@ A Button's send posts only `MessageCreate.ui_submit {source_message_id, part, pa
 (`lonora_db/genui_submit.py`). The server reads the intent from the stored card, computes the
 data from the stored card and the validated values, re-evaluates `disabled`, and writes the
 owner's bubble itself: the button label for `ask`, or the intent's template filled with the
-server's own names. The submission (`origin = 'ui_submit'`) always gets its own queued Run
-carrying `ui_submit_origin`; it never steers an active Run, runs only after the agent's earlier
-Runs in the thread end, and is cancelled if it has not started 30 minutes after the send. A
-Run started by a card send, and work it creates, is tainted (`lonora_db/genui_taint.py`).
+server's own names (with several enabled accounts, the card's account is named). The
+submission (`origin = 'ui_submit'`) always gets its own queued Run carrying
+`ui_submit_origin`; it never steers an active Run. Its Run is claimed only after the agent's
+earlier Runs in the thread end (rule Q), reads the thread up to its claim (rule W), stays
+invisible to every other Run until it ends and for good if it never started (rules V and N),
+takes its ticks from its own Run (rule T), and is cancelled if it has not started 30 minutes
+after the send (rule L). A Run started by a card send, and work it creates, is tainted
+(`lonora_db/genui_taint.py`). In the model's context, card words are labelled as card words,
+never as the owner's own (`lonora_db/owner_words.py`), and the submission's validated data is
+marked as data (`<ui_submit>`).
 
 A locking send locks its card part (`ui_lock`); «تعديل» posts
 `/threads/{thread}/messages/{message}/ui-state/{part}/unlock`, which cancels a send whose Run
@@ -130,6 +136,8 @@ may go now) are shared by web and mobile in `packages/core/src/genui/submit.ts`.
 Both clients validate fail closed (`spec.ts`), render the same nodes with the same evaluator,
 keep the card's values, disable every control while the card builds or is uncommitted, keep
 only go/open/copy while it is locked, and show the why panel with when its facts were read.
+A card text that starts with «الآن» or "now" reads «آخر تحديث HH:MM» once its oldest fact is
+older than 120 s.
 Web: `UiCard.tsx` and `genui.css` (the reference look). Mobile: `apps/mobile/components/genui/`,
 native React Native views (no web view), right to left, the reference tokens in dark and light
 (`theme.ts`). Card Markdown is one parser (`packages/core/src/genui/markdown.ts`): paragraphs,

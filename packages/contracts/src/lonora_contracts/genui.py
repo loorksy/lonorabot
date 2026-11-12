@@ -10,7 +10,7 @@ card's account, the delivery row and the budget are the compiler's
 (``lonora_agent.genui_compile``).
 
 Node props are checked by a table rather than one pydantic model per node, so a bad
-optional prop can be dropped without losing the block (the repair rules of §9.4). The
+optional prop can be dropped without losing the block (the repair rules of docs/genui.md §4). The
 stored, compiled document is re-validated by ``UiDocument`` on every write.
 """
 

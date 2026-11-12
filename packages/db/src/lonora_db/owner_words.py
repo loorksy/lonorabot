@@ -44,7 +44,7 @@ def visible_to_recall() -> ColumnElement[bool]:
 
 
 async def submit_hidden(session: AsyncSession, message: MessageRow, run: RunRow | None) -> bool:
-    """Whether a card submission is invisible to ``run`` (docs/genui.md rules V and N):
+    """Whether a card submission is invisible to ``run`` (docs/genui.md §7, rules V and N):
     until its own Run has ended it is visible only to that Run, and a submission whose Run
     ended without ever starting stays invisible to every Run for good."""
     if message.origin != "ui_submit":

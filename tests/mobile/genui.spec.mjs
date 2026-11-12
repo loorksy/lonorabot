@@ -66,7 +66,7 @@ test("Expo: Stop cancels a queued card submission and marks it «لم يُنفَ
     await expect(page.getByText(submitted.content)).toBeVisible();
     await page.getByRole("button", { name: "إيقاف", exact: true }).last().click();
     await expect(page.getByTestId("ui-submit-mark")).toHaveText("لم يُنفَّذ");
-    // A submission that never ran does not lock its card (§9.3).
+    // A submission that never ran does not lock its card (docs/genui.md §7).
     await expect(ux.getByTestId("ux-sent")).toBeHidden();
     const run = await (await context.request.get(`/api/runs/${submitted.ui_submit.run_id}`)).json();
     expect(run.status).toBe("cancelled");

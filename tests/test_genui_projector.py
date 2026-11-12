@@ -560,7 +560,7 @@ async def test_the_skeleton_shows_as_soon_as_the_fence_opens() -> None:
 
 @pytest.mark.asyncio
 async def test_an_alert_card_on_an_account_the_server_cannot_name_falls_back() -> None:
-    """With several accounts, an alert card's bubble must name its account (§8.3)."""
+    """With several accounts, an alert card's bubble must name its account (docs/genui.md §7)."""
     from lonora_agent.genui_capabilities import capabilities
     from lonora_agent.genui_compile import AgentScope, CardError, compile_card
     from lonora_contracts.genui import parse_lines
