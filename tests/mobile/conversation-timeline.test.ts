@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message, TradeApproval } from "@lonora/contracts";
+import type { Message, OwnerAction, TradeApproval } from "@lonora/contracts";
 import { conversationTimeline } from "../../packages/core/src/conversation-timeline";
 
 function message(id: string, seq: number, created_at: string): Message {
@@ -75,7 +75,7 @@ function slotting(seq: number, card: string, record: string, extra: object = {})
           type: "ui",
           document: {
             v: 2,
-            kind: "receipt",
+            kind: "summary",
             title: "Waiting for you",
             icon: "check",
             facts: {},
@@ -107,6 +107,26 @@ test("a fixed card's row is shown only while no message embeds its record as a s
   assert.ok(
     ids(conversationTimeline([...messages, asked], [approval], [], new Set([asked.id]))).includes(
       "approval:request",
+    ),
+  );
+  // An owner-action fixed card steps aside for a slot of its own card only.
+  const secret = {
+    id: "secret-card",
+    kind: "secret",
+    thread_id: "thread",
+    created_at: "2026-10-15T10:00:01Z",
+    timeline_seq: 2,
+  } as unknown as OwnerAction;
+  const withSecret = (rows: Message[]) => ids(conversationTimeline(rows, [], [secret]));
+  assert.ok(withSecret(messages).includes("owner_action:secret-card"));
+  assert.ok(
+    !withSecret([...messages, slotting(3, "secret", "secret-card")]).includes(
+      "owner_action:secret-card",
+    ),
+  );
+  assert.ok(
+    withSecret([...messages, slotting(3, "settle", "secret-card")]).includes(
+      "owner_action:secret-card",
     ),
   );
   // A slot of another kind never hides the record.

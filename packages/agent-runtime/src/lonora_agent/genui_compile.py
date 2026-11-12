@@ -88,7 +88,7 @@ HEIGHTS = {
 # A trusted slot's height at rest at 390 px, its trust frame included, measured by the web
 # journey (tests/web/genui.spec.mjs "Slots"), by card (mandate 10.1.4: a slot
 # counts toward the 560 px budget like any block, and is never folded).
-SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460}
+SLOT_HEIGHTS = {"trade_approval": 230, "settle": 460, "secret": 400}
 # What only the fixed cards and their trust frame say (the clients' own strings, both
 # languages): an agent's card that says it is refused, so it can never pass for one (10.2.2).
 FRAME_MARKS = ("fixed card", "بطاقة ثابتة")
@@ -109,6 +109,7 @@ FIXED_LABELS = (
     "لم تُنفذ",
     "Unknown: release the hold",
     "غير معروفة — ارفع التعليق",
+    "بيانات سرّية",
 )
 
 

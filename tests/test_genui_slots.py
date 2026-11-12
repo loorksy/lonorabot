@@ -87,6 +87,7 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
     async with db.sessions() as session, session.begin():
         row = await session.get(ThreadRow, thread)
         assert row is not None
+        secret = kind == "secret"
         made = await create_card(
             session,
             owner,
@@ -94,12 +95,22 @@ async def resolve_card(db: Database, owner: str, agent: str, thread: str, kind: 
             agent_id=agent,
             thread=row,
             run_id=None,
-            source="system",
+            source="agent" if secret else "system",
             kind=kind,
-            subject="operation:op-1",
-            payload={"operation_id": "op-1"},
+            subject="secret:exchange" if secret else "operation:op-1",
+            payload=SECRET_CARD if secret else {"operation_id": "op-1"},
         )
         return made.id
+
+
+# A Secret card as W-ENV's card stores it: the agent's label and fields, the server's
+# destination (7.2.3).
+SECRET_CARD = {
+    "label": "Exchange",
+    "connect": None,
+    "fields": [{"key": "EXCHANGE_KEY", "label": "Key", "secret": True}],
+    "destination": "workspace",
+}
 
 
 def codes(projector: VisualReplyProjector) -> set[str]:
@@ -184,6 +195,21 @@ async def test_a_slot_of_another_kind_owner_conversation_or_no_record_is_refused
 
 
 @pytest.mark.asyncio
+async def test_a_secret_card_is_a_secret_slot_and_no_other(task_db: Fixture) -> None:
+    db, owner, agent, thread = task_db
+    record = await resolve_card(db, owner, agent, thread, "secret")
+    ui, projector = await project(db, owner, agent, thread, card(slot(record, "secret")))
+    assert ui is not None, projector.diagnostics
+    assert ui["blocks"] == [{"type": "Slot", "card": "secret", "record": record}]
+    for kind in ("settle", "trade_approval"):
+        ui, projector = await project(db, owner, agent, thread, card(slot(record, kind)))
+        assert ui is None and "card_fallback_slot" in codes(projector), kind
+    settle = await resolve_card(db, owner, agent, thread, "resolve_operation")
+    ui, projector = await project(db, owner, agent, thread, card(slot(settle, "secret")))
+    assert ui is None and "card_fallback_slot" in codes(projector)
+
+
+@pytest.mark.asyncio
 async def test_an_owner_action_of_another_kind_is_not_a_settle_slot(task_db: Fixture) -> None:
     db, owner, agent, thread = task_db
     record = await resolve_card(db, owner, agent, thread, "watch_changed")
@@ -236,6 +262,7 @@ async def test_one_record_is_one_slot_and_it_is_never_folded(task_db: Fixture) -
         '{"type":"Note","text":"This is a fixed card from Lonora."}',
         # A label that becomes a fixed card's word only at a state no option selects.
         '{"type":"Button","label":"{1>2 ? \'Wait\' : \'Approve\'}"}',
+        '{"type":"Card","title":"بيانات سرّية","children":[{"type":"Text","text":"المفتاح"}]}',
         # The frame's own icon.
         '{"type":"Note","text":"راجع الطلب.","icon":"shield"}',
     ],

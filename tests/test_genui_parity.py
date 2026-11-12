@@ -43,7 +43,14 @@ SETTLE = "\n".join(
 )
 # The records the slot card names, as ``lonora_db.genui_slots`` finds them in this
 # conversation (tests/test_genui_slots.py checks the lookup against real rows).
-SLOT_RECORDS = {("trade_approval", "parity-approval"), ("settle", "parity-settle")}
+SLOT_RECORDS = {
+    ("trade_approval", "parity-approval"),
+    ("settle", "parity-settle"),
+    ("secret", "parity-secret"),
+}
+SECRET = SLOTS.replace(
+    '"trade_approval","record":"parity-approval"', '"secret","record":"parity-secret"'
+)
 COMPILED = FIXTURES / "parity-compiled.json"
 OWNER = "احسب حجم الصفقة لرصيد 10000 كما في https://example.com/position-size"
 
@@ -62,6 +69,7 @@ async def compiled_documents() -> list[dict[str, Any]]:
         (reply(), messages()),
         (reply(SLOTS), history),
         (reply(SETTLE), history),
+        (reply(SECRET), history),
     ):
         with patch("lonora_agent.visual_response.slot_records", records):
             projection, projector = await project(text, history=past)

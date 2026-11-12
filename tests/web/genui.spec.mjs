@@ -488,6 +488,7 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     await expect(page.locator(".ux-slot")).toHaveCount(0);
     python("slots", { ...fixture.input, record: ids.approval, number: true });
     python("slots", { ...fixture.input, card: "settle", record: ids.settle });
+    python("slots", { ...fixture.input, card: "secret", record: ids.secret });
     const slot = page.locator('.ux .ux-slot[data-slot-card="trade_approval"]');
     const settleSlot = page.locator('.ux .ux-slot[data-slot-card="settle"]');
     await expect(slot).toBeVisible();
@@ -519,6 +520,13 @@ test("Slots: a fixed card in the agent's card is the live record, and its row st
     // genui_compile.py: trade approval 230 px, settle 460 px, frame included).
     expect((await slot.boundingBox()).height).toBeLessThanOrEqual(230);
     expect((await settleSlot.boundingBox()).height).toBeLessThanOrEqual(460);
+    // The Secret card in its slot: W-ENV's own form, whose values go straight to the
+    // encrypted store; its row steps aside too (SLOT_HEIGHTS secret 400 px).
+    const secretSlot = page.locator('.ux .ux-slot[data-slot-card="secret"]');
+    await expect(secretSlot.locator(`[data-owner-action="${ids.secret}"]`)).toBeVisible();
+    await expect(page.locator(`[data-owner-action="${ids.secret}"]`)).toHaveCount(1);
+    await expect(secretSlot).toContainText("بيانات سرّية");
+    expect((await secretSlot.boundingBox()).height).toBeLessThanOrEqual(400);
     // Decided elsewhere while this screen still shows it pending: the second tap is refused
     // and the slot shows the record as it is now.
     await page.route("**/api/trading/approvals?*", (route) => route.abort());

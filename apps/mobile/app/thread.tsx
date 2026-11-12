@@ -25,6 +25,7 @@ import {
   projectRunEvents,
   retryableFailure,
   runStatusText,
+  SLOT_OWNER_ACTION_KINDS,
   seedStream,
   stopTargets,
   streamForRun,
@@ -638,7 +639,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         return approval ? approvalCard(approval) : null;
       }
       const action = ownerActions.find(
-        (row) => row.id === record && row.thread_id === id && row.kind === "resolve_operation",
+        (row) =>
+          row.id === record && row.thread_id === id && row.kind === SLOT_OWNER_ACTION_KINDS[card],
       );
       return action ? ownerActionCard(action) : null;
     },
