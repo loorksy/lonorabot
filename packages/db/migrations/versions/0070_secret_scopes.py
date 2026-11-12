@@ -6,7 +6,8 @@ tokens) and ``workspace`` (the owner's secrets that agents use by name in the wo
 VISION.md 7.2.4). Each ``agent:<id>`` secret moves to ``workspace`` under an environment
 variable name: upper case, other characters become ``_``, a name not starting with a
 letter gains ``S_``, at most 64 characters, and a name already taken gains ``_2``,
-``_3``... The ciphertext is unchanged. The downgrade keeps the moved secrets in the
+``_3``... The ciphertext is unchanged. Any other scope stops the upgrade with its name:
+nothing ever wrote one, so none is guessed. The downgrade keeps the moved secrets in the
 workspace scope (which agent saved one is not kept) and drops the scope check.
 """
 
@@ -52,6 +53,18 @@ def upgrade() -> None:
             sa.text("UPDATE ln_secrets SET scope = 'workspace', name = :name WHERE id = :id"),
             {"name": workspace_name(name, taken), "id": secret_id},
         )
+    unknown = (
+        bind.execute(
+            sa.text(
+                "SELECT DISTINCT scope FROM ln_secrets WHERE NOT (" + SCOPES + ") ORDER BY scope"
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if unknown:
+        # Nothing writes another scope; a row that has one is not guessed into a scope.
+        raise RuntimeError("ln_secrets holds unknown scopes: " + ", ".join(unknown))
     op.create_check_constraint("ln_secret_scope", "ln_secrets", SCOPES)
 
 

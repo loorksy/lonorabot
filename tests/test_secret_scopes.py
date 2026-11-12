@@ -93,6 +93,21 @@ async def test_workspace_secrets_are_the_owners_and_a_used_secret_is_not_deleted
         gone = await fixture.client.get(f"/api/agents/{agent['id']}/secrets")
         assert gone.status_code in {404, 405}
 
+        # A connection names only a secret of its own scope (7.2.3): a workspace value
+        # is never sent to a search service.
+        crossed = await fixture.client.post(
+            "/api/integrations",
+            json={
+                "payload": {
+                    "type": "brave_search",
+                    "name": "search",
+                    "secret_id": stored.json()["id"],
+                }
+            },
+        )
+        assert crossed.status_code == 403
+        assert crossed.json()["code"] == "secret_scope_forbidden"
+
         services = fixture.runtime.services(fixture.owner)
         used_id = await services.secrets.write("fixture-feed", uuid4().hex, "integration")
         async with fixture.runtime.db.sessions() as session, session.begin():
