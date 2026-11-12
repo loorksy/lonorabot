@@ -107,7 +107,7 @@ msgid "{0} will be added to it"
 msgstr "{0} ستُضاف إليها"
 
 #. placeholder {0}: agent.name
-#: src/shell/domain/UpdatesPages.tsx:202
+#: src/shell/domain/UpdatesPages.tsx:198
 msgid "{0}, has something new"
 msgstr "{0}، لديه جديد"
 
@@ -314,7 +314,7 @@ msgstr "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "تنتهي المراقبة تلقائيًا في موعدها، ويمكن إيقافها مؤقتًا أو تمديدها أو إلغاؤها."
 
-#: src/shell/domain/UpdatesPages.tsx:60
+#: src/shell/domain/UpdatesPages.tsx:56
 msgid "A watch was met"
 msgstr "تحققت مراقبة"
 
@@ -692,7 +692,7 @@ msgstr "قالب الوكيل"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:196
+#: src/shell/domain/UpdatesPages.tsx:192
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:89
@@ -3244,7 +3244,7 @@ msgstr "الانتقال إلى آخر الرسائل، {fresh} جديدة"
 msgid "Go to the quoted message"
 msgstr "الانتقال إلى الرسالة المقتبسة"
 
-#: src/shell/domain/UpdatesPages.tsx:62
+#: src/shell/domain/UpdatesPages.tsx:58
 msgid "Goal added"
 msgstr "أُضيف هدف"
 
@@ -3631,7 +3631,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "معرفة"
 
-#: src/shell/domain/UpdatesPages.tsx:64
+#: src/shell/domain/UpdatesPages.tsx:60
 msgid "Knowledge added"
 msgstr "أُضيفت معرفة"
 
@@ -3687,7 +3687,7 @@ msgstr "آخر تحديث"
 msgid "Later"
 msgstr "لاحقًا"
 
-#: src/shell/domain/UpdatesPages.tsx:310
+#: src/shell/domain/UpdatesPages.tsx:306
 msgid "Latest actions"
 msgstr "آخر الإجراءات"
 
@@ -3951,7 +3951,7 @@ msgid "Margin"
 msgstr "الهامش"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:220
+#: src/shell/domain/UpdatesPages.tsx:216
 msgid "Mark all as read"
 msgstr "تحديد الكل كمقروء"
 
@@ -4363,8 +4363,8 @@ msgstr "التالي"
 msgid "Next: the chats"
 msgstr "التالي: المحادثات"
 
-#: src/shell/domain/UpdatesPages.tsx:113
-#: src/shell/domain/UpdatesPages.tsx:329
+#: src/shell/domain/UpdatesPages.tsx:109
+#: src/shell/domain/UpdatesPages.tsx:325
 msgid "No activity yet."
 msgstr "لا يوجد نشاط بعد."
 
@@ -4429,7 +4429,7 @@ msgstr "لا محادثات في «{0}» بعد."
 msgid "No chats."
 msgstr "لا توجد محادثات."
 
-#: src/shell/domain/UpdatesPages.tsx:304
+#: src/shell/domain/UpdatesPages.tsx:300
 msgid "No enabled schedules."
 msgstr "لا توجد مواعيد مفعّلة."
 
@@ -4518,7 +4518,7 @@ msgstr "دون حد مالي"
 msgid "No new notifications"
 msgstr "لا توجد إشعارات جديدة"
 
-#: src/shell/domain/UpdatesPages.tsx:262
+#: src/shell/domain/UpdatesPages.tsx:258
 msgid "No notifications."
 msgstr "لا توجد تنبيهات."
 
@@ -4756,7 +4756,7 @@ msgstr "طريقة الإشعار"
 msgid "Notifications"
 msgstr "الإشعارات"
 
-#: src/shell/domain/UpdatesPages.tsx:216
+#: src/shell/domain/UpdatesPages.tsx:212
 msgctxt "updates section"
 msgid "Notifications"
 msgstr "التنبيهات"
@@ -4990,7 +4990,7 @@ msgstr "يُفتح"
 msgid "Operation id"
 msgstr "رقم العملية"
 
-#: src/shell/domain/UpdatesPages.tsx:40
+#: src/shell/domain/UpdatesPages.tsx:36
 msgid "Operation resolved"
 msgstr "حُسمت عملية"
 
@@ -5901,12 +5901,12 @@ msgstr "استُعيدت"
 #~ msgstr "مقيَّد: {what} حتى {until}"
 
 #: src/shell/domain/UpdatesPages.tsx:38
-msgid "Restriction lifted"
-msgstr "رُفع قيد"
+#~ msgid "Restriction lifted"
+#~ msgstr "رُفع قيد"
 
 #: src/shell/domain/UpdatesPages.tsx:36
-msgid "Restriction set"
-msgstr "فُرض قيد"
+#~ msgid "Restriction set"
+#~ msgstr "فُرض قيد"
 
 #: src/components/ai/AgentLiveStatus.tsx:127
 #: src/components/market/MarketWatch.tsx:323
@@ -6480,12 +6480,12 @@ msgid "Show as a table"
 msgstr "عرض كجدول"
 
 #: src/components/genui/UiCard.tsx:363
-#: src/shell/domain/UpdatesPages.tsx:135
+#: src/shell/domain/UpdatesPages.tsx:131
 #: src/shell/lists/UnifiedSearch.tsx:379
 msgid "Show more"
 msgstr "عرض المزيد"
 
-#: src/shell/domain/UpdatesPages.tsx:324
+#: src/shell/domain/UpdatesPages.tsx:320
 msgid "Show the full log"
 msgstr "عرض السجل كاملًا"
 
@@ -6576,7 +6576,7 @@ msgstr "مهارة"
 msgid "Skill catalog"
 msgstr "مكتبة المهارات"
 
-#: src/shell/domain/UpdatesPages.tsx:52
+#: src/shell/domain/UpdatesPages.tsx:48
 msgid "Skill created"
 msgstr "أُنشئت مهارة"
 
@@ -6601,7 +6601,7 @@ msgstr "أُعيدت المهارة إلى الإصدار {version}"
 msgid "Skill saved"
 msgstr "حُفظت المهارة"
 
-#: src/shell/domain/UpdatesPages.tsx:54
+#: src/shell/domain/UpdatesPages.tsx:50
 msgid "Skill updated"
 msgstr "حُدّثت مهارة"
 
@@ -6900,11 +6900,11 @@ msgstr "يشرف على"
 msgid "Supervision · {0}"
 msgstr "الإشراف · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:58
+#: src/shell/domain/UpdatesPages.tsx:54
 msgid "Supervision ended"
 msgstr "أُلغي الإشراف"
 
-#: src/shell/domain/UpdatesPages.tsx:56
+#: src/shell/domain/UpdatesPages.tsx:52
 msgid "Supervision started"
 msgstr "بدأ الإشراف"
 
@@ -6980,19 +6980,19 @@ msgstr "المهمة"
 msgid "Task boards"
 msgstr "لوحات المهام"
 
-#: src/conversation/sheets/AgentSheet.tsx:429
-#: src/shell/domain/UpdatesPages.tsx:50
+#: src/conversation/sheets/AgentSheet.tsx:392
+#: src/shell/domain/UpdatesPages.tsx:46
 msgid "Task cancelled"
 msgstr "أُلغيت المهمة"
 
 #: src/components/ai/AttentionInbox.tsx:35
 #: src/shell/domain/TasksPages.tsx:240
-#: src/shell/domain/UpdatesPages.tsx:48
+#: src/shell/domain/UpdatesPages.tsx:44
 msgid "Task completed"
 msgstr "اكتملت المهمة"
 
 #: src/conversation/Conversation.tsx:397
-#: src/shell/domain/UpdatesPages.tsx:46
+#: src/shell/domain/UpdatesPages.tsx:42
 msgid "Task created"
 msgstr "أُنشئت مهمة"
 
@@ -7008,7 +7008,7 @@ msgstr "المهمة تعيد المحاولة أثناء تعطل النموذ�
 
 #: src/components/ai/AgentLiveStatus.tsx:104
 #: src/components/ai/AttentionInbox.tsx:30
-#: src/conversation/sheets/AgentSheet.tsx:405
+#: src/conversation/sheets/AgentSheet.tsx:368
 msgid "Task needs review"
 msgstr "المهمة تحتاج مراجعة"
 
@@ -8119,7 +8119,7 @@ msgstr "إلغاء الكتم"
 msgid "Unpin"
 msgstr "إلغاء التثبيت"
 
-#: src/shell/domain/UpdatesPages.tsx:257
+#: src/shell/domain/UpdatesPages.tsx:253
 msgid "Unread"
 msgstr "غير مقروء"
 
@@ -8175,7 +8175,7 @@ msgstr "ارتفاع {pct}%"
 msgid "Up to 6 photos and files, 8 MB each"
 msgstr "حتى 6 صور وملفات، 8 ميغابايت لكلٍّ منها"
 
-#: src/shell/domain/UpdatesPages.tsx:268
+#: src/shell/domain/UpdatesPages.tsx:264
 msgid "Upcoming"
 msgstr "المواعيد القادمة"
 
@@ -8620,7 +8620,7 @@ msgstr "أمس"
 msgid "You"
 msgstr "أنت"
 
-#: src/shell/domain/UpdatesPages.tsx:42
+#: src/shell/domain/UpdatesPages.tsx:38
 msgid "You approved a request"
 msgstr "وافقتَ على طلب"
 
@@ -8653,7 +8653,7 @@ msgstr "وصلت إلى الحد الأقصى للاسم"
 #~ msgid "You reached the usage limit"
 #~ msgstr "وصلت إلى حد الاستهلاك"
 
-#: src/shell/domain/UpdatesPages.tsx:44
+#: src/shell/domain/UpdatesPages.tsx:40
 msgid "You rejected a request"
 msgstr "رفضتَ طلبًا"
 
