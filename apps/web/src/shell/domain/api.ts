@@ -35,11 +35,6 @@ export type TaskInput = {
   due_at?: string | null;
   completion_criteria?: string;
 };
-/** A trading goal (a plan under the agent's grant), as `GET /api/trading/goals` returns it:
-    the plan in `payload`, its progress in `state`. */
-export type TradingGoalView = Resource<{ title?: string; objective?: string; symbol?: string }> & {
-  state: { status?: string };
-};
 export type ArtifactPayload = { name: string; size: number; media_type: string; key?: string };
 
 const body = (agentId: string, payload: unknown) => ({ agent_id: agentId, payload });
@@ -81,8 +76,6 @@ export const domainApi = {
     api.post<Resource<AgentGoal>>("/agent-goals", body(agentId, goal)),
   saveGoal: (row: Resource<AgentGoal>, goal: AgentGoal) =>
     api.put<Resource<AgentGoal>>(`/agent-goals/${row.id}`, { version: row.version, payload: goal }),
-  tradingGoals: (agentId: string) =>
-    api.get<TradingGoalView[]>(`/trading/goals?agent_id=${encodeURIComponent(agentId)}`),
 
   knowledge: (agentId: string) => api.get<KnowledgeItem[]>(`/agents/${agentId}/knowledge`),
   addNote: (agentId: string, title: string, content: string) =>

@@ -65,9 +65,13 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     });
     expect(goalResponse.status()).toBe(201);
     const goal = await goalResponse.json();
-    await page.goto(`/app/${agent.id}`);
-    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
+    // «الأهداف» is a row of the agent's page; a trading agent's plans keep their card there.
+    const openGoals = async () => {
+      await page.goto(`/app/agent/${agent.id}`);
+      await page.getByRole("button", { name: "Goals", exact: true }).click();
+      await expect(page).toHaveURL(/\/app\/goals\?agent=/);
+    };
+    await openGoals();
     const card = page.locator(`[data-goal-id='${goal.id}']`);
     await expect(card.getByText(goal.payload.title, { exact: true })).toBeVisible();
     // No second authority system: no per-goal autonomy switch, limit knobs or Super Bot.
@@ -83,8 +87,8 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
     expect(current.state).not.toHaveProperty("autonomous");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
-    // The agent list arrives late after this reload: the chat menu waits for it, so it is
-    // never opened without the agent's Goals row (the menu keeps the body it opened with).
+    // The agent list arrives late when the conversation opens: the avatar and the name wait
+    // for it (the ⋮ menu is a popover and opens at once, as for a group).
     const slowAgents = /\/api\/agents(\?.*)?$/;
     const agentsGate = new Promise((resolve) => {
       releaseAgents = resolve;
@@ -93,25 +97,18 @@ test("a goal is a plan under the agent's level: pause, same-thread wake and canc
       await agentsGate;
       await route.continue();
     });
-    await page.reload();
-    await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeDisabled();
+    await page.goto(`/app/${agent.id}`);
     // The avatar and the name open the agent's info page: not before the agent is there.
-    // (Without an agent they are empty, so they are clicked in the page, not by the pointer.)
-    const clicked = await page.evaluate(() =>
-      [".head-avatar", ".chat-name"].map((selector) => {
-        const button = document.querySelector(selector);
-        button?.click();
-        return Boolean(button);
-      }),
-    );
-    expect(clicked).toEqual([true, true]);
+    // (Before it they may be absent or empty, so any there are clicked in the page.)
+    await page.evaluate(() => {
+      for (const selector of [".head-avatar", ".chat-name"])
+        document.querySelector(selector)?.click();
+    });
     await expect(page.locator("#dialog[open]")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/app/${agent.id}$`));
     releaseAgents();
-    await expect(page.getByRole("button", { name: "Chat menu", exact: true })).toBeEnabled();
-    // Sheets are not remembered across a reload: open the goals again from the chat menu.
-    await page.getByRole("button", { name: "Chat menu", exact: true }).click();
     await page.unroute(slowAgents);
-    await page.locator("#dialog").getByRole("button", { name: "Goals", exact: true }).click();
+    await openGoals();
     await expect(card.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
     await card.getByRole("button", { name: "Resume", exact: true }).click();
     await expect(card.getByRole("button", { name: "Pause", exact: true })).toBeVisible();

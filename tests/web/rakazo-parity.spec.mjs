@@ -49,13 +49,13 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await expect(page).toHaveURL(/\/app\/updates$/);
     await expect(page.locator("main .stories")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Latest actions", exact: true })).toBeVisible();
-    await page.goto(`/app/${data.agent}?thread=${data.thread}`);
-    await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    const profile = page.locator("#dialog");
-    await expect(profile.getByLabel("Instructions", { exact: true })).not.toBeVisible();
-    await profile.getByText("Advanced", { exact: true }).click();
+    // The agent's instructions are edited on its «الهوية والنموذج» page.
+    await page.goto(`/app/identity/${data.agent}`);
+    const profile = page.locator("main");
+    const role = profile.getByRole("textbox", { name: "Role", exact: true });
+    if (!(await role.inputValue())) await role.fill("Analysis");
     await profile
-      .getByLabel("Instructions", { exact: true })
+      .getByRole("textbox", { name: "Instructions", exact: true })
       .fill("Actual persisted analysis instructions.");
     const update = page.waitForResponse(
       (response) =>
@@ -69,22 +69,16 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     expect((await savedAgents.json()).find((agent) => agent.id === data.agent).instructions).toBe(
       "Actual persisted analysis instructions.",
     );
-    await page.keyboard.press("Escape");
+    await page.goto(`/app/${data.agent}?thread=${data.thread}`);
+    // An analyst with no pair has no chart in its menu (Desktop-37); the chart sheet is
+    // covered with a trading agent's pair in agent-pages.spec.mjs.
     await page.getByRole("button", { name: "Chat menu", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Chart" }).click();
-    const panel = page.locator("#dialog");
-    // Q37: the reference's chart sheet draws the chart's candles as SVG.
-    await expect(
-      panel.locator(`[data-chart-id='${data.chart}'] svg.chart > g > rect`).first(),
-    ).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Agent info" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Chart" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
     await image.evaluate((element) => element.decode());
     await image.screenshot({ path: ".runtime/rakazo-parity/svg-isolated.png" });
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-    );
-    await page.screenshot({ path: ".runtime/rakazo-parity/web-chat-chart.png", fullPage: true });
-    await page.keyboard.press("Escape");
-    await expect(panel).not.toHaveAttribute("open", "");
+    await page.screenshot({ path: ".runtime/rakazo-parity/web-chat.png", fullPage: true });
     // The reference names a photo generically («صورة، اضغط لعرضها»): open it by its file.
     await page.locator(`.img-msg[data-artifact-id='${data.artifact}']`).click();
     // The reference's photo sheet: the image itself, never a frame.
@@ -133,10 +127,11 @@ test("conversation shows safe generated SVG, cloud chart side panel and persiste
     await expect(page).toHaveURL(new RegExp(`/app/agent/${created.id}$`));
     await page.goto(`/app/${created.id}`);
     await expect(page.locator(".chat-head .chat-name")).toContainText("Role parity fixture");
-    await page.getByRole("button", { name: "Agent info", exact: true }).click();
-    await expect(
-      page.locator("#dialog").getByRole("textbox", { name: "Description", exact: true }),
-    ).toHaveValue("Review exposure before trading.");
+    // Its description is the role on its «الهوية والنموذج» page.
+    await page.goto(`/app/identity/${created.id}`);
+    await expect(page.getByRole("textbox", { name: "Role", exact: true })).toHaveValue(
+      "Review exposure before trading.",
+    );
     expect(errors).toEqual([]);
   } finally {
     fixture({ ...data, action: "cleanup" });
