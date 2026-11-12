@@ -42,6 +42,8 @@ async def netting_adds(
 
     A position id is the ticket of the order that opened it, so an entry deal with
     another order id added to the position: its order's label is a management label.
+    Only the ``ADDS_SCANNED`` most recent closed trades are read, so an add whose trade
+    closed before them no longer counts under its label.
     """
     # Bounded: the most recent closed trades, newest first.
     query = (
