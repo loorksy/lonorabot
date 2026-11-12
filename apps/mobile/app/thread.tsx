@@ -29,6 +29,7 @@ import {
   stopTargets,
   streamForRun,
   submitMark,
+  threadQuestions,
   turnActivity,
 } from "@lonora/core";
 // Persistent-thread navigation follows Tampletgrok's native thread screen; see NOTICE.
@@ -145,6 +146,8 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
   const [approvals, setApprovals] = useState<TradeApproval[]>([]);
   const [ownerActions, setOwnerActions] = useState<OwnerAction[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  // Background runs working in a hidden thread that asked here: only their questions show.
+  const [asking, setAsking] = useState<Run[]>([]);
   const [draft, setDraft] = useState("");
   const [reply, setReply] = useState<Message | null>(null);
   // Edit and resend (Q21): the owner's message the next send replaces.
@@ -300,6 +303,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
             return next;
           });
           setRuns((old) => projectRunEvents([...old, ...nextRuns], [], id));
+          setAsking(nextRuns.filter((run) => run.thread_id !== id));
           setLoaded(true);
           setError(null);
         });
@@ -380,6 +384,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     setGroups(cached?.groups ?? inbox?.groups ?? []);
     setMessages(cached?.messages ?? []);
     setRuns(cached?.runs ?? []);
+    setAsking([]);
     setApprovals(cached?.approvals ?? []);
     setOwnerActions([]);
     setCollaborationActive(cached?.collaborationActive ?? false);
@@ -739,7 +744,9 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
         if (accepted.runs?.length)
           setRuns((old) => {
             const projected = new Map(old.map((run) => [run.id, run]));
-            for (const run of accepted.runs ?? []) {
+            // A background run the message answered works in its own thread: it is
+            // never one of this conversation's runs.
+            for (const run of (accepted.runs ?? []).filter((row) => row.thread_id === targetId)) {
               const prior = projected.get(run.id);
               if (!prior || Date.parse(run.updated_at) >= Date.parse(prior.updated_at))
                 projected.set(run.id, run);
@@ -937,9 +944,7 @@ export default function Conversation({ threadId }: { threadId?: string } = {}) {
     }
     await deliver(intent, outboxKey, id);
   };
-  const questions = new Map(
-    runs.flatMap((run) => run.input_requests ?? []).map((request) => [request.message_id, request]),
-  );
+  const questions = threadQuestions([...asking, ...runs], id);
   // «+»: Files or Photos from the system picker (no storage or camera permission), several
   // at once; each file uploads on its own with a ring and a cancel, as on Web.
   const pick = async (kind: "files" | "photos") => {

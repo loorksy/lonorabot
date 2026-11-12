@@ -449,8 +449,9 @@ keeps the best held answer and hands it to the owner instead of failing the
 Run:
 
 - the answer is posted to the work thread as a pending input request
-  (`kind: owner_attention`) and the Run becomes `waiting_input` with its
-  checkpoint intact;
+  (`kind: owner_attention`), copied into the conversation the Task reports to
+  (see `docs/proactivity.md`, Questions), and the Run becomes `waiting_input`
+  with its checkpoint intact;
 - the Task becomes `waiting` with `waiting_reason: owner_attention` and phase
   `needs_attention`, and `task.attention_required` raises an action-required
   `task_review` attention item;
@@ -462,7 +463,9 @@ Run:
 - the attention item carries `task_id` and the Task's `work_thread_id`, and
   agent live state reports `action_required` with
   `task_attention_required`;
-- the owner's reply in the work thread resumes the same checkpoint. The Task
+- the owner's reply where the question is shown (the conversation the Task
+  reports to, or its work thread when it reports nowhere else) resumes the same
+  checkpoint. The Task
   controls work too: the snapshot offers `can_resume`, and `resume` or `revise`
   cancels the unanswered question and requeues the same Run; the loop then
   starts a new review epoch (a new budget when the limit was reached) and tells

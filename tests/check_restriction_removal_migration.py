@@ -18,7 +18,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 ALEMBIC = [sys.executable, "-m", "alembic", "-c", "packages/db/alembic.ini"]
-BEFORE = "0110_closed_trades"
+BEFORE = "0139_workspace_running"
 
 
 def alembic(*arguments: str) -> None:

@@ -32,6 +32,7 @@ ROUTES = (
     "agent_state",
     "performance",
     "attention",
+    "workspace_running",
     "agent_secrets",
     "agent_skills",
     "threads",

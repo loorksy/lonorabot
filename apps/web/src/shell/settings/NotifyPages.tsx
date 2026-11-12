@@ -37,7 +37,7 @@ const minutes = (value: string) => {
 /* «الإشعارات والتواصل» (notifyPage 6158-6166, reachSection/deviceSection 8369-8378): how agents
    reach the owner (one choice), the in-app banner on this device, quiet hours to the minute
    (Q47, in ONE place), the device a call rings, and each agent's own rules. No browser
-   notification row until a push channel exists (Q10); Lonora is the only channel (Q53). */
+   notification row: push reaches the phone and a paired Telegram chat for the 11.4 alerts only. */
 export function NotifyPage() {
   const data = useShellData();
   const toast = useToast();

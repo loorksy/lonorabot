@@ -31,7 +31,7 @@ FALLBACK = "Your equity, read from the account."
 def card(path: str = "/equity", call: str = "actual") -> str:
     """A v2 card showing one account fact."""
     lines = [
-        {"v": 2, "kind": "receipt", "title": "Equity", "icon": "chart", "mode": "observed"},
+        {"v": 2, "kind": "summary", "title": "Equity", "icon": "chart", "mode": "observed"},
         {"facts": {"eq": {"call": call, "path": path}}},
         {"type": "KeyValue", "rows": [["Equity", "{@Fact('eq')}"]]},
         {"why": "One figure with its source.", "fallback": FALLBACK},

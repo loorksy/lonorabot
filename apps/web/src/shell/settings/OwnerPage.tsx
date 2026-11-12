@@ -13,6 +13,14 @@ import { useToast } from "../Toast";
 import { type OwnerProfile, ownerName, useOwnerProfile } from "./owner";
 import { Note, useLoad } from "./ui";
 
+type ProfileLine = {
+  text: string;
+  origin: "you_said" | "observed" | "earlier";
+  author: "owner" | "agent" | "system" | null;
+  author_agent_name: string | null;
+  created_at: string | null;
+};
+type ProfileLines = { version: number; lines: ProfileLine[] };
 type FieldChange = { field: string; before: unknown; after: unknown };
 type LineChange = { change: "added" | "removed"; text: string };
 type Revision = {
@@ -51,8 +59,17 @@ function zones(): string[] {
   }
 }
 
-/* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما يعرفه وكلاؤك
-   عنك» (lines agents wrote into the shared profile, each removable) and «سجل التغييرات» (who · field,
+// A profile line's leading markdown bullet ("- " or "* "), if it has one.
+const bullet = (text: string) => /^[-*]\s+/.exec(text)?.[0];
+// The words the owner typed, without a bullet of his own: the line's bullet is added once.
+const words = (text: string) =>
+  text
+    .trim()
+    .replace(/^[-*]\s+/, "")
+    .trim();
+
+/* «الملف الشخصي» (reference route `owner`, profileExtras 8351-8358): the owner form, «ما أعرفه عنك» (8.4:
+   every profile line with its origin, "you said" or "observed", corrected or deleted as the owner's word) and «سجل التغييرات» (who · field,
    when, the diff, «استعادة» or «استُعيدت»). One profile every agent reads. */
 export function OwnerPage() {
   const { i18n } = useLingui();
@@ -84,19 +101,10 @@ export function OwnerPage() {
   };
   const rows = revisions.value ?? [];
   const restored = new Set(rows.map((row) => row.reverted_revision_id).filter(Boolean));
-  // What agents wrote into the shared profile and is still there.
-  const lines = new Set((profile?.content ?? "").split("\n").map((line) => line.trim()));
-  const facts = rows
-    .filter((row) => row.document === "owner_profile" && row.author === "agent")
-    .flatMap((row) =>
-      row.changes
-        .filter(
-          (item): item is LineChange =>
-            "change" in item && item.change === "added" && lines.has(item.text.trim()),
-        )
-        .map((item) => ({ row, text: item.text.trim() })),
-    )
-    .filter((fact, index, all) => all.findIndex((other) => other.text === fact.text) === index);
+  // «ما أعرفه عنك» (8.4): every profile line with its origin, what you said or what was observed.
+  const known = useLoad(() => api.get<ProfileLines>("/owner/profile/lines"), [profile?.version]);
+  const facts = known.value?.lines ?? [];
+  const [editing, setEditing] = useState<{ text: string; value: string } | null>(null);
 
   const who = (row: Revision) =>
     row.author === "owner"
@@ -153,22 +161,33 @@ export function OwnerPage() {
       toast(userError(error), { type: "error" });
     }
   };
-  const removeFact = async (text: string) => {
-    if (!profile) return;
+  // A correction or a deletion is recorded as the owner's own word.
+  const correctFact = async (text: string, replacement: string | null) => {
+    if (!known.value) return;
     try {
-      const content = profile.content
-        .split("\n")
-        .filter((line) => line.trim() !== text)
-        .join("\n");
-      setProfile(
-        await api.put<OwnerProfile>("/owner/profile", { content, version: profile.version }),
-      );
+      await api.post<ProfileLines>("/owner/profile/lines", {
+        version: known.value.version,
+        text,
+        replacement,
+      });
+      setProfile(await api.get<OwnerProfile>("/owner/profile"));
       setDraft(null);
-      toast(t`The fact is removed`, { type: "success" });
+      setEditing(null);
+      toast(replacement === null ? t`The fact is removed` : t`The fact is corrected`, {
+        type: "success",
+      });
     } catch (error) {
       toast(userError(error), { type: "error" });
     }
   };
+  const origin = (fact: ProfileLine) =>
+    fact.origin === "you_said"
+      ? t`You said`
+      : fact.origin === "earlier"
+        ? t`Earlier`
+        : fact.author_agent_name
+          ? t`Observed by ${fact.author_agent_name}`
+          : t`Observed`;
   const name = ownerName(profile, data.owner.email);
   return (
     <>
@@ -240,33 +259,82 @@ export function OwnerPage() {
         </div>
       </form>
       <h3>
-        <Trans>What your agents know about you</Trans>
+        <Trans>What I know about you</Trans>
       </h3>
-      <div className="group">
+      <div className="group pf-known">
         {facts.length ? (
           facts.map((fact) => (
             <div className="row" key={fact.text}>
               <span className="row-icon">
-                <Icon name="info" />
+                <Icon name={fact.origin === "you_said" ? "user" : "info"} />
               </span>
-              <span className="body">
-                <strong>
-                  <bdi dir="auto">{fact.text.replace(/^[-*]\s*/, "")}</bdi>
-                </strong>
-                <small>
-                  <Trans>
-                    Written by {who(fact.row)} · {ago(fact.row.created_at)}
-                  </Trans>
-                </small>
-              </span>
-              <button
-                type="button"
-                className="icon"
-                aria-label={t`Delete the fact`}
-                onClick={() => void removeFact(fact.text)}
-              >
-                <Icon name="close" />
-              </button>
+              {editing?.text === fact.text ? (
+                <form
+                  className="body"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const value = words(editing.value);
+                    // The line keeps its markdown bullet; the field shows only the words.
+                    if (value) void correctFact(fact.text, (bullet(fact.text) ?? "") + value);
+                  }}
+                >
+                  <input
+                    name="correction"
+                    dir="auto"
+                    aria-label={t`Correct the fact`}
+                    maxLength={2000}
+                    value={editing.value}
+                    onChange={(event) => setEditing({ ...editing, value: event.target.value })}
+                  />
+                  <span className="actions">
+                    <button type="submit" className="btn sm primary">
+                      <Trans>Save</Trans>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn sm outline"
+                      onClick={() => setEditing(null)}
+                    >
+                      <Trans>Cancel</Trans>
+                    </button>
+                  </span>
+                </form>
+              ) : (
+                <span className="body">
+                  <strong>
+                    <bdi dir="auto">{fact.text.replace(/^[-*]\s*/, "")}</bdi>
+                  </strong>
+                  <small>
+                    {origin(fact)}
+                    {fact.created_at ? ` · ${ago(fact.created_at)}` : ""}
+                  </small>
+                </span>
+              )}
+              {editing?.text !== fact.text && (
+                <>
+                  <button
+                    type="button"
+                    className="icon"
+                    aria-label={t`Correct the fact`}
+                    onClick={() =>
+                      setEditing({
+                        text: fact.text,
+                        value: fact.text.slice(bullet(fact.text)?.length ?? 0),
+                      })
+                    }
+                  >
+                    <Icon name="edit" />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon"
+                    aria-label={t`Delete the fact`}
+                    onClick={() => void correctFact(fact.text, null)}
+                  >
+                    <Icon name="close" />
+                  </button>
+                </>
+              )}
             </div>
           ))
         ) : (

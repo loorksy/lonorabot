@@ -215,8 +215,8 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
     # No tool module imports anything that settles or decides a card (owner_action_propose
     # reads the account's limits and actions for a grant card). agent_create raises
     # a creation card or a creation's Undo card, supervision_change a supervision card, its
-    # Undo card or a Restore card; trust and credential cards come from a proposal or the
-    # server; none settles one.
+    # Undo card or a Restore card; credential cards come from a proposal; none settles
+    # one. Trusting a source raises no card (VISION 10.3.2).
     allowed = {
         "ALL_ACTIONS",
         "account_policy",
@@ -232,10 +232,6 @@ def test_agents_can_only_propose_and_the_decision_is_an_owner_session_route() ->
         "propose_supervision",
         "raise_supervision_card",
         "raise_supervision_stopped_card",
-        # Trust and credential cards (W15-8): an agent's proposal and the server's review
-        # card for an MCP server whose tools changed; neither settles a card.
-        "propose_capability",
-        "raise_review_card",
         # broker_connect raises the server-built broker Secret card (9.2); it settles nothing.
         "propose_effect",
     }
