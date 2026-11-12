@@ -2,7 +2,6 @@ import copy
 from typing import Any
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.runs import RunRequest
 from lonora_contracts.trading_goal import GoalControl, GoalCreate, GoalPlanUpdate, GoalStep
 from lonora_core.user_error import LonoraError
 from sqlalchemy import select
@@ -12,7 +11,7 @@ from .agent_binding import assert_payload_binding, require_financial_agent
 from .broker_sessions import BrokerSessionRepository
 from .events import emit
 from .goal_scope import require_goal_agent
-from .schema import GoalDecisionRow, GroupRow, RunRow, ThreadRow, TradingGoalRow
+from .schema import GoalDecisionRow, TradingGoalRow
 from .transactions import owned_agent, owned_thread, resource_data
 
 
@@ -226,35 +225,6 @@ async def update_plan(
     return row
 
 
-async def bind_goal_run(session: AsyncSession, owner_id: str, request: RunRequest) -> None:
-    goal_id = request.metadata.get("goal_id")
-    if not goal_id:
-        return
-    goal = await owned_goal(session, owner_id, str(goal_id), True)
-    await require_goal_agent(session, goal)
-    if goal.agent_id != request.agent_id or goal.thread_id != request.thread_id:
-        raise LonoraError("goal_run_mismatch", 409)
-    if goal.state.get("status") not in {"active", "waiting"}:
-        raise LonoraError("goal_not_active", 409)
-    step = planned_step(goal, request.metadata.get("step_id"))
-    state = copy.deepcopy(goal.state)
-    if state.get("current_step") != step.id:
-        raise LonoraError("goal_step_unavailable", 409)
-    if state["steps"][step.id]["status"] in {"blocked", "completed", "executing"}:
-        raise LonoraError("goal_step_unavailable", 409)
-    request.metadata = {
-        **request.metadata,
-        "goal_id": goal.id,
-        "step_id": step.id,
-        "plan_version": state.get("plan_version", 1),
-    }
-    state["status"] = "active"
-    if state["steps"][step.id]["status"] == "waiting":
-        state["steps"][step.id]["status"] = "pending"
-    state["current_step"] = step.id
-    update_goal_state(session, goal, state)
-
-
 def decision_data(row: GoalDecisionRow) -> dict[str, Any]:
     return {
         "id": row.id,
@@ -270,36 +240,3 @@ def decision_data(row: GoalDecisionRow) -> dict[str, Any]:
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
-
-
-async def goal_read_threads(session: AsyncSession, run: RunRow) -> list[str]:
-    """Threads whose Goals a Run may read: its own, plus its same-Agent origin.
-
-    A wake, Task or opportunity Run works in its own work lane but still sees the
-    Goals of the conversation it came from (the Agent's own, or a group it belongs
-    to), whatever its authority. Mutating a Goal still requires the Goal's thread.
-    """
-    origin_id = run.model_metadata.get("origin_thread_id")
-    if not isinstance(origin_id, str) or not origin_id or origin_id == run.thread_id:
-        return [run.thread_id]
-    source = await session.get(ThreadRow, run.thread_id)
-    origin = await session.get(ThreadRow, origin_id)
-    if (
-        source is not None
-        and source.purpose == "work"
-        and origin is not None
-        and origin.purpose == "conversation"
-        and origin.owner_id == source.owner_id
-        and source.agent_id == run.agent_id
-    ):
-        if origin.agent_id == run.agent_id:
-            return [run.thread_id, origin.id]
-        if origin.group_id:
-            group = await session.get(GroupRow, origin.group_id)
-            if (
-                group
-                and group.owner_id == origin.owner_id
-                and run.agent_id in group.payload.get("member_ids", [])
-            ):
-                return [run.thread_id, origin.id]
-    return [run.thread_id]

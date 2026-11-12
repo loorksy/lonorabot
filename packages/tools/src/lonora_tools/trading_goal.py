@@ -2,7 +2,6 @@ import copy
 from typing import Any
 
 from lonora_contracts.domain import utcnow
-from lonora_contracts.routines import RoutineCreate
 from lonora_contracts.trading import TradeRequest, TradeResult
 from lonora_contracts.trading_goal import (
     GoalControl,
@@ -14,8 +13,6 @@ from lonora_contracts.trading_goal import (
 from lonora_core.user_error import LonoraError
 from lonora_db.genui_taint import taint_row_from
 from lonora_db.goal_scope import require_goal_agent
-from lonora_db.market_watches import MarketWatchRepository
-from lonora_db.routines import create_routine, routine_data
 from lonora_db.runs import locked_run_thread, require_lease
 from lonora_db.schema import EffectReceiptRow, GoalDecisionRow, TradingGoalRow
 from lonora_db.trading_goals import (
@@ -28,16 +25,9 @@ from lonora_db.trading_goals import (
     update_goal_state,
     update_plan,
 )
-from lonora_db.transactions import resource_data
 from lonora_session.idempotency import request_hash, stable_id
-from lonora_trading.goals import (
-    advance_state,
-    execute_goal_step,
-    recover_goals,
-    wait_for_goal_target,
-)
+from lonora_trading.goals import advance_state, execute_goal_step, recover_goals
 from lonora_trading.goals_market import fresh_goal_evidence
-from lonora_trading.goals_targets import resolve_condition
 from sqlalchemy import select
 
 from .base import Tool
@@ -82,9 +72,9 @@ async def create(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_threads
+        from lonora_db.threads import origin_read_threads
 
-        threads = await goal_read_threads(session, await require_lease(session, context.lease))
+        threads = await origin_read_threads(session, await require_lease(session, context.lease))
         rows = list(
             await session.scalars(
                 select(TradingGoalRow)
@@ -122,9 +112,9 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_threads
+        from lonora_db.threads import origin_read_threads
 
-        threads = await goal_read_threads(session, await require_lease(session, context.lease))
+        threads = await origin_read_threads(session, await require_lease(session, context.lease))
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
         if goal.agent_id != context.agent_id or goal.thread_id not in threads:
             raise LonoraError("goal_run_mismatch", 409)
@@ -151,9 +141,9 @@ async def read_goal(context: ToolContext, args: dict[str, Any]) -> dict[str, Any
 async def read_decisions(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     await recover_goals(context.db)
     async with context.db.sessions() as session:
-        from lonora_db.trading_goals import goal_read_threads
+        from lonora_db.threads import origin_read_threads
 
-        threads = await goal_read_threads(session, await require_lease(session, context.lease))
+        threads = await origin_read_threads(session, await require_lease(session, context.lease))
         goal = await owned_goal(session, context.owner_id, args["goal_id"])
         if goal.agent_id != context.agent_id or goal.thread_id not in threads:
             raise LonoraError("goal_run_mismatch", 409)
@@ -256,90 +246,6 @@ async def complete(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         update_goal_state(session, goal, state)
         await taint_row_from(session, run, "goal", goal.id)
         return goal_data(goal)
-
-
-async def wait(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    async with context.db.sessions() as session:
-        original = await owned_goal(session, context.owner_id, args["goal_id"])
-        planned = planned_step(original, args.get("step_id"))
-    try:
-        resolved_condition = (
-            await resolve_condition(
-                context.db, context.brokers, context.owner_id, original.id, planned.condition
-            )
-            if planned.condition
-            else None
-        )
-    except LonoraError as error:
-        if error.code == "goal_target_not_observed":
-            return await wait_for_goal_target(
-                context.db, context.owner_id, original.id, planned.id, context.lease
-            )
-        raise
-    async with context.db.sessions() as session, session.begin():
-        run, _ = await locked_run_thread(session, context.lease)
-        goal = await owned_goal(session, context.owner_id, args["goal_id"], True)
-        if goal.agent_id != run.agent_id or goal.thread_id != run.thread_id:
-            raise LonoraError("goal_run_mismatch", 409)
-        if goal.state.get("status") != "active":
-            raise LonoraError("goal_not_active", 409)
-        step = planned_step(goal, args.get("step_id"))
-        if (
-            step.id != goal.state.get("current_step")
-            or goal.state["steps"][step.id]["status"] != "pending"
-        ):
-            raise LonoraError("goal_step_unavailable", 409)
-        state = copy.deepcopy(goal.state)
-        identifier = stable_id(goal.id, f"wait:{step.id}:plan:{state.get('plan_version', 1)}")
-        if resolved_condition is not None:
-            config = {
-                **resolved_condition.model_dump(mode="json"),
-                "goal_id": goal.id,
-                "step_id": step.id,
-            }
-            existing = await session.get(MarketWatchRepository.row_type, identifier)
-            row = existing or await MarketWatchRepository().create(
-                session,
-                context.owner_id,
-                config,
-                agent_id=context.agent_id,
-                thread_id=context.thread_id,
-                resource_id=identifier,
-            )
-            if (
-                resolved_condition.condition == "opened"
-                and state["steps"][step.id].get("target_review_id")
-                and not row.state
-            ):
-                row.state = {"last_value": "0"}
-            state["steps"][step.id]["watch_id"] = row.id
-            await taint_row_from(session, run, "watch", row.id)
-            resource = resource_data(row)
-        elif step.review_interval_seconds is not None:
-            row = await create_routine(
-                session,
-                context.owner_id,
-                context.agent_id,
-                RoutineCreate(
-                    prompt=f"Review saved goal {goal.id}, step {step.id}. Continue its plan with fresh broker evidence.",
-                    interval_seconds=step.review_interval_seconds,
-                    goal_id=goal.id,
-                    step_id=step.id,
-                ),
-                identifier,
-            )
-            state["steps"][step.id]["routine_id"] = row.id
-            await taint_row_from(session, run, "routine", row.id)
-            state["steps"][step.id]["routine_plan_version"] = state.get("plan_version", 1)
-            resource = routine_data(row)
-        else:
-            raise LonoraError("goal_wait_source_required", 409)
-        state["steps"][step.id]["status"] = "waiting"
-        state["status"] = "waiting"
-        state.pop("code", None)
-        update_goal_state(session, goal, state)
-        await taint_row_from(session, run, "goal", goal.id)
-        return {"goal": goal_data(goal), "wake_source": resource}
 
 
 async def execute(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -520,12 +426,6 @@ def tools() -> list[Tool]:
             "Record analysis/watch/review completion and cited evidence. Cannot mark a trade completed; only actual broker confirmation can do that.",
             GoalStepNote,
             complete,
-        ),
-        Tool(
-            "goal_wait",
-            "Wait on the planned condition or scheduled review using existing server watches/routines. Wakes the same agent and goal; never places a trade directly.",
-            GoalReference,
-            wait,
         ),
         Tool(
             "goal_step_execute",

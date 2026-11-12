@@ -604,7 +604,7 @@ async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
     from check_streaming import Fixture
     from lonora_agent.context.goals import goal_context_blocks
     from lonora_db.runs import require_lease
-    from lonora_db.trading_goals import goal_read_threads
+    from lonora_db.threads import origin_read_threads
 
     fixture = await Fixture().open()
     connection = ""
@@ -640,7 +640,7 @@ async def test_every_work_lane_wake_reads_the_goals_of_its_conversation():
                     session,
                     fixture.owner,
                     agent["id"],
-                    await goal_read_threads(session, run),
+                    await origin_read_threads(session, run),
                 )
             # The Goal, its plan and limits are in the wake's own context.
             assert goal["id"] in core, label

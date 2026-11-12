@@ -13,8 +13,7 @@ from lonora_db.agent_creation import agent_origin, agent_written_instructions
 from lonora_db.genui_submit import submission_seq
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, ThreadRow
-from lonora_db.threads import thread_options
-from lonora_db.trading_goals import goal_read_threads
+from lonora_db.threads import origin_read_threads, thread_options
 from lonora_memory.conversation import ConversationRecallScope
 from lonora_memory.semantic import retrieve_memory
 from lonora_tools.context import ToolContext
@@ -95,7 +94,7 @@ async def build_context(
                 session,
                 context.owner_id,
                 context.agent_id,
-                await goal_read_threads(session, run),
+                await origin_read_threads(session, run),
                 run.model_metadata.get("goal_id") or run.model_metadata.get("review_goal_id"),
             ),
         )

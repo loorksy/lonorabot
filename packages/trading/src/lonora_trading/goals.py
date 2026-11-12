@@ -233,29 +233,6 @@ async def recover_goals(db: Database) -> int:
             return await recover_decision(db, operation_id)
 
         recovered += int(bool(await decisions.run(operation_id, owner_id, sync)))
-    async with db.sessions() as session:
-        waiting = list(
-            await session.scalars(
-                select(TradingGoalRow)
-                .where(
-                    TradingGoalRow.state["status"].as_string() == "waiting",
-                    TradingGoalRow.state["code"].as_string() == "goal_target_pending",
-                    # A goal without its conversation or agent cannot be reviewed again.
-                    TradingGoalRow.thread_id.is_not(None),
-                    exists(select(AgentRow.id).where(AgentRow.id == TradingGoalRow.agent_id)),
-                    ~blocked("goal_target", TradingGoalRow.id),
-                )
-                .limit(100)
-            )
-        )
-    targets = ItemGuard(db, "goal_target", quarantine_after=None)
-    await targets.prepare(goal.id for goal in waiting)
-    for goal in waiting:
-
-        async def review(goal: TradingGoalRow = goal) -> bool:
-            return await restore_target_review(db, goal)
-
-        recovered += int(bool(await targets.run(goal.id, goal.owner_id, review)))
     return recovered + await settle_orphaned_goals(db)
 
 
@@ -321,19 +298,6 @@ async def recover_decision(db: Database, operation_id: str) -> bool:
     return await sync_goal_decision(db, operation_id)
 
 
-async def restore_target_review(db: Database, goal: TradingGoalRow) -> bool:
-    from lonora_db.schema import RoutineRow
-
-    step_id = str(goal.state["current_step"])
-    identifier = goal.state["steps"][step_id].get("target_review_id")
-    async with db.sessions() as session:
-        routine = await session.get(RoutineRow, identifier) if identifier else None
-    if routine is not None:
-        return False
-    await wait_for_goal_target(db, goal.owner_id, goal.id, step_id)
-    return True
-
-
 async def wake_goal(
     db: Database, owner_id: str, goal_id: str, step_id: str | None = None
 ) -> dict[str, Any]:
@@ -390,20 +354,10 @@ async def execute_goal_step(
             raise LonoraError("goal_trade_step_required", 409)
         level_asks = await goal_requires_approval(session, goal, origin)
     expected_plan_version = int(goal.state.get("plan_version", 1))
-    try:
-        evidence = await fresh_goal_evidence(db, brokers, owner_id, goal_id, step.id, lease.run_id)
-    except LonoraError as error:
-        if error.code == "goal_target_not_observed":
-            return await wait_for_goal_target(db, owner_id, goal_id, step.id, lease)
-        raise
+    evidence = await fresh_goal_evidence(db, brokers, owner_id, goal_id, step.id, lease.run_id)
     expected_attempt = int(goal.state["steps"][step.id].get("attempt", 1))
     operation_id = stable_id(goal.id, f"step:{step.id}:attempt:{expected_attempt}")
-    try:
-        request = await resolve_trade(db, brokers, owner_id, goal_id, step.trade, operation_id)
-    except LonoraError as error:
-        if error.code == "goal_target_not_observed":
-            return await wait_for_goal_target(db, owner_id, goal_id, step.id, lease)
-        raise
+    request = await resolve_trade(db, brokers, owner_id, goal_id, step.trade, operation_id)
     account_authority_id: str | None = None
     expected_target: dict[str, Any] | None = None
     async with db.sessions() as session:
@@ -556,60 +510,3 @@ async def execute_goal_step(
         "operation_id": operation_id,
         "result": result.model_dump(mode="json"),
     }
-
-
-async def wait_for_goal_target(
-    db: Database, owner_id: str, goal_id: str, step_id: str, lease: Lease | None = None
-) -> dict[str, Any]:
-    from lonora_contracts.routines import RoutineCreate
-    from lonora_db.routines import create_routine, routine_data
-    from lonora_db.transactions import owned_thread
-
-    async with db.sessions() as session:
-        original = await owned_goal(session, owner_id, goal_id)
-        thread_id = original.thread_id or ""
-    async with db.sessions() as session, session.begin():
-        await owned_thread(session, owner_id, thread_id, lock=True)
-        run = await require_lease(session, lease, lock=True) if lease else None
-        goal = await owned_goal(session, owner_id, goal_id, True)
-        if (
-            goal.state.get("status") not in {"active", "waiting"}
-            or goal.state.get("current_step") != step_id
-        ):
-            raise LonoraError("goal_not_active", 409)
-        state = copy.deepcopy(goal.state)
-        identifier = stable_id(
-            goal.id, f"target-review:{step_id}:plan:{state.get('plan_version', 1)}"
-        )
-        routine = await create_routine(
-            session,
-            owner_id,
-            goal.agent_id or "",
-            RoutineCreate(
-                prompt="Recheck the confirmed entry target for this saved goal. No entry resubmission: use goal_wait or goal_step_execute for the CURRENT target-dependent step, resolving actual broker IDs.",
-                interval_seconds=60,
-                goal_id=goal.id,
-                step_id=step_id,
-            ),
-            identifier,
-        )
-        state["steps"][step_id].update(
-            status="waiting",
-            target_review_id=routine.id,
-            target_review_plan_version=state.get("plan_version", 1),
-        )
-        state["status"], state["code"] = "waiting", "goal_target_pending"
-        update_goal_state(session, goal, state)
-        from lonora_db.genui_taint import taint_row_from
-        from lonora_db.trading_goals import goal_data
-
-        # Tainted work that waits on a goal taints it and its routine (GENUI_PLAN §8.5).
-        await taint_row_from(session, run, "goal", goal.id)
-        await taint_row_from(session, run, "routine", routine.id)
-
-        return {
-            "goal": goal_data(goal),
-            "wake_source": routine_data(routine),
-            "waiting": True,
-            "code": "goal_target_pending",
-        }

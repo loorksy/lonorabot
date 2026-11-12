@@ -525,10 +525,6 @@ class MemoryRevisionRow(Base):
 
 
 class RoutineRow(Base):
-    goal_id: Mapped[str | None] = mapped_column(
-        ForeignKey("ln_trading_goals.id", ondelete="CASCADE")
-    )
-    step_id: Mapped[str | None] = mapped_column(String(64))
     __tablename__ = "ln_routines"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     owner_id: Mapped[str] = mapped_column(ForeignKey("ln_owners.id", ondelete="CASCADE"))
