@@ -7,6 +7,17 @@ CHANNEL="${2:-production}"
 case "$PLATFORM" in android|ios) ;; *) echo 'Platform must be android or ios' >&2; exit 2;; esac
 case "$CHANNEL" in preview|production) ;; *) echo 'Channel must be preview or production' >&2; exit 2;; esac
 export LONORA_OTA_CHANNEL="$CHANNEL"
+# The fingerprint runtime includes the push inputs (VISION 11.4): an update for a push build
+# must be exported with the same LONORA_EXPO_PROJECT_ID and Firebase file as that APK.
+if [[ -n "${LONORA_EXPO_PROJECT_ID:-}" && -z "${LONORA_ANDROID_GOOGLE_SERVICES_FILE:-}" ]] ||
+  [[ -z "${LONORA_EXPO_PROJECT_ID:-}" && -n "${LONORA_ANDROID_GOOGLE_SERVICES_FILE:-}" ]]; then
+  echo 'Push needs both LONORA_EXPO_PROJECT_ID and LONORA_ANDROID_GOOGLE_SERVICES_FILE.' >&2; exit 2
+fi
+# The same absolute path as android-release.py, so the fingerprint matches that APK.
+if [[ -n "${LONORA_ANDROID_GOOGLE_SERVICES_FILE:-}" ]]; then
+  LONORA_ANDROID_GOOGLE_SERVICES_FILE="$(realpath "$LONORA_ANDROID_GOOGLE_SERVICES_FILE")"
+  export LONORA_ANDROID_GOOGLE_SERVICES_FILE
+fi
 OTA_EXPORT="$PROJECT_ROOT/.runtime/ota-export/$CHANNEL/$PLATFORM"
 cd "$PROJECT_ROOT/apps/mobile"
 pnpm exec expo export --platform "$PLATFORM" --output-dir "$OTA_EXPORT"
