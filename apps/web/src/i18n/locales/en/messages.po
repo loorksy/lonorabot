@@ -773,7 +773,7 @@ msgstr "All time"
 #~ msgid "Allow autonomous trading for this goal"
 #~ msgstr "Allow autonomous trading for this goal"
 
-#: src/lib/user_error.ts:116
+#: src/lib/user_error.ts:115
 msgid "Allow microphone access to start a voice conversation."
 msgstr "Allow microphone access to start a voice conversation."
 
@@ -1204,7 +1204,7 @@ msgstr "Broker account"
 msgid "Broker account changed"
 msgstr "Broker account changed"
 
-#: src/lib/user_error.ts:142
+#: src/lib/user_error.ts:141
 msgid "Broker account not found."
 msgstr "Broker account not found."
 
@@ -1212,15 +1212,15 @@ msgstr "Broker account not found."
 #~ msgid "Broker acknowledged — resulting state unverified"
 #~ msgstr "Broker acknowledged — resulting state unverified"
 
-#: src/lib/user_error.ts:158
+#: src/lib/user_error.ts:157
 msgid "Broker authentication was rejected."
 msgstr "Broker authentication was rejected."
 
-#: src/lib/user_error.ts:134
+#: src/lib/user_error.ts:133
 msgid "Broker candles are unavailable for this symbol and timeframe."
 msgstr "Broker candles are unavailable for this symbol and timeframe."
 
-#: src/lib/user_error.ts:171
+#: src/lib/user_error.ts:170
 msgid "Broker candles contain invalid or mismatched data."
 msgstr "Broker candles contain invalid or mismatched data."
 
@@ -1236,11 +1236,11 @@ msgstr "Broker connection recovered"
 msgid "Broker connection requires attention"
 msgstr "Broker connection requires attention"
 
-#: src/lib/user_error.ts:152
+#: src/lib/user_error.ts:151
 msgid "Broker data does not match the selected account. Nothing was sent."
 msgstr "Broker data does not match the selected account. Nothing was sent."
 
-#: src/lib/user_error.ts:186
+#: src/lib/user_error.ts:185
 msgid "Broker deal history is unavailable for this time range."
 msgstr "Broker deal history is unavailable for this time range."
 
@@ -1600,7 +1600,7 @@ msgstr "Check the fields"
 msgid "Check the highlighted fields."
 msgstr "Check the highlighted fields."
 
-#: src/lib/user_error.ts:192
+#: src/lib/user_error.ts:191
 msgid "Check the required fields and try again."
 msgstr "Check the required fields and try again."
 
@@ -1712,7 +1712,7 @@ msgstr "Choose at least one member."
 msgid "Choose broker account"
 msgstr "Choose broker account"
 
-#: src/lib/user_error.ts:127
+#: src/lib/user_error.ts:126
 msgid "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 
@@ -1720,7 +1720,7 @@ msgstr "Choose GPT-Live 1 or GPT-Live 1 mini as the global voice model."
 msgid "Choose how replies appear and how you write. Applies to every conversation."
 msgstr "Choose how replies appear and how you write. Applies to every conversation."
 
-#: src/lib/user_error.ts:129
+#: src/lib/user_error.ts:128
 msgid "Choose supported global speech models in Settings."
 msgstr "Choose supported global speech models in Settings."
 
@@ -1948,7 +1948,7 @@ msgstr "Condition — for the conditional alert"
 #~ msgid "Condition triggered"
 #~ msgstr "Condition triggered"
 
-#: src/lib/user_error.ts:114
+#: src/lib/user_error.ts:113
 msgid "Configure an OpenAI credential with GPT-Live access to start a voice call."
 msgstr "Configure an OpenAI credential with GPT-Live access to start a voice call."
 
@@ -1987,7 +1987,7 @@ msgstr "Connect a broker account before creating a trading agent."
 msgid "Connect a model provider"
 msgstr "Connect a model provider"
 
-#: src/lib/user_error.ts:88
+#: src/lib/user_error.ts:87
 msgid "Connect a provider and choose a global model in Settings."
 msgstr "Connect a provider and choose a global model in Settings."
 
@@ -2491,11 +2491,11 @@ msgstr "Determined"
 msgid "Device"
 msgstr "Device"
 
-#: src/lib/user_error.ts:76
+#: src/lib/user_error.ts:75
 msgid "Device authentication was cancelled. No authority was granted."
 msgstr "Device authentication was cancelled. No authority was granted."
 
-#: src/lib/user_error.ts:80
+#: src/lib/user_error.ts:79
 msgid "Device verification failed. No authority was granted."
 msgstr "Device verification failed. No authority was granted."
 
@@ -2802,7 +2802,7 @@ msgstr "Enter a valid domain like example.com"
 msgid "Enter the access token"
 msgstr "Enter the access token"
 
-#: src/lib/user_error.ts:146
+#: src/lib/user_error.ts:145
 msgid "Enter the access token."
 msgstr "Enter the access token."
 
@@ -2930,7 +2930,7 @@ msgstr "Executing"
 #~ msgid "Execution mode"
 #~ msgstr "Execution mode"
 
-#: src/lib/user_error.ts:66
+#: src/lib/user_error.ts:65
 msgid "Execution mode changed. Review the saved plan before continuing."
 msgstr "Execution mode changed. Review the saved plan before continuing."
 
@@ -3264,7 +3264,7 @@ msgstr "Goals"
 msgid "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 msgstr "GPT-Live connects directly over WebRTC using your server-stored OpenAI credential. Choose the voice model in global routing; delegated work uses the same Lonora agent and tools."
 
-#: src/lib/user_error.ts:120
+#: src/lib/user_error.ts:119
 msgid "GPT-Live is not available for this OpenAI project. Check its API access."
 msgstr "GPT-Live is not available for this OpenAI project. Check its API access."
 
@@ -3332,11 +3332,11 @@ msgstr "Hide the key"
 msgid "Higher contrast"
 msgstr "Higher contrast"
 
-#: src/lib/user_error.ts:160
+#: src/lib/user_error.ts:159
 msgid "Historical broker candles timed out. Retry the chart refresh."
 msgstr "Historical broker candles timed out. Retry the chart refresh."
 
-#: src/lib/user_error.ts:164
+#: src/lib/user_error.ts:163
 msgid "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 msgstr "Historical market data is blocked by the data provider's billing. Fund the provider account, then retry. Live prices may remain available."
 
@@ -3354,7 +3354,7 @@ msgstr "Hour"
 msgid "How to reach you"
 msgstr "How to reach you"
 
-#: src/lib/user_error.ts:211
+#: src/lib/user_error.ts:210
 msgid "I paused at this run's step budget. Send a message and I continue from here."
 msgstr "I paused at this run's step budget. Send a message and I continue from here."
 
@@ -3374,7 +3374,7 @@ msgstr "Image attachment"
 msgid "Immediately"
 msgstr "Immediately"
 
-#: src/lib/user_error.ts:190
+#: src/lib/user_error.ts:189
 msgid "Import a market snapshot before using the demo account."
 msgstr "Import a market snapshot before using the demo account."
 
@@ -4397,7 +4397,7 @@ msgstr "No artifacts found."
 msgid "No authentication"
 msgstr "No authentication"
 
-#: src/lib/user_error.ts:168
+#: src/lib/user_error.ts:167
 msgid "No candle history was found for this symbol and timeframe."
 msgstr "No candle history was found for this symbol and timeframe."
 
@@ -5081,7 +5081,7 @@ msgstr "Page not found"
 msgid "Pair"
 msgstr "Pair"
 
-#: src/lib/user_error.ts:209
+#: src/lib/user_error.ts:208
 msgid "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 msgstr "Part of this conversation's history could not be read, so this reply stopped. Send your message again; the conversation is kept."
 
@@ -5660,7 +5660,7 @@ msgstr "Region"
 #~ msgid "Register a passkey"
 #~ msgstr "Register a passkey"
 
-#: src/lib/user_error.ts:72
+#: src/lib/user_error.ts:71
 msgid "Register a passkey before activating this request."
 msgstr "Register a passkey before activating this request."
 
@@ -6277,7 +6277,7 @@ msgstr "Sections"
 #~ msgid "Secure device authentication is unavailable in this browser."
 #~ msgstr "Secure device authentication is unavailable in this browser."
 
-#: src/lib/user_error.ts:78
+#: src/lib/user_error.ts:77
 msgid "Secure device authentication is unavailable on this device."
 msgstr "Secure device authentication is unavailable on this device."
 
@@ -6525,7 +6525,7 @@ msgstr "Sign in"
 msgid "Sign out"
 msgstr "Sign out"
 
-#: src/lib/user_error.ts:84
+#: src/lib/user_error.ts:83
 msgid "Sign-in failed. Check your email and password."
 msgstr "Sign-in failed. Check your email and password."
 
@@ -7067,7 +7067,7 @@ msgstr "Text size"
 msgid "Text size · {0}"
 msgstr "Text size · {0}"
 
-#: src/lib/user_error.ts:173
+#: src/lib/user_error.ts:172
 msgid "That chart timeframe is not supported by this broker."
 msgstr "That chart timeframe is not supported by this broker."
 
@@ -7115,15 +7115,15 @@ msgstr "The agent follows it until it is done"
 msgid "The agent's work steps"
 msgstr "The agent's work steps"
 
-#: src/lib/user_error.ts:150
+#: src/lib/user_error.ts:149
 msgid "The broker account could not be verified. Check its connection details and try again."
 msgstr "The broker account could not be verified. Check its connection details and try again."
 
-#: src/lib/user_error.ts:156
+#: src/lib/user_error.ts:155
 msgid "The broker account is not ready at the connection provider. Check its status, then retry."
 msgstr "The broker account is not ready at the connection provider. Check its status, then retry."
 
-#: src/lib/user_error.ts:182
+#: src/lib/user_error.ts:181
 msgid "The broker connection changed. Reload it before continuing."
 msgstr "The broker connection changed. Reload it before continuing."
 
@@ -7131,11 +7131,11 @@ msgstr "The broker connection changed. Reload it before continuing."
 msgid "The broker connection dropped"
 msgstr "The broker connection dropped"
 
-#: src/lib/user_error.ts:154
+#: src/lib/user_error.ts:153
 msgid "The broker connection is stopped at the connection provider. Start it there, then retry."
 msgstr "The broker connection is stopped at the connection provider. Start it there, then retry."
 
-#: src/lib/user_error.ts:188
+#: src/lib/user_error.ts:187
 msgid "The broker connection is unavailable."
 msgstr "The broker connection is unavailable."
 
@@ -7151,15 +7151,15 @@ msgstr "The broker did not confirm a trade — tell Lonora whether it executed"
 msgid "The broker is connected"
 msgstr "The broker is connected"
 
-#: src/lib/user_error.ts:166
+#: src/lib/user_error.ts:165
 msgid "The broker market-data service is rate limited."
 msgstr "The broker market-data service is rate limited."
 
-#: src/lib/user_error.ts:184
+#: src/lib/user_error.ts:183
 msgid "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 msgstr "The broker mutation is uncertain. Execution remains blocked until its result can be verified."
 
-#: src/lib/user_error.ts:175
+#: src/lib/user_error.ts:174
 msgid "The broker quote is unavailable for this exact symbol."
 msgstr "The broker quote is unavailable for this exact symbol."
 
@@ -7167,11 +7167,11 @@ msgstr "The broker quote is unavailable for this exact symbol."
 msgid "The broker rejected the order"
 msgstr "The broker rejected the order"
 
-#: src/lib/user_error.ts:162
+#: src/lib/user_error.ts:161
 msgid "The broker rejected this timeframe or candle request."
 msgstr "The broker rejected this timeframe or candle request."
 
-#: src/lib/user_error.ts:177
+#: src/lib/user_error.ts:176
 msgid "The broker specifications are unavailable for this exact symbol."
 msgstr "The broker specifications are unavailable for this exact symbol."
 
@@ -7323,7 +7323,7 @@ msgstr "The messages of {0} are hidden for you; the chats stay in the list."
 msgid "The microphone is not available on this page."
 msgstr "The microphone is not available on this page."
 
-#: src/lib/user_error.ts:207
+#: src/lib/user_error.ts:206
 msgid "The model could not summarize this conversation. Retry or choose another global model."
 msgstr "The model could not summarize this conversation. Retry or choose another global model."
 
@@ -7335,11 +7335,11 @@ msgstr "The model is not available right now"
 msgid "The model provider could not be reached. Try another model or retry shortly."
 msgstr "The model provider could not be reached. Try another model or retry shortly."
 
-#: src/lib/user_error.ts:104
+#: src/lib/user_error.ts:103
 msgid "The model provider is unavailable right now. Try again shortly."
 msgstr "The model provider is unavailable right now. Try again shortly."
 
-#: src/lib/user_error.ts:90
+#: src/lib/user_error.ts:89
 msgid "The model provider rate limit was reached. Try again shortly."
 msgstr "The model provider rate limit was reached. Try again shortly."
 
@@ -7347,11 +7347,11 @@ msgstr "The model provider rate limit was reached. Try again shortly."
 msgid "The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets."
 msgstr "The model provider refused the request for quota on its account. Add credit with the provider, choose another model, or retry once it resets."
 
-#: src/lib/user_error.ts:106
+#: src/lib/user_error.ts:105
 msgid "The model provider rejected this request."
 msgstr "The model provider rejected this request."
 
-#: src/lib/user_error.ts:108
+#: src/lib/user_error.ts:107
 msgid "The model provider returned an unreadable response. Try again."
 msgstr "The model provider returned an unreadable response. Try again."
 
@@ -7359,11 +7359,11 @@ msgstr "The model provider returned an unreadable response. Try again."
 msgid "The model provider's quota ran out"
 msgstr "The model provider's quota ran out"
 
-#: src/lib/user_error.ts:98
+#: src/lib/user_error.ts:97
 msgid "The model provider’s safety system withheld this answer."
 msgstr "The model provider’s safety system withheld this answer."
 
-#: src/lib/user_error.ts:100
+#: src/lib/user_error.ts:99
 msgid "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 msgstr "The model’s answer was cut off at its output limit. Try again or ask for a shorter answer."
 
@@ -7396,7 +7396,7 @@ msgstr "the previous thirty days"
 msgid "The previous value is restored"
 msgstr "The previous value is restored"
 
-#: src/lib/user_error.ts:92
+#: src/lib/user_error.ts:91
 msgid "The provider rejected this API key."
 msgstr "The provider rejected this API key."
 
@@ -7412,7 +7412,7 @@ msgstr "The reply did not arrive in time; the connection may be weak."
 msgid "The reply timed out"
 msgstr "The reply timed out"
 
-#: src/lib/user_error.ts:213
+#: src/lib/user_error.ts:212
 msgid "The request could not be completed. Try again."
 msgstr "The request could not be completed. Try again."
 
@@ -7420,11 +7420,11 @@ msgstr "The request could not be completed. Try again."
 msgid "The requested work is done"
 msgstr "The requested work is done"
 
-#: src/lib/user_error.ts:122
+#: src/lib/user_error.ts:121
 msgid "The resident voice worker is unavailable. Check server readiness and retry."
 msgstr "The resident voice worker is unavailable. Check server readiness and retry."
 
-#: src/lib/user_error.ts:131
+#: src/lib/user_error.ts:130
 msgid "The resident worker is preparing this chart."
 msgstr "The resident worker is preparing this chart."
 
@@ -7452,7 +7452,7 @@ msgstr "The selected group's chat history is hidden for you. The group stays wit
 msgid "The selected groups' chat history is hidden for you. The groups stay with their members."
 msgstr "The selected groups' chat history is hidden for you. The groups stay with their members."
 
-#: src/lib/user_error.ts:102
+#: src/lib/user_error.ts:101
 msgid "The selected model is not available from this provider. Choose another model in Settings."
 msgstr "The selected model is not available from this provider. Choose another model in Settings."
 
@@ -7472,7 +7472,7 @@ msgstr "The server is stopped"
 msgid "The server's schema changed. Review the tools before approving them."
 msgstr "The server's schema changed. Review the tools before approving them."
 
-#: src/lib/user_error.ts:86
+#: src/lib/user_error.ts:85
 msgid "The setup code is incorrect."
 msgstr "The setup code is incorrect."
 
@@ -7500,7 +7500,7 @@ msgstr "The task no longer exists."
 #~ msgid "The task resumed from its saved state after reconnection."
 #~ msgstr "The task resumed from its saved state after reconnection."
 
-#: src/lib/user_error.ts:144
+#: src/lib/user_error.ts:143
 msgid "The test did not get an answer in time. Nothing was saved."
 msgstr "The test did not get an answer in time. Nothing was saved."
 
@@ -7517,7 +7517,7 @@ msgstr "The value is sent encrypted and is not shown after saving."
 msgid "The value is too short"
 msgstr "The value is too short"
 
-#: src/lib/user_error.ts:125
+#: src/lib/user_error.ts:124
 msgid "The voice connection failed. Retry the call."
 msgstr "The voice connection failed. Retry the call."
 
@@ -7572,23 +7572,23 @@ msgstr "This agent’s market scope cannot be changed."
 msgid "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
 msgstr "This agent's own knowledge and working notes, kept apart from conversation history. What agents know about you is in About you."
 
-#: src/lib/user_error.ts:94
+#: src/lib/user_error.ts:93
 msgid "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
 msgstr "This API key cannot use the selected model. Choose another model or check the provider account’s model access."
 
-#: src/lib/user_error.ts:82
+#: src/lib/user_error.ts:81
 msgid "This authorization request expired or changed. Review a new request."
 msgstr "This authorization request expired or changed. Review a new request."
 
-#: src/lib/user_error.ts:110
+#: src/lib/user_error.ts:109
 msgid "This broker account does not permit trading. Check its trading permissions."
 msgstr "This broker account does not permit trading. Check its trading permissions."
 
-#: src/lib/user_error.ts:148
+#: src/lib/user_error.ts:147
 msgid "This broker account is already connected. Use the existing connection."
 msgstr "This broker account is already connected. Use the existing connection."
 
-#: src/lib/user_error.ts:179
+#: src/lib/user_error.ts:178
 msgid "This broker connection is disabled."
 msgstr "This broker connection is disabled."
 
@@ -7621,7 +7621,7 @@ msgstr "This conversation has no pair to chart. Ask the agent for a chart, or op
 #~ msgid "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 #~ msgstr "This conversation is too large to process. Shorten instructions, use fewer attachments, or start a new conversation."
 
-#: src/lib/user_error.ts:136
+#: src/lib/user_error.ts:135
 msgid "This exact symbol is not available from your broker."
 msgstr "This exact symbol is not available from your broker."
 
@@ -7645,11 +7645,11 @@ msgstr "This exact symbol is not available from your broker."
 msgid "This is how text looks in conversations."
 msgstr "This is how text looks in conversations."
 
-#: src/lib/user_error.ts:112
+#: src/lib/user_error.ts:111
 msgid "This item changed. Reload it before saving."
 msgstr "This item changed. Reload it before saving."
 
-#: src/lib/user_error.ts:205
+#: src/lib/user_error.ts:204
 msgid "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 msgstr "This message is too large to process, even after older history was summarized. Shorten it or send fewer attachments; the conversation is kept."
 
@@ -7657,7 +7657,7 @@ msgstr "This message is too large to process, even after older history was summa
 msgid "This month"
 msgstr "This month"
 
-#: src/lib/user_error.ts:74
+#: src/lib/user_error.ts:73
 msgid "This needs a new grant you sign with your passkey."
 msgstr "This needs a new grant you sign with your passkey."
 
@@ -7665,11 +7665,11 @@ msgstr "This needs a new grant you sign with your passkey."
 msgid "this one does not block closing"
 msgstr "this one does not block closing"
 
-#: src/lib/user_error.ts:140
+#: src/lib/user_error.ts:139
 msgid "This operation already has a settled outcome. Reload the journal."
 msgstr "This operation already has a settled outcome. Reload the journal."
 
-#: src/lib/user_error.ts:138
+#: src/lib/user_error.ts:137
 msgid "This operation is still in progress. Wait for its broker result before resolving it."
 msgstr "This operation is still in progress. Wait for its broker result before resolving it."
 
@@ -7699,7 +7699,7 @@ msgstr "This page may have moved or is no longer available."
 msgid "This pair is permanent for this agent. Create another agent to use a different pair."
 msgstr "This pair is permanent for this agent. Create another agent to use a different pair."
 
-#: src/lib/user_error.ts:68
+#: src/lib/user_error.ts:67
 msgid "This passkey request is not available in this session. Start it again."
 msgstr "This passkey request is not available in this session. Start it again."
 
@@ -7727,15 +7727,15 @@ msgstr "This question is no longer waiting for an answer."
 msgid "This skill is no longer in the current catalog. Reload the list."
 msgstr "This skill is no longer in the current catalog. Reload the list."
 
-#: src/lib/user_error.ts:196
+#: src/lib/user_error.ts:195
 msgid "This step was interrupted and picked up again. Nothing was repeated."
 msgstr "This step was interrupted and picked up again. Nothing was repeated."
 
-#: src/lib/user_error.ts:201
+#: src/lib/user_error.ts:200
 msgid "This task cannot resume in its current state. Review its plan or retry limit."
 msgstr "This task cannot resume in its current state. Review its plan or retry limit."
 
-#: src/lib/user_error.ts:198
+#: src/lib/user_error.ts:197
 msgid "This task is waiting for an uncertain external operation to be reconciled."
 msgstr "This task is waiting for an uncertain external operation to be reconciled."
 
@@ -7818,7 +7818,7 @@ msgstr "today so far"
 msgid "Tokens"
 msgstr "Tokens"
 
-#: src/lib/user_error.ts:194
+#: src/lib/user_error.ts:193
 msgid "Too many attempts. Wait a minute and retry."
 msgstr "Too many attempts. Wait a minute and retry."
 
@@ -8221,7 +8221,7 @@ msgstr "Usage of {0} · last {1} days"
 msgid "Use the arrows to move between the columns."
 msgstr "Use the arrows to move between the columns."
 
-#: src/lib/user_error.ts:70
+#: src/lib/user_error.ts:69
 msgid "Use the configured secure website for device authentication."
 msgstr "Use the configured secure website for device authentication."
 
@@ -8327,7 +8327,7 @@ msgstr "Voice message"
 msgid "Voice message ({0})"
 msgstr "Voice message ({0})"
 
-#: src/lib/user_error.ts:118
+#: src/lib/user_error.ts:117
 msgid "Voice requires a browser with WebRTC and microphone support on HTTPS."
 msgstr "Voice requires a browser with WebRTC and microphone support on HTTPS."
 
@@ -8693,7 +8693,7 @@ msgstr "Your conversations and files are kept in Lonora, not in this browser."
 #~ msgid "Your Lonora workspace"
 #~ msgstr "Your Lonora workspace"
 
-#: src/lib/user_error.ts:96
+#: src/lib/user_error.ts:95
 msgid "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
 msgstr "Your model provider account is out of credits or over its spending limit. Add credit or choose another provider."
 
