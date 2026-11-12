@@ -56,7 +56,7 @@ def test_the_note_tools_are_memory_tools_with_no_money_authority() -> None:
 
 @pytest.mark.asyncio
 async def test_an_agent_adds_lists_and_removes_its_own_note(task_db: Fixture) -> None:
-    db, owner, own, _ = task_db
+    db, _, own, _ = task_db
     tools = load_tools().tools
     added = await tools["knowledge_note_add"].handler(
         context(task_db, own),
