@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 import tempfile
@@ -13,6 +14,7 @@ from lonora_db.artifacts import ArtifactRepository
 from lonora_db.runs import require_lease
 from lonora_db.transactions import resource_data
 from lonora_security.runtime_storage import confined_path
+from lonora_security.secrets import SecretScan
 from PIL import Image, UnidentifiedImageError
 from pydantic import Field
 
@@ -218,7 +220,21 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         result["state"] = {
             key: value for key, value in row.state.items() if key != "result_summary"
         }
-    if payload["media_type"].startswith("text/") or payload["media_type"] == "application/json":
+    text_layer = payload.get("text_key")
+    layer = (
+        confined_path(context.artifact_root, text_layer)
+        if isinstance(text_layer, str) and text_layer
+        else None
+    )
+    if layer is not None and layer.is_file():
+        # A PDF's text layer, extracted on upload.
+        check_size(layer.stat().st_size)
+        text = layer.read_text(errors="replace")
+        offset, limit = args.get("offset", 0), args.get("limit", 24000)
+        result["content"] = text[offset : offset + limit]
+        result["total_chars"] = len(text)
+        result["next_offset"] = offset + limit if offset + limit < len(text) else None
+    elif payload["media_type"].startswith("text/") or payload["media_type"] == "application/json":
         check_size(path.stat().st_size)
         with path.open("rb") as source:
             content = source.read(MAX_ATTACHMENT_BYTES + 1)
@@ -228,7 +244,10 @@ async def read(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             or hashlib.sha256(content).hexdigest() != payload["sha256"]
         ):
             raise LonoraError("artifact_integrity_failed", 409)
-        text = content.decode("utf-8", errors="replace")
+        # A text file may hold workspace bytes saved before a secret existed: the whole
+        # text is scanned like workspace output before a page is cut (VISION.md 7.2.6).
+        scan = SecretScan(await context.secrets.scanned_values())
+        text = await asyncio.to_thread(scan.text, content.decode("utf-8", errors="replace"))
         offset, limit = args.get("offset", 0), args.get("limit", 24000)
         result["content"] = text[offset : offset + limit]
         result["total_chars"] = len(text)
@@ -246,7 +265,7 @@ def tools() -> list[Tool]:
         ),
         Tool(
             "artifact_read",
-            "Read owned artifact metadata and a bounded text page. For a stored tool result use result_ref as artifact_id; offset and limit select characters, next_offset continues paging. Stored results are redacted projections. Set view_image=true to inspect an owned raster image in the next model turn; this returns a validated image reference, never proof of user delivery.",
+            "Read owned artifact metadata and a bounded text page (a PDF's text layer included). For a stored tool result use result_ref as artifact_id; offset and limit select characters, next_offset continues paging. Stored results are redacted projections. Set view_image=true to inspect an owned raster image in the next model turn; this returns a validated image reference, never proof of user delivery.",
             ArtifactRead,
             read,
             True,

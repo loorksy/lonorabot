@@ -8,7 +8,7 @@ from lonora_contracts.domain import utcnow
 from lonora_core.user_error import LonoraError
 from lonora_db.schema import AnalyticalWorkspaceRow, EffectReceiptRow, SkillRow
 from lonora_db.skill_controls import read_skill_controls
-from lonora_db.skills import SkillRepository, record_version
+from lonora_db.skills import SkillRepository, mark_package, record_version
 from lonora_session.idempotency import request_hash
 from lonora_tools.context import ToolContext
 from lonora_tools.registry import ToolRegistry
@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..workspace import read_snapshot
-from ..workspace_access import scoped_run
+from ..workspace_access import output_scan, scoped_run
 from .packages import (
     AdaptationReview,
     PackageState,
@@ -317,6 +317,7 @@ async def install_entry(
             )
             assert isinstance(created, SkillRow)
             row = created
+            await mark_package(session, row)
         await validate_graph(session, context, registry, payload, row.id)
         row.state = {**row.state, "package": state.model_dump(mode="json")}
         result = describe(
@@ -333,6 +334,7 @@ async def create_package(
     context: ToolContext, registry: ToolRegistry, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     digest = request_hash({"kind": "skill-package-create-v1", **arguments})
+    scan = await output_scan(context)
     async with context.db.sessions() as session, session.begin():
         if (result := await prior(session, context, digest)) is not None:
             return result
@@ -382,6 +384,12 @@ async def create_package(
                     },
                 )
             )
+        # A skill's files and paths reach the model: a package carrying a stored
+        # secret is refused, also on a retry of one prepared before the secret existed.
+        if any(
+            scan.found(name.encode()) or scan.found(body.encode()) for name, body in files.items()
+        ):
+            raise LonoraError("skill_package_contains_secret", 422)
     return await install_entry(context, registry, arguments, digest, entry, files)
 
 

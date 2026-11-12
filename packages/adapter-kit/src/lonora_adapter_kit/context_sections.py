@@ -78,6 +78,11 @@ def _wrap(rendered: Sequence[str]) -> str:
     )
 
 
+def context_data(sections: Sequence[ContextSection]) -> str:
+    """The data frame as text, for a transcript turn that carries third-party content."""
+    return _wrap([render_section(section) for section in sections])
+
+
 def context_message(sections: Sequence[ContextSection]) -> ModelMessage | None:
     """Render non-empty sections in the given order; ``None`` when nothing remains."""
     rendered = [render_section(section) for section in sections if section.body.strip()]
