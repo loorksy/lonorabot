@@ -9,7 +9,7 @@
     "account_read",
     "watch_create"
   ],
-  "state_owner": "TradingGoal steps and durable MarketWatch wakes",
+  "state_owner": "durable MarketWatch wakes and Tasks",
   "entry_conditions": [
     "owned_scope",
     "current_evidence"

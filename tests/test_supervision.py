@@ -285,7 +285,8 @@ async def test_a_grant_opens_labelled_reads_and_revoking_it_closes_them_at_once(
         )
         assert "supervisedsentinel" in memory_page["memory"] and memory_page["editable"] is False
         work = await call(lead_context, "agent_inspect", agent_id=gold["id"], section="work")
-        assert {"watches", "routines", "tasks", "goals", "pauses_by_supervisors"} <= set(work)
+        assert {"watches", "routines", "tasks", "pauses_by_supervisors"} <= set(work)
+        assert "goals" not in work
         journal = await call(
             lead_context, "agent_inspect", agent_id=gold["id"], section="operations"
         )
