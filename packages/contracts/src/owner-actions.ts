@@ -117,6 +117,8 @@ export type OwnerAction = {
     global_trading?: GlobalTrading;
     /** The Mandate card: the agent's mode now, read live. */
     trading_mode?: TradingMode;
+    /** The Mandate card: a signed grant of this agent is still in force. */
+    active_grant?: boolean;
     account?: OwnerActionAccount;
     restriction?: {
       action_class: RestrictionActionClass;

@@ -694,6 +694,18 @@ async def card_facts(
         # Read live: the card always shows the mode the agent is in now.
         facts["agent"] = {"exists": True, "id": agent.id, "name": agent.name}
         facts["trading_mode"] = "full" if agent.trading_mode == "full" else "ask"
+        # A signed grant still decides within its own terms until it is revoked.
+        facts["active_grant"] = bool(
+            await session.scalar(
+                select(func.count())
+                .select_from(AccountAuthorityRow)
+                .where(
+                    AccountAuthorityRow.owner_id == row.owner_id,
+                    AccountAuthorityRow.agent_id == agent.id,
+                    AccountAuthorityRow.status == "active",
+                )
+            )
+        )
         return facts, False
     if row.kind == "lift_restriction":
         restriction = await session.get(TradingRestrictionRow, payload["restriction_id"])
