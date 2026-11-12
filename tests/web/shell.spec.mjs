@@ -109,13 +109,13 @@ test.describe("phone shell (390×844, Arabic)", () => {
       await expect.poll(async () => (await lens.boundingBox())?.width).toBeGreaterThan(60);
       await page.screenshot({ path: ".runtime/shell/phone-chats-dark.png" });
 
-      // Tap: المستجدات slides in; the bare tab has no title bar, the title lives in the page.
-      await nav.getByRole("button", { name: /^المستجدات/ }).click();
+      // Tap: يحتاج انتباهك slides in; the bare tab has no title bar, the title lives in the page.
+      await nav.getByRole("button", { name: /^يحتاج انتباهك/ }).click();
       await expect(page).toHaveURL(/\/app\/updates$/);
       await expect(page.locator(".topbar")).toHaveClass(/bare/);
       const title = page.locator("main > .large-title");
-      await expect(title).toHaveText(/المستجدات/);
-      await expect(nav.getByRole("button", { name: /^المستجدات/ })).toHaveAttribute(
+      await expect(title).toHaveText(/يحتاج انتباهك/);
+      await expect(nav.getByRole("button", { name: /^يحتاج انتباهك/ })).toHaveAttribute(
         "aria-current",
         "page",
       );
@@ -772,9 +772,9 @@ test.describe("desktop shell (1280×800, Arabic)", () => {
           await page.locator("#app").evaluate((app) => getComputedStyle(app).backgroundColor),
         ).toBe(theme === "light" ? "rgb(247, 245, 239)" : "rgb(11, 12, 16)");
         await page.screenshot({ path: `.runtime/shell/desktop-home-${theme}.png` });
-        await rail.getByRole("button", { name: "المستجدات", exact: true }).click();
+        await rail.getByRole("button", { name: "يحتاج انتباهك", exact: true }).click();
         await expect(page).toHaveURL(/\/app\/updates$/);
-        await expect(page.locator(".topbar header h1")).toHaveText("المستجدات");
+        await expect(page.locator(".topbar header h1")).toHaveText("يحتاج انتباهك");
         await expect(page.locator(".topbar")).not.toHaveClass(/bare/);
         // The list collapses from the rail and the state is not persisted.
         await rail.getByRole("button", { name: "طي قائمة المحادثات" }).click();
@@ -938,7 +938,7 @@ test("gateway errors in the middle of a session bring maintenance, which clears 
     await page.route("**/health", gateway);
     const heading = page.getByRole("heading", { name: "Lonora is under maintenance" });
     // Three reads without an answer within half a minute.
-    for (const tab of ["Updates", "Tasks", "Settings", "Chats"]) {
+    for (const tab of ["Needs your attention", "Tasks", "Settings", "Chats"]) {
       if (await heading.isVisible()) break;
       await page.locator("nav.tabbar").getByRole("button", { name: tab }).click({ force: true });
     }

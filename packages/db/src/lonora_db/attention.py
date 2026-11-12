@@ -798,8 +798,9 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
     """The "needs your attention" view (11.7) across all agents, newest first.
 
     It lists the open, still-current items of the owner's events and of Tasks that need
-    review, and every run in a conversation that waits on the owner's answer to its
-    question. No model writes any of it.
+    review, every run in a conversation that waits on the owner's answer to its
+    question, and each agent's own unread alert. Only an alert's summary is the agent's
+    words; the server writes everything else.
     """
     from .schema import RunRow, ThreadRow
 
@@ -828,6 +829,34 @@ async def attention_view(session: AsyncSession, owner_id: str) -> list[dict[str,
                 code=code,
                 symbol=item.parameters.get("symbol"),
                 created_at=item.created_at,
+            )
+        )
+    alerts = await session.scalars(
+        select(AttentionRow)
+        .where(
+            AttentionRow.owner_id == owner_id,
+            AttentionRow.code == "agent_notification",
+            AttentionRow.status.in_(["pending", "ready"]),
+        )
+        .order_by(AttentionRow.created_at.desc())
+        .limit(VIEW_LIMIT)
+    )
+    now = utcnow().isoformat()
+    for alert in alerts:
+        if alert.status == "pending" and alert.due_at > utcnow():
+            continue
+        if str(alert.parameters.get("valid_until") or "9999") <= now:
+            continue
+        rows.append(
+            AttentionViewRow(
+                kind="agent_alert",
+                id=alert.id,
+                agent_id=alert.agent_id,
+                thread_id=alert.thread_id,
+                group_id=alert.parameters.get("group_id"),
+                code="agent_notification",
+                summary=alert.parameters.get("summary"),
+                created_at=alert.created_at,
             )
         )
     waiting = await session.execute(

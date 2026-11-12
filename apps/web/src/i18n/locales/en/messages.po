@@ -113,8 +113,8 @@ msgstr "{0} will be added to it"
 
 #. placeholder {0}: agent.name
 #: src/shell/domain/UpdatesPages.tsx:234
-msgid "{0}, has something new"
-msgstr "{0}, has something new"
+#~ msgid "{0}, has something new"
+#~ msgstr "{0}, has something new"
 
 #. placeholder {0}: Math.round((total / cap) * 100)
 #: src/shell/settings/DevicePages.tsx:165
@@ -209,7 +209,7 @@ msgstr "{reads} read"
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/shell/Shell.tsx:486
+#: src/shell/Shell.tsx:487
 msgid "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 msgstr "{sent, plural, one {One waiting message was sent} two {Two waiting messages were sent} few {# waiting messages were sent} many {# waiting messages were sent} other {# waiting messages were sent}}"
 
@@ -343,6 +343,10 @@ msgstr "A new version is available"
 #~ msgid "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 #~ msgstr "A previous operation on this market still needs broker verification, so this new order was not sent. Closing positions, cancelling pending orders and tightening stops remain available."
 
+#: src/shell/domain/UpdatesPages.tsx:159
+msgid "A question is waiting for your answer"
+msgstr "A question is waiting for your answer"
+
 #: src/shell/settings/OwnerPage.tsx:107
 msgid "A removed agent"
 msgstr "A removed agent"
@@ -359,7 +363,7 @@ msgstr "A trade still has no confirmed broker result"
 msgid "A watch ends on its own at its time; you can pause, extend or cancel it."
 msgstr "A watch ends on its own at its time; you can pause, extend or cancel it."
 
-#: src/shell/domain/UpdatesPages.tsx:61
+#: src/shell/domain/UpdatesPages.tsx:52
 msgid "A watch was met"
 msgstr "A watch was met"
 
@@ -431,7 +435,7 @@ msgstr "Account ID"
 msgid "Account limits"
 msgstr "Account limits"
 
-#: src/shell/domain/UpdatesPages.tsx:35
+#: src/shell/domain/UpdatesPages.tsx:26
 msgid "Account limits changed"
 msgstr "Account limits changed"
 
@@ -689,7 +693,7 @@ msgstr "Agent calls"
 msgid "Agent collaboration"
 msgstr "Agent collaboration"
 
-#: src/shell/domain/UpdatesPages.tsx:31
+#: src/shell/domain/UpdatesPages.tsx:22
 msgid "Agent created"
 msgstr "Agent created"
 
@@ -737,7 +741,6 @@ msgstr "Agent template"
 
 #: src/conversation/ChatPrefsPage.tsx:35
 #: src/shell/AgentsPage.tsx:18
-#: src/shell/domain/UpdatesPages.tsx:228
 #: src/shell/lists/ChatList.tsx:185
 #: src/shell/NewChatSheet.tsx:46
 #: src/shell/pages.tsx:86
@@ -2501,7 +2504,7 @@ msgstr "Delegated execution"
 msgid "Delegated task"
 msgstr "Delegated task"
 
-#: src/shell/domain/UpdatesPages.tsx:33
+#: src/shell/domain/UpdatesPages.tsx:24
 msgid "Delegation changed"
 msgstr "Delegation changed"
 
@@ -3419,7 +3422,7 @@ msgstr "Go to the latest messages, {fresh} new"
 msgid "Go to the quoted message"
 msgstr "Go to the quoted message"
 
-#: src/shell/domain/UpdatesPages.tsx:63
+#: src/shell/domain/UpdatesPages.tsx:54
 msgid "Goal added"
 msgstr "Goal added"
 
@@ -3825,7 +3828,7 @@ msgctxt "search hit"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/shell/domain/UpdatesPages.tsx:65
+#: src/shell/domain/UpdatesPages.tsx:56
 msgid "Knowledge added"
 msgstr "Knowledge added"
 
@@ -3882,8 +3885,8 @@ msgid "Later"
 msgstr "Later"
 
 #: src/shell/domain/UpdatesPages.tsx:342
-msgid "Latest actions"
-msgstr "Latest actions"
+#~ msgid "Latest actions"
+#~ msgstr "Latest actions"
 
 #: src/shell/agent/AvatarSheet.tsx:34
 msgid "Laugh"
@@ -4159,7 +4162,6 @@ msgid "Margin"
 msgstr "Margin"
 
 #: src/shell/DesktopList.tsx:74
-#: src/shell/domain/UpdatesPages.tsx:252
 msgid "Mark all as read"
 msgstr "Mark all as read"
 
@@ -4484,8 +4486,13 @@ msgstr "Needs an OpenAI key"
 #~ msgstr "Needs attention"
 
 #: src/shell/domain/UpdatesPages.tsx:278
-msgid "Needs your action"
-msgstr "Needs your action"
+#~ msgid "Needs your action"
+#~ msgstr "Needs your action"
+
+#: src/shell/FloatingTabBar.tsx:21
+#: src/shell/Welcome.tsx:59
+msgid "Needs your attention"
+msgstr "Needs your attention"
 
 #: src/shell/FloatingTabBar.tsx:164
 msgid "new"
@@ -4604,8 +4611,7 @@ msgstr "Next"
 msgid "Next: the chats"
 msgstr "Next: the chats"
 
-#: src/shell/domain/UpdatesPages.tsx:119
-#: src/shell/domain/UpdatesPages.tsx:365
+#: src/shell/domain/UpdatesPages.tsx:110
 msgid "No activity yet."
 msgstr "No activity yet."
 
@@ -4675,8 +4681,8 @@ msgid "No command by that name"
 msgstr "No command by that name"
 
 #: src/shell/domain/UpdatesPages.tsx:336
-msgid "No enabled schedules."
-msgstr "No enabled schedules."
+#~ msgid "No enabled schedules."
+#~ msgstr "No enabled schedules."
 
 #: src/conversation/PermissionMenu.tsx:28
 #: src/conversation/PermissionMenu.tsx:94
@@ -4769,8 +4775,8 @@ msgid "No new notifications"
 msgstr "No new notifications"
 
 #: src/shell/domain/UpdatesPages.tsx:290
-msgid "No notifications."
-msgstr "No notifications."
+#~ msgid "No notifications."
+#~ msgstr "No notifications."
 
 #: src/components/trading/Positions.tsx:105
 msgid "No open positions"
@@ -5010,6 +5016,10 @@ msgstr "note.txt"
 msgid "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 msgstr "Nothing becomes active before your passkey signature; the next step shows exactly what you sign."
 
+#: src/shell/domain/UpdatesPages.tsx:211
+msgid "Nothing needs you right now."
+msgstr "Nothing needs you right now."
+
 #: src/shell/settings/OwnerPage.tsx:280
 msgid "Nothing yet."
 msgstr "Nothing yet."
@@ -5035,9 +5045,9 @@ msgid "Notifications"
 msgstr "Notifications"
 
 #: src/shell/domain/UpdatesPages.tsx:248
-msgctxt "updates section"
-msgid "Notifications"
-msgstr "Notifications"
+#~ msgctxt "updates section"
+#~ msgid "Notifications"
+#~ msgstr "Notifications"
 
 #: src/shell/pages.tsx:144
 #: src/shell/settings/SettingsRoot.tsx:349
@@ -5280,7 +5290,7 @@ msgstr "Opens"
 msgid "Operation id"
 msgstr "Operation id"
 
-#: src/shell/domain/UpdatesPages.tsx:41
+#: src/shell/domain/UpdatesPages.tsx:32
 msgid "Operation resolved"
 msgstr "Operation resolved"
 
@@ -6208,11 +6218,11 @@ msgstr "Restricted: {what}"
 msgid "Restricted: {what} until {until}"
 msgstr "Restricted: {what} until {until}"
 
-#: src/shell/domain/UpdatesPages.tsx:39
+#: src/shell/domain/UpdatesPages.tsx:30
 msgid "Restriction lifted"
 msgstr "Restriction lifted"
 
-#: src/shell/domain/UpdatesPages.tsx:37
+#: src/shell/domain/UpdatesPages.tsx:28
 msgid "Restriction set"
 msgstr "Restriction set"
 
@@ -6814,14 +6824,14 @@ msgstr "Show as a table"
 #~ msgstr "Show as text"
 
 #: src/components/genui/UiCard.tsx:363
-#: src/shell/domain/UpdatesPages.tsx:141
+#: src/shell/domain/UpdatesPages.tsx:132
 #: src/shell/lists/UnifiedSearch.tsx:389
 msgid "Show more"
 msgstr "Show more"
 
 #: src/shell/domain/UpdatesPages.tsx:360
-msgid "Show the full log"
-msgstr "Show the full log"
+#~ msgid "Show the full log"
+#~ msgstr "Show the full log"
 
 #: src/conversation/Conversation.tsx:588
 #~ msgid "Show the interface"
@@ -6922,7 +6932,7 @@ msgstr "Skill"
 msgid "Skill catalog"
 msgstr "Skill catalog"
 
-#: src/shell/domain/UpdatesPages.tsx:53
+#: src/shell/domain/UpdatesPages.tsx:44
 msgid "Skill created"
 msgstr "Skill created"
 
@@ -6947,7 +6957,7 @@ msgstr "Skill restored to version {version}"
 msgid "Skill saved"
 msgstr "Skill saved"
 
-#: src/shell/domain/UpdatesPages.tsx:55
+#: src/shell/domain/UpdatesPages.tsx:46
 msgid "Skill updated"
 msgstr "Skill updated"
 
@@ -7263,11 +7273,11 @@ msgstr "Supervises"
 msgid "Supervision · {0}"
 msgstr "Supervision · {0}"
 
-#: src/shell/domain/UpdatesPages.tsx:59
+#: src/shell/domain/UpdatesPages.tsx:50
 msgid "Supervision ended"
 msgstr "Supervision ended"
 
-#: src/shell/domain/UpdatesPages.tsx:57
+#: src/shell/domain/UpdatesPages.tsx:48
 msgid "Supervision started"
 msgstr "Supervision started"
 
@@ -7353,18 +7363,18 @@ msgid "Task boards"
 msgstr "Task boards"
 
 #: src/conversation/sheets/AgentSheet.tsx:429
-#: src/shell/domain/UpdatesPages.tsx:51
+#: src/shell/domain/UpdatesPages.tsx:42
 msgid "Task cancelled"
 msgstr "Task cancelled"
 
 #: src/components/ai/AttentionInbox.tsx:35
 #: src/shell/domain/TasksPages.tsx:259
-#: src/shell/domain/UpdatesPages.tsx:49
+#: src/shell/domain/UpdatesPages.tsx:40
 msgid "Task completed"
 msgstr "Task completed"
 
 #: src/conversation/Conversation.tsx:408
-#: src/shell/domain/UpdatesPages.tsx:47
+#: src/shell/domain/UpdatesPages.tsx:38
 msgid "Task created"
 msgstr "Task created"
 
@@ -7569,7 +7579,7 @@ msgstr "The broker specifications are unavailable for this exact symbol."
 msgid "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 msgstr "The broker's confirmation did not arrive; «Filled» is never shown before the evidence."
 
-#: src/shell/Shell.tsx:385
+#: src/shell/Shell.tsx:386
 msgid "The call ended."
 msgstr "The call ended."
 
@@ -8107,7 +8117,7 @@ msgstr "This operation will not be sent again."
 msgid "This page could not be displayed"
 msgstr "This page could not be displayed"
 
-#: src/shell/Shell.tsx:335
+#: src/shell/Shell.tsx:336
 msgid "This page is available in the development build only"
 msgstr "This page is available in the development build only"
 
@@ -8542,8 +8552,8 @@ msgid "Unpin"
 msgstr "Unpin"
 
 #: src/shell/domain/UpdatesPages.tsx:285
-msgid "Unread"
-msgstr "Unread"
+#~ msgid "Unread"
+#~ msgstr "Unread"
 
 #: src/shell/lists/ChatList.tsx:183
 msgctxt "chat filter"
@@ -8598,8 +8608,8 @@ msgid "Up to 6 photos and files, 8 MB each"
 msgstr "Up to 6 photos and files, 8 MB each"
 
 #: src/shell/domain/UpdatesPages.tsx:296
-msgid "Upcoming"
-msgstr "Upcoming"
+#~ msgid "Upcoming"
+#~ msgstr "Upcoming"
 
 #: src/shell/UpdateBar.tsx:44
 msgid "Update"
@@ -8611,8 +8621,8 @@ msgstr "Update to get the latest improvements."
 
 #: src/shell/FloatingTabBar.tsx:21
 #: src/shell/Welcome.tsx:59
-msgid "Updates"
-msgstr "Updates"
+#~ msgid "Updates"
+#~ msgstr "Updates"
 
 #: src/shell/domain/FilesPages.tsx:186
 msgid "Upload a file"
@@ -9039,7 +9049,7 @@ msgstr "Working"
 msgid "Working…"
 msgstr "Working…"
 
-#: src/shell/Shell.tsx:892
+#: src/shell/Shell.tsx:893
 msgid "Workspace"
 msgstr "Workspace"
 
@@ -9115,7 +9125,7 @@ msgstr "Yesterday"
 msgid "You"
 msgstr "You"
 
-#: src/shell/domain/UpdatesPages.tsx:43
+#: src/shell/domain/UpdatesPages.tsx:34
 msgid "You approved a request"
 msgstr "You approved a request"
 
@@ -9148,7 +9158,7 @@ msgstr "You reached the name's maximum length"
 #~ msgid "You reached the usage limit"
 #~ msgstr "You reached the usage limit"
 
-#: src/shell/domain/UpdatesPages.tsx:45
+#: src/shell/domain/UpdatesPages.tsx:36
 msgid "You rejected a request"
 msgstr "You rejected a request"
 

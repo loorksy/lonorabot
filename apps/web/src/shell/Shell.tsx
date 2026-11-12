@@ -1,4 +1,5 @@
 import { plural, t } from "@lingui/core/macro";
+import { inAttentionView } from "@lonora/contracts";
 import {
   filterRows,
   liveAvatarState,
@@ -868,7 +869,7 @@ function ShellBody() {
           <DesktopRail
             section={section}
             chatsBadge={chatsBadge}
-            updatesDot={attention.items.length > 0}
+            updatesDot={attention.items.some((item) => inAttentionView(item.code))}
             collapsed={collapsed}
             onToggleCollapsed={toggleList}
             onSection={switchTab}
@@ -942,7 +943,7 @@ function ShellBody() {
               navRef={navRef}
               section={section}
               chatsBadge={chatsBadge}
-              updatesDot={attention.items.length > 0}
+              updatesDot={attention.items.some((item) => inAttentionView(item.code))}
               onTab={switchTab}
               onLensRelease={(root, lensFrom) => pagerTo(root, lensFrom)}
               dragging={busy}

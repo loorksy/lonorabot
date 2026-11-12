@@ -738,7 +738,7 @@ test("after a failed chart list, the agent's next scene update lists again", asy
   await page.request.delete(`/api/charts/${chart.id}`, { headers: { "X-CSRF-Token": csrf } });
 });
 
-test("a broker outage: the heads-up and the updates list open the recovery page", async ({
+test("a broker outage: the heads-up opens the recovery page, the attention view Lonora's conversation", async ({
   page,
 }) => {
   await page.goto("/app");
@@ -752,15 +752,16 @@ test("a broker outage: the heads-up and the updates list open the recovery page"
     new RegExp(`/app/recovery\\?account=${encodeURIComponent(data.account)}$`),
   );
   await expect(page.locator("main .hero h2")).toHaveText("The broker connection dropped");
-  // The updates page's notification row opens the same page.
+  // «يحتاج انتباهك» lists it as a broker problem and opens Lonora's conversation, where
+  // the system alert lands (3.1.5).
   await page.goto("/app/updates");
-  await page
-    .locator("main [data-attention-id]", { hasText: "The account connection has been lost" })
-    .first()
-    .click();
-  await expect(page).toHaveURL(
-    new RegExp(`/app/recovery\\?account=${encodeURIComponent(data.account)}$`),
-  );
+  const row = page
+    .locator('main [data-attention-kind="broker_health"]', {
+      hasText: "The account connection has been lost",
+    })
+    .first();
+  await row.click();
+  await expect(page).toHaveURL(/\/app\/[^/?]+\?thread=/);
 });
 
 test("desktop: the agent page sits in the 720px column, centred", async ({ page }) => {

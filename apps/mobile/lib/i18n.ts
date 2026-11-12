@@ -296,16 +296,7 @@ export const labels = {
     "انتهى طلب التفويض أو استُخدم؛ راجع طلبًا جديدًا.",
     "This authorization expired or was used. Review a new request.",
   ],
-  notifications: ["التنبيهات", "Notifications"],
-  noNotifications: ["لا توجد تنبيهات جديدة", "No new notifications"],
-  markAsRead: ["تحديد كمقروء", "Mark as read"],
-  attentionOpportunityPreference: [
-    "نبّهني بالفرص المؤكدة",
-    "Notify me about confirmed opportunities",
-  ],
-  attentionEmergency: ["التداول الجديد متوقف", "New trading stopped"],
   attentionApproval: ["بانتظار الموافقة", "Waiting for approval"],
-  attentionRequestUpdated: ["تم تحديث الطلب", "Request updated"],
   attentionBrokerTokenRejected: ["رفضت MetaApi رمز الوصول", "MetaApi rejected the access token"],
   attentionBrokerUndeployed: [
     "الحساب غير مُشغَّل على MetaApi",
@@ -317,38 +308,13 @@ export const labels = {
     "بطاقة التفويض بانتظار لمستك",
     "A Mandate card is waiting for your tap",
   ],
-  attentionAccountChanged: ["تغيّر حساب الوسيط", "Broker account changed"],
-  attentionSetupConfirmed: [
-    "تأكد شرط المراقبة — راجع الأدلة الحالية",
-    "Watch confirmed — review current evidence",
-  ],
-  attentionThesisChanged: ["تغيّرت صلاحية الفكرة", "Setup validity changed"],
-  attentionWatchChanged: ["تغيّر شرط المراقبة", "Watch condition changed"],
-  attentionCollaborationCompleted: ["نتيجة التعاون جاهزة", "Collaboration result is ready"],
-  attentionTaskCompleted: ["اكتملت المهمة", "Task completed"],
-  attentionTaskDegraded: [
-    "المهمة تعيد المحاولة أثناء تعطل النموذج",
-    "Task is retrying through a model outage",
-  ],
-  attentionUpdated: ["تم تحديث النشاط", "Activity updated"],
-  attentionItemQuarantined: [
-    "أُوقف عنصر في الخلفية بعد أخطاء متكررة؛ يستمر كل ما عداه في العمل",
-    "A background item was paused after repeated errors; everything else keeps running",
-  ],
-  attentionRunQuarantined: [
-    "توقف عمل بعد انقطاعات متكررة",
-    "Work stopped after repeated interruptions",
-  ],
-  attentionOperationUnresolved: [
-    "صفقة ما زالت بلا نتيجة مؤكدة من الوسيط",
-    "A trade still has no confirmed broker result",
-  ],
+  attentionOwnerQuestion: ["سؤال بانتظار جوابك", "A question is waiting for your answer"],
+  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
+  attentionNothing: ["لا شيء يحتاجك الآن.", "Nothing needs you right now."],
   attentionOperationUncertain: [
     "الوسيط لم يؤكد صفقة — أخبر لونورا هل نُفذت",
     "The broker did not confirm a trade — tell Lonora whether it executed",
   ],
-  attentionGatewayDegraded: ["خدمة الخلفية متأخرة", "Background service is running late"],
-  attentionAgentAlert: ["نبّهك وكيلك", "Your agent alerted you"],
   retryScheduled: ["إعادة المحاولة مجدولة", "Retry scheduled"],
   modelRetryScheduled: [
     "مزود النموذج غير متاح — إعادة المحاولة مجدولة",

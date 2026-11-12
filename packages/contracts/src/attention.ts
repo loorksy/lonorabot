@@ -89,3 +89,28 @@ export interface AttentionPolicy {
   informational: boolean;
   locale: "ar" | "en";
 }
+/**
+ * What the "needs your attention" view (mandate 11.7) lists: the owner's events, the
+ * questions a run waits on the owner to answer, the Tasks that need review, and an
+ * agent's own unread alert (owner_notify), which has no other place outside its chat.
+ */
+export type AttentionViewKind = AttentionEvent | "owner_question" | "task_review" | "agent_alert";
+/** Whether an item of this code is listed in the attention view (the tab's dot). */
+export function inAttentionView(code: AttentionCode): boolean {
+  return code in ATTENTION_EVENTS || code === "task_review" || code === "agent_notification";
+}
+/** One row of GET /attention/view; it opens its conversation, and opening decides nothing. */
+export interface AttentionViewRow {
+  kind: AttentionViewKind;
+  id: string;
+  agent_id: string;
+  thread_id: string;
+  group_id?: string | null;
+  /** The attention item's code (null for a question a run waits on). */
+  code?: AttentionCode | null;
+  run_id?: string | null;
+  symbol?: string | null;
+  /** An agent's alert: its plain summary for the owner (the agent's words). */
+  summary?: string | null;
+  created_at: string;
+}
