@@ -243,21 +243,35 @@ async def test_light_goals_and_links_belong_to_one_agent():
 
 
 @pytest.mark.asyncio
-async def test_semantic_notes_list_by_title_and_need_the_semantic_model():
+async def test_semantic_notes_list_by_title_and_need_no_hidden_switch():
     database()
     from check_streaming import Fixture
     from lonora_db.schema import SemanticMemoryRow
+    from lonora_memory.evidence import retrieve_evidence
 
     fixture = await Fixture().open()
     try:
         agent = await fixture.agent("Notes")
-        code, body = await status_of(
-            fixture,
+        # Mandate 13.1: a knowledge note is saved without an embedding model (none is
+        # configured here) and recall finds it by its words; embeddings only re-rank.
+        saved = await fixture.request(
             "POST",
             f"/agents/{agent['id']}/knowledge/notes",
-            {"title": "t", "content": "c"},
+            {"title": "Gold rule", "content": "Scale into gold only after the London open."},
         )
-        assert code == 409 and body["code"] == "semantic_model_required"
+        assert saved["indexed"] is True
+        recalled = await retrieve_evidence(
+            fixture.runtime.db, cast(Any, None), fixture.owner, agent["id"], "london open gold"
+        )
+        assert [item.text for item in recalled.items if item.source == "semantic_note"] == [
+            "Scale into gold only after the London open."
+        ]
+        async with fixture.runtime.db.sessions() as session:
+            row = await session.get(SemanticMemoryRow, saved["id"])
+            assert row is not None and row.payload["model"] is None
+            assert row.payload["embedding"] == []
+            await session.delete(row)
+            await session.commit()
         async with fixture.runtime.db.sessions() as session, session.begin():
             session.add(
                 SemanticMemoryRow(
