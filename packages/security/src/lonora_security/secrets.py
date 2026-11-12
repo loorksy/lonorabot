@@ -44,6 +44,10 @@ class SecretCipher:
 
 
 B64_ALPHABET = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-_")
+# The shortest workspace value the scan finds at every base64 alignment: from three bytes
+# on, each alignment keeps at least three characters that depend on the value alone. In a
+# shorter value's base64 inside other bytes, every character mixes in a neighbour's bits.
+SHORTEST_SECRET = 3
 LINE_BREAKS = "\r\n"
 
 

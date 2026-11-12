@@ -200,6 +200,12 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
         )
         # Another scope's value is not the workspace's to scan (VISION.md 7.2.3).
         services = fixture.runtime.services(fixture.owner)
+        # A value too short to find at every base64 alignment is not stored.
+        for short in ("ab", "\u00e9\u00e9"):
+            with pytest.raises(LonoraError) as refused:
+                await services.secrets.write(name, short, "workspace")
+            assert refused.value.code == "secret_value_too_short"
+        assert await services.secrets.read(saved[0]) == value
         other = "integration-" + uuid4().hex
         saved.append(await services.secrets.write("feed-" + other[-6:], other, "integration"))
         agent = await fixture.agent("Redaction")
@@ -219,7 +225,7 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
 
         # A secret that crosses a page boundary never comes back in two halves.
         body = "A" * 7990 + value + "B" * 100
-        files = {"notes.txt": body, "short.txt": "key " + value}
+        files = {"notes.txt": body, "short.txt": "key " + value, value + ".md": "x"}
         written = await call(
             "write", "workspace_update", {"revision": 0, "files": files, "delete": []}
         )
@@ -236,6 +242,13 @@ async def test_a_command_that_prints_a_secret_returns_its_name() -> None:
             offset = page["next_offset"]
         assert len(pages) == 2 and "".join(pages) == f"{'A' * 7990}[secret:{name}]{'B' * 100}"
         assert not any(value[:8] in page or value[-8:] in page for page in pages)
+        # The path a read echoes is scanned like the content.
+        named = await call(
+            "named",
+            "workspace_read",
+            {"revision": 1, "path": value + ".md", "offset": 0, "limit": 100},
+        )
+        assert named["path"] == f"[secret:{name}].md" and named["content"] == "x"
 
         plain = await run("print", 1, "print " + name)
         assert plain["stdout"] == f"[secret:{name}]\n"
