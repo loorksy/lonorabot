@@ -293,6 +293,8 @@ async def test_builder_keeps_untrusted_material_out_of_the_system_role(
     monkeypatch.setattr(
         builder, "attachment_parts", AsyncMock(return_value=("Attachment " + hostile, []))
     )
+    # The owner's own note, not a file someone else wrote: the run keeps its provenance.
+    monkeypatch.setattr(builder, "third_party_attachment", AsyncMock(return_value=False))
     monkeypatch.setattr(
         builder, "history_gap", AsyncMock(return_value=HistoryGap(11, 30, 20, None, None))
     )

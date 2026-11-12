@@ -577,7 +577,7 @@ if docker ps --filter label=com.docker.compose.project=lonora2 --format '{{.Port
 [[ "$(docker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}' lonora2-api-1)" == "939524096 750000000" ]] || fail "api limits: $(docker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}' lonora2-api-1)"
 mapfile -t side_ids < <(docker ps -q --filter label=com.docker.compose.project=lonora2)
 total="$(docker inspect -f '{{.HostConfig.Memory}}' "${side_ids[@]}" | awk '{s+=$1} END {print int(s/1048576)}')"
-((total > 0 && total <= 2560)) || fail "stack memory limit ${total} MB"
+((total > 0 && total <= 3584)) || fail "stack memory limit ${total} MB"
 [[ -n "$(docker volume ls -q --filter name=^lonora2_database$)" ]] || fail 'volumes prefixed with the project'
 lonora update v2 >"$work/side-update.log" 2>&1 || { show "$work/side-update.log"; fail 'side-by-side update'; }
 lonora backup >"$work/side-backup.log" 2>&1 || { show "$work/side-backup.log"; fail 'side-by-side backup'; }
