@@ -535,7 +535,9 @@ async def test_lonora_restores_a_team_agents_method_and_skill_and_a_peer_cannot(
         ]
         current = profile_documents((await call(registry, own, "memory_read"))["content"])
         assert current["OPERATING.md"] == text == "- Trade the London open only"
-        revisions = await fixture.request("GET", f"/agents/{gold['id']}/memory/revisions")
+        revisions: list[dict[str, Any]] = await fixture.request(
+            "GET", f"/agents/{gold['id']}/memory/revisions"
+        )
         assert revisions[0]["author_agent_id"] == lonora["id"]
         skills = await call(
             registry, lead, "skill_history", skill_id="gold-open", agent_id=gold["id"]
