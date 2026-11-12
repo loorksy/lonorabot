@@ -34,8 +34,8 @@ from lonora_db.owner_actions import (
 )
 from lonora_db.runs import require_lease
 from lonora_db.schema import AgentRow, BrokerSessionRow, EffectReceiptRow, OwnerActionRow
-from lonora_session.idempotency import stable_id
 from pydantic import Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import Tool
@@ -129,7 +129,14 @@ async def resolve_market(
     broker = await brokers.get(owner_id, row.id)
     if (await broker.instrument(name)).symbol != name:
         raise LonoraError("broker_symbol_mismatch", 409)
-    return {"resolved": True, "account_id": row.id, "symbol": name, "version": row.version}
+    return {
+        "resolved": True,
+        "account_id": row.id,
+        # The broker's verified label, else the connection id the agent's tools take.
+        "account": account_facts(row, row.id)["label"] or row.id,
+        "symbol": name,
+        "version": row.version,
+    }
 
 
 def creation_receipt(owner_id: str, message_id: str, name: str) -> str:
@@ -150,8 +157,11 @@ async def created_result(
 ) -> dict[str, Any]:
     from lonora_db.trading_mode import trading_mode
 
-    mandate = await session.get(
-        OwnerActionRow, stable_id(context.owner_id, "owner-action:trading_mode:" + row.id)
+    mandate = await session.scalar(
+        select(OwnerActionRow.id).where(
+            OwnerActionRow.owner_id == context.owner_id,
+            OwnerActionRow.subject == "trading_mode:" + row.id,
+        )
     )
     return {
         "created": True,
@@ -201,7 +211,7 @@ async def assigned_market(
             row = await BrokerSessionRepository().get(session, context.owner_id, params.account_id)
             spec.update(
                 account_id=row.id,
-                account_label=account_facts(row, row.id)["label"],
+                account_label=account_facts(row, row.id)["label"] or row.id,
                 connection_version=row.version,
             )
     return None
