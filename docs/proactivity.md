@@ -32,7 +32,7 @@ conversation, never in a chat of its own.
 Migration `0090_routine_work_threads` converts the routine chats of earlier releases:
 a chat used only by a routine or a thread-less watch becomes that routine's work thread.
 A thread stays a conversation when the owner wrote in it, when other work ran in it,
-when it holds a record the owner reads there (an approval, a card, a journal row, a Goal,
+when it holds a record the owner reads there (an approval, a card, a journal row,
 an opportunity, an artifact, a peer message, a collaboration, a Task, a place in a chat
 list, a pin or a favourite), when a question in it waits for the owner's answer, or when it
 is the agent's earliest conversation; a routine on such a thread moves to a new work
